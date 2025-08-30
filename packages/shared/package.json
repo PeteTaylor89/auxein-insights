@@ -1,0 +1,26 @@
+{
+  "name": "@vineyard/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./api": "./src/api/index.js",
+    "./api/*": "./src/api/*",
+    "./types": "./src/types/index.js",
+    "./utils": "./src/utils/index.js"
+  },
+  "scripts": {
+    "build": "echo 'No build needed for shared package'",
+    "dev": "echo 'Shared package in development mode'"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.6.0",
+    "jwt-decode": "^4.0.0"
+  }
+}

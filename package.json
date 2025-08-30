@@ -1,0 +1,25 @@
+{
+  "name": "vineyard-management",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
+    "dev:web": "cd packages/web && npm run dev",
+    "dev:mobile": "cd packages/mobile && npm start",
+    "dev:all": "concurrently --names \"API,WEB\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:web\"",
+    "dev:full": "concurrently \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\"",
+    "install:all": "npm install && npm run install:packages",
+    "install:packages": "cd packages/shared && npm install && cd ../web && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "cross-env": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

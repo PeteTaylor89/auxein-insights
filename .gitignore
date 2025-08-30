@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+.env
+
+# Uploads (keep empty dirs tracked)
+uploads/
+!uploads/.gitkeep
+backend/uploads/
+!backend/uploads/.gitkeep
+
+# Database backups (large / sensitive)
+*.sql
+vineyard_backup.sql
+vineyard_data.sql
+vineyard_schema.sql
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local env variants (if any)
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
