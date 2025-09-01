@@ -102,12 +102,7 @@ class ContractorAssignment(Base):
     completer = relationship("User", foreign_keys=[completed_by])
     approver = relationship("User", foreign_keys=[approved_by])
     canceller = relationship("User", foreign_keys=[cancelled_by])
-    files = relationship(
-        "File",
-        primaryjoin="and_(ContractorAssignment.id == foreign(remote(File.entity_id)), "
-                   "File.entity_type == 'contractor_assignment')",
-        cascade="all, delete-orphan"
-    )
+
 
     # Self-referential for recurring assignments
     parent_assignment = relationship("ContractorAssignment", remote_side=[id])

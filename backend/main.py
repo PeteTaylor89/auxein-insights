@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, files
+from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate
 from core.config import settings
 import logging
 import traceback
@@ -240,12 +240,6 @@ app.include_router(
     climate.router, 
     prefix="/api/climate",
     tags=["climate"]
-)
-
-app.include_router(
-    files.router, 
-    prefix="/api/files",
-    tags=["files"]
 )
 
 

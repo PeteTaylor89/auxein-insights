@@ -110,12 +110,6 @@ class Incident(Base):
     reviewer = relationship("User", foreign_keys=[reviewed_by])
     approver = relationship("User", foreign_keys=[approved_by])
     related_risk = relationship("SiteRisk", back_populates="incidents")
-    files = relationship(
-        "File",
-        primaryjoin="and_(Incident.id == foreign(remote(File.entity_id)), "
-                   "File.entity_type == 'incident')",
-        cascade="all, delete-orphan"
-    )
     # corrective_actions = relationship("RiskAction", back_populates="incident")
     
     def __repr__(self):

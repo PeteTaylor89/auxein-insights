@@ -6,7 +6,6 @@ from db.models.user import User
 from db.models.block import VineyardBlock
 from db.models.vineyard_row import VineyardRow
 from db.models.observation import Observation
-from db.models.file import File
 from db.models.token_blacklist import TokenBlacklist  
 from db.models.invitation import Invitation
 from db.models.primary_parcel import PrimaryParcel

@@ -125,12 +125,6 @@ class Contractor(Base):
     movements = relationship("ContractorMovement", back_populates="contractor", cascade="all, delete-orphan")
     assignments = relationship("ContractorAssignment", back_populates="contractor", cascade="all, delete-orphan")
     training_records = relationship("ContractorTraining", back_populates="contractor", cascade="all, delete-orphan")
-    files = relationship(
-        "File",
-        primaryjoin="and_(Contractor.id == foreign(remote(File.entity_id)), "
-                "File.entity_type == 'contractor')",
-        cascade="all, delete-orphan"
-    )
     
     def __repr__(self):
         return f"<Contractor(id={self.id}, business_name='{self.business_name}', contact_person='{self.contact_person}')>"
@@ -234,10 +228,10 @@ class Contractor(Base):
     def update_last_login(self):
         """Update last login timestamp"""
         self.last_login = datetime.now(timezone.utc)
-    
+    """
     def add_verification_document(self, doc_type: str, subtype: str, file_path: str, 
                                 original_filename: str, expires_at: str = None):
-        """Add a verification document"""
+        
         if self.verification_documents is None:
             self.verification_documents = []
         
@@ -254,7 +248,7 @@ class Contractor(Base):
         }
         
         self.verification_documents.append(document)
-    
+    """
     def get_specialization_display(self):
         """Get formatted specializations for display"""
         if not self.specializations:

@@ -23,11 +23,5 @@ class Observation(Base):
     creator = relationship("User", back_populates="observations")
     company = relationship("Company", back_populates="observations")
     row = relationship("VineyardRow", back_populates="observations")
-    files = relationship(
-        "File",
-        primaryjoin="and_(Observation.id == foreign(remote(File.entity_id)), "
-                   "File.entity_type == 'observation')",
-        cascade="all, delete-orphan",
-        viewonly=False  # Allow modifications
-    )
+
     
