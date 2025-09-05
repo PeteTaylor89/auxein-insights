@@ -14,7 +14,7 @@ from db.models.company_land_ownership import CompanyLandOwnership
 from db.models.spatial_area import SpatialArea
 from db.models.visitor import Visitor, VisitorVisit
 from db.models.site_risk import SiteRisk
-
+from db.models.timesheet import TimesheetDay, TimeEntry
 from .training_module import TrainingModule
 from .training_slide import TrainingSlide  
 from .training_question import TrainingQuestion

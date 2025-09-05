@@ -82,6 +82,19 @@ class User(Base):
     contractor_movements_checked_in = relationship("ContractorMovement", foreign_keys="ContractorMovement.checked_in_by", back_populates="checked_in_by_user")
     contractor_movements_checked_out = relationship("ContractorMovement", foreign_keys="ContractorMovement.checked_out_by", back_populates="checked_out_by_user")
 
+    timesheets = relationship(
+        "TimesheetDay",
+        back_populates="user",
+        foreign_keys="TimesheetDay.user_id",   # <-- key bit
+        cascade="all, delete-orphan",
+    )
+
+    approved_timesheets = relationship(
+        "TimesheetDay",
+        back_populates="approved_by_user",  
+        foreign_keys="TimesheetDay.approved_by",
+        viewonly=True,
+    )
 
     
     def __repr__(self):

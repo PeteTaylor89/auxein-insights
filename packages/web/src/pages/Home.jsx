@@ -125,9 +125,9 @@ function Home() {
               <div className="icon-wrapper"><LibraryBig /></div>
               <div className="actions-title">Training</div>
             </Link>
-            <Link to="/insights" className="stat-card">
+            <Link to="/timesheets" className="stat-card">
               <div className="icon-wrapper"><Lightbulb /></div>
-              <div className="actions-title">Inisghts</div>
+              <div className="actions-title">Timesheets</div>
             </Link>
           </div>
         </div>

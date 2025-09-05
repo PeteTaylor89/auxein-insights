@@ -18,6 +18,7 @@ export { default as vineyardRowsService } from './vineyardRowsService.js';
 export { default as visitorService } from './visitorService.js';
 export { default as weatherCacheService } from './weatherCacheService.js';
 export { default as weatherService } from './weatherService.js';
+export { default as timesheetsService } from './timesheetsService.js';
 
 
 

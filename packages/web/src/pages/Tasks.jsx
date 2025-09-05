@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import {tasksService, blocksService, api} from '@vineyard/shared';
-
+import SlidingTaskForm from '../components/SlidingTaskForm';
 import AppBar from '../components/AppBar';
 
 function Tasks() {
@@ -11,6 +11,8 @@ function Tasks() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [blocks, setBlocks] = useState({});
+  const [blocksArray, setBlocksArray] = useState([]); // Add this for the form
+  const [users, setUsers] = useState([]); // Add this for the form
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCloseDialog, setShowCloseDialog] = useState(false);
@@ -19,48 +21,107 @@ function Tasks() {
     completion_date: new Date().toISOString().split('T')[0],
     completion_notes: ''
   });
-
+  
+  // Add these new state variables for the task form
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
 
   useEffect(() => {
     loadTasksAndBlocks();
+    getCurrentLocation(); // Add this
+    loadUsers(); // Add this
   }, []);
 
-  const loadTasksAndBlocks = async () => {
-  try {
-    setLoading(true);
-    
-    // Get all tasks (without company filter since the model doesn't have company_id)
-    const allTasks = await tasksService.getAllTasks();
-    
-    // Load blocks to get names and filter tasks
-    const blocksData = await blocksService.getCompanyBlocks();
-    const blocksMap = {};
-    const companyBlockIds = [];
-    
-    if (blocksData.blocks) {
-      blocksData.blocks.forEach(block => {
-        blocksMap[block.id] = block;
-        companyBlockIds.push(block.id);
-      });
+  // Add this function to get current location
+  const getCurrentLocation = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCurrentLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.warn('Could not get location:', error.message);
+        }
+      );
     }
-    
-    // Filter tasks to only show those from company blocks
-    const companyTasks = allTasks.filter(task => 
-      companyBlockIds.includes(task.block_id)
-    );
-    
-    // Filter for open tasks only
-    const openTasks = companyTasks.filter(task => task.status !== 'completed');
-    setTasks(openTasks);
-    setBlocks(blocksMap);
-    
-  } catch (err) {
-    console.error('Error loading data:', err);
-    setError('Failed to load tasks');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  // Add this function to load users
+  const loadUsers = async () => {
+    try {
+      // You'll need to implement this based on your user service
+      // const usersData = await userService.getUsers();
+      // setUsers(usersData);
+      
+      // For now, setting empty array - replace with actual user loading logic
+      setUsers([]);
+    } catch (err) {
+      console.warn('Could not load users:', err);
+    }
+  };
+
+  const loadTasksAndBlocks = async () => {
+    try {
+      setLoading(true);
+      
+      // Get all tasks (without company filter since the model doesn't have company_id)
+      const allTasks = await tasksService.getAllTasks();
+      
+      // Load blocks to get names and filter tasks
+      const blocksData = await blocksService.getCompanyBlocks();
+      const blocksMap = {};
+      const companyBlockIds = [];
+      const blocksForForm = []; // Add this for the form
+      
+      if (blocksData.blocks) {
+        blocksData.blocks.forEach(block => {
+          blocksMap[block.id] = block;
+          companyBlockIds.push(block.id);
+          // Add this for the form
+          blocksForForm.push({
+            properties: {
+              id: block.id,
+              block_name: block.block_name,
+              variety: block.variety || 'Unknown',
+            },
+            geometry: block.geometry,
+          });
+        });
+      }
+      
+      // Filter tasks to only show those from company blocks
+      const companyTasks = allTasks.filter(task => 
+        companyBlockIds.includes(task.block_id)
+      );
+      
+      // Filter for open tasks only
+      const openTasks = companyTasks.filter(task => task.status !== 'completed');
+      setTasks(openTasks);
+      setBlocks(blocksMap);
+      setBlocksArray(blocksForForm); // Add this
+      
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Failed to load tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add this function to handle task creation
+  const handleTaskSubmit = async (newTaskData) => {
+    try {
+      await tasksService.createTask(newTaskData);
+      // Reload tasks after creation
+      await loadTasksAndBlocks();
+    } catch (err) {
+      console.error('Error creating task:', err);
+      throw err; // Re-throw so the form can handle the error
+    }
+  };
 
   const handleCloseTask = (task) => {
     setTaskToClose(task);
@@ -130,7 +191,15 @@ function Tasks() {
       <AppBar/>
       <div className="page-header">
         <h1>Tasks</h1>
-
+        {/* Add the create task button */}
+        <div className="header-buttons">
+          <button
+            className="create-task-button"
+            onClick={() => setShowTaskForm(true)}
+          >
+            + New Task
+          </button>
+        </div>
       </div>
 
       <div className="tasks-content">
@@ -141,8 +210,14 @@ function Tasks() {
         ) : tasks.length === 0 ? (
           <div className="empty-state">
             <p>No open tasks</p>
-            <button onClick={() => navigate('/maps')} className="create-button">
-              Create Task from Map
+            <button
+              onClick={() => setShowTaskForm(true)}
+              className="create-button"
+            >
+              Create Your First Task
+            </button>
+            <button onClick={() => navigate('/maps')} className="create-button secondary">
+              Create from Map
             </button>
           </div>
         ) : (
@@ -234,6 +309,17 @@ function Tasks() {
         </div>
       )}
 
+      {/* Add the SlidingTaskForm */}
+      <SlidingTaskForm
+        isOpen={showTaskForm}
+        onClose={() => setShowTaskForm(false)}
+        blocks={blocksArray}
+        users={users}
+        currentLocation={currentLocation}
+        user={user}
+        onSubmit={handleTaskSubmit}
+      />
+
       <MobileNavigation />
 
       <style jsx>{`
@@ -260,6 +346,29 @@ function Tasks() {
           font-size: 1.5rem;
           font-weight: 600;
           color: #111827;
+        }
+
+        /* Add styles for the header buttons */
+        .header-buttons { 
+          display: flex; 
+          align-items: center; 
+          gap: 0.5rem; 
+        }
+        
+        .create-task-button {
+          background: #446145; 
+          color: white; 
+          border: none; 
+          padding: 0.75rem 1rem;
+          border-radius: 8px; 
+          font-size: 0.875rem; 
+          font-weight: 600; 
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+        
+        .create-task-button:hover { 
+          background: #374532; 
         }
 
         .tasks-content {
@@ -301,7 +410,6 @@ function Tasks() {
           overflow: hidden;
           text-overflow: ellipsis;
         }
-
 
         .task-list {
           display: flex;
@@ -418,21 +526,35 @@ function Tasks() {
           color: #6b7280;
         }
 
+        .empty-state { 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          gap: 1rem; 
+        }
+
         .create-button {
-          margin-top: 1rem;
-          background: #3b82f6;
+          background: #446145;
           color: white;
           border: none;
           padding: 0.75rem 1.5rem;
           border-radius: 8px;
           font-size: 0.875rem;
-          font-weight: 500;
+          font-weight: 600;
           cursor: pointer;
-          transition: background-color 0.2s;
+          transition: background-color 0.2s ease;
         }
 
         .create-button:hover {
-          background: #2563eb;
+          background: #374532;
+        }
+
+        .create-button.secondary { 
+          background: #3b82f6; 
+        }
+        
+        .create-button.secondary:hover { 
+          background: #2563eb; 
         }
 
         /* Dialog styles */
@@ -537,6 +659,19 @@ function Tasks() {
 
         .submit-button:hover {
           background-color: #388E3C;
+        }
+
+        @media (max-width: 768px) {
+          .page-header { 
+            flex-direction: column; 
+            align-items: flex-start; 
+            gap: 1rem; 
+          }
+          
+          .header-buttons { 
+            width: 100%; 
+            justify-content: flex-start; 
+          }
         }
       `}</style>
     </div>

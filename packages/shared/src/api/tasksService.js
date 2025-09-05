@@ -1,4 +1,4 @@
-// src/services/tasksService.js
+//packages/shared/src/api/tasksService.js
 import api from './api';
 
 const tasksService = {
@@ -50,8 +50,6 @@ const tasksService = {
       priority,
       assignedTo,
       blockId,
-      dueBefore,
-      dueAfter,
       createdBy,
       completionDate,
       title,

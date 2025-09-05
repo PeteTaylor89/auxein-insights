@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate
+from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets
 from core.config import settings
 import logging
 import traceback
@@ -242,6 +242,13 @@ app.include_router(
     tags=["climate"]
 )
 
+app.include_router(
+    timesheets.router, 
+    prefix="/api",
+    tags=["timesheets"]
+)
+
+
 
 # API endpoints
 @app.get("/api", tags=["root"])
@@ -285,10 +292,10 @@ def list_all_routes():
     """Debug: List all registered routes"""
     routes = []
     for route in app.routes:
-        if hasattr(route, 'path'):
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
             route_info = {
                 "path": route.path,
-                "methods": list(getattr(route, 'methods', [])),
+                "methods": list(route.methods),
                 "name": getattr(route, 'name', 'unknown')
             }
             routes.append(route_info)

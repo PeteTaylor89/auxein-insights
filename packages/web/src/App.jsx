@@ -22,9 +22,7 @@ import TrainingModules from './pages/TrainingModules';
 import ModuleEditor from './pages/ModuleEditor';
 import TakeTraining from './pages/TakeTraining';
 import Insights from './pages/Insights';
-
-//import TrainingReports from './pages/TrainingReports';
-
+import TimesheetSystem from './pages/TimesheetSystem';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -156,6 +154,13 @@ function AppRoutes() {
           <ModuleEditor />
         </ProtectedRoute>
       } />
+
+      <Route path="/timesheets" element={
+        <ProtectedRoute>
+          <TimesheetSystem />
+        </ProtectedRoute>
+      } />
+
 
       <Route path="/training/take/:recordId" element={<TakeTraining />} />
 

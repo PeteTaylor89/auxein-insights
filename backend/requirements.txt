@@ -52,3 +52,5 @@ typing-inspection==0.4.0
 typing_extensions==4.13.2
 tzdata==2025.2
 uvicorn==0.34.1
+link==2.1.4
+next==1.0.1

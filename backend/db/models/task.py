@@ -29,3 +29,4 @@ class Task(Base):
     risk_action = relationship("RiskAction", back_populates="task", uselist=False)
     assigned_contractor = relationship("Contractor")  # New relationship
     contractor_assignments = relationship("ContractorAssignment", back_populates="task")
+    time_entries = relationship("TimeEntry", back_populates="task", cascade="all, delete-orphan")
