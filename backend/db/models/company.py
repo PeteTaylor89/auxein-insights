@@ -72,6 +72,7 @@ class Company(Base):
     visitor_visits = relationship("VisitorVisit", back_populates="company")
     training_modules = relationship("TrainingModule", back_populates="company")
     timesheets = relationship("TimesheetDay", back_populates="company", cascade="all, delete-orphan")
+    assets = relationship("Asset", back_populates="company")
     contractor_relationships = relationship(
         "ContractorRelationship", 
         back_populates="company", 

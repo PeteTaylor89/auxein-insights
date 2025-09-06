@@ -30,3 +30,13 @@ class Task(Base):
     assigned_contractor = relationship("Contractor")  # New relationship
     contractor_assignments = relationship("ContractorAssignment", back_populates="task")
     time_entries = relationship("TimeEntry", back_populates="task", cascade="all, delete-orphan")
+    task_assets = relationship("TaskAsset", back_populates="task", cascade="all, delete-orphan")
+
+
+@property
+def primary_assets(self):
+    return [ta.asset for ta in self.task_assets if ta.role == "primary"]
+
+@property 
+def consumable_assets(self):
+    return [ta.asset for ta in self.task_assets if ta.role == "consumable"]

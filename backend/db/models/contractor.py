@@ -125,6 +125,8 @@ class Contractor(Base):
     movements = relationship("ContractorMovement", back_populates="contractor", cascade="all, delete-orphan")
     assignments = relationship("ContractorAssignment", back_populates="contractor", cascade="all, delete-orphan")
     training_records = relationship("ContractorTraining", back_populates="contractor", cascade="all, delete-orphan")
+    maintenance_performed = relationship("AssetMaintenance", foreign_keys="AssetMaintenance.performed_by_contractor_id")
+    calibrations_performed = relationship("AssetCalibration", foreign_keys="AssetCalibration.calibrated_by_contractor_id")
     
     def __repr__(self):
         return f"<Contractor(id={self.id}, business_name='{self.business_name}', contact_person='{self.contact_person}')>"
