@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets
+from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations
 from core.config import settings
 import logging
 import traceback
@@ -115,7 +115,9 @@ app = FastAPI(
     version="0.1.0",
     openapi_tags=tags_metadata,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc", 
+    swagger_ui_parameters={"persistAuthorization": True}
+
 )
 
 @app.middleware("http")
@@ -248,7 +250,29 @@ app.include_router(
     tags=["timesheets"]
 )
 
+app.include_router(
+    files.router, 
+    prefix="/api/files",
+    tags=["files"]
+)
 
+app.include_router(
+    assets.router, 
+    prefix="/api/assets",
+    tags=["assets"]
+)
+
+app.include_router(
+    maintenance.router, 
+    prefix="/api/maintenance",
+    tags=["maintenance"]
+)
+
+app.include_router(
+    calibrations.router, 
+    prefix="/api/calibrations",
+    tags=["calibrations"]
+)
 
 # API endpoints
 @app.get("/api", tags=["root"])
@@ -310,8 +334,11 @@ if os.path.exists(static_dir):
     # Catch-all route for React app (client-side routing)
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
-        # Skip API routes
-        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("redoc"):
+        # Skip API, docs, and OpenAPI schema
+        if (
+            full_path in ("openapi.json",) or
+            full_path.startswith(("api/", "docs", "redoc"))
+        ):
             return {"error": "Route not found"}
         
         # Check if file exists in static directory
@@ -334,42 +361,70 @@ else:
             "api_docs": "/docs"
         }
 
+
 # Enhanced OpenAPI schema for better documentation
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
         description=app.description,
         routes=app.routes,
     )
-    
-    # Add JWT Bearer authentication to the schema
-    if "components" not in openapi_schema:
-        openapi_schema["components"] = {}
-        
-    openapi_schema["components"]["securitySchemes"] = {
-        "bearerAuth": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-        }
+
+    # Ensure both schemes exist (bearerAuth is the one Swagger will use)
+    comps = openapi_schema.setdefault("components", {})
+    sec_schemes = comps.setdefault("securitySchemes", {})
+    sec_schemes.setdefault("bearerAuth", {
+        "type": "http", "scheme": "bearer", "bearerFormat": "JWT",
+    })
+    # (Optional) Keep OAuth2PasswordBearer as an alias so existing code doesn't crash
+    sec_schemes.setdefault("OAuth2PasswordBearer", {
+        "type": "http", "scheme": "bearer", "bearerFormat": "JWT",
+    })
+
+    EXEMPT_PATHS = {
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/health",
+        "/api",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
     }
-    
-    # Apply security to all endpoints except auth and root endpoints
-    if "paths" in openapi_schema:
-        for path in openapi_schema["paths"]:
-            for method in openapi_schema["paths"][path]:
-                if method.lower() not in ["options", "head"] and not any(x in path for x in ["/api/auth/login", "/api/auth/register", "/health", "/"]):
-                    # Don't require auth for file view endpoints (new generic structure)
-                    if not (path.endswith("/view") and "/files/" in path):
-                        if "security" not in openapi_schema["paths"][path][method]:
-                            openapi_schema["paths"][path][method]["security"] = [{"bearerAuth": []}]
-    
+    VALID_METHODS = {"get","post","put","patch","delete","options","head"}
+
+    # Rewrite op security → bearerAuth and add default where missing
+    for path, item in openapi_schema.get("paths", {}).items():
+        for method, op in list(item.items()):
+            if method.lower() not in VALID_METHODS or not isinstance(op, dict):
+                continue
+
+            if "security" in op and isinstance(op["security"], list):
+                new_sec = []
+                for req in op["security"]:
+                    if not isinstance(req, dict):
+                        continue
+                    if "OAuth2PasswordBearer" in req:
+                        new_sec.append({"bearerAuth": []})
+                    else:
+                        # keep only entries that exist in components
+                        valid = {k: v for k, v in req.items() if k in sec_schemes}
+                        if valid:
+                            new_sec.append(valid)
+                # If nothing left and not exempt, default to bearerAuth
+                if not new_sec and path not in EXEMPT_PATHS:
+                    new_sec = [{"bearerAuth": []}]
+                op["security"] = new_sec
+            elif path not in EXEMPT_PATHS:
+                op["security"] = [{"bearerAuth": []}]
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
+
+
 
 app.openapi = custom_openapi
 
