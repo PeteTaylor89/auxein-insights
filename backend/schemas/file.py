@@ -1,7 +1,7 @@
 # app/schemas/file.py - File Management Schemas
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, computed_field
 from enum import Enum
 
 class FileCategory(str, Enum):
@@ -59,9 +59,16 @@ class FileResponse(FileBase):
     uploaded_at: datetime
     uploaded_by: Optional[int] = None
     
-    # Computed properties
-    file_url: str
-    download_url: str
+    # Computed URLs
+    @computed_field
+    @property
+    def file_url(self) -> str:
+        return f"/api/v1/files/{self.id}"
+    
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        return f"/api/v1/files/{self.id}/download"
     
     class Config:
         from_attributes = True
@@ -84,4 +91,3 @@ class FileSummary(BaseModel):
     
     class Config:
         from_attributes = True
-

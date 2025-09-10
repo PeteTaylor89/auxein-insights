@@ -362,4 +362,3 @@ class StockAlert(BaseModel):
     minimum_stock: Decimal
     unit_of_measure: str
     stock_status: str  # out_of_stock, low_stock, adequate
-

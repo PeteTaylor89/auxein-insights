@@ -50,16 +50,6 @@ class File(Base):
     def __repr__(self):
         return f"<File(id='{self.id}', entity='{self.entity_type}:{self.entity_id}', filename='{self.original_filename}')>"
     
-    @property
-    def file_url(self):
-        """Generate the API URL for accessing this file"""
-        return f"/api/v1/files/{self.id}"
-    
-    @property
-    def download_url(self):
-        """Generate the download URL for this file"""
-        return f"/api/v1/files/{self.id}/download"
-    
     @staticmethod
     def generate_stored_filename(entity_type: str, entity_id: int, original_filename: str, upload_date=None):
         """Generate a standardized stored filename"""

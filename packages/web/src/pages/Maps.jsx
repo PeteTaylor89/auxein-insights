@@ -2255,20 +2255,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
           data: geojsonData
         });
 
-        map.current.addLayer({
-          id: 'vineyard-blocks-fill',
-          type: 'fill',
-          source: 'vineyard-blocks',
-          paint: {
-            'fill-color': [
-              'case',
-              ['==', ['get', 'company_id'], userCompanyId],
-              '#58e23c',
-              '#3b82f6'
-            ],
-            'fill-opacity': blockOpacity
-          }
-        });
+
 
         map.current.addLayer({
           id: 'vineyard-blocks-outline',
@@ -2279,10 +2266,10 @@ const handleBlockInteraction = (e, eventType = 'click') => {
             'line-width': [
               'case',
               ['==', ['get', 'company_id'], userCompanyId],
-              1.5,
-              0.8
+              2.5,
+              1.5
             ],
-            'line-opacity': 0.8
+            'line-opacity': 1
           }
         });
 
@@ -2818,7 +2805,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
         source: 'background-dim',
         paint: {
           'fill-color': '#000000',
-          'fill-opacity': 0.6  
+          'fill-opacity': 0.2  
         },
         layout: {
           'visibility': showBackgroundDim ? 'visible' : 'none'

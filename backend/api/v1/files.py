@@ -290,7 +290,7 @@ def download_file(
             detail="File not found on disk"
         )
     
-    return FileResponse(
+    return FastAPIFileResponse(
         path=file_path,
         filename=file.original_filename,
         media_type=file.mime_type

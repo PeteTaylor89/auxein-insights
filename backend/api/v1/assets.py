@@ -52,11 +52,7 @@ def create_asset(
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    
-    # Add computed properties
-    asset.stock_status = asset.stock_status
-    asset.needs_reorder = asset.needs_reorder
-    
+
     logger.info(f"Asset {asset.id} created successfully by user {current_user.id}")
     return asset
 
@@ -116,12 +112,7 @@ def list_assets(
     
     # Apply pagination
     assets = query.offset(skip).limit(limit).all()
-    
-    # Add computed properties
-    for asset in assets:
-        asset.stock_status = asset.stock_status
-        asset.needs_reorder = asset.needs_reorder
-    
+
     logger.info(f"Retrieved {len(assets)} assets")
     return assets
 
@@ -352,10 +343,6 @@ def get_asset(
                 detail="Not enough permissions"
             )
     
-    # Add computed properties
-    asset.stock_status = asset.stock_status
-    asset.needs_reorder = asset.needs_reorder
-    
     return asset
 
 @router.put("/{asset_id}", response_model=AssetResponse)
@@ -387,10 +374,6 @@ def update_asset(
     
     db.commit()
     db.refresh(asset)
-    
-    # Add computed properties
-    asset.stock_status = asset.stock_status
-    asset.needs_reorder = asset.needs_reorder
     
     logger.info(f"Asset {asset_id} updated by user {current_user.id}")
     return asset

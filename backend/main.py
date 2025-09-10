@@ -69,7 +69,7 @@ tags_metadata = [
 ]
 
 app = FastAPI(
-    title="Vineyard Management API",
+    title="Auxein Insights API",
     description="""
     ## Vineyard Management System API
     
