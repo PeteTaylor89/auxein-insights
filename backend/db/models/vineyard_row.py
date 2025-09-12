@@ -23,7 +23,7 @@ class VineyardRow(Base):
     # Relationships
     block = relationship("VineyardBlock", back_populates="rows")
     tasks = relationship("Task", back_populates="row")
-    observations = relationship("Observation", back_populates="row")
+    observation_spots = relationship("ObservationSpot", back_populates="row", cascade="all, delete-orphan")
     
     # Calculated property
     @property

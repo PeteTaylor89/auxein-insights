@@ -14,7 +14,7 @@ from api.deps import get_db, get_current_user, get_current_contractor, get_curre
 from db.models.user import User
 from db.models.contractor import Contractor
 from db.models.block import VineyardBlock
-from db.models.observation import Observation  
+
 from db.models.task import Task
 import logging
 logger = logging.getLogger(__name__)
@@ -397,16 +397,7 @@ def get_current_company_stats(
     except Exception as e:
         logger.warning(f"Error getting company users: {e}")
     
-    # Count observations
-    observation_count = 0
-    if company_block_ids:
-        try:
-            observation_count = db.query(func.count(Observation.id)).filter(
-                Observation.block_id.in_(company_block_ids)
-            ).scalar() or 0
-        except Exception as e:
-            logger.warning(f"Error counting observations: {e}")
-    
+       
     # Count tasks
     task_count = 0
     if company_user_ids:
@@ -448,7 +439,7 @@ def get_current_company_stats(
         logger.warning(f"Error getting enabled features: {e}")
     
     result = {
-        "observation_count": observation_count,
+
         "task_count": task_count,
         "user_count": user_count,
         "storage_used_gb": 0.0,  # TODO: Calculate actual storage usage

@@ -64,7 +64,7 @@ class User(Base):
     company = relationship("Company", back_populates="users")
     tasks_created = relationship("Task", foreign_keys="Task.created_by", back_populates="creator")
     tasks_assigned = relationship("Task", foreign_keys="Task.assigned_to", back_populates="assignee")
-    observations = relationship("Observation", back_populates="creator")
+   
     owned_risks = relationship("SiteRisk", foreign_keys="SiteRisk.owner_id", back_populates="owner")
     created_risks = relationship("SiteRisk", foreign_keys="SiteRisk.created_by", back_populates="creator")
     assigned_risk_actions = relationship("RiskAction", foreign_keys="RiskAction.assigned_to", back_populates="assignee")
@@ -94,6 +94,26 @@ class User(Base):
         back_populates="approved_by_user",  
         foreign_keys="TimesheetDay.approved_by",
         viewonly=True,
+    )
+
+    observation_runs_created = relationship(
+        "ObservationRun",
+        foreign_keys="ObservationRun.created_by",
+        back_populates="creator",
+        cascade="all, delete-orphan",
+    )
+
+    observation_spots_created = relationship(
+        "ObservationSpot",
+        foreign_keys="ObservationSpot.created_by",
+        back_populates="creator",
+        cascade="all, delete-orphan",
+    )
+
+    observation_plan_assignments = relationship(
+        "ObservationPlanAssignee",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     

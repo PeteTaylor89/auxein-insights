@@ -78,10 +78,11 @@ class FileEntityTypes:
     ASSET_MAINTENANCE = "asset_maintenance"
     ASSET_CALIBRATION = "asset_calibration"
     STOCK_MOVEMENT = "stock_movement"
-    
+    OBSERVATION_RUN = "observation_run"
+    OBSERVATION_SPOT = "observation_spot"
+    TASK = "task"
+
     # Future integrations (commented out for now)
-    # OBSERVATION = "observation"
-    # TASK = "task"
     # INCIDENT = "incident"
     # RISK_ASSESSMENT = "risk_assessment"
     # TRAINING_MODULE = "training_module"
@@ -90,5 +91,3 @@ class FileEntityTypes:
     # TIMESHEET = "timesheet"
     # COMPANY = "company"
     # USER = "user"
-
-# Updated Asset Models with File Integration

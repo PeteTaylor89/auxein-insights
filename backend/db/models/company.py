@@ -58,7 +58,9 @@ class Company(Base):
     created_by = Column(Integer, nullable=True)
     
     # Relationships - UPDATED with visitor relationships
-    observations = relationship("Observation", back_populates="company")
+    observation_runs = relationship("ObservationRun", cascade="all, delete-orphan")
+    observation_spots = relationship("ObservationSpot", cascade="all, delete-orphan")
+    observation_templates = relationship("ObservationTemplate", cascade="all, delete-orphan")
     subscription = relationship("Subscription", back_populates="companies")
     users = relationship("User", back_populates="company")
     blocks = relationship("VineyardBlock", back_populates="company")

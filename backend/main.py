@@ -71,9 +71,9 @@ tags_metadata = [
 app = FastAPI(
     title="Auxein Insights API",
     description="""
-    ## Vineyard Management System API
+    ## Auxein Insights System API
     
-    This API provides endpoints for managing vineyard operations including:
+    This API provides endpoints for managing all aspects of Auxein Insights including:
     
     * **User authentication and management**
     * **Vineyard block data with spatial (GIS) capabilities**
@@ -164,12 +164,6 @@ app.include_router(
     tasks.router, 
     prefix="/api/tasks", 
     tags=["tasks"]
-)
-
-app.include_router(
-    observations.router, 
-    prefix="/api/observations", 
-    tags=["observations"]
 )
 
 app.include_router(
@@ -272,6 +266,12 @@ app.include_router(
     calibrations.router, 
     prefix="/api/calibrations",
     tags=["calibrations"]
+)
+
+app.include_router(
+    observations.router, 
+    prefix="/api/observations",
+    tags=["observations"]
 )
 
 # API endpoints

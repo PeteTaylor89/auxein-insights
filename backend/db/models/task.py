@@ -31,7 +31,7 @@ class Task(Base):
     contractor_assignments = relationship("ContractorAssignment", back_populates="task")
     time_entries = relationship("TimeEntry", back_populates="task", cascade="all, delete-orphan")
     task_assets = relationship("TaskAsset", back_populates="task", cascade="all, delete-orphan")
-
+    observation_links = relationship("ObservationTaskLink", back_populates="task", cascade="all, delete-orphan")
 
 @property
 def primary_assets(self):

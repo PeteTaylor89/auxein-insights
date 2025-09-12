@@ -43,11 +43,16 @@ class VineyardBlock(Base):
     # Relationships
     company = relationship("Company", back_populates="blocks")
     tasks = relationship("Task", back_populates="block")
-    observations = relationship("Observation", back_populates="block", cascade="all, delete-orphan")
+    
     rows = relationship("VineyardRow", back_populates="block", cascade="all, delete-orphan")
     blockchain_chains = relationship("BlockchainChain", back_populates="vineyard_block")
     climate_historical_data = relationship("ClimateHistoricalData", back_populates="vineyard_block", cascade="all, delete-orphan")
 
+    observation_spots = relationship(
+        "ObservationSpot",
+        back_populates="block",
+        cascade="all, delete-orphan"
+    )
     def get_climate_data_summary(self, db_session, days: int = 30):
 
         from datetime import date, timedelta

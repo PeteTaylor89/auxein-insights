@@ -1,278 +1,452 @@
-# app/api/v1/observations.py
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+#/api/v1/observations.py
+
+from __future__ import annotations
 from typing import List, Optional
 from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from sqlalchemy import select, and_, func, cast, Integer
 
-from db.session import get_db
-from db.models.observation import Observation
-from db.models.user import User
-from db.models.block import VineyardBlock
-from schemas.observation import (
-    ObservationCreate,
-    ObservationUpdate,
-    ObservationResponse,
+# --- deps & utils (adapt imports to your project layout) ---
+from api.deps import get_db, get_current_user
+from schemas.observations import (
+    ObservationTemplateCreate, ObservationTemplateUpdate, ObservationTemplateOut,
+    ObservationPlanCreate, ObservationPlanUpdate, ObservationPlanOut,
+    ObservationRunCreate, ObservationRunUpdate, ObservationRunOut,
+    ObservationSpotCreate, ObservationSpotUpdate, ObservationSpotOut,
+    ObservationTaskLinkCreate, ObservationTaskLinkOut,
 )
-from api.deps import get_current_user
-from utils.geometry import point_to_wkt
-import logging
+from schemas.reference_items import ReferenceItemOut
+from utils.yield_stats import basic_confidence_summary
 
-logger = logging.getLogger(__name__)
-router = APIRouter()
+from db.models.observation_template import ObservationTemplate
+from db.models.observation_plan import ObservationPlan, ObservationPlanTarget, ObservationPlanAssignee
+from db.models.observation_run import ObservationRun, ObservationSpot
+from db.models.observation_link import ObservationTaskLink
+from db.models.reference_item import ReferenceItem
+
+from geoalchemy2.shape import from_shape
+from shapely.geometry import Point
 
 
-@router.post("/", response_model=ObservationResponse, status_code=201, tags=["observations"])
-def create_observation(
-    observation_in: ObservationCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Create a new observation"""
-    # Verify the block exists
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == observation_in.block_id).first()
-    if not block:
-        raise HTTPException(status_code=404, detail="Block not found")
+router = APIRouter(prefix="/api", tags=["observations"])
 
-    # Check company access permissions
-    if current_user.role != "admin" and block.company_id != current_user.company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to create observations for this block"
-        )
 
-    # Process location if provided
-    location = None
-    if observation_in.location:
-        location = point_to_wkt(observation_in.location)
+# -----------------------------
+# Reference catalog (read-only)
+# -----------------------------
+@router.get("/reference/el-stages", response_model=List[ReferenceItemOut])
+def list_el_stages(db: Session = Depends(get_db)):
+    # ORDER BY (regexp_replace(key,'[^0-9]','','g'))::int
+    order_num = cast(func.regexp_replace(ReferenceItem.key, '[^0-9]', '', 'g'), Integer)
+    rows = db.execute(
+        select(ReferenceItem)
+        .where(and_(ReferenceItem.category == "el_stage", ReferenceItem.is_active == True))
+        .order_by(order_num.asc(), ReferenceItem.key.asc())
+    ).scalars().all()
+    return rows
 
-    # ObservationType is validated by schema; no need to coerce here
-    observation_data = observation_in.model_dump(exclude={"location"})
-    observation = Observation(
-        **observation_data,
-        location=location,
-        created_by=current_user.id,
-        company_id=block.company_id
+@router.get("/reference/catalog/{category}", response_model=List[ReferenceItemOut])
+def list_reference_category(category: str, db: Session = Depends(get_db)):
+    q = select(ReferenceItem).where(
+        and_(ReferenceItem.category == category, ReferenceItem.is_active == True)
     )
 
-    db.add(observation)
-    db.commit()
-    db.refresh(observation)
+    if category == "el_stage":
+        order_num = cast(func.regexp_replace(ReferenceItem.key, '[^0-9]', '', 'g'), Integer)
+        q = q.order_by(order_num.asc(), ReferenceItem.key.asc())
+    else:
+        q = q.order_by(ReferenceItem.label.asc())
 
-    logger.info(f"Observation {observation.id} created by user {current_user.id}")
-    return observation
+    rows = db.execute(q).scalars().all()
+    return rows
 
 
-@router.get("/", response_model=List[ObservationResponse], tags=["observations"])
-def list_observations(
-    block_id: Optional[int] = None,
-    observation_type: Optional[str] = None,
-    created_by: Optional[int] = None,
+# -----------------------------
+# Templates
+# -----------------------------
+@router.get("/observation-templates", response_model=List[ObservationTemplateOut])
+def list_templates(
+    db: Session = Depends(get_db),
+    include_system: bool = Query(True, description="Include system templates (company_id NULL)"),
     company_id: Optional[int] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    """
-    List observations with filtering options.
-    Supports optional date range filters (start_date, end_date) for created_at.
-    """
-    query = db.query(Observation)
+    q = select(ObservationTemplate).where(ObservationTemplate.is_active == True)
+    if not include_system:
+        q = q.where(ObservationTemplate.company_id.isnot(None))
+    if company_id is not None:
+        q = q.where(ObservationTemplate.company_id == company_id)
+    q = q.order_by(ObservationTemplate.name.asc())
+    return db.execute(q).scalars().all()
 
-    # Company scoping
-    if current_user.role == "admin" and company_id is not None:
-        query = query.filter(Observation.company_id == company_id)
-    elif current_user.role != "admin":
-        if not current_user.company_id:
-            return []
-        query = query.filter(Observation.company_id == current_user.company_id)
-
-    # Filters
-    if block_id is not None:
-        query = query.filter(Observation.block_id == block_id)
-    if observation_type is not None:
-        query = query.filter(Observation.observation_type == observation_type)
-    if created_by is not None:
-        query = query.filter(Observation.created_by == created_by)
-    if start_date is not None:
-        query = query.filter(Observation.created_at >= start_date)
-    if end_date is not None:
-        query = query.filter(Observation.created_at <= end_date)
-
-    observations = (
-        query.order_by(Observation.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
+@router.post("/observation-templates", response_model=ObservationTemplateOut, status_code=status.HTTP_201_CREATED)
+def create_template(payload: ObservationTemplateCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    row = ObservationTemplate(
+        company_id=payload.company_id,
+        name=payload.name,
+        type=payload.observation_type,
+        version=1,
+        is_active=payload.is_active,
+        fields_json=[f.dict() for f in payload.field_schema],
+        defaults_json={},  # caller can set later
+        validations_json={},
+        created_by=user.id if getattr(user, "id", None) else None,
     )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
-    logger.info(f"Returning {len(observations)} observations")
-    return observations
+@router.get("/observation-templates/{template_id}", response_model=ObservationTemplateOut)
+def get_template(template_id: int, db: Session = Depends(get_db)):
+    row = db.get(ObservationTemplate, template_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return row
+
+@router.patch("/observation-templates/{template_id}", response_model=ObservationTemplateOut)
+def update_template(template_id: int, payload: ObservationTemplateUpdate, db: Session = Depends(get_db)):
+    row = db.get(ObservationTemplate, template_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if payload.name is not None:
+        row.name = payload.name
+    if payload.observation_type is not None:
+        row.type = payload.observation_type
+    if payload.field_schema is not None:
+        row.fields_json = [f.dict() for f in payload.field_schema]
+        row.version = (row.version or 1) + 1  # bump on schema changes
+    if payload.is_active is not None:
+        row.is_active = payload.is_active
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+@router.delete("/observation-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+def deactivate_template(template_id: int, db: Session = Depends(get_db)):
+    row = db.get(ObservationTemplate, template_id)
+    if not row:
+        return
+    row.is_active = False
+    db.add(row)
+    db.commit()
+    return
 
 
-@router.get("/{observation_id}", response_model=ObservationResponse, tags=["observations"])
-def get_observation(
-    observation_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get a specific observation by ID"""
-    observation = db.query(Observation).filter(Observation.id == observation_id).first()
+# -----------------------------
+# Plans
+# -----------------------------
+@router.post("/observation-plans", response_model=ObservationPlanOut, status_code=status.HTTP_201_CREATED)
+def create_plan(payload: ObservationPlanCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    plan = ObservationPlan(
+        company_id=payload.company_id,
+        template_id=payload.template_id,
+        template_version=1,  # you can resolve the current version here
+        name=payload.name,
+        instructions=payload.instructions,
+        due_start_at=None,
+        due_end_at=None,
+        priority="normal",
+        status="scheduled",
+        created_by=getattr(user, "id", None),
+    )
+    db.add(plan)
+    db.flush()
 
-    if not observation:
-        raise HTTPException(status_code=404, detail="Observation not found")
+    # Targets
+    for t in payload.targets:
+        db.add(ObservationPlanTarget(
+            plan_id=plan.id,
+            block_id=t.block_id,
+            row_labels=[x for x in [t.row_start, t.row_end] if x] if (t.row_start or t.row_end) else [],
+            asset_id=None,
+            sample_size=t.required_spots,
+            notes=(t.extra or {}).get("notes"),
+        ))
 
-    # Company access
-    if current_user.role != "admin" and observation.company_id != current_user.company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to view this observation"
-        )
-
-    return observation
-
-
-@router.put("/{observation_id}", response_model=ObservationResponse, tags=["observations"])
-def update_observation(
-    observation_id: int,
-    observation_update: ObservationUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Update an observation"""
-    observation = db.query(Observation).filter(Observation.id == observation_id).first()
-    if not observation:
-        raise HTTPException(status_code=404, detail="Observation not found")
-
-    # Company access
-    if current_user.role != "admin" and observation.company_id != current_user.company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to update this observation"
-        )
-
-    # If block is changing, validate and possibly update company
-    if observation_update.block_id and observation_update.block_id != observation.block_id:
-        new_block = db.query(VineyardBlock).filter(VineyardBlock.id == observation_update.block_id).first()
-        if not new_block:
-            raise HTTPException(status_code=404, detail="New block not found")
-
-        if new_block.company_id != observation.company_id:
-            if current_user.role != "admin":
-                raise HTTPException(
-                    status_code=403,
-                    detail="You can't assign an observation to a block from a different company"
-                )
-            observation.company_id = new_block.company_id
-
-        observation.block_id = observation_update.block_id
-
-    # Process location if provided
-    if observation_update.location:
-        observation.location = point_to_wkt(observation_update.location)
-
-    # Update other attributes
-    update_data = observation_update.model_dump(exclude={"location"}, exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(observation, key, value)
+    # Assignees
+    for uid in payload.assignee_user_ids:
+        db.add(ObservationPlanAssignee(plan_id=plan.id, user_id=uid))
 
     db.commit()
-    db.refresh(observation)
-    logger.info(f"Observation {observation_id} updated by user {current_user.id}")
+    db.refresh(plan)
+    # hydrate response
+    return plan
 
-    return observation
-
-
-@router.delete("/{observation_id}", status_code=204, tags=["observations"])
-def delete_observation(
-    observation_id: int,
+@router.get("/observation-plans", response_model=List[ObservationPlanOut])
+def list_plans(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    company_id: Optional[int] = None,
+    status_in: Optional[List[str]] = Query(None),
+    template_id: Optional[int] = None,
 ):
-    """Delete an observation"""
-    observation = db.query(Observation).filter(Observation.id == observation_id).first()
-    if not observation:
-        raise HTTPException(status_code=404, detail="Observation not found")
+    q = select(ObservationPlan)
+    if company_id:
+        q = q.where(ObservationPlan.company_id == company_id)
+    if template_id:
+        q = q.where(ObservationPlan.template_id == template_id)
+    if status_in:
+        q = q.where(ObservationPlan.status.in_(status_in))
+    q = q.order_by(ObservationPlan.created_at.desc())
+    return db.execute(q).scalars().all()
 
-    # Company access
-    if current_user.role != "admin" and observation.company_id != current_user.company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to delete this observation"
-        )
+@router.get("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
+def get_plan(plan_id: int, db: Session = Depends(get_db)):
+    plan = db.get(ObservationPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return plan
 
-    db.delete(observation)
+@router.patch("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
+def update_plan(plan_id: int, payload: ObservationPlanUpdate, db: Session = Depends(get_db)):
+    plan = db.get(ObservationPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if payload.name is not None: plan.name = payload.name
+    if payload.instructions is not None: plan.instructions = payload.instructions
+    if payload.is_active is not None:
+        plan.status = "cancelled" if not payload.is_active else plan.status
+
+    # Replace targets if provided
+    if payload.targets is not None:
+        # delete existing
+        for t in list(plan.targets):
+            db.delete(t)
+        for t in payload.targets:
+            db.add(ObservationPlanTarget(
+                plan_id=plan.id,
+                block_id=t.block_id,
+                row_labels=[x for x in [t.row_start, t.row_end] if x] if (t.row_start or t.row_end) else [],
+                asset_id=None,
+                sample_size=t.required_spots,
+                notes=(t.extra or {}).get("notes"),
+            ))
+    # Replace assignees if provided
+    if payload.assignee_user_ids is not None:
+        for a in list(plan.assignees):
+            db.delete(a)
+        for uid in payload.assignee_user_ids:
+            db.add(ObservationPlanAssignee(plan_id=plan.id, user_id=uid))
+
+    db.add(plan)
     db.commit()
-    logger.info(f"Observation {observation_id} deleted by user {current_user.id}")
-    return None
+    db.refresh(plan)
+    return plan
+
+@router.delete("/observation-plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_plan(plan_id: int, db: Session = Depends(get_db)):
+    plan = db.get(ObservationPlan, plan_id)
+    if not plan:
+        return
+    db.delete(plan)
+    db.commit()
+    return
 
 
-@router.get("/block/{block_id}", response_model=List[ObservationResponse], tags=["observations"])
-def get_observations_by_block(
-    block_id: int,
-    observation_type: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    skip: int = 0,
-    limit: int = 100,
+# -----------------------------
+# Runs
+# -----------------------------
+@router.post("/observation-runs", response_model=ObservationRunOut, status_code=status.HTTP_201_CREATED)
+def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    run = ObservationRun(
+        company_id=payload.company_id,
+        plan_id=payload.plan_id,
+        template_id=payload.template_id,
+        template_version=1,
+        name=f"Run – template {payload.template_id}",
+        observed_at_start=payload.started_at or datetime.utcnow(),
+        observed_at_end=None,
+        photo_file_ids=[],
+        document_file_ids=[],
+        tags=[],
+        summary_json=payload.summary_stats or {},
+        created_by=payload.created_by or (getattr(user, "id", None)),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+@router.get("/observation-runs", response_model=List[ObservationRunOut])
+def list_runs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    company_id: Optional[int] = None,
+    template_id: Optional[int] = None,
+    plan_id: Optional[int] = None,
 ):
-    """Get all observations for a specific block (optional type/date filters)"""
-    # Verify block exists
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
-    if not block:
-        raise HTTPException(status_code=404, detail="Block not found")
+    q = select(ObservationRun)
+    if company_id: q = q.where(ObservationRun.company_id == company_id)
+    if template_id: q = q.where(ObservationRun.template_id == template_id)
+    if plan_id: q = q.where(ObservationRun.plan_id == plan_id)
+    q = q.order_by(ObservationRun.created_at.desc())
+    return db.execute(q).scalars().all()
 
-    # Company access
-    if current_user.role != "admin" and block.company_id != current_user.company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to view observations for this block"
-        )
+@router.get("/observation-runs/{run_id}", response_model=ObservationRunOut)
+def get_run(run_id: int, db: Session = Depends(get_db)):
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run
 
-    query = db.query(Observation).filter(Observation.block_id == block_id)
+@router.patch("/observation-runs/{run_id}", response_model=ObservationRunOut)
+def update_run(run_id: int, payload: ObservationRunUpdate, db: Session = Depends(get_db)):
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
 
-    if observation_type:
-        query = query.filter(Observation.observation_type == observation_type)
-    if start_date is not None:
-        query = query.filter(Observation.created_at >= start_date)
-    if end_date is not None:
-        query = query.filter(Observation.created_at <= end_date)
+    if payload.status is not None:
+        # basic state handling; extend as needed
+        if payload.status == "completed":
+            run.observed_at_end = run.observed_at_end or datetime.utcnow()
+        # store raw status in tags/summary if you want
+    if payload.completed_at is not None:
+        run.observed_at_end = payload.completed_at
+    if payload.summary_stats is not None:
+        run.summary_json = payload.summary_stats
 
-    observations = query.order_by(Observation.created_at.desc()).offset(skip).limit(limit).all()
-    return observations
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+@router.post("/observation-runs/{run_id}/complete", response_model=ObservationRunOut)
+def complete_run(run_id: int, db: Session = Depends(get_db)):
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # naive summary: if spots have a numeric 'bunches_per_vine' or 'bunches_total' / 'vines_sampled'
+    spots = db.execute(select(ObservationSpot).where(ObservationSpot.run_id == run_id)).scalars().all()
+    est_values = []
+    for s in spots:
+        v = s.data_json or {}
+        if "bunches_per_vine" in v and isinstance(v["bunches_per_vine"], (int, float)):
+            est_values.append(float(v["bunches_per_vine"]))
+        elif "bunches_total" in v and "vines_sampled" in v:
+            try:
+                est_values.append(float(v["bunches_total"]) / float(v["vines_sampled"]))
+            except Exception:
+                pass
+    summary = basic_confidence_summary(est_values)
+    run.summary_json = {**(run.summary_json or {}), "bunches_per_vine_summary": summary}
+    run.observed_at_end = run.observed_at_end or datetime.utcnow()
+
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
 
 
-@router.get("/company/{company_id}", response_model=List[ObservationResponse], tags=["observations"])
-def get_observations_by_company(
-    company_id: int,
-    observation_type: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    skip: int = 0,
-    limit: int = 100,
+# -----------------------------
+# Spots
+# -----------------------------
+@router.get("/observation-runs/{run_id}/spots", response_model=List[ObservationSpotOut])
+def list_spots(run_id: int, db: Session = Depends(get_db)):
+    rows = db.execute(select(ObservationSpot).where(ObservationSpot.run_id == run_id).order_by(ObservationSpot.created_at.asc())).scalars().all()
+    return rows
+
+@router.post("/observation-runs/{run_id}/spots", response_model=ObservationSpotOut, status_code=status.HTTP_201_CREATED)
+def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    gps_geom = None
+    if payload.latitude is not None and payload.longitude is not None:
+        # Note: lon, lat order for WGS84
+        gps_geom = from_shape(Point(payload.longitude, payload.latitude), srid=4326)
+
+    spot = ObservationSpot(
+        company_id=payload.company_id,
+        run_id=run_id,
+        observed_at=payload.observed_at,
+        block_id=payload.block_id,
+        row_id=payload.row_id,
+        gps=gps_geom,
+        data_json=payload.values or {},
+        photo_file_ids=payload.photo_file_ids or [],
+        document_file_ids=payload.video_file_ids or [],  # if you keep videos separately, adjust model accordingly
+        created_by=payload.created_by or (getattr(user, "id", None)),
+    )
+    db.add(spot)
+    db.commit()
+    db.refresh(spot)
+    return spot
+
+@router.patch("/observation-spots/{spot_id}", response_model=ObservationSpotOut)
+def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depends(get_db)):
+    spot = db.get(ObservationSpot, spot_id)
+    if not spot:
+        raise HTTPException(status_code=404, detail="Spot not found")
+
+    if payload.block_id is not None: spot.block_id = payload.block_id
+    if payload.row_id is not None: spot.row_id = payload.row_id
+    if payload.observed_at is not None: spot.observed_at = payload.observed_at
+    if payload.values is not None: spot.data_json = payload.values
+    if payload.notes is not None:
+        # optional: keep notes inside data_json to avoid new DB column
+        spot.data_json = {**(spot.data_json or {}), "_notes": payload.notes}
+    if payload.photo_file_ids is not None: spot.photo_file_ids = payload.photo_file_ids
+
+    # gps update
+    if (payload.latitude is not None) and (payload.longitude is not None):
+        spot.gps = from_shape(Point(payload.longitude, payload.latitude), srid=4326)
+
+    db.add(spot)
+    db.commit()
+    db.refresh(spot)
+    return spot
+
+@router.delete("/observation-spots/{spot_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_spot(spot_id: int, db: Session = Depends(get_db)):
+    spot = db.get(ObservationSpot, spot_id)
+    if not spot:
+        return
+    db.delete(spot)
+    db.commit()
+    return
+
+
+# -----------------------------
+# Observation ↔ Task links
+# -----------------------------
+@router.post("/observation-task-links", response_model=ObservationTaskLinkOut, status_code=status.HTTP_201_CREATED)
+def create_obs_task_link(payload: ObservationTaskLinkCreate, db: Session = Depends(get_db)):
+    if not payload.run_id and not payload.spot_id:
+        raise HTTPException(status_code=400, detail="Provide run_id or spot_id")
+    link = ObservationTaskLink(
+        company_id=None,  # optional: set from related run/spot if you require tenancy here
+        observation_run_id=payload.run_id,
+        observation_spot_id=payload.spot_id,
+        task_id=payload.task_id,
+        link_reason=payload.reason,
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+@router.get("/observation-task-links", response_model=List[ObservationTaskLinkOut])
+def list_obs_task_links(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    task_id: Optional[int] = None,
+    run_id: Optional[int] = None,
+    spot_id: Optional[int] = None,
 ):
-    """Get all observations for a specific company (optional type/date filters)"""
-    # Permissions: admin or same company
-    if current_user.role != "admin" and current_user.company_id != company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You don't have permission to view observations for this company"
-        )
+    q = select(ObservationTaskLink)
+    if task_id: q = q.where(ObservationTaskLink.task_id == task_id)
+    if run_id: q = q.where(ObservationTaskLink.observation_run_id == run_id)
+    if spot_id: q = q.where(ObservationTaskLink.observation_spot_id == spot_id)
+    q = q.order_by(ObservationTaskLink.created_at.desc())
+    return db.execute(q).scalars().all()
 
-    query = db.query(Observation).filter(Observation.company_id == company_id)
-
-    if observation_type:
-        query = query.filter(Observation.observation_type == observation_type)
-    if start_date is not None:
-        query = query.filter(Observation.created_at >= start_date)
-    if end_date is not None:
-        query = query.filter(Observation.created_at <= end_date)
-
-    observations = query.order_by(Observation.created_at.desc()).offset(skip).limit(limit).all()
-    return observations
+@router.delete("/observation-task-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_obs_task_link(link_id: int, db: Session = Depends(get_db)):
+    link = db.get(ObservationTaskLink, link_id)
+    if not link:
+        return
+    db.delete(link)
+    db.commit()
+    return

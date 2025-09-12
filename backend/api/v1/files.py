@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional, Union
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FastAPIFile, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse as FastAPIFileResponse
 from sqlalchemy.orm import Session
 from pathlib import Path
 
