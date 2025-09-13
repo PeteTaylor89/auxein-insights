@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, date
-from pydantic import BaseModel, Field, conint, confloat
+from pydantic import BaseModel, Field, conint, confloat, validator
 try:
     from pydantic import ConfigDict
     _CFG = {"from_attributes": True}
@@ -57,14 +57,26 @@ class ObservationTemplateUpdate(BaseModel):
     field_schema: Optional[List[TemplateField]] = None
     is_active: Optional[bool] = None
 
-class ObservationTemplateOut(ObservationTemplateBase):
+class ObservationTemplateOut(BaseModel):
     id: int
-    company_id: int
+    company_id: Optional[int] = None
+    observation_type: str = Field(alias="type")  # or "type_key"
+    schema: Dict[str, Any] = Field(alias="fields_json")
+
     created_at: datetime
     updated_at: Optional[datetime]
 
+    @validator("schema", pre=True)
+    def _coerce_schema(cls, v):
+        if isinstance(v, list):
+            return {"fields": v}
+        if isinstance(v, dict):
+            return v
+        raise TypeError("schema must be a dict or list")
+
     class Config:
-        from_attributes = True
+        orm_mode = True
+        allow_population_by_field_name = True
 
 # ----- Plans (scheduled templates to do) -----
 
