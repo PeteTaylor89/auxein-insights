@@ -18,6 +18,7 @@ class FileEntityType(str, Enum):
     asset_maintenance = "asset_maintenance"
     asset_calibration = "asset_calibration"
     stock_movement = "stock_movement"
+    reference_item = "reference_item"
     # Future types (commented for now)
     # observation = "observation"
     # task = "task"

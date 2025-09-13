@@ -4,11 +4,12 @@ from __future__ import annotations
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, func, cast, Integer
 
 # --- deps & utils (adapt imports to your project layout) ---
 from api.deps import get_db, get_current_user
+
 from schemas.observations import (
     ObservationTemplateCreate, ObservationTemplateUpdate, ObservationTemplateOut,
     ObservationPlanCreate, ObservationPlanUpdate, ObservationPlanOut,
@@ -16,14 +17,22 @@ from schemas.observations import (
     ObservationSpotCreate, ObservationSpotUpdate, ObservationSpotOut,
     ObservationTaskLinkCreate, ObservationTaskLinkOut,
 )
-from schemas.reference_items import ReferenceItemOut
+
+from schemas.reference_items import (
+    ReferenceItemOut, ReferenceItemImageOut, ReferenceItemImageCreate
+)
+
 from utils.yield_stats import basic_confidence_summary
+from utils.el_scale import EL_PHASES
+from sqlalchemy import func, cast, Integer
 
 from db.models.observation_template import ObservationTemplate
 from db.models.observation_plan import ObservationPlan, ObservationPlanTarget, ObservationPlanAssignee
 from db.models.observation_run import ObservationRun, ObservationSpot
 from db.models.observation_link import ObservationTaskLink
 from db.models.reference_item import ReferenceItem
+from db.models.reference_item_file import ReferenceItemFile
+from db.models.file import File
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
@@ -37,10 +46,11 @@ router = APIRouter(prefix="/api", tags=["observations"])
 # -----------------------------
 @router.get("/reference/el-stages", response_model=List[ReferenceItemOut])
 def list_el_stages(db: Session = Depends(get_db)):
-    # ORDER BY (regexp_replace(key,'[^0-9]','','g'))::int
+    from sqlalchemy import func, cast, Integer
     order_num = cast(func.regexp_replace(ReferenceItem.key, '[^0-9]', '', 'g'), Integer)
     rows = db.execute(
         select(ReferenceItem)
+        .options(selectinload(ReferenceItem.files_assoc))
         .where(and_(ReferenceItem.category == "el_stage", ReferenceItem.is_active == True))
         .order_by(order_num.asc(), ReferenceItem.key.asc())
     ).scalars().all()
@@ -48,19 +58,86 @@ def list_el_stages(db: Session = Depends(get_db)):
 
 @router.get("/reference/catalog/{category}", response_model=List[ReferenceItemOut])
 def list_reference_category(category: str, db: Session = Depends(get_db)):
-    q = select(ReferenceItem).where(
-        and_(ReferenceItem.category == category, ReferenceItem.is_active == True)
-    )
-
-    if category == "el_stage":
-        order_num = cast(func.regexp_replace(ReferenceItem.key, '[^0-9]', '', 'g'), Integer)
-        q = q.order_by(order_num.asc(), ReferenceItem.key.asc())
-    else:
-        q = q.order_by(ReferenceItem.label.asc())
-
-    rows = db.execute(q).scalars().all()
+    rows = db.execute(
+        select(ReferenceItem)
+        .options(selectinload(ReferenceItem.files_assoc))  # eager load images
+        .where(and_(ReferenceItem.category == category, ReferenceItem.is_active == True))
+        .order_by(ReferenceItem.label.asc())
+    ).scalars().all()
     return rows
 
+@router.get("/reference/el-groups")
+def list_el_groups(db: Session = Depends(get_db)):
+    # get all stages we have in DB
+    stages = db.execute(
+        select(ReferenceItem)
+        .where(and_(ReferenceItem.category == "el_stage", ReferenceItem.is_active == True))
+    ).scalars().all()
+
+    # map key -> label for convenience
+    stage_map = {s.key: s.label for s in stages}
+
+    out = []
+    # EL_PHASES expects shape like {'early': {'name':'Early growth', 'stages':['EL-1','EL-2', ...]}, ...}
+    for phase_key, info in EL_PHASES.items():
+        stages_in_phase = []
+        for k in info.get("stages", []):
+            if k in stage_map:
+                # include stage if present in DB
+                stages_in_phase.append({"key": k, "label": stage_map[k]})
+        # numeric sort by EL number
+        stages_in_phase.sort(key=lambda x: int(''.join(ch for ch in x["key"] if ch.isdigit())))
+
+        out.append({
+            "key": f"EL-PHASE-{phase_key}",
+            "label": info.get("name") or phase_key,
+            "description": info.get("description"),
+            "stages": stages_in_phase
+        })
+    # optional: sort phases if helper has an "order"
+    return out
+
+# -----------------------------
+# Reference Images
+# -----------------------------
+@router.post("/reference/items/{item_id}/images", response_model=ReferenceItemImageOut)
+def attach_reference_item_image(item_id: int, payload: ReferenceItemImageCreate, db: Session = Depends(get_db)):
+    item = db.get(ReferenceItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Reference item not found")
+
+    file = db.get(File, payload.file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # if setting primary, unset existing primary
+    if payload.is_primary:
+        db.execute(
+            sa.update(ReferenceItemFile)
+            .where(ReferenceItemFile.reference_item_id == item_id, ReferenceItemFile.is_primary == True)
+            .values(is_primary=False)
+        )
+
+    link = ReferenceItemFile(
+        reference_item_id=item_id,
+        file_id=payload.file_id,
+        caption=payload.caption,
+        sort_order=payload.sort_order,
+        is_primary=payload.is_primary,
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+@router.delete("/reference/items/{item_id}/images/{link_id}", status_code=204)
+def detach_reference_item_image(item_id: int, link_id: int, db: Session = Depends(get_db)):
+    link = db.get(ReferenceItemFile, link_id)
+    if not link or link.reference_item_id != item_id:
+        raise HTTPException(status_code=404, detail="Image link not found")
+    db.delete(link)
+    db.commit()
+    return
 
 # -----------------------------
 # Templates

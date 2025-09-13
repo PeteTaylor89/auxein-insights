@@ -34,6 +34,6 @@ from db.models.observation_link import ObservationTaskLink
 from db.models.observation_run import ObservationRun, ObservationSpot
 from db.models.observation_plan import ObservationPlan, ObservationPlanTarget, ObservationPlanAssignee
 from db.models.observation_template import ObservationTemplate
-
+from db.models.reference_item_file import ReferenceItemFile
 
 from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived

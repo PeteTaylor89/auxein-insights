@@ -39,3 +39,9 @@ class ReferenceItem(Base):
 
     parent = relationship("ReferenceItem", remote_side=[id])
     creator = relationship("User")
+    files_assoc = relationship(
+        "ReferenceItemFile",
+        back_populates="reference_item",
+        cascade="all, delete-orphan",
+        order_by="ReferenceItemFile.sort_order.asc()",
+    )

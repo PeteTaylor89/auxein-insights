@@ -207,7 +207,7 @@ def list_files(
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
         if user.role != "admin":
-            query = query.filter(File.company_id == user.company_id)
+            query = query.filter((File.company_id == user.company_id) | (File.is_public == True))
     
     # Apply filters
     if entity_type:
@@ -245,7 +245,7 @@ def get_file(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and file.company_id != user.company_id:
+        if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -275,7 +275,7 @@ def download_file(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and file.company_id != user.company_id:
+        if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -397,7 +397,7 @@ def get_entity_files(
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
         if user.role != "admin":
-            query = query.filter(File.company_id == user.company_id)
+            query = query.filter((File.company_id == user.company_id) | (File.is_public == True))
     
     if file_category:
         query = query.filter(File.file_category == file_category.value)
