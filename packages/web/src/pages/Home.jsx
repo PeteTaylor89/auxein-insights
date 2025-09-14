@@ -93,13 +93,37 @@ function Home() {
               <div className="stat-value">{stats?.block_count || '0'}</div>
               <div className="stat-label">Vineyard Blocks</div>
             </Link>
-            <Link to="/observations" className="stat-card">
+            <Link to="/planobservation" className="stat-card">
               <div className="stat-value">{stats?.observation_count || '0'}</div>
               <div className="stat-label">Observations</div>
             </Link>
-            <Link to="/Tasks" className="stat-card">
+            <Link to="/listplan" className="stat-card">
               <div className="stat-value">{stats?.task_count || '0'}</div>
               <div className="stat-label">Tasks</div>
+            </Link>
+            <div className="stat-card">
+              <div className="stat-value">{stats?.user_count || '0'}</div>
+              <div className="stat-label">Team Members</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="stats-container">
+          <div className="container-title">
+            <span>{company?.name || 'Your Company'}</span>
+          </div>
+          <div className="stats-grid">
+            <Link to="/planobservation" className="stat-card">
+              <div className="stat-value">{stats?.block_count || '0'}</div>
+              <div className="stat-label"> Plan Observation</div>
+            </Link>
+            <Link to="/listplan" className="stat-card">
+              <div className="stat-value">{stats?.observation_count || '0'}</div>
+              <div className="stat-label">List Planned Obs</div>
+            </Link>
+            <Link to="/plandetail/:id" className="stat-card">
+              <div className="stat-value">{stats?.task_count || '0'}</div>
+              <div className="stat-label">Obs Plan Details</div>
             </Link>
             <div className="stat-card">
               <div className="stat-value">{stats?.user_count || '0'}</div>

@@ -9,7 +9,6 @@ import ChangePasswordForm from './components/ChangePasswordForm';
 import AcceptInvitation from './components/AcceptInvitation'; 
 import Profile from './pages/Profile';
 import Maps from './pages/Maps';
-import Observations from './pages/Observations';
 import Tasks from './pages/Tasks';
 import RiskDashboard from './pages/RiskDashboard';
 import CreateRisk from './pages/CreateRisk';
@@ -23,6 +22,9 @@ import ModuleEditor from './pages/ModuleEditor';
 import TakeTraining from './pages/TakeTraining';
 import Insights from './pages/Insights';
 import TimesheetSystem from './pages/TimesheetSystem';
+import PlanNew from  './pages/PlanNew';
+import PlanList from './pages/listPlans';
+import PlanDetail from './pages/PlanDetail';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -70,13 +72,7 @@ function AppRoutes() {
           <Tasks />
         </ProtectedRoute>
       } />
-      
-      <Route path="/observations" element={
-        <ProtectedRoute>
-          <Observations />
-        </ProtectedRoute>
-      } />
-      
+
       <Route path="/profile" element={
         <ProtectedRoute>
           <Profile />
@@ -158,6 +154,24 @@ function AppRoutes() {
       <Route path="/timesheets" element={
         <ProtectedRoute>
           <TimesheetSystem />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/planobservation" element={
+        <ProtectedRoute>
+          <PlanNew />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/listplan" element={
+        <ProtectedRoute>
+          <PlanList />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/plandetail/:id" element={
+        <ProtectedRoute>
+          <PlanDetail />
         </ProtectedRoute>
       } />
 

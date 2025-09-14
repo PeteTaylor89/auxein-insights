@@ -7,7 +7,6 @@ import json
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-# utils (the ones we created earlier)
 from utils.metrics import mean, stdev, ci95
 from utils.yield_calc import yield_t_per_ha, vines_per_ha, adjust_for_missing
 from utils.flowering import flowers_per_shoot, fruit_set_percent

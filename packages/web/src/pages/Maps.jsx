@@ -7,7 +7,7 @@ import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import {blocksService, tasksService, observationsService, parcelsService, companiesService, spatialAreasService, vineyardRowsService, api} from '@vineyard/shared';
+import {blocksService, tasksService, parcelsService, companiesService, spatialAreasService, vineyardRowsService, api} from '@vineyard/shared';
 import * as turf from '@turf/turf';
 import SlidingEditForm from '../components/SlidingEditForm';
 import SpatialAreaSlidingEditForm from '../components/SpatialAreasSlidingEditForm';
