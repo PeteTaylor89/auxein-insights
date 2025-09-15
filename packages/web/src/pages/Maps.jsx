@@ -2255,6 +2255,20 @@ const handleBlockInteraction = (e, eventType = 'click') => {
           data: geojsonData
         });
 
+        map.current.addLayer({
+          id: 'vineyard-blocks-fill',
+          type: 'fill',
+          source: 'vineyard-blocks',
+          paint: {
+            'fill-color': [
+              'case',
+              ['==', ['get', 'company_id'], userCompanyId],
+              '#58e23c',
+              '#3b82f6'
+            ],
+            'fill-opacity': blockOpacity
+          }
+        });
 
 
         map.current.addLayer({

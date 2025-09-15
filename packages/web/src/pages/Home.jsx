@@ -110,7 +110,7 @@ function Home() {
 
         <div className="stats-container">
           <div className="container-title">
-            <span>{company?.name || 'Your Company'}</span>
+            <span>Observation Links</span>
           </div>
           <div className="stats-grid">
             <Link to="/planobservation" className="stat-card">
