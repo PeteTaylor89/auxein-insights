@@ -36,21 +36,12 @@ function TrainingModules() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   
-  // Separate local search state from API filters
-  const [localSearch, setLocalSearch] = useState('');
+  // Search state - using only local search for real-time filtering
+  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     category: '',
-    published_only: false,
-    search: '' // This will be updated by debounced value
+    published_only: false
   });
-
-  // Debounce the search input
-  const debouncedSearch = useDebounce(localSearch, 300);
-
-  // Update filters when debounced search changes
-  useEffect(() => {
-    setFilters(prev => ({ ...prev, search: debouncedSearch }));
-  }, [debouncedSearch]);
 
   // Check permissions
   const canManage = user?.role === 'admin' || user?.role === 'manager';
@@ -69,7 +60,7 @@ function TrainingModules() {
       
       console.log('🔄 Fetching training data...');
       
-      // Fetch modules and stats in parallel
+      // Fetch modules and stats in parallel - removed search from API call
       const [modulesData, statsData] = await Promise.all([
         trainingService.modules.getModules(filters),
         canManage ? trainingService.reporting.getTrainingStats() : Promise.resolve(null)
@@ -96,14 +87,14 @@ function TrainingModules() {
     }
   }, [user, fetchData]);
 
-  // Filter modules by tab (client-side filtering)
+  // Filter modules by search term and tab (client-side filtering)
   const getFilteredModules = useCallback(() => {
     const moduleArray = Array.isArray(modules) ? modules : [];
     
-    // First filter by search term locally if no server-side search
+    // Filter by search term locally
     let filteredBySearch = moduleArray;
-    if (localSearch && !filters.search) {
-      const searchLower = localSearch.toLowerCase();
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
       filteredBySearch = moduleArray.filter(module => 
         module.title.toLowerCase().includes(searchLower) ||
         (module.description && module.description.toLowerCase().includes(searchLower))
@@ -121,7 +112,7 @@ function TrainingModules() {
       default:
         return filteredBySearch;
     }
-  }, [modules, activeTab, localSearch, filters.search]);
+  }, [modules, activeTab, searchTerm]);
 
   const filteredModules = getFilteredModules();
 
@@ -130,9 +121,9 @@ function TrainingModules() {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  // Handle search input change (local state only)
+  // Handle search input change (immediate local state update)
   const handleSearchChange = useCallback((e) => {
-    setLocalSearch(e.target.value);
+    setSearchTerm(e.target.value);
   }, []);
 
   // Handle module actions
@@ -152,7 +143,7 @@ function TrainingModules() {
     try {
       await trainingService.modules.publishModule(moduleId, false);
       alert('Training module published successfully!');
-      fetchData(); // Use fetchData instead of window.location.reload()
+      fetchData();
     } catch (error) {
       alert('Failed to publish module: ' + trainingService.errorHandler.handleApiError(error));
     }
@@ -164,9 +155,22 @@ function TrainingModules() {
     try {
       await trainingService.modules.archiveModule(moduleId);
       alert('Training module archived successfully!');
-      fetchData(); // Use fetchData instead of window.location.reload()
+      fetchData();
     } catch (error) {
       alert('Failed to archive module: ' + trainingService.errorHandler.handleApiError(error));
+    }
+  }, [fetchData]);
+
+  // NEW: Handle delete module (for unpublished modules only)
+  const handleDeleteModule = useCallback(async (moduleId) => {
+    if (!confirm('Are you sure you want to permanently delete this training module? This action cannot be undone.')) return;
+    
+    try {
+      await trainingService.modules.archiveModule(moduleId);
+      alert('Training module deleted successfully!');
+      fetchData();
+    } catch (error) {
+      alert('Failed to delete module: ' + trainingService.errorHandler.handleApiError(error));
     }
   }, [fetchData]);
 
@@ -177,10 +181,6 @@ function TrainingModules() {
       document.body.classList.remove("primary-bg");
     };
   }, []);
-
-  // Component rendering code remains the same, just update the search input
-  
-  // ... (StatusBadge and CategoryBadge components remain the same)
 
   const StatusBadge = ({ module }) => {
     if (module.is_published) {
@@ -236,7 +236,7 @@ function TrainingModules() {
     );
   };
 
-  // Loading and error states remain the same...
+  // Loading and error states
   if (loading) {
     return (
       <div style={{ 
@@ -420,8 +420,8 @@ function TrainingModules() {
               <input
                 type="text"
                 placeholder="Search modules..."
-                value={localSearch} // Use local search state
-                onChange={handleSearchChange} // Use memoized handler
+                value={searchTerm}
+                onChange={handleSearchChange}
                 style={{
                   flex: 1,
                   minWidth: '200px',
@@ -461,7 +461,6 @@ function TrainingModules() {
             </div>
           </div>
 
-          {/* Rest of the component remains the same... */}
           {/* Tabs */}
           <div style={{
             display: 'flex',
@@ -616,22 +615,40 @@ function TrainingModules() {
                           ✏️ Edit
                         </button>
                         {!module.is_published ? (
-                          <button
-                            onClick={() => handlePublishModule(module.id)}
-                            style={{
-                              flex: 1,
-                              background: '#059669',
-                              color: 'white',
-                              border: 'none',
-                              padding: '0.5rem 0.75rem',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              fontWeight: '500'
-                            }}
-                          >
-                            🚀 Publish
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handlePublishModule(module.id)}
+                              style={{
+                                flex: 1,
+                                background: '#059669',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: '500'
+                              }}
+                            >
+                              🚀 Publish
+                            </button>
+                            <button
+                              onClick={() => handleDeleteModule(module.id)}
+                              style={{
+                                flex: 1,
+                                background: '#dc2626',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: '500'
+                              }}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </>
                         ) : (
                           <button
                             onClick={() => handleArchiveModule(module.id)}
@@ -700,7 +717,7 @@ function TrainingModules() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
-            fetchData(); // Use fetchData instead of window.location.reload()
+            fetchData();
           }}
         />
       )}

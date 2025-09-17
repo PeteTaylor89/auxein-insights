@@ -164,23 +164,23 @@ def get_risk(
         raise HTTPException(status_code=404, detail="Risk not found")
     
     # CRITICAL: Debug and fix None values
-    print(f"ðŸ” Before fix - custom_fields: {risk.custom_fields}")
-    print(f"ðŸ” Before fix - custom_fields type: {type(risk.custom_fields)}")
+    print(f" Before fix - custom_fields: {risk.custom_fields}")
+    print(f"Before fix - custom_fields type: {type(risk.custom_fields)}")
     
     # Ensure custom_fields is not None before returning
     if risk.custom_fields is None:
-        print("âš ï¸ Found None custom_fields, fixing...")
+        print("Found None custom_fields, fixing...")
         risk.custom_fields = {}
         db.commit()
         db.refresh(risk)
-        print(f"âœ… After fix - custom_fields: {risk.custom_fields}")
+        print(f"After fix - custom_fields: {risk.custom_fields}")
     
     # Also check other potentially problematic fields
     if not hasattr(risk, 'tags') or risk.tags is None:
         risk.tags = []
     
-    print(f"ðŸ” Final custom_fields before return: {risk.custom_fields}")
-    print(f"ðŸ” Final custom_fields type: {type(risk.custom_fields)}")
+    print(f"Final custom_fields before return: {risk.custom_fields}")
+    print(f"Final custom_fields type: {type(risk.custom_fields)}")
     
     return risk
 

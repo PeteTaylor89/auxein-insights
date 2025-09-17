@@ -1,6 +1,6 @@
 # api/v1/spatial_areas.py (NEW FILE)
 from typing import List, Optional, Dict
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
 from shapely.geometry import mapping, shape, Polygon
@@ -22,7 +22,8 @@ def get_all_spatial_areas_geojson(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     area_type: Optional[str] = None,
-    limit: int = 1000
+    limit: int = 1000,
+    scope: Optional[str] = Query(None)
 ):
     """
     Get all spatial areas as GeoJSON FeatureCollection for map display
@@ -30,7 +31,10 @@ def get_all_spatial_areas_geojson(
     query = db.query(SpatialArea).filter(SpatialArea.is_active == True)
     
     # Filter by company
-    if current_user.company_id:
+    is_auxein_admin = (current_user.email or "").lower() == "pete.taylor@auxein.co.nz"
+    wants_all = (scope or "").lower() == "all"
+
+    if current_user.company_id and not (is_auxein_admin and wants_all):
         query = query.filter(SpatialArea.company_id == current_user.company_id)
     
     # Filter by area type if specified

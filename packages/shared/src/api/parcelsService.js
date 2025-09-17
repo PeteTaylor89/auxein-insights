@@ -147,24 +147,17 @@ const parcelsService = {
   },
   
   // Get company's assigned parcels as GeoJSON
-  getCompanyParcelsGeoJSON: async (companyId, options = {}) => {
-    const params = parcelsService.buildGeoJSONParams({
-      ...options,
-      companyOwnedOnly: false // We'll filter by company after
-    });
-    
-    const response = await parcelsService.getParcelsGeoJSON(params);
-    
-    // Filter features to only include parcels assigned to the specified company
-    if (response.features) {
-      response.features = response.features.filter(
-        feature => feature.properties.assigned_company_id === companyId
-      );
-      response.metadata.count = response.features.length;
-      response.metadata.filtered_by_company = companyId;
-    }
-    
-    return response;
+  filterParcelsGeoJSONByCompany: (geojson, companyId) => {
+    if (!geojson || !Array.isArray(geojson.features)) return geojson;
+    const features = geojson.features.filter(
+      f => f?.properties?.assigned_company_id === companyId
+    );
+    const metadata = {
+      ...(geojson.metadata || {}),
+      count: features.length,
+      filtered_by_company: companyId,
+    };
+    return { ...geojson, features, metadata };
   },
   
   // Bulk assign parcels to company (admin only)

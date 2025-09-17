@@ -82,7 +82,9 @@ function Home() {
   
   return (
     <div className="home-page">
+            
       <div className="home-content">
+        <MobileNavigation />
         {/* Quick Stats Row */}
         <div className="stats-container">
           <div className="container-title">

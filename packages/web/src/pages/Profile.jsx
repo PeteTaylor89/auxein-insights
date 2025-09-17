@@ -236,19 +236,19 @@ function Profile() {
                   className={`tab-button ${activeAdminTab === 'create-company' ? 'active' : ''}`}
                   onClick={() => setActiveAdminTab('create-company')}
                 >
-                  🏢 Create Company
+                  Create Company
                 </button>
                 <button 
                   className={`tab-button ${activeAdminTab === 'manage-companies' ? 'active' : ''}`}
                   onClick={() => setActiveAdminTab('manage-companies')}
                 >
-                  📊 Manage Companies
+                  Manage Companies
                 </button>
                 <button 
                   className={`tab-button ${activeAdminTab === 'user-management' ? 'active' : ''}`}
                   onClick={() => setActiveAdminTab('user-management')}
                 >
-                  👥 User Management
+                  User Management
                 </button>
               </div>
 

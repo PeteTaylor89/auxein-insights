@@ -466,21 +466,19 @@ function ModuleEditor() {
             📱 Mobile Preview
           </button>
           
-          
           <button
-            onClick={() => navigate(`/training/modules/${moduleId}/publish`)}
+            onClick={() => navigate(`/training`)}
             style={{
-              background: '#059669',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
+              background: showMobilePreview ? '#3b82f6' : 'white',
+              color: showMobilePreview ? 'white' : '#374151',
+              border: '1px solid #d1d5db',
+              padding: '0.6rem 1rem',
               borderRadius: '6px',
               cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500'
+              fontSize: '0.875rem'
             }}
           >
-            🚀 Publish Module
+            Save and Close
           </button>
           
         </div>

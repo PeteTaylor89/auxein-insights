@@ -90,10 +90,10 @@ function CreateModuleModal({ onClose, onSuccess }) {
       console.log('✅ Module created:', module);
       
       // Show success and redirect to editor
-      alert('Training module created successfully! You will now be redirected to the editor.');
+      alert('Training module created successfully!');
       
       onSuccess();
-      navigate(`/training/modules/${module.id}/edit`);
+      navigate(`/training`);
       
     } catch (error) {
       console.error('❌ Error creating module:', error);
@@ -296,8 +296,9 @@ function CreateModuleModal({ onClose, onSuccess }) {
                     <option value="safety">Safety</option>
                     <option value="compliance">Compliance</option>
                     <option value="operations">Operations</option>
-                    <option value="onboarding">Onboarding</option>
-                    <option value="skills">Skills Development</option>
+                    <option value="induction">Induction</option>
+                    <option value="other">Skills Development</option>
+                    <option value="equipment">Equipment</option>
                   </select>
                 </div>
 

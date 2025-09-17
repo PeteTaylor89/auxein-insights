@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { User, Car, Phone, Building, Clock, MapPin, AlertTriangle, CheckCircle, Camera, FileText } from 'lucide-react';
 import { useAuth } from '@vineyard/shared';
 import {visitorService, api} from '@vineyard/shared';
+import { useNavigate } from 'react-router-dom';
 
 const VisitorRegistrationPortal = () => {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     // Personal details
     firstName: '',
@@ -87,34 +89,32 @@ const VisitorRegistrationPortal = () => {
       try {
         // Get company ID from authenticated user
         const companyId = user?.company_id;
-        
+
         if (!companyId) {
           alert('Unable to determine company information. Please contact reception.');
           return;
         }
-        
+
         // Use the visitor service
         const result = await visitorService.registerVisitorPortal(formData, companyId);
-        
+
         // Show success message with next steps
         alert(`Registration completed successfully! 
 
-Visit ID: ${result.visit_id}
-Welcome ${result.visitor_name}!
+  Visit ID: ${result.visit_id}
+  Welcome ${result.visitor_name}!
 
-Next steps:
-${result.next_steps.join('\n')}
+  Next steps:
+  ${result.next_steps.join('\n')}
         `);
-        
-        // Optionally redirect or reset form
-        // window.location.href = '/visitor-confirmation';
-        
+
+        navigate('/home');
+
       } catch (error) {
         console.error('Registration error:', error);
-        
-        // More detailed error handling
+
         let errorMessage = 'Registration failed. Please try again or contact reception for assistance.';
-        
+
         if (error.response?.data?.detail) {
           errorMessage = error.response.data.detail;
         } else if (error.message.includes('Network Error')) {
@@ -124,6 +124,7 @@ ${result.next_steps.join('\n')}
         } else if (error.response?.status === 404) {
           errorMessage = 'Registration service not found. Please contact reception for assistance.';
         }
+
         alert(errorMessage);
       }
     }
@@ -1076,6 +1077,8 @@ ${result.next_steps.join('\n')}
 
         .action-button.success {
           background: #10b981;
+          padding: 16px 28px;
+          font-size: 13px;
           color: white;
         }
 

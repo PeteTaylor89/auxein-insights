@@ -127,7 +127,16 @@ async def log_errors(request: Request, call_next):
         return response
     except Exception as e:
         print(f"ERROR: {str(e)}")
-        print(traceback.format_exc())
+        try:
+            print(traceback.format_exc())
+        except UnicodeEncodeError:
+            # Handle Windows console encoding issues
+            exc_text = traceback.format_exc()
+            safe_text = exc_text.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+            print(safe_text)
+        except Exception:
+            # Fallback if even that fails
+            print(f"Error occurred but couldn't display traceback due to encoding issues")
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 # Set up CORS

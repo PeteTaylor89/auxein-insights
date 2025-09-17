@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
@@ -14,19 +14,46 @@ import SpatialAreaSlidingEditForm from '../components/SpatialAreasSlidingEditFor
 
 mapboxgl.accessToken = 'pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q';
 
+function resolveViewerRole(user) {
+  const AUXEIN_ADMIN_EMAIL = "pete.taylor@auxein.co.nz"; // MVP hard-code
+  const isAuxeinAdmin =
+    !!user?.email && user.email.toLowerCase() === AUXEIN_ADMIN_EMAIL;
+  return {
+    scope: isAuxeinAdmin ? "global" : "company",
+    isAuxeinAdmin,
+    companyId: user?.company_id ?? user?.companyId ?? null,
+  };
+}
+
 function Maps() {
-  const adminEmail = 'pete.taylor@auxein.co.nz'
+  const { user } = useAuth();
+  const { scope, isAuxeinAdmin, companyId } = useMemo(
+    () => resolveViewerRole(user),
+    [user]
+  );
+  const isCompanyScope = scope === 'company';
+  const [blockToSplit, setBlockToSplit] = useState(null);
+  const [splitLineDrawn, setSplitLineDrawn] = useState(null);
+  const blockToSplitRef = useRef(null);
+  
+  useEffect(() => {
+    blockToSplitRef.current = blockToSplit;
+  }, [blockToSplit]);
+
+
+  const scopeKey = useMemo(() => {
+    return scope === "global" ? "global" : `company:${companyId ?? "none"}`;
+  }, [scope, companyId]);
   const [initialFitDone, setInitialFitDone] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
   const mapContainer = useRef(null);
   const map = useRef(null);
   const drawControl = useRef(null);
-  const { user } = useAuth();
+  
   const [apiStatus, setApiStatus] = useState('Loading...');
   const [blockCount, setBlockCount] = useState(0);
   const [ownBlockCount, setOwnBlockCount] = useState(0);
   const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/satellite-streets-v12');
-  const [isDrawing, setIsDrawing] = useState(false);
   const [drawingCoordinates, setDrawingCoordinates] = useState(null);
   const [newBlockInfo, setNewBlockInfo] = useState({
     block_name: '',
@@ -38,9 +65,7 @@ function Maps() {
   const [showDrawingForm, setShowDrawingForm] = useState(false);
   const [blocksData, setBlocksData] = useState(null);
   const [blockOpacity, setBlockOpacity] = useState(0.6); // Default opacity
-  const [isSplitting, setIsSplitting] = useState(false);
-  const [selectedBlockForSplit, setSelectedBlockForSplit] = useState(null);
-  const [splitLine, setSplitLine] = useState(null);
+
   const splitControlRef = useRef(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -88,7 +113,7 @@ function Maps() {
   const [showSpatialAreasLayer, setShowSpatialAreasLayer] = useState(true);
   const [spatialAreaOpacity, setSpatialAreaOpacity] = useState(0.5);
   const [spatialAreaCount, setSpatialAreaCount] = useState(0);
-  const [showBackgroundDim, setShowBackgroundDim] = useState(true);
+
 
   const handleCreateRows = async (rowCreationData) => {
     try {
@@ -236,8 +261,22 @@ function Maps() {
     }
   };
 
+
   useEffect(() => {
     const handleKeyPress = (e) => {
+      if (e.key === 'Escape' && blockToSplit) {
+        console.log('Escape pressed - cancelling split mode');
+        console.log('blockToSplit before cancel:', blockToSplit?.properties?.block_name);
+        
+        setBlockToSplit(null);
+        setSplitLineDrawn(null);
+        resetBlockHighlighting();
+        drawControl.current?.deleteAll();
+        drawControl.current?.changeMode('simple_select');
+        setApiStatus('Split cancelled');
+      }
+      
+      // Existing 3D controls
       if (e.ctrlKey) {
         switch(e.key) {
           case '3':
@@ -247,7 +286,6 @@ function Maps() {
           case 'r':
             if (is3DMode) {
               e.preventDefault();
-              // Reset camera rotation
               map.current.easeTo({
                 bearing: 0,
                 pitch: 45,
@@ -258,31 +296,21 @@ function Maps() {
         }
       }
     };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [is3DMode]);
+  
+  window.addEventListener('keydown', handleKeyPress);
+  return () => window.removeEventListener('keydown', handleKeyPress);
+}, [is3DMode, blockToSplit]);
 
   const handleOpacityChange = (opacity) => {
     setBlockOpacity(opacity);
   };
 
-  const toggleSplitMode = () => {
-    setIsSplitting(!isSplitting);
-    if (!isSplitting) {
-      setApiStatus('Split mode enabled. Select a block, then draw a line through it.');
-    } else {
-      setApiStatus('Split mode disabled.');
-      setSelectedBlockForSplit(null);
-      setSplitLine(null);
-      drawControl.current?.deleteAll();
-      // Reset any highlight styling
-      if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
-        map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', blockOpacity);
-      }
+  const resetBlockHighlighting = () => {
+    if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
+      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', blockOpacity);
     }
   };
-
+  
   // Touch handling state
   const touchStartTime = useRef(null);
   const touchStartPosition = useRef(null);
@@ -329,11 +357,6 @@ function Maps() {
         if (is3DMode) {
           setTimeout(() => add3DTerrain(), 100);
         }
-      
-      // Add background dimming for non-admin users
-      if (user?.email !== adminEmail) {
-        addBackgroundDimming();
-      }
       
       // Load blocks data only if we don't have it yet
       if (blocksData) {
@@ -388,6 +411,8 @@ function Maps() {
         displayControlsDefault: false,
         controls: {
           polygon: true,
+          line_string: true,   // <-- allow lines
+          trash: true          // (nice to have) allow clearing current sketch
         },
 
         styles: [
@@ -524,21 +549,6 @@ function Maps() {
       map.current.on('draw.update', handleDrawUpdate);
 
 
-      // Listen for style load events to reload layers
-      const handleStyleLoad = () => {
-        console.log('Style changed, reloading layers and 3D if needed');
-        if (is3DMode) {
-          setTimeout(() => add3DTerrain(), 200);
-        }
-        if (blocksData) {
-          console.log('Blocks data exists, adding to map');
-          addBlocksToMap(blocksData, user?.company_id);
-        } else {
-          console.log('No blocks data yet, will load from API');
-          loadBlocksData();
-          loadSpatialAreasData();
-        }
-      };
 
       map.current.on('style.load', handleStyleLoad);
 
@@ -553,6 +563,23 @@ function Maps() {
     return () => map.current?.remove();
   }, []);
 
+  // Reattach layers after style changes using the latest state (no refetch)
+  useEffect(() => {
+    if (!map.current) return;
+
+    const onStyleLoad = () => {
+      console.log('Style changed -> reattach layers from state');
+      if (is3DMode) setTimeout(() => add3DTerrain(), 200);
+      if (blocksData) addBlocksToMap(blocksData, user?.company_id);
+      if (spatialAreasData) addSpatialAreasToMap(spatialAreasData, user?.company_id);
+      if (parcelsData) addParcelsToMap(parcelsData);
+    };
+
+    map.current.on('style.load', onStyleLoad);
+    return () => map.current?.off('style.load', onStyleLoad);
+  }, [blocksData, spatialAreasData, parcelsData, is3DMode, user?.company_id]);
+
+
   // Update opacity when it changes
   useEffect(() => {
     if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
@@ -560,49 +587,292 @@ function Maps() {
     }
   }, [blockOpacity]);
 
+  function toFeatureCollection(list) {
+    return {
+      type: 'FeatureCollection',
+      features: (Array.isArray(list) ? list : [])
+        .filter(item => item && item.geometry)
+        .map(item => ({
+          type: 'Feature',
+          geometry: item.geometry,
+          properties: { ...item },
+        })),
+    };
+  }
+
+  // Return the full GeoJSON Feature for the currently selected block.
+  // Works whether you stored the feature itself or just its id.
+  function getSelectedBlockFeature() {
+    if (selectedBlockForSplit && selectedBlockForSplit.type === "Feature") {
+      return selectedBlockForSplit;
+    }
+    const selId = selectedBlockForSplit?.id || selectedBlockForSplit?.properties?.id;
+    if (!selId || !blocksData?.features) return null;
+    return blocksData.features.find(
+      f => `${f?.properties?.id}` === `${selId}` || `${f?.id}` === `${selId}`
+    ) || null;
+  }
+
+  // Quick permission check per your API rule
+  function canUserSplitBlock(blockFeature, user) {
+    const blockCompany = Number(blockFeature?.properties?.company_id);
+    const userCompany = Number(user?.company_id);
+    return !!blockCompany && !!userCompany && blockCompany === userCompany;
+  }
+
+  // Validate the drawn line against the selected block
+  function validateSplitGeometry(blockFeature, lineFeature) {
+    if (!blockFeature?.geometry) {
+      return { ok: false, reason: "No block geometry found." };
+    }
+    if (!lineFeature?.geometry || lineFeature.geometry.type !== "LineString") {
+      return { ok: false, reason: "Please draw a line (LineString)." };
+    }
+
+    const blockGeom = blockFeature; // already a Polygon/MultiPolygon feature
+    const lineGeom = lineFeature;
+
+    // basic length check to avoid near-zero lines (meters)
+    const lengthMeters = turf.length(lineGeom, { units: "kilometers" }) * 1000;
+    if (lengthMeters < 3) {
+      return { ok: false, reason: "Split line is too short. Please draw a longer line across the block." };
+    }
+
+    // must intersect the polygon
+    const intersects = turf.booleanIntersects(blockGeom, lineGeom);
+    if (!intersects) {
+      return { ok: false, reason: "The line must cross the block boundary in two places." };
+    }
+
+    // must have at least 2 intersection points with the polygon boundary
+    const intersections = turf.lineIntersect(lineGeom, blockGeom);
+    const count = intersections?.features?.length || 0;
+    if (count < 2) {
+      return { ok: false, reason: "The line must cross the block boundary in two places." };
+    }
+
+    return { ok: true };
+  }
+
   // Handle newly drawn polygon or line
   const handleDrawCreate = (e) => {
-    if (e.features.length > 0) {
-      const feature = e.features[0];
-      
-      if (isSplitting && feature.geometry.type === 'LineString') {
-        // Handle split line (existing code)
-        console.log('Split line drawn:', feature.geometry);
-        setSplitLine(feature.geometry);
-        
-        if (selectedBlockForSplit) {
-          console.log('Performing block split...');
-          performBlockSplit();
-        } else {
-          setApiStatus('Please select a block to split first');
-        }
-      } else if (feature.geometry.type === 'Polygon' && !isSplitting) {
-        // Handle new polygon - check if we're in mapping mode or regular block creation
-        console.log('Drawn polygon:', JSON.stringify(feature.geometry));
-        
-        const area = turf.area(feature.geometry) / 10000;
-        const centroid = turf.centroid(feature.geometry);
-        const centroidCoords = centroid.geometry.coordinates;
-        
-        setDrawingCoordinates(feature.geometry);
-        setMappingType('');
-        setNewBlockInfo(prev => ({ 
-          ...prev, 
-          area: parseFloat(area.toFixed(2)),
-          centroid_longitude: centroidCoords[0],
-          centroid_latitude: centroidCoords[1]
-        }));
-        
-        // Show the drawing form
-        setShowDrawingForm(true);
-        setIsDrawing(true);
+    console.log('=== handleDrawCreate called ===');
+    console.log('Features count:', e.features.length);
 
+    const activeBlock = blockToSplitRef.current; // <--- use ref
+    console.log('Current blockToSplit (ref):', activeBlock?.properties?.block_name || 'null');
+
+    if (e.features.length === 0) return;
+
+    const feature = e.features[0];
+    console.log('Feature type:', feature.geometry.type);
+
+    if (activeBlock && feature.geometry.type === 'LineString') {
+      console.log('=== PROCESSING SPLIT LINE ===');
+      console.log('Block to split:', activeBlock.properties.block_name);
+      handleSplitLineDrawn(feature, activeBlock);  // <— pass it
+    } else if (!activeBlock && feature.geometry.type === 'Polygon') {
+      console.log('=== PROCESSING POLYGON ===');
+      // Handle regular polygon creation (existing code)
+      const area = turf.area(feature.geometry) / 10000;
+      const centroid = turf.centroid(feature.geometry);
+      const centroidCoords = centroid.geometry.coordinates;
+      
+      setDrawingCoordinates(feature.geometry);
+      setNewBlockInfo(prev => ({ 
+        ...prev, 
+        area: parseFloat(area.toFixed(2)),
+        centroid_longitude: centroidCoords[0],
+        centroid_latitude: centroidCoords[1]
+      }));
+      
+      setShowDrawingForm(true);
+      setIsDrawing(true);
+    } else {
+      console.log('=== NO ACTION TAKEN ===');
+      console.log('Reason: blockToSplit exists?', !!activeBlock);
+      console.log('Feature type:', feature.geometry.type);
+      if (blockToSplit) {
+        console.log('blockToSplit details:', {
+          name: blockToSplit.properties.block_name,
+          id: blockToSplit.properties.id
+        });
       }
     }
   };
 
+  const handleSplitLineDrawn = (lineFeature, activeBlock = blockToSplitRef.current) => {
+    const name = activeBlock?.properties?.block_name || 'Unknown';
+    console.log('Split line drawn for block:', name);
+
+    if (!activeBlock) {
+      console.warn('No active block at split time; discarding drawn line.');
+      drawControl.current?.delete(lineFeature.id);
+      setApiStatus('Split cancelled or block lost. Click block → Split, then draw again.');
+      return;
+    }
+
+    const validation = validateSplitLine(activeBlock, lineFeature);
+    console.log('Validation result:', validation);
+    if (!validation.isValid) {
+      setApiStatus(`Invalid split line: ${validation.reason}`);
+      drawControl.current?.delete(lineFeature.id);
+      return;
+    }
+
+    // store the FULL feature (avoids shape mismatches later)
+    setSplitLineDrawn({ type: 'Feature', geometry: lineFeature.geometry });
+
+    showSplitConfirmationDialog(activeBlock);
+  };
+
+  const showSplitConfirmationDialog = (activeBlock = blockToSplitRef.current) => {
+    const blockName = activeBlock?.properties?.block_name || 'Unknown Block';
+    const confirmed = window.confirm(
+      `Split "${blockName}" into two separate blocks?\n\n` +
+      `This action cannot be undone. The original block will be deleted and replaced with two new blocks.\n\n` +
+      `Click OK to proceed, or Cancel to draw a different line.`
+    );
+    if (confirmed) {
+      executeSplit(activeBlock);     // pass it through
+    } else {
+      drawControl.current?.deleteAll();
+      setSplitLineDrawn(null);
+      setApiStatus(`Draw a new line through "${blockName}" to split it, or click elsewhere to cancel.`);
+    }
+  };
+
+
+  const validateSplitLine = (blockFeature, lineFeature) => {
+    console.log('=== validateSplitLine called ===');
+    console.log('Block feature:', blockFeature);
+    console.log('Line feature:', lineFeature);
+    
+    try {
+      if (!blockFeature?.geometry && !blockFeature?.type) {
+        console.log('Block validation failed: no geometry');
+        return { isValid: false, reason: "Block geometry not found" };
+      }
+      
+      if (!lineFeature?.geometry || lineFeature.geometry.type !== "LineString") {
+        console.log('Line validation failed:', lineFeature?.geometry?.type);
+        return { isValid: false, reason: "Invalid line geometry" };
+      }
+
+      // Convert to turf objects - handle both feature objects and geometry objects
+      let blockGeom, lineGeom;
+      
+      if (blockFeature.type === "Feature") {
+        blockGeom = blockFeature;
+      } else if (blockFeature.geometry) {
+        blockGeom = { type: "Feature", geometry: blockFeature.geometry };
+      } else {
+        blockGeom = { type: "Feature", geometry: blockFeature };
+      }
+      
+      if (lineFeature.type === "Feature") {
+        lineGeom = lineFeature;
+      } else if (lineFeature.geometry) {
+        lineGeom = { type: "Feature", geometry: lineFeature.geometry };
+      } else {
+        lineGeom = { type: "Feature", geometry: lineFeature };
+      }
+
+      console.log('Converted geometries - Block:', blockGeom.geometry.type, 'Line:', lineGeom.geometry.type);
+
+      // Check line length (minimum 10 meters)
+      const lengthMeters = turf.length(lineGeom, { units: "kilometers" }) * 1000;
+      console.log('Line length (meters):', lengthMeters);
+      
+      if (lengthMeters < 10) {
+        return { isValid: false, reason: "Line too short. Draw a longer line across the block." };
+      }
+
+      // Check if line intersects the block
+      const intersects = turf.booleanIntersects(blockGeom, lineGeom);
+      console.log('Line intersects block:', intersects);
+      
+      if (!intersects) {
+        return { isValid: false, reason: "Line must intersect the block boundary" };
+      }
+
+      // Check for proper crossing (at least 2 intersection points)
+      const intersections = turf.lineIntersect(lineGeom, blockGeom);
+      const intersectionCount = intersections.features ? intersections.features.length : 0;
+      console.log('Intersection points:', intersectionCount);
+      
+      if (intersectionCount < 2) {
+        return { isValid: false, reason: "Line must cross the block boundary at two points" };
+      }
+
+      console.log('Validation passed!');
+      return { isValid: true };
+    } catch (error) {
+      console.error('Validation error:', error);
+      return { isValid: false, reason: "Validation failed: " + error.message };
+    }
+  };
+
+  const executeSplit = async (activeBlock = blockToSplitRef.current) => {
+    // Use the ref/arg, not state
+    const lineFeature = splitLineDrawn; // we stored a Feature above
+    if (!activeBlock || !lineFeature) {
+      setApiStatus('Missing block or line for split operation');
+      return;
+    }
+
+    try {
+      setIsSplitProcessing(true);
+      setApiStatus('Splitting block... Please wait.');
+
+      const blockId = activeBlock.properties.id;
+      // Send a Feature payload; some backends expect a Feature not bare geometry.
+      const splitLineGeoJSON = lineFeature.type === 'Feature'
+        ? lineFeature
+        : { type: 'Feature', geometry: lineFeature.geometry || lineFeature };
+
+      console.log('Executing split for block:', blockId);
+      console.log('Split line (Feature):', splitLineGeoJSON);
+
+      const response = await blocksService.splitBlock(blockId, splitLineGeoJSON);
+
+      console.log('Split response:', response);
+      if (response && response.new_blocks) {
+        setApiStatus(`Block split successfully into ${response.new_blocks.length} parts`);
+        setBlockToSplit(null);
+        setSplitLineDrawn(null);
+        drawControl.current?.deleteAll();
+        drawControl.current?.changeMode('simple_select');
+        resetBlockHighlighting();
+        await loadBlocksData();
+      } else {
+        throw new Error('Invalid response from split operation');
+      }
+    } catch (error) {
+      console.error('Split execution error:', error);
+      setApiStatus(`Split failed: ${error.response?.data?.detail || error.message}`);
+      drawControl.current?.deleteAll();
+      setSplitLineDrawn(null);
+    } finally {
+      setIsSplitProcessing(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log('=== blockToSplit state changed ===');
+    console.log('New blockToSplit:', blockToSplit?.properties?.block_name || 'null');
+  }, [blockToSplit]);
+
+  useEffect(() => {
+    console.log('=== blockToSplit useEffect triggered ===');
+    console.log('Previous blockToSplit:', blockToSplit?.properties?.block_name || 'null');
+    console.log('blockToSplit is now:', blockToSplit?.properties?.block_name || 'null');
+    console.log('blockToSplit full object:', blockToSplit);
+  }, [blockToSplit]);
+
+
   const handleDrawUpdate = (e) => {
-    if (e.features.length > 0 && !isSplitting) {
+    if (e.features.length > 0 && !blockToSplit) {
       const polygon = e.features[0];
       console.log('Updated polygon:', JSON.stringify(polygon.geometry));
       
@@ -621,7 +891,20 @@ function Maps() {
   };
 
   const handleDrawDelete = () => {
-    if (!isSplitting) {
+    console.log('=== handleDrawDelete called ===');
+    console.log('blockToSplit before delete:', blockToSplit?.properties?.block_name || 'null');
+    const activeBlock = blockToSplitRef.current;
+    if (activeBlock) {
+      // User deleted the split line - cancel split mode
+      console.log('Split cancelled by user deletion');
+      setBlockToSplit(null);
+      blockToSplitRef.current = null;
+      setSplitLineDrawn(null);
+      resetBlockHighlighting();
+      drawControl.current?.changeMode('simple_select');
+      setApiStatus('Split cancelled');
+    } else if (!isMapping) {
+      // Regular polygon deletion
       setDrawingCoordinates(null);
       setNewBlockInfo({
         block_name: '',
@@ -834,77 +1117,58 @@ function Maps() {
     }
   };
 
-  const loadSpatialAreasData = async () => {
-    if (!map.current || !user) {
-      console.log('Map or user not available, cannot load spatial areas');
-      return;
-    }
-    
-    // Prevent multiple simultaneous loads
-    if (loadSpatialAreasData.isLoading) {
-      console.log('Spatial areas already loading, skipping...');
-      return;
-    }
-
+  async function loadSpatialAreasData() {
     try {
-      loadSpatialAreasData.isLoading = true;
-      console.log('Loading spatial areas data');
       setApiStatus('Loading spatial areas...');
-      
-      const response = await spatialAreasService.getSpatialAreasGeoJSON();
-      console.log('Spatial areas response received:', response?.features?.length || 0, 'features');
-      
-      if (response && response.features) {
-        const features = response.features;
-        const userCompanyId = user.company_id;
-        const isAdmin = user?.email === adminEmail;
-        
-        if (isAdmin) {
-          // Admin sees all spatial areas
-          setSpatialAreaCount(features.length);
-          setApiStatus(`Loaded ${features.length} spatial areas (all companies)`);
-          console.log(`Admin loaded ${features.length} total spatial areas`);
-        } else {
-          // Regular users see only their company's areas
-          const companyAreas = features.filter(feature => 
-            Number(feature.properties.company_id) === Number(userCompanyId)
-          );
-          setSpatialAreaCount(companyAreas.length);
-          setApiStatus(`Loaded ${companyAreas.length} spatial areas`);
-          console.log(`User loaded ${companyAreas.length} company spatial areas from ${features.length} total`);
+
+      let response;
+
+      if (isAuxeinAdmin) {
+        // Try to fetch ALL areas as GeoJSON (explicit scope hint for the API)
+        response = await spatialAreasService.getSpatialAreasGeoJSON({ scope: 'all' });
+
+        // Fallback if the API still scopes the GeoJSON endpoint for admins:
+        if (!response || !Array.isArray(response.features) || response.features.length === 0) {
+          // Adjust the list method name to match your service if needed:
+          // e.g. spatialAreasService.getSpatialAreas / listSpatialAreas / getAllSpatialAreas
+          const list = await spatialAreasService.getAllSpatialAreas
+            ? await spatialAreasService.getAllSpatialAreas({ scope: 'all' })
+            : await spatialAreasService.getSpatialAreas({ scope: 'all' });
+
+          response = toFeatureCollection(list);
         }
-        
-        // Always store ALL the data - filtering happens in addSpatialAreasToMap
-        setSpatialAreasData(response);
-        
-        // Add areas to map - with retry logic
-        const addToMap = () => {
-          if (map.current && map.current.isStyleLoaded()) {
-            console.log('Adding spatial areas to map now');
-            addSpatialAreasToMap(response, userCompanyId);
-          } else {
-            console.log('Map not ready, retrying spatial areas in 100ms');
-            setTimeout(addToMap, 100);
-          }
-        };
-        
-        addToMap();
-        
       } else {
-        console.log('No spatial areas found');
-        setApiStatus('No spatial areas found');
-        setSpatialAreasData({
-          type: 'FeatureCollection',
-          features: []
-        });
+        // Company-scoped users: the server may already scope this; we still pass company_id in case it’s supported
+        response = await spatialAreasService.getSpatialAreasGeoJSON({ company_id: user?.company_id });
       }
-    } catch (error) {
-      console.error('Error loading spatial areas:', error);
-      setApiStatus(`Error loading spatial areas: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      loadSpatialAreasData.isLoading = false;
+
+      // Safety: ensure we have a FeatureCollection
+      if (!response || response.type !== 'FeatureCollection') {
+        console.warn('Spatial areas: normalizing to FeatureCollection');
+        response = toFeatureCollection(response?.items || response?.data || []);
+      }
+
+      // Persist + render
+      setSpatialAreasData(response);
+      addSpatialAreasToMap(response, user?.company_id);
+
+      setApiStatus(`Spatial areas loaded (${response.features?.length || 0})`);
+    } catch (err) {
+      console.error('Failed to load spatial areas', err);
+      setApiStatus('Failed to load spatial areas');
     }
-  };
+  }
+
+
+
+
+
+
+
+
+
+
+
 
   const addSpatialAreasToMap = (geojsonData, userCompanyId) => {
     if (!map.current) {
@@ -929,11 +1193,10 @@ function Maps() {
         map.current.removeSource('spatial-areas');
       }
 
-      const isAdmin = user?.email === adminEmail;
       let filteredFeatures = geojsonData.features;
 
       // FIX: Admin should see ALL spatial areas, not filter by company
-      if (!isAdmin) {
+      if (!isAuxeinAdmin) {
         // Only filter for non-admin users
         filteredFeatures = geojsonData.features.filter(
           feature => Number(feature.properties.company_id) === Number(userCompanyId)
@@ -941,7 +1204,7 @@ function Maps() {
       }
       // If admin, use all features without filtering
 
-      console.log(`Admin: ${isAdmin}, Total features: ${geojsonData.features.length}, Filtered features: ${filteredFeatures.length}`);
+      console.log(`Admin: ${isAuxeinAdmin}, Total features: ${geojsonData.features.length}, Filtered features: ${filteredFeatures.length}`);
 
       const filteredGeoJSON = {
         type: 'FeatureCollection',
@@ -1094,7 +1357,7 @@ function Maps() {
       const areaTypeLabel = spatialAreaTypes.find(t => t.value === properties.area_type)?.label || properties.area_type;
       
       let popupContent;
-      if (isOwnedArea || user?.email === adminEmail) {
+      if (!isAuxeinAdmin) {
         popupContent = `
           <div class="map-popup spatial-area owned">
             <h3>${properties.name || 'Unnamed Area'}</h3>
@@ -1212,7 +1475,7 @@ const loadParcelsData = async (forceLoad = false) => {
   console.log('🔍 Step 4 - loadParcelsData called for:', {
     user: user?.email,
     companyId: user?.company_id,
-    isAdmin: user?.email === adminEmail
+    
   });
   
   if (!map.current || !user) {
@@ -1225,7 +1488,6 @@ const loadParcelsData = async (forceLoad = false) => {
     
     const currentZoom = map.current.getZoom();
     const minZoom = 12;
-    const isAdmin = user?.email === adminEmail;
     
     if (currentZoom < minZoom && !forceLoad) {
       setApiStatus(`Zoom to level ${minZoom} or higher to load parcels (current: ${currentZoom.toFixed(1)})`);
@@ -1244,7 +1506,7 @@ const loadParcelsData = async (forceLoad = false) => {
     
     let response;
     
-    if (isAdmin) {
+    if (isAuxeinAdmin) {
       // Admin loads all parcels
       console.log('🔍 Loading ALL parcels for admin');
       response = await parcelsService.loadParcelsForViewport(map.current, minZoom, false);
@@ -1275,18 +1537,13 @@ const loadParcelsData = async (forceLoad = false) => {
       if (response.metadata?.zoom_too_low) {
         setApiStatus(response.metadata.message);
       } else {
-        const userType = isAdmin ? 'total' : 'your company\'s';
+        const userType = isAuxeinAdmin ? 'total' : 'your company\'s';
         setApiStatus(`Loaded ${features.length} ${userType} parcels`);
       }
       
       setParcelsData(response);
       addParcelsToMap(response);
-      if (user?.email !== adminEmail) {
-        console.log('Triggering background dimming with fresh parcel data');
-        setTimeout(() => {
-          addBackgroundDimming(response); // Pass the response directly
-        }, 100);
-      }
+
     } else {
       setApiStatus('No parcels found');
       setParcelCount(0);
@@ -1299,7 +1556,6 @@ const loadParcelsData = async (forceLoad = false) => {
   } finally {
     setIsLoadingParcels(false);
   }
-
 
 };
 
@@ -1473,7 +1729,7 @@ const handleAssignBlock = async (blockProperties) => {
   console.log('Assign block clicked:', blockProperties);
   
   // Only allow admin
-  if (user?.email !== adminEmail) {
+  if (isCompanyScope) {
     setApiStatus('Only administrators can assign blocks');
     return;
   }
@@ -1545,7 +1801,7 @@ const handleCancelBlockAssignment = () => {
 };
 
 useEffect(() => {
-  if (!map.current || user?.email !== adminEmail) return;
+  if (!map.current || isCompanyScope) return;
   
   const handleMapMove = () => {
     if (!showParcelsLayer) return;
@@ -1588,7 +1844,9 @@ useEffect(() => {
   
   const loadData = () => {
     console.log('Initial load triggered');
-    loadBlocksData();
+    loadBlocksData();        
+    loadSpatialAreasData();   
+    
   };
   
   if (map.current.loaded()) {
@@ -1647,22 +1905,6 @@ useEffect(() => {
   }
 }, [spatialAreaOpacity]);
 
-// Reload spatial areas when map style changes
-useEffect(() => {
-  if (map.current && spatialAreasData && user) {
-    const handleStyleLoad = () => {
-      if (spatialAreasData) {
-        addSpatialAreasToMap(spatialAreasData, user.company_id);
-      }
-    };
-    
-    map.current.on('style.load', handleStyleLoad);
-    
-    return () => {
-      map.current.off('style.load', handleStyleLoad);
-    };
-  }
-}, [mapStyle, spatialAreasData, user]);
 
 // Get user's current location
 useEffect(() => {
@@ -1706,7 +1948,7 @@ useEffect(() => {
 
 useEffect(() => {
   // Auto-show parcels for regular users (non-admin)
-  if (user && user.email !== adminEmail && map.current) {
+  if (user && isCompanyScope && map.current) {
     console.log('Auto-enabling parcels for regular user:', user.email);
     setShowParcelsLayer(true);
     // Also trigger loading if map is ready
@@ -1718,7 +1960,7 @@ useEffect(() => {
 }, [user]);
 
 useEffect(() => {
-  if (user?.email === adminEmail && availableCompanies.length === 0) {
+  if (isAuxeinAdmin && availableCompanies.length === 0) {
     loadAvailableCompanies();
   }
 }, [user]);
@@ -1892,214 +2134,233 @@ useEffect(() => {
   };
 
 // Enhanced block interaction handler for both click and touch
-const handleBlockInteraction = (e, eventType = 'click') => {
-  console.log(`Block ${eventType} event:`, {
-    eventType,
-    featuresCount: e.features?.length,
-    originalEventType: e.originalEvent?.type,
-    isTouchEvent: e.originalEvent instanceof TouchEvent
-  });
+  const handleBlockInteraction = (e, eventType = 'click') => {
+    console.log(`Block ${eventType} event:`, {
+      eventType,
+      featuresCount: e.features?.length
+    });
 
-  // Close any existing popup first
-  if (currentPopup.current) {
-    currentPopup.current.remove();
-    currentPopup.current = null;
-  }
-
-  // Prevent default map navigation
-  if (e.preventDefault) {
-    e.preventDefault();
-  }
-  
-  if (e.features && e.features.length > 0) {
-    const feature = e.features[0];
-    const properties = feature.properties;
-    const userCompanyId = user?.company_id;
-    const isOwnedBlock = Number(properties.company_id) === Number(userCompanyId);
-
-    if (isSplitting) {
-      // Handle block selection for splitting
-      console.log('Block selected for splitting:', feature);
-      setSelectedBlockForSplit(feature);
-      setApiStatus(`Selected block "${properties.block_name}" for splitting. Now draw a line through it.`);
-      
-      // Highlight the selected block
-      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', [
-        'case',
-        ['==', ['get', 'id'], properties.id],
-        0.8,
-        blockOpacity
-      ]);
-      
-      return;
+    // Close any existing popup first
+    if (currentPopup.current) {
+      currentPopup.current.remove();
+      currentPopup.current = null;
     }
 
-    // Create unique function names that will be available for cleanup
-    const editFunctionName = `openEditForm_${properties.id}_${Date.now()}`;
-    const assignBlockFunctionName = `assignBlock_${properties.id}_${Date.now()}`;
-
-    // Create popup content
-    let popupContent;
+    if (e.preventDefault) {
+      e.preventDefault();
+    }
     
-    if (isOwnedBlock) {
-    
-      window[editFunctionName] = () => {
-        console.log('Opening edit form for block:', properties.id);
-        window.dispatchEvent(new CustomEvent('openEditForm', { 
-          detail: { blockId: properties.id } 
-        }));
-        if (currentPopup.current) {
-          currentPopup.current.remove();
-          currentPopup.current = null;
-        }
-      };
+    if (e.features && e.features.length > 0) {
+      const feature = e.features[0];
+      const properties = feature.properties;
+      const userCompanyId = user?.company_id;
+      const isOwnedBlock = Number(properties.company_id) === Number(userCompanyId);
 
-      popupContent = `
-        <div class="map-popup owned mobile-optimized">
-          <h3>${properties.block_name || 'Unnamed Block'}</h3>
-          <div class="popup-details">
-            <div><strong>Variety:</strong> ${properties.variety || 'Unknown'}</div>
-            <div><strong>Area:</strong> ${typeof properties.area === 'number' ? `${properties.area.toFixed(2)} ha` : 'Unknown'}</div>
-            <div><strong>Region:</strong> ${properties.region || 'Unknown'}</div>
-            <div><strong>Winery:</strong> ${properties.winery || 'Unknown'}</div>
-            <div><strong>Organic:</strong> ${properties.organic ? 'Yes' : 'No'}</div>
-            <div><strong>ID:</strong> ${properties.id || 'Unknown'}</div>
-            ${properties.planted_date ? `<div><strong>Planted:</strong> ${properties.planted_date}</div>` : ''}
-          </div>
-          <div class="popup-actions mobile-actions">
-            <button 
-              onclick="window.${editFunctionName}()" 
-              class="popup-button mobile-button touch-friendly"
-              ontouchstart="">
-              Edit Details
-            </button>
-          </div>
-        </div>
-      `;
+      // Create unique function names that will be available for cleanup
+      const editFunctionName = `openEditForm_${properties.id}_${Date.now()}`;
+      const splitFunctionName = `splitBlock_${properties.id}_${Date.now()}`; // This is the key fix
+      const assignBlockFunctionName = `assignBlock_${properties.id}_${Date.now()}`;
+
+      // Create popup content
+      let popupContent;
       
-    } else {
-      // Block belongs to another company or is unassigned
-      if (user?.email === adminEmail) {
-        window[assignBlockFunctionName] = () => {
-          console.log('Assign block clicked for block:', properties);
-          handleAssignBlock(properties);
+      if (isOwnedBlock) {
+        window[editFunctionName] = () => {
+          console.log('Opening edit form for block:', properties.id);
+          window.dispatchEvent(new CustomEvent('openEditForm', { 
+            detail: { blockId: properties.id } 
+          }));
           if (currentPopup.current) {
             currentPopup.current.remove();
             currentPopup.current = null;
           }
         };
-        
-        const currentOwnerText = properties.company_id 
-          ? `Currently assigned to Company #${properties.company_id}`
-          : 'Unassigned';
-        
+
+        // CRITICAL FIX: Make sure this function calls startBlockSplit correctly
+        window[splitFunctionName] = () => {
+          console.log('=== Split button clicked in popup ===');
+          console.log('Calling startBlockSplit with feature:', feature.properties.block_name);
+          
+          // Call startBlockSplit with the FULL feature object
+          startBlockSplit(feature);
+          
+          if (currentPopup.current) {
+            currentPopup.current.remove();
+            currentPopup.current = null;
+          }
+        };
+
         popupContent = `
-          <div class="map-popup other mobile-optimized">
+          <div class="map-popup owned mobile-optimized">
             <h3>${properties.block_name || 'Unnamed Block'}</h3>
-            <div class="popup-company-notice">${currentOwnerText}</div>
-            <div class="popup-details limited">
+            <div class="popup-details">
               <div><strong>Variety:</strong> ${properties.variety || 'Unknown'}</div>
-              <div><strong>Region:</strong> ${properties.region || 'Unknown'}</div>
               <div><strong>Area:</strong> ${typeof properties.area === 'number' ? `${properties.area.toFixed(2)} ha` : 'Unknown'}</div>
-              <div><strong>ID:</strong> ${properties.id}</div>
+              <div><strong>Region:</strong> ${properties.region || 'Unknown'}</div>
+              <div><strong>Winery:</strong> ${properties.winery || 'Unknown'}</div>
+              <div><strong>Organic:</strong> ${properties.organic ? 'Yes' : 'No'}</div>
+              <div><strong>ID:</strong> ${properties.id || 'Unknown'}</div>
+              ${properties.planted_date ? `<div><strong>Planted:</strong> ${properties.planted_date}</div>` : ''}
             </div>
             <div class="popup-actions mobile-actions">
               <button 
-                onclick="window.${assignBlockFunctionName}()" 
-                class="popup-button assign-button mobile-button touch-friendly"
+                onclick="window.${editFunctionName}()" 
+                class="popup-button mobile-button touch-friendly"
                 ontouchstart="">
-                ${properties.company_id ? 'Reassign Block' : 'Assign Block'}
+                Edit Details
+              </button>
+              <button 
+                onclick="window.${splitFunctionName}()" 
+                class="popup-button split-button mobile-button touch-friendly"
+                ontouchstart=""
+                style="background-color: #dc2626; color: white;">
+                Split Block
               </button>
             </div>
           </div>
         `;
+        
       } else {
-        // Regular users see read-only view
-        popupContent = `
-          <div class="map-popup other mobile-optimized">
-            <h3>${properties.block_name || 'Unnamed Block'}</h3>
-            <div class="popup-company-notice">This block belongs to another company</div>
-            <div class="popup-details limited">
-              <div><strong>Variety:</strong> ${properties.variety || 'Unknown'}</div>
-              <div><strong>Region:</strong> ${properties.region || 'Unknown'}</div>
-              <div><strong>Area:</strong> ${typeof properties.area === 'number' ? `${properties.area.toFixed(2)} ha` : 'Unknown'}</div>
+        // Block belongs to another company or is unassigned (existing admin code)
+        if (isAuxeinAdmin) {
+          window[assignBlockFunctionName] = () => {
+            console.log('Assign block clicked for block:', properties);
+            handleAssignBlock(properties);
+            if (currentPopup.current) {
+              currentPopup.current.remove();
+              currentPopup.current = null;
+            }
+          };
+          
+          const currentOwnerText = properties.company_id 
+            ? `Currently assigned to Company #${properties.company_id}`
+            : 'Unassigned';
+          
+          popupContent = `
+            <div class="map-popup other mobile-optimized">
+              <h3>${properties.block_name || 'Unnamed Block'}</h3>
+              <div class="popup-company-notice">${currentOwnerText}</div>
+              <div class="popup-details limited">
+                <div><strong>Variety:</strong> ${properties.variety || 'Unknown'}</div>
+                <div><strong>Region:</strong> ${properties.region || 'Unknown'}</div>
+                <div><strong>Area:</strong> ${typeof properties.area === 'number' ? `${properties.area.toFixed(2)} ha` : 'Unknown'}</div>
+                <div><strong>ID:</strong> ${properties.id}</div>
+              </div>
+              <div class="popup-actions mobile-actions">
+                <button 
+                  onclick="window.${assignBlockFunctionName}()" 
+                  class="popup-button assign-button mobile-button touch-friendly"
+                  ontouchstart="">
+                  ${properties.company_id ? 'Reassign Block' : 'Assign Block'}
+                </button>
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        } else {
+          // Regular users see read-only view
+          popupContent = `
+            <div class="map-popup other mobile-optimized">
+              <h3>${properties.block_name || 'Unnamed Block'}</h3>
+              <div class="popup-company-notice">This block belongs to another company</div>
+              <div class="popup-details limited">
+                <div><strong>Variety:</strong> ${properties.variety || 'Unknown'}</div>
+                <div><strong>Region:</strong> ${properties.region || 'Unknown'}</div>
+                <div><strong>Area:</strong> ${typeof properties.area === 'number' ? `${properties.area.toFixed(2)} ha` : 'Unknown'}</div>
+              </div>
+            </div>
+          `;
+        }
       }
+
+      // Create popup with mobile-friendly options
+      const popup = new mapboxgl.Popup({
+        closeButton: true,
+        closeOnClick: true,
+        maxWidth: 'min(90vw, 400px)',
+        className: 'mobile-friendly-popup',
+        anchor: 'top',
+        focusAfterOpen: false
+      })
+        .setLngLat(e.lngLat)
+        .setHTML(popupContent);
+
+      // Store reference to current popup
+      currentPopup.current = popup;
+      
+      // Store function names for cleanup
+      popup._functionNames = [
+        editFunctionName,
+        splitFunctionName,
+        assignBlockFunctionName
+      ].filter(name => window[name]);
+      
+      popup.addTo(map.current);
+
+      popup.on('close', () => {
+        if (currentPopup.current === popup) {
+          currentPopup.current = null;
+        }
+        
+        // Clean up function references using stored names
+        if (popup._functionNames) {
+          popup._functionNames.forEach(name => {
+            if (window[name]) {
+              delete window[name];
+            }
+          });
+        }
+      });
     }
+  };
 
-    // Create popup with mobile-friendly options
-    const popup = new mapboxgl.Popup({
-      closeButton: true,
-      closeOnClick: true, // Allow closing by clicking elsewhere
-      closeOnMove: false,  // Don't close when map moves slightly
-      maxWidth: 'min(90vw, 400px)', // Responsive width
-      className: 'mobile-friendly-popup',
-      anchor: 'top', // Better positioning on mobile
-      focusAfterOpen: false // Prevent focus issues on mobile
-    })
-      .setLngLat(e.lngLat)
-      .setHTML(popupContent);
-
-    // Store reference to current popup
-    currentPopup.current = popup;
+  const startBlockSplit = (blockFeature) => {
+    console.log('=== startBlockSplit called ===');
+    console.log('Block feature received:', blockFeature);
+    console.log('Block name:', blockFeature?.properties?.block_name);
+    console.log('Block ID:', blockFeature?.properties?.id);
+    console.log('Feature type:', blockFeature?.type);
     
-    // Store function names for cleanup
-    popup._functionNames = [
-      editFunctionName,
-      assignBlockFunctionName
-    ].filter(name => window[name]); // Only store functions that were actually created
+
+    if (!blockFeature || !blockFeature.properties) {
+      console.error('Invalid block feature passed to startBlockSplit');
+      return;
+    }
     
-    // Add to map
-    popup.addTo(map.current);
+    // Store the block to split
+    console.log('Setting blockToSplit state...');
+    setBlockToSplit(blockFeature);
+    blockToSplitRef.current = blockFeature;
+    setSplitLineDrawn(null);
 
-    // Add touch-friendly close behavior
-    popup.on('open', () => {
-      // Add event listeners for better mobile interaction
-      const popupElement = popup.getElement();
-      if (popupElement) {
-        // Prevent map interaction when touching popup
-        popupElement.addEventListener('touchstart', (e) => {
-          e.stopPropagation();
-        });
-        popupElement.addEventListener('touchmove', (e) => {
-          e.stopPropagation();
-        });
-        popupElement.addEventListener('touchend', (e) => {
-          e.stopPropagation();
-        });
-      }
-    });
+    console.log('State should be set. blockToSplit name:', blockFeature.properties.block_name);
 
-    popup.on('close', () => {
-      // Clean up reference
-      if (currentPopup.current === popup) {
-        currentPopup.current = null;
-      }
-      
-      // Clean up any temporary styling
-      if (isSplitting && selectedBlockForSplit) {
-        map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', blockOpacity);
-      }
-      
-      // Clean up function references using stored names
-      if (popup._functionNames) {
-        popup._functionNames.forEach(name => {
-          if (window[name]) {
-            delete window[name];
-          }
-        });
-      }
-    });
-  }
-};
+    // Switch to line drawing mode
+    drawControl.current?.changeMode('draw_line_string');
+    
+    // Highlight the selected block
+    if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
+      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', [
+        'case',
+        ['==', ['get', 'id'], blockFeature.properties.id],
+        0.8,
+        blockOpacity * 0.3 // Dim other blocks
+      ]);
+    }
+    
+    setApiStatus(`Draw a line through "${blockFeature.properties.block_name}" to split it. Double-click to finish the line.`);
+
+    // Debug: Check state after a delay
+    setTimeout(() => {
+      console.log('=== State check after 500ms ===');
+      // We can't directly access the state here, but we'll see in the next render
+    }, 500);
+  };
 
   const handleParcelClick = (e) => {
     console.log('Parcel click event:', e);
 
     // Only allow admin to interact with parcels
-    if (user?.email !== adminEmail) {
+    if (!isAuxeinAdmin) {
       return;
     }
 
@@ -2270,7 +2531,6 @@ const handleBlockInteraction = (e, eventType = 'click') => {
           }
         });
 
-
         map.current.addLayer({
           id: 'vineyard-blocks-outline',
           type: 'line',
@@ -2287,14 +2547,12 @@ const handleBlockInteraction = (e, eventType = 'click') => {
           }
         });
 
-        const isAdmin = user?.email === adminEmail;
-
         map.current.addLayer({
           id: 'blocks-labels',
           type: 'symbol',
           source: 'vineyard-blocks',
           minzoom: 12,
-          filter: isAdmin ? 
+          filter: isAuxeinAdmin ? 
             // Admin sees all blocks
             ['has', 'block_name'] :
             // Regular users see only their company's blocks
@@ -2320,6 +2578,12 @@ const handleBlockInteraction = (e, eventType = 'click') => {
 
         // Add a universal click handler that checks for all feature types
         map.current.on('click', (e) => {
+          // Skip processing if we're in split mode - let the drawing tool handle it
+          if (blockToSplit) {
+            console.log('Click ignored - in split mode, letting draw tool handle it');
+            return;
+          }
+
           // Query all features at the click point
           const allFeatures = map.current.queryRenderedFeatures(e.point, {
             layers: [
@@ -2344,11 +2608,6 @@ const handleBlockInteraction = (e, eventType = 'click') => {
             // Both block and spatial area - check which is more specific
             console.log('Both block and spatial area clicked');
             
-            // You can choose logic here:
-            // Option 1: Always prefer blocks
-            // Option 2: Check which has smaller area
-            // Option 3: Show both in a combined popup
-            
             // For now, let's prefer blocks but make sure spatial areas are still accessible
             handleBlockInteraction({
               ...e,
@@ -2371,7 +2630,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
               features: spatialFeatures
             });
             
-          } else if (parcelFeatures.length > 0 && user?.email === adminEmail) {
+          } else if (parcelFeatures.length > 0 && isAuxeinAdmin) {
             console.log('Parcel only clicked');
             handleParcelClick({
               ...e,
@@ -2380,7 +2639,9 @@ const handleBlockInteraction = (e, eventType = 'click') => {
             
           } else {
             // Close any existing popup if clicking on empty space
-            if (currentPopup.current) {
+            // BUT NOT if we're in split mode
+            if (currentPopup.current && !blockToSplit) {
+              console.log('Closing popup - clicked on empty space');
               currentPopup.current.remove();
               currentPopup.current = null;
             }
@@ -2389,6 +2650,12 @@ const handleBlockInteraction = (e, eventType = 'click') => {
 
         // Also handle touch events separately for mobile
         map.current.on('touchend', (e) => {
+          // Skip touch handling if we're in split mode
+          if (blockToSplit) {
+            console.log('Touch ignored - in split mode');
+            return;
+          }
+
           // Same logic as click but for touch
           const allFeatures = map.current.queryRenderedFeatures(e.point, {
             layers: [
@@ -2416,21 +2683,9 @@ const handleBlockInteraction = (e, eventType = 'click') => {
         });
 
         // Add click handler for map background to close popups
-        map.current.off('click'); // Remove any existing general click handlers first
-        map.current.on('click', (e) => {
-          // Only close popup if we didn't click on a block
-          const features = map.current.queryRenderedFeatures(e.point, {
-            layers: ['vineyard-blocks-fill']
-          });
-          
-          if (currentPopup.current && features.length === 0) {
-            currentPopup.current.remove();
-            currentPopup.current = null;
-          }
-        });
         map.current.on('touchend', (e) => {
-          // Only close popup if we didn't touch a block and popup exists
-          if (currentPopup.current && (!e.features || e.features.length === 0)) {
+          // Only close popup if we didn't touch a block and popup exists AND we're not in split mode
+          if (currentPopup.current && (!e.features || e.features.length === 0) && !blockToSplit) {
             console.log('Touch on map background, closing popup');
             currentPopup.current.remove();
             currentPopup.current = null;
@@ -2593,7 +2848,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
         });
 
         // Add click handler for parcels (admin only)
-        if (user?.email === adminEmail) {
+        if (isAuxeinAdmin) {
           map.current.on('click', 'land-parcels-fill', handleParcelClick);
           
           // Mouse hover effects
@@ -2629,210 +2884,12 @@ const handleBlockInteraction = (e, eventType = 'click') => {
         retryCount++;
         setTimeout(tryAddParcelLayers, 200);
       } else {
-        console.log('Failed to add parcel layers after max retries');
-        map.current.once('style.load', () => {
-          console.log('Final attempt to add parcel layers on style.load event');
-          addParcelLayers();
-        });
-      }
+          console.log('Failed to add parcel layers after max retries');
+          // No nested style.load listener here. Reattachment happens in handleStyleLoad.
+        }
     };
     
     tryAddParcelLayers();
-  };
-
-  const addBackgroundDimming = (parcelsDataOverride = null) => {
-    if (!map.current || user?.email === adminEmail) {
-      console.log('Skipping background dimming - admin user or no map');
-      return;
-    }
-    
-    try {
-      // Remove existing dimming layers
-      if (map.current.getLayer('background-dim-layer')) {
-        map.current.removeLayer('background-dim-layer');
-      }
-      if (map.current.getSource('background-dim')) {
-        map.current.removeSource('background-dim');
-      }
-
-      const userCompanyId = user?.company_id;
-      
-      if (!userCompanyId) {
-        console.log('No company ID for user, skipping background dimming');
-        return;
-      }
-
-      // Use override data if provided, otherwise use state
-      const currentParcelsData = parcelsDataOverride || parcelsData;
-
-      console.log('=== BACKGROUND DIMMING DEBUG ===');
-      console.log('User company ID:', userCompanyId);
-      console.log('User email:', user?.email);
-      console.log('Is admin:', user?.email === adminEmail);
-      console.log('Using override data:', !!parcelsDataOverride);
-      console.log('Parcels data available:', !!currentParcelsData);
-      console.log('Parcels features count:', currentParcelsData?.features?.length || 0);
-
-      // Log the actual parcels data structure
-      if (currentParcelsData?.features?.length > 0) {
-        console.log('First parcel structure:', {
-          properties: Object.keys(currentParcelsData.features[0].properties),
-          geometry_type: currentParcelsData.features[0].geometry?.type,
-          sample_parcel: currentParcelsData.features[0].properties
-        });
-      }
-
-      let userParcels = [];
-      
-      if (currentParcelsData && currentParcelsData.features) {
-        if (user?.email === adminEmail) {
-          // Admin: filter parcels by company_id
-          userParcels = currentParcelsData.features.filter(parcel => 
-            Number(parcel.properties.company_id) === Number(userCompanyId) ||
-            Number(parcel.properties.assigned_company_id) === Number(userCompanyId)
-          );
-          console.log('Admin mode: filtered', userParcels.length, 'parcels from', currentParcelsData.features.length, 'total');
-        } else {
-          // Regular user: ALL parcels should be theirs (loadCompanyParcelsForViewport pre-filtered)
-          userParcels = currentParcelsData.features;
-          console.log('Regular user mode: using all', userParcels.length, 'pre-filtered parcels');
-        }
-        
-        // Debug the parcels
-        userParcels.forEach((parcel, index) => {
-          console.log(`Parcel ${index + 1}:`, {
-            linz_id: parcel.properties.linz_id || parcel.properties.id,
-            company_id: parcel.properties.company_id,
-            assigned_company_id: parcel.properties.assigned_company_id,
-            has_assignment: parcel.properties.has_assignment,
-            geometry_type: parcel.geometry?.type,
-            coordinates_length: parcel.geometry?.coordinates?.[0]?.length,
-            area_hectares: parcel.properties.area_hectares
-          });
-        });
-      }
-
-      console.log(`Creating background dimming with ${userParcels.length} parcel holes`);
-
-      if (userParcels.length === 0) {
-        console.log('No user parcels found, creating basic dimming layer');
-        // Create basic dimming without holes
-        map.current.addSource('background-dim', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [[
-                [-180, -85],
-                [180, -85],
-                [180, 85],
-                [-180, 85],
-                [-180, -85]
-              ]]
-            }
-          }
-        });
-      } else {
-        // Create dimming with holes
-        console.log('Creating dimming with parcel holes...');
-        
-        // Start with world polygon (clockwise for exterior ring)
-        let worldPolygon = [
-          [
-            [-180, -85],
-            [180, -85],
-            [180, 85],
-            [-180, 85],
-            [-180, -85]
-          ]
-        ];
-
-        // Add user parcels as holes
-        let holesAdded = 0;
-        userParcels.forEach((parcel, index) => {
-          try {
-            const parcelId = parcel.properties.linz_id || parcel.properties.id || `parcel-${index}`;
-            console.log(`Processing parcel ${index + 1}/${userParcels.length}: ${parcelId}`);
-            
-            if (parcel.geometry && parcel.geometry.type === 'Polygon') {
-              // Get the outer ring of the parcel
-              const originalRing = parcel.geometry.coordinates[0];
-              
-              if (originalRing && originalRing.length >= 4) {
-                // Create hole by reversing the winding order (counter-clockwise for holes)
-                const hole = [...originalRing].reverse();
-                worldPolygon.push(hole);
-                holesAdded++;
-                
-                console.log(`✓ Added hole ${holesAdded} for ${parcelId}`);
-                console.log(`  Original ring: ${originalRing.length} points`);
-                console.log(`  First point: [${originalRing[0][0].toFixed(4)}, ${originalRing[0][1].toFixed(4)}]`);
-                console.log(`  Hole first point: [${hole[0][0].toFixed(4)}, ${hole[0][1].toFixed(4)}]`);
-              } else {
-                console.log(`❌ Skipping parcel ${parcelId} - invalid ring:`, originalRing?.length);
-              }
-              
-            } else if (parcel.geometry && parcel.geometry.type === 'MultiPolygon') {
-              console.log(`Processing MultiPolygon for ${parcelId}...`);
-              parcel.geometry.coordinates.forEach((polygon, polyIndex) => {
-                const originalRing = polygon[0]; // First ring of each polygon
-                if (originalRing && originalRing.length >= 4) {
-                  const hole = [...originalRing].reverse();
-                  worldPolygon.push(hole);
-                  holesAdded++;
-                  console.log(`✓ Added hole ${holesAdded} for multipolygon ${parcelId}.${polyIndex + 1}`);
-                }
-              });
-            } else {
-              console.log(`❌ Skipping parcel ${parcelId} - invalid geometry:`, parcel.geometry?.type);
-            }
-          } catch (error) {
-            console.error(`Error processing parcel ${index}:`, error);
-          }
-        });
-
-        console.log(`Final polygon: 1 outer ring + ${holesAdded} holes = ${worldPolygon.length} total rings`);
-
-        // Create the dimming source
-        const dimGeometry = {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: worldPolygon
-          }
-        };
-
-        map.current.addSource('background-dim', {
-          type: 'geojson',
-          data: dimGeometry
-        });
-      }
-
-      // Add the dimming layer at the bottom
-      const beforeLayer = getFirstVisibleLayer();
-      console.log('Adding dimming layer before:', beforeLayer || 'top');
-
-      map.current.addLayer({
-        id: 'background-dim-layer',
-        type: 'fill',
-        source: 'background-dim',
-        paint: {
-          'fill-color': '#000000',
-          'fill-opacity': 0.2  
-        },
-        layout: {
-          'visibility': showBackgroundDim ? 'visible' : 'none'
-        }
-      }, beforeLayer);
-      
-      console.log('✅ Background dimming layer added successfully');
-      console.log('=== END DEBUG ===');
-      
-    } catch (error) {
-      console.error('❌ Error adding background dimming:', error);
-      console.error('Error details:', error.message);
-    }
   };
 
   const getFirstVisibleLayer = () => {
@@ -2850,12 +2907,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
     return null; // Add to top if no other layers exist
   };
 
-  useEffect(() => {
-    if (map.current && map.current.getLayer('background-dim-layer')) {
-      const visibility = showBackgroundDim ? 'visible' : 'none';
-      map.current.setLayoutProperty('background-dim-layer', 'visibility', visibility);
-    }
-  }, [showBackgroundDim]);
+
 
   return (
     <div className="maps-page">
@@ -2943,42 +2995,17 @@ const handleBlockInteraction = (e, eventType = 'click') => {
             <button
               className={`tool-button map-button ${isMapping ? 'active' : ''}`}
               onClick={startMapping}
-              disabled={isSplitting}
-            >
+              >
               <span className="button-icon">✏️</span>
               Map New Area
             </button>
             
-            {/* Your existing split button */}
-            <button
-              className={`tool-button split-button ${isSplitting ? 'active' : ''}`}
-              onClick={toggleSplitMode}
-              disabled={isMapping}
-              style={{ marginTop: '8px' }}
-            >
-              {isSplitting ? 'Exit Split Mode' : 'Split Block'}
-            </button>
           </div>
-          
-          {user?.email !== adminEmail && (
-          <div className="control-section">
-            <h4>Map Focus</h4>
-            <label className="layer-toggle">
-              <input
-                type="checkbox"
-                checked={showBackgroundDim}
-                onChange={(e) => setShowBackgroundDim(e.target.checked)}
-              />
-              Highlight Your Areas
-            </label>
-            <small>Dims areas outside your assigned parcels</small>
-          </div>
-        )}
 
           <div className="control-section">
-            <h4>{user?.email === adminEmail ? 'Admin Tools' : 'Your Land Parcels'}</h4>
+            <h4>{isAuxeinAdmin ? 'Admin Tools' : 'Your Land Parcels'}</h4>
             
-            {user?.email === adminEmail ? (
+            {isAuxeinAdmin ? (
               // Admin controls (existing)
               <div className="admin-subsection">
                 <h5>Land Parcels</h5>
@@ -3018,7 +3045,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
                 
                 <div className="admin-subsection">
                   <h5>Block Assignment</h5>
-                  <small>Click any block to assign it to a company</small>
+                  <small>Click any block to assign it to a company - </small>
                   <small>Companies loaded: {availableCompanies.length}</small>
                 </div>
               </div>
@@ -3268,7 +3295,7 @@ const handleBlockInteraction = (e, eventType = 'click') => {
               <span className="stat-label">LINZ Land Parcels:</span>
               <span className="stat-value">{parcelCount}</span>
             </div>
-            {user?.email === adminEmail && (
+            {isAuxeinAdmin && (
               <div className="stat-item">
                 <span className="stat-label">Total Blocks:</span>
                 <span className="stat-value">{blockCount}</span>
@@ -3285,8 +3312,12 @@ const handleBlockInteraction = (e, eventType = 'click') => {
         {/* Status bar */}
         <div className="map-status-bar">
           <span>{apiStatus}</span>
-          {isSplitting && (
-            <span className="split-mode-indicator">Split Mode Active</span>
+          {blockToSplit && (
+            <span className="split-mode-indicator">
+              Splitting: {blockToSplit.properties.block_name}
+              {splitLineDrawn ? ' - Line drawn' : ' - Draw line'}
+              <span style={{fontSize: '10px', marginLeft: '8px'}}>(ESC to cancel)</span>
+            </span>
           )}
         </div>
 
@@ -3432,6 +3463,8 @@ const handleBlockInteraction = (e, eventType = 'click') => {
                   >
                     Create {mappingType === 'block' ? 'Block' : 'Area'}
                   </button>
+
+
                 </div>
               </form>
             </div>

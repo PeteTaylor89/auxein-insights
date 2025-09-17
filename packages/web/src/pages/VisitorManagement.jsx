@@ -476,7 +476,7 @@ const VisitorDashboard = () => {
             e.target.style.boxShadow = 'none';
           }}
         >
-          Open Registration Portal
+          Register Visitor
         </button>
       </div>
 

@@ -241,7 +241,7 @@ function RiskDashboard() {
       // Fetch the full risk details
       const riskDetails = await riskManagementService.getRiskById(riskId);
       
-      console.log('✅ Risk details fetched:', riskDetails);
+      console.log('Risk details fetched:', riskDetails);
       
       // Navigate to create risk page with the risk data as state
       navigate('/risks/create', { 
@@ -251,7 +251,7 @@ function RiskDashboard() {
         } 
       });
     } catch (error) {
-      console.error('❌ Error fetching risk details for edit:', error);
+      console.error('Error fetching risk details for edit:', error);
       alert('Failed to load risk details for editing');
     }
   };
@@ -847,7 +847,7 @@ function RiskDashboard() {
                     fontWeight: '600', 
                     margin: 0
                   }}>
-                    Risk Actions ({actions.length})
+                    Risk Actions / Controls ({actions.length})
                   </h2>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <select
@@ -887,6 +887,7 @@ function RiskDashboard() {
                       <thead>
                         <tr style={{ background: '#f8fafc' }}>
                           <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Action</th>
+                          <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Assigned to</th>
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Priority</th>
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Status</th>
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Progress</th>
@@ -923,6 +924,26 @@ function RiskDashboard() {
                                   </div>
                                 </div>
                               </td>
+
+                              <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                <span style={{
+                                  background: action.priority === 'critical' ? '#fecaca' :
+                                             action.priority === 'high' ? '#fed7aa' :
+                                             action.priority === 'medium' ? '#fef3c7' : '#f3f4f6',
+                                  color: action.priority === 'critical' ? '#991b1b' :
+                                         action.priority === 'high' ? '#c2410c' :
+                                         action.priority === 'medium' ? '#92400e' : '#374151',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '500',
+                                  textTransform: 'capitalize'
+                                }}>
+                                  {action.assigned_to || 'Medium'}
+                                </span>
+                              </td>
+
+
                               <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                                 <span style={{
                                   background: action.priority === 'critical' ? '#fecaca' :

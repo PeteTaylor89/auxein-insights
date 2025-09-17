@@ -34,7 +34,7 @@ class TrainingModuleBase(BaseModel):
     def validate_category(cls, v):
         if v:
             allowed_categories = [
-                "induction", "safety", "compliance", "equipment", 
+                "induction", "safety", "compliance", "equipment", "operations",
                 "emergency", "environmental", "quality", "other"
             ]
             if v not in allowed_categories:
