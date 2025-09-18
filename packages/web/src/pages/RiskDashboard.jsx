@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import {riskManagementService, api} from '@vineyard/shared';
+import {riskManagementService, usersService, adminService, api} from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 
 function RiskDashboard() {
@@ -16,7 +16,7 @@ function RiskDashboard() {
   const [incidents, setIncidents] = useState([]);
   const [overdueItems, setOverdueItems] = useState(null);
   const [error, setError] = useState(null);
-  
+  const [userLookup, setUserLookup] = useState({});
   // Active tab state
   const [activeTab, setActiveTab] = useState('risks');
   
@@ -37,6 +37,49 @@ function RiskDashboard() {
     notifiable_only: false,
     incident_type: ''
   });
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        // Use adminService instead of usersService to match your working code
+        const usersData = await adminService.getCompanyUsers(user.company_id, { limit: 200 }); 
+        
+        // Handle different response formats (same as your working code)
+        let usersArray = [];
+        if (Array.isArray(usersData)) {
+          usersArray = usersData;
+        } else if (usersData && Array.isArray(usersData.data)) {
+          usersArray = usersData.data;
+        } else if (usersData && Array.isArray(usersData.users)) {
+          usersArray = usersData.users;
+        }
+        
+        // Filter to only active, non-suspended users
+        const activeUsers = usersArray.filter(u => 
+          u.is_active && !u.is_suspended
+        );
+        
+        const map = {};
+        activeUsers.forEach(u => {
+          const fullName = u.first_name && u.last_name 
+            ? `${u.first_name} ${u.last_name}` 
+            : u.username || u.email || `User ${u.id}`;
+          
+          map[u.id] = fullName;
+          map[u.id.toString()] = fullName; // Handle string IDs too
+        });
+        
+        setUserLookup(map);
+        console.log('User lookup map:', map);
+      } catch (e) {
+        console.warn('Failed to load users for assigned_to display', e);
+      }
+    };
+    
+    if (user?.company_id) {
+      loadUsers();
+    }
+  }, [user?.company_id]);
 
   // Fetch all data
   useEffect(() => {
@@ -926,21 +969,34 @@ function RiskDashboard() {
                               </td>
 
                               <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                <span style={{
-                                  background: action.priority === 'critical' ? '#fecaca' :
-                                             action.priority === 'high' ? '#fed7aa' :
-                                             action.priority === 'medium' ? '#fef3c7' : '#f3f4f6',
-                                  color: action.priority === 'critical' ? '#991b1b' :
-                                         action.priority === 'high' ? '#c2410c' :
-                                         action.priority === 'medium' ? '#92400e' : '#374151',
-                                  padding: '0.25rem 0.5rem',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '500',
-                                  textTransform: 'capitalize'
-                                }}>
-                                  {action.assigned_to || 'Medium'}
-                                </span>
+                                <div>
+                                  <div style={{ fontWeight: '400', color: '#1f2937', marginBottom: '0.25rem' }}>
+                                    {(() => {
+                                      // Handle different data structures for assigned_to
+                                      let assignedName = 'Unassigned';
+                                      
+                                      if (action.assigned_to) {
+                                        if (typeof action.assigned_to === 'object' && action.assigned_to.id) {
+                                          // assigned_to is a user object
+                                          const firstName = action.assigned_to.first_name || '';
+                                          const lastName = action.assigned_to.last_name || '';
+                                          assignedName = firstName || lastName 
+                                            ? `${firstName} ${lastName}`.trim()
+                                            : action.assigned_to.username || action.assigned_to.email || `User ${action.assigned_to.id}`;
+                                        } else if (typeof action.assigned_to === 'number' || typeof action.assigned_to === 'string') {
+                                          // assigned_to is an ID, look up in userLookup
+                                          const userId = parseInt(action.assigned_to);
+                                          assignedName = userLookup[userId] || `User ${userId}`;
+                                        } else if (typeof action.assigned_to === 'string') {
+                                          // assigned_to is already a string name
+                                          assignedName = action.assigned_to;
+                                        }
+                                      }
+                                      
+                                      return assignedName;
+                                    })()}
+                                  </div>
+                                </div>
                               </td>
 
 

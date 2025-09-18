@@ -448,9 +448,9 @@ function CreateAction() {
     setError(null);
 
     try {
-      console.log('🔄 Creating/updating action with data:', formData);
+      console.log('Creating/updating action with data:', formData);
       
-      // FIXED: Prepare cleaned data FIRST
+      // FIXED: Prepare cleaned data with proper field handling
       const cleanedData = {
         ...formData,
         company_id: user.company_id,
@@ -459,31 +459,45 @@ function CreateAction() {
         estimated_cost: formData.estimated_cost && formData.estimated_cost !== '' ? parseFloat(formData.estimated_cost) : null,
         expected_likelihood_reduction: formData.expected_likelihood_reduction && formData.expected_likelihood_reduction !== '' ? parseInt(formData.expected_likelihood_reduction) : null,
         expected_severity_reduction: formData.expected_severity_reduction && formData.expected_severity_reduction !== '' ? parseInt(formData.expected_severity_reduction) : null,
+        
+        // FIXED: Ensure dates are properly formatted or null
         target_completion_date: formData.target_completion_date || null,
         actual_start_date: formData.actual_start_date || null,
         actual_completion_date: formData.actual_completion_date || null,
+        
+        // FIXED: Ensure progress is always an integer
         progress_percentage: parseInt(formData.progress_percentage) || 0,
-        // Convert quarterly recurrence to days (FIXED: 90 days per quarter, not 91)
+        
+        // FIXED: Ensure status is always included
+        status: formData.status || 'planned',
+        
+        // FIXED: Handle completion notes
+        completion_notes: formData.completion_notes || '',
+        
+        // Convert quarterly recurrence to days
         is_recurring: formData.recurrence_frequency_quarters !== '',
         recurrence_frequency_days: formData.recurrence_frequency_quarters ? 
           parseInt(formData.recurrence_frequency_quarters) * 90 : null,
+        
         // Custom fields for quarterly tracking
         custom_fields: {
           ...formData.custom_fields,
           recurrence_frequency_quarters: formData.recurrence_frequency_quarters || null
-        }
+        },
+        
+        // FIXED: Ensure tags is always an array
+        tags: Array.isArray(formData.tags) ? formData.tags : []
       };
 
-      console.log('🔄 Cleaned data being sent:', cleanedData);
+      console.log('Cleaned data being sent:', cleanedData);
 
-      // FIXED: Now use cleanedData consistently
       let result;
       if (editMode && existingActionData?.id) {
         result = await riskManagementService.updateAction(existingActionData.id, cleanedData);
-        console.log('✅ Action updated successfully:', result);
+        console.log('Action updated successfully:', result);
       } else {
         result = await riskManagementService.createAction(cleanedData);
-        console.log('✅ Action created successfully:', result);
+        console.log('Action created successfully:', result);
       }
       
       setSuccess(true);
@@ -494,8 +508,8 @@ function CreateAction() {
       }, 2000);
 
     } catch (error) {
-      console.error('❌ Error saving action:', error);
-      console.error('❌ Error response:', error.response?.data);
+      console.error('Error saving action:', error);
+      console.error('Error response:', error.response?.data);
       
       // Enhanced error handling
       if (error.response?.status === 422) {
@@ -597,7 +611,7 @@ function CreateAction() {
             }}>
               <h4 style={{ margin: '0 0 0.5rem 0', color: '#92400e' }}>⚠️ High/Critical Risk Action</h4>
               <p style={{ margin: 0, fontSize: '0.875rem', color: '#92400e' }}>
-                This action is for a {selectedRisk.inherent_risk_level} risk and will require company admin verification upon completion.
+                This action is for a {selectedRisk.inherent_risk_level} risk and may require company management verification upon completion.
                 Ensure the action plan is comprehensive and addresses the significant risk level.
               </p>
             </div>
@@ -1030,7 +1044,25 @@ function CreateAction() {
                     />
                   </div>
                 )}
-
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Target Completion Date *
+                </label>
+                <input
+                  type="date"
+                  name="target_completion_date"
+                  value={formData.target_completion_date}
+                  onChange={handleChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
                 {(formData.status === 'completed' || formData.actual_completion_date) && (
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
@@ -1092,55 +1124,6 @@ function CreateAction() {
                 </small>
               </div>
             )}
-
-            {/* Scheduling & Recurrence */}
-            <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1rem', fontWeight: '600' }}>
-              Scheduling & Recurrence
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Target Completion Date *
-                </label>
-                <input
-                  type="date"
-                  name="target_completion_date"
-                  value={formData.target_completion_date}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Recurrence Frequency
-                </label>
-                <select
-                  name="recurrence_frequency_quarters"
-                  value={formData.recurrence_frequency_quarters}
-                  onChange={handleChange}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  {recurrenceOptions.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
             {/* Show additional info for recurring actions */}
             {formData.recurrence_frequency_quarters && (
@@ -1272,69 +1255,6 @@ function CreateAction() {
               </div>
             </div>
 
-            {/* Options */}
-            <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1rem', fontWeight: '600' }}>
-              Options
-            </h3>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  name="auto_create_task"
-                  checked={formData.auto_create_task}
-                  onChange={handleChange}
-                  style={{ width: '16px', height: '16px' }}
-                />
-                <span style={{ fontWeight: '500' }}>Automatically create task</span>
-              </label>
-              <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280', marginLeft: '1.5rem' }}>
-                Create a task in the task management system when this action is assigned
-              </small>
-            </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: requiresAdminVerification() ? 'not-allowed' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  name="requires_verification"
-                  checked={formData.requires_verification || requiresAdminVerification()}
-                  onChange={handleChange}
-                  disabled={requiresAdminVerification()}
-                  style={{ 
-                    width: '16px', 
-                    height: '16px',
-                    opacity: requiresAdminVerification() ? 0.6 : 1
-                  }}
-                />
-                <span style={{ fontWeight: '500' }}>
-                  Requires admin verification when completed
-                  {requiresAdminVerification() && (
-                    <span style={{ color: '#dc2626', fontSize: '0.875rem' }}> (Required for high/critical risks)</span>
-                  )}
-                </span>
-              </label>
-              <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280', marginLeft: '1.5rem' }}>
-                {requiresAdminVerification() 
-                  ? 'Actions for high or critical risks must be verified by a company admin after completion'
-                  : 'Action must be verified by a manager or admin after completion'
-                }
-              </small>
-            </div>
-
-            {formData.requires_verification && formData.status === 'completed' && (
-              <div style={{
-                padding: '0.75rem',
-                background: '#dbeafe',
-                border: '1px solid #3b82f6',
-                borderRadius: '6px',
-                marginBottom: '1rem'
-              }}>
-                <small style={{ color: '#1e40af' }}>
-                  ℹ️ This action requires admin verification after completion. A verification request will be sent when saved.
-                </small>
-              </div>
-            )}
 
             {/* Submit Buttons */}
             <div style={{

@@ -88,6 +88,17 @@ class RiskActionBase(BaseModel):
 
 class RiskActionCreate(RiskActionBase):
     risk_id: int
+    
+    # Add the missing status and progress fields
+    status: Optional[ActionStatus] = ActionStatus.planned
+    progress_percentage: Optional[int] = 0
+    
+    # Add date fields that might be set on creation
+    actual_start_date: Optional[datetime] = None
+    actual_completion_date: Optional[datetime] = None
+    
+    # Add completion notes
+    completion_notes: Optional[str] = None
 
 class RiskActionUpdate(BaseModel):
     action_title: Optional[str] = None

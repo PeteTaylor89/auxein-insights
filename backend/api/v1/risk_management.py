@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 import logging
-
+from enum import Enum
+from pydantic import BaseModel
 # Your existing imports
 
 from db.models.user import User
@@ -41,6 +42,18 @@ from utils.risk_permissions import RiskPermissions
 # Create the main router
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class RiskStatus(str, Enum):
+    active = "active"
+    closed = "closed"
+    archived = "archived"
+
+class RiskStatusUpdate(BaseModel):
+    status: RiskStatus
+    closure_reason: Optional[str] = None
+    closure_notes: Optional[str] = None
+
 
 def geojson_to_wkt(geojson_dict):
     """Convert GeoJSON-like dict to WKT string for PostGIS"""
@@ -262,6 +275,65 @@ def update_residual_risk(
     db.refresh(risk)
     return risk
 
+@router.put("/risk-management/risks/{risk_id}/status", response_model=SiteRiskResponse)
+def update_risk_status(
+    risk_id: int,
+    status_data: RiskStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update risk status (active, closed, archived)"""
+    risk = db.query(SiteRisk).filter(
+        SiteRisk.id == risk_id,
+        SiteRisk.company_id == current_user.company_id
+    ).first()
+    
+    if not risk:
+        raise HTTPException(status_code=404, detail="Risk not found")
+    
+    if not RiskPermissions.can_modify_risk(current_user, risk):
+        raise HTTPException(status_code=403, detail="Insufficient permissions to modify this risk")
+    
+    try:
+        # Update the status
+        old_status = risk.status
+        risk.status = status_data.status
+        
+        # Add closure information to custom_fields for audit trail
+        if not risk.custom_fields:
+            risk.custom_fields = {}
+        
+        # Record status change in custom_fields
+        if 'status_history' not in risk.custom_fields:
+            risk.custom_fields['status_history'] = []
+        
+        status_change = {
+            'changed_at': datetime.now(timezone.utc).isoformat(),
+            'changed_by': current_user.id,
+            'old_status': old_status,
+            'new_status': status_data.status,
+            'closure_reason': status_data.closure_reason,
+            'closure_notes': status_data.closure_notes
+        }
+        
+        risk.custom_fields['status_history'].append(status_change)
+        
+        # Set archived timestamp if archiving
+        if status_data.status == 'archived' and not risk.archived_at:
+            risk.archived_at = datetime.now(timezone.utc)
+        elif status_data.status != 'archived':
+            risk.archived_at = None
+        
+        db.commit()
+        db.refresh(risk)
+        
+        return risk
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating risk status: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error updating risk status: {str(e)}")
+
 @router.delete("/risk-management/risks/{risk_id}")
 def delete_risk(
     risk_id: int,
@@ -307,8 +379,20 @@ def get_risk_actions(
         query = query.filter(RiskAction.risk_id == risk_id)
     if assigned_to_me:
         query = query.filter(RiskAction.assigned_to == current_user.id)
+    
+    # Handle status filtering including overdue
     if status:
-        query = query.filter(RiskAction.status == status)
+        if status == 'overdue':
+            # Filter for overdue actions
+            from datetime import datetime, timezone
+            query = query.filter(
+                RiskAction.target_completion_date < datetime.now(timezone.utc),
+                RiskAction.status.notin_(["completed", "cancelled"])
+            )
+        else:
+            # Regular status filtering
+            query = query.filter(RiskAction.status == status)
+    
     if overdue_only:
         from datetime import datetime, timezone
         query = query.filter(
@@ -421,6 +505,20 @@ def create_risk_action(
         if "tags" not in action_dict or action_dict["tags"] is None:
             action_dict["tags"] = []
         
+        # FIXED: Ensure completion_notes is handled properly
+        if "completion_notes" not in action_dict:
+            action_dict["completion_notes"] = ""
+        
+        # FIXED: Handle progress percentage properly
+        if "progress_percentage" in action_dict:
+            action_dict["progress_percentage"] = int(action_dict["progress_percentage"]) if action_dict["progress_percentage"] is not None else 0
+        else:
+            action_dict["progress_percentage"] = 0
+        
+        # FIXED: Ensure status is always set
+        if "status" not in action_dict or not action_dict["status"]:
+            action_dict["status"] = "planned"
+        
         # Create the action
         action = service.create_risk_action(action_dict, current_user)
         
@@ -430,6 +528,9 @@ def create_risk_action(
         
         if action.tags is None:
             action.tags = []
+        
+        if action.completion_notes is None:
+            action.completion_notes = ""
         
         # Commit any changes to fix None values
         db.commit()

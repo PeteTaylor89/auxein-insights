@@ -80,6 +80,11 @@ const riskManagementService = {
     return response.data;
   },
   
+  updateRiskStatus: async (riskId, statusData) => {
+    const response = await api.put(`/risk-management/risks/${riskId}/status`, statusData);
+    return response.data;
+  },
+
   // Delete risk
   deleteRisk: async (id) => {
     const response = await api.delete(`/risk-management/risks/${id}`);
