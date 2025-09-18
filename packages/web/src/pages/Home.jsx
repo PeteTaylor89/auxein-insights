@@ -115,21 +115,15 @@ function Home() {
           </div>
           <div className="stats-grid">
             <Link to="/planobservation" className="stat-card">
-              <div className="stat-value">{stats?.block_count || '0'}</div>
-              <div className="stat-label"> Plan Observation</div>
+              <div className="actions-title"> Plan Observation</div>
             </Link>
-            <Link to="/listplan" className="stat-card">
-              <div className="stat-value">{stats?.observation_count || '0'}</div>
-              <div className="stat-label">List Planned Obs</div>
+            <Link to="/observations" className="stat-card">
+              <div className="actions-title">Observations</div>
             </Link>
             <Link to="/plandetail/:id" className="stat-card">
-              <div className="stat-value">{stats?.task_count || '0'}</div>
-              <div className="stat-label">Obs Plan Details</div>
+              <div className="actions-title">Obs Plan Details</div>
             </Link>
-            <div className="stat-card">
-              <div className="stat-value">{stats?.user_count || '0'}</div>
-              <div className="stat-label">Team Members</div>
-            </div>
+
           </div>
         </div>
 
@@ -146,14 +140,7 @@ function Home() {
               <div className="icon-wrapper"><User /></div>
               <div className="actions-title">Register Visitor</div>
             </Link>
-            <Link to="/training" className="stat-card">
-              <div className="icon-wrapper"><LibraryBig /></div>
-              <div className="actions-title">Training</div>
-            </Link>
-            <Link to="/timesheets" className="stat-card">
-              <div className="icon-wrapper"><Lightbulb /></div>
-              <div className="actions-title">Timesheets</div>
-            </Link>
+
           </div>
         </div>
         

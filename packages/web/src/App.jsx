@@ -25,6 +25,8 @@ import TimesheetSystem from './pages/TimesheetSystem';
 import PlanNew from  './pages/PlanNew';
 import PlanList from './pages/listPlans';
 import PlanDetail from './pages/PlanDetail';
+import RunCapture from './pages/RunCapture';
+import ObservationDashboard from './pages/ObservationDashboard'
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -157,6 +159,26 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+
+      <Route path="/observations" element={
+        <ProtectedRoute>
+          <ObservationDashboard  />
+        </ProtectedRoute>
+      } />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       <Route path="/planobservation" element={
         <ProtectedRoute>
           <PlanNew />
@@ -172,6 +194,12 @@ function AppRoutes() {
       <Route path="/plandetail/:id" element={
         <ProtectedRoute>
           <PlanDetail />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/observations/runs/:id" element={
+        <ProtectedRoute>
+          <RunCapture  />
         </ProtectedRoute>
       } />
 

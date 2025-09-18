@@ -59,6 +59,7 @@ class ObservationTemplateUpdate(BaseModel):
 
 class ObservationTemplateOut(BaseModel):
     id: int
+    name: str
     company_id: Optional[int] = None
     observation_type: str = Field(alias="type")  # or "type_key"
     schema: Dict[str, Any] = Field(alias="fields_json")

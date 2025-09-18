@@ -25,8 +25,11 @@ const asArray = (v) =>
 
 const safe = (v, d = '—') => (v ?? v === 0 ? v : d);
 
-// Fallbacks if shared service doesn’t have these yet
-const getPlanFallback = async (id) => (await api.get(`/observations/api/observation-plans/${id}`)).data;
+// --------- API fallbacks (copy-paste safe) ---------
+
+const getPlanFallback = async (id) =>
+  (await api.get(`/observations/api/observation-plans/${id}`)).data;
+
 const listRunsForPlanFallback = async (id) => {
   try {
     // preferred nested route
@@ -38,8 +41,43 @@ const listRunsForPlanFallback = async (id) => {
     return res.data;
   }
 };
-const startRunFallback = async (planId) =>
-  (await api.post('/observations/api/observation-runs', { plan_id: planId })).data;
+
+/**
+ * Attempts multiple likely start-run endpoints, with a richer payload.
+ * Returns the created run on success.
+ */
+const startRunFallback = async (plan, companyId) => {
+  const payload = {
+    plan_id: plan.id,
+    template_id: plan.template_id ?? plan.template?.id ?? undefined,
+    company_id: companyId ?? undefined,
+    assignee_user_ids: (plan.assignees || plan.assignee_user_ids || [])
+      .map(a => a?.user_id ?? a?.id ?? a)
+      .filter(Boolean),
+  };
+
+  // 1) Nested: /plans/{id}/runs
+  try {
+    const r1 = await api.post(`/observations/api/observation-plans/${plan.id}/runs`, payload);
+    return r1.data;
+  } catch (e) {
+    // continue
+  }
+
+  // 2) Nested: /plans/{id}/start-run
+  try {
+    const r2 = await api.post(`/observations/api/observation-plans/${plan.id}/start-run`, payload);
+    return r2.data;
+  } catch (e) {
+    // continue
+  }
+
+  // 3) Flat: /observation-runs
+  const r3 = await api.post('/observations/api/observation-runs', payload);
+  return r3.data;
+};
+
+// --------- Component ---------
 
 export default function PlanDetail() {
   const { id } = useParams();
@@ -126,14 +164,27 @@ export default function PlanDetail() {
   const startRun = async () => {
     try {
       setBusy(true);
-      const run = await (observationService?.startRun || startRunFallback)(plan.id);
-      // If you already have a Run page, navigate there:
+
+      // Prefer shared service if it exists; otherwise use our fallback.
+      const run = observationService?.startRun
+        ? await observationService.startRun(plan.id, {
+            template_id: plan.template_id ?? plan.template?.id,
+            company_id: companyId,
+            assignee_user_ids: (plan.assignees || plan.assignee_user_ids || [])
+              .map(a => a?.user_id ?? a?.id ?? a)
+              .filter(Boolean),
+          })
+        : await startRunFallback(plan, companyId);
+
       navigate(`/observations/runs/${run.id}`);
-      // If not yet built, you can navigate back to list:
-      // navigate('/observations/plans');
     } catch (e) {
       console.error(e);
-      alert('Could not start run (endpoint missing or validation failed).');
+      const detail =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Unknown error';
+      alert(`Could not start run:\n${detail}`);
     } finally {
       setBusy(false);
     }
@@ -300,10 +351,9 @@ export default function PlanDetail() {
                   ))}
                 </tbody>
               </table>
-              
             </div>
-            
           </section>
+
           <MobileNavigation />
         </div>
       )}

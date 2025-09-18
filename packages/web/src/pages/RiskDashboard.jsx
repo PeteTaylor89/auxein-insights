@@ -19,6 +19,8 @@ function RiskDashboard() {
   const [userLookup, setUserLookup] = useState({});
   // Active tab state
   const [activeTab, setActiveTab] = useState('risks');
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [selectedRisk, setSelectedRisk] = useState(null);
   
   // Filter states
   const [riskFilters, setRiskFilters] = useState({
@@ -553,19 +555,6 @@ function RiskDashboard() {
               >
                 Report Incident
               </button>
-              <button 
-                onClick={handleViewRisksOnMap}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                📍 View Risks on Map
-              </button>
             </div>
           </div>
           
@@ -605,7 +594,7 @@ function RiskDashboard() {
               <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#3b82f6' }}>
                 {dashboardData?.actions?.total_actions || '0'}
               </div>
-              <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Total Open Actions</div>
+              <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Recorded Actions</div>
             </div>
             <div style={{
               textAlign: 'center',
@@ -822,21 +811,23 @@ function RiskDashboard() {
                                 <StatusBadge status={risk.status || 'active'} />
                               </td>
                               <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                <button
-                                  onClick={() => handleEditRisk(risk.id)}
-                                  title="Edit Risk"
-                                  style={{
-                                    background: '#0b78f5ff',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '0.25rem 0.5rem',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.75rem'
-                                  }}
-                                >
-                                  ✏️ Edit
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                                  <button
+                                    onClick={() => handleEditRisk(risk.id)}
+                                    title="Edit Risk"
+                                    style={{
+                                      background: '#0b78f5ff',
+                                      color: 'white',
+                                      border: 'none',
+                                      padding: '0.25rem 0.5rem',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '0.75rem'
+                                    }}
+                                  >
+                                    ✏️ Edit
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -904,8 +895,7 @@ function RiskDashboard() {
                       }}
                     >
                       <option value="">All Status</option>
-                      <option value="open">Open</option>
-                      <option value="in_progress">In Progress</option>
+                      <option value="planned">In Progress</option>
                       <option value="completed">Completed</option>
                       <option value="overdue">Overdue</option>
                     </select>
@@ -1500,6 +1490,7 @@ function RiskDashboard() {
 
       </div>
       <MobileNavigation />
+     
     </div>
   );
 }

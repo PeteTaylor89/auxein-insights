@@ -250,6 +250,12 @@ function Profile() {
                 >
                   User Management
                 </button>
+                <button 
+                    className="change-password-button"
+                    onClick={() => navigate('/timesheets')}
+                  >
+                    Open TimeSheets
+                  </button>
               </div>
 
               <div className="admin-content">
@@ -277,6 +283,18 @@ function Profile() {
                   onClick={() => setActiveAdminTab('invite-users')}
                 >
                   ✉️ Invite Members
+                </button>
+                <button 
+                    className="tab-button"
+                    onClick={() => navigate('/timesheets')}
+                  >
+                    Open TimeSheets
+                </button>
+                <button 
+                    className="tab-button"
+                    onClick={() => navigate('/training')}
+                  >
+                    Manage Training
                 </button>
               </div>
 
@@ -405,6 +423,17 @@ function Profile() {
                       })
                     : 'Not available'
                   }
+                </span>
+              </div>
+              <div className="profile-field">
+                <label>Timesheet</label>
+                <span>
+                  <button 
+                    className="change-password-button"
+                    onClick={() => navigate('/timesheets')}
+                  >
+                    Open My TimeSheet
+                  </button>
                 </span>
               </div>
             </div>
