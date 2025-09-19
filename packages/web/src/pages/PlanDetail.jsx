@@ -166,15 +166,13 @@ export default function PlanDetail() {
       setBusy(true);
 
       // Prefer shared service if it exists; otherwise use our fallback.
-      const run = observationService?.startRun
-        ? await observationService.startRun(plan.id, {
-            template_id: plan.template_id ?? plan.template?.id,
-            company_id: companyId,
-            assignee_user_ids: (plan.assignees || plan.assignee_user_ids || [])
-              .map(a => a?.user_id ?? a?.id ?? a)
-              .filter(Boolean),
-          })
-        : await startRunFallback(plan, companyId);
+      const run = await observationService.startRun(plan.id, {
+        template_id: plan.template_id ?? plan.template?.id,
+        company_id: companyId,
+        assignee_user_ids: (plan.assignees || plan.assignee_user_ids || [])
+          .map(a => a?.user_id ?? a?.id ?? a)
+          .filter(Boolean),
+      });
 
       navigate(`/observations/runs/${run.id}`);
     } catch (e) {

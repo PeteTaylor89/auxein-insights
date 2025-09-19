@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket } from 'lucide-react';
 import { observationService, usersService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 
 /**
- * ObservationDashboard (OBS-004)
- * - Adds Templates tab wired to observationService.getTemplates
+ * ObservationDashboard — MVP scope
+ * - Plans: list, open, start run
+ * - Runs: list, open, complete, approve/reject
+ * - Templates: list global + company, use template, new template
+ * - Ad hoc: quick start from header (route placeholder)
  */
 export default function ObservationDashboard() {
   const navigate = useNavigate();
@@ -20,7 +23,7 @@ export default function ObservationDashboard() {
         <ClipboardList /> <span>Observations</span>
       </div>
 
-      {/* KPI strip */}
+      {/* KPI strip (placeholder counts for now) */}
       <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px,1fr))', gap: 16, marginTop: 20 }}>
         {['Active Plans','Runs In Progress','Submitted Today','Overdue Plans'].map(label => (
           <div key={label} className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fafafa' }}>
@@ -39,11 +42,29 @@ export default function ObservationDashboard() {
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn" onClick={() => navigate('/observations/plans/new')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#2563eb', color: '#fff' }}>
+          <button
+            className="btn"
+            onClick={() => navigate('/observations/plans/new')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#2563eb', color: '#fff' }}
+          >
             <Plus size={16} /> New Plan
           </button>
-          <button className="btn" disabled style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#e5e7eb', color: '#555' }}>
-            <PlayCircle size={16} /> Start Run
+
+          <button
+            className="btn"
+            onClick={() => navigate('/observations/templates/new')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#4e638bff', color: '#fff' }}
+          >
+            <Plus size={16} /> New Template
+          </button>
+
+          <button
+            className="btn"
+            onClick={() => navigate('/observations/runs/new-ad-hoc')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#10b981', color: '#fff' }}
+            title="Start a one-off run without a plan"
+          >
+            <Rocket size={16} /> New Ad-hoc
           </button>
         </div>
       </div>
@@ -77,7 +98,7 @@ function TabButton({ label, active, onClick }) {
         flex: 1,
         padding: '12px 16px',
         fontWeight: 500,
-        background: active ? '#eef2ff' : 'transparent',
+        background: active ? '#515a77ff' : '#92a2d8ff',
         border: 'none',
         borderBottom: active ? '3px solid #2563eb' : '3px solid transparent',
         cursor: 'pointer'
@@ -88,7 +109,9 @@ function TabButton({ label, active, onClick }) {
   );
 }
 
-// --- Plans Tab (unchanged from OBS-002/3) ---
+/* ---------------------------
+ * Plans Tab
+ * --------------------------- */
 function PlansTab() {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
@@ -135,8 +158,44 @@ function PlansTab() {
     return true;
   });
 
+  const startRunForPlan = async (plan) => {
+    try {
+      const company_id = companyId;
+      const template_id = plan.template_id ?? plan.template?.id;
+      const assignee_user_ids = (plan.assignees || plan.assignee_user_ids || [])
+        .map(a => a?.user_id ?? a?.id ?? a)
+        .filter(Boolean);
+
+      if (!observationService?.startRun) {
+        alert('Start Run service not available yet.');
+        return;
+      }
+
+      const run = await observationService.startRun(plan.id, {
+        company_id,
+        template_id,
+        assignee_user_ids,
+      });
+
+      if (!run?.id) {
+        alert('Run was not created (no id returned).');
+        return;
+      }
+      navigate(`/runcapture/${run.id}`);
+    } catch (e) {
+      console.error(e);
+      const detail =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Unknown error';
+      alert(`Could not start run:\n${JSON.stringify(detail)}`);
+    }
+  };
+
   return (
     <div>
+      {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6 }}>
           <option value="">All statuses</option>
@@ -179,12 +238,24 @@ function PlansTab() {
               <tr key={p.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
                 <td style={{ padding: 12, fontWeight: 500 }}>{p.name || `Plan #${p.id}`}</td>
                 <td style={{ padding: 12 }}>{p.type || p.observation_type || '—'}</td>
-                <td style={{ padding: 12 }}>{p.scheduled_for ? dayjs(p.scheduled_for).format('YYYY-MM-DD') : '—'}</td>
+                <td style={{ padding: 12 }}>{p.due_start_at ? dayjs(p.due_start_at).format('YYYY-MM-DD') : '—'}</td>
                 <td style={{ padding: 12 }}>{(p.assignees || p.assignee_user_ids || []).map(a => userMap.get(String(a.user_id ?? a.id ?? a)) || `User ${a.id}`).join(', ') || '—'}</td>
                 <td style={{ padding: 12 }}>{p.status}</td>
-                <td style={{ padding: 12, textAlign: 'right' }}>
-                  <button className="btn" onClick={() => navigate(`/plandetail/${p.id}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}>
+                <td style={{ padding: 12, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn"
+                    onClick={() => navigate(`/plandetail/${p.id}`)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#4e638bff', color: '#fff' }}
+                  >
                     Open <ArrowRight size={16} />
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() => startRunForPlan(p)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff' }}
+                    title="Start a run for this plan"
+                  >
+                    <PlayCircle size={16} /> Start Run
                   </button>
                 </td>
               </tr>
@@ -196,31 +267,82 @@ function PlansTab() {
   );
 }
 
-// --- Runs Tab ---
+/* ---------------------------
+ * Runs Tab
+ * --------------------------- */
 function RunsTab() {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  const reload = async () => {
+    try {
+      setLoading(true);
+      const res = await observationService.listRuns?.({ company_id: companyId }).catch(() => []);
+      setRuns(Array.isArray(res) ? res : res?.items || []);
+    } catch (e) {
+      console.error(e);
+      setError('Failed to load runs');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      try {
-        setLoading(true);
-        const res = await observationService.listRuns?.({ company_id: companyId }).catch(() => []);
-        if (!mounted) return;
-        setRuns(Array.isArray(res) ? res : res?.items || []);
-      } catch (e) {
-        console.error(e);
-        setError('Failed to load runs');
-      } finally {
-        setLoading(false);
-      }
+      await reload();
     })();
     return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  const setStatus = async (runId, status) => {
+    try {
+      if (!observationService?.updateRun) {
+        alert('Run update service not available yet.');
+        return;
+      }
+      setBusyId(runId);
+      await observationService.updateRun(runId, { status });
+      await reload();
+    } catch (e) {
+      console.error(e);
+      const detail =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Unknown error';
+      alert(`Could not update run:\n${JSON.stringify(detail)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const completeRun = async (runId) => {
+    try {
+      if (!observationService?.completeRun) {
+        alert('Complete Run service not available yet.');
+        return;
+      }
+      setBusyId(runId);
+      await observationService.completeRun(runId);
+      await reload();
+    } catch (e) {
+      console.error(e);
+      const detail =
+        e?.response?.data?.detail ||
+        e?.response?.data?.message ||
+        e?.message ||
+        'Unknown error';
+      alert(`Could not complete run:\n${JSON.stringify(detail)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <div>
@@ -235,7 +357,7 @@ function RunsTab() {
               <th style={{ padding: 12 }}>Plan</th>
               <th style={{ padding: 12 }}>Status</th>
               <th style={{ padding: 12 }}>Started</th>
-              <th style={{ padding: 12 }} />
+              <th style={{ padding: 12, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -251,9 +373,43 @@ function RunsTab() {
                 <td style={{ padding: 12 }}>{r.status}</td>
                 <td style={{ padding: 12 }}>{r.started_at ? dayjs(r.started_at).format('YYYY-MM-DD HH:mm') : '—'}</td>
                 <td style={{ padding: 12, textAlign: 'right' }}>
-                  <button className="btn" onClick={() => navigate(`/runcapture/${r.id}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}>
-                    Open <ArrowRight size={16} />
-                  </button>
+                  <div style={{ display: 'inline-flex', gap: 8 }}>
+                    <button
+                      className="btn"
+                      onClick={() => navigate(`/runcapture/${r.id}`)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}
+                    >
+                      Open <ArrowRight size={16} />
+                    </button>
+
+                    <button
+                      className="btn"
+                      onClick={() => completeRun(r.id)}
+                      disabled={busyId === r.id}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#e0f2fe', color: '#075985' }}
+                      title="Compute server-side summary for this run"
+                    >
+                      <CheckCircle size={16} /> Complete
+                    </button>
+
+                    <button
+                      className="btn"
+                      onClick={() => setStatus(r.id, 'approved')}
+                      disabled={busyId === r.id}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#d1fae5', color: '#065f46' }}
+                    >
+                      <CheckCircle size={16} /> Approve
+                    </button>
+
+                    <button
+                      className="btn"
+                      onClick={() => setStatus(r.id, 'rejected')}
+                      disabled={busyId === r.id}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#fee2e2', color: '#7f1d1d' }}
+                    >
+                      <XCircle size={16} /> Reject
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -264,7 +420,9 @@ function RunsTab() {
   );
 }
 
-// --- Templates Tab ---
+/* ---------------------------
+ * Templates Tab
+ * --------------------------- */
 function TemplatesTab() {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
@@ -289,6 +447,8 @@ function TemplatesTab() {
     return () => { mounted = false; };
   }, []);
 
+  const labelFor = (t) => (t?.company_id ? 'Company Template' : 'Global Template');
+
   return (
     <div>
       {loading && <div className="stat-card">Loading templates…</div>}
@@ -297,14 +457,28 @@ function TemplatesTab() {
       {!loading && !error && (
         <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
           {templates.map(t => (
-            <div key={t.name} className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
+            <div key={t.id ?? t.name} className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <FileText size={18} /> <span style={{ fontWeight: 600 }}>{t.name || `Template #${t.id}`}</span>
               </div>
-              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{t.description || 'No description'}</div>
-              <button className="btn" onClick={() => navigate('/observations/plans/new', { state: { template: t } })} style={{ padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Plus size={14} /> Use Template
-              </button>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{labelFor(t)}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn"
+                  onClick={() => navigate('/observations/plans/new', { state: { template: t } })}
+                  style={{ padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Plus size={14} /> Use Template
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => navigate('/observations/templates/new', { state: { base: t } })}
+                  style={{ padding: '6px 12px', borderRadius: 6, background: '#e5e7eb', color: '#111827', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  title="Create a new template using this as a starting point"
+                >
+                  <Plus size={14} /> New From
+                </button>
+              </div>
             </div>
           ))}
           {templates.length === 0 && <div style={{ color: '#777' }}>No templates available.</div>}

@@ -479,24 +479,72 @@ function CreateIncident() {
               </button>
             </div>
           </div>
-          
+
+
           {/* Incident Severity Warning */}
-          {formData.severity && ['serious', 'critical', 'fatal'].includes(formData.severity) && (
-            <div style={{
-              background: '#fecaca',
-              border: '1px solid #dc2626',
-              borderRadius: '8px',
-              padding: '1rem',
-              marginBottom: '1rem'
-            }}>
-              <div style={{ color: '#991b1b', fontWeight: '600', marginBottom: '0.5rem' }}>
-                🚨 Serious Incident Alert
+          {formData.severity &&
+            ['serious', 'critical', 'fatal'].includes(formData.severity) &&
+            formData.incident_type &&
+            ['injury', 'near_miss', 'dangerous_occurrence'].includes(formData.incident_type) && (
+              <div
+                style={{
+                  background: '#fecaca',
+                  border: '1px solid #dc2626',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  marginBottom: '1rem',
+                }}
+              >
+                <div
+                  style={{
+                    color: '#991b1b',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  🚨 Serious Incident Alert
+                </div>
+                <div style={{ color: '#991b1b', fontSize: '0.875rem' }}>
+                  This incident may require WorkSafe notification. An internal investigation will be automatically scheduled.
+                  <br /><br />
+                  Please ensure you meet all regulatory requirements under the Health and Safety at Work Act 2015. 
+                  <br /><br />
+                  Use of this module in Auxein Insights does not constitute compliance with the Health and Safety at Work Act 2015. 
+                </div>
               </div>
-              <div style={{ color: '#991b1b', fontSize: '0.875rem' }}>
-                This incident may require WorkSafe notification. Investigation will be automatically scheduled.
-              </div>
-            </div>
           )}
+
+          {/* Environmental Incident Severity Warning */}
+          {formData.severity &&
+            ['serious', 'critical'].includes(formData.severity) &&
+            formData.incident_type &&
+            ['environmental'].includes(formData.incident_type) && (
+              <div
+                style={{
+                  background: '#fecaca',
+                  border: '1px solid #dc2626',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  marginBottom: '1rem',
+                }}
+              >
+                <div
+                  style={{
+                    color: '#991b1b',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  🚨 Environmental Incident Alert
+                </div>
+                <div style={{ color: '#991b1b', fontSize: '0.875rem' }}>
+                  This incident may require notification to your Local or Regional Council. An internal investigation will be automatically scheduled.
+                  <br /><br />
+                  Use of this module in Auxein Insights does not constitute compliance with local or regional regulations. 
+                </div>
+              </div>
+          )}
+
         </div>
 
         {/* Success Message */}
@@ -1205,292 +1253,6 @@ function CreateIncident() {
             </div>
           </div>
 
-          {/* Risk Linkage Section */}
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1rem', fontWeight: '600' }}>
-              🔗 Risk Linkage
-            </h3>
-            
-            <div style={{
-              background: '#f0f9ff',
-              border: '1px solid #0ea5e9',
-              borderRadius: '8px',
-              padding: '1rem',
-              marginBottom: '1rem'
-            }}>
-              <div style={{ fontSize: '0.875rem', color: '#0369a1', marginBottom: '0.75rem' }}>
-                💡 <strong>Link this incident to an existing risk or create a new risk to prevent recurrence</strong>
-              </div>
-              
-              {!editMode && (
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateRiskSection(false)}
-                    style={{
-                      background: showCreateRiskSection ? 'white' : '#3b82f6',
-                      color: showCreateRiskSection ? '#3b82f6' : 'white',
-                      border: '1px solid #3b82f6',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    Link to Existing Risk
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateRiskSection(true)}
-                    style={{
-                      background: showCreateRiskSection ? '#22c55e' : 'white',
-                      color: showCreateRiskSection ? 'white' : '#22c55e',
-                      border: '1px solid #22c55e',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    Create New Risk
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {!showCreateRiskSection ? (
-              // Link to existing risk
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Select Related Risk (Optional)
-                </label>
-                {loadingRisks ? (
-                  <div style={{ padding: '1rem', textAlign: 'center', color: '#6b7280' }}>
-                    Loading available risks...
-                  </div>
-                ) : (
-                  <select
-                    name="related_risk_id"
-                    value={formData.related_risk_id}
-                    onChange={handleChange}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    <option value="">No related risk / Will create new risk later</option>
-                    {availableRisks.map(risk => (
-                      <option key={risk.id} value={risk.id}>
-                        {risk.risk_title} ({risk.risk_type?.replace('_', ' ')} - {risk.inherent_risk_level} risk)
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {availableRisks.length === 0 && !loadingRisks && (
-                  <div style={{
-                    background: '#fef3c7',
-                    border: '1px solid #f59e0b',
-                    borderRadius: '6px',
-                    padding: '0.75rem',
-                    fontSize: '0.875rem',
-                    color: '#92400e',
-                    marginTop: '0.5rem'
-                  }}>
-                    ⚠️ No existing risks found. Consider creating a new risk to prevent similar incidents.
-                  </div>
-                )}
-              </div>
-            ) : (
-              // Create new risk section
-              <div>
-                <div style={{
-                  background: '#f0fdf4',
-                  border: '1px solid #22c55e',
-                  borderRadius: '8px',
-                  padding: '1rem',
-                  marginBottom: '1rem'
-                }}>
-                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: '#166534' }}>
-                    🛡️ Create New Risk from This Incident
-                  </h4>
-                  <div style={{ fontSize: '0.875rem', color: '#166534' }}>
-                    A new risk will be created automatically to help prevent similar incidents in the future.
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                    Risk Title
-                  </label>
-                  <input
-                    type="text"
-                    name="risk_title"
-                    value={newRiskData.risk_title}
-                    onChange={handleNewRiskChange}
-                    placeholder="Auto-generated from incident title"
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                    Risk Description
-                  </label>
-                  <textarea
-                    name="risk_description"
-                    value={newRiskData.risk_description}
-                    onChange={handleNewRiskChange}
-                    rows={3}
-                    placeholder="Auto-generated from incident description"
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      resize: 'vertical'
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Risk Category
-                    </label>
-                    <select
-                      name="risk_category"
-                      value={newRiskData.risk_category}
-                      onChange={handleNewRiskChange}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <option value="">Select Category</option>
-                      {riskCategories.map(cat => (
-                        <option key={cat.value} value={cat.value}>{cat.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Risk Type
-                    </label>
-                    <select
-                      name="risk_type"
-                      value={newRiskData.risk_type}
-                      onChange={handleNewRiskChange}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <option value="">Select Type</option>
-                      {riskTypes.map(type => (
-                        <option key={type.value} value={type.value}>{type.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Likelihood (1-5)
-                    </label>
-                    <select
-                      name="inherent_likelihood"
-                      value={newRiskData.inherent_likelihood}
-                      onChange={handleNewRiskChange}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <option value="1">1 - Very Unlikely</option>
-                      <option value="2">2 - Unlikely</option>
-                      <option value="3">3 - Possible</option>
-                      <option value="4">4 - Likely</option>
-                      <option value="5">5 - Very Likely</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Severity (1-5)
-                    </label>
-                    <select
-                      name="inherent_severity"
-                      value={newRiskData.inherent_severity}
-                      onChange={handleNewRiskChange}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <option value="1">1 - Minimal</option>
-                      <option value="2">2 - Minor</option>
-                      <option value="3">3 - Moderate</option>
-                      <option value="4">4 - Major</option>
-                      <option value="5">5 - Catastrophic</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  padding: '0.75rem',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '0.875rem', color: '#374151', marginBottom: '0.5rem' }}>
-                    <strong>Risk Assessment:</strong> {newRiskAssessment.score} points
-                  </div>
-                  <div style={{
-                    display: 'inline-block',
-                    background: newRiskAssessment.color,
-                    color: 'white',
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '500'
-                  }}>
-                    {newRiskAssessment.level} Risk
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Submit Buttons */}
           <div style={{

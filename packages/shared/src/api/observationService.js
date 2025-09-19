@@ -22,14 +22,21 @@ const observationService = {
   },
 
   listPlans: async (params = {}) => (
-    await api.get('/observations/api/observation-plans', { params })).data,
+    await api.get('/observations/api/observation-plans', { params })
+  ).data,
 
   listRunsForPlan: async (planId) => (
-    await api.get(`/observations/api/observation-plans/${planId}/runs`)).data,
+    await api.get(`/observations/api/observation-plans/${planId}/runs`)
+  ).data,
 
-
-  startRun: async (planId) => (
-    await api.post('/observations/api/observation-runs', { plan_id: planId })).data,
+  // Runs
+  startRun: async (planId, extras = {}) => {
+    const res = await api.post('/observations/api/observation-runs', {
+      plan_id: planId,
+      ...extras,
+    });
+    return res.data;
+  },
 };
 
 export default observationService;

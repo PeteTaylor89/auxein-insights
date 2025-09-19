@@ -572,21 +572,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               >
                 📍 Point Location
               </button>
-              <button
-                onClick={() => handleLocationTypeChange('area')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: '1px solid #d1d5db',
-                  background: locationType === 'area' ? '#3b82f6' : 'white',
-                  color: locationType === 'area' ? 'white' : '#374151',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500'
-                }}
-              >
-                📐 Area Risk
-              </button>
+
             </div>
           </div>
 

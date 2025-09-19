@@ -1197,7 +1197,6 @@ function RiskDashboard() {
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Date</th>
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Status</th>
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Notifiable</th>
-                          <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Related Risk</th>
                           <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Edit</th>
                         </tr>
                       </thead>
@@ -1315,55 +1314,6 @@ function RiskDashboard() {
                                   </div>
                                 ) : (
                                   <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>No</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                {incident.related_risk_id ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-                                    <span style={{
-                                      background: '#dcfce7',
-                                      color: '#166534',
-                                      padding: '0.125rem 0.375rem',
-                                      borderRadius: '8px',
-                                      fontSize: '0.625rem',
-                                      fontWeight: '500'
-                                    }}>
-                                      ✓ Linked
-                                    </span>
-                                    <button
-                                      onClick={() => handleEditRisk(incident.related_risk_id)}
-                                      style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: '#3b82f6',
-                                        cursor: 'pointer',
-                                        fontSize: '0.625rem',
-                                        textDecoration: 'underline'
-                                      }}
-                                    >
-                                      View Risk
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => navigate('/risks/create', { 
-                                      state: { 
-                                        createRiskFromIncident: true,
-                                        incidentData: incident
-                                      } 
-                                    })}
-                                    style={{
-                                      background: '#fef3c7',
-                                      color: '#92400e',
-                                      border: '1px solid #f59e0b',
-                                      padding: '0.125rem 0.375rem',
-                                      borderRadius: '4px',
-                                      cursor: 'pointer',
-                                      fontSize: '0.625rem'
-                                    }}
-                                  >
-                                    Create Risk
-                                  </button>
                                 )}
                               </td>
                               <td style={{ padding: '0.75rem', textAlign: 'center' }}>

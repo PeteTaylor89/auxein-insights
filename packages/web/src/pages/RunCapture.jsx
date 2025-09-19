@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+
 import dayjs from 'dayjs';
 import {
   MapPin,
@@ -17,6 +18,7 @@ import {
   useImageUpload,  // from @vineyard/shared hooks (falls back below if unavailable)
 } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import { SpotHelperPanel } from './RunCaptureHelpers';
 
 /** ---------- helpers ---------- */
 
@@ -312,7 +314,8 @@ function SpotEditor({
 export default function RunCapture() {
   const { id } = useParams(); // run id
   const navigate = useNavigate();
-
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeSpot = spots[activeIdx];
   const [run, setRun] = useState(null);
   const [template, setTemplate] = useState(null);
   const [spots, setSpots] = useState([]);
@@ -552,27 +555,50 @@ export default function RunCapture() {
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MapPin /> Spots ({spots.length})
               </h3>
-              <button className="btn" onClick={addSpot} disabled={busy || uploading} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <button
+                className="btn"
+                onClick={addSpot}
+                disabled={busy || uploading}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
                 <Plus size={16} /> Add Spot
               </button>
             </div>
 
             {spots.length === 0 && (
-              <div className="stat-card" style={{ color: '#777' }}>No spots yet—click “Add Spot” to begin.</div>
+              <div className="stat-card" style={{ color: '#777' }}>
+                No spots yet—click “Add Spot” to begin.
+              </div>
+            )}
+
+            {/* Helper targets the active spot only, stays above the list */}
+            {activeSpot && (
+              <SpotHelperPanel
+                templateType={template?.type} // e.g. 'phenology', 'irrigation', etc.
+                values={activeSpot.values_json ?? activeSpot}
+                onSuggest={(next) => {
+                  // merge derived values back into the active spot
+                  const merged = { ...(activeSpot.values_json ?? activeSpot), ...next };
+                  // if your updateSpot signature is (index, nextSpot)
+                  updateSpot(activeIdx, { ...activeSpot, ...(activeSpot.values_json ? { values_json: merged } : merged) });
+                }}
+              />
             )}
 
             {spots.map((s, i) => (
-              <SpotEditor
-                key={s.id ?? `tmp-${i}`}
-                idx={i}
-                fields={fields}
-                spot={s}
-                onChange={updateSpot}
-                onRemove={removeSpot}
-                uploadImpl={{ uploadFiles, uploading, progress }}
-              />
+              <div key={s.id ?? `tmp-${i}`} onClick={() => setActiveIdx(i)}>
+                <SpotEditor
+                  idx={i}
+                  fields={fields}
+                  spot={s}
+                  onChange={updateSpot}
+                  onRemove={removeSpot}
+                  uploadImpl={{ uploadFiles, uploading, progress }}
+                />
+              </div>
             ))}
           </section>
+
 
           <MobileNavigation />
         </div>

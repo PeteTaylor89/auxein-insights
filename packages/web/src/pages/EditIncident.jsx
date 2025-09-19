@@ -882,7 +882,7 @@ function EditIncident() {
           {/* Tab Content */}
           <div style={{ padding: '1.25rem' }}>
             
-            {/* Basic Details Tab */}
+            {/* Basic Details Tab - Enhanced to match CreateIncident */}
             {activeTab === 'details' && (
               <div>
                 <div style={{
@@ -911,34 +911,74 @@ function EditIncident() {
                   </button>
                 </div>
 
+                {/* Title and Description */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Incident Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={basicDetails.incident_title}
+                    onChange={(e) => handleBasicDetailsChange('incident_title', e.target.value)}
+                    required
+                    placeholder="e.g., Worker slipped on wet floor in processing area"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Incident Description *
+                  </label>
+                  <textarea
+                    value={basicDetails.incident_description}
+                    onChange={(e) => handleBasicDetailsChange('incident_description', e.target.value)}
+                    required
+                    rows={4}
+                    placeholder="Describe what happened in detail..."
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                {/* Type, Severity, Category */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Type
+                      Type * <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '400' }}>(cannot be changed)</span>
                     </label>
-                    <select
-                      value={basicDetails.incident_type}
-                      onChange={(e) => handleBasicDetailsChange('incident_type', e.target.value)}
+                    <input
+                      type="text"
+                      value={basicDetails.incident_type.replace('_', ' ').charAt(0).toUpperCase() + basicDetails.incident_type.replace('_', ' ').slice(1)}
+                      readOnly
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid #e5e7eb',
                         borderRadius: '6px',
-                        fontSize: '0.875rem'
+                        fontSize: '0.875rem',
+                        backgroundColor: '#f9fafb',
+                        color: '#6b7280',
+                        cursor: 'not-allowed'
                       }}
-                    >
-                      <option value="injury">Injury</option>
-                      <option value="near_miss">Near Miss</option>
-                      <option value="property_damage">Property Damage</option>
-                      <option value="environmental">Environmental</option>
-                      <option value="security">Security</option>
-                      <option value="dangerous_occurrence">Dangerous Occurrence</option>
-                    </select>
+                    />
                   </div>
 
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Severity
+                      Severity *
                     </label>
                     <select
                       value={basicDetails.severity}
@@ -961,7 +1001,7 @@ function EditIncident() {
 
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Category
+                      Category *
                     </label>
                     <select
                       value={basicDetails.category}
@@ -991,10 +1031,11 @@ function EditIncident() {
                   </div>
                 </div>
 
+                {/* Dates */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Incident Date
+                      Incident Date & Time *
                     </label>
                     <input
                       type="datetime-local"
@@ -1012,7 +1053,10 @@ function EditIncident() {
 
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Discovered Date
+                      Discovered Date & Time
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '400' }}>
+                        {' '}(if different from incident date)
+                      </span>
                     </label>
                     <input
                       type="datetime-local"
@@ -1029,50 +1073,520 @@ function EditIncident() {
                   </div>
                 </div>
 
-                {/* Location Section */}
+                {/* Location */}
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                    Location Description
+                    Location Description *
                   </label>
                   <input
                     type="text"
                     value={basicDetails.location_description}
                     onChange={(e) => handleBasicDetailsChange('location_description', e.target.value)}
+                    placeholder="e.g., Main vineyard block, Processing facility, Chemical storage shed"
                     style={{
                       width: '100%',
                       padding: '0.75rem',
                       border: '1px solid #d1d5db',
                       borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      resize: 'vertical'
+                      fontSize: '0.875rem'
                     }}
                   />
                 </div>
 
-                {/* Investigation completion date */}
-                {investigationData.investigation_status === 'completed' && (
-                  <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Investigation Completed Date
+                {/* Location Mapping Section */}
+                <div style={{ 
+                  marginBottom: '1rem',
+                  padding: '1rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px'
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '0.5rem'
+                  }}>
+                    <label style={{ fontWeight: '500', margin: 0 }}>
+                      📍 Precise Location (Optional)
                     </label>
-                    <input
-                      type="datetime-local"
-                      value={investigationData.investigation_completed_date}
-                      onChange={(e) => handleInvestigationChange('investigation_completed_date', e.target.value)}
+                    {!selectedLocation && (
+                      <button
+                        type="button"
+                        onClick={() => setShowLocationMap(true)}
+                        style={{
+                          background: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        📍 Set Location on Map
+                      </button>
+                    )}
+                  </div>
+                  
+                  {selectedLocation ? (
+                    <div style={{
+                      background: '#dcfce7',
+                      border: '1px solid #22c55e',
+                      borderRadius: '6px',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: '500', color: '#166534' }}>
+                          ✅ Location Set: Point Location
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: '#166534' }}>
+                          Coordinates: {selectedLocation.coordinates[1].toFixed(6)}, {selectedLocation.coordinates[0].toFixed(6)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowLocationMap(true)}
+                          style={{
+                            background: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveLocation}
+                          style={{
+                            background: '#dc2626',
+                            color: 'white',
+                            border: 'none',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      fontSize: '0.875rem', 
+                      color: '#6b7280'
+                    }}>
+                      No precise location set. Use "Set Location on Map" to mark the exact incident location.
+                    </div>
+                  )}
+                </div>
+
+                {/* People Involved Section - Conditional based on incident type */}
+                {(basicDetails.incident_type === 'injury' || basicDetails.injured_person_name || basicDetails.witness_details) && (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: '600' }}>
+                      👥 People Involved
+                    </h4>
+                    
+                    {/* Injured Person Details */}
+                    {basicDetails.incident_type === 'injury' && (
+                      <div style={{ marginBottom: '1rem' }}>
+                        <h5 style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', fontWeight: '600', color: '#dc2626' }}>
+                          🏥 Injured Person Details
+                        </h5>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                              Name
+                            </label>
+                            <input
+                              type="text"
+                              value={basicDetails.injured_person_name}
+                              onChange={(e) => handleBasicDetailsChange('injured_person_name', e.target.value)}
+                              placeholder="Full name of injured person"
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                fontSize: '0.875rem'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                              Role/Position
+                            </label>
+                            <input
+                              type="text"
+                              value={basicDetails.injured_person_role}
+                              onChange={(e) => handleBasicDetailsChange('injured_person_role', e.target.value)}
+                              placeholder="e.g., Vineyard Worker, Supervisor"
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                fontSize: '0.875rem'
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                              Company
+                            </label>
+                            <input
+                              type="text"
+                              value={basicDetails.injured_person_company}
+                              onChange={(e) => handleBasicDetailsChange('injured_person_company', e.target.value)}
+                              placeholder="Company name (if contractor)"
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                fontSize: '0.875rem'
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                              Type of Injury
+                            </label>
+                            <select
+                              value={basicDetails.injury_type}
+                              onChange={(e) => handleBasicDetailsChange('injury_type', e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                fontSize: '0.875rem'
+                              }}
+                            >
+                              <option value="">Select injury type</option>
+                              {[
+                                'cut', 'bruise', 'fracture', 'sprain', 'strain', 'burn', 'laceration',
+                                'amputation', 'eye_injury', 'head_injury', 'spinal_injury', 'crush',
+                                'puncture', 'abrasion', 'concussion', 'chemical_burn', 'heat_exhaustion',
+                                'allergic_reaction', 'repetitive_strain', 'other'
+                              ].map(type => (
+                                <option key={type} value={type}>
+                                  {type.replace('_', ' ').charAt(0).toUpperCase() + type.replace('_', ' ').slice(1)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                              Body Part Affected
+                            </label>
+                            <select
+                              value={basicDetails.body_part_affected}
+                              onChange={(e) => handleBasicDetailsChange('body_part_affected', e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                fontSize: '0.875rem'
+                              }}
+                            >
+                              <option value="">Select body part</option>
+                              {[
+                                'head', 'neck', 'shoulder', 'arm', 'elbow', 'wrist', 'hand', 'finger',
+                                'chest', 'back', 'abdomen', 'hip', 'leg', 'knee', 'ankle', 'foot', 'toe',
+                                'eye', 'multiple', 'other'
+                              ].map(part => (
+                                <option key={part} value={part}>
+                                  {part.charAt(0).toUpperCase() + part.slice(1)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                          <div style={{
+                            padding: '0.75rem',
+                            background: '#ffffff',
+                            borderRadius: '6px',
+                            border: '1px solid #d1d5db'
+                          }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                              <input
+                                type="checkbox"
+                                checked={basicDetails.medical_treatment_required}
+                                onChange={(e) => handleBasicDetailsChange('medical_treatment_required', e.target.checked)}
+                              />
+                              Medical Treatment Required
+                            </label>
+                            {basicDetails.medical_treatment_required && (
+                              <input
+                                type="text"
+                                value={basicDetails.medical_provider}
+                                onChange={(e) => handleBasicDetailsChange('medical_provider', e.target.value)}
+                                placeholder="Medical provider/facility"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.5rem',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: '4px',
+                                  fontSize: '0.875rem'
+                                }}
+                              />
+                            )}
+                          </div>
+
+                          <div style={{
+                            padding: '0.75rem',
+                            background: '#ffffff',
+                            borderRadius: '6px',
+                            border: '1px solid #d1d5db'
+                          }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                              <input
+                                type="checkbox"
+                                checked={basicDetails.time_off_work}
+                                onChange={(e) => handleBasicDetailsChange('time_off_work', e.target.checked)}
+                              />
+                              Time Off Work Required
+                            </label>
+                            {basicDetails.time_off_work && (
+                              <input
+                                type="number"
+                                value={basicDetails.estimated_time_off_days}
+                                onChange={(e) => handleBasicDetailsChange('estimated_time_off_days', e.target.value)}
+                                placeholder="Estimated days off"
+                                min="0"
+                                style={{
+                                  width: '100%',
+                                  padding: '0.5rem',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: '4px',
+                                  fontSize: '0.875rem'
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Witnesses */}
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                        Witness Details
+                      </label>
+                      <textarea
+                        value={basicDetails.witness_details}
+                        onChange={(e) => handleBasicDetailsChange('witness_details', e.target.value)}
+                        rows={2}
+                        placeholder="Names and contact details of any witnesses..."
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          fontSize: '0.875rem',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Property Damage Section */}
+                {(basicDetails.incident_type === 'property_damage' || (basicDetails.property_damage_cost && basicDetails.property_damage_cost !== '')) && (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600' }}>
+                      💰 Property Damage
+                    </h4>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                        Estimated Property Damage Cost (NZD)
+                      </label>
+                      <input
+                        type="number"
+                        value={basicDetails.property_damage_cost}
+                        onChange={(e) => handleBasicDetailsChange('property_damage_cost', e.target.value)}
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g., 1500.00"
+                        style={{
+                          width: '200px',
+                          padding: '0.5rem',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          fontSize: '0.875rem'
+                        }}
+                      />
+                      <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                        Enter estimated cost of repairs/replacement
+                      </small>
+                    </div>
+                  </div>
+                )}
+
+                {/* Environmental Impact Section */}
+                {(basicDetails.incident_type === 'environmental' || basicDetails.environmental_impact) && (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600' }}>
+                      🌱 Environmental Impact
+                    </h4>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                        Environmental Impact Description
+                      </label>
+                      <textarea
+                        value={basicDetails.environmental_impact}
+                        onChange={(e) => handleBasicDetailsChange('environmental_impact', e.target.value)}
+                        rows={3}
+                        placeholder="Describe the environmental impact, contamination, or damage..."
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          fontSize: '0.875rem',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Immediate Actions Section */}
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  marginBottom: '1rem'
+                }}>
+                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600' }}>
+                    🚨 Immediate Actions & Evidence
+                  </h4>
+                  
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                      Immediate Actions Taken
+                    </label>
+                    <textarea
+                      value={basicDetails.immediate_actions_taken}
+                      onChange={(e) => handleBasicDetailsChange('immediate_actions_taken', e.target.value)}
+                      rows={3}
+                      placeholder="Describe what immediate actions were taken to address the incident..."
                       style={{
-                        width: '300px',
-                        padding: '0.75rem',
+                        width: '100%',
+                        padding: '0.5rem',
                         border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
+                        borderRadius: '4px',
+                        fontSize: '0.875rem',
+                        resize: 'vertical'
                       }}
                     />
                   </div>
-                )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div style={{
+                      padding: '0.75rem',
+                      background: '#ffffff',
+                      borderRadius: '6px',
+                      border: '1px solid #d1d5db'
+                    }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={basicDetails.evidence_collected}
+                          onChange={(e) => handleBasicDetailsChange('evidence_collected', e.target.checked)}
+                        />
+                        Evidence Collected
+                      </label>
+                      <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                        Physical evidence, samples, or documents gathered
+                      </small>
+                    </div>
+
+                    <div style={{
+                      padding: '0.75rem',
+                      background: '#ffffff',
+                      borderRadius: '6px',
+                      border: '1px solid #d1d5db'
+                    }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={basicDetails.photos_taken}
+                          onChange={(e) => handleBasicDetailsChange('photos_taken', e.target.checked)}
+                        />
+                        Photos Taken
+                      </label>
+                      <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                        Photographs of the incident scene/damage
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Incident Status
+                  </label>
+                  <select
+                    value={basicDetails.status}
+                    onChange={(e) => handleBasicDetailsChange('status', e.target.value)}
+                    style={{
+                      width: '300px',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="open">Open</option>
+                    <option value="investigating">Investigating</option>
+                    <option value="awaiting_actions">Awaiting Actions</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
               </div>
             )}
-
-
 
             {/* Investigation Tab */}
             {activeTab === 'investigation' && (

@@ -180,12 +180,7 @@ class Incident(Base):
             
             # Dangerous occurrences
             self.incident_type == "dangerous_occurrence",
-            
-            # Environmental incidents
-            (self.incident_type == "environmental" and self.environmental_impact),
-            
-            # Property damage over threshold (example: $10,000)
-            (self.property_damage_cost and float(self.property_damage_cost) >= 10000)
+
         ]
         
         self.is_notifiable = any(notifiable_conditions)

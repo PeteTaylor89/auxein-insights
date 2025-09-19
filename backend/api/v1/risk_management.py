@@ -38,6 +38,8 @@ from services.risk_action_service import RiskActionService
 from services.risk_logic import RiskBusinessLogic
 from services.integrated_risk_service import IntegratedRiskService
 from utils.risk_permissions import RiskPermissions
+from utils.geometry import point_to_wkt, polygon_to_wkt
+from utils.geometry_helpers import geojson_to_geometry
 
 # Create the main router
 router = APIRouter()
@@ -55,20 +57,27 @@ class RiskStatusUpdate(BaseModel):
     closure_notes: Optional[str] = None
 
 
-def geojson_to_wkt(geojson_dict):
-    """Convert GeoJSON-like dict to WKT string for PostGIS"""
-    if not geojson_dict:
+def convert_location_data(location_data, field_name="location"):
+    """Convert GeoJSON dict to WKT string for PostGIS"""
+    if not location_data or not isinstance(location_data, dict):
         return None
     
-    if geojson_dict['type'] == 'Point':
-        coords = geojson_dict['coordinates']
-        return f"POINT({coords[0]} {coords[1]})"
-    elif geojson_dict['type'] == 'Polygon':
-        coords = geojson_dict['coordinates'][0]  # First ring
-        coord_pairs = ' '.join([f"{coord[0]} {coord[1]}" for coord in coords])
-        return f"POLYGON(({coord_pairs}))"
-    
-    return None
+    try:
+        if location_data.get('type') == 'Point':
+            # Use your existing point_to_wkt function
+            from geojson_pydantic import Point
+            point = Point(**location_data)
+            return f"SRID=4326;{point_to_wkt(point)}"
+        elif location_data.get('type') == 'Polygon':
+            # Use your existing polygon_to_wkt function
+            from geojson_pydantic import Polygon
+            polygon = Polygon(**location_data)
+            return f"SRID=4326;{polygon_to_wkt(polygon)}"
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error converting {field_name} data: {e}, data: {location_data}")
+        return None
 
 # ===== SITE RISKS ENDPOINTS =====
 
@@ -109,12 +118,12 @@ def create_risk(
         # Prepare risk data
         risk_dict = risk_data.dict()
         
-        # Convert location data from dict to WKT if present
-        if risk_dict.get('location') and isinstance(risk_dict['location'], dict):
-            risk_dict['location'] = geojson_to_wkt(risk_dict['location'])
+        # Convert location data using your existing utilities
+        if risk_dict.get('location'):
+            risk_dict['location'] = convert_location_data(risk_dict['location'], 'location')
         
-        if risk_dict.get('area') and isinstance(risk_dict['area'], dict):
-            risk_dict['area'] = geojson_to_wkt(risk_dict['area'])
+        if risk_dict.get('area'):
+            risk_dict['area'] = convert_location_data(risk_dict['area'], 'area')
         
         # Set required fields that come from the current user/session
         risk_dict["company_id"] = current_user.company_id
@@ -218,6 +227,14 @@ def update_risk(
     
     # Update fields
     update_data = risk_data.dict(exclude_unset=True)
+    
+    # Convert location data using your existing utilities
+    if 'location' in update_data and update_data['location']:
+        update_data['location'] = convert_location_data(update_data['location'], 'location')
+    
+    if 'area' in update_data and update_data['area']:
+        update_data['area'] = convert_location_data(update_data['area'], 'area')
+    
     for field, value in update_data.items():
         setattr(risk, field, value)
     
@@ -735,8 +752,8 @@ def create_incident(
             # Extract the sequence number from the last incident
             try:
                 parts = max_incident.incident_number.split('-')
-                if len(parts) >= 3:
-                    last_seq = int(parts[2])
+                if len(parts) >= 4:
+                    last_seq = int(parts[3])
                     next_seq = last_seq + 1
                 else:
                     next_seq = 1
