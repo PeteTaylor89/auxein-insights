@@ -81,11 +81,11 @@ class FileEntityTypes:
     OBSERVATION_RUN = "observation_run"
     OBSERVATION_SPOT = "observation_spot"
     TASK = "task"
-
+    TRAININGSLIDE = "training_slide"
+    
     # Future integrations (commented out for now)
     # INCIDENT = "incident"
     # RISK_ASSESSMENT = "risk_assessment"
-    # TRAINING_MODULE = "training_module"
     # CONTRACTOR = "contractor"
     # VISITOR = "visitor"
     # TIMESHEET = "timesheet"

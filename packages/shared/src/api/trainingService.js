@@ -3,6 +3,46 @@ import api from './api'; // Using your existing configured axios instance
 
 const TRAINING_BASE_URL = '/training';
 
+const optimizeImageForSlide = async (file) => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      const maxWidth = 800;
+      const maxHeight = 600;
+      let { width, height } = img;
+      
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob((blob) => {
+        const optimizedFile = new File([blob], file.name, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        });
+        resolve(optimizedFile);
+      }, 'image/jpeg', 0.85);
+    };
+    
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 // ===== TRAINING MODULE SERVICES =====
 
 export const trainingModuleService = {
@@ -93,7 +133,48 @@ export const trainingSlideService = {
       trainingSlideService.updateSlide(slide.id, { order: index + 1 })
     );
     return Promise.all(updatePromises);
+  }, 
+
+  uploadSlideImage: async (slideId, imageFile, onProgress = null) => {
+    console.log('Uploading slide image:', { slideId, fileName: imageFile.name, size: imageFile.size });
+    
+    const optimizedFile = await optimizeImageForSlide(imageFile);
+    
+    const formData = new FormData();
+    formData.append('file', optimizedFile);
+    
+    try {
+      const response = await api.post(
+        `${TRAINING_BASE_URL}/slides/${slideId}/upload-image`, 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            if (onProgress) {
+              const percentCompleted = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total
+              );
+              onProgress(percentCompleted);
+            }
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Slide image upload failed:', error);
+      throw error;
+    }
+  },
+
+  // Remove image from slide
+  removeSlideImage: async (slideId) => {
+    console.log('Removing slide image:', slideId);
+    const response = await api.delete(`${TRAINING_BASE_URL}/slides/${slideId}/image`);
+    return response.data;
   }
+
 };
 
 // ===== TRAINING QUESTION SERVICES =====

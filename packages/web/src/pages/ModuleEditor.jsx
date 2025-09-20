@@ -1,3 +1,5 @@
+
+
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
@@ -8,7 +10,13 @@ function ModuleEditor() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+  useEffect(() => {
+    console.log('=== MODULE EDITOR DEBUG ===');
+    console.log('trainingService:', trainingService);
+    console.log('trainingService.slides methods:', Object.keys(trainingService.slides || {}));
+    console.log('Has uploadSlideImage?', typeof trainingService.slides?.uploadSlideImage);
+    console.log('===========================');
+  }, []);
   // Hooks for data management
   const { module, loading: moduleLoading, error: moduleError, updateModule } = useTrainingModule(moduleId);
   const { slides, loading: slidesLoading, createSlide, updateSlide, deleteSlide, reorderSlides } = useTrainingSlides(moduleId);
@@ -209,6 +217,225 @@ function ModuleEditor() {
     };
   };
 
+  const SlideImageUpload = ({ slide, onImageUploaded, onImageRemoved }) => {
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [error, setError] = useState(null);
+    const fileInputRef = useRef(null);
+
+    const handleFileSelect = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        setError('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image too large. Please use an image under 10MB.');
+        return;
+      }
+
+      setError(null);
+      setUploading(true);
+      setUploadProgress(0);
+
+      try {
+        const result = await trainingService.slides.uploadSlideImage(
+          slide.id, 
+          file,
+          (progress) => setUploadProgress(progress)
+        );
+        
+        onImageUploaded(result.file_url);
+        
+      } catch (error) {
+        console.error('Upload failed:', error);
+        const errorMessage = error.response?.data?.detail || 'Upload failed. Please try again.';
+        setError(errorMessage);
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    };
+
+    const handleRemoveImage = async () => {
+      if (!confirm('Remove this image from the slide?')) return;
+
+      try {
+        await trainingService.slides.removeSlideImage(slide.id);
+        onImageRemoved();
+      } catch (error) {
+        alert('Failed to remove image: ' + error.message);
+      }
+    };
+
+    if (slide.image_url) {
+      return (
+        <div style={{
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            position: 'relative',
+            maxHeight: '300px',
+            overflow: 'hidden',
+            background: '#f9fafb'
+          }}>
+            <img 
+              src={slide.image_url}
+              alt={slide.image_alt_text || 'Slide image'}
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block'
+              }}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div style={{
+              display: 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '200px',
+              color: '#6b7280',
+              background: '#f3f4f6'
+            }}>
+              Image failed to load
+            </div>
+          </div>
+          
+          <div style={{
+            padding: '1rem',
+            background: '#f8fafc',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+              Image uploaded successfully
+            </div>
+            <button
+              onClick={handleRemoveImage}
+              style={{
+                background: '#dc2626',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.75rem'
+              }}
+            >
+              Remove Image
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div style={{
+          border: '2px dashed #d1d5db',
+          borderRadius: '8px',
+          padding: '2rem',
+          textAlign: 'center',
+          background: uploading ? '#f0f9ff' : '#fafafa'
+        }}>
+          {uploading ? (
+            <div>
+              <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📤</div>
+              <div style={{
+                background: '#e5e7eb',
+                borderRadius: '999px',
+                height: '8px',
+                marginBottom: '1rem',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  background: '#3b82f6',
+                  height: '100%',
+                  width: `${uploadProgress}%`,
+                  borderRadius: '999px',
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: '#3b82f6' }}>
+                Uploading... {uploadProgress}%
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🖼️</div>
+              <p style={{
+                fontSize: '0.875rem',
+                color: '#6b7280',
+                margin: '0 0 1rem 0'
+              }}>
+                Click to upload an image
+              </p>
+              <p style={{
+                fontSize: '0.75rem',
+                color: '#9ca3af',
+                margin: '0 0 1rem 0'
+              }}>
+                JPEG, PNG, GIF or WebP (max 10MB)
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '6px',
+                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                Choose Image
+              </button>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div style={{
+            marginTop: '0.5rem',
+            padding: '0.75rem',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '6px',
+            color: '#dc2626',
+            fontSize: '0.875rem'
+          }}>
+            {error}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
+      </div>
+    );
+  };
+
+
   const validation = validateSlideForMobile(selectedSlide);
 
   // Character counters
@@ -279,17 +506,37 @@ function ModuleEditor() {
             </ul>
           )}
           
-          {/* Image placeholder */}
+          {/* Real Image Display */}
           {selectedSlide.image_url && (
             <div style={{
-              background: '#f3f4f6',
+              marginTop: '1rem',
               borderRadius: '8px',
-              padding: '2rem',
-              textAlign: 'center',
-              color: '#6b7280',
-              marginTop: 'auto'
+              overflow: 'hidden'
             }}>
-              📷 Image: {selectedSlide.image_url}
+              <img 
+                src={selectedSlide.image_url}
+                alt={selectedSlide.image_alt_text || 'Slide image'}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '200px',
+                  objectFit: 'cover'
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+              {selectedSlide.image_caption && (
+                <div style={{
+                  padding: '0.5rem',
+                  fontSize: '0.75rem',
+                  color: '#6b7280',
+                  background: '#f9fafb',
+                  textAlign: 'center'
+                }}>
+                  {selectedSlide.image_caption}
+                </div>
+              )}
             </div>
           )}
           
@@ -965,7 +1212,7 @@ function ModuleEditor() {
                   )}
                 </div>
 
-                {/* Image Upload Placeholder */}
+                {/* Image Upload */}
                 <div style={{ marginBottom: '1.5rem' }}>
                   <label style={{
                     display: 'block',
@@ -977,29 +1224,22 @@ function ModuleEditor() {
                     Slide Image (Optional)
                   </label>
                   
-                  <div style={{
-                    border: '2px dashed #d1d5db',
-                    borderRadius: '8px',
-                    padding: '2rem',
-                    textAlign: 'center',
-                    background: '#fafafa'
-                  }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📷</div>
-                    <p style={{
-                      fontSize: '0.875rem',
-                      color: '#6b7280',
-                      margin: '0 0 1rem 0'
-                    }}>
-                      Image upload coming soon
-                    </p>
-                    <p style={{
-                      fontSize: '0.75rem',
-                      color: '#9ca3af',
-                      margin: 0
-                    }}>
-                      Recommended: Landscape orientation, optimized for mobile loading
-                    </p>
-                  </div>
+                  <SlideImageUpload 
+                    slide={selectedSlide}
+                    onImageUploaded={(imageUrl) => {
+                      const updatedSlide = { ...selectedSlide, image_url: imageUrl };
+                      setSelectedSlide(updatedSlide);
+                    }}
+                    onImageRemoved={() => {
+                      const updatedSlide = { 
+                        ...selectedSlide, 
+                        image_url: null, 
+                        image_alt_text: null, 
+                        image_caption: null 
+                      };
+                      setSelectedSlide(updatedSlide);
+                    }}
+                  />
                 </div>
 
                 {/* Mobile Optimization Tips */}
