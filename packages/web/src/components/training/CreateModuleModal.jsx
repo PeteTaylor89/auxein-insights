@@ -51,15 +51,7 @@ function CreateModuleModal({ onClose, onSuccess }) {
       if (formData.estimated_duration_minutes < 1 || formData.estimated_duration_minutes > 480) {
         newErrors.estimated_duration_minutes = 'Duration must be between 1 and 480 minutes';
       }
-      
-      if (formData.has_questionnaire) {
-        if (formData.passing_score < 50 || formData.passing_score > 100) {
-          newErrors.passing_score = 'Passing score must be between 50% and 100%';
-        }
-        if (formData.max_attempts < 1 || formData.max_attempts > 10) {
-          newErrors.max_attempts = 'Max attempts must be between 1 and 10';
-        }
-      }
+
     }
     
     setErrors(newErrors);
@@ -333,133 +325,6 @@ function CreateModuleModal({ onClose, onSuccess }) {
                   )}
                 </div>
               </div>
-
-              {/* Quiz Settings */}
-              <div style={{
-                background: '#f8fafc',
-                padding: '1rem',
-                borderRadius: '8px',
-                marginBottom: '1.5rem'
-              }}>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '1rem',
-                  cursor: 'pointer'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.has_questionnaire}
-                    onChange={(e) => handleInputChange('has_questionnaire', e.target.checked)}
-                    style={{ marginRight: '0.5rem' }}
-                  />
-                  Include Quiz/Assessment
-                </label>
-
-                {formData.has_questionnaire && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                    gap: '1rem'
-                  }}>
-                    <div>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        color: '#6b7280',
-                        marginBottom: '0.25rem'
-                      }}>
-                        Passing Score (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="50"
-                        max="100"
-                        step="5"
-                        value={formData.passing_score}
-                        onChange={(e) => handleInputChange('passing_score', parseInt(e.target.value) || 80)}
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem',
-                          border: `1px solid ${errors.passing_score ? '#ef4444' : '#d1d5db'}`,
-                          borderRadius: '4px',
-                          fontSize: '0.75rem'
-                        }}
-                      />
-                      {errors.passing_score && (
-                        <p style={{ color: '#ef4444', fontSize: '0.625rem', marginTop: '0.25rem' }}>
-                          {errors.passing_score}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        color: '#6b7280',
-                        marginBottom: '0.25rem'
-                      }}>
-                        Max Attempts
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={formData.max_attempts}
-                        onChange={(e) => handleInputChange('max_attempts', parseInt(e.target.value) || 3)}
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem',
-                          border: `1px solid ${errors.max_attempts ? '#ef4444' : '#d1d5db'}`,
-                          borderRadius: '4px',
-                          fontSize: '0.75rem'
-                        }}
-                      />
-                      {errors.max_attempts && (
-                        <p style={{ color: '#ef4444', fontSize: '0.625rem', marginTop: '0.25rem' }}>
-                          {errors.max_attempts}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        color: '#6b7280',
-                        marginBottom: '0.25rem'
-                      }}>
-                        Valid For (days)
-                      </label>
-                      <select
-                        value={formData.valid_for_days}
-                        onChange={(e) => handleInputChange('valid_for_days', parseInt(e.target.value))}
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          fontSize: '0.75rem',
-                          background: 'white'
-                        }}
-                      >
-                        <option value={90}>3 months</option>
-                        <option value={180}>6 months</option>
-                        <option value={365}>1 year</option>
-                        <option value={730}>2 years</option>
-                        <option value={null}>Never expires</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -564,7 +429,7 @@ function CreateModuleModal({ onClose, onSuccess }) {
                         fontSize: '0.75rem',
                         color: '#6b7280'
                       }}>
-                        Required for all contractors when they're assigned work
+                        Required for all contractors when they're assigned work - coming version 1.1
                       </div>
                     </div>
                   </label>

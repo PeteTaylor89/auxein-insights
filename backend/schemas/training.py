@@ -1,11 +1,11 @@
-# app/schemas/training.py - Training Module Pydantic Schemas
+# app/schemas/training.py - Training Module Pydantic Schemas (Updated for Files)
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, date
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, validator, Field, computed_field
 from .user import UserSummary
 from pydantic.config import ConfigDict
 
-# ===== TRAINING MODULE SCHEMAS =====
+# ===== TRAINING MODULE SCHEMAS (unchanged) =====
 
 class TrainingModuleBase(BaseModel):
     title: str = Field(..., min_length=3, max_length=200)
@@ -97,7 +97,19 @@ class TrainingModuleSummary(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-# ===== TRAINING SLIDE SCHEMAS =====
+# ===== TRAINING SLIDE SCHEMAS (UPDATED FOR FILES) =====
+
+class SlideImageInfo(BaseModel):
+    """Image information for training slides"""
+    id: str
+    url: str
+    download_url: str
+    filename: str
+    alt_text: Optional[str] = None
+    caption: Optional[str] = None
+    position: str = "top"
+    file_size: Optional[int] = None
+    uploaded_at: datetime
 
 class TrainingSlideBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
@@ -109,8 +121,7 @@ class TrainingSlideBase(BaseModel):
     estimated_read_time_seconds: int = Field(30, ge=10, le=300)
     notes: Optional[str] = None
     
-    # Image support
-    image_url: Optional[str] = Field(None, max_length=500)
+    # Image metadata (actual images stored via files API)
     image_alt_text: Optional[str] = Field(None, max_length=200)
     image_caption: Optional[str] = Field(None, max_length=300)
     image_position: str = Field("top", pattern="^(top|bottom|left|right)$")
@@ -135,8 +146,7 @@ class TrainingSlideUpdate(BaseModel):
     notes: Optional[str] = None
     is_active: Optional[bool] = None
     
-    # Image support
-    image_url: Optional[str] = Field(None, max_length=500)
+    # Image metadata
     image_alt_text: Optional[str] = Field(None, max_length=200)
     image_caption: Optional[str] = Field(None, max_length=300)
     image_position: Optional[str] = Field(None, pattern="^(top|bottom|left|right)$")
@@ -155,7 +165,14 @@ class TrainingSlideInDBBase(TrainingSlideBase):
         from_attributes = True
 
 class TrainingSlide(TrainingSlideInDBBase):
+    """Training slide - base response model"""
     pass
+
+class TrainingSlideWithImage(TrainingSlideInDBBase):
+    """Training slide with image information populated from files API"""
+    image_url: Optional[str] = None
+    has_image: bool = False
+    image_info: Optional[SlideImageInfo] = None
 
 class TrainingSlideForViewer(BaseModel):
     """Slide formatted for training viewer"""
@@ -167,12 +184,12 @@ class TrainingSlideForViewer(BaseModel):
     estimated_read_time_seconds: int
     auto_advance: bool
     auto_advance_seconds: Optional[int] = None
-    image: Optional[Dict[str, Any]] = None  # Image details if present
+    image: Optional[SlideImageInfo] = None  # Full image details if present
     
     class Config:
         from_attributes = True
 
-# ===== TRAINING QUESTION SCHEMAS =====
+# ===== TRAINING QUESTION SCHEMAS (unchanged) =====
 
 class TrainingQuestionOptionBase(BaseModel):
     option_text: str = Field(..., min_length=1, max_length=500)
@@ -293,7 +310,7 @@ class TrainingQuestionForViewer(BaseModel):
     order: int
     options: List[TrainingQuestionOptionForViewer] = []
 
-# ===== TRAINING RECORD SCHEMAS =====
+# ===== TRAINING RECORD SCHEMAS (unchanged) =====
 
 class TrainingRecordBase(BaseModel):
     entity_type: str = Field(..., pattern="^(user|visitor|contractor)$")
@@ -346,7 +363,7 @@ class TrainingRecordWithDetails(TrainingRecord):
     is_valid: bool = False
     attempts_remaining: int = 0
 
-# ===== TRAINING OPERATIONS SCHEMAS =====
+# ===== TRAINING OPERATIONS SCHEMAS (unchanged) =====
 
 class StartTrainingRequest(BaseModel):
     """Request to start a training module"""
@@ -368,7 +385,7 @@ class CompleteTrainingRequest(BaseModel):
     training_record_id: int
     completion_notes: Optional[str] = Field(None, max_length=1000)
 
-# ===== TRAINING PROGRESS SCHEMAS =====
+# ===== TRAINING PROGRESS SCHEMAS (unchanged) =====
 
 class TrainingProgress(BaseModel):
     """Current training progress"""
@@ -407,7 +424,7 @@ class TrainingStats(BaseModel):
     average_score: float = Field(0, ge=0, le=100)
     period_days: int = 30
 
-# ===== BULK OPERATIONS SCHEMAS =====
+# ===== BULK OPERATIONS SCHEMAS (unchanged) =====
 
 class BulkAssignTrainingRequest(BaseModel):
     """Request to assign training to multiple entities"""

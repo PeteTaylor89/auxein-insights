@@ -374,28 +374,6 @@ function TrainingModules() {
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Active Assignments</div>
               </div>
-              <div style={{
-                textAlign: 'center',
-                padding: '0.75rem',
-                background: '#f8fafc',
-                borderRadius: '8px'
-              }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#10b981' }}>
-                  {Math.round(stats.completion_rate)}%
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Completion Rate</div>
-              </div>
-              <div style={{
-                textAlign: 'center',
-                padding: '0.75rem',
-                background: '#f8fafc',
-                borderRadius: '8px'
-              }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#8b5cf6' }}>
-                  {Math.round(stats.average_score)}%
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Average Score</div>
-              </div>
             </div>
           </div>
         )}
@@ -469,8 +447,7 @@ function TrainingModules() {
             {[
               { id: 'all', label: 'All Modules', count: Array.isArray(modules) ? modules.length : 0 },
               { id: 'published', label: 'Published', count: Array.isArray(modules) ? modules.filter(m => m.is_published).length : 0 },
-              ...(canManage ? [{ id: 'drafts', label: 'Drafts', count: Array.isArray(modules) ? modules.filter(m => !m.is_published).length : 0 }] : []),
-              { id: 'with-quiz', label: 'With Quiz', count: Array.isArray(modules) ? modules.filter(m => m.has_questionnaire).length : 0 }
+              ...(canManage ? [{ id: 'drafts', label: 'Drafts', count: Array.isArray(modules) ? modules.filter(m => !m.is_published).length : 0 }] : [])
             ].map(tab => (
               <button
                 key={tab.id}

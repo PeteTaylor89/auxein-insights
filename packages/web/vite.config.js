@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: { enabled: false },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Vineyard Management System',
@@ -64,20 +65,28 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      '@vineyard/shared': path.resolve(__dirname, '../shared/src'),
       '@shared': path.resolve(__dirname, '../shared/src'),
       '@': path.resolve(__dirname, 'src'),
     },
+
+    dedupe: ['@vineyard/shared'],
   },
   server: {
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        secure: false
-      }
-    }
+        secure: false,
+      },
+    },
+    watch: {
+      followSymlinks: true,
+    },
   },
   optimizeDeps: {
-    include: ['@vineyard/shared', 'react-router-dom', 'axios'],
+
+    exclude: ['@vineyard/shared'],
+
   },
 });

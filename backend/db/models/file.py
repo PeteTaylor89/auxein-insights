@@ -1,4 +1,4 @@
-# db/models/file.py - Centralized File Management
+# db/models/file.py - Centralized File Management (Updated)
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -13,7 +13,7 @@ class File(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     
     # Entity relationship - what this file belongs to
-    entity_type = Column(String(50), nullable=False, index=True)  # asset_maintenance, asset_calibration, etc.
+    entity_type = Column(String(50), nullable=False, index=True)  # asset_maintenance, asset_calibration, training_slide, etc.
     entity_id = Column(Integer, nullable=False, index=True)
     
     # File details
@@ -81,8 +81,9 @@ class FileEntityTypes:
     OBSERVATION_RUN = "observation_run"
     OBSERVATION_SPOT = "observation_spot"
     TASK = "task"
-    TRAININGSLIDE = "training_slide"
-    
+    TRAINING_SLIDE = "training_slide"
+
+    # TRAINING_MODULE = "training_module"  # For future use (module thumbnails, etc.)
     # Future integrations (commented out for now)
     # INCIDENT = "incident"
     # RISK_ASSESSMENT = "risk_assessment"

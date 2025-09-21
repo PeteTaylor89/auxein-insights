@@ -1,4 +1,4 @@
-# db/models/training_slide.py - Training Slide Model
+# db/models/training_slide.py - Training Slide Model with Files Integration
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -16,8 +16,7 @@ class TrainingSlide(Base):
     content = Column(Text, nullable=True)  # Main text content (optional if image is primary)
     bullet_points = Column(JSON, default=list, nullable=False)  # List of bullet point strings
     
-    # Image support (V1 - one image per slide)
-    image_url = Column(String(500), nullable=True)  # URL/path to uploaded image
+    # Image metadata (actual images stored via files API)
     image_alt_text = Column(String(200), nullable=True)  # Alt text for accessibility
     image_caption = Column(String(300), nullable=True)  # Optional caption below image
     image_position = Column(String(20), default="top", nullable=False)  # "top", "bottom", "left", "right"
@@ -49,6 +48,79 @@ class TrainingSlide(Base):
     def __repr__(self):
         return f"<TrainingSlide(id={self.id}, title='{self.title}', module_id={self.training_module_id}, order={self.order})>"
     
+    # ===== FILE INTEGRATION PROPERTIES =====
+    
+    @property
+    def slide_image(self):
+        """Get the primary image for this slide (if any)"""
+        from db.models.file import File
+        from db.session import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            return db.query(File).filter(
+                File.entity_type == "training_slide",
+                File.entity_id == self.id,
+                File.file_category == "photo",
+                File.is_active == True
+            ).first()
+        finally:
+            db.close()
+    
+    @property
+    def slide_images(self):
+        """Get all images for this slide"""
+        from db.models.file import File
+        from db.session import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            return db.query(File).filter(
+                File.entity_type == "training_slide",
+                File.entity_id == self.id,
+                File.file_category == "photo",
+                File.is_active == True
+            ).order_by(File.uploaded_at.desc()).all()
+        finally:
+            db.close()
+    
+    @property
+    def image_url(self):
+        """Get the URL for the primary slide image (backward compatibility)"""
+        image = self.slide_image
+        return f"/api/v1/files/{image.id}" if image else None
+    
+    @property
+    def has_image(self):
+        """Check if slide has an image"""
+        return self.slide_image is not None
+    
+    @property
+    def image_download_url(self):
+        """Get the download URL for the primary slide image"""
+        image = self.slide_image
+        return f"/api/v1/files/{image.id}/download" if image else None
+    
+    def get_image_info(self):
+        """Get formatted image information for API responses"""
+        image = self.slide_image
+        if not image:
+            return None
+            
+        return {
+            "id": image.id,
+            "url": f"/api/v1/files/{image.id}",
+            "download_url": f"/api/v1/files/{image.id}/download",
+            "filename": image.original_filename,
+            "alt_text": self.image_alt_text,
+            "caption": self.image_caption,
+            "position": self.image_position,
+            "file_size": image.file_size,
+            "uploaded_at": image.uploaded_at
+        }
+    
+    # ===== EXISTING SLIDE METHODS (UPDATED) =====
+    
     @property
     def bullet_points_count(self):
         """Get number of bullet points in this slide"""
@@ -57,12 +129,7 @@ class TrainingSlide(Base):
     @property
     def has_content(self):
         """Check if slide has meaningful content"""
-        return bool(self.title and (self.content or self.bullet_points or self.image_url))
-    
-    @property
-    def has_image(self):
-        """Check if slide has an image"""
-        return bool(self.image_url)
+        return bool(self.title and (self.content or self.bullet_points or self.has_image))
     
     @property
     def is_image_primary(self):
@@ -105,33 +172,57 @@ class TrainingSlide(Base):
         return seconds
     
     def get_formatted_content(self):
-        """Get content formatted for display"""
+        """Get content formatted for display with image info"""
         formatted = {
             "title": self.title,
             "content": self.content,
             "bullet_points": self.bullet_points or [],
-            "image": {
-                "url": self.image_url,
-                "alt_text": self.image_alt_text,
-                "caption": self.image_caption,
-                "position": self.image_position
-            } if self.has_image else None,
+            "image": self.get_image_info(),  # Now uses files API
             "estimated_time": self.estimated_read_time_seconds,
             "order": self.order
         }
         return formatted
     
+    # ===== DEPRECATED METHODS (FOR MIGRATION) =====
+    # These methods are kept for backward compatibility during migration
+    
     def set_image(self, url: str, alt_text: str = None, caption: str = None, position: str = "top"):
-        """Set image for the slide"""
-        self.image_url = url
+        """DEPRECATED: Set image for the slide (kept for migration only)"""
+        # This method is now deprecated - images should be uploaded via files API
+        # Keeping for migration scripts only
         self.image_alt_text = alt_text or f"Image for slide: {self.title}"
         self.image_caption = caption
         if position in ["top", "bottom", "left", "right"]:
             self.image_position = position
     
     def remove_image(self):
-        """Remove image from the slide"""
-        self.image_url = None
+        """Remove image metadata from the slide (actual file removal handled by files API)"""
         self.image_alt_text = None
         self.image_caption = None
         self.image_position = "top"
+    
+    # ===== FILE MANAGEMENT HELPERS =====
+    
+    def update_image_metadata(self, alt_text: str = None, caption: str = None, position: str = None):
+        """Update image metadata (alt text, caption, position)"""
+        if alt_text is not None:
+            self.image_alt_text = alt_text
+        if caption is not None:
+            self.image_caption = caption
+        if position and position in ["top", "bottom", "left", "right"]:
+            self.image_position = position
+    
+    def get_all_files(self):
+        """Get all files associated with this slide (for future expansion)"""
+        from db.models.file import File
+        from db.session import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            return db.query(File).filter(
+                File.entity_type == "training_slide",
+                File.entity_id == self.id,
+                File.is_active == True
+            ).order_by(File.uploaded_at.desc()).all()
+        finally:
+            db.close()

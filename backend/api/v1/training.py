@@ -1,12 +1,11 @@
-# api/v1/training.py - Training Module API Endpoints
+# api/v1/training.py - Training Module API Endpoints (CLEANED UP)
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File as FastAPIFile
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_
 
 from api.deps import get_db, get_current_user
 from db.models.user import User
-from db.models.file import File
 from db.models.training_module import TrainingModule
 from db.models.training_slide import TrainingSlide
 from db.models.training_question import TrainingQuestion
@@ -15,7 +14,6 @@ from db.models.training_record import TrainingRecord
 from db.models.training_attempt import TrainingAttempt
 from db.models.training_response import TrainingResponse
 
-from schemas.file import FileUploadResponse
 from schemas.user import UserSummary
 from schemas.training import (
     TrainingModule as TrainingModuleSchema,
@@ -157,7 +155,7 @@ def get_training_module(
     if module.creator:
         creator_data = {
             'id': module.creator.id,
-            'username': getattr(module.creator, 'username', module.creator.email),  # Use email as username if no username field
+            'username': getattr(module.creator, 'username', module.creator.email),
             'email': module.creator.email,
             'first_name': getattr(module.creator, 'first_name', ''),
             'last_name': getattr(module.creator, 'last_name', ''),
@@ -254,37 +252,23 @@ def publish_training_module(
     # Publish module
     module.publish()
     db.add(module)
-    db.flush()  # Get the updated module
+    db.flush()
     
     assignments_created = 0
     
     # Auto-assign based on module settings
     try:
-        # Auto-assign to visitors if enabled (for future visitors)
-        if module.auto_assign_visitors:
-            # This will be handled in visitor registration process
-            pass
-        
-        # Auto-assign to contractors if enabled (for future contractors)
-        if module.auto_assign_contractors:
-            # This will be handled in contractor assignment process
-            pass
-        
         # Auto-assign to existing users based on required roles
         if module.required_for_roles and len(module.required_for_roles) > 0:
             from db.models.user import User
             
-            # Get all active users in the company with the required roles
             users_to_assign = db.query(User).filter(
                 User.company_id == current_user.company_id,
                 User.is_active == True,
-                User.role.in_(module.required_for_roles)  # Only users with required roles
+                User.role.in_(module.required_for_roles)
             ).all()
             
-            print(f"Found {len(users_to_assign)} users with roles {module.required_for_roles}")
-            
             for user in users_to_assign:
-                # Check if already assigned
                 existing = db.query(TrainingRecord).filter(
                     TrainingRecord.training_module_id == module_id,
                     TrainingRecord.entity_type == "user",
@@ -292,7 +276,6 @@ def publish_training_module(
                 ).first()
                 
                 if not existing:
-                    # Create training record
                     from datetime import datetime, timezone, timedelta
                     
                     training_record = TrainingRecord(
@@ -302,7 +285,6 @@ def publish_training_module(
                         assigned_by=current_user.id,
                         assigned_at=datetime.now(timezone.utc),
                         passing_score_required=module.passing_score,
-                        
                         module_version=module.version,
                         expires_at=datetime.now(timezone.utc) + timedelta(days=module.valid_for_days) if module.valid_for_days else None,
                         status="assigned"
@@ -310,15 +292,11 @@ def publish_training_module(
                     
                     db.add(training_record)
                     assignments_created += 1
-                    print(f"Assigned training to user {user.email} (role: {user.role})")
         
         db.commit()
-        print(f"Total assignments created: {assignments_created}")
         
     except Exception as e:
         db.rollback()
-        print(f"Auto-assignment failed: {e}")
-        # Module is still published, but auto-assignment failed
     
     return {
         "message": "Training module published successfully",
@@ -350,7 +328,6 @@ def archive_training_module(
             detail="Insufficient permissions to archive training modules"
         )
     
-    # Archive module
     module.archive()
     db.add(module)
     db.commit()
@@ -500,179 +477,6 @@ def delete_training_slide(
     
     return {"message": "Training slide deleted successfully", "slide_id": slide_id}
 
-@router.post("/slides/{slide_id}/upload-image", response_model=FileUploadResponse)
-async def upload_slide_image(
-    slide_id: int,
-    file: UploadFile = FastAPIFile(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Upload image for training slide"""
-    # Verify slide exists and user has access
-    slide = db.query(TrainingSlide).join(TrainingModule).filter(
-        TrainingSlide.id == slide_id,
-        TrainingModule.company_id == current_user.company_id
-    ).first()
-    
-    if not slide:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training slide not found"
-        )
-    
-    if not current_user.has_permission("manage_training"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to upload slide images"
-        )
-    
-    # Validate image file
-    validate_training_image(file)
-    
-    try:
-        # Generate file ID and stored filename
-        file_id = str(uuid.uuid4())
-        stored_filename = File.generate_stored_filename(
-            entity_type="training_slide",
-            entity_id=slide_id,
-            original_filename=file.filename
-        )
-        
-        # Create upload directory
-        upload_dir = create_upload_directory(current_user.company_id, "training_slide")
-        file_path = upload_dir / stored_filename
-        
-        # Save file to disk
-        save_uploaded_file(file, file_path)
-        
-        # Create file record
-        db_file = File(
-            id=file_id,
-            company_id=current_user.company_id,
-            entity_type="training_slide",
-            entity_id=slide_id,
-            original_filename=file.filename,
-            stored_filename=stored_filename,
-            file_path=str(file_path),
-            file_size=file.size,
-            mime_type=file.content_type,
-            file_category="photo",
-            description=f"Image for slide: {slide.title}",
-            uploaded_by=current_user.id,
-            upload_status="uploaded"
-        )
-        
-        db.add(db_file)
-        
-        # Update slide with image URL
-        slide.image_url = f"/api/v1/files/{file_id}"
-        slide.image_alt_text = f"Image for {slide.title}"
-        
-        db.commit()
-        db.refresh(db_file)
-        
-        return FileUploadResponse(
-            file_id=file_id,
-            message="Slide image uploaded successfully",
-            file_url=f"/api/v1/files/{file_id}",
-            download_url=f"/api/v1/files/{file_id}/download"
-        )
-        
-    except Exception as e:
-        logger.error(f"Slide image upload failed: {str(e)}")
-        # Cleanup on failure
-        if 'file_path' in locals() and file_path.exists():
-            try:
-                file_path.unlink()
-            except:
-                pass
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Image upload failed. Please try again with a smaller image."
-        )
-
-@router.delete("/slides/{slide_id}/image")
-def remove_slide_image(
-    slide_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Remove image from training slide"""
-    slide = db.query(TrainingSlide).join(TrainingModule).filter(
-        TrainingSlide.id == slide_id,
-        TrainingModule.company_id == current_user.company_id
-    ).first()
-    
-    if not slide:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training slide not found"
-        )
-    
-    if not current_user.has_permission("manage_training"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions"
-        )
-    
-    # Remove file if exists
-    if slide.image_url:
-        # Extract file ID from URL
-        file_id = slide.image_url.split('/')[-1]
-        file_record = db.query(File).filter(
-            File.id == file_id,
-            File.entity_type == "training_slide",
-            File.entity_id == slide_id
-        ).first()
-        
-        if file_record:
-            # Soft delete file
-            file_record.is_active = False
-            file_record.upload_status = "deleted"
-    
-    # Clear slide image fields
-    slide.image_url = None
-    slide.image_alt_text = None
-    slide.image_caption = None
-    
-    db.commit()
-    
-    return {"message": "Slide image removed successfully"}
-
-def validate_training_image(file: UploadFile) -> None:
-    """Validate image file for training slides"""
-    # Size limit for training images (10MB)
-    MAX_TRAINING_IMAGE_SIZE = 10 * 1024 * 1024
-    
-    if file.size > MAX_TRAINING_IMAGE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Image too large ({file.size} bytes). Please use an image under 10MB."
-        )
-    
-    # Only allow image types
-    ALLOWED_IMAGE_TYPES = {
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp'
-    }
-    
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid image format. Please use JPEG, PNG, GIF, or WebP."
-        )
-    
-    # Check file extension
-    file_ext = Path(file.filename).suffix.lower()
-    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
-    
-    if file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file extension. Please use: {', '.join(allowed_extensions)}"
-        )
-
-
 # ===== TRAINING QUESTION ENDPOINTS =====
 
 @router.post("/modules/{module_id}/questions", response_model=TrainingQuestionWithOptions, status_code=status.HTTP_201_CREATED)
@@ -707,7 +511,7 @@ def create_training_question(
     
     db_question = TrainingQuestion(**question_data)
     db.add(db_question)
-    db.flush()  # Get the question ID
+    db.flush()
     
     # Create options
     for option_data in question.options:
@@ -943,7 +747,7 @@ def get_training_progress(
     
     return {
         "training_record": record,
-        "current_attempt": None,  # We'll implement attempts later
+        "current_attempt": None,
         "progress": {
             "slides_completed": 0,
             "questions_answered": 0,
@@ -985,8 +789,6 @@ def complete_slide(
     db: Session = Depends(get_db)
 ):
     """Mark a slide as completed"""
-    # For now, just return success
-    # You can implement slide tracking later
     return {"message": "Slide completed"}
 
 @router.post("/submit-answer")
@@ -996,8 +798,6 @@ def submit_training_answer(
     db: Session = Depends(get_db)
 ):
     """Submit an answer to a training question"""
-    # For now, just return success
-    # You can implement answer tracking later
     return {"message": "Answer submitted"}
 
 @router.post("/complete")
@@ -1021,7 +821,7 @@ def complete_training_session(
     from datetime import datetime, timezone
     record.status = "completed"
     record.completed_at = datetime.now(timezone.utc)
-    record.best_score = 100.0  # Default passing score for now
+    record.best_score = 100.0
     
     db.add(record)
     db.commit()

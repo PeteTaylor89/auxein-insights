@@ -1,7 +1,8 @@
-// src/services/trainingService.js - Frontend API service for training system
+// src/services/trainingService.js - Frontend API service for training system (Updated for Files API)
 import api from './api'; // Using your existing configured axios instance
 
 const TRAINING_BASE_URL = '/training';
+const FILES_BASE_URL = '/files';
 
 const optimizeImageForSlide = async (file) => {
   return new Promise((resolve) => {
@@ -41,6 +42,11 @@ const optimizeImageForSlide = async (file) => {
     
     img.src = URL.createObjectURL(file);
   });
+};
+
+const toObjectUrl = async (fileId, api) => {
+  const resp = await api.get(`/files/${fileId}/download`, { responseType: 'blob' });
+  return URL.createObjectURL(resp.data);
 };
 
 // ===== TRAINING MODULE SERVICES =====
@@ -95,13 +101,98 @@ export const trainingModuleService = {
   }
 };
 
-// ===== TRAINING SLIDE SERVICES =====
+// ===== TRAINING SLIDE SERVICES (UPDATED FOR FILES API) =====
 
 export const trainingSlideService = {
-  // Get all slides for a module
+  // Get all slides for a module (with image info populated)
   getSlides: async (moduleId) => {
     const response = await api.get(`${TRAINING_BASE_URL}/modules/${moduleId}/slides`);
-    return response.data;
+    const slides = response.data;
+    
+    // For each slide, fetch image information if it exists
+    const slidesWithImages = await Promise.all(
+      slides.map(async (slide) => {
+        try {
+          // Get images for this slide from files API
+          const imageResponse = await api.get(
+            `${FILES_BASE_URL}/entity/training_slide/${slide.id}?file_category=photo`
+          );
+          
+          const images = imageResponse.data;
+          const primaryImage = images.length > 0 ? images[0] : null;
+          const displayUrl = primaryImage ? await toObjectUrl(primaryImage.id, api) : null;
+
+          return {
+            ...slide,
+            image_url: displayUrl,
+            has_image: !!primaryImage,
+            image_info: primaryImage ? {
+              id: primaryImage.id,
+              url: displayUrl,
+              download_url: `/api/v1/files/${primaryImage.id}/download`,
+              filename: primaryImage.original_filename,
+              alt_text: slide.image_alt_text,
+              caption: slide.image_caption,
+              position: slide.image_position,
+              file_size: primaryImage.file_size,
+              uploaded_at: primaryImage.uploaded_at
+            } : null
+          };
+        } catch (error) {
+          console.warn(`Failed to fetch images for slide ${slide.id}:`, error);
+          return {
+            ...slide,
+            image_url: null,
+            has_image: false,
+            image_info: null
+          };
+        }
+      })
+    );
+    
+    return slidesWithImages;
+  },
+
+  // Get single slide with image info
+  getSlide: async (slideId) => {
+    const response = await api.get(`${TRAINING_BASE_URL}/slides/${slideId}`);
+    const slide = response.data;
+    
+    try {
+      // Get images for this slide from files API
+      const imageResponse = await api.get(
+        `${FILES_BASE_URL}/entity/training_slide/${slideId}?file_category=photo`
+      );
+      
+      const images = imageResponse.data;
+      const primaryImage = images.length > 0 ? images[0] : null;
+      download_url: `/api/v1/files/${primaryImage.id}/download`;
+
+      return {
+        ...slide,
+        image_url: displayUrl,
+        has_image: !!primaryImage,
+        image_info: primaryImage ? {
+          id: primaryImage.id,
+          url: displayUrl,
+          download_url: `/api/v1/files/${primaryImage.id}/download`,
+          filename: primaryImage.original_filename,
+          alt_text: slide.image_alt_text,
+          caption: slide.image_caption,
+          position: slide.image_position,
+          file_size: primaryImage.file_size,
+          uploaded_at: primaryImage.uploaded_at
+        } : null
+      };
+    } catch (error) {
+      console.warn(`Failed to fetch images for slide ${slideId}:`, error);
+      return {
+        ...slide,
+        image_url: null,
+        has_image: false,
+        image_info: null
+      };
+    }
   },
 
   // Create new slide
@@ -122,6 +213,22 @@ export const trainingSlideService = {
 
   // Delete slide
   deleteSlide: async (slideId) => {
+    // First, delete any associated images
+    try {
+      const imageResponse = await api.get(
+        `${FILES_BASE_URL}/entity/training_slide/${slideId}?file_category=photo`
+      );
+      const images = imageResponse.data;
+      
+      // Delete all images associated with this slide
+      await Promise.all(
+        images.map(image => api.delete(`${FILES_BASE_URL}/${image.id}`))
+      );
+    } catch (error) {
+      console.warn('Failed to delete slide images:', error);
+    }
+    
+    // Then delete the slide itself
     const response = await api.delete(`${TRAINING_BASE_URL}/slides/${slideId}`);
     return response.data;
   },
@@ -135,17 +242,24 @@ export const trainingSlideService = {
     return Promise.all(updatePromises);
   }, 
 
+  // Upload slide image using files API
   uploadSlideImage: async (slideId, imageFile, onProgress = null) => {
-    console.log('Uploading slide image:', { slideId, fileName: imageFile.name, size: imageFile.size });
+    console.log('Uploading slide image via files API:', { slideId, fileName: imageFile.name, size: imageFile.size });
     
+    // Optimize image before upload
     const optimizedFile = await optimizeImageForSlide(imageFile);
     
+    // Use the centralized files API
     const formData = new FormData();
+    formData.append('entity_type', 'training_slide');
+    formData.append('entity_id', slideId);
+    formData.append('file_category', 'photo');
+    formData.append('description', `Training slide image: ${imageFile.name}`);
     formData.append('file', optimizedFile);
     
     try {
       const response = await api.post(
-        `${TRAINING_BASE_URL}/slides/${slideId}/upload-image`, 
+        `${FILES_BASE_URL}/upload`, 
         formData,
         {
           headers: {
@@ -161,6 +275,8 @@ export const trainingSlideService = {
           }
         }
       );
+      
+      console.log('Slide image uploaded successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Slide image upload failed:', error);
@@ -168,16 +284,51 @@ export const trainingSlideService = {
     }
   },
 
-  // Remove image from slide
-  removeSlideImage: async (slideId) => {
-    console.log('Removing slide image:', slideId);
-    const response = await api.delete(`${TRAINING_BASE_URL}/slides/${slideId}/image`);
-    return response.data;
-  }
+  // Remove image from slide using files API
+  removeSlideImage: async (slideId, fileId = null) => {
+    console.log('Removing slide image via files API:', { slideId, fileId });
+    
+    try {
+      if (fileId) {
+        // Delete specific file
+        const response = await api.delete(`${FILES_BASE_URL}/${fileId}`);
+        return response.data;
+      } else {
+        // Delete all images for this slide
+        const imageResponse = await api.get(
+          `${FILES_BASE_URL}/entity/training_slide/${slideId}?file_category=photo`
+        );
+        const images = imageResponse.data;
+        
+        if (images.length > 0) {
+          // Delete the first (primary) image
+          const response = await api.delete(`${FILES_BASE_URL}/${images[0].id}`);
+          return response.data;
+        }
+        
+        return { message: 'No images found to delete' };
+      }
+    } catch (error) {
+      console.error('Failed to remove slide image:', error);
+      throw error;
+    }
+  },
 
+  // Get all images for a slide
+  getSlideImages: async (slideId) => {
+    try {
+      const response = await api.get(
+        `${FILES_BASE_URL}/entity/training_slide/${slideId}?file_category=photo`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch slide images:', error);
+      return [];
+    }
+  }
 };
 
-// ===== TRAINING QUESTION SERVICES =====
+// ===== TRAINING QUESTION SERVICES (unchanged) =====
 
 export const trainingQuestionService = {
   // Get all questions for a module
@@ -209,7 +360,7 @@ export const trainingQuestionService = {
   }
 };
 
-// ===== TRAINING ASSIGNMENT SERVICES =====
+// ===== TRAINING ASSIGNMENT SERVICES (unchanged) =====
 
 export const trainingAssignmentService = {
   // Get training assignments with filtering
@@ -242,12 +393,11 @@ export const trainingAssignmentService = {
   // Get my training assignments (for current user)
   getMyAssignments: async (status = null) => {
     const params = status ? { status } : {};
-    // This would need to be implemented in the backend to filter by current user
     return trainingAssignmentService.getAssignments(params);
   }
 };
 
-// ===== TRAINING TAKING SERVICES =====
+// ===== TRAINING TAKING SERVICES (unchanged) =====
 
 export const trainingTakingService = {
   // Start a training session
@@ -312,7 +462,7 @@ export const trainingTakingService = {
   }
 };
 
-// ===== TRAINING REPORTING SERVICES =====
+// ===== TRAINING REPORTING SERVICES (unchanged) =====
 
 export const trainingReportingService = {
   // Get company training statistics
@@ -349,7 +499,7 @@ export const trainingReportingService = {
   }
 };
 
-// ===== UTILITY FUNCTIONS =====
+// ===== UTILITY FUNCTIONS (updated) =====
 
 export const trainingUtils = {
   // Calculate training progress percentage
@@ -413,23 +563,23 @@ export const trainingUtils = {
     return errors;
   },
 
-  // Process slide content for display
+  // Process slide content for display (updated for files API)
   processSlideContent: (slide) => {
     return {
       ...slide,
-      image: slide.image_url ? {
+      image: slide.image_info || (slide.image_url ? {
         url: slide.image_url,
         alt_text: slide.image_alt_text,
         caption: slide.image_caption,
         position: slide.image_position
-      } : null,
+      } : null),
       bullet_points: slide.bullet_points || [],
       estimated_time: slide.estimated_read_time_seconds
     };
   }
 };
 
-// ===== ERROR HANDLING =====
+// ===== ERROR HANDLING (unchanged) =====
 
 export const trainingErrorHandler = {
   handleApiError: (error) => {

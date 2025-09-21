@@ -1,16 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { useTrainingTaking } from '@vineyard/shared';
+import { trainingService, useTrainingTaking,  api } from '@vineyard/shared';
+
 
 function TakeTraining() {
   const { recordId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();  // Just get user, don't overcomplicate
-  
+  const [slideImageUrls, setSlideImageUrls] = useState({});
   // Convert recordId to number and rename for clarity
   const trainingRecordId = recordId ? parseInt(recordId, 10) : null;
-  
+  const [slidesWithImages, setSlidesWithImages] = useState(null);
+
   // Training data hooks
   const { 
     trainingRecord, 
@@ -216,7 +218,63 @@ function TakeTraining() {
       alert('Error submitting answer. Please try again.');
     }
   };
-  
+  useEffect(() => {
+    if (trainingRecord?.module?.id) {
+      (async () => {
+        try {
+          const slides = await trainingService.slides.getSlides(trainingRecord.module.id);
+          setSlidesWithImages(slides);
+        } catch (e) {
+          console.error('Failed to load slide images for viewer:', e);
+        }
+      })();
+    }
+  }, [trainingRecord?.module?.id]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const objectUrls = [];
+
+    async function loadImages() {
+      const slides = trainingRecord?.module?.slides;
+      if (!slides || slides.length === 0) return;
+
+      const entries = await Promise.all(
+        slides.map(async (s) => {
+          try {
+            const fileId =
+              s?.image_info?.id ||
+              s?.image_file_id ||
+              (typeof s?.image_url === 'string'
+                ? (s.image_url.match(/\/files\/([^/]+)/)?.[1] ?? null)
+                : null);
+
+            if (!fileId) return [s.id, null];
+
+            const resp = await api.get(`/files/${fileId}/download`, { responseType: 'blob' });
+            const url = URL.createObjectURL(resp.data);
+            objectUrls.push(url);
+            return [s.id, url];
+          } catch (e) {
+            console.warn('Image load failed for slide', s?.id, e);
+            return [s?.id, null];
+          }
+        })
+      );
+
+      if (!isCancelled) {
+        setSlideImageUrls(Object.fromEntries(entries));
+      }
+    }
+
+    loadImages();
+
+    return () => {
+      isCancelled = true;
+      objectUrls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [trainingRecord?.module?.slides]);
+
   const handleCompleteTraining = async () => {
     try {
       const result = await completeTraining();
@@ -401,7 +459,7 @@ function TakeTraining() {
           fontSize: '5rem',
           marginBottom: '1.5rem'
         }}>
-          {passed ? '🎉' : '📚'}
+          {passed ? '📚' : '📚'}
         </div>
         
         <h1 style={{
@@ -411,39 +469,7 @@ function TakeTraining() {
         }}>
           {passed ? 'Training Complete!' : 'Training Incomplete'}
         </h1>
-        
-        <div style={{
-          background: 'rgba(255,255,255,0.2)',
-          borderRadius: '12px',
-          padding: '1.5rem',
-          marginBottom: '2rem',
-          minWidth: '250px'
-        }}>
-          <div style={{
-            fontSize: '2.5rem',
-            fontWeight: '700',
-            marginBottom: '0.5rem'
-          }}>
-            {finalScore !== null ? `${Math.round(finalScore)}%` : 'N/A'}
-          </div>
-          <div style={{
-            fontSize: '1rem',
-            opacity: 0.9
-          }}>
-            Final Score
-          </div>
-          
-          {trainingRecord.module.has_questionnaire && (
-            <div style={{
-              marginTop: '1rem',
-              fontSize: '0.875rem',
-              opacity: 0.8
-            }}>
-              Required: {trainingRecord.passing_score_required}%
-            </div>
-          )}
-        </div>
-        
+
         <div style={{
           maxWidth: '400px',
           marginBottom: '2rem',
@@ -451,7 +477,7 @@ function TakeTraining() {
         }}>
           {passed ? (
             <p style={{ margin: 0, fontSize: '1.1rem' }}>
-              Congratulations! You have successfully completed the training module 
+              You have completed the training module 
               "<strong>{trainingRecord.module.title}</strong>".
             </p>
           ) : (
@@ -514,7 +540,7 @@ function TakeTraining() {
     );
   }
   
-  const currentSlide = trainingRecord.module?.slides?.[currentSlideIndex];
+  const currentSlide = (slidesWithImages || trainingRecord.module?.slides)?.[currentSlideIndex];
   const currentQuestion = trainingRecord.module?.questions?.[currentQuestionIndex];
   const progressPercent = calculateProgress();
   
@@ -645,24 +671,59 @@ function TakeTraining() {
               </ul>
             )}
             
-            {currentSlide.image_url && (
-              <div style={{
-                marginTop: '1.5rem',
-                textAlign: 'center'
-              }}>
-                <div style={{
-                  background: '#f3f4f6',
-                  borderRadius: '8px',
-                  padding: '3rem 2rem',
-                  color: '#6b7280'
-                }}>
-                  📷 Training Image
-                  <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                    {currentSlide.image_url}
+            {(currentSlide?.image_info?.url || currentSlide?.image_url) && (
+              <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    height: '500px',
+                    background: '#f9fafb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <img
+                    src={currentSlide.image_info?.url || currentSlide.image_url}
+                    alt={currentSlide.image_info?.alt_text || currentSlide.image_alt_text || 'Slide image'}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      display: 'block',
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.nextElementSibling;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                  <div
+                    style={{
+                      display: 'none',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '100%',
+                      width: '100%',
+                      color: '#6b7280',
+                      background: '#f3f4f6',
+                    }}
+                  >
+                    Image failed to load
                   </div>
                 </div>
+
+                {(currentSlide.image_info?.caption || currentSlide.image_caption) && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                    {currentSlide.image_info?.caption || currentSlide.image_caption}
+                  </div>
+                )}
               </div>
             )}
+
+
           </div>
         ) : showingQuiz && currentQuestion ? (
           // Question Content

@@ -51,18 +51,6 @@ tags_metadata = [
         "description": "Comprehensive risk management including site risks, actions, and incident register.",
     },
     {
-        "name": "site-risks",
-        "description": "Site risk register with GIS mapping and risk matrix assessment.",
-    },
-    {
-        "name": "risk-actions",
-        "description": "Risk management actions and control measures with task integration.",
-    },
-    {
-        "name": "incidents",
-        "description": "Health & Safety incident register with NZ WorkSafe compliance.",
-    },
-    {
         "name": "root",
         "description": "Root endpoints for health checks and API information.",
     },

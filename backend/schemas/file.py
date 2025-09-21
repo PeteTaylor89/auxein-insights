@@ -1,4 +1,4 @@
-# app/schemas/file.py - File Management Schemas
+# app/schemas/file.py - File Management Schemas (Updated)
 from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, validator, computed_field
@@ -19,6 +19,7 @@ class FileEntityType(str, Enum):
     asset_calibration = "asset_calibration"
     stock_movement = "stock_movement"
     reference_item = "reference_item"
+    training_slide = "training_slide"
     # Future types (commented for now)
     # observation = "observation"
     # task = "task"
