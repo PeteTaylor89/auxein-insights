@@ -37,6 +37,57 @@ const observationService = {
     });
     return res.data;
   },
+  
+  getRun: async (id) => (await api.get(`/observations/api/observation-runs/${id}`)).data,
+  updateRun: async (id, payload) => (await api.patch(`/observations/api/observation-runs/${id}`, payload)).data,
+  completeRun: async (id) => (await api.post(`/observations/api/observation-runs/${id}/complete`, {})).data,
+
+  // Templates
+  getTemplate: async (id) => (await api.get(`/observations/api/observation-templates/${id}`)).data,
+
+  // Spots
+  listSpotsForRun: async (runId) =>
+    (await api.get(`/observations/api/observation-runs/${runId}/spots`)).data,
+
+  createSpot: async (runId, payload) =>
+    (await api.post(`/observations/api/observation-runs/${runId}/spots`, payload)).data,
+
+  updateSpot: async (spotId, payload) =>
+    (await api.patch(`/observations/api/observation-spots/${spotId}`, payload)).data,
+
+  deleteSpot: async (spotId) =>
+    (await api.delete(`/observations/api/observation-spots/${spotId}`)).data,
+
+  // Images
+  uploadObservationPhoto: async ({ entityType, entityId, file, description }) => {
+    const form = new FormData();
+    form.append('entity_type', String(entityType));     // e.g. 'observation_spot'
+    form.append('entity_id', String(entityId));         // numeric id as string
+    form.append('file_category', 'photo');              // optional but recommended
+    if (description) form.append('description', description);
+    form.append('file', file);                          // the binary
+
+    // IMPORTANT: do NOT set Content-Type header; let the browser add the boundary
+    const res = await api.post('/files/upload', form);
+    return res.data; // { file_id | id, file_url, download_url, ... }
+  },
+
+  listObservationPhotos: async ({ entityType, entityId }) => {
+    const res = await api.get(`/files/entity/${entityType}/${entityId}`, {
+      params: { file_category: 'photo' }
+    });
+    return res.data;
+  },
+
+  deleteObservationFile: async (fileId) => {
+    const res = await api.delete(`/files/${fileId}`);
+    return res.data;
+  },
+
+  getObservationFileDownloadUrl: (file) => {
+    return file?.download_url || file?.file_url || null;
+  },
+
 };
 
 export default observationService;

@@ -1,83 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import {
-  ClipboardList,
-  CalendarDays,
-  Users,
-  PlayCircle,
-  MapPin,
-  ArrowLeft,
-  ArrowRight,
-} from 'lucide-react';
-import {
-  observationService,
-  authService,
-  api,
-  blocksService,
-  usersService
-} from '@vineyard/shared';
+import { ClipboardList, CalendarDays, Users, PlayCircle, MapPin, ArrowLeft, ArrowRight } from 'lucide-react';
+import { observationService, authService, api, blocksService, usersService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 
-const asArray = (v) =>
-  Array.isArray(v) ? v :
-  v?.items ?? v?.results ?? v?.data ?? v?.rows ?? [];
-
+const asArray = (v) => Array.isArray(v) ? v : (v?.items ?? v?.results ?? v?.data ?? v?.rows ?? []);
 const safe = (v, d = '—') => (v ?? v === 0 ? v : d);
 
-// --------- API fallbacks (copy-paste safe) ---------
-
-const getPlanFallback = async (id) =>
-  (await api.get(`/observations/api/observation-plans/${id}`)).data;
-
+// Fallbacks remain for resilience
+const getPlanFallback = async (id) => (await api.get(`/observations/api/observation-plans/${id}`)).data;
 const listRunsForPlanFallback = async (id) => {
   try {
-    // preferred nested route
     const res = await api.get(`/observations/api/observation-plans/${id}/runs`);
     return res.data;
   } catch {
-    // generic search route
     const res = await api.get('/observations/api/observation-runs', { params: { plan_id: id } });
     return res.data;
   }
 };
-
-/**
- * Attempts multiple likely start-run endpoints, with a richer payload.
- * Returns the created run on success.
- */
-const startRunFallback = async (plan, companyId) => {
-  const payload = {
-    plan_id: plan.id,
-    template_id: plan.template_id ?? plan.template?.id ?? undefined,
-    company_id: companyId ?? undefined,
-    assignee_user_ids: (plan.assignees || plan.assignee_user_ids || [])
-      .map(a => a?.user_id ?? a?.id ?? a)
-      .filter(Boolean),
-  };
-
-  // 1) Nested: /plans/{id}/runs
-  try {
-    const r1 = await api.post(`/observations/api/observation-plans/${plan.id}/runs`, payload);
-    return r1.data;
-  } catch (e) {
-    // continue
-  }
-
-  // 2) Nested: /plans/{id}/start-run
-  try {
-    const r2 = await api.post(`/observations/api/observation-plans/${plan.id}/start-run`, payload);
-    return r2.data;
-  } catch (e) {
-    // continue
-  }
-
-  // 3) Flat: /observation-runs
-  const r3 = await api.post('/observations/api/observation-runs', payload);
-  return r3.data;
-};
-
-// --------- Component ---------
 
 export default function PlanDetail() {
   const { id } = useParams();
@@ -88,7 +29,6 @@ export default function PlanDetail() {
   const [runs, setRuns] = useState([]);
   const [blocks, setBlocks] = useState([]);
   const [people, setPeople] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -126,23 +66,14 @@ export default function PlanDetail() {
   const userMap = useMemo(() => {
     const m = new Map();
     for (const u of asArray(people)) {
-      const name =
-        u.full_name ||
-        `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() ||
-        u.email || `User ${u.id}`;
+      const name = u.full_name || `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email || `User ${u.id}`;
       m.set(String(u.id), name);
     }
     return m;
   }, [people]);
 
   const badge = (s) => {
-    const base = {
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 12,
-      fontSize: 12,
-      border: '1px solid #ddd'
-    };
+    const base = { display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 12, border: '1px solid #ddd' };
     const colors = {
       scheduled: { background: '#f6f9ff', border: '1px solid #cfe0ff' },
       active: { background: '#f4fff6', border: '1px solid #cdeccd' },
@@ -164,8 +95,6 @@ export default function PlanDetail() {
   const startRun = async () => {
     try {
       setBusy(true);
-
-      // Prefer shared service if it exists; otherwise use our fallback.
       const run = await observationService.startRun(plan.id, {
         template_id: plan.template_id ?? plan.template?.id,
         company_id: companyId,
@@ -173,16 +102,12 @@ export default function PlanDetail() {
           .map(a => a?.user_id ?? a?.id ?? a)
           .filter(Boolean),
       });
-
-      navigate(`/observations/runs/${run.id}`);
+      if (!run?.id) throw new Error('Run not created');
+      navigate(`/observations/runcapture/${run.id}`);
     } catch (e) {
       console.error(e);
-      const detail =
-        e?.response?.data?.detail ||
-        e?.response?.data?.message ||
-        e?.message ||
-        'Unknown error';
-      alert(`Could not start run:\n${detail}`);
+      const detail = e?.response?.data?.detail || e?.message || 'Failed to start run.';
+      alert(Array.isArray(detail) ? detail[0]?.msg || 'Failed to start run.' : String(detail));
     } finally {
       setBusy(false);
     }
@@ -195,10 +120,14 @@ export default function PlanDetail() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem' }}>
+    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button className="btn" onClick={() => navigate('/listplan')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <ArrowLeft size={16} /> Back to Plans
+        <button
+          className="btn"
+          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <ArrowLeft size={16} /> Back
         </button>
       </div>
 
@@ -224,7 +153,8 @@ export default function PlanDetail() {
                 className="btn"
                 disabled={!canStart() || busy}
                 onClick={startRun}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}
+                title="Start a run for this plan"
               >
                 <PlayCircle size={16} /> Start Run
               </button>
@@ -250,11 +180,6 @@ export default function PlanDetail() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-              <div><strong>Auto block selection:</strong> {plan.auto_block_selection ? 'Yes' : 'No'}</div>
-              <div><strong>Active:</strong> {plan.is_active ? 'Yes' : 'No'}</div>
-            </div>
-
             {plan.instructions && (
               <div style={{ marginTop: 12 }}>
                 <strong>Instructions</strong>
@@ -263,7 +188,7 @@ export default function PlanDetail() {
             )}
           </section>
 
-          {/* Targets */}
+          {/* Targets (read-only if present) */}
           <section className="stat-card">
             <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <MapPin /> Targets
@@ -339,8 +264,8 @@ export default function PlanDetail() {
                       <td style={{ padding: 12, textAlign: 'right' }}>
                         <button
                           className="btn"
-                          onClick={() => navigate(`/observations/runs/${r.id}`)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          onClick={() => navigate(`/observations/runcapture/${r.id}`)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3f4f6' }}
                         >
                           Open <ArrowRight size={16} />
                         </button>

@@ -1,509 +1,246 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
 import dayjs from 'dayjs';
-import {
-  MapPin,
-  Image as ImageIcon,
-  Save,
-  Send,
-  ArrowLeft,
-  Plus,
-  Trash2,
-  ClipboardList,
-} from 'lucide-react';
-import {
-  observationService,
-  api,
-  useImageUpload,  // from @vineyard/shared hooks (falls back below if unavailable)
-} from '@vineyard/shared';
+import { ClipboardList, MapPin, Plus, ArrowLeft, ArrowRight, Trash2, Image as ImageIcon, Save, CheckCircle, Send } from 'lucide-react';
+import { observationService, authService, api, blocksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import { SpotHelperPanel } from './RunCaptureHelpers';
 
-/** ---------- helpers ---------- */
+// Helpers
+const asArray = (v) => Array.isArray(v) ? v : (v?.items ?? v?.results ?? v?.data ?? []);
+const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
 
-const asArray = (v) =>
-  Array.isArray(v) ? v :
-  v?.items ?? v?.results ?? v?.data ?? v?.rows ?? [];
+function readTemplateFields(template) {
+  if (!template) return [];
+  let raw =
+    template.field_schema ??
+    template?.schema?.fields ??
+    template?.schema ??
+    template.fields_json ??
+    [];
 
-const safe = (v, d = '—') => (v ?? v === 0 ? v : d);
-
-const readTemplateFields = (tpl) =>
-  tpl?.fields_json?.fields || tpl?.schema?.fields || tpl?.fields || [];
-
-// simple geo util
-const getGeolocation = () =>
-  new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      return resolve(null);
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        resolve({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy_m: pos.coords.accuracy,
-        }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-    );
-  });
-
-// fallback uploader if useImageUpload isn’t wired yet
-const useUploadFallback = () => {
-  const [uploading, setUploading] = useState(false);
-  const uploadFiles = async (files) => {
-    // Expect your shared hook to handle auth + multipart.
-    // Fallback does: POST /files/upload (one by one), returns array of { id, url, name }
-    setUploading(true);
-    try {
-      const results = [];
-      for (const f of files) {
-        const form = new FormData();
-        form.append('file', f);
-        // Adjust if your API needs company_id, visibility, etc.
-        const res = await api.post('/files/upload', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        results.push(res.data);
-      }
-      return results;
-    } finally {
-      setUploading(false);
-    }
-  };
-  return { uploadFiles, uploading, progress: null };
-};
-
-// small field renderer
-const Field = ({ f, value, onChange }) => {
-  const common = {
-    value: value ?? '',
-    onChange: (e) => onChange(e.target.value),
-  };
-
-  switch (f.type) {
-    case 'text':
-      return <input placeholder={f.label} {...common} />;
-    case 'textarea':
-      return <textarea placeholder={f.label} rows={3} {...common} />;
-    case 'number':
-      return (
-        <input
-          type="number"
-          step="any"
-          placeholder={f.label}
-          value={value ?? ''}
-          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-        />
-      );
-    case 'integer':
-      return (
-        <input
-          type="number"
-          step="1"
-          placeholder={f.label}
-          value={value ?? ''}
-          onChange={(e) => onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-        />
-      );
-    case 'boolean':
-      return (
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="checkbox"
-            checked={!!value}
-            onChange={(e) => onChange(e.target.checked)}
-          />
-          <span>{f.label}</span>
-        </label>
-      );
-    case 'datetime':
-      return (
-        <input
-          type="datetime-local"
-          value={value ? dayjs(value).format('YYYY-MM-DDTHH:mm') : ''}
-          onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
-        />
-      );
-    case 'select': {
-      const options = f.options || [];
-      return (
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
-          <option value="">{f.label}</option>
-          {options.map((opt, i) => (
-            <option key={i} value={opt.value ?? opt.label}>{opt.label}</option>
-          ))}
-        </select>
-      );
-    }
-    case 'json':
-      return (
-        <textarea
-          placeholder={f.label}
-          rows={4}
-          value={typeof value === 'string' ? value : JSON.stringify(value ?? {}, null, 2)}
-          onChange={(e) => {
-            const v = e.target.value;
-            // Don’t parse on every keystroke; store as string; parse on submit.
-            onChange(v);
-          }}
-        />
-      );
-    case 'photo_multi':
-      return (
-        <div style={{ fontSize: 12, color: '#666' }}>
-          Photos handled above (see SpotEditor uploader)
-        </div>
-      );
-    // entity_ref / block_id etc. will usually come from context UI (plan targets); keep as text to allow quick entry:
-    case 'entity_ref':
-      return <input placeholder={f.label} {...common} />;
-    default:
-      return <input placeholder={f.label} {...common} />;
+  if (Array.isArray(raw)) {
+    return raw;
   }
-};
-
-/** ---------- spot editor ---------- */
-
-function SpotEditor({
-  idx,
-  fields,
-  spot,
-  onChange,
-  onRemove,
-  uploadImpl, // { uploadFiles, uploading, progress }
-}) {
-  const fileInputRef = useRef(null);
-
-  const setGeo = async () => {
-    const geo = await getGeolocation();
-    onChange(idx, { ...spot, gps: geo || null });
-  };
-
-  const addPhotos = async (files) => {
-    if (!files || files.length === 0) return;
-    const uploaded = await uploadImpl.uploadFiles(Array.from(files));
-    const newFileObjs = uploaded.map((u) => ({
-      id: u.id,
-      name: u.name || u.filename || 'photo',
-      url: u.url || u.public_url || null,
-    }));
-    onChange(idx, {
-      ...spot,
-      photos: [...(spot.photos || []), ...newFileObjs],
-    });
-  };
-
-  const removePhoto = (id) => {
-    onChange(idx, {
-      ...spot,
-      photos: (spot.photos || []).filter((p) => (p.id ?? p.file_id) !== id),
-    });
-  };
-
-  const onFieldChange = (name, val) => {
-    onChange(idx, {
-      ...spot,
-      values: { ...(spot.values || {}), [name]: val },
-    });
-  };
-
-  return (
-    <div className="stat-card" style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontWeight: 700 }}>Spot #{idx + 1}</div>
-        <button className="btn" onClick={() => onRemove(idx)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Trash2 size={16} /> Remove
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginTop: 10 }}>
-        {/* Controls row */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={setGeo} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <MapPin size={16} /> {spot?.gps ? 'Update GPS' : 'Set GPS'}
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const files = e.target.files;
-              if (files?.length) addPhotos(files);
-              // reset input so the same file can be selected again
-              e.target.value = '';
-            }}
-          />
-          <button
-            className="btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadImpl.uploading}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            <ImageIcon size={16} />
-            {uploadImpl.uploading ? 'Uploading…' : 'Add Photos'}
-          </button>
-        </div>
-
-        {/* GPS display */}
-        <div style={{ fontSize: 12, color: '#555' }}>
-          GPS:&nbsp;
-          {spot?.gps
-            ? `${spot.gps.lat?.toFixed(6)}, ${spot.gps.lon?.toFixed(6)} (±${Math.round(spot.gps.accuracy_m || 0)} m)`
-            : 'not set'}
-        </div>
-
-        {/* Photos */}
-        {spot?.photos?.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {spot.photos.map((p) => {
-              const id = p.id ?? p.file_id;
-              return (
-                <div key={id} style={{ position: 'relative', width: 100, height: 100, borderRadius: 6, overflow: 'hidden', border: '1px solid #eee' }}>
-                  <img
-                    src={p.url || p.public_url || '#'}
-                    alt={p.name || 'photo'}
-                    style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-                  />
-                  <button
-                    onClick={() => removePhoto(id)}
-                    style={{ position: 'absolute', right: 2, top: 2, background: 'rgba(0,0,0,0.5)', color: 'white', border: 0, borderRadius: 4, padding: '2px 4px', cursor: 'pointer', fontSize: 11 }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Dynamic fields */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {fields.map((f, i) => {
-            // simple conditional support: visible_if: { key: value }
-            const visible = (() => {
-              if (!f.visible_if) return true;
-              return Object.entries(f.visible_if).every(([k, v]) => (spot.values || {})[k] === v);
-            })();
-            if (!visible) return null;
-
-            const val = (spot.values || {})[f.name];
-            return (
-              <label key={f.name || i} style={{ display: 'grid', gap: 6 }}>
-                <div style={{ fontSize: 13, color: '#444' }}>
-                  {f.label || f.name}
-                  {f.required ? <span style={{ color: '#d00' }}> *</span> : null}
-                </div>
-                <Field f={f} value={val} onChange={(v) => onFieldChange(f.name, v)} />
-                {f.help_text && <div style={{ fontSize: 11, color: '#777' }}>{f.help_text}</div>}
-              </label>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+  if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw.fields)) return raw.fields;
+    return Array.isArray(raw) ? raw : [];
+  }
+  return [];
 }
 
-/** ---------- page ---------- */
-
 export default function RunCapture() {
-  const { id } = useParams(); // run id
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [activeIdx, setActiveIdx] = useState(0);
-  const activeSpot = spots[activeIdx];
+  const companyId = authService.getCompanyId();
+
   const [run, setRun] = useState(null);
   const [template, setTemplate] = useState(null);
   const [spots, setSpots] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
+  const [error, setError] = useState(null);
 
-  // prefer shared hook, fallback otherwise
-  let uploadImpl = null;
-  try {
-    uploadImpl = useImageUpload?.() ?? null;
-  } catch {
-    // ignore
-  }
-  const { uploadFiles, uploading, progress } = uploadImpl || useUploadFallback();
+  const [blocks, setBlocks] = useState([]);
+  const EL_FALLBACK = [
+    { value: 'EL-12', label: 'EL-12 (5 leaves separated)' },
+    { value: 'EL-15', label: 'EL-15 (8 leaves separated)' },
+    { value: 'EL-18', label: 'EL-18 (10 leaves separated)' },
+    { value: 'EL-23', label: 'EL-23 (50% caps off)' },
+    { value: 'EL-27', label: 'EL-27 (setting)' },
+    { value: 'EL-31', label: 'EL-31 (pea-size berries)' },
+    { value: 'EL-38', label: 'EL-38 (harvest ripe)' },
+  ];
 
-  const fields = useMemo(() => readTemplateFields(template), [template]);
 
-  const load = useCallback(async () => {
+
+  const load = async () => {
     try {
       setLoading(true);
-      setErr(null);
-
-      // 1) load run
-      const runData = (await (observationService?.getRun
-        ? observationService.getRun(id)
-        : api.get(`/observations/api/observation-runs/${id}`).then(r => r.data)
-      ));
-
-      setRun(runData);
-
-      // 2) load template (by id)
-      const tplId = runData?.template_id || runData?.template?.id;
-      const tpl = tplId
-        ? await (observationService?.getTemplate
-            ? observationService.getTemplate(tplId)
-            : api.get(`/observations/api/observation-templates/${tplId}`).then(r => r.data))
-        : null;
-      setTemplate(tpl);
-
-      // 3) load existing spots (if any)
-      const spotsRes = await (observationService?.listSpotsForRun
-        ? observationService.listSpotsForRun(id)
-        : api.get(`/observations/api/observation-runs/${id}/spots`).then(r => r.data).catch(() => []));
-      const s = asArray(spotsRes).map(spt => ({
-        id: spt.id,
-        gps: spt.gps || spt.gps_json || null,
-        photos: asArray(spt.photos || spt.files || spt.file_links).map((fl) => ({
-          id: fl.id ?? fl.file_id ?? fl.file?.id,
-          url: fl.url ?? fl.public_url ?? fl.file?.public_url ?? null,
-          name: fl.name ?? fl.file?.filename ?? 'photo',
-        })),
-        values: spt.values_json || spt.values || {},
-      }));
-      setSpots(s);
+      setError(null);
+      const r = await observationService.getRun(id);
+      const tpl = r?.template || (r?.template_id ? await observationService.getTemplate(r.template_id) : null);
+      const sp = await observationService.listSpotsForRun(id);
+      const blks = await blocksService.getCompanyBlocks().catch(() => []);
+      setRun(r);
+      setTemplate(tpl || null);
+      setSpots(asArray(sp));
+      setBlocks(asArray(blks));
     } catch (e) {
       console.error(e);
-      setErr('Failed to load run');
+      setError('Failed to load run');
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  const fields = useMemo(() => readTemplateFields(template), [template]);
 
-  const addSpot = async () => {
-    setSpots((prev) => [
-      ...prev,
-      { id: null, gps: null, photos: [], values: {} },
-    ]);
-  };
-
-  const updateSpot = (idx, newSpot) => {
-    setSpots((prev) => prev.map((s, i) => (i === idx ? newSpot : s)));
-  };
-
-  const removeSpot = (idx) => {
-    setSpots((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // persist a single spot (create or update)
-  const saveSpot = async (spot) => {
-    // Photos: we already have uploaded file IDs in photos[].id
-    // Values: parse JSON fields that are strings
-    const parsedValues = { ...(spot.values || {}) };
-    for (const f of fields) {
-      if (f.type === 'json' && typeof parsedValues[f.name] === 'string') {
-        try {
-          parsedValues[f.name] = JSON.parse(parsedValues[f.name]);
-        } catch {
-          // keep raw string; backend can 422 if needed
-        }
-      }
-    }
-
-    const payload = {
-      run_id: run.id,
-      gps_json: spot.gps || null,
-      values_json: parsedValues,
-      photo_file_ids: (spot.photos || []).map((p) => p.id ?? p.file_id).filter(Boolean),
+  const addSpot = () => {
+    const tmp = {
+      id: `tmp-${Date.now()}`,
+      run_id: Number(id),
+      company_id: companyId,
+      observed_at: dayjs().toISOString(),
+      values: {},
+      photo_file_ids: [],
+      _isNew: true,
     };
-
-    if (spot.id) {
-      return (await (observationService?.updateSpot
-        ? observationService.updateSpot(spot.id, payload)
-        : api.patch(`/observations/api/observation-spots/${spot.id}`, payload).then(r => r.data)
-      ));
-    } else {
-      return (await (observationService?.createSpot
-        ? observationService.createSpot(payload)
-        : api.post('/observations/api/observation-spots', payload).then(r => r.data)
-      ));
-    }
+    setSpots((prev) => [tmp, ...prev]);
   };
 
-  const onSaveDraft = async () => {
+  const updateSpot = (idx, patch) => {
+    setSpots((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, ...patch, values: { ...(s.values || {}), ...(patch.values || {}) } } : s))
+    );
+  };
+
+  const removeSpot = async (idx) => {
+    const s = spots[idx];
+    if (!s) return;
+    if (s._isNew) {
+      setSpots((prev) => prev.filter((_, i) => i !== idx));
+      return;
+    }
     try {
       setBusy(true);
-      // save all spots (create new / update existing)
-      const newSpots = [];
-      for (const s of spots) {
-        const saved = await saveSpot(s);
-        newSpots.push({
-          id: saved.id,
-          gps: saved.gps || saved.gps_json || s.gps || null,
-          photos: asArray(saved.photos || saved.file_links).map((fl) => ({
-            id: fl.id ?? fl.file_id ?? fl.file?.id,
-            url: fl.url ?? fl.public_url ?? fl.file?.public_url ?? null,
-            name: fl.name ?? fl.file?.filename ?? 'photo',
-          })),
-          values: saved.values_json || saved.values || s.values || {},
+      await observationService.deleteSpot(s.id);
+      setSpots((prev) => prev.filter((_, i) => i !== idx));
+    } catch (e) {
+      console.error(e);
+      alert('Failed to remove spot.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveSpot = async (idx) => {
+    const s = spots[idx];
+    if (!s) return;
+    try {
+      setBusy(true);
+      const payload = {
+        run_id: Number(id),
+        company_id: companyId,
+        observed_at: s.observed_at || new Date().toISOString(),
+        values: s.values || {},
+        photo_file_ids: s.photo_file_ids || [],
+        block_id: s.block_id ? Number(s.block_id) : null,
+        row_id: s.row_id ? Number(s.row_id) : null,
+        latitude: typeof s.latitude === 'string' ? Number(s.latitude) : s.latitude ?? null,
+        longitude: typeof s.longitude === 'string' ? Number(s.longitude) : s.longitude ?? null,
+      };
+
+      let saved;
+      if (s._isNew) {
+        saved = await observationService.createSpot(Number(id), payload);
+      } else {
+        // Some backends also expect run_id on PATCH; harmless if ignored.
+        saved = await observationService.updateSpot(s.id, payload);
+      }
+
+      setSpots((prev) =>
+        prev.map((x, i) => (i === idx ? { ...(saved || s), _isNew: false } : x))
+      );
+    } catch (e) {
+      console.error(e);
+      const detail = e?.response?.data?.detail || e?.message || 'Failed to save spot';
+      alert(Array.isArray(detail) ? detail[0]?.msg || 'Failed to save spot' : String(detail));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
+
+  const submitRun = async () => {
+    try {
+      setBusy(true);
+      // valid statuses: draft | in_progress | completed | cancelled
+      await observationService.updateRun(id, {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      });
+      await load();
+      alert('Run submitted as completed.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to submit run.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const completeRun = async () => {
+    try {
+      setBusy(true);
+      await observationService.completeRun(id);
+      await load();
+      alert('Run completed (server summary updated).');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to complete run.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadFiles = async (idx, fileList) => {
+    const s = spots[idx];
+    if (!s || !fileList?.length) return;
+    try {
+      setBusy(true);
+      // simple sequential upload to keep it robust
+      const uploadedIds = [];
+      for (const f of fileList) {
+        const fd = new FormData();
+        fd.append('file', f);
+        // If your files service expects entity linkage, include it here
+        // fd.append('entity_type', 'observation_spot');
+        // fd.append('entity_id', s.id || '');
+        const res = await api.post('/files/upload', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
+        const fileId = res?.data?.id || res?.data?.file_id;
+        if (fileId) uploadedIds.push(fileId);
       }
-      setSpots(newSpots);
-      alert('Draft saved');
+      const nextIds = [...(s.photo_file_ids || []), ...uploadedIds];
+      updateSpot(idx, { photo_file_ids: nextIds });
+      alert(`${uploadedIds.length} file(s) added to spot.`);
     } catch (e) {
       console.error(e);
-      alert('Failed to save draft');
+      alert('Upload failed.');
     } finally {
       setBusy(false);
     }
   };
 
-  const onSubmitRun = async () => {
-    if (!window.confirm('Submit this run for review? You may not be able to edit afterwards.')) return;
-    try {
-      setBusy(true);
-      // ensure current spots are saved before submit
-      for (const s of spots) await saveSpot(s);
-
-      await (observationService?.submitRun
-        ? observationService.submitRun(run.id)
-        : api.post(`/observations/api/observation-runs/${run.id}/submit`, {}).then(r => r.data));
-
-      alert('Run submitted');
-      navigate('/observations/plans'); // or to Insights; tweak to your flow
-    } catch (e) {
-      console.error(e);
-      alert('Failed to submit run');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const badge = (s) => {
-    const base = {
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 12,
-      fontSize: 12,
-      border: '1px solid #ddd'
-    };
-    const colors = {
-      in_progress: { background: '#f6f9ff', border: '1px solid #cfe0ff' },
-      submitted: { background: '#fffaf3', border: '1px solid #ffe2a8' },
-      approved: { background: '#f4fff6', border: '1px solid #cdeccd' },
-      rejected: { background: '#fff6f6', border: '1px solid #ffd6d6' },
-      default: { background: '#f8f8f8' },
-    };
-    return <span style={{ ...base, ...(colors[s] || colors.default) }}>{s || '—'}</span>;
+  const Summary = () => {
+    const js = run?.summary_json || run?.summary || null;
+    if (!js || (typeof js === 'object' && Object.keys(js).length === 0)) return null;
+    return (
+      <section className="stat-card">
+        <h3 style={{ marginTop: 0 }}>Summary</h3>
+        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, background: '#f9fafb', padding: 12, borderRadius: 8 }}>
+          {typeof js === 'string' ? js : JSON.stringify(js, null, 2)}
+        </pre>
+      </section>
+    );
   };
 
   return (
-    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem' }}>
+    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button className="btn" onClick={() => navigate('/observations/plans')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <ArrowLeft size={16} /> Back to Plans
+        <button
+          className="btn"
+          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <ArrowLeft size={16} /> Back
         </button>
       </div>
 
@@ -512,42 +249,29 @@ export default function RunCapture() {
       </div>
 
       {loading && <div className="stat-card">Loading…</div>}
-      {err && <div className="stat-card" style={{ borderColor: 'red' }}>{err}</div>}
+      {error && <div className="stat-card" style={{ borderColor: 'red' }}>{error}</div>}
 
-      {!loading && !err && run && (
+      {!loading && !error && run && (
         <div className="grid" style={{ display: 'grid', gap: 16 }}>
-          {/* Run summary */}
-          <section className="stat-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          {/* Run header */}
+          <section className="stat-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>
-                {run?.plan?.name || `Run #${run.id}`}
-              </div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{run.name || `Run #${run.id}`}</div>
               <div style={{ color: '#666', marginTop: 4 }}>
-                {badge(run.status)} &nbsp;·&nbsp; Template: {safe(run?.template?.type || run?.template_type || '—')}
-              </div>
-              <div style={{ color: '#666', marginTop: 4 }}>
-                Created: {run.created_at ? dayjs(run.created_at).format('YYYY-MM-DD HH:mm') : '—'}
+                Template: {template?.name || template?.type || template?.observation_type || `#${run.template_id}`} &nbsp;·&nbsp; Started: {run.started_at ? dayjs(run.started_at).format('YYYY-MM-DD HH:mm') : '—'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn"
-                disabled={busy || uploading}
-                onClick={onSaveDraft}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Save size={16} /> Save Draft
+              <button className="btn" onClick={completeRun} disabled={busy} style={{ background: '#e0f2fe', color: '#075985', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle size={16} /> Complete
               </button>
-              <button
-                className="btn"
-                disabled={busy || uploading}
-                onClick={onSubmitRun}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
+              <button className="btn" onClick={submitRun} disabled={busy} style={{ background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <Send size={16} /> Submit
               </button>
             </div>
           </section>
+
+          <Summary />
 
           {/* Spots */}
           <section>
@@ -555,54 +279,243 @@ export default function RunCapture() {
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MapPin /> Spots ({spots.length})
               </h3>
-              <button
-                className="btn"
-                onClick={addSpot}
-                disabled={busy || uploading}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
+              <button className="btn" onClick={addSpot} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}>
                 <Plus size={16} /> Add Spot
               </button>
             </div>
 
             {spots.length === 0 && (
-              <div className="stat-card" style={{ color: '#777' }}>
-                No spots yet—click “Add Spot” to begin.
-              </div>
+              <div className="stat-card" style={{ color: '#777' }}>No spots yet—click “Add Spot” to begin.</div>
             )}
 
-            {/* Helper targets the active spot only, stays above the list */}
-            {activeSpot && (
-              <SpotHelperPanel
-                templateType={template?.type} // e.g. 'phenology', 'irrigation', etc.
-                values={activeSpot.values_json ?? activeSpot}
-                onSuggest={(next) => {
-                  // merge derived values back into the active spot
-                  const merged = { ...(activeSpot.values_json ?? activeSpot), ...next };
-                  // if your updateSpot signature is (index, nextSpot)
-                  updateSpot(activeIdx, { ...activeSpot, ...(activeSpot.values_json ? { values_json: merged } : merged) });
-                }}
-              />
-            )}
-
-            {spots.map((s, i) => (
-              <div key={s.id ?? `tmp-${i}`} onClick={() => setActiveIdx(i)}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {spots.map((s, i) => (
                 <SpotEditor
+                  key={s.id ?? `tmp-${i}`}
                   idx={i}
-                  fields={fields}
                   spot={s}
+                  fields={fields}
+                  blocks={blocks}            
                   onChange={updateSpot}
+                  onSave={saveSpot}
                   onRemove={removeSpot}
-                  uploadImpl={{ uploadFiles, uploading, progress }}
+                  onUpload={uploadFiles}
+                  busy={busy}
                 />
-              </div>
-            ))}
+              ))}
+            </div>
           </section>
-
 
           <MobileNavigation />
         </div>
       )}
     </div>
+  );
+}
+
+/* -----------------------------------
+ * Spot Editor
+ * ----------------------------------- */
+function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove, onUpload, busy }) {
+  const values = spot.values || {};
+
+  const setValue = (k, v) => {
+    onChange(idx, { values: { ...values, [k]: v } });
+  };
+
+  const thumb = (fid) => (
+    <div key={fid} style={{ width: 64, height: 64, background: '#f3f4f6', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      <ImageIcon size={20} />
+      <div style={{ position: 'absolute', bottom: 2, right: 4, fontSize: 10, color: '#6b7280' }}>#{fid}</div>
+    </div>
+  );
+
+  return (
+    <div className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <div style={{ fontWeight: 600 }}>Spot {spot.id?.toString().startsWith('tmp-') ? '(new)' : `#${spot.id}`}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => onSave(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#4e638bff', color: '#fff' }}>
+            <Save size={16} /> Save
+          </button>
+          <button className="btn" onClick={() => onRemove(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#7f1d1d' }}>
+            <Trash2 size={16} /> Remove
+          </button>
+        </div>
+      </div>
+
+      {/* Basic meta (optional in MVP) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+        <label>
+          <div>Observed at</div>
+          <input
+            type="datetime-local"
+            value={spot.observed_at ? dayjs(spot.observed_at).format('YYYY-MM-DDTHH:mm') : ''}
+            onChange={(e) => onChange(idx, { observed_at: new Date(e.target.value).toISOString() })}
+          />
+        </label>
+
+        <label>
+          <div>Block (optional)</div>
+          <select
+            value={spot.block_id || ''}
+            onChange={(e) => onChange(idx, { block_id: e.target.value })}
+          >
+            <option value="">— Select block —</option>
+            {(Array.isArray(blocks) ? blocks : []).map(b => (
+              <option key={b.id} value={b.id}>{b.name || `Block ${b.id}`}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, marginTop: 12 }}>
+        <label>
+          <div>Latitude</div>
+          <input
+            placeholder="-41.28"
+            value={spot.latitude ?? ''}
+            onChange={(e) => onChange(idx, { latitude: e.target.value })}
+          />
+        </label>
+        <label>
+          <div>Longitude</div>
+          <input
+            placeholder="174.77"
+            value={spot.longitude ?? ''}
+            onChange={(e) => onChange(idx, { longitude: e.target.value })}
+          />
+        </label>
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              if (!navigator.geolocation) {
+                alert('Geolocation not supported in this browser.');
+                return;
+              }
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const { latitude, longitude } = pos.coords || {};
+                  onChange(idx, { latitude, longitude });
+                },
+                () => alert('Unable to get current location.')
+              );
+            }}
+            style={{ background: '#f3f4f6' }}
+            title="Use current location"
+          >
+            Use current location
+          </button>
+        </div>
+      </div>
+
+      {/* Files */}
+      <div style={{ marginTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <strong>Photos</strong>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => onUpload(idx, e.target.files)}
+          />
+        </div>
+        {!isEmpty(spot.photo_file_ids) && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {(spot.photo_file_ids || []).map(thumb)}
+          </div>
+        )}
+      </div>
+
+      {/* Dynamic fields from template */}
+      <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+        {fields.length === 0 && (
+          <div style={{ color: '#777' }}>No fields defined for this template.</div>
+        )}
+        {fields.map((f) => (
+          <FieldRenderer key={f.key || f.name} field={f} value={values[f.key || f.name]} onChange={(v) => setValue(f.key || f.name, v)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* -----------------------------------
+ * Field renderer (text/number/select/boolean)
+ * ----------------------------------- */
+function FieldRenderer({ field, value, onChange }) {
+  const type = (field?.type || field?.input_type || 'text').toLowerCase();
+  const label = field?.label || field?.name || field?.key || 'Field';
+
+  if (type === 'number') {
+    return (
+      <label>
+        <div>{label}</div>
+        <input type="number" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))} />
+      </label>
+    );
+  }
+
+  if (type === 'el_stage') {
+    const options = Array.isArray(field?.options) && field.options.length > 0
+      ? field.options
+      : [
+          { value: 'EL-12', label: 'EL-12 (5 leaves separated)' },
+          { value: 'EL-15', label: 'EL-15 (8 leaves separated)' },
+          { value: 'EL-18', label: 'EL-18 (10 leaves separated)' },
+          { value: 'EL-23', label: 'EL-23 (50% caps off)' },
+          { value: 'EL-27', label: 'EL-27 (setting)' },
+          { value: 'EL-31', label: 'EL-31 (pea-size berries)' },
+          { value: 'EL-38', label: 'EL-38 (harvest ripe)' },
+        ];
+    return (
+      <label>
+        <div>{label}</div>
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+          <option value="">— Select EL stage —</option>
+          {options.map((opt) => {
+            const val = opt?.value ?? opt?.key ?? opt;
+            const text = opt?.label ?? String(val);
+            return <option key={String(val)} value={String(val)}>{text}</option>;
+          })}
+        </select>
+      </label>
+    );
+  }
+
+  if (type === 'select' || type === 'single-select') {
+    const options = Array.isArray(field?.options) ? field.options : [];
+    return (
+      <label>
+        <div>{label}</div>
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+          <option value="">— Select —</option>
+          {options.map((opt) => {
+            const val = opt?.value ?? opt?.key ?? opt;
+            const text = opt?.label ?? String(val);
+            return <option key={String(val)} value={String(val)}>{text}</option>;
+          })}
+        </select>
+      </label>
+    );
+  }
+
+  if (type === 'boolean' || type === 'checkbox') {
+    return (
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        <span>{label}</span>
+      </label>
+    );
+  }
+
+  // default text
+  return (
+    <label>
+      <div>{label}</div>
+      <input value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
+    </label>
   );
 }

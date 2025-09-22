@@ -166,28 +166,9 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-
-
-
-
-
-
-
-
-
-
-
-
-
       <Route path="/planobservation" element={
         <ProtectedRoute>
           <PlanNew />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/listplan" element={
-        <ProtectedRoute>
-          <PlanList />
         </ProtectedRoute>
       } />
 
@@ -202,6 +183,29 @@ function AppRoutes() {
           <RunCapture  />
         </ProtectedRoute>
       } />
+
+      <Route path="/observations/runcapture/:id" element={
+        <ProtectedRoute>
+          <RunCapture  />
+        </ProtectedRoute>
+      } />
+
+
+
+
+
+
+
+
+
+      <Route path="/listplan" element={
+        <ProtectedRoute>
+          <PlanList />
+        </ProtectedRoute>
+      } />
+
+
+
 
 
       <Route path="/training/take/:recordId" element={<TakeTraining />} />
