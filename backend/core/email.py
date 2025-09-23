@@ -61,6 +61,169 @@ class EmailService:
 # Initialize email service
 email_service = EmailService()
 
+def get_base_email_styles():
+    """Get base CSS styles for all emails"""
+    return """
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
+            line-height: 1.6; 
+            color: #2F2F2F; 
+            background-color: #FDF6E3;
+            margin: 0; 
+            padding: 0;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(47, 47, 47, 0.1);
+        }
+        .header { 
+            background-color: #5B6830; 
+            color: #FDF6E3; 
+            padding: 40px 30px; 
+            text-align: center; 
+            position: relative;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #D1583B, #5B6830);
+        }
+        .logo {
+            margin-bottom: 15px;
+        }
+        .content { 
+            padding: 40px 30px; 
+            background-color: #ffffff; 
+        }
+        .button { 
+            display: inline-block; 
+            padding: 16px 32px; 
+            background: linear-gradient(135deg, #5B6830, #6B7840); 
+            color: #FDF6E3; 
+            text-decoration: none; 
+            border-radius: 8px; 
+            margin: 25px 0; 
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(91, 104, 48, 0.3);
+        }
+        .button:hover {
+            background: linear-gradient(135deg, #6B7840, #5B6830);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(91, 104, 48, 0.4);
+        }
+        .accent-button {
+            background: linear-gradient(135deg, #D1583B, #E16844);
+        }
+        .accent-button:hover {
+            background: linear-gradient(135deg, #E16844, #D1583B);
+        }
+        .footer { 
+            padding: 30px; 
+            text-align: center; 
+            background-color: rgba(253, 246, 227, 0.5);
+            color: rgba(47, 47, 47, 0.6); 
+            font-size: 14px; 
+            border-top: 1px solid rgba(91, 104, 48, 0.1);
+        }
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(253, 246, 227, 0.8), rgba(253, 246, 227, 0.4));
+            border-left: 4px solid #5B6830;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(209, 88, 59, 0.1), rgba(209, 88, 59, 0.05));
+            border-left: 4px solid #D1583B;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .credentials-box {
+            background: rgba(253, 246, 227, 0.6);
+            border: 2px solid #5B6830;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .step-card {
+            background-color: #ffffff;
+            border: 1px solid rgba(91, 104, 48, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 4px rgba(91, 104, 48, 0.1);
+        }
+        .step-number {
+            background: linear-gradient(135deg, #5B6830, #6B7840);
+            color: #FDF6E3;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            font-size: 14px;
+        }
+        .contractor-badge {
+            background: linear-gradient(135deg, rgba(91, 104, 48, 0.15), rgba(91, 104, 48, 0.1));
+            color: #5B6830;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 15px 0;
+            border: 1px solid rgba(91, 104, 48, 0.3);
+        }
+        .brand-accent { color: #D1583B; }
+        .brand-primary { color: #5B6830; }
+        .text-muted { color: rgba(47, 47, 47, 0.6); }
+        h1 { color: #FDF6E3; margin: 0; font-size: 28px; font-weight: 600; }
+        h2 { color: #5B6830; margin-top: 0; font-size: 24px; font-weight: 600; }
+        h3 { color: #5B6830; font-size: 20px; font-weight: 600; }
+        h4 { color: #2F2F2F; font-size: 16px; font-weight: 600; }
+        a { color: #5B6830; text-decoration: none; }
+        a:hover { color: #D1583B; text-decoration: underline; }
+        code {
+            background: rgba(253, 246, 227, 0.8);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            color: #2F2F2F;
+            border: 1px solid rgba(91, 104, 48, 0.2);
+        }
+        .link-box {
+            background: rgba(253, 246, 227, 0.3);
+            padding: 15px;
+            border-radius: 6px;
+            word-break: break-all;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: #5B6830;
+            border: 1px solid rgba(91, 104, 48, 0.2);
+            margin: 15px 0;
+        }
+    </style>
+    """
+
+
+
 def get_verification_email_template(username: str, verification_link: str) -> tuple[str, str]:
     """Get verification email template"""
     
@@ -70,47 +233,45 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
     <head>
         <meta charset="utf-8">
         <title>Verify Your Email - Auxein Insights</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #2563eb; color: white; padding: 20px; text-align: center; }}
-            .content {{ padding: 30px; background-color: #f9fafb; }}
-            .button {{ 
-                display: inline-block; 
-                padding: 12px 24px; 
-                background-color: #2563eb; 
-                color: white; 
-                text-decoration: none; 
-                border-radius: 6px; 
-                margin: 20px 0; 
-            }}
-            .footer {{ padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }}
-        </style>
+        {get_base_email_styles()}
     </head>
     <body>
-        <div class="container">
-            <div class="header">
-                <h1>Welcome to Auxein Insights!</h1>
-            </div>
-            <div class="content">
-                <h2>Hi {username},</h2>
-                <p>Thank you for creating an account with Auxein Insights. To complete your registration, please verify your email address by clicking the button below:</p>
-                
-                <div style="text-align: center;">
-                    <a href="{verification_link}" class="button">Verify Email Address</a>
+        <div style="background-color: #FDF6E3; padding: 20px;">
+            <div class="container">
+                <div class="header">
+                    <div class="logo">
+                        <h1>Auxein <span class="brand-accent" style="color: #D1583B;">TO GROW</span></h1>
+                    </div>
+                    <p style="margin: 0; font-size: 18px; opacity: 0.9;">Welcome to Auxein Insights!</p>
                 </div>
-                
-                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #2563eb;">{verification_link}</p>
-                
-                <p>This verification link will expire in 24 hours for security reasons.</p>
-                
-                <p>If you didn't create an account with us, please ignore this email.</p>
-                
-                <p>Best regards,<br>The Auxein Insights Team</p>
-            </div>
-            <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
+                <div class="content">
+                    <h2>Hi {username},</h2>
+                    <p>Thank you for creating an account with <strong class="brand-primary">Auxein Insights</strong>. To complete your registration and start your vineyard management journey, please verify your email address by clicking the button below:</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{verification_link}" class="button">Verify Email Address</a>
+                    </div>
+                    
+                    <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                    <div class="link-box">{verification_link}</div>
+                    
+                    <div class="warning-box">
+                        <strong>⏰ Important:</strong> This verification link will expire in 24 hours for security reasons.
+                    </div>
+                    
+                    <div class="highlight-box">
+                        <h4>🌱 What's next after verification?</h4>
+                        <p>Once verified, you'll have access to comprehensive vineyard management tools including block management, observation tracking, task assignment, and detailed analytics.</p>
+                    </div>
+                    
+                    <p>If you didn't create an account with us, please ignore this email.</p>
+                    
+                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                </div>
+                <div class="footer">
+                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>Helping vineyards grow through intelligent insights</p>
+                </div>
             </div>
         </div>
     </body>
@@ -136,6 +297,7 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
     
     return html_template, text_template
 
+
 def get_password_reset_email_template(username: str, reset_link: str) -> tuple[str, str]:
     """Get password reset email template"""
     
@@ -145,57 +307,50 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
     <head>
         <meta charset="utf-8">
         <title>Reset Your Password - Auxein Insights</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #dc2626; color: white; padding: 20px; text-align: center; }}
-            .content {{ padding: 30px; background-color: #f9fafb; }}
-            .button {{ 
-                display: inline-block; 
-                padding: 12px 24px; 
-                background-color: #dc2626; 
-                color: white; 
-                text-decoration: none; 
-                border-radius: 6px; 
-                margin: 20px 0; 
-            }}
-            .footer {{ padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }}
-            .warning {{ background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; }}
-        </style>
+        {get_base_email_styles()}
     </head>
     <body>
-        <div class="container">
-            <div class="header">
-                <h1>Password Reset Request</h1>
-            </div>
-            <div class="content">
-                <h2>Hi {username},</h2>
-                <p>We received a request to reset your password for your Auxein Insights account.</p>
-                
-                <div style="text-align: center;">
-                    <a href="{reset_link}" class="button">Reset Password</a>
+        <div style="background-color: #FDF6E3; padding: 20px;">
+            <div class="container">
+                <div class="header" style="background-color: #D1583B;">
+                    <div class="logo">
+                        <h1 style="color: #FDF6E3;">Auxein <span style="color: #FDF6E3;">TO GROW</span></h1>
+                    </div>
+                    <p style="margin: 0; font-size: 18px; opacity: 0.9; color: #FDF6E3;">Password Reset Request</p>
                 </div>
-                
-                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #dc2626;">{reset_link}</p>
-                
-                <div class="warning">
-                    <strong>Important:</strong> This password reset link will expire in 24 hours for security reasons.
+                <div class="content">
+                    <h2>Hi {username},</h2>
+                    <p>We received a request to reset your password for your <strong class="brand-primary">Auxein Insights</strong> account.</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{reset_link}" class="button accent-button">Reset Password</a>
+                    </div>
+                    
+                    <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                    <div class="link-box">{reset_link}</div>
+                    
+                    <div class="warning-box">
+                        <strong>🔒 Important:</strong> This password reset link will expire in 24 hours for security reasons.
+                    </div>
+                    
+                    <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
+                    
+                    <div class="highlight-box">
+                        <h4>🛡️ Security Recommendations:</h4>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>Use a strong, unique password</li>
+                            <li>Don't share your password with anyone</li>
+                            <li>Enable two-factor authentication if available</li>
+                            <li>Regularly update your password</li>
+                        </ul>
+                    </div>
+                    
+                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
                 </div>
-                
-                <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
-                
-                <p>For security reasons, we recommend:</p>
-                <ul>
-                    <li>Using a strong, unique password</li>
-                    <li>Not sharing your password with anyone</li>
-                    <li>Enabling two-factor authentication if available</li>
-                </ul>
-                
-                <p>Best regards,<br>The Auxein Insights Team</p>
-            </div>
-            <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
+                <div class="footer">
+                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>Protecting your vineyard data with enterprise-grade security</p>
+                </div>
             </div>
         </div>
     </body>
@@ -223,6 +378,7 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
     """
     
     return html_template, text_template
+
 
 def send_verification_email(email: str, username: str, verification_token: str) -> bool:
     """Send email verification email"""
@@ -255,6 +411,7 @@ def send_password_reset_email(email: str, username: str, reset_token: str) -> bo
         text_content=text_content
     )
 
+
 def send_welcome_email(email: str, username: str, company_name: str) -> bool:
     """Send welcome email to new users"""
     
@@ -264,27 +421,47 @@ def send_welcome_email(email: str, username: str, company_name: str) -> bool:
     <head>
         <meta charset="utf-8">
         <title>Welcome to Auxein Insights</title>
+        {get_base_email_styles()}
     </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background-color: #16a34a; color: white; padding: 20px; text-align: center;">
-                <h1>Welcome to Auxein Insights!</h1>
-            </div>
-            <div style="padding: 30px; background-color: #f9fafb;">
-                <h2>Hi {username},</h2>
-                <p>Welcome to {company_name} on Auxein Insights! Your account has been successfully created and verified.</p>
-                
-                <p>You can now access all the features available with your subscription:</p>
-                <ul>
-                    <li>Manage vineyard blocks</li>
-                    <li>Create and track observations</li>
-                    <li>Assign and manage tasks</li>
-                    <li>Generate reports and analytics</li>
-                </ul>
-                
-                <p>If you need any help getting started, don't hesitate to reach out to our support team.</p>
-                
-                <p>Best regards,<br>The Auxein Insights Team</p>
+    <body>
+        <div style="background-color: #FDF6E3; padding: 20px;">
+            <div class="container">
+                <div class="header" style="background: linear-gradient(135deg, #5B6830, #6B7840);">
+                    <div class="logo">
+                        <h1>Auxein <span style="color: #D1583B;">TO GROW</span></h1>
+                    </div>
+                    <p style="margin: 0; font-size: 18px; opacity: 0.9;">Welcome to the vineyard management revolution!</p>
+                </div>
+                <div class="content">
+                    <h2>Hi {username},</h2>
+                    <p>Welcome to <strong class="brand-primary">{company_name}</strong> on <strong class="brand-primary">Auxein Insights</strong>! Your account has been successfully created and verified.</p>
+                    
+                    <div class="highlight-box">
+                        <h3>🚀 You now have access to:</h3>
+                        <ul style="margin: 15px 0; padding-left: 25px;">
+                            <li><strong>Vineyard Block Management</strong> - Organize and track all your vineyard blocks</li>
+                            <li><strong>Smart Observations</strong> - Create detailed field observations with photos and GPS</li>
+                            <li><strong>Task Management</strong> - Assign and track work across your team</li>
+                            <li><strong>Analytics & Reports</strong> - Generate insights to optimize your operations</li>
+                            <li><strong>Team Collaboration</strong> - Work seamlessly with your vineyard team</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="background: rgba(209, 88, 59, 0.1); padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+                        <h4 style="margin-top: 0;">🌱 Ready to grow?</h4>
+                        <p style="margin-bottom: 0;">Start by setting up your first vineyard blocks and exploring the powerful features designed specifically for New Zealand winegrowers.</p>
+                    </div>
+                    
+                    <p>If you need any help getting started, don't hesitate to reach out to our support team at <a href="mailto:support@auxein.co.nz">support@auxein.co.nz</a>.</p>
+                    
+                    <p>Here's to a successful growing season!</p>
+                    
+                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                </div>
+                <div class="footer">
+                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>Empowering New Zealand winegrowers with intelligent vineyard management</p>
+                </div>
             </div>
         </div>
     </body>
@@ -296,8 +473,6 @@ def send_welcome_email(email: str, username: str, company_name: str) -> bool:
         subject=f"Welcome to {company_name} - Auxein Insights",
         html_content=html_content
     )
-
-# Update your existing core/email.py - Add this function
 
 def send_admin_welcome_email(
     email: str, 
@@ -317,72 +492,59 @@ def send_admin_welcome_email(
     <head>
         <meta charset="utf-8">
         <title>Welcome to Auxein Insights - Admin Account Created</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #16a34a; color: white; padding: 20px; text-align: center; }}
-            .content {{ padding: 30px; background-color: #f9fafb; }}
-            .credentials {{ 
-                background-color: #f3f4f6; 
-                border: 2px solid #16a34a;
-                padding: 20px; 
-                border-radius: 8px; 
-                margin: 20px 0;
-                text-align: center;
-            }}
-            .button {{ 
-                display: inline-block; 
-                padding: 12px 24px; 
-                background-color: #16a34a; 
-                color: white; 
-                text-decoration: none; 
-                border-radius: 6px; 
-                margin: 20px 0; 
-                font-weight: bold;
-            }}
-            .security-note {{ 
-                background-color: #fef2f2; 
-                border-left: 4px solid #dc2626; 
-                padding: 15px; 
-                margin: 20px 0; 
-            }}
-            .footer {{ padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }}
-        </style>
+        {get_base_email_styles()}
     </head>
     <body>
-        <div class="container">
-            <div class="header">
-                <h1>Welcome to Auxein Insights!</h1>
-                <p>Your {company_name} admin account is ready</p>
-            </div>
-            <div class="content">
-                <h2>Hi {username},</h2>
-                
-                <p>Congratulations! Your company <strong>{company_name}</strong> has been set up on Auxein Insights, and you've been designated as the company administrator.</p>
-                
-                <div class="credentials">
-                    <h3>🔑 Your Login Credentials</h3>
-                    <p><strong>Email:</strong> {email}</p>
-                    <p><strong>Username:</strong> {username}</p>
-                    {f'<p><strong>Password:</strong> <code style="background: #e5e7eb; padding: 4px 8px; border-radius: 4px; font-family: monospace;">{password}</code></p>' if password else '<p><strong>Password:</strong> As provided separately</p>'}
+        <div style="background-color: #FDF6E3; padding: 20px;">
+            <div class="container">
+                <div class="header" style="background: linear-gradient(135deg, #5B6830, #6B7840);">
+                    <div class="logo">
+                        <h1>Auxein <span style="color: #D1583B;">TO GROW</span></h1>
+                    </div>
+                    <p style="margin: 5px 0; font-size: 18px; opacity: 0.9;">Your <strong>{company_name}</strong> admin account is ready</p>
                 </div>
-                
-                {f'''<div class="security-note">
-                    <strong>🔒 Important:</strong> Please change your password after your first login for security.
-                </div>''' if password else ''}
-                
-                <div style="text-align: center;">
-                    <a href="{login_link}" class="button">Login to Your Account</a>
-                </div>
+                <div class="content">
+                    <h2>Hi {username},</h2>
+                    
+                    <p>Congratulations! Your company <strong class="brand-primary">{company_name}</strong> has been set up on Auxein Insights, and you've been designated as the company administrator.</p>
+                    
+                    <div class="credentials-box">
+                        <h3 style="margin-top: 0;">🔑 Your Login Credentials</h3>
+                        <p><strong>Email:</strong> {email}</p>
+                        <p><strong>Username:</strong> {username}</p>
+                        {f'<p><strong>Password:</strong> <code>{password}</code></p>' if password else '<p><strong>Password:</strong> As provided separately</p>'}
+                    </div>
+                    
+                    {f'''<div class="warning-box">
+                        <strong>🔒 Important:</strong> Please change your password after your first login for security.
+                    </div>''' if password else ''}
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{login_link}" class="button">Login to Your Account</a>
+                    </div>
 
-                <p>Need help? Contact our support team at support@auxein.co.nz</p>
-                
-                <p>Welcome to the Auxein Insights community!</p>
-                
-                <p>Best regards,<br><strong>The Auxein Insights Team</strong></p>
-            </div>
-            <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <div class="highlight-box">
+                        <h3>👑 As Administrator, you can:</h3>
+                        <ul style="margin: 15px 0; padding-left: 25px;">
+                            <li><strong>Invite Team Members</strong> - Build your vineyard management team</li>
+                            <li><strong>Manage Vineyard Blocks</strong> - Set up and organize your vineyard structure</li>
+                            <li><strong>Track Observations</strong> - Monitor vineyard health and conditions</li>
+                            <li><strong>Assign Tasks</strong> - Coordinate work across your team</li>
+                            <li><strong>Generate Reports</strong> - Access powerful analytics and insights</li>
+                            <li><strong>Manage Subscriptions</strong> - Control billing and feature access</li>
+                        </ul>
+                    </div>
+
+                    <p>Need help? Contact our support team at <a href="mailto:support@auxein.co.nz">support@auxein.co.nz</a></p>
+                    
+                    <p>Welcome to the Auxein Insights community!</p>
+                    
+                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                </div>
+                <div class="footer">
+                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>Leading vineyard management technology for New Zealand</p>
+                </div>
             </div>
         </div>
     </body>
@@ -429,7 +591,6 @@ def send_admin_welcome_email(
         text_content=text_content
     )
 
-
 def send_invitation_email(
     email: str,
     inviter_name: str,
@@ -438,13 +599,16 @@ def send_invitation_email(
     invitation_token: str,
     message: str = None,
     suggested_username: str = None,
-    temporary_password: str = None  # Add this parameter
+    temporary_password: str = None
 ) -> bool:
     """Send invitation email with account setup instructions"""
     
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
     invitation_link = f"{frontend_url}/accept-invitation?token={invitation_token}"
     login_link = f"{frontend_url}/login"
+    
+    # Logo URL - update this to match your hosted logo location
+    logo_url = f"/images/App_Logo_September 2025.jpg"  # Assumes logo is in public/images/
     
     html_content = f"""
     <!DOCTYPE html>
@@ -453,92 +617,194 @@ def send_invitation_email(
         <meta charset="utf-8">
         <title>You're Invited to Join {company_name} - Auxein Insights</title>
         <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #3b82f6; color: white; padding: 20px; text-align: center; }}
-            .content {{ padding: 30px; background-color: #f9fafb; }}
-            .credentials {{ 
-                background-color: #f3f4f6; 
-                border: 2px solid #3b82f6;
-                padding: 20px; 
-                border-radius: 8px; 
-                margin: 20px 0;
-                text-align: center;
+            body {{ 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
+                line-height: 1.6; 
+                color: #2F2F2F; 
+                background-color: #FDF6E3;
+                margin: 0; 
+                padding: 0;
+            }}
+            .container {{ 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background-color: #ffffff;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 4px 6px rgba(47, 47, 47, 0.1);
+            }}
+            .header {{ 
+                background-color: #5B6830; 
+                color: #FDF6E3; 
+                padding: 40px 30px; 
+                text-align: center; 
+                position: relative;
+            }}
+            .header::before {{
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(90deg, #D1583B, #5B6830);
+            }}
+            .logo {{
+                margin-bottom: 20px;
+            }}
+            .logo img {{
+                height: 45px;
+                width: auto;
+                max-width: 250px;
+            }}
+            .content {{ 
+                padding: 40px 30px; 
+                background-color: #ffffff; 
             }}
             .button {{ 
                 display: inline-block; 
-                padding: 12px 24px; 
-                background-color: #3b82f6; 
-                color: white; 
+                padding: 16px 32px; 
+                background: linear-gradient(135deg, #5B6830, #6B7840); 
+                color: #FDF6E3; 
                 text-decoration: none; 
-                border-radius: 6px; 
+                border-radius: 8px; 
                 margin: 10px 5px; 
-                font-weight: bold;
+                font-weight: 600;
+                font-size: 16px;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 4px rgba(91, 104, 48, 0.3);
+            }}
+            .button:hover {{
+                background: linear-gradient(135deg, #6B7840, #5B6830);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 8px rgba(91, 104, 48, 0.4);
+            }}
+            .accent-button {{
+                background: linear-gradient(135deg, #D1583B, #E16844);
+            }}
+            .accent-button:hover {{
+                background: linear-gradient(135deg, #E16844, #D1583B);
+            }}
+            .footer {{ 
+                padding: 30px; 
+                text-align: center; 
+                background-color: rgba(253, 246, 227, 0.5);
+                color: rgba(47, 47, 47, 0.6); 
+                font-size: 14px; 
+                border-top: 1px solid rgba(91, 104, 48, 0.1);
+            }}
+            .highlight-box {{
+                background: linear-gradient(135deg, rgba(253, 246, 227, 0.8), rgba(253, 246, 227, 0.4));
+                border-left: 4px solid #5B6830;
+                padding: 20px;
+                margin: 25px 0;
+                border-radius: 0 8px 8px 0;
+            }}
+            .warning-box {{
+                background: linear-gradient(135deg, rgba(209, 88, 59, 0.1), rgba(209, 88, 59, 0.05));
+                border-left: 4px solid #D1583B;
+                padding: 20px;
+                margin: 25px 0;
+                border-radius: 0 8px 8px 0;
+            }}
+            .credentials-box {{
+                background: rgba(253, 246, 227, 0.6);
+                border: 2px solid #5B6830;
+                padding: 25px;
+                border-radius: 8px;
+                margin: 25px 0;
+                text-align: center;
             }}
             .message-box {{ 
-                background-color: #e0f2fe; 
-                padding: 15px; 
+                background: linear-gradient(135deg, rgba(209, 88, 59, 0.1), rgba(209, 88, 59, 0.05)); 
+                padding: 20px; 
                 border-radius: 6px; 
-                margin: 15px 0; 
-                border-left: 4px solid #3b82f6;
-            }}
-            .security-note {{ 
-                background-color: #fef2f2; 
-                border-left: 4px solid #dc2626; 
-                padding: 15px; 
                 margin: 20px 0; 
-                font-size: 14px;
+                border-left: 4px solid #D1583B;
             }}
-            .footer {{ padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }}
+            .brand-accent {{ color: #D1583B; }}
+            .brand-primary {{ color: #5B6830; }}
+            .text-muted {{ color: rgba(47, 47, 47, 0.6); }}
+            h1 {{ color: #FDF6E3; margin: 0; font-size: 28px; font-weight: 600; }}
+            h2 {{ color: #5B6830; margin-top: 0; font-size: 24px; font-weight: 600; }}
+            h3 {{ color: #5B6830; font-size: 20px; font-weight: 600; }}
+            h4 {{ color: #2F2F2F; font-size: 16px; font-weight: 600; }}
+            a {{ color: #5B6830; text-decoration: none; }}
+            a:hover {{ color: #D1583B; text-decoration: underline; }}
+            code {{
+                background: rgba(253, 246, 227, 0.8);
+                padding: 6px 10px;
+                border-radius: 4px;
+                font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                font-size: 14px;
+                color: #2F2F2F;
+                border: 1px solid rgba(91, 104, 48, 0.2);
+            }}
+            /* Fallback for email clients that don't load images */
+            .logo-fallback {{
+                font-size: 28px;
+                font-weight: 600;
+                color: #FDF6E3;
+                margin: 0;
+                display: none;
+            }}
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎉 You're Invited!</h1>
-                <p>Join {company_name} on Auxein Insights</p>
-            </div>
-            <div class="content">
-                <h2>Welcome to {company_name}!</h2>
-                <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> as a <strong>{role.title()}</strong>.</p>
-                
-                {f'<div class="message-box"><strong>Personal message from {inviter_name}:</strong><br>{message}</div>' if message else ''}
-                
-                <div class="credentials">
-                    <h3>🔑 Your Account Details</h3>
-                    <p><strong>Email:</strong> {email}</p>
-                    {f'<p><strong>Suggested Username:</strong> {suggested_username}</p>' if suggested_username else ''}
-                    {f'<p><strong>Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 8px; border-radius: 4px; font-family: monospace;">{temporary_password}</code></p>' if temporary_password else ''}
+        <div style="background-color: #FDF6E3; padding: 20px;">
+            <div class="container">
+                <div class="header">
+                    <div class="logo">
+                        <img src="{logo_url}" alt="Auxein TO GROW" style="height: 45px; width: auto; max-width: 250px;">
+                        <!-- Fallback text for when images don't load -->
+                        <div class="logo-fallback">Auxein <span style="color: #D1583B;">TO GROW</span></div>
+                    </div>
+                    <p style="margin: 10px 0 5px 0; font-size: 18px; opacity: 0.9;">You're invited to join</p>
+                    <p style="margin: 0; font-size: 20px; font-weight: 600;">{company_name}</p>
                 </div>
-                
-                <div style="text-align: center;">
-                    <h3>Choose how to get started:</h3>
-                    <a href="{invitation_link}" class="button">🚀 Complete Account Setup</a>
-                    {f'<a href="{login_link}" class="button">🔑 Login Directly</a>' if temporary_password else ''}
+                <div class="content">
+                    <h2>Welcome to the team!</h2>
+                    <p><strong class="brand-primary">{inviter_name}</strong> has invited you to join <strong class="brand-primary">{company_name}</strong> as a <strong class="brand-accent">{role.title()}</strong> on the Auxein Insights vineyard management platform.</p>
+                    
+                    {f'<div class="message-box"><strong>Personal message from {inviter_name}:</strong><br><em>"{message}"</em></div>' if message else ''}
+                    
+                    <div class="credentials-box">
+                        <h3 style="margin-top: 0; color: #5B6830;">Your Account Details</h3>
+                        <p><strong>Email:</strong> {email}</p>
+                        {f'<p><strong>Suggested Username:</strong> {suggested_username}</p>' if suggested_username else ''}
+                        {f'<p><strong>Temporary Password:</strong> <code>{temporary_password}</code></p>' if temporary_password else ''}
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <h3>Get Started</h3>
+                        <a href="{invitation_link}" class="button">Complete Account Setup</a>
+                        {f'<a href="{login_link}" class="button accent-button">Login Directly</a>' if temporary_password else ''}
+                    </div>
+                    
+                    {f'''<div class="warning-box">
+                        <strong>Security Reminder:</strong> Please change your password after your first login for security. You can customize your username and other profile settings during account setup.
+                    </div>''' if temporary_password else ''}
+                    
+                    <div class="highlight-box">
+                        <h4>Next Steps:</h4>
+                        <ol style="margin: 15px 0; padding-left: 20px;">
+                            <li><strong>Complete Setup:</strong> Click "Complete Account Setup" to customize your profile</li>
+                            {f'<li><strong>Or Login:</strong> Use the temporary credentials above to login directly</li>' if temporary_password else ''}
+                            <li><strong>Explore:</strong> Access vineyard data, observations, and team tools</li>
+                            <li><strong>Get Help:</strong> Contact support@auxein.co.nz if you need assistance</li>
+                        </ol>
+                    </div>
+                    
+                    <p class="text-muted" style="font-size: 14px;">This invitation will expire in 7 days. If you need a new invitation, please contact {inviter_name} or your system administrator.</p>
+                    
+                    <p>Welcome to the team!</p>
+                    
+                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
                 </div>
-                
-                {f'''<div class="security-note">
-                    <strong>🔒 Security Reminder:</strong> Please change your password after your first login. You can customize your username and other profile settings during account setup.
-                </div>''' if temporary_password else ''}
-                
-                <div style="margin: 20px 0; padding: 15px; background-color: #f0f9ff; border-radius: 6px;">
-                    <h4>📋 Next Steps:</h4>
-                    <ol style="margin: 0; padding-left: 20px;">
-                        <li><strong>Complete Setup:</strong> Click "Complete Account Setup" to customize your profile</li>
-                        {f'<li><strong>Or Login:</strong> Use the temporary credentials above to login directly</li>' if temporary_password else ''}
-                        <li><strong>Explore:</strong> Access vineyard data, observations, and team tools</li>
-                        <li><strong>Get Help:</strong> Contact support@auxein.co.nz if you need assistance</li>
-                    </ol>
+                <div class="footer">
+                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>Collaborative vineyard management for better results</p>
                 </div>
-                
-                <p style="font-size: 14px; color: #6b7280;">This invitation will expire in 7 days. If you need a new invitation, please contact {inviter_name} or your system administrator.</p>
-                
-                <p>Welcome to the team!</p>
-                
-                <p>Best regards,<br><strong>The Auxein Insights Team</strong></p>
-            </div>
-            <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
             </div>
         </div>
     </body>
@@ -580,6 +846,10 @@ def send_invitation_email(
         html_content=html_content,
         text_content=text_content
     )
+
+#####################################
+#   Depreciated email templates     #
+#####################################
 
 def get_contractor_verification_email_template(contractor_name: str, verification_link: str) -> tuple[str, str]:
     """Get contractor verification email template"""
