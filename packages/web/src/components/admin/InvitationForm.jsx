@@ -74,11 +74,6 @@ function InvitationForm({ onInvitationSent, companyStats }) {
       {companyStats && (
         <div className="user-limit-info">
           <p>Team Members: {companyStats.user_count} / {companyStats.max_users === -1 ? '∞' : companyStats.max_users}</p>
-          {isAtUserLimit && (
-            <div className="limit-warning">
-              ⚠️ You've reached your user limit. Upgrade your plan to invite more team members.
-            </div>
-          )}
         </div>
       )}
 

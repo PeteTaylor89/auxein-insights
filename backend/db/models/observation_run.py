@@ -15,6 +15,8 @@ class ObservationRun(Base):
     plan_id = Column(Integer, ForeignKey("observation_plans.id"), nullable=True)
     template_id = Column(Integer, ForeignKey("observation_templates.id"), nullable=False)
     template_version = Column(Integer, nullable=False)
+    
+    block_id = Column(Integer, ForeignKey("vineyard_blocks.id", ondelete="CASCADE"), nullable=True)
 
     name = Column(String(160), nullable=False)
     observed_at_start = Column(DateTime(timezone=True), nullable=True)

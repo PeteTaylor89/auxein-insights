@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import dayjs from 'dayjs';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ClipboardList, 
   ArrowLeft, 
   MapPin, 
   Target, 
-  PlayCircle
+  Save
 } from 'lucide-react';
 import { observationService, authService, blocksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
@@ -19,19 +18,20 @@ function readTemplateFields(tpl) {
   return Array.isArray(s) ? s : Array.isArray(s.fields) ? s.fields : [];
 }
 
-export default function PlanNew() {
+export default function PlanEdit() {
   const navigate = useNavigate();
-  const location = useLocation();
+  const { id } = useParams();
   const companyId = authService.getCompanyId();
 
-  // Basic form fields
+  // Form fields
   const [name, setName] = useState('');
-  const [templates, setTemplates] = useState([]);
-  const [templateId, setTemplateId] = useState(String(location.state?.template?.id ?? ''));
-  const [template, setTemplate] = useState(null);
   const [instructions, setInstructions] = useState('');
+  const [templateId, setTemplateId] = useState('');
+  const [template, setTemplate] = useState(null);
 
-  // Blocks and targets
+  // Data
+  const [originalPlan, setOriginalPlan] = useState(null);
+  const [templates, setTemplates] = useState([]);
   const [blocks, setBlocks] = useState([]);
   const [blockTargets, setBlockTargets] = useState({}); // { blockId: { selected: bool, rowStart: '', rowEnd: '', spots: number } }
 
@@ -46,33 +46,54 @@ export default function PlanNew() {
     (async () => {
       try {
         setLoading(true);
-        const [tplRes, blkRes] = await Promise.all([
-          observationService.getTemplates?.({ include_system: true }).catch(() => []),
+        const [planRes, tplRes, blkRes] = await Promise.all([
+          observationService.getPlan(id),
+          observationService.getTemplates({ include_system: true }).catch(() => []),
           blocksService.getCompanyBlocks().catch(() => []),
         ]);
 
         if (!mounted) return;
         
+        const plan = planRes;
+        setOriginalPlan(plan);
         setTemplates(asArray(tplRes));
         setBlocks(asArray(blkRes));
 
-        console.log('Loaded data:', { 
-          templates: asArray(tplRes).length, 
-          blocks: asArray(blkRes).length
-        });
+        // Populate form with existing plan data
+        setName(plan.name || '');
+        setInstructions(plan.instructions || '');
+        setTemplateId(String(plan.template_id || ''));
+
+        // Convert targets to blockTargets format
+        const targetsMap = {};
+        if (plan.targets) {
+          plan.targets.forEach(target => {
+            const rowLabels = target.row_labels || [];
+            targetsMap[target.block_id] = {
+              selected: true,
+              rowStart: rowLabels[0] || '',
+              rowEnd: rowLabels[1] || (rowLabels.length > 1 ? rowLabels[rowLabels.length - 1] : ''),
+              spots: target.sample_size || 1
+            };
+          });
+        }
+        setBlockTargets(targetsMap);
+
+        console.log('Plan loaded for editing:', plan);
+        console.log('Populated blockTargets:', targetsMap);
 
       } catch (e) {
-        console.error('Failed to load data:', e);
-        if (mounted) setError('Failed to load templates or blocks');
+        console.error('Failed to load plan data:', e);
+        if (mounted) setError('Failed to load plan data');
       } finally {
         if (mounted) setLoading(false);
       }
     })();
 
     return () => { mounted = false; };
-  }, [companyId]);
+  }, [id, companyId]);
 
-  // When templateId changes, find template object (or fetch by id if minimal card was returned)
+  // When templateId changes, find template object
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -136,9 +157,40 @@ export default function PlanNew() {
       }));
   };
 
-  const canSubmit = name.trim() && templateId && getSelectedTargets().length > 0;
+  const hasChanges = () => {
+    if (!originalPlan) return false;
+    
+    if (name !== (originalPlan.name || '')) return true;
+    if (instructions !== (originalPlan.instructions || '')) return true;
+    // Remove template comparison since it's now locked
+    
+    // Check if targets have changed
+    const currentTargets = getSelectedTargets();
+    const originalTargets = originalPlan.targets || [];
+    
+    if (currentTargets.length !== originalTargets.length) return true;
+    
+    // Compare targets (simplified comparison)
+    for (let i = 0; i < currentTargets.length; i++) {
+      const current = currentTargets[i];
+      const original = originalTargets.find(t => t.block_id === current.block_id);
+      if (!original) return true;
+      
+      const origRowLabels = original.row_labels || [];
+      const origRowStart = origRowLabels[0] || null;
+      const origRowEnd = origRowLabels[1] || (origRowLabels.length > 1 ? origRowLabels[origRowLabels.length - 1] : null);
+      
+      if (current.row_start !== origRowStart) return true;
+      if (current.row_end !== origRowEnd) return true;
+      if (current.required_spots !== original.sample_size) return true;
+    }
+    
+    return false;
+  };
 
-  const submit = async (startNow = false) => {
+  const canSubmit = name.trim() && getSelectedTargets().length > 0;
+
+  const submit = async () => {
     if (!canSubmit) return;
     
     try {
@@ -146,28 +198,19 @@ export default function PlanNew() {
       setError(null);
 
       const payload = {
-        company_id: companyId,
-        template_id: Number(templateId),
         name: name.trim(),
-        scheduled_for: startNow ? dayjs().format('YYYY-MM-DD') : null,
-        targets: getSelectedTargets(),
         instructions: instructions || null,
+        targets: getSelectedTargets(),
       };
 
-      console.log('Creating plan with payload:', payload);
+      console.log('Updating plan with payload:', payload);
 
-      const res = await observationService.createPlan(payload);
-      const planId = res?.id || res?.plan_id;
-      
-      if (planId) {
-        navigate(`/plandetail/${planId}`, { replace: true });
-      } else {
-        navigate('/observations');
-      }
+      const updatedPlan = await observationService.updatePlan(id, payload);
+      navigate(`/plandetail/${updatedPlan.id}`, { replace: true });
     } catch (e) {
-      console.error('Failed to create plan:', e);
-      const detail = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Failed to create plan';
-      setError(Array.isArray(detail) ? detail[0]?.msg || 'Failed to create plan.' : String(detail));
+      console.error('Failed to update plan:', e);
+      const detail = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Failed to update plan';
+      setError(Array.isArray(detail) ? detail[0]?.msg || 'Failed to update plan.' : String(detail));
     } finally {
       setBusy(false);
     }
@@ -179,19 +222,19 @@ export default function PlanNew() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button
           className="btn"
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
+          onClick={() => navigate(`/plandetail/${id}`)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} /> Back to Plan
         </button>
       </div>
 
       {/* Header */}
       <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ClipboardList /> <span>New Observation Plan</span>
+        <ClipboardList /> <span>Edit Observation Plan</span>
       </div>
 
-      {loading && <div className="stat-card" style={{ marginTop: 12 }}>Loading…</div>}
+      {loading && <div className="stat-card" style={{ marginTop: 12 }}>Loading plan data…</div>}
       {error && <div className="stat-card" style={{ marginTop: 12, borderColor: 'red' }}>{error}</div>}
 
       {!loading && (
@@ -222,23 +265,25 @@ export default function PlanNew() {
               </label>
 
               <label>
-                <div>Template</div>
-                <select
-                  value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value)}
-                >
-                  <option value="">— Select a template —</option>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t?.name || t?.observation_type || `Template #${t.id}`}
-                    </option>
-                  ))}
-                </select>
+                <div>Template (cannot be changed)</div>
+                <div style={{ 
+                  padding: '8px 12px', 
+                  border: '1px solid #d1d5db', 
+                  borderRadius: 6, 
+                  background: '#f9fafb',
+                  color: '#6b7280',
+                  fontSize: 18
+                }}>
+                  {template?.name || templates.find(t => String(t.id) === templateId)?.name || `Template #${templateId}`}
+                </div>
+                <small style={{ color: '#666', fontSize: 12 }}>
+                  Template cannot be changed after plan creation to preserve data integrity
+                </small>
               </label>
             </div>
           </section>
 
-          {/* Targets (Blocks) - Table Format */}
+          {/* Targets */}
           <section className="stat-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -251,7 +296,7 @@ export default function PlanNew() {
 
             {blocks.length === 0 && (
               <div style={{ padding: 16, color: '#777', background: '#f9fafb', borderRadius: 8 }}>
-                No blocks found for your company. Check that blocks are properly configured.
+                No blocks found for your company.
               </div>
             )}
 
@@ -399,23 +444,37 @@ export default function PlanNew() {
             </section>
           )}
 
+          {/* Changes indicator */}
+          {hasChanges() && (
+            <div style={{ padding: 12, background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, color: '#92400e' }}>
+              <strong>Unsaved changes detected.</strong> Click "Update Plan" to save your changes.
+            </div>
+          )}
+
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between' }}>
             <button 
               className="btn" 
-              disabled={!canSubmit || busy} 
-              onClick={() => submit(false)} 
-              style={{ background: '#4e638bff', color: '#fff' }}
+              onClick={() => navigate(`/plandetail/${id}`)}
+              style={{ padding: '8px 16px', borderRadius: 8, background: '#f3f4f6' }}
             >
-              Create Plan
+              Cancel
             </button>
             <button 
               className="btn" 
-              disabled={!canSubmit || busy} 
-              onClick={() => submit(true)} 
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}
+              disabled={!canSubmit || busy || !hasChanges()}
+              onClick={submit}
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: 6, 
+                padding: '8px 16px', 
+                borderRadius: 8, 
+                background: hasChanges() ? '#059669' : '#9ca3af', 
+                color: '#fff' 
+              }}
             >
-              <PlayCircle size={18}/> Create & Start Now
+              <Save size={16} /> {busy ? 'Updating...' : 'Update Plan'}
             </button>
           </div>
 

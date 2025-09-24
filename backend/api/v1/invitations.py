@@ -54,12 +54,6 @@ def create_invitation(
             detail="Pending invitation already exists for this email"
         )
     
-    # Check subscription limits
-    current_user_count = db.query(func.count(User.id)).filter(
-        User.company_id == current_user.company_id,
-        User.is_active == True
-    ).scalar() or 0
-
     # Load company with subscription
     company = db.query(Company).options(
         joinedload(Company.subscription)
@@ -76,15 +70,6 @@ def create_invitation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Company has no subscription assigned"
         )
-
-    # Check if company can invite more users
-    max_users = company.subscription.max_users
-    if max_users != -1:  # -1 means unlimited
-        if current_user_count >= max_users:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Company user limit reached. Maximum {max_users} users allowed for {company.subscription.display_name} plan."
-            )
     
     import secrets
     import string
@@ -94,7 +79,6 @@ def create_invitation(
         return ''.join(secrets.choice(characters) for _ in range(length))
     
     temp_password = generate_temp_password()
-
 
     # Create invitation
     invitation = Invitation.create_invitation(

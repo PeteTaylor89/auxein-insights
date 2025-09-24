@@ -64,7 +64,7 @@ function Maps() {
   });
   const [showDrawingForm, setShowDrawingForm] = useState(false);
   const [blocksData, setBlocksData] = useState(null);
-  const [blockOpacity, setBlockOpacity] = useState(0.6); // Default opacity
+  const [blockOpacity, setBlockOpacity] = useState(0); // Default opacity
 
   const splitControlRef = useRef(null);
   const [currentLocation, setCurrentLocation] = useState(null);
@@ -2972,22 +2972,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Opacity Control */}
-          <div className="control-section">
-            <h4>Block Opacity</h4>
-            <div className="opacity-control">
-              <input
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.1"
-                value={blockOpacity}
-                onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-                className="opacity-slider"
-              />
-              <span className="opacity-value">{Math.round(blockOpacity * 100)}%</span>
-            </div>
-          </div>
 
           {/* Block Tools */}
           <div className="control-section">

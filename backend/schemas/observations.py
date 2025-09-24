@@ -117,6 +117,7 @@ class ObservationPlanOut(BaseModel):
     id: int
     company_id: int
     template_id: int
+    template_name: Optional[str] = None
     template_version: int
     name: str
     instructions: Optional[str] = None
@@ -129,6 +130,8 @@ class ObservationPlanOut(BaseModel):
     # relations serialized from ORM:
     targets: List[PlanTargetOut] = Field(default_factory=list)
     assignees: List[PlanAssigneeOut] = Field(default_factory=list)
+    runs_count: int = 0
+    latest_run_started_at: Optional[datetime] = None
 
     if ConfigDict:
         model_config = ConfigDict(**_CFG)
@@ -141,6 +144,7 @@ class ObservationRunBase(BaseModel):
     company_id: int
     template_id: int
     plan_id: Optional[int] = None
+    block_id: Optional[int] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     status: ObservationRunStatus = "draft"
@@ -159,7 +163,7 @@ class ObservationRunOut(ObservationRunBase):
     created_at: datetime
     updated_at: Optional[datetime]
     created_by: Optional[int] = None
-
+    plan_name: Optional[str] = None
     class Config:
         from_attributes = True
 

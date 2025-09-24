@@ -5,13 +5,16 @@ import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCir
 import { observationService, usersService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 
-/**
- * ObservationDashboard — MVP scope
- * - Plans: list, open, start run
- * - Runs: list, open, complete, approve/reject
- * - Templates: list global + company, use template, new template
- * - Ad hoc: quick start from header (route placeholder)
- */
+
+
+function readTemplateFields(tpl) {
+  if (!tpl) return [];
+  // Backend returns ObservationTemplateOut with alias: schema <- fields_json
+  // schema may be { fields: [...] } or an array
+  const s = tpl.schema?.fields ?? tpl.schema ?? tpl.fields_json ?? [];
+  return Array.isArray(s) ? s : Array.isArray(s.fields) ? s.fields : [];
+}
+
 export default function ObservationDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('plans');
@@ -20,7 +23,7 @@ export default function ObservationDashboard() {
     <div className="container" style={{ maxWidth: 1200, margin: '0 auto', padding: '3rem 1rem' }}>
       {/* Header */}
       <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 600 }}>
-        <ClipboardList /> <span>Observations</span>
+        <span>Observations</span>
       </div>
 
       {/* KPI strip (placeholder counts for now) */}
@@ -35,27 +38,13 @@ export default function ObservationDashboard() {
 
       {/* Action row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, margin: '24px 0' }}>
-        <div className="stat-card" style={{ padding: 12, borderRadius: 12, border: '1px solid #eee', background: '#fff' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
-            <Filter size={16} /> Filters
-          </div>
-        </div>
-
         <div style={{ display: 'flex', gap: 12 }}>
           <button
             className="btn"
-            onClick={() => navigate('/observations/plans/new')}
+            onClick={() => navigate('/planobservation')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#2563eb', color: '#fff' }}
           >
-            <Plus size={16} /> New Plan
-          </button>
-
-          <button
-            className="btn"
-            onClick={() => navigate('/observations/templates/new')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#4e638bff', color: '#fff' }}
-          >
-            <Plus size={16} /> New Template
+            <Plus size={16} /> Create a Plan
           </button>
 
           <button
@@ -64,7 +53,7 @@ export default function ObservationDashboard() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#10b981', color: '#fff' }}
             title="Start a one-off run without a plan"
           >
-            <Rocket size={16} /> New Ad-hoc
+            <Rocket size={16} /> Log an Ad-hoc Observation
           </button>
         </div>
       </div>
@@ -108,6 +97,70 @@ function TabButton({ label, active, onClick }) {
     </button>
   );
 }
+
+function TemplatePreviewModal({ open, template, onClose }) {
+  if (!open || !template) return null;
+  const fields = readTemplateFields(template);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="stat-card"
+        style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, width: 'min(860px, 95vw)', maxHeight: '85vh', overflow: 'auto', padding: 16 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>{template.name}  Template</h3>
+          <button className="btn" onClick={onClose} style={{ padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}>
+            Close
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="stat-card" style={{ padding: 12, borderRadius: 8, border: '1px solid #eee', background: '#fafafa' }}>
+            <div style={{ color: '#666', fontSize: 13, marginBottom: 6 }}>Scope</div>
+            <div><strong>Template:</strong> {template.type}</div>
+            <div><strong>Owner:</strong> {template.company_id ? 'Company' : 'Global Template'}</div>
+          </div>
+
+          <div className="stat-card" style={{ padding: 12, borderRadius: 8, border: '1px solid #eee', background: '#fafafa' }}>
+            <div><strong>Note:</strong> All observation runs will also include automatically captured data related to GPS location, date and time, and user. GPS locations can relate back to the block observed.</div>
+          </div>
+        </div>
+
+        <h4 style={{ marginTop: 16, marginBottom: 8 }}>Fields</h4>
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
+          <thead style={{ background: '#f9fafb' }}>
+            <tr style={{ textAlign: 'left' }}>
+              <th style={{ padding: 10 }}>Field</th>
+              <th style={{ padding: 10 }}>Required</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.length === 0 && (
+              <tr><td colSpan={5} style={{ padding: 14, color: '#777' }}>No fields defined.</td></tr>
+            )}
+            {fields.map((f, i) => (
+              <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f2f2f2' }}>
+                <td style={{ padding: 10, fontWeight: 500 }}>{f.label || '—'}</td>
+                <td style={{ padding: 10 }}>{f.required ? 'Yes' : 'No'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 
 /* ---------------------------
  * Plans Tab
@@ -197,20 +250,8 @@ function PlansTab() {
     <div>
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6 }}>
-          <option value="">All statuses</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="active">Active</option>
-          <option value="completed">Completed</option>
-          <option value="canceled">Canceled</option>
-        </select>
-        <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6 }}>
-          <option value="">All assignees</option>
-          {users.map(u => (
-            <option key={u.id} value={u.id}>{userMap.get(String(u.id))}</option>
-          ))}
-        </select>
-        <input placeholder="Search by name…" value={q} onChange={e => setQ(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, flex: 1, minWidth: 200 }} />
+
+        <input placeholder="Search by plan name…" value={q} onChange={e => setQ(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, flex: 1, minWidth: 200 }} />
       </div>
 
       {loading && <div className="stat-card">Loading…</div>}
@@ -220,11 +261,10 @@ function PlansTab() {
         <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
           <thead style={{ background: '#f9fafb' }}>
             <tr style={{ textAlign: 'left' }}>
-              <th style={{ padding: 12 }}>Name</th>
-              <th style={{ padding: 12 }}>Type</th>
-              <th style={{ padding: 12 }}>Scheduled</th>
-              <th style={{ padding: 12 }}>Assignees</th>
-              <th style={{ padding: 12 }}>Status</th>
+              <th style={{ padding: 12 }}>Plan Name</th>
+              <th style={{ padding: 12 }}>Observation Template</th>
+              <th style={{ padding: 12 }}>Runs Captured</th> 
+              <th style={{ padding: 12 }}>Latest Observation Run</th>
               <th style={{ padding: 12 }} />
             </tr>
           </thead>
@@ -237,10 +277,11 @@ function PlansTab() {
             {filtered.map(p => (
               <tr key={p.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
                 <td style={{ padding: 12, fontWeight: 500 }}>{p.name || `Plan #${p.id}`}</td>
-                <td style={{ padding: 12 }}>{p.type || p.observation_type || '—'}</td>
-                <td style={{ padding: 12 }}>{p.due_start_at ? dayjs(p.due_start_at).format('YYYY-MM-DD') : '—'}</td>
-                <td style={{ padding: 12 }}>{(p.assignees || p.assignee_user_ids || []).map(a => userMap.get(String(a.user_id ?? a.id ?? a)) || `User ${a.id}`).join(', ') || '—'}</td>
-                <td style={{ padding: 12 }}>{p.status}</td>
+                <td style={{ padding: 12 }}>{p.template_name  || p.template_id || '—'}</td>
+                <td style={{ padding: 12 }}>{typeof p.runs_count === 'number' ? p.runs_count : '—'}</td>
+                <td style={{ padding: 12 }}>
+                  {p.latest_run_started_at ? dayjs(p.latest_run_started_at).format('YYYY-MM-DD HH:mm') : '—'}
+                </td>
                 <td style={{ padding: 12, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button
                     className="btn"
@@ -353,8 +394,9 @@ function RunsTab() {
         <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
           <thead style={{ background: '#f9fafb' }}>
             <tr style={{ textAlign: 'left' }}>
-              <th style={{ padding: 12 }}>Run</th>
-              <th style={{ padding: 12 }}>Plan</th>
+              <th style={{ padding: 12 }}>Run Number</th>
+              <th style={{ padding: 12 }}>Plan Name</th>
+              <th style={{ padding: 12 }}>Block</th>
               <th style={{ padding: 12 }}>Status</th>
               <th style={{ padding: 12 }}>Started</th>
               <th style={{ padding: 12, textAlign: 'right' }}>Actions</th>
@@ -369,7 +411,8 @@ function RunsTab() {
             {runs.map(r => (
               <tr key={r.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
                 <td style={{ padding: 12, fontWeight: 500 }}>{r.name || `Run #${r.id}`}</td>
-                <td style={{ padding: 12 }}>{r.plan_id ? `Plan ${r.plan_id}` : '—'}</td>
+                <td style={{ padding: 12 }}>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
+                <td style={{ padding: 12 }}>{r.block_id ? `Block ${r.block_id}` : '—'}</td>
                 <td style={{ padding: 12 }}>{r.status}</td>
                 <td style={{ padding: 12 }}>{r.started_at ? dayjs(r.started_at).format('YYYY-MM-DD HH:mm') : '—'}</td>
                 <td style={{ padding: 12, textAlign: 'right' }}>
@@ -429,6 +472,9 @@ function TemplatesTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -449,6 +495,11 @@ function TemplatesTab() {
 
   const labelFor = (t) => (t?.company_id ? 'Company Template' : 'Global Template');
 
+  const onViewTemplate = (tpl) => {
+    setPreviewTemplate(tpl);
+    setPreviewOpen(true);
+  };
+
   return (
     <div>
       {loading && <div className="stat-card">Loading templates…</div>}
@@ -465,18 +516,19 @@ function TemplatesTab() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   className="btn"
-                  onClick={() => navigate('/observations/plans/new', { state: { template: t } })}
+                  onClick={() => navigate('/planobservation', { state: { template: t } })}
                   style={{ padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  title="Create an observation plan using this template"
                 >
                   <Plus size={14} /> Use Template
                 </button>
                 <button
                   className="btn"
-                  onClick={() => navigate('/observations/templates/new', { state: { base: t } })}
+                  onClick={() => onViewTemplate(t)}
                   style={{ padding: '6px 12px', borderRadius: 6, background: '#e5e7eb', color: '#111827', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                  title="Create a new template using this as a starting point"
+                  title="View this template"
                 >
-                  <Plus size={14} /> New From
+                  View Template
                 </button>
               </div>
             </div>
@@ -484,6 +536,12 @@ function TemplatesTab() {
           {templates.length === 0 && <div style={{ color: '#777' }}>No templates available.</div>}
         </div>
       )}
+
+      <TemplatePreviewModal
+        open={previewOpen}
+        template={previewTemplate}
+        onClose={() => setPreviewOpen(false)}
+      />
     </div>
   );
 }

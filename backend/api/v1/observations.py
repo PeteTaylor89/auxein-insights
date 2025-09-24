@@ -258,21 +258,62 @@ def list_plans(
     status_in: Optional[List[str]] = Query(None),
     template_id: Optional[int] = None,
 ):
-    q = select(ObservationPlan)
+    # Load plans + their template in one go
+    base = select(ObservationPlan).options(selectinload(ObservationPlan.template))
     if company_id:
-        q = q.where(ObservationPlan.company_id == company_id)
+        base = base.where(ObservationPlan.company_id == company_id)
     if template_id:
-        q = q.where(ObservationPlan.template_id == template_id)
+        base = base.where(ObservationPlan.template_id == template_id)
     if status_in:
-        q = q.where(ObservationPlan.status.in_(status_in))
-    q = q.order_by(ObservationPlan.created_at.desc())
-    return db.execute(q).scalars().all()
+        base = base.where(ObservationPlan.status.in_(status_in))
+    base = base.order_by(ObservationPlan.created_at.desc())
+
+    plans = db.execute(base).scalars().all()
+    if not plans:
+        return []
+
+    # Precompute per-plan run stats
+    plan_ids = [p.id for p in plans]
+    agg = db.execute(
+        select(
+            ObservationRun.plan_id.label("pid"),
+            func.count(ObservationRun.id).label("runs_count"),
+            func.max(ObservationRun.observed_at_start).label("latest_run_started_at"),
+        )
+        .where(ObservationRun.plan_id.in_(plan_ids))
+        .group_by(ObservationRun.plan_id)
+    ).all()
+    stats = {
+        row.pid: {
+            "runs_count": int(row.runs_count),
+            "latest_run_started_at": row.latest_run_started_at,
+        }
+        for row in agg
+    }
+
+    # Annotate dynamic fields for the Pydantic response
+    for p in plans:
+        s = stats.get(p.id) or {}
+        p.runs_count = s.get("runs_count", 0)
+        p.latest_run_started_at = s.get("latest_run_started_at")
+        p.template_name = p.template.name if getattr(p, "template", None) else None  # <-- add name
+
+    return plans
+
+
 
 @router.get("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
 def get_plan(plan_id: int, db: Session = Depends(get_db)):
-    plan = db.get(ObservationPlan, plan_id)
+    plan = db.execute(
+        select(ObservationPlan)
+        .options(selectinload(ObservationPlan.template))  # <-- Add this
+        .where(ObservationPlan.id == plan_id)
+    ).scalar_one_or_none()
+    
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+    
+    plan.template_name = plan.template.name if plan.template else None
     return plan
 
 @router.patch("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
@@ -327,11 +368,47 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
 # -----------------------------
 @router.post("/observation-runs", response_model=ObservationRunOut, status_code=status.HTTP_201_CREATED)
 def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    # Resolve block_id:
+    block_id = payload.block_id
+
+    # If created from a plan, try infer block_id only if the plan has exactly one target
+    if not block_id and payload.plan_id:
+        plan = db.get(ObservationPlan, payload.plan_id)
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        target_blocks = [t.block_id for t in plan.targets or [] if t.block_id]
+        unique_blocks = list({b for b in target_blocks})
+        if len(unique_blocks) == 1:
+            block_id = unique_blocks[0]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide block_id when plan has multiple or zero targets"
+            )
+
+    if not block_id:
+        raise HTTPException(status_code=400, detail="block_id is required for a run")
+
+    # Prevent overlapping active runs on the same block (end time is null == active)
+    exists_open = db.execute(
+        select(ObservationRun.id).where(
+            ObservationRun.company_id == payload.company_id,
+            ObservationRun.block_id == block_id,
+            ObservationRun.observed_at_end.is_(None),
+        ).limit(1)
+    ).scalar()
+    if exists_open:
+        raise HTTPException(
+            status_code=409,
+            detail="An active run already exists on this block. Please complete or cancel it first."
+        )
+
     run = ObservationRun(
         company_id=payload.company_id,
         plan_id=payload.plan_id,
         template_id=payload.template_id,
         template_version=1,
+        block_id=block_id,
         name=f"Run – template {payload.template_id}",
         observed_at_start=payload.started_at or datetime.utcnow(),
         observed_at_end=None,
@@ -346,6 +423,7 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
     db.refresh(run)
     return run
 
+
 @router.get("/observation-runs", response_model=List[ObservationRunOut])
 def list_runs(
     db: Session = Depends(get_db),
@@ -353,12 +431,22 @@ def list_runs(
     template_id: Optional[int] = None,
     plan_id: Optional[int] = None,
 ):
-    q = select(ObservationRun)
+    q = (select(ObservationRun)
+         .options(selectinload(ObservationRun.plan))
+         .options(selectinload(ObservationRun.creator))  # <-- Add this
+         )
     if company_id: q = q.where(ObservationRun.company_id == company_id)
     if template_id: q = q.where(ObservationRun.template_id == template_id)
     if plan_id: q = q.where(ObservationRun.plan_id == plan_id)
     q = q.order_by(ObservationRun.created_at.desc())
-    return db.execute(q).scalars().all()
+    rows = db.execute(q).scalars().all()
+
+    # annotate plan_name and creator_name for the Pydantic Out
+    for r in rows:
+        r.plan_name = r.plan.name if r.plan else None
+        r.creator_name = r.creator.full_name if r.creator else None  # <-- Add this
+    return rows
+
 
 @router.get("/observation-runs/{run_id}", response_model=ObservationRunOut)
 def get_run(run_id: int, db: Session = Depends(get_db)):

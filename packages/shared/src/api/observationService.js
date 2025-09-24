@@ -29,7 +29,16 @@ const observationService = {
     await api.get(`/observations/api/observation-plans/${planId}/runs`)
   ).data,
 
+  updatePlan: async (id, payload) => {
+    const res = await api.patch(`/observations/api/observation-plans/${id}`, payload);
+    return res.data;
+  },
+
   // Runs
+  listRuns: async (params = {}) => (
+    await api.get('/observations/api/observation-runs', { params })
+  ).data,
+
   startRun: async (planId, extras = {}) => {
     const res = await api.post('/observations/api/observation-runs', {
       plan_id: planId,

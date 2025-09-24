@@ -22,11 +22,12 @@ import ModuleEditor from './pages/ModuleEditor';
 import TakeTraining from './pages/TakeTraining';
 import Insights from './pages/Insights';
 import TimesheetSystem from './pages/TimesheetSystem';
+
 import PlanNew from  './pages/PlanNew';
-import PlanList from './pages/listPlans';
 import PlanDetail from './pages/PlanDetail';
 import RunCapture from './pages/RunCapture';
 import ObservationDashboard from './pages/ObservationDashboard'
+import PlanEdit from './pages/PlanEdit'
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -159,7 +160,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-
       <Route path="/observations" element={
         <ProtectedRoute>
           <ObservationDashboard  />
@@ -178,6 +178,15 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      <Route path="/planedit/:id" element={
+        <ProtectedRoute>
+          <PlanEdit />
+        </ProtectedRoute>
+      } />
+
+
+
+
       <Route path="/observations/runs/:id" element={
         <ProtectedRoute>
           <RunCapture  />
@@ -189,21 +198,6 @@ function AppRoutes() {
           <RunCapture  />
         </ProtectedRoute>
       } />
-
-
-
-
-
-
-
-
-
-      <Route path="/listplan" element={
-        <ProtectedRoute>
-          <PlanList />
-        </ProtectedRoute>
-      } />
-
 
 
 
