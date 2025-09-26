@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, MapPin, Plus, ArrowLeft, ArrowRight, Trash2, Image as ImageIcon, Save, CheckCircle, Send } from 'lucide-react';
+import { 
+  ClipboardList, 
+  MapPin, 
+  Plus, 
+  ArrowLeft, 
+  ArrowRight, 
+  Trash2, 
+  Image as ImageIcon, 
+  Save, 
+  CheckCircle, 
+  Send,
+  PlayCircle,
+  Lock
+} from 'lucide-react';
 import { observationService, authService, api, blocksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 
@@ -39,19 +52,7 @@ export default function RunCapture() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-
   const [blocks, setBlocks] = useState([]);
-  const EL_FALLBACK = [
-    { value: 'EL-12', label: 'EL-12 (5 leaves separated)' },
-    { value: 'EL-15', label: 'EL-15 (8 leaves separated)' },
-    { value: 'EL-18', label: 'EL-18 (10 leaves separated)' },
-    { value: 'EL-23', label: 'EL-23 (50% caps off)' },
-    { value: 'EL-27', label: 'EL-27 (setting)' },
-    { value: 'EL-31', label: 'EL-31 (pea-size berries)' },
-    { value: 'EL-38', label: 'EL-38 (harvest ripe)' },
-  ];
-
-
 
   const load = async () => {
     try {
@@ -80,6 +81,14 @@ export default function RunCapture() {
 
   const fields = useMemo(() => readTemplateFields(template), [template]);
 
+  const blockMap = useMemo(() => {
+    const m = new Map();
+    for (const b of asArray(blocks)) {
+      m.set(String(b.id), b.name || `Block ${b.id}`);
+    }
+    return m;
+  }, [blocks]);
+
   const addSpot = () => {
     const tmp = {
       id: `tmp-${Date.now()}`,
@@ -88,6 +97,7 @@ export default function RunCapture() {
       observed_at: dayjs().toISOString(),
       values: {},
       photo_file_ids: [],
+      block_id: run?.block_id, // Pre-populate with run's block
       _isNew: true,
     };
     setSpots((prev) => [tmp, ...prev]);
@@ -139,7 +149,6 @@ export default function RunCapture() {
       if (s._isNew) {
         saved = await observationService.createSpot(Number(id), payload);
       } else {
-        // Some backends also expect run_id on PATCH; harmless if ignored.
         saved = await observationService.updateSpot(s.id, payload);
       }
 
@@ -155,12 +164,9 @@ export default function RunCapture() {
     }
   };
 
-
-
   const submitRun = async () => {
     try {
       setBusy(true);
-      // valid statuses: draft | in_progress | completed | cancelled
       await observationService.updateRun(id, {
         status: 'completed',
         completed_at: new Date().toISOString(),
@@ -189,19 +195,38 @@ export default function RunCapture() {
     }
   };
 
+  const completeAndStartNext = async () => {
+    if (!run?.plan_id) {
+      alert('No plan associated with this run - cannot start another.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'This will complete the current run and start a new one on a different block. Continue?'
+    );
+    if (!confirmed) return;
+
+    try {
+      setBusy(true);
+      await observationService.completeRun(id);
+      navigate(`/observations/runstart/${run.plan_id}`);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to complete run and start next.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const uploadFiles = async (idx, fileList) => {
     const s = spots[idx];
     if (!s || !fileList?.length) return;
     try {
       setBusy(true);
-      // simple sequential upload to keep it robust
       const uploadedIds = [];
       for (const f of fileList) {
         const fd = new FormData();
         fd.append('file', f);
-        // If your files service expects entity linkage, include it here
-        // fd.append('entity_type', 'observation_spot');
-        // fd.append('entity_id', s.id || '');
         const res = await api.post('/files/upload', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
@@ -232,20 +257,33 @@ export default function RunCapture() {
     );
   };
 
+  const isRunCompleted = run?.observed_at_end != null;
+
   return (
     <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button
           className="btn"
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
+          onClick={() => {
+            if (run?.plan_id) {
+              navigate(`/plandetail/${run.plan_id}`);
+            } else {
+              navigate('/observations');
+            }
+          }}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} /> {run?.plan_id ? 'Back to Plan' : 'Back'}
         </button>
       </div>
 
       <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <ClipboardList /> <span>Run Capture</span>
+        {run?.block_id && (
+          <span style={{ fontSize: 14, color: '#666' }}>
+            - {blockMap.get(String(run.block_id)) || `Block ${run.block_id}`}
+          </span>
+        )}
       </div>
 
       {loading && <div className="stat-card">Loading…</div>}
@@ -258,16 +296,53 @@ export default function RunCapture() {
             <div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>{run.name || `Run #${run.id}`}</div>
               <div style={{ color: '#666', marginTop: 4 }}>
-                Template: {template?.name || template?.type || template?.observation_type || `#${run.template_id}`} &nbsp;·&nbsp; Started: {run.started_at ? dayjs(run.started_at).format('YYYY-MM-DD HH:mm') : '—'}
+                Template: {template?.name || template?.type || template?.observation_type || `#${run.template_id}`}
+              </div>
+              <div style={{ color: '#666', fontSize: 14, marginTop: 2 }}>
+                Started: {run.observed_at_start ? dayjs(run.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}
+                {isRunCompleted && (
+                  <> • Completed: {dayjs(run.observed_at_end).format('YYYY-MM-DD HH:mm')}</>
+                )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" onClick={completeRun} disabled={busy} style={{ background: '#e0f2fe', color: '#075985', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <CheckCircle size={16} /> Complete
-              </button>
-              <button className="btn" onClick={submitRun} disabled={busy} style={{ background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Send size={16} /> Submit
-              </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {!isRunCompleted && (
+                <>
+                  <button 
+                    className="btn" 
+                    onClick={completeRun} 
+                    disabled={busy} 
+                    style={{ background: '#e0f2fe', color: '#075985', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <CheckCircle size={16} /> Complete
+                  </button>
+                  <button 
+                    className="btn" 
+                    onClick={submitRun} 
+                    disabled={busy} 
+                    style={{ background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Send size={16} /> Submit
+                  </button>
+                </>
+              )}
+              {run?.plan_id && (
+                <button
+                  className="btn"
+                  onClick={completeAndStartNext}
+                  disabled={busy}
+                  style={{ 
+                    background: '#059669', 
+                    color: '#fff', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: 6 
+                  }}
+                  title="Complete this run and start another block"
+                >
+                  <PlayCircle size={16} /> {isRunCompleted ? 'Start Next Block' : 'Complete & Start Next'}
+                </button>
+              )}
             </div>
           </section>
 
@@ -279,13 +354,22 @@ export default function RunCapture() {
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MapPin /> Spots ({spots.length})
               </h3>
-              <button className="btn" onClick={addSpot} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}>
-                <Plus size={16} /> Add Spot
-              </button>
+              {!isRunCompleted && (
+                <button 
+                  className="btn" 
+                  onClick={addSpot} 
+                  disabled={busy} 
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}
+                >
+                  <Plus size={16} /> Add Spot
+                </button>
+              )}
             </div>
 
             {spots.length === 0 && (
-              <div className="stat-card" style={{ color: '#777' }}>No spots yet—click “Add Spot” to begin.</div>
+              <div className="stat-card" style={{ color: '#777' }}>
+                {isRunCompleted ? 'No spots recorded in this run.' : 'No spots yet—click "Add Spot" to begin.'}
+              </div>
             )}
 
             <div style={{ display: 'grid', gap: 12 }}>
@@ -295,7 +379,9 @@ export default function RunCapture() {
                   idx={i}
                   spot={s}
                   fields={fields}
-                  blocks={blocks}            
+                  blocks={blocks}
+                  runBlockId={run.block_id}
+                  isRunCompleted={isRunCompleted}
                   onChange={updateSpot}
                   onSave={saveSpot}
                   onRemove={removeSpot}
@@ -314,9 +400,9 @@ export default function RunCapture() {
 }
 
 /* -----------------------------------
- * Spot Editor
+ * Enhanced Spot Editor with Block Locking
  * ----------------------------------- */
-function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove, onUpload, busy }) {
+function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted, onChange, onSave, onRemove, onUpload, busy }) {
   const values = spot.values || {};
 
   const setValue = (k, v) => {
@@ -330,21 +416,47 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
     </div>
   );
 
+  const isBlockLocked = runBlockId != null;
+
   return (
-    <div className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
+    <div 
+      className="stat-card" 
+      style={{ 
+        padding: 16, 
+        border: '1px solid #eee', 
+        borderRadius: 12, 
+        background: '#fff',
+        opacity: isRunCompleted ? 0.8 : 1
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-        <div style={{ fontWeight: 600 }}>Spot {spot.id?.toString().startsWith('tmp-') ? '(new)' : `#${spot.id}`}</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={() => onSave(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#4e638bff', color: '#fff' }}>
-            <Save size={16} /> Save
-          </button>
-          <button className="btn" onClick={() => onRemove(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#7f1d1d' }}>
-            <Trash2 size={16} /> Remove
-          </button>
+        <div style={{ fontWeight: 600 }}>
+          Spot {spot.id?.toString().startsWith('tmp-') ? '(new)' : `#${spot.id}`}
+          {isRunCompleted && <span style={{ color: '#666', fontSize: 14, marginLeft: 8 }}>(completed)</span>}
         </div>
+        {!isRunCompleted && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button 
+              className="btn" 
+              onClick={() => onSave(idx)} 
+              disabled={busy} 
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#4e638bff', color: '#fff' }}
+            >
+              <Save size={16} /> Save
+            </button>
+            <button 
+              className="btn" 
+              onClick={() => onRemove(idx)} 
+              disabled={busy} 
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#7f1d1d' }}
+            >
+              <Trash2 size={16} /> Remove
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Basic meta (optional in MVP) */}
+      {/* Basic meta */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
         <label>
           <div>Observed at</div>
@@ -352,20 +464,34 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
             type="datetime-local"
             value={spot.observed_at ? dayjs(spot.observed_at).format('YYYY-MM-DDTHH:mm') : ''}
             onChange={(e) => onChange(idx, { observed_at: new Date(e.target.value).toISOString() })}
+            disabled={isRunCompleted}
           />
         </label>
 
         <label>
-          <div>Block (optional)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Block
+            {isBlockLocked && <Lock size={14} color="#6b7280" />}
+          </div>
           <select
-            value={spot.block_id || ''}
+            value={spot.block_id || runBlockId || ''}
             onChange={(e) => onChange(idx, { block_id: e.target.value })}
+            disabled={isBlockLocked || isRunCompleted}
+            style={{ 
+              opacity: isBlockLocked ? 0.6 : 1,
+              cursor: isBlockLocked ? 'not-allowed' : 'pointer'
+            }}
           >
             <option value="">— Select block —</option>
             {(Array.isArray(blocks) ? blocks : []).map(b => (
               <option key={b.id} value={b.id}>{b.name || `Block ${b.id}`}</option>
             ))}
           </select>
+          {isBlockLocked && (
+            <small style={{ color: '#6b7280', fontSize: 11 }}>
+              Block locked to maintain run integrity
+            </small>
+          )}
         </label>
       </div>
 
@@ -376,6 +502,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
             placeholder="-41.28"
             value={spot.latitude ?? ''}
             onChange={(e) => onChange(idx, { latitude: e.target.value })}
+            disabled={isRunCompleted}
           />
         </label>
         <label>
@@ -384,6 +511,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
             placeholder="174.77"
             value={spot.longitude ?? ''}
             onChange={(e) => onChange(idx, { longitude: e.target.value })}
+            disabled={isRunCompleted}
           />
         </label>
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
@@ -403,6 +531,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
                 () => alert('Unable to get current location.')
               );
             }}
+            disabled={isRunCompleted}
             style={{ background: '#f3f4f6' }}
             title="Use current location"
           >
@@ -415,12 +544,14 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
       <div style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <strong>Photos</strong>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => onUpload(idx, e.target.files)}
-          />
+          {!isRunCompleted && (
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => onUpload(idx, e.target.files)}
+            />
+          )}
         </div>
         {!isEmpty(spot.photo_file_ids) && (
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
@@ -435,7 +566,13 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
           <div style={{ color: '#777' }}>No fields defined for this template.</div>
         )}
         {fields.map((f) => (
-          <FieldRenderer key={f.key || f.name} field={f} value={values[f.key || f.name]} onChange={(v) => setValue(f.key || f.name, v)} />
+          <FieldRenderer 
+            key={f.key || f.name} 
+            field={f} 
+            value={values[f.key || f.name]} 
+            onChange={(v) => setValue(f.key || f.name, v)}
+            disabled={isRunCompleted}
+          />
         ))}
       </div>
     </div>
@@ -443,9 +580,9 @@ function SpotEditor({ idx, spot, fields, blocks = [], onChange, onSave, onRemove
 }
 
 /* -----------------------------------
- * Field renderer (text/number/select/boolean)
+ * Enhanced Field renderer with disabled state
  * ----------------------------------- */
-function FieldRenderer({ field, value, onChange }) {
+function FieldRenderer({ field, value, onChange, disabled = false }) {
   const type = (field?.type || field?.input_type || 'text').toLowerCase();
   const label = field?.label || field?.name || field?.key || 'Field';
 
@@ -453,7 +590,12 @@ function FieldRenderer({ field, value, onChange }) {
     return (
       <label>
         <div>{label}</div>
-        <input type="number" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))} />
+        <input 
+          type="number" 
+          value={value ?? ''} 
+          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))} 
+          disabled={disabled}
+        />
       </label>
     );
   }
@@ -473,7 +615,7 @@ function FieldRenderer({ field, value, onChange }) {
     return (
       <label>
         <div>{label}</div>
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
           <option value="">— Select EL stage —</option>
           {options.map((opt) => {
             const val = opt?.value ?? opt?.key ?? opt;
@@ -490,7 +632,7 @@ function FieldRenderer({ field, value, onChange }) {
     return (
       <label>
         <div>{label}</div>
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
           <option value="">— Select —</option>
           {options.map((opt) => {
             const val = opt?.value ?? opt?.key ?? opt;
@@ -505,7 +647,12 @@ function FieldRenderer({ field, value, onChange }) {
   if (type === 'boolean' || type === 'checkbox') {
     return (
       <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        <input 
+          type="checkbox" 
+          checked={!!value} 
+          onChange={(e) => onChange(e.target.checked)} 
+          disabled={disabled}
+        />
         <span>{label}</span>
       </label>
     );
@@ -515,7 +662,11 @@ function FieldRenderer({ field, value, onChange }) {
   return (
     <label>
       <div>{label}</div>
-      <input value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
+      <input 
+        value={value ?? ''} 
+        onChange={(e) => onChange(e.target.value)} 
+        disabled={disabled}
+      />
     </label>
   );
 }

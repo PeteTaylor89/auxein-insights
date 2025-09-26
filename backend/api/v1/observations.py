@@ -300,19 +300,20 @@ def list_plans(
 
     return plans
 
-
-
 @router.get("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
 def get_plan(plan_id: int, db: Session = Depends(get_db)):
     plan = db.execute(
         select(ObservationPlan)
-        .options(selectinload(ObservationPlan.template))  # <-- Add this
+        .options(selectinload(ObservationPlan.template))
+        .options(selectinload(ObservationPlan.targets))
+        .options(selectinload(ObservationPlan.assignees))
         .where(ObservationPlan.id == plan_id)
     ).scalar_one_or_none()
     
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     
+    # Add template name for frontend
     plan.template_name = plan.template.name if plan.template else None
     return plan
 
@@ -368,10 +369,9 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
 # -----------------------------
 @router.post("/observation-runs", response_model=ObservationRunOut, status_code=status.HTTP_201_CREATED)
 def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # Resolve block_id:
+    # Resolve block_id (your existing logic)
     block_id = payload.block_id
 
-    # If created from a plan, try infer block_id only if the plan has exactly one target
     if not block_id and payload.plan_id:
         plan = db.get(ObservationPlan, payload.plan_id)
         if not plan:
@@ -389,27 +389,49 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
     if not block_id:
         raise HTTPException(status_code=400, detail="block_id is required for a run")
 
-    # Prevent overlapping active runs on the same block (end time is null == active)
-    exists_open = db.execute(
+    # ENHANCED: Check for plan+block conflicts specifically
+    if payload.plan_id:
+        exists_plan_block = db.execute(
+            select(ObservationRun.id).where(
+                ObservationRun.company_id == payload.company_id,
+                ObservationRun.plan_id == payload.plan_id,
+                ObservationRun.block_id == block_id,
+                ObservationRun.observed_at_end.is_(None),  # Still active
+            ).limit(1)
+        ).scalar()
+        
+        if exists_plan_block:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Active run #{exists_plan_block} exists for this plan and block combination. Complete it first or select a different block."
+            )
+    
+    # FALLBACK: Also check general block conflicts (your existing logic)
+    exists_general = db.execute(
         select(ObservationRun.id).where(
             ObservationRun.company_id == payload.company_id,
             ObservationRun.block_id == block_id,
             ObservationRun.observed_at_end.is_(None),
         ).limit(1)
     ).scalar()
-    if exists_open:
-        raise HTTPException(
-            status_code=409,
-            detail="An active run already exists on this block. Please complete or cancel it first."
-        )
+    
+    if exists_general:
+        # If it's a different plan, allow with warning context
+        existing_run = db.get(ObservationRun, exists_general)
+        if existing_run.plan_id != payload.plan_id:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Active run #{exists_general} from different plan exists on this block. Complete it first."
+            )
 
+    # Continue with your existing run creation logic...
     run = ObservationRun(
         company_id=payload.company_id,
         plan_id=payload.plan_id,
         template_id=payload.template_id,
         template_version=1,
         block_id=block_id,
-        name=f"Run – template {payload.template_id}",
+        name=f"Run — template {payload.template_id}",
         observed_at_start=payload.started_at or datetime.utcnow(),
         observed_at_end=None,
         photo_file_ids=[],
@@ -423,6 +445,37 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
     db.refresh(run)
     return run
 
+@router.get("/observation-runs/conflicts", response_model=List[ObservationRunOut])
+def check_run_conflicts(
+    plan_id: int,
+    block_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    company_id: Optional[int] = Query(None)
+):
+    """Check for active runs that would conflict with starting a new run"""
+    q = select(ObservationRun).where(
+        ObservationRun.observed_at_end.is_(None),  # Only active runs
+    )
+    
+    if company_id:
+        q = q.where(ObservationRun.company_id == company_id)
+    
+    if plan_id:
+        q = q.where(ObservationRun.plan_id == plan_id)
+        
+    if block_id:
+        q = q.where(ObservationRun.block_id == block_id)
+    
+    q = q.order_by(ObservationRun.created_at.desc())
+    
+    active_runs = db.execute(q).scalars().all()
+    
+    # Annotate with additional context
+    for r in active_runs:
+        r.plan_name = r.plan.name if r.plan else None
+        r.creator_name = r.creator.full_name if r.creator else None
+    
+    return active_runs
 
 @router.get("/observation-runs", response_model=List[ObservationRunOut])
 def list_runs(
@@ -503,7 +556,24 @@ def complete_run(run_id: int, db: Session = Depends(get_db)):
     db.refresh(run)
     return run
 
-
+@router.patch("/observation-runs/{run_id}/cancel", response_model=ObservationRunOut)
+def cancel_run(run_id: int, db: Session = Depends(get_db)):
+    """Cancel an active run"""
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    if run.observed_at_end:
+        raise HTTPException(status_code=400, detail="Run is already completed")
+    
+    run.observed_at_end = datetime.utcnow()
+    run.tags = (run.tags or []) + ["cancelled"]
+    
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+    
 # -----------------------------
 # Spots
 # -----------------------------

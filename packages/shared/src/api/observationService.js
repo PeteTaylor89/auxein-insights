@@ -51,6 +51,20 @@ const observationService = {
   updateRun: async (id, payload) => (await api.patch(`/observations/api/observation-runs/${id}`, payload)).data,
   completeRun: async (id) => (await api.post(`/observations/api/observation-runs/${id}/complete`, {})).data,
 
+  checkRunConflicts: async (planId, blockId = null, companyId = null) => {
+    const params = { plan_id: planId };
+    if (blockId) params.block_id = blockId;
+    if (companyId) params.company_id = companyId;
+    
+    const res = await api.get('/observations/api/observation-runs/conflicts', { params });
+    return res.data;
+  },
+
+  cancelRun: async (runId) => {
+    const res = await api.patch(`/observations/api/observation-runs/${runId}/cancel`);
+    return res.data;
+  },
+
   // Templates
   getTemplate: async (id) => (await api.get(`/observations/api/observation-templates/${id}`)).data,
 

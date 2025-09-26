@@ -131,7 +131,7 @@ export default function PlanDetail() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 className="btn"
-                onClick={() => navigate(`/planedit/${plan.id}`)}
+                onClick={() => navigate(`/observations/planedit/${plan.id}`)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3f4f6', color: '#111827' }}
               >
                 Edit Plan
