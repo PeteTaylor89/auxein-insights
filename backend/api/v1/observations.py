@@ -389,6 +389,44 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
     if not block_id:
         raise HTTPException(status_code=400, detail="block_id is required for a run")
 
+    # Handle free-form observations
+    template_id = payload.template_id
+    is_freeform = False
+    
+    # Check if this is a free-form observation based on summary_stats
+    if payload.summary_stats and payload.summary_stats.get('type') == 'freeform':
+        is_freeform = True
+        # Create or use a default "freeform" template
+        freeform_template = db.execute(
+            select(ObservationTemplate).where(
+                ObservationTemplate.name == "Free-form Observation",
+                ObservationTemplate.company_id.is_(None)  # System template
+            )
+        ).scalar_one_or_none()
+        
+        if not freeform_template:
+            # Create a basic free-form template if it doesn't exist
+            freeform_template = ObservationTemplate(
+                company_id=None,  # System template
+                name="Free-form Observation",
+                type="other",
+                version=1,
+                is_active=True,
+                fields_json=[{
+                    "name": "notes",
+                    "label": "Notes",
+                    "type": "textarea",
+                    "required": False
+                }],
+                defaults_json={},
+                validations_json={},
+                created_by=None,
+            )
+            db.add(freeform_template)
+            db.flush()
+        
+        template_id = freeform_template.id
+
     # ENHANCED: Check for plan+block conflicts specifically
     if payload.plan_id:
         exists_plan_block = db.execute(
@@ -424,19 +462,28 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
                 detail=f"Active run #{exists_general} from different plan exists on this block. Complete it first."
             )
 
+    # Generate appropriate name
+    run_name = f"Run — template {template_id}"
+    if is_freeform:
+        run_name = f"Free-form observation — {datetime.utcnow().strftime('%b %d, %H:%M')}"
+    elif payload.plan_id:
+        plan = db.get(ObservationPlan, payload.plan_id)
+        if plan:
+            run_name = f"Run — {plan.name}"
+
     # Continue with your existing run creation logic...
     run = ObservationRun(
         company_id=payload.company_id,
         plan_id=payload.plan_id,
-        template_id=payload.template_id,
+        template_id=template_id,
         template_version=1,
         block_id=block_id,
-        name=f"Run — template {payload.template_id}",
+        name=run_name,
         observed_at_start=payload.started_at or datetime.utcnow(),
         observed_at_end=None,
         photo_file_ids=[],
         document_file_ids=[],
-        tags=[],
+        tags=["freeform"] if is_freeform else [],
         summary_json=payload.summary_stats or {},
         created_by=payload.created_by or (getattr(user, "id", None)),
     )
@@ -574,6 +621,8 @@ def cancel_run(run_id: int, db: Session = Depends(get_db)):
     db.refresh(run)
     return run
     
+
+
 # -----------------------------
 # Spots
 # -----------------------------
@@ -600,15 +649,21 @@ def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(
         block_id=payload.block_id,
         row_id=payload.row_id,
         gps=gps_geom,
-        data_json=payload.values or {},
-        photo_file_ids=payload.photo_file_ids or [],
-        document_file_ids=payload.video_file_ids or [],  # if you keep videos separately, adjust model accordingly
-        created_by=payload.created_by or (getattr(user, "id", None)),
+        # <- canonical mapping: FE sends 'values', ORM stores 'data_json'
+        data_json=(payload.values or {}),
+        photo_file_ids=(payload.photo_file_ids or []),
+        # IMPORTANT: don't stuff videos into documents unless intentional.
+        # If you actually support docs, accept payload.document_file_ids; otherwise omit.
+        # document_file_ids=(getattr(payload, "document_file_ids", None) or []),
+        created_by=(payload.created_by or getattr(user, "id", None)),
     )
     db.add(spot)
     db.commit()
     db.refresh(spot)
+
+    # Return normalized shape (ensures 'values' exists on the wire)
     return spot
+
 
 @router.patch("/observation-spots/{spot_id}", response_model=ObservationSpotOut)
 def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depends(get_db)):
@@ -616,14 +671,29 @@ def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depe
     if not spot:
         raise HTTPException(status_code=404, detail="Spot not found")
 
-    if payload.block_id is not None: spot.block_id = payload.block_id
-    if payload.row_id is not None: spot.row_id = payload.row_id
-    if payload.observed_at is not None: spot.observed_at = payload.observed_at
-    if payload.values is not None: spot.data_json = payload.values
-    if payload.notes is not None:
-        # optional: keep notes inside data_json to avoid new DB column
+    # scalar fields
+    if payload.block_id is not None:
+        spot.block_id = payload.block_id
+    if payload.row_id is not None:
+        spot.row_id = payload.row_id
+    if payload.observed_at is not None:
+        spot.observed_at = payload.observed_at
+
+    # values / notes
+    if payload.values is not None:
+        spot.data_json = payload.values
+    if payload.notes is not None and payload.notes != "":
+        # keep notes inside data_json (merged, non-destructive)
         spot.data_json = {**(spot.data_json or {}), "_notes": payload.notes}
-    if payload.photo_file_ids is not None: spot.photo_file_ids = payload.photo_file_ids
+
+    # files
+    if payload.photo_file_ids is not None:
+        spot.photo_file_ids = payload.photo_file_ids
+    # if you do support docs/videos, add these as needed:
+    # if getattr(payload, "document_file_ids", None) is not None:
+    #     spot.document_file_ids = payload.document_file_ids
+    # if getattr(payload, "video_file_ids", None) is not None:
+    #     spot.video_file_ids = payload.video_file_ids
 
     # gps update
     if (payload.latitude is not None) and (payload.longitude is not None):
@@ -632,7 +702,10 @@ def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depe
     db.add(spot)
     db.commit()
     db.refresh(spot)
+
+    # Return normalized shape (ensures 'values' exists on the wire)
     return spot
+
 
 @router.delete("/observation-spots/{spot_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_spot(spot_id: int, db: Session = Depends(get_db)):

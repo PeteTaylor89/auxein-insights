@@ -201,9 +201,11 @@ class ObservationSpotOut(ObservationSpotBase):
     created_at: datetime
     updated_at: Optional[datetime]
     created_by: Optional[int] = None
-
+    values: Dict[str, Any] = Field(default_factory=dict, alias="data_json")
+    
     class Config:
         from_attributes = True
+        allow_population_by_field_name = True
 
 # ----- Task Link -----
 

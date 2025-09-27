@@ -51,6 +51,11 @@ const observationService = {
   updateRun: async (id, payload) => (await api.patch(`/observations/api/observation-runs/${id}`, payload)).data,
   completeRun: async (id) => (await api.post(`/observations/api/observation-runs/${id}/complete`, {})).data,
 
+  createRun: async (payload) => {
+    const res = await api.post('/observations/api/observation-runs', payload);
+    return res.data;
+  },
+
   checkRunConflicts: async (planId, blockId = null, companyId = null) => {
     const params = { plan_id: planId };
     if (blockId) params.block_id = blockId;

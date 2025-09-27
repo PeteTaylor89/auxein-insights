@@ -13,7 +13,8 @@ import {
   CheckCircle, 
   Send,
   PlayCircle,
-  Lock
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 import { observationService, authService, api, blocksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
@@ -64,7 +65,7 @@ export default function RunCapture() {
       const blks = await blocksService.getCompanyBlocks().catch(() => []);
       setRun(r);
       setTemplate(tpl || null);
-      setSpots(asArray(sp));
+      setSpots(asArray(sp).map(normalizeSpot));
       setBlocks(asArray(blks));
     } catch (e) {
       console.error(e);
@@ -73,6 +74,17 @@ export default function RunCapture() {
       setLoading(false);
     }
   };
+
+  function normalizeSpot(s) {
+    if (!s) return s;
+    return {
+      ...s,
+      values: s?.values ?? s?.data_json ?? {}, // defensive: always provide 'values'
+      photo_file_ids: s?.photo_file_ids ?? [],          // keep name stable
+      _isNew: false,
+      _hasUnsavedChanges: false,
+    };
+  }
 
   useEffect(() => {
     load();
@@ -90,8 +102,9 @@ export default function RunCapture() {
   }, [blocks]);
 
   const addSpot = () => {
+    const tmpId = `tmp-${Date.now()}`;
     const tmp = {
-      id: `tmp-${Date.now()}`,
+      id: tmpId,
       run_id: Number(id),
       company_id: companyId,
       observed_at: dayjs().toISOString(),
@@ -99,23 +112,39 @@ export default function RunCapture() {
       photo_file_ids: [],
       block_id: run?.block_id, // Pre-populate with run's block
       _isNew: true,
+      _hasUnsavedChanges: false, // Track if there are unsaved changes
     };
     setSpots((prev) => [tmp, ...prev]);
   };
 
   const updateSpot = (idx, patch) => {
     setSpots((prev) =>
-      prev.map((s, i) => (i === idx ? { ...s, ...patch, values: { ...(s.values || {}), ...(patch.values || {}) } } : s))
+      prev.map((s, i) => {
+        if (i === idx) {
+          const updated = { 
+            ...s, 
+            ...patch, 
+            values: { ...(s.values || {}), ...(patch.values || {}) },
+            _hasUnsavedChanges: true // Mark as having unsaved changes
+          };
+          return updated;
+        }
+        return s;
+      })
     );
   };
 
   const removeSpot = async (idx) => {
     const s = spots[idx];
     if (!s) return;
+    
     if (s._isNew) {
+      // Just remove from frontend if it's new
       setSpots((prev) => prev.filter((_, i) => i !== idx));
       return;
     }
+    
+    // Delete from backend if it exists
     try {
       setBusy(true);
       await observationService.deleteSpot(s.id);
@@ -131,8 +160,11 @@ export default function RunCapture() {
   const saveSpot = async (idx) => {
     const s = spots[idx];
     if (!s) return;
+    
     try {
       setBusy(true);
+      
+      // Use your original payload structure exactly
       const payload = {
         run_id: Number(id),
         company_id: companyId,
@@ -145,26 +177,65 @@ export default function RunCapture() {
         longitude: typeof s.longitude === 'string' ? Number(s.longitude) : s.longitude ?? null,
       };
 
+      console.log('Saving spot with payload:', payload);
+
       let saved;
       if (s._isNew) {
         saved = await observationService.createSpot(Number(id), payload);
       } else {
         saved = await observationService.updateSpot(s.id, payload);
       }
-
-      setSpots((prev) =>
-        prev.map((x, i) => (i === idx ? { ...(saved || s), _isNew: false } : x))
+      const serverSpot = (saved && saved.data) ? saved.data : saved;
+      const updated = normalizeSpot(serverSpot || s);
+      const matchId = s.id;
+      setSpots(prev =>
+        prev.map(x => (x.id === matchId ? { ...updated, _isNew: false, _hasUnsavedChanges: false } : x))    
       );
+
+
     } catch (e) {
-      console.error(e);
-      const detail = e?.response?.data?.detail || e?.message || 'Failed to save spot';
-      alert(Array.isArray(detail) ? detail[0]?.msg || 'Failed to save spot' : String(detail));
+      console.error('Failed to save spot:', e);
+      const detail = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Failed to save spot';
+      alert(Array.isArray(detail) ? detail[0]?.msg || 'Failed to save spot.' : String(detail));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // FIXED: Auto-save unsaved spots before completing run
+  const saveAllUnsavedSpots = async () => {
+    const unsavedSpots = spots
+      .map((spot, index) => ({ spot, index }))
+      .filter(({ spot }) => spot._hasUnsavedChanges || spot._isNew);
+    
+    if (unsavedSpots.length === 0) {
+      return true; // No unsaved spots
+    }
+
+    try {
+      setBusy(true);
+      console.log(`Saving ${unsavedSpots.length} unsaved spots...`);
+      
+      // Save all unsaved spots
+      for (const { spot, index } of unsavedSpots) {
+        await saveSpot(index);
+      }
+      
+      return true;
+    } catch (e) {
+      console.error('Failed to save all spots:', e);
+      alert('Failed to save all spots. Please save them manually before completing the run.');
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
   const submitRun = async () => {
+    // First, save any unsaved spots
+    const allSaved = await saveAllUnsavedSpots();
+    if (!allSaved) return;
+
     try {
       setBusy(true);
       await observationService.updateRun(id, {
@@ -182,6 +253,10 @@ export default function RunCapture() {
   };
 
   const completeRun = async () => {
+    // First, save any unsaved spots
+    const allSaved = await saveAllUnsavedSpots();
+    if (!allSaved) return;
+
     try {
       setBusy(true);
       await observationService.completeRun(id);
@@ -200,6 +275,10 @@ export default function RunCapture() {
       alert('No plan associated with this run - cannot start another.');
       return;
     }
+
+    // First, save any unsaved spots
+    const allSaved = await saveAllUnsavedSpots();
+    if (!allSaved) return;
 
     const confirmed = window.confirm(
       'This will complete the current run and start a new one on a different block. Continue?'
@@ -258,6 +337,7 @@ export default function RunCapture() {
   };
 
   const isRunCompleted = run?.observed_at_end != null;
+  const hasUnsavedSpots = spots.some(s => s._hasUnsavedChanges || s._isNew);
 
   return (
     <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
@@ -291,6 +371,19 @@ export default function RunCapture() {
 
       {!loading && !error && run && (
         <div className="grid" style={{ display: 'grid', gap: 16 }}>
+          {/* Unsaved changes warning */}
+          {hasUnsavedSpots && !isRunCompleted && (
+            <section className="stat-card" style={{ background: '#fef3c7', border: '1px solid #fbbf24' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={16} color="#f59e0b" />
+                <div style={{ color: '#92400e' }}>
+                  You have {spots.filter(s => s._hasUnsavedChanges || s._isNew).length} unsaved spot(s). 
+                  Save them individually or they'll be auto-saved when you complete the run.
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Run header */}
           <section className="stat-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
             <div>
@@ -400,10 +493,11 @@ export default function RunCapture() {
 }
 
 /* -----------------------------------
- * Enhanced Spot Editor with Block Locking
+ * Enhanced Spot Editor with save status tracking
  * ----------------------------------- */
 function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted, onChange, onSave, onRemove, onUpload, busy }) {
   const values = spot.values || {};
+  const hasUnsavedChanges = spot._hasUnsavedChanges || spot._isNew;
 
   const setValue = (k, v) => {
     onChange(idx, { values: { ...values, [k]: v } });
@@ -423,7 +517,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
       className="stat-card" 
       style={{ 
         padding: 16, 
-        border: '1px solid #eee', 
+        border: hasUnsavedChanges ? '2px solid #f59e0b' : '1px solid #eee', 
         borderRadius: 12, 
         background: '#fff',
         opacity: isRunCompleted ? 0.8 : 1
@@ -432,6 +526,9 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <div style={{ fontWeight: 600 }}>
           Spot {spot.id?.toString().startsWith('tmp-') ? '(new)' : `#${spot.id}`}
+          {hasUnsavedChanges && (
+            <span style={{ color: '#f59e0b', fontSize: 12, marginLeft: 8 }}>• Unsaved changes</span>
+          )}
           {isRunCompleted && <span style={{ color: '#666', fontSize: 14, marginLeft: 8 }}>(completed)</span>}
         </div>
         {!isRunCompleted && (
@@ -440,7 +537,13 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
               className="btn" 
               onClick={() => onSave(idx)} 
               disabled={busy} 
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#4e638bff', color: '#fff' }}
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: 6, 
+                background: hasUnsavedChanges ? '#f59e0b' : '#4e638bff', 
+                color: '#fff'
+              }}
             >
               <Save size={16} /> Save
             </button>
@@ -580,7 +683,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
 }
 
 /* -----------------------------------
- * Enhanced Field renderer with disabled state
+ * Field renderer
  * ----------------------------------- */
 function FieldRenderer({ field, value, onChange, disabled = false }) {
   const type = (field?.type || field?.input_type || 'text').toLowerCase();

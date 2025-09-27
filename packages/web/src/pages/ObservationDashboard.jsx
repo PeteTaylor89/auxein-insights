@@ -49,7 +49,7 @@ export default function ObservationDashboard() {
 
           <button
             className="btn"
-            onClick={() => navigate('/observations/runs/new-ad-hoc')}
+            onClick={() => navigate('/observations/adhoc')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#10b981', color: '#fff' }}
             title="Start a one-off run without a plan"
           >

@@ -20,6 +20,7 @@ export default function PlanDetail() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showBlockSelector, setShowBlockSelector] = useState(false);
 
   const load = async () => {
     try {
@@ -75,12 +76,13 @@ export default function PlanDetail() {
     return <span style={{ ...base, ...(colors[s] || colors.default) }}>{s || '—'}</span>;
   };
 
-  const startRun = async () => {
+  const startRunForTarget = async (targetBlockId) => {
     try {
       setBusy(true);
       const run = await observationService.startRun(plan.id, {
         template_id: plan.template_id,
         company_id: companyId,
+        block_id: targetBlockId, // Pass the specific block ID
       });
       if (!run?.id) throw new Error('Run not created');
       navigate(`/observations/runcapture/${run.id}`);
@@ -93,10 +95,116 @@ export default function PlanDetail() {
     }
   };
 
+  const startRunGeneral = async () => {
+    const targets = plan.targets || [];
+    
+    if (targets.length === 0) {
+      alert('No targets configured for this plan.');
+      return;
+    }
+    
+    if (targets.length === 1) {
+      // Single target - start run directly
+      await startRunForTarget(targets[0].block_id);
+      return;
+    }
+    
+    // Multiple targets - show block selector
+    setShowBlockSelector(true);
+  };
+
   const canStart = () => {
     if (!plan) return false;
     if (['canceled', 'cancelled', 'completed'].includes(plan.status)) return false;
     return true;
+  };
+
+  const BlockSelectorModal = () => {
+    if (!showBlockSelector) return null;
+    
+    const targets = plan.targets || [];
+    
+    return (
+      <div 
+        style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          zIndex: 1000
+        }}
+        onClick={() => setShowBlockSelector(false)}
+      >
+        <div 
+          className="stat-card"
+          style={{ 
+            minWidth: 400, 
+            maxWidth: 600,
+            margin: 16
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ marginTop: 0 }}>Select Block to Start Run</h3>
+          <p style={{ color: '#666', marginBottom: 16 }}>
+            This plan has multiple targets. Choose which block to run:
+          </p>
+          
+          <div style={{ display: 'grid', gap: 8 }}>
+            {targets.map((target, idx) => {
+              const blockName = blockMap.get(String(target.block_id)) || `Block ${target.block_id}`;
+              const rowLabels = target.row_labels || [];
+              const rowInfo = rowLabels.length > 0 
+                ? ` (Rows: ${rowLabels[0]}${rowLabels.length > 1 ? ` - ${rowLabels[rowLabels.length - 1]}` : ''})`
+                : '';
+              
+              return (
+                <button
+                  key={idx}
+                  className="btn"
+                  onClick={() => {
+                    setShowBlockSelector(false);
+                    startRunForTarget(target.block_id);
+                  }}
+                  disabled={busy}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: 12,
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    textAlign: 'left'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{blockName}</div>
+                    <div style={{ fontSize: 12, color: '#666' }}>
+                      {target.sample_size || 0} spots required{rowInfo}
+                    </div>
+                  </div>
+                  <PlayCircle size={16} />
+                </button>
+              );
+            })}
+          </div>
+          
+          <div style={{ marginTop: 16, textAlign: 'right' }}>
+            <button 
+              className="btn" 
+              onClick={() => setShowBlockSelector(false)}
+              style={{ background: '#f3f4f6' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -139,7 +247,7 @@ export default function PlanDetail() {
               <button
                 className="btn"
                 disabled={!canStart() || busy}
-                onClick={startRun}
+                onClick={startRunGeneral}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}
                 title="Start a run for this plan"
               >
@@ -169,12 +277,13 @@ export default function PlanDetail() {
                     <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Row Start</th>
                     <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Row End</th>
                     <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Required Spots</th>
+                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(!plan.targets || plan.targets.length === 0) && (
                     <tr>
-                      <td colSpan={4} style={{ padding: 16, textAlign: 'center', color: '#777' }}>
+                      <td colSpan={5} style={{ padding: 16, textAlign: 'center', color: '#777' }}>
                         No targets specified.
                       </td>
                     </tr>
@@ -192,6 +301,25 @@ export default function PlanDetail() {
                         <td style={{ padding: 12 }}>{rowStart}</td>
                         <td style={{ padding: 12 }}>{rowEnd}</td>
                         <td style={{ padding: 12 }}>{safe(t.sample_size, 0)}</td>
+                        <td style={{ padding: 12 }}>
+                          <button
+                            className="btn"
+                            disabled={!canStart() || busy}
+                            onClick={() => startRunForTarget(blockId)}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: 6, 
+                              background: '#10b981', 
+                              color: '#fff',
+                              fontSize: 12,
+                              padding: '4px 8px'
+                            }}
+                            title={`Start run for ${blockName}`}
+                          >
+                            <PlayCircle size={14} /> Start
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -258,6 +386,8 @@ export default function PlanDetail() {
           <MobileNavigation />
         </div>
       )}
+      
+      <BlockSelectorModal />
     </div>
   );
 }
