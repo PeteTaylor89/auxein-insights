@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { 
   ClipboardList, 
@@ -22,6 +23,40 @@ import MobileNavigation from '../components/MobileNavigation';
 // Helpers
 const asArray = (v) => Array.isArray(v) ? v : (v?.items ?? v?.results ?? v?.data ?? []);
 const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
+
+// File service for photos
+const observationFileService = {
+  uploadSpotPhoto: async (spotId, file, onProgress = null) => {
+    const formData = new FormData();
+    formData.append('entity_type', 'observation_spot');
+    formData.append('entity_id', spotId);
+    formData.append('file_category', 'photo');
+    formData.append('description', `Observation spot photo: ${file.name}`);
+    formData.append('file', file);
+    
+    return await api.post('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress) {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percentCompleted);
+        }
+      }
+    });
+  },
+
+  getSpotPhotos: async (spotId) => {
+    const res = await api.get(`/files/entity/observation_spot/${spotId}?file_category=photo`);
+    return res.data;
+  },
+
+  deletePhoto: async (fileId) => {
+    const res = await api.delete(`/files/${fileId}`);
+    return res.data;
+  }
+};
 
 function readTemplateFields(template) {
   if (!template) return [];
@@ -54,6 +89,10 @@ export default function RunCapture() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [blocks, setBlocks] = useState([]);
+  
+  // Photo upload states
+  const [photoUploading, setPhotoUploading] = useState({});
+  const [uploadProgress, setUploadProgress] = useState({});
 
   const load = async () => {
     try {
@@ -65,7 +104,40 @@ export default function RunCapture() {
       const blks = await blocksService.getCompanyBlocks().catch(() => []);
       setRun(r);
       setTemplate(tpl || null);
-      setSpots(asArray(sp).map(normalizeSpot));
+      
+      // Load spots and their photos
+      const normalizedSpots = await Promise.all(
+        asArray(sp).map(async (spot) => {
+          const normalized = normalizeSpot(spot);
+          if (!normalized._isNew && normalized.id) {
+            try {
+              const photos = await observationFileService.getSpotPhotos(normalized.id);
+              
+              // Convert to blob URLs like training modules do
+              const photosWithBlobUrls = await Promise.all(
+                photos.map(async (photo) => {
+                  try {
+                    const resp = await api.get(`/files/${photo.id}/download`, { responseType: 'blob' });
+                    const blobUrl = URL.createObjectURL(resp.data);
+                    return { ...photo, blob_url: blobUrl };
+                  } catch (error) {
+                    console.warn('Failed to load photo blob:', photo.id, error);
+                    return { ...photo, blob_url: null };
+                  }
+                })
+              );
+              
+              normalized.photos = photosWithBlobUrls;
+            } catch (error) {
+              console.warn('Failed to load photos for spot:', normalized.id, error);
+              normalized.photos = [];
+            }
+          }
+          return normalized;
+        })
+      );
+      
+      setSpots(normalizedSpots);
       setBlocks(asArray(blks));
     } catch (e) {
       console.error(e);
@@ -79,8 +151,9 @@ export default function RunCapture() {
     if (!s) return s;
     return {
       ...s,
-      values: s?.values ?? s?.data_json ?? {}, // defensive: always provide 'values'
-      photo_file_ids: s?.photo_file_ids ?? [],          // keep name stable
+      values: s?.values ?? s?.data_json ?? {},
+      photo_file_ids: s?.photo_file_ids ?? [],
+      photos: [], // Will be populated by loadSpotPhotos
       _isNew: false,
       _hasUnsavedChanges: false,
     };
@@ -110,9 +183,10 @@ export default function RunCapture() {
       observed_at: dayjs().toISOString(),
       values: {},
       photo_file_ids: [],
-      block_id: run?.block_id, // Pre-populate with run's block
+      photos: [],
+      block_id: run?.block_id,
       _isNew: true,
-      _hasUnsavedChanges: false, // Track if there are unsaved changes
+      _hasUnsavedChanges: false,
     };
     setSpots((prev) => [tmp, ...prev]);
   };
@@ -125,7 +199,7 @@ export default function RunCapture() {
             ...s, 
             ...patch, 
             values: { ...(s.values || {}), ...(patch.values || {}) },
-            _hasUnsavedChanges: true // Mark as having unsaved changes
+            _hasUnsavedChanges: true
           };
           return updated;
         }
@@ -139,12 +213,10 @@ export default function RunCapture() {
     if (!s) return;
     
     if (s._isNew) {
-      // Just remove from frontend if it's new
       setSpots((prev) => prev.filter((_, i) => i !== idx));
       return;
     }
     
-    // Delete from backend if it exists
     try {
       setBusy(true);
       await observationService.deleteSpot(s.id);
@@ -164,7 +236,6 @@ export default function RunCapture() {
     try {
       setBusy(true);
       
-      // Use your original payload structure exactly
       const payload = {
         run_id: Number(id),
         company_id: companyId,
@@ -185,13 +256,25 @@ export default function RunCapture() {
       } else {
         saved = await observationService.updateSpot(s.id, payload);
       }
+      
       const serverSpot = (saved && saved.data) ? saved.data : saved;
       const updated = normalizeSpot(serverSpot || s);
+      
+      // Load photos for the saved spot
+      if (!updated._isNew && updated.id) {
+        try {
+          const photos = await observationFileService.getSpotPhotos(updated.id);
+          updated.photos = Array.isArray(photos) ? photos : [];
+        } catch (error) {
+          console.warn('Failed to load photos after save:', error);
+          updated.photos = s.photos || [];
+        }
+      }
+      
       const matchId = s.id;
       setSpots(prev =>
         prev.map(x => (x.id === matchId ? { ...updated, _isNew: false, _hasUnsavedChanges: false } : x))    
       );
-
 
     } catch (e) {
       console.error('Failed to save spot:', e);
@@ -202,21 +285,19 @@ export default function RunCapture() {
     }
   };
 
-  // FIXED: Auto-save unsaved spots before completing run
   const saveAllUnsavedSpots = async () => {
     const unsavedSpots = spots
       .map((spot, index) => ({ spot, index }))
       .filter(({ spot }) => spot._hasUnsavedChanges || spot._isNew);
     
     if (unsavedSpots.length === 0) {
-      return true; // No unsaved spots
+      return true;
     }
 
     try {
       setBusy(true);
       console.log(`Saving ${unsavedSpots.length} unsaved spots...`);
       
-      // Save all unsaved spots
       for (const { spot, index } of unsavedSpots) {
         await saveSpot(index);
       }
@@ -231,8 +312,97 @@ export default function RunCapture() {
     }
   };
 
+  const uploadPhotos = async (spotIndex, fileList) => {
+    const spot = spots[spotIndex];
+    if (!spot || !fileList?.length) return;
+    
+    // If spot is new, save it first
+    if (spot._isNew) {
+      await saveSpot(spotIndex);
+      // Get the updated spot after saving
+      const savedSpot = spots[spotIndex];
+      if (savedSpot._isNew) {
+        alert('Please save the spot first before uploading photos.');
+        return;
+      }
+    }
+    
+    setPhotoUploading(prev => ({ ...prev, [spotIndex]: true }));
+    
+    try {
+      const uploadedFiles = [];
+      
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const result = await observationFileService.uploadSpotPhoto(
+          spot.id,
+          file,
+          (progress) => setUploadProgress(prev => ({ 
+            ...prev, 
+            [`${spotIndex}-${i}`]: progress 
+          }))
+        );
+        uploadedFiles.push(result.data);
+      }
+      
+      // Refresh spot photos
+      await refreshSpotPhotos(spotIndex);
+      
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Photo upload failed: ' + error.message);
+    } finally {
+      setPhotoUploading(prev => ({ ...prev, [spotIndex]: false }));
+      setUploadProgress(prev => {
+        const updated = { ...prev };
+        for (let i = 0; i < fileList.length; i++) {
+          delete updated[`${spotIndex}-${i}`];
+        }
+        return updated;
+      });
+    }
+  };
+
+  const refreshSpotPhotos = async (spotIndex) => {
+    const spot = spots[spotIndex];
+    if (!spot?.id || spot._isNew) return;
+    
+    try {
+      const photos = await observationFileService.getSpotPhotos(spot.id);
+      
+      // Convert to blob URLs like training modules do
+      const photosWithBlobUrls = await Promise.all(
+        photos.map(async (photo) => {
+          try {
+            const resp = await api.get(`/files/${photo.id}/download`, { responseType: 'blob' });
+            const blobUrl = URL.createObjectURL(resp.data);
+            return { ...photo, blob_url: blobUrl };
+          } catch (error) {
+            console.warn('Failed to load photo blob:', photo.id, error);
+            return { ...photo, blob_url: null };
+          }
+        })
+      );
+      
+      setSpots(prev => prev.map((s, i) => 
+        i === spotIndex ? { ...s, photos: photosWithBlobUrls } : s
+      ));
+    } catch (error) {
+      console.warn('Failed to refresh photos:', error);
+    }
+  };
+
+  const deletePhoto = async (spotIndex, photoId) => {
+    try {
+      await observationFileService.deletePhoto(photoId);
+      await refreshSpotPhotos(spotIndex);
+    } catch (error) {
+      console.error('Failed to delete photo:', error);
+      alert('Failed to delete photo: ' + error.message);
+    }
+  };
+
   const submitRun = async () => {
-    // First, save any unsaved spots
     const allSaved = await saveAllUnsavedSpots();
     if (!allSaved) return;
 
@@ -253,7 +423,6 @@ export default function RunCapture() {
   };
 
   const completeRun = async () => {
-    // First, save any unsaved spots
     const allSaved = await saveAllUnsavedSpots();
     if (!allSaved) return;
 
@@ -276,7 +445,6 @@ export default function RunCapture() {
       return;
     }
 
-    // First, save any unsaved spots
     const allSaved = await saveAllUnsavedSpots();
     if (!allSaved) return;
 
@@ -292,32 +460,6 @@ export default function RunCapture() {
     } catch (e) {
       console.error(e);
       alert('Failed to complete run and start next.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const uploadFiles = async (idx, fileList) => {
-    const s = spots[idx];
-    if (!s || !fileList?.length) return;
-    try {
-      setBusy(true);
-      const uploadedIds = [];
-      for (const f of fileList) {
-        const fd = new FormData();
-        fd.append('file', f);
-        const res = await api.post('/files/upload', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        const fileId = res?.data?.id || res?.data?.file_id;
-        if (fileId) uploadedIds.push(fileId);
-      }
-      const nextIds = [...(s.photo_file_ids || []), ...uploadedIds];
-      updateSpot(idx, { photo_file_ids: nextIds });
-      alert(`${uploadedIds.length} file(s) added to spot.`);
-    } catch (e) {
-      console.error(e);
-      alert('Upload failed.');
     } finally {
       setBusy(false);
     }
@@ -371,7 +513,6 @@ export default function RunCapture() {
 
       {!loading && !error && run && (
         <div className="grid" style={{ display: 'grid', gap: 16 }}>
-          {/* Unsaved changes warning */}
           {hasUnsavedSpots && !isRunCompleted && (
             <section className="stat-card" style={{ background: '#fef3c7', border: '1px solid #fbbf24' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -384,7 +525,6 @@ export default function RunCapture() {
             </section>
           )}
 
-          {/* Run header */}
           <section className="stat-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>{run.name || `Run #${run.id}`}</div>
@@ -441,7 +581,6 @@ export default function RunCapture() {
 
           <Summary />
 
-          {/* Spots */}
           <section>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -474,11 +613,14 @@ export default function RunCapture() {
                   fields={fields}
                   blocks={blocks}
                   runBlockId={run.block_id}
+                  template={template}
                   isRunCompleted={isRunCompleted}
                   onChange={updateSpot}
                   onSave={saveSpot}
                   onRemove={removeSpot}
-                  onUpload={uploadFiles}
+                  onUpload={uploadPhotos}
+                  onDeletePhoto={deletePhoto}
+                  photoUploading={photoUploading[i]}
                   busy={busy}
                 />
               ))}
@@ -493,9 +635,10 @@ export default function RunCapture() {
 }
 
 /* -----------------------------------
- * Enhanced Spot Editor with save status tracking
+ * Enhanced Spot Editor with photo management
  * ----------------------------------- */
-function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted, onChange, onSave, onRemove, onUpload, busy }) {
+function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRunCompleted, onChange, onSave, onRemove, onUpload, onDeletePhoto, photoUploading, busy }) {
+  const fileInputRef = useRef(null);
   const values = spot.values || {};
   const hasUnsavedChanges = spot._hasUnsavedChanges || spot._isNew;
 
@@ -503,13 +646,215 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
     onChange(idx, { values: { ...values, [k]: v } });
   };
 
-  const thumb = (fid) => (
-    <div key={fid} style={{ width: 64, height: 64, background: '#f3f4f6', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-      <ImageIcon size={20} />
-      <div style={{ position: 'absolute', bottom: 2, right: 4, fontSize: 10, color: '#6b7280' }}>#{fid}</div>
-    </div>
-  );
+  const PhotoGallery = ({ photos, onDelete, disabled }) => {
+    const [enlargedPhoto, setEnlargedPhoto] = useState(null);
+    
+    // Handle escape key and body scroll - same pattern as TemplatePreviewModal
+    useEffect(() => {
+      if (!enlargedPhoto) return;
+      
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          setEnlargedPhoto(null);
+        }
+      };
+      
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', handleEscape);
+     
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.body.style.overflow = originalOverflow;
+      };
+    }, [enlargedPhoto]);
+    
+    if (!photos?.length) return null;
+    
+    const handleDeleteClick = (photo) => {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete this photo?\n\nFilename: ${photo.original_filename}\nSize: ${Math.round(photo.file_size / 1024)}KB\n\nThis action cannot be undone.`
+      );
+      if (confirmed) {
+        onDelete(photo.id);
+      }
+    };
 
+    const handleBackdropClick = (e) => {
+      // Same pattern as TemplatePreviewModal
+      if (e.target === e.currentTarget) {
+        setEnlargedPhoto(null);
+      }
+    };
+    
+    const modalContent = enlargedPhoto ? (
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20,
+          zIndex: 9999
+        }}
+        onClick={handleBackdropClick}
+      >
+        <div
+          style={{
+            position: 'relative',
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <img 
+            src={enlargedPhoto.blob_url}
+            alt={enlargedPhoto.description || 'Observation photo'}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: 8
+            }}
+          />
+          
+          {/* Close button */}
+          <button
+            onClick={() => setEnlargedPhoto(null)}
+            style={{
+              position: 'absolute',
+              top: -15,
+              right: -15,
+              width: 40,
+              height: 40,
+              backgroundColor: '#dc2626',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              fontSize: 20,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+            }}
+          >
+            ×
+          </button>
+          
+          {/* Photo info */}
+          <div style={{
+            position: 'absolute',
+            bottom: -50,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 6,
+            fontSize: 14,
+            textAlign: 'center',
+            whiteSpace: 'nowrap'
+          }}>
+            {enlargedPhoto.original_filename} ({Math.round(enlargedPhoto.file_size / 1024)}KB)
+          </div>
+        </div>
+      </div>
+    ) : null;
+    
+    return (
+      <>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          {photos.map(photo => (
+            <div key={photo.id} style={{ 
+              position: 'relative',
+              width: 80, 
+              height: 80, 
+              borderRadius: 8,
+              overflow: 'hidden',
+              border: '1px solid #e5e7eb'
+            }}>
+              {photo.blob_url ? (
+                <img 
+                  src={photo.blob_url}
+                  alt={photo.description || 'Observation photo'}
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setEnlargedPhoto(photo)}
+                  title="Click to enlarge"
+                />
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  background: '#f3f4f6',
+                  color: '#6b7280',
+                  fontSize: 12
+                }}>
+                  Failed to load
+                </div>
+              )}
+              
+              {!disabled && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(photo);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    background: 'rgba(220, 38, 38, 0.8)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    fontSize: 12,
+                    cursor: 'pointer'
+                  }}
+                  title="Delete photo"
+                >
+                  ×
+                </button>
+              )}
+              
+              <div style={{
+                position: 'absolute',
+                bottom: 2,
+                left: 2,
+                fontSize: 10,
+                color: 'white',
+                background: 'rgba(0,0,0,0.6)',
+                padding: '2px 4px',
+                borderRadius: 2
+              }}>
+                {Math.round(photo.file_size / 1024)}KB
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Render modal using createPortal - same as TemplatePreviewModal */}
+        {modalContent && createPortal(modalContent, document.body)}
+      </>
+    );
+  };
+  
   const isBlockLocked = runBlockId != null;
 
   return (
@@ -643,22 +988,48 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
         </div>
       </div>
 
-      {/* Files */}
+      {/* Photos */}
       <div style={{ marginTop: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <strong>Photos</strong>
           {!isRunCompleted && (
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => onUpload(idx, e.target.files)}
-            />
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => onUpload(idx, e.target.files)}
+                style={{ display: 'none' }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy || photoUploading}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: photoUploading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {photoUploading ? 'Uploading...' : 'Add Photos'}
+              </button>
+            </>
           )}
         </div>
-        {!isEmpty(spot.photo_file_ids) && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            {(spot.photo_file_ids || []).map(thumb)}
+        
+        <PhotoGallery 
+          photos={spot.photos || []}
+          onDelete={(photoId) => onDeletePhoto(idx, photoId)}
+          disabled={isRunCompleted}
+        />
+        
+        {photoUploading && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>
+            Uploading photos... Please wait.
           </div>
         )}
       </div>
@@ -675,6 +1046,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
             value={values[f.key || f.name]} 
             onChange={(v) => setValue(f.key || f.name, v)}
             disabled={isRunCompleted}
+            template={template}
           />
         ))}
       </div>
@@ -683,11 +1055,102 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, isRunCompleted
 }
 
 /* -----------------------------------
- * Field renderer
+ * Field renderer with EL stages support
  * ----------------------------------- */
-function FieldRenderer({ field, value, onChange, disabled = false }) {
+function FieldRenderer({ field, value, onChange, disabled = false, template }) {
   const type = (field?.type || field?.input_type || 'text').toLowerCase();
   const label = field?.label || field?.name || field?.key || 'Field';
+  // NEW: field-scoped checks
+  const optionsCatalog = String(field?.options_source?.catalog || '').toLowerCase();
+  const isElStageCatalog = optionsCatalog === 'el_stage';
+  const isElStageFieldName = /^(el[_-]?stage)$/i.test(field?.name || field?.key || '');
+  const isExplicitPhenologyType = type === 'phenology';
+
+  // When to TREAT the field as an EL-stage field (for loading & select options)
+  const isPhenologyField = isElStageCatalog || isElStageFieldName || isExplicitPhenologyType;
+
+  // When to SHOW the visual helpers (description/images)
+  // — only when caller explicitly asked for guides
+  const showPhenologyGuides = isPhenologyField && field?.show_guide === true;
+
+  const [elStages, setElStages] = useState([]);
+  const [selectedStage, setSelectedStage] = useState(null);
+  const [loadingStages, setLoadingStages] = useState(false);
+
+  useEffect(() => {
+    if (isPhenologyField) {
+      loadElStages();
+    }
+  }, [isPhenologyField]);
+
+  useEffect(() => {
+    if (value && elStages.length > 0) {
+      setSelectedStage(elStages.find(s => s.key === value) || null);
+    } else {
+      setSelectedStage(null);
+    }
+  }, [value, elStages]);
+
+  const loadElStages = async () => {
+    try {
+      setLoadingStages(true);
+      const res = await api.get('/observations/api/reference/el-stages');
+      setElStages(res.data);
+    } finally {
+      setLoadingStages(false);
+    }
+  };
+
+  // If this field is the EL stage selector, render the select wired to elStages;
+  // otherwise fall back to the generic type renderers below.
+  if (isPhenologyField && (type === 'phenology' || type === 'select' || type === 'single-select')) {
+    // Prefer server-provided catalog options; otherwise hydrate from elStages
+    const options = Array.isArray(field?.options) && field.options.length > 0
+      ? field.options
+      : elStages.map(s => ({ value: s.key, label: s.label }));
+
+    return (
+      <div>
+        <label>
+          <div>{field?.label || 'E–L Stage'}</div>
+          <select
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled || loadingStages}
+          >
+            <option value="">— Select EL stage —</option>
+            {options.map(opt => {
+              const v = opt?.value ?? opt?.key ?? opt;
+              const text = opt?.label ?? String(v);
+              return <option key={String(v)} value={String(v)}>{text}</option>;
+            })}
+          </select>
+        </label>
+
+        {/* Helpers show ONLY when explicitly requested */}
+        {showPhenologyGuides && selectedStage?.description && (
+          <div style={{
+            fontSize: 13, color: '#6b7280', marginTop: 4, padding: 8,
+            background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb'
+          }}>
+            {selectedStage.description}
+          </div>
+        )}
+
+        {/* Don’t hard-code template id 3 anymore; show images whenever present */}
+        {showPhenologyGuides && selectedStage?.images?.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Reference Files:</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {selectedStage.images.map(link => (
+                <ReferenceImage key={link.id} image={link} />  // Changed from HelperFile to ReferenceImage
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (type === 'number') {
     return (
@@ -699,33 +1162,6 @@ function FieldRenderer({ field, value, onChange, disabled = false }) {
           onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))} 
           disabled={disabled}
         />
-      </label>
-    );
-  }
-
-  if (type === 'el_stage') {
-    const options = Array.isArray(field?.options) && field.options.length > 0
-      ? field.options
-      : [
-          { value: 'EL-12', label: 'EL-12 (5 leaves separated)' },
-          { value: 'EL-15', label: 'EL-15 (8 leaves separated)' },
-          { value: 'EL-18', label: 'EL-18 (10 leaves separated)' },
-          { value: 'EL-23', label: 'EL-23 (50% caps off)' },
-          { value: 'EL-27', label: 'EL-27 (setting)' },
-          { value: 'EL-31', label: 'EL-31 (pea-size berries)' },
-          { value: 'EL-38', label: 'EL-38 (harvest ripe)' },
-        ];
-    return (
-      <label>
-        <div>{label}</div>
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
-          <option value="">— Select EL stage —</option>
-          {options.map((opt) => {
-            const val = opt?.value ?? opt?.key ?? opt;
-            const text = opt?.label ?? String(val);
-            return <option key={String(val)} value={String(val)}>{text}</option>;
-          })}
-        </select>
       </label>
     );
   }
@@ -771,5 +1207,272 @@ function FieldRenderer({ field, value, onChange, disabled = false }) {
         disabled={disabled}
       />
     </label>
+  );
+}
+
+/* -----------------------------------
+ * Reference Image Component for EL stages
+ * ----------------------------------- */
+function ReferenceImage({ image }) {
+  const [enlarged, setEnlarged] = useState(false);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadImage();
+  }, [image.file_id]);
+
+  const loadImage = async () => {
+    try {
+      setLoading(true);
+      const resp = await api.get(`/files/${image.file_id}/download`, { 
+        responseType: 'blob' 
+      });
+      const blobUrl = URL.createObjectURL(resp.data);
+      setImageUrl(blobUrl);
+    } catch (error) {
+      console.warn('Failed to load reference image:', image.file_id, error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        width: '60px',
+        height: '60px',
+        background: '#f3f4f6',
+        borderRadius: '6px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '11px',
+        color: '#6b7280'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!imageUrl) {
+    return (
+      <div style={{
+        width: '60px',
+        height: '60px',
+        background: '#f3f4f6',
+        borderRadius: '6px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '11px',
+        color: '#6b7280'
+      }}>
+        No image
+      </div>
+    );
+  }
+
+  const modalContent = enlarged ? (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.9)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        zIndex: 9999
+      }}
+      onClick={() => setEnlarged(false)}
+    >
+      <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
+        <img 
+          src={imageUrl}
+          alt={image.caption || 'EL stage reference'}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            borderRadius: 8
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+        <button
+          onClick={() => setEnlarged(false)}
+          style={{
+            position: 'absolute',
+            top: -15,
+            right: -15,
+            width: 30,
+            height: 30,
+            backgroundColor: '#dc2626',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50%',
+            cursor: 'pointer'
+          }}
+        >
+          ×
+        </button>
+        {image.caption && (
+          <div style={{
+            position: 'absolute',
+            bottom: -40,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: 4,
+            fontSize: 12,
+            textAlign: 'center',
+            whiteSpace: 'nowrap'
+          }}>
+            {image.caption}
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div 
+        style={{
+          width: '60px',
+          height: '60px',
+          borderRadius: '6px',
+          overflow: 'hidden',
+          border: '1px solid #e5e7eb',
+          cursor: 'pointer',
+          position: 'relative'
+        }}
+        onClick={() => setEnlarged(true)}
+        title={image.caption || 'Click to enlarge'}
+      >
+        <img 
+          src={imageUrl}
+          alt={image.caption || 'EL stage reference'}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+          }}
+        />
+        {image.is_primary && (
+          <div style={{
+            position: 'absolute',
+            top: 2,
+            left: 2,
+            background: 'rgba(59, 130, 246, 0.8)',
+            color: 'white',
+            fontSize: '8px',
+            padding: '1px 3px',
+            borderRadius: '2px'
+          }}>
+            PRIMARY
+          </div>
+        )}
+      </div>
+      
+      {modalContent && createPortal(modalContent, document.body)}
+    </>
+  );
+}
+
+/* -----------------------------------
+ * Generic Helper File (preview + download)
+ * ----------------------------------- */
+function HelperFile({ fileLink }) {
+  // fileLink shape comes from files_assoc: { id, file_id, caption, ... }
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [mime, setMime] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let revoked = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const resp = await api.get(`/files/${fileLink.file_id}/download`, { responseType: 'blob' });
+        if (revoked) return;
+        const url = URL.createObjectURL(resp.data);
+        setBlobUrl(url);
+        setMime(resp?.data?.type || null);
+      } catch (err) {
+        console.warn('Failed to load helper file:', fileLink.file_id, err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      revoked = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [fileLink.file_id]);
+
+  if (loading) {
+    return (
+      <div style={{
+        width: 84, height: 84, borderRadius: 8,
+        background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 12, color: '#6b7280'
+      }}>
+        Loading…
+      </div>
+    );
+  }
+
+  const isImage = typeof mime === 'string' && mime.startsWith('image/');
+  const caption = fileLink.caption || 'Reference file';
+
+  return (
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <button
+        type="button"
+        onClick={() => isImage ? setOpen(true) : window.open(blobUrl, '_blank')}
+        title={caption}
+        style={{
+          width: 84, height: 84, border: '1px solid #e5e7eb', borderRadius: 8,
+          background: '#fff', padding: 2, cursor: 'pointer', overflow: 'hidden'
+        }}
+      >
+        {isImage ? (
+          <img src={blobUrl} alt={caption} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: 12, color: '#6b7280' }}>
+            View file
+          </div>
+        )}
+      </button>
+
+      {/* Download control using the same blob URL */}
+      {blobUrl && (
+        <a
+          href={blobUrl}
+          download={caption.replace(/\s+/g, '_')}
+          style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}
+        >
+          Download
+        </a>
+      )}
+
+      {/* Simple lightbox for images */}
+      {open && isImage && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            display: 'grid', placeItems: 'center', zIndex: 9999, padding: 16
+          }}
+        >
+          <img src={blobUrl} alt={caption} style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 8, background: '#fff' }} />
+        </div>
+      )}
+    </div>
   );
 }

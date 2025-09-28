@@ -272,15 +272,19 @@ def download_file(
             detail="File not found"
         )
     
-    # Check permissions
-    if isinstance(current_user_or_contractor, User):
-        user = current_user_or_contractor
-        if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions"
-            )
-    
+    # For photos, allow public access within company (skip permission check)
+    if file.file_category == "photo" and file.mime_type and file.mime_type.startswith("image/"):
+        pass  # Skip all permission checks for photos
+    else:
+        # Keep existing permission checks for other file types
+        if isinstance(current_user_or_contractor, User):
+            user = current_user_or_contractor
+            if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not enough permissions"
+                )
+
     # Check if file exists on disk
     file_path = Path(file.file_path)
     if not file_path.exists():

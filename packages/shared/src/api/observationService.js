@@ -123,7 +123,47 @@ const observationService = {
   getObservationFileDownloadUrl: (file) => {
     return file?.download_url || file?.file_url || null;
   },
+  
+  getElStages: async () => {
+    const res = await api.get('/observations/api/reference/el-stages');
+    return res.data;
+  },
+
+  getReferenceImages: async (referenceItemId) => {
+    // Images are already included in the el-stages response via files_assoc
+    // But if you need to fetch them separately:
+    const res = await api.get(`/files/entity/reference_item/${referenceItemId}?file_category=photo`);
+    return res.data;
+  }
+
 
 };
 
-export default observationService;
+const observationFileService = {
+  uploadSpotPhoto: async (spotId, file, onProgress = null) => {
+    const formData = new FormData();
+    formData.append('entity_type', 'observation_spot');
+    formData.append('entity_id', spotId);
+    formData.append('file_category', 'photo');
+    formData.append('description', `Observation spot photo: ${file.name}`);
+    formData.append('file', file);
+    
+    return await api.post('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+    });
+  },
+
+  getSpotPhotos: async (spotId) => {
+    return await api.get(`/files/entity/observation_spot/${spotId}?file_category=photo`);
+  },
+
+  deletePhoto: async (fileId) => {
+    return await api.delete(`/files/${fileId}`);
+  }
+};
+
+export default {
+  ...observationService,
+  files: observationFileService
+};

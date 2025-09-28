@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, MapPin, ArrowLeft, ArrowRight } from 'lucide-react';
 import { observationService, authService, blocksService, usersService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import BlockSelectionModal from '../components/BlockSelectionModal'; // Import the modal
 
 const asArray = (v) => Array.isArray(v) ? v : (v?.items ?? v?.results ?? v?.data ?? v?.rows ?? []);
 const safe = (v, d = '—') => (v ?? v === 0 ? v : d);
@@ -20,7 +21,10 @@ export default function PlanDetail() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [showBlockSelector, setShowBlockSelector] = useState(false);
+
+  // Block selection modal state - replace the old modal state
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [startingRun, setStartingRun] = useState(false);
 
   const load = async () => {
     try {
@@ -76,13 +80,56 @@ export default function PlanDetail() {
     return <span style={{ ...base, ...(colors[s] || colors.default) }}>{s || '—'}</span>;
   };
 
+  // Replace the old startRunForTarget function with this modal approach
+  const openBlockModal = () => {
+    setBlockModalOpen(true);
+  };
+
+  const closeBlockModal = () => {
+    setBlockModalOpen(false);
+  };
+
+  const startRunWithBlock = async (blockId) => {
+    if (!plan || startingRun) return;
+    
+    try {
+      setStartingRun(true);
+      
+      const payload = {
+        company_id: companyId,
+        plan_id: plan.id,
+        template_id: plan.template_id,
+        block_id: blockId,
+        started_at: new Date().toISOString(),
+      };
+
+      console.log('Creating run with payload:', payload);
+
+      const run = await observationService.createRun(payload);
+      
+      if (run?.id) {
+        navigate(`/observations/runcapture/${run.id}`);
+      } else {
+        alert('Run was not created (no id returned).');
+      }
+    } catch (e) {
+      console.error('Failed to start run:', e);
+      const detail = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Failed to start run';
+      alert(`Could not start run:\n${Array.isArray(detail) ? detail[0]?.msg || detail : detail}`);
+    } finally {
+      setStartingRun(false);
+      closeBlockModal();
+    }
+  };
+
+  // Individual target run function for the table actions
   const startRunForTarget = async (targetBlockId) => {
     try {
       setBusy(true);
       const run = await observationService.startRun(plan.id, {
         template_id: plan.template_id,
         company_id: companyId,
-        block_id: targetBlockId, // Pass the specific block ID
+        block_id: targetBlockId,
       });
       if (!run?.id) throw new Error('Run not created');
       navigate(`/observations/runcapture/${run.id}`);
@@ -95,116 +142,10 @@ export default function PlanDetail() {
     }
   };
 
-  const startRunGeneral = async () => {
-    const targets = plan.targets || [];
-    
-    if (targets.length === 0) {
-      alert('No targets configured for this plan.');
-      return;
-    }
-    
-    if (targets.length === 1) {
-      // Single target - start run directly
-      await startRunForTarget(targets[0].block_id);
-      return;
-    }
-    
-    // Multiple targets - show block selector
-    setShowBlockSelector(true);
-  };
-
   const canStart = () => {
     if (!plan) return false;
     if (['canceled', 'cancelled', 'completed'].includes(plan.status)) return false;
     return true;
-  };
-
-  const BlockSelectorModal = () => {
-    if (!showBlockSelector) return null;
-    
-    const targets = plan.targets || [];
-    
-    return (
-      <div 
-        style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          background: 'rgba(0,0,0,0.5)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          zIndex: 1000
-        }}
-        onClick={() => setShowBlockSelector(false)}
-      >
-        <div 
-          className="stat-card"
-          style={{ 
-            minWidth: 400, 
-            maxWidth: 600,
-            margin: 16
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 style={{ marginTop: 0 }}>Select Block to Start Run</h3>
-          <p style={{ color: '#666', marginBottom: 16 }}>
-            This plan has multiple targets. Choose which block to run:
-          </p>
-          
-          <div style={{ display: 'grid', gap: 8 }}>
-            {targets.map((target, idx) => {
-              const blockName = blockMap.get(String(target.block_id)) || `Block ${target.block_id}`;
-              const rowLabels = target.row_labels || [];
-              const rowInfo = rowLabels.length > 0 
-                ? ` (Rows: ${rowLabels[0]}${rowLabels.length > 1 ? ` - ${rowLabels[rowLabels.length - 1]}` : ''})`
-                : '';
-              
-              return (
-                <button
-                  key={idx}
-                  className="btn"
-                  onClick={() => {
-                    setShowBlockSelector(false);
-                    startRunForTarget(target.block_id);
-                  }}
-                  disabled={busy}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: 12,
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                    textAlign: 'left'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{blockName}</div>
-                    <div style={{ fontSize: 12, color: '#666' }}>
-                      {target.sample_size || 0} spots required{rowInfo}
-                    </div>
-                  </div>
-                  <PlayCircle size={16} />
-                </button>
-              );
-            })}
-          </div>
-          
-          <div style={{ marginTop: 16, textAlign: 'right' }}>
-            <button 
-              className="btn" 
-              onClick={() => setShowBlockSelector(false)}
-              style={{ background: '#f3f4f6' }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -212,7 +153,7 @@ export default function PlanDetail() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button
           className="btn"
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
+          onClick={() => (navigate('/observations'))}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
           <ArrowLeft size={16} /> Back
@@ -246,12 +187,12 @@ export default function PlanDetail() {
               </button>
               <button
                 className="btn"
-                disabled={!canStart() || busy}
-                onClick={startRunGeneral}
+                disabled={!canStart() || startingRun}
+                onClick={openBlockModal}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}
                 title="Start a run for this plan"
               >
-                <PlayCircle size={16} /> Start Run
+                <PlayCircle size={16} /> {startingRun ? 'Starting...' : 'Start Run'}
               </button>
             </div>
           </section>
@@ -387,7 +328,13 @@ export default function PlanDetail() {
         </div>
       )}
       
-      <BlockSelectorModal />
+      {/* Block Selection Modal */}
+      <BlockSelectionModal
+        open={blockModalOpen}
+        plan={plan}
+        onClose={closeBlockModal}
+        onStartRun={startRunWithBlock}
+      />
     </div>
   );
 }
