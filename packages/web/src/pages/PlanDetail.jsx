@@ -239,7 +239,7 @@ export default function PlanDetail() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 className="btn"
-                onClick={() => navigate(`/observations/planedit/${plan.id}`)}
+                onClick={() => navigate(`/planedit/${plan.id}`)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3f4f6', color: '#111827' }}
               >
                 Edit Plan
@@ -362,16 +362,16 @@ export default function PlanDetail() {
                       </td>
                       <td style={{ padding: 12 }}>{badge(r.status)}</td>
                       <td style={{ padding: 12 }}>
-                        {blockMap.get(String(r.block_id)) || `Block ${r.block_id || '—'}`}
+                        {blockMap.get(String(r.block_name)) || `${r.block_name || '—'}`}
                       </td>
                       <td style={{ padding: 12 }}>
-                        {userMap.get(String(r.created_by)) || '—'}
+                        {userMap.get(String(r.creator_name)) || '—'}
                       </td>
                       <td style={{ padding: 12, textAlign: 'right' }}>
                         <button
                           className="btn"
                           onClick={() => navigate(`/observations/runcapture/${r.id}`)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3f4f6' }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#065f46' }}
                         >
                           Open <ArrowRight size={16} />
                         </button>

@@ -1,7 +1,7 @@
 #/api/v1/observations.py
 
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, selectinload
@@ -24,7 +24,6 @@ from schemas.reference_items import (
 
 from utils.yield_stats import basic_confidence_summary
 from utils.el_scale import EL_PHASES
-from sqlalchemy import func, cast, Integer
 
 from db.models.observation_template import ObservationTemplate
 from db.models.observation_plan import ObservationPlan, ObservationPlanTarget, ObservationPlanAssignee
@@ -210,6 +209,77 @@ def deactivate_template(template_id: int, db: Session = Depends(get_db)):
     db.commit()
     return
 
+@router.get("/observation-templates/{template_id}/usage", response_model=Dict[str, Any])
+def check_template_usage(
+    template_id: int, 
+    company_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Check existing plans using this template to help users make informed decisions"""
+    
+    template = db.get(ObservationTemplate, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    # Find existing active plans using this template
+    q = select(ObservationPlan).where(
+        ObservationPlan.template_id == template_id,
+        ObservationPlan.status.in_(["scheduled", "in_progress"])  # Only active plans
+    )
+    
+    if company_id:
+        q = q.where(ObservationPlan.company_id == company_id)
+    
+    q = q.order_by(ObservationPlan.created_at.desc()).limit(5)  # Limit to recent ones
+    
+    existing_plans = db.execute(q).scalars().all()
+    
+    # Get run statistics for these plans
+    plan_ids = [p.id for p in existing_plans] if existing_plans else []
+    run_stats = {}
+    
+    if plan_ids:
+        stats_query = db.execute(
+            select(
+                ObservationRun.plan_id,
+                func.count(ObservationRun.id).label("run_count"),
+                func.max(ObservationRun.observed_at_start).label("last_run")
+            )
+            .where(ObservationRun.plan_id.in_(plan_ids))
+            .group_by(ObservationRun.plan_id)
+        ).all()
+        
+        run_stats = {
+            row.plan_id: {
+                "run_count": int(row.run_count),
+                "last_run": row.last_run
+            }
+            for row in stats_query
+        }
+    
+    # Format response
+    plans_data = []
+    for plan in existing_plans:
+        stats = run_stats.get(plan.id, {"run_count": 0, "last_run": None})
+        plans_data.append({
+            "id": plan.id,
+            "name": plan.name,
+            "status": plan.status,
+            "created_at": plan.created_at,
+            "run_count": stats["run_count"],
+            "last_run": stats["last_run"],
+            "instructions": plan.instructions
+        })
+    
+    return {
+        "template_name": template.name,
+        "existing_plans_count": len(existing_plans),
+        "existing_plans": plans_data,
+        "suggestion": {
+            "show_warning": len(existing_plans) > 0,
+            "message": f"You have {len(existing_plans)} active plan(s) using this template. Consider reusing an existing plan or adding targets to it instead of creating a new one." if existing_plans else None
+        }
+    }
 
 # -----------------------------
 # Plans
@@ -530,10 +600,11 @@ def list_runs(
     company_id: Optional[int] = None,
     template_id: Optional[int] = None,
     plan_id: Optional[int] = None,
-):
+    ):
     q = (select(ObservationRun)
          .options(selectinload(ObservationRun.plan))
-         .options(selectinload(ObservationRun.creator))  # <-- Add this
+         .options(selectinload(ObservationRun.creator))
+         .options(selectinload(ObservationRun.block))
          )
     if company_id: q = q.where(ObservationRun.company_id == company_id)
     if template_id: q = q.where(ObservationRun.template_id == template_id)
@@ -541,12 +612,16 @@ def list_runs(
     q = q.order_by(ObservationRun.created_at.desc())
     rows = db.execute(q).scalars().all()
 
-    # annotate plan_name and creator_name for the Pydantic Out
+    # annotate plan_name, creator_name, and block_name for the Pydantic Out
     for r in rows:
         r.plan_name = r.plan.name if r.plan else None
-        r.creator_name = r.creator.full_name if r.creator else None  # <-- Add this
+        # Join first_name and last_name for creator_name
+        if r.creator:
+            r.creator_name = f"{r.creator.first_name} {r.creator.last_name}".strip()
+        else:
+            r.creator_name = None
+        r.block_name = r.block.block_name if r.block else None
     return rows
-
 
 @router.get("/observation-runs/{run_id}", response_model=ObservationRunOut)
 def get_run(run_id: int, db: Session = Depends(get_db)):

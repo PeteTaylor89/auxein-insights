@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, date
-from pydantic import BaseModel, Field, conint, confloat, validator
+from pydantic import BaseModel, Field, conint, confloat, validator, computed_field
 try:
     from pydantic import ConfigDict
     _CFG = {"from_attributes": True}
@@ -147,7 +147,6 @@ class ObservationRunBase(BaseModel):
     block_id: Optional[int] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    status: ObservationRunStatus = "draft"
     summary_stats: Optional[Dict[str, Any]] = None  # mean, stdev, confidence, etc.
 
 class ObservationRunCreate(ObservationRunBase):
@@ -162,8 +161,28 @@ class ObservationRunOut(ObservationRunBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime]
-    created_by: Optional[int] = None
+    created_by: Optional[int] = None  # Keep as user ID
     plan_name: Optional[str] = None
+    creator_name: Optional[str] = None  # This will contain "FirstName LastName"
+    
+    # Pass through the observation dates
+    observed_at_start: Optional[datetime] = None
+    observed_at_end: Optional[datetime] = None
+    
+    # Block name from vineyard_blocks
+    block_name: Optional[str] = None
+    
+    # Computed status field
+    @computed_field
+    @property
+    def status(self) -> str:
+        if self.observed_at_start and self.observed_at_end:
+            return "complete"
+        elif self.observed_at_start and not self.observed_at_end:
+            return "in progress"
+        else:
+            return "not started"
+    
     class Config:
         from_attributes = True
 

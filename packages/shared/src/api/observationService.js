@@ -9,6 +9,14 @@ const observationService = {
     });
     return res.data;
   },
+  
+  checkTemplateUsage: async (templateId, companyId = null) => {
+    const params = {};
+    if (companyId) params.company_id = companyId;
+    
+    const res = await api.get(`/observations/api/observation-templates/${templateId}/usage`, { params });
+    return res.data;
+  },
 
   // Plans
   createPlan: async (payload) => {

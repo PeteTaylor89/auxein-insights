@@ -38,6 +38,7 @@ class ObservationRun(Base):
     template = relationship("ObservationTemplate")
     spots = relationship("ObservationSpot", back_populates="run", cascade="all, delete-orphan")
     creator = relationship("User")
+    block = relationship("VineyardBlock")
 
 class ObservationSpot(Base):
     __tablename__ = "observation_spots"

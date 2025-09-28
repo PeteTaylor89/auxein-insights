@@ -114,16 +114,9 @@ function Home() {
             <span>Observation Links</span>
           </div>
           <div className="stats-grid">
-            <Link to="/planobservation" className="stat-card">
-              <div className="actions-title"> Plan Observation</div>
-            </Link>
             <Link to="/observations" className="stat-card">
               <div className="actions-title">Observations</div>
             </Link>
-            <Link to="/plandetail/:id" className="stat-card">
-              <div className="actions-title">Obs Plan Details</div>
-            </Link>
-
           </div>
         </div>
 

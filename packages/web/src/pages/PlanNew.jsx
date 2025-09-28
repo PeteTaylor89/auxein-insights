@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { observationService, authService, blocksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import TemplateUsageWarning from '../components/TemplateUsageWarning'; // Import our new component
 
 const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.results ?? v?.data ?? []);
 
@@ -30,6 +31,11 @@ export default function PlanNew() {
   const [templateId, setTemplateId] = useState(String(location.state?.template?.id ?? ''));
   const [template, setTemplate] = useState(null);
   const [instructions, setInstructions] = useState('');
+
+  // Template usage warning state
+  const [templateUsage, setTemplateUsage] = useState(null);
+  const [showUsageWarning, setShowUsageWarning] = useState(false);
+  const [checkingUsage, setCheckingUsage] = useState(false);
 
   // Blocks and targets
   const [blocks, setBlocks] = useState([]);
@@ -72,33 +78,51 @@ export default function PlanNew() {
     return () => { mounted = false; };
   }, [companyId]);
 
-  // When templateId changes, find template object (or fetch by id if minimal card was returned)
+  // When templateId changes, find template object AND check usage
   useEffect(() => {
     let mounted = true;
     (async () => {
       if (!templateId) { 
         setTemplate(null); 
+        setTemplateUsage(null);
+        setShowUsageWarning(false);
         return; 
       }
       
       const known = templates.find(t => String(t.id) === String(templateId));
       if (known?.schema || known?.fields_json) {
         setTemplate(known);
-        return;
+      } else {
+        // Fetch full template (ensure we have schema)
+        try {
+          const full = await observationService.getTemplate?.(templateId);
+          if (!mounted) return;
+          setTemplate(full || known || null);
+        } catch {
+          if (!mounted) return;
+          setTemplate(known || null);
+        }
       }
-      
-      // Fetch full template (ensure we have schema)
-      try {
-        const full = await observationService.getTemplate?.(templateId);
-        if (!mounted) return;
-        setTemplate(full || known || null);
-      } catch {
-        if (!mounted) return;
-        setTemplate(known || null);
+
+      // Check template usage for existing plans
+      if (observationService.checkTemplateUsage) {
+        try {
+          setCheckingUsage(true);
+          const usage = await observationService.checkTemplateUsage(templateId, companyId);
+          if (!mounted) return;
+          
+          setTemplateUsage(usage);
+          setShowUsageWarning(usage?.suggestion?.show_warning || false);
+        } catch (e) {
+          console.warn('Failed to check template usage:', e);
+          // Don't show error to user, just continue without warning
+        } finally {
+          if (mounted) setCheckingUsage(false);
+        }
       }
     })();
     return () => { mounted = false; };
-  }, [templateId, templates]);
+  }, [templateId, templates, companyId]);
 
   const fields = useMemo(() => readTemplateFields(template), [template]);
 
@@ -173,6 +197,19 @@ export default function PlanNew() {
     }
   };
 
+  const handleViewExistingPlan = (planId) => {
+    navigate(`/plandetail/${planId}`);
+  };
+
+  const handleDismissWarning = () => {
+    setShowUsageWarning(false);
+  };
+
+  const handleProceedAnyway = () => {
+    setShowUsageWarning(false);
+    // User can continue with form normally after dismissing
+  };
+
   return (
     <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
       {/* Back button */}
@@ -222,7 +259,7 @@ export default function PlanNew() {
               </label>
 
               <label>
-                <div>Template</div>
+                <div>Template {checkingUsage && <span style={{ fontSize: 12, color: '#666' }}>(checking for existing plans...)</span>}</div>
                 <select
                   value={templateId}
                   onChange={(e) => setTemplateId(e.target.value)}
@@ -236,6 +273,16 @@ export default function PlanNew() {
                 </select>
               </label>
             </div>
+
+            {/* Template usage warning */}
+            {showUsageWarning && templateUsage && (
+              <TemplateUsageWarning
+                templateUsage={templateUsage}
+                onDismiss={handleDismissWarning}
+                onProceedAnyway={handleProceedAnyway}
+                onViewPlan={handleViewExistingPlan}
+              />
+            )}
           </section>
 
           {/* Targets (Blocks) - Table Format */}

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket } from 'lucide-react';
 import { observationService, usersService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-
-
+import BlockSelectionModal from '../components/BlockSelectionModal'; // Import our new modal
 
 function readTemplateFields(tpl) {
   if (!tpl) return [];
@@ -18,6 +18,33 @@ function readTemplateFields(tpl) {
 export default function ObservationDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('plans');
+
+  const StatusBadge = ({ status, type = 'default' }) => {
+    const colors = {
+      "in progress": { bg: '#dbeafe', color: '#1e40af' },
+      "complete": { bg: '#f3f4f6', color: '#374151' },
+      "not started": { bg: '#fef3c7', color: '#92400e' },
+      "scheduled": { bg: '#e0f2fe', color: '#0369a1' },
+      "cancelled": { bg: '#fee2e2', color: '#dc2626' },
+      "active": { bg: '#d1fae5', color: '#065f46' } // fallback for "active"
+    };
+    
+    // Get style or fallback to a default
+    const style = colors[status] || colors.active || { bg: '#f3f4f6', color: '#374151' };
+    
+    return (
+      <span style={{
+        background: style.bg,
+        color: style.color,
+        padding: '0.25rem 0.5rem',
+        borderRadius: '999px',
+        fontSize: '0.75rem',
+        fontWeight: '500'
+      }}>
+        {status?.replace('_', ' ')}
+      </span>
+    );
+  };
 
   return (
     <div className="container" style={{ maxWidth: 1200, margin: '0 auto', padding: '3rem 1rem' }}>
@@ -67,8 +94,8 @@ export default function ObservationDashboard() {
         </div>
 
         <div style={{ padding: 16 }}>
-          {tab === 'plans' && <PlansTab />}
-          {tab === 'runs' && <RunsTab />}
+          {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
+          {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
           {tab === 'templates' && <TemplatesTab />}
         </div>
       </div>
@@ -100,26 +127,75 @@ function TabButton({ label, active, onClick }) {
 
 function TemplatePreviewModal({ open, template, onClose }) {
   if (!open || !template) return null;
+  
   const fields = readTemplateFields(template);
 
-  return (
+  // Handle escape key and body scroll
+  useEffect(() => {
+    if (!open) return; // Only run effect when modal is actually open
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    // Store the original overflow value
+    const originalOverflow = document.body.style.overflow;
+    
+    document.addEventListener('keydown', handleEscape);
+   
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      // Restore the original overflow value
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [open, onClose]); // Keep the dependencies
+
+  const handleBackdropClick = (e) => {
+    // Only close if clicking directly on the backdrop, not bubbled events
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  // The modal content
+  const modalContent = (
     <div
       role="dialog"
       aria-modal="true"
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 50
+        position: 'fixed', 
+        inset: 0, 
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: 16, 
+        zIndex: 9999 // Higher z-index since it's rendered at body level
       }}
-      onClick={onClose}
+      onClick={handleBackdropClick}
     >
       <div
         className="stat-card"
-        style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, width: 'min(860px, 95vw)', maxHeight: '85vh', overflow: 'auto', padding: 16 }}
+        style={{ 
+          background: '#fff', 
+          border: '1px solid #eee', 
+          borderRadius: 12, 
+          width: 'min(860px, 95vw)', 
+          maxHeight: '85vh', 
+          overflow: 'auto', 
+          padding: 16 
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>{template.name}  Template</h3>
-          <button className="btn" onClick={onClose} style={{ padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}>
+          <h3 style={{ margin: 0 }}>{template.name} Template</h3>
+          <button 
+            className="btn" 
+            onClick={onClose} 
+            style={{ padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}
+          >
             Close
           </button>
         </div>
@@ -159,19 +235,26 @@ function TemplatePreviewModal({ open, template, onClose }) {
       </div>
     </div>
   );
-}
 
+  // Render the modal content using a portal to document.body
+  return createPortal(modalContent, document.body);
+}
 
 /* ---------------------------
  * Plans Tab
  * --------------------------- */
-function PlansTab() {
+function PlansTab({ StatusBadge }) {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [plans, setPlans] = useState([]);
   const [users, setUsers] = useState([]);
+
+  // Block selection modal state
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [startingRun, setStartingRun] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
@@ -211,38 +294,46 @@ function PlansTab() {
     return true;
   });
 
-  const startRunForPlan = async (plan) => {
+  const openBlockModal = (plan) => {
+    setSelectedPlan(plan);
+    setBlockModalOpen(true);
+  };
+
+  const closeBlockModal = () => {
+    setBlockModalOpen(false);
+    setSelectedPlan(null);
+  };
+
+  const startRunWithBlock = async (blockId) => {
+    if (!selectedPlan || startingRun) return;
+    
     try {
-      const company_id = companyId;
-      const template_id = plan.template_id ?? plan.template?.id;
-      const assignee_user_ids = (plan.assignees || plan.assignee_user_ids || [])
-        .map(a => a?.user_id ?? a?.id ?? a)
-        .filter(Boolean);
+      setStartingRun(true);
+      
+      const payload = {
+        company_id: companyId,
+        plan_id: selectedPlan.id,
+        template_id: selectedPlan.template_id,
+        block_id: blockId,
+        started_at: new Date().toISOString(),
+      };
 
-      if (!observationService?.startRun) {
-        alert('Start Run service not available yet.');
-        return;
-      }
+      console.log('Creating run with payload:', payload);
 
-      const run = await observationService.startRun(plan.id, {
-        company_id,
-        template_id,
-        assignee_user_ids,
-      });
-
-      if (!run?.id) {
+      const run = await observationService.createRun(payload);
+      
+      if (run?.id) {
+        navigate(`/observations/runcapture/${run.id}`);
+      } else {
         alert('Run was not created (no id returned).');
-        return;
       }
-      navigate(`/runcapture/${run.id}`);
     } catch (e) {
-      console.error(e);
-      const detail =
-        e?.response?.data?.detail ||
-        e?.response?.data?.message ||
-        e?.message ||
-        'Unknown error';
-      alert(`Could not start run:\n${JSON.stringify(detail)}`);
+      console.error('Failed to start run:', e);
+      const detail = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Failed to start run';
+      alert(`Could not start run:\n${Array.isArray(detail) ? detail[0]?.msg || detail : detail}`);
+    } finally {
+      setStartingRun(false);
+      closeBlockModal();
     }
   };
 
@@ -250,7 +341,6 @@ function PlansTab() {
     <div>
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-
         <input placeholder="Search by plan name…" value={q} onChange={e => setQ(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, flex: 1, minWidth: 200 }} />
       </div>
 
@@ -292,11 +382,12 @@ function PlansTab() {
                   </button>
                   <button
                     className="btn"
-                    onClick={() => startRunForPlan(p)}
+                    onClick={() => openBlockModal(p)}
+                    disabled={startingRun}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff' }}
                     title="Start a run for this plan"
                   >
-                    <PlayCircle size={16} /> Start Run
+                    <PlayCircle size={16} /> {startingRun ? 'Starting...' : 'Start Run'}
                   </button>
                 </td>
               </tr>
@@ -304,6 +395,14 @@ function PlansTab() {
           </tbody>
         </table>
       )}
+
+      {/* Block Selection Modal */}
+      <BlockSelectionModal
+        open={blockModalOpen}
+        plan={selectedPlan}
+        onClose={closeBlockModal}
+        onStartRun={startRunWithBlock}
+      />
     </div>
   );
 }
@@ -311,7 +410,7 @@ function PlansTab() {
 /* ---------------------------
  * Runs Tab
  * --------------------------- */
-function RunsTab() {
+function RunsTab({ StatusBadge }) {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
   const [runs, setRuns] = useState([]);
@@ -399,28 +498,32 @@ function RunsTab() {
               <th style={{ padding: 12 }}>Block</th>
               <th style={{ padding: 12 }}>Status</th>
               <th style={{ padding: 12 }}>Started</th>
+              <th style={{ padding: 12 }}>Completed</th>
               <th style={{ padding: 12, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {runs.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 20, textAlign: 'center', color: '#777' }}>No runs found.</td>
+                <td colSpan={7} style={{ padding: 20, textAlign: 'center', color: '#777' }}>No runs found.</td>
               </tr>
             )}
             {runs.map(r => (
               <tr key={r.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
                 <td style={{ padding: 12, fontWeight: 500 }}>{r.name || `Run #${r.id}`}</td>
                 <td style={{ padding: 12 }}>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
-                <td style={{ padding: 12 }}>{r.block_id ? `Block ${r.block_id}` : '—'}</td>
-                <td style={{ padding: 12 }}>{r.status}</td>
-                <td style={{ padding: 12 }}>{r.started_at ? dayjs(r.started_at).format('YYYY-MM-DD HH:mm') : '—'}</td>
+                <td style={{ padding: 12 }}>{r.block_name ? `${r.block_name}` : '—'}</td>
+                <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                  <StatusBadge status={r.status || 'active'} />
+                </td>
+                <td style={{ padding: 12 }}>{r.observed_at_start ? dayjs(r.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}</td>
+                <td style={{ padding: 12 }}>{r.observed_at_end ? dayjs(r.observed_at_end).format('YYYY-MM-DD HH:mm') : '—'}</td>
                 <td style={{ padding: 12, textAlign: 'right' }}>
                   <div style={{ display: 'inline-flex', gap: 8 }}>
                     <button
                       className="btn"
-                      onClick={() => navigate(`/runcapture/${r.id}`)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}
+                      onClick={() => navigate(`/observations/runcapture/${r.id}`)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#065f46' }}
                     >
                       Open <ArrowRight size={16} />
                     </button>
@@ -435,23 +538,6 @@ function RunsTab() {
                       <CheckCircle size={16} /> Complete
                     </button>
 
-                    <button
-                      className="btn"
-                      onClick={() => setStatus(r.id, 'approved')}
-                      disabled={busyId === r.id}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#d1fae5', color: '#065f46' }}
-                    >
-                      <CheckCircle size={16} /> Approve
-                    </button>
-
-                    <button
-                      className="btn"
-                      onClick={() => setStatus(r.id, 'rejected')}
-                      disabled={busyId === r.id}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#fee2e2', color: '#7f1d1d' }}
-                    >
-                      <XCircle size={16} /> Reject
-                    </button>
                   </div>
                 </td>
               </tr>

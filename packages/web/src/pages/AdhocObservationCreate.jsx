@@ -218,15 +218,6 @@ export default function AdhocObservationCreate() {
                 />
                 
                 <ModeCard
-                  modeKey="template"
-                  icon={FileText}
-                  title="From Template"
-                  description="Use a template with structured fields and data collection"
-                  isSelected={false}
-                  onClick={() => handleModeSelect('template')}
-                />
-                
-                <ModeCard
                   modeKey="freeform"
                   icon={Edit3}
                   title="Free-form Notes"
@@ -291,23 +282,6 @@ export default function AdhocObservationCreate() {
                           <option key={p.id} value={p.id}>
                             {p.name || `Plan #${p.id}`}
                             {p.template_name && ` (${p.template_name})`}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-
-                  {mode === 'template' && (
-                    <label>
-                      <div>Template</div>
-                      <select
-                        value={selectedTemplateId}
-                        onChange={(e) => setSelectedTemplateId(e.target.value)}
-                      >
-                        <option value="">— Select a template —</option>
-                        {templates.map(t => (
-                          <option key={t.id} value={t.id}>
-                            {t?.name || t?.observation_type || `Template #${t.id}`}
                           </option>
                         ))}
                       </select>
