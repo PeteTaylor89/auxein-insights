@@ -1057,9 +1057,13 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRu
 /* -----------------------------------
  * Field renderer with EL stages support
  * ----------------------------------- */
+/* -----------------------------------
+ * Field renderer with EL stages support - FIXED VERSION
+ * ----------------------------------- */
 function FieldRenderer({ field, value, onChange, disabled = false, template }) {
   const type = (field?.type || field?.input_type || 'text').toLowerCase();
   const label = field?.label || field?.name || field?.key || 'Field';
+  
   // NEW: field-scoped checks
   const optionsCatalog = String(field?.options_source?.catalog || '').toLowerCase();
   const isElStageCatalog = optionsCatalog === 'el_stage';
@@ -1070,8 +1074,8 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
   const isPhenologyField = isElStageCatalog || isElStageFieldName || isExplicitPhenologyType;
 
   // When to SHOW the visual helpers (description/images)
-  // — only when caller explicitly asked for guides
-  const showPhenologyGuides = isPhenologyField && field?.show_guide === true;
+  // Show images for phenology fields automatically
+  const showPhenologyGuides = isPhenologyField;
 
   const [elStages, setElStages] = useState([]);
   const [selectedStage, setSelectedStage] = useState(null);
@@ -1096,6 +1100,8 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
       setLoadingStages(true);
       const res = await api.get('/observations/api/reference/el-stages');
       setElStages(res.data);
+    } catch (error) {
+      console.error('Failed to load EL stages:', error);
     } finally {
       setLoadingStages(false);
     }
@@ -1108,6 +1114,10 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
     const options = Array.isArray(field?.options) && field.options.length > 0
       ? field.options
       : elStages.map(s => ({ value: s.key, label: s.label }));
+
+    // Fix: Get images from files_assoc, not images property
+    const stageImages = selectedStage?.files_assoc || [];
+    const hasImages = stageImages.length > 0;
 
     return (
       <div>
@@ -1127,7 +1137,7 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
           </select>
         </label>
 
-        {/* Helpers show ONLY when explicitly requested */}
+        {/* Show description when stage is selected */}
         {showPhenologyGuides && selectedStage?.description && (
           <div style={{
             fontSize: 13, color: '#6b7280', marginTop: 4, padding: 8,
@@ -1137,21 +1147,35 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
           </div>
         )}
 
-        {/* Don’t hard-code template id 3 anymore; show images whenever present */}
-        {showPhenologyGuides && selectedStage?.images?.length > 0 && (
+        {/* Show images when stage is selected and has images */}
+        {showPhenologyGuides && hasImages && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Reference Files:</div>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+              Reference Images:
+            </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {selectedStage.images.map(link => (
-                <ReferenceImage key={link.id} image={link} />  // Changed from HelperFile to ReferenceImage
+              {stageImages.map(fileAssoc => (
+                <ReferenceImage key={fileAssoc.id} image={fileAssoc} />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Show message when stage is selected but no images available */}
+        {showPhenologyGuides && selectedStage && !hasImages && (
+          <div style={{
+            fontSize: 12, color: '#6b7280', marginTop: 8, padding: 8,
+            background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb',
+            fontStyle: 'italic'
+          }}>
+            No reference images available for this stage.
           </div>
         )}
       </div>
     );
   }
 
+  // Rest of the field types remain the same...
   if (type === 'number') {
     return (
       <label>
@@ -1211,44 +1235,78 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
 }
 
 /* -----------------------------------
- * Reference Image Component for EL stages
+ * Reference Image Component for EL stages - FIXED VERSION
  * ----------------------------------- */
 function ReferenceImage({ image }) {
   const [enlarged, setEnlarged] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Handle the file association structure properly
+  const fileId = image.file_id || image.file?.id;
+  const caption = image.caption || image.file?.original_filename || 'EL stage reference';
+  const isPrimary = image.is_primary;
+
   useEffect(() => {
-    loadImage();
-  }, [image.file_id]);
+    if (fileId) {
+      loadImage();
+    }
+  }, [fileId]);
+
+  // Handle escape key for modal
+  useEffect(() => {
+    if (!enlarged) return;
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setEnlarged(false);
+      }
+    };
+    
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleEscape);
+   
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [enlarged]);
 
   const loadImage = async () => {
     try {
       setLoading(true);
-      const resp = await api.get(`/files/${image.file_id}/download`, { 
+      const resp = await api.get(`/files/${fileId}/download`, { 
         responseType: 'blob' 
       });
       const blobUrl = URL.createObjectURL(resp.data);
       setImageUrl(blobUrl);
     } catch (error) {
-      console.warn('Failed to load reference image:', image.file_id, error);
+      console.warn('Failed to load reference image:', fileId, error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      setEnlarged(false);
     }
   };
 
   if (loading) {
     return (
       <div style={{
-        width: '60px',
-        height: '60px',
+        width: '80px',
+        height: '80px',
         background: '#f3f4f6',
-        borderRadius: '6px',
+        borderRadius: '8px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '11px',
-        color: '#6b7280'
+        fontSize: '12px',
+        color: '#6b7280',
+        border: '1px solid #e5e7eb'
       }}>
         Loading...
       </div>
@@ -1258,15 +1316,16 @@ function ReferenceImage({ image }) {
   if (!imageUrl) {
     return (
       <div style={{
-        width: '60px',
-        height: '60px',
+        width: '80px',
+        height: '80px',
         background: '#f3f4f6',
-        borderRadius: '6px',
+        borderRadius: '8px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '11px',
-        color: '#6b7280'
+        fontSize: '12px',
+        color: '#6b7280',
+        border: '1px solid #e5e7eb'
       }}>
         No image
       </div>
@@ -1275,6 +1334,8 @@ function ReferenceImage({ image }) {
 
   const modalContent = enlarged ? (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
@@ -1285,52 +1346,70 @@ function ReferenceImage({ image }) {
         padding: 20,
         zIndex: 9999
       }}
-      onClick={() => setEnlarged(false)}
+      onClick={handleBackdropClick}
     >
-      <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
+      <div
+        style={{
+          position: 'relative',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <img 
           src={imageUrl}
-          alt={image.caption || 'EL stage reference'}
+          alt={caption}
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
             objectFit: 'contain',
             borderRadius: 8
           }}
-          onClick={(e) => e.stopPropagation()}
         />
+        
+        {/* Close button */}
         <button
           onClick={() => setEnlarged(false)}
           style={{
             position: 'absolute',
             top: -15,
             right: -15,
-            width: 30,
-            height: 30,
+            width: 40,
+            height: 40,
             backgroundColor: '#dc2626',
             color: 'white',
             border: 'none',
             borderRadius: '50%',
-            cursor: 'pointer'
+            fontSize: 20,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
           }}
         >
           ×
         </button>
-        {image.caption && (
+        
+        {/* Caption */}
+        {caption && (
           <div style={{
             position: 'absolute',
-            bottom: -40,
+            bottom: -50,
             left: '50%',
             transform: 'translateX(-50%)',
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
             color: 'white',
-            padding: '4px 8px',
-            borderRadius: 4,
-            fontSize: 12,
+            padding: '8px 16px',
+            borderRadius: 6,
+            fontSize: 14,
             textAlign: 'center',
             whiteSpace: 'nowrap'
           }}>
-            {image.caption}
+            {caption}
           </div>
         )}
       </div>
@@ -1341,40 +1420,61 @@ function ReferenceImage({ image }) {
     <>
       <div 
         style={{
-          width: '60px',
-          height: '60px',
-          borderRadius: '6px',
+          width: '80px',
+          height: '80px',
+          borderRadius: '8px',
           overflow: 'hidden',
-          border: '1px solid #e5e7eb',
+          border: '2px solid #e5e7eb',
           cursor: 'pointer',
-          position: 'relative'
+          position: 'relative',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease'
         }}
         onClick={() => setEnlarged(true)}
-        title={image.caption || 'Click to enlarge'}
+        title={`${caption} - Click to enlarge`}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'scale(1.05)';
+          e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'scale(1)';
+          e.target.style.boxShadow = 'none';
+        }}
       >
         <img 
           src={imageUrl}
-          alt={image.caption || 'EL stage reference'}
+          alt={caption}
           style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
           }}
         />
-        {image.is_primary && (
-          <div style={{
-            position: 'absolute',
-            top: 2,
-            left: 2,
-            background: 'rgba(59, 130, 246, 0.8)',
-            color: 'white',
-            fontSize: '8px',
-            padding: '1px 3px',
-            borderRadius: '2px'
-          }}>
-            PRIMARY
-          </div>
-        )}
+        
+       
+        {/* Hover overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          opacity: 0,
+          transition: 'opacity 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.opacity = 1;
+          e.target.style.background = 'rgba(0,0,0,0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.opacity = 0;
+          e.target.style.background = 'rgba(0,0,0,0)';
+        }}>
+          🔍 View
+        </div>
       </div>
       
       {modalContent && createPortal(modalContent, document.body)}
@@ -1386,31 +1486,31 @@ function ReferenceImage({ image }) {
  * Generic Helper File (preview + download)
  * ----------------------------------- */
 function HelperFile({ fileLink }) {
-  // fileLink shape comes from files_assoc: { id, file_id, caption, ... }
   const [blobUrl, setBlobUrl] = useState(null);
   const [mime, setMime] = useState(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    let revoked = false;
-    (async () => {
+    let cancelled = false;
+    const run = async () => {
       try {
         setLoading(true);
+        console.debug('[HelperFile] fetching', `/files/${fileLink.file_id}/download`, fileLink);
         const resp = await api.get(`/files/${fileLink.file_id}/download`, { responseType: 'blob' });
-        if (revoked) return;
+        if (cancelled) return;
         const url = URL.createObjectURL(resp.data);
         setBlobUrl(url);
         setMime(resp?.data?.type || null);
       } catch (err) {
-        console.warn('Failed to load helper file:', fileLink.file_id, err);
+        console.error('[HelperFile] failed to fetch file', fileLink.file_id, err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    })();
-
+    };
+    run();
     return () => {
-      revoked = true;
+      cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [fileLink.file_id]);
