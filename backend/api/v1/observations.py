@@ -22,7 +22,7 @@ from schemas.reference_items import (
     ReferenceItemOut, ReferenceItemImageOut, ReferenceItemImageCreate
 )
 
-from utils.yield_stats import basic_confidence_summary
+from utils.observation_helpers import basic_confidence_summary
 from utils.el_scale import EL_PHASES
 
 from db.models.observation_template import ObservationTemplate
@@ -727,9 +727,8 @@ def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(
         # <- canonical mapping: FE sends 'values', ORM stores 'data_json'
         data_json=(payload.values or {}),
         photo_file_ids=(payload.photo_file_ids or []),
-        # IMPORTANT: don't stuff videos into documents unless intentional.
-        # If you actually support docs, accept payload.document_file_ids; otherwise omit.
-        # document_file_ids=(getattr(payload, "document_file_ids", None) or []),
+        video_file_ids=(payload.video_file_ids or []),
+        document_file_ids=(getattr(payload, "document_file_ids", None) or []),
         created_by=(payload.created_by or getattr(user, "id", None)),
     )
     db.add(spot)
@@ -764,11 +763,10 @@ def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depe
     # files
     if payload.photo_file_ids is not None:
         spot.photo_file_ids = payload.photo_file_ids
-    # if you do support docs/videos, add these as needed:
-    # if getattr(payload, "document_file_ids", None) is not None:
-    #     spot.document_file_ids = payload.document_file_ids
-    # if getattr(payload, "video_file_ids", None) is not None:
-    #     spot.video_file_ids = payload.video_file_ids
+    if getattr(payload, "document_file_ids", None) is not None:
+        spot.document_file_ids = payload.document_file_ids
+    if getattr(payload, "video_file_ids", None) is not None:
+        spot.video_file_ids = payload.video_file_ids
 
     # gps update
     if (payload.latitude is not None) and (payload.longitude is not None):

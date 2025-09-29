@@ -123,6 +123,50 @@ const observationService = {
   getObservationFileDownloadUrl: (file) => {
     return file?.download_url || file?.file_url || null;
   },
+
+  uploadObservationFile: async ({ entityType, entityId, file, fileCategory = 'document', description }) => {
+    const form = new FormData();
+    form.append('entity_type', String(entityType));
+    form.append('entity_id', String(entityId));
+    form.append('file_category', fileCategory);
+    if (description) form.append('description', description);
+    form.append('file', file);
+
+    const res = await api.post('/files/upload', form);
+    return res.data;
+  },
+
+  listObservationFiles: async ({ entityType, entityId, fileCategory = null }) => {
+    const params = fileCategory ? { file_category: fileCategory } : {};
+    const res = await api.get(`/files/entity/${entityType}/${entityId}`, { params });
+    return res.data;
+  },
+
+  uploadObservationDocument: async ({ entityType, entityId, file, description }) => {
+    return observationService.uploadObservationFile({
+      entityType,
+      entityId,
+      file,
+      fileCategory: 'document',
+      description: description || `Observation document: ${file.name}`
+    });
+  },
+
+  listObservationDocuments: async ({ entityType, entityId }) => {
+    return observationService.listObservationFiles({
+      entityType,
+      entityId,
+      fileCategory: 'document'
+    });
+  },
+
+  listObservationPhotos: async ({ entityType, entityId }) => {
+    return observationService.listObservationFiles({
+      entityType,
+      entityId,
+      fileCategory: 'photo'
+    });
+  },
   
   getElStages: async () => {
     const res = await api.get('/observations/api/reference/el-stages');
@@ -130,8 +174,6 @@ const observationService = {
   },
 
   getReferenceImages: async (referenceItemId) => {
-    // Images are already included in the el-stages response via files_assoc
-    // But if you need to fetch them separately:
     const res = await api.get(`/files/entity/reference_item/${referenceItemId}?file_category=photo`);
     return res.data;
   }
@@ -140,6 +182,7 @@ const observationService = {
 };
 
 const observationFileService = {
+  // Existing photo methods
   uploadSpotPhoto: async (spotId, file, onProgress = null) => {
     const formData = new FormData();
     formData.append('entity_type', 'observation_spot');
@@ -158,8 +201,80 @@ const observationFileService = {
     return await api.get(`/files/entity/observation_spot/${spotId}?file_category=photo`);
   },
 
+  // NEW: Document methods
+  uploadSpotDocument: async (spotId, file, onProgress = null) => {
+    const formData = new FormData();
+    formData.append('entity_type', 'observation_spot');
+    formData.append('entity_id', spotId);
+    formData.append('file_category', 'document');
+    formData.append('description', `Observation spot document: ${file.name}`);
+    formData.append('file', file);
+    
+    return await api.post('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+    });
+  },
+
+  getSpotDocuments: async (spotId) => {
+    return await api.get(`/files/entity/observation_spot/${spotId}?file_category=document`);
+  },
+
+  // Generic file methods
+  getSpotFiles: async (spotId, fileCategory = null) => {
+    const params = fileCategory ? { file_category: fileCategory } : {};
+    return await api.get(`/files/entity/observation_spot/${spotId}`, { params });
+  },
+
+  uploadSpotFile: async (spotId, file, fileCategory = 'document', onProgress = null) => {
+    const formData = new FormData();
+    formData.append('entity_type', 'observation_spot');
+    formData.append('entity_id', spotId);
+    formData.append('file_category', fileCategory);
+    formData.append('description', `Observation spot ${fileCategory}: ${file.name}`);
+    formData.append('file', file);
+    
+    return await api.post('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+    });
+  },
+
   deletePhoto: async (fileId) => {
-    return await api.delete(`/files/${fileId}`);
+    const res = await api.delete(`/files/${fileId}`);
+    return res.data;
+  },
+
+  // Helper to get file download URL
+  getFileDownloadUrl: (file) => {
+    return file?.download_url || `/files/${file.id}/download`;
+  },
+
+  // Helper to determine file type from mime type
+  getFileType: (file) => {
+    const mime = file.mime_type || '';
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime === 'application/pdf') return 'pdf';
+    if (mime.includes('excel') || mime.includes('spreadsheet') || file.original_filename?.endsWith('.xlsx')) return 'excel';
+    if (mime === 'text/csv' || file.original_filename?.endsWith('.csv')) return 'csv';
+    if (mime.includes('word') || file.original_filename?.endsWith('.docx')) return 'word';
+    return 'document';
+  },
+
+  // Helper to get appropriate icon for file type
+  getFileIcon: (file) => {
+    const type = this.getFileType(file);
+    const icons = {
+      image: '🖼️',
+      video: '🎥',
+      pdf: '📄',
+      excel: '📊',
+      csv: '📈',
+      word: '📝',
+      document: '📁'
+    };
+    return icons[type] || '📁';
   }
 };
 

@@ -199,6 +199,7 @@ class ObservationSpotBase(BaseModel):
     status: SpotStatus = "recorded"
     photo_file_ids: List[str] = Field(default_factory=list)  # stored as IDs in files table
     video_file_ids: List[str] = Field(default_factory=list)
+    document_file_ids: List[str] = Field(default_factory=list)
 
 class ObservationSpotCreate(ObservationSpotBase):
     created_by: Optional[int] = None
@@ -214,6 +215,7 @@ class ObservationSpotUpdate(BaseModel):
     status: Optional[SpotStatus] = None
     photo_file_ids: Optional[List[str]] = None
     video_file_ids: Optional[List[str]] = None
+    document_file_ids: Optional[List[str]] = None
 
 class ObservationSpotOut(ObservationSpotBase):
     id: int

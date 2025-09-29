@@ -60,6 +60,7 @@ class ObservationSpot(Base):
 
     # Optional media per-spot
     photo_file_ids = Column(JSON, nullable=False, default=list)
+    video_file_ids = Column(JSON, nullable=False, default=list)  
     document_file_ids = Column(JSON, nullable=False, default=list)
 
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
