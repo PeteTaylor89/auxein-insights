@@ -306,7 +306,7 @@ export default function RunCapture() {
     if (!allSaved) return;
     try {
       setBusy(true);
-      await observationService.completeRun(id);
+      await observationService.completeRun(id);  
       await load();
       alert('Run completed (server summary updated).');
     } catch (e) {

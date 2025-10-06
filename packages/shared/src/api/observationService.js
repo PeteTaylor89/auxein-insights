@@ -57,8 +57,12 @@ const observationService = {
   
   getRun: async (id) => (await api.get(`/observations/api/observation-runs/${id}`)).data,
   updateRun: async (id, payload) => (await api.patch(`/observations/api/observation-runs/${id}`, payload)).data,
-  completeRun: async (id) => (await api.post(`/observations/api/observation-runs/${id}/complete`, {})).data,
 
+  completeRun: async (id) => {
+    const res = await api.post(`/observations/api/observation-runs/${id}/complete`, {});
+    return res.data;
+  },
+  
   createRun: async (payload) => {
     const res = await api.post('/observations/api/observation-runs', payload);
     return res.data;

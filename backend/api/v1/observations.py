@@ -652,30 +652,50 @@ def update_run(run_id: int, payload: ObservationRunUpdate, db: Session = Depends
     return run
 
 @router.post("/observation-runs/{run_id}/complete", response_model=ObservationRunOut)
-def complete_run(run_id: int, db: Session = Depends(get_db)):
+def complete_run_endpoint(run_id: int, db: Session = Depends(get_db)):
+    """
+    Complete an observation run and generate summary statistics
+    """
+    from services.run_completion import complete_run as compute_summary
+    
+    # Fetch the run
     run = db.get(ObservationRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-
-    # naive summary: if spots have a numeric 'bunches_per_vine' or 'bunches_total' / 'vines_sampled'
-    spots = db.execute(select(ObservationSpot).where(ObservationSpot.run_id == run_id)).scalars().all()
-    est_values = []
-    for s in spots:
-        v = s.data_json or {}
-        if "bunches_per_vine" in v and isinstance(v["bunches_per_vine"], (int, float)):
-            est_values.append(float(v["bunches_per_vine"]))
-        elif "bunches_total" in v and "vines_sampled" in v:
-            try:
-                est_values.append(float(v["bunches_total"]) / float(v["vines_sampled"]))
-            except Exception:
-                pass
-    summary = basic_confidence_summary(est_values)
-    run.summary_json = {**(run.summary_json or {}), "bunches_per_vine_summary": summary}
-    run.observed_at_end = run.observed_at_end or datetime.utcnow()
-
-    db.add(run)
-    db.commit()
+    
+    # Check if already completed
+    if run.observed_at_end:
+        raise HTTPException(
+            status_code=400, 
+            detail="Run already completed. Summary is stored in summary_json field."
+        )
+    
+    # Compute summary
+    try:
+        summary = compute_summary(db, run_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # Log the full error for debugging
+        print(f"ERROR completing run {run_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to compute summary: {str(e)}"
+        )
+    
+    # Refresh the run object to get updated summary_json
     db.refresh(run)
+    
+    # Annotate for response (same as list_runs)
+    run.plan_name = run.plan.name if run.plan else None
+    if run.creator:
+        run.creator_name = f"{run.creator.first_name} {run.creator.last_name}".strip()
+    else:
+        run.creator_name = None
+    run.block_name = run.block.block_name if run.block else None
+    
     return run
 
 @router.patch("/observation-runs/{run_id}/cancel", response_model=ObservationRunOut)

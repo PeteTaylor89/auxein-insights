@@ -20,7 +20,6 @@ class FileEntityType(str, Enum):
     stock_movement = "stock_movement"
     reference_item = "reference_item"
     training_slide = "training_slide"
-    # Future types (commented for now)
     observation_spot = "observation_spot"
     # task = "task"
     # incident = "incident"
