@@ -20,6 +20,11 @@ import {
 } from 'lucide-react';
 import { observationService, authService, api, blocksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import SpotLocationMap from '../components/SpotLocationMap';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+
+mapboxgl.accessToken = 'pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q';
 
 // Helpers
 const asArray = (v) => Array.isArray(v) ? v : (v?.items ?? v?.results ?? v?.data ?? []);
@@ -571,12 +576,49 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRu
   const filePhotoRef = useRef(null);
   const fileVideoRef = useRef(null);
   const fileDocRef = useRef(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [showLocationMap, setShowLocationMap] = useState(false);
 
   const values = spot.values || {};
   const hasUnsavedChanges = spot._hasUnsavedChanges || spot._isNew;
   const isLocked = runBlockId != null;
 
   const setValue = (k, v) => onChange(idx, { values: { ...(values || {}), [k]: v } });
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        onChange(idx, {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
+        setGettingLocation(false);
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        alert(`Failed to get location: ${error.message}`);
+        setGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  const handleLocationFromMap = (coords) => {
+    onChange(idx, {
+      latitude: coords.latitude,
+      longitude: coords.longitude
+    });
+  };
 
   return (
     <div className="stat-card" style={{ padding: 16, border: hasUnsavedChanges ? '2px solid #f59e0b' : '1px solid #eee', borderRadius: 12, background: '#fff', opacity: isRunCompleted ? 0.9 : 1 }}>
@@ -600,6 +642,149 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRu
             )}
           </div>
         </div>
+
+        {/* GPS Coordinates Section */}
+        <div style={{ 
+          padding: 12, 
+          background: '#f0f9ff', 
+          border: '1px solid #bae6fd', 
+          borderRadius: 8 
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            marginBottom: 8
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <MapPin size={16} color="#0284c7" />
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e' }}>
+                Location
+              </span>
+            </div>
+            {!isRunCompleted && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  type="button"
+                  className="btn"
+                  onClick={getCurrentLocation}
+                  disabled={gettingLocation || busy}
+                  style={{ 
+                    fontSize: 12,
+                    padding: '4px 8px',
+                    background: '#0284c7',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: gettingLocation || busy ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {gettingLocation ? 'Getting...' : '📍 Current'}
+                </button>
+                <button 
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowLocationMap(true)}
+                  disabled={busy}
+                  style={{ 
+                    fontSize: 12,
+                    padding: '4px 8px',
+                    background: '#059669',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: busy ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  🗺️ Map
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {/* Show location status or coordinates */}
+          {spot.latitude && spot.longitude ? (
+            <div style={{
+              background: '#dcfce7',
+              border: '1px solid #22c55e',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              marginBottom: 8
+            }}>
+              <div style={{ fontWeight: 500, color: '#166534', fontSize: 13, marginBottom: 2 }}>
+                ✅ Location Set
+              </div>
+              <div style={{ fontSize: 12, color: '#166534' }}>
+                Coordinates: {spot.latitude.toFixed(6)}, {spot.longitude.toFixed(6)}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              fontSize: 12,
+              color: '#6b7280',
+              marginBottom: 8,
+              padding: '8px 12px',
+              background: 'white',
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              No location set. Click "Current" or "Map" to add a location.
+            </div>
+          )}
+          
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: 8 
+          }}>
+            <label>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Latitude</div>
+              <input 
+                type="number" 
+                step="any"
+                value={spot.latitude ?? ''} 
+                onChange={(e) => onChange(idx, { latitude: e.target.value ? Number(e.target.value) : null })}
+                disabled={isRunCompleted}
+                placeholder="-41.2865"
+                style={{ 
+                  width: '100%',
+                  padding: '6px 8px',
+                  fontSize: 12,
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px'
+                }}
+              />
+            </label>
+            <label>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Longitude</div>
+              <input 
+                type="number" 
+                step="any"
+                value={spot.longitude ?? ''} 
+                onChange={(e) => onChange(idx, { longitude: e.target.value ? Number(e.target.value) : null })}
+                disabled={isRunCompleted}
+                placeholder="174.7762"
+                style={{ 
+                  width: '100%',
+                  padding: '6px 8px',
+                  fontSize: 12,
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px'
+                }}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Location Map Modal */}
+        {showLocationMap && (
+          <SpotLocationMap
+            isOpen={showLocationMap}
+            onClose={() => setShowLocationMap(false)}
+            onLocationSet={handleLocationFromMap}
+            initialCoordinates={spot.latitude && spot.longitude ? { latitude: spot.latitude, longitude: spot.longitude } : null}
+          />
+        )}
 
         {/* Dynamic fields */}
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
@@ -658,11 +843,86 @@ function PhotoGallery({ photos, onDelete, disabled }) {
   if (!photos?.length) return <div className="spot-empty">No photos uploaded</div>;
 
   const modalContent = enlargedPhoto ? (
-    <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 9999 }} onClick={(e) => e.target === e.currentTarget && setEnlargedPhoto(null)}>
-      <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
-        <img src={enlargedPhoto.blob_url} alt={enlargedPhoto.description || 'Observation photo'} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
-        <button onClick={() => setEnlargedPhoto(null)} style={{ position: 'absolute', top: -15, right: -15, width: 40, height: 40, backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>×</button>
-        <div style={{ position: 'absolute', bottom: -50, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.8)', color: 'white', padding: '8px 16px', borderRadius: 6, fontSize: 14, whiteSpace: 'nowrap' }}>
+    <div 
+      role="dialog" 
+      aria-modal="true" 
+      style={{ 
+        position: 'fixed', 
+        inset: 0, 
+        background: 'rgba(0,0,0,0.9)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: 20, 
+        zIndex: 9999,
+        overflow: 'auto'
+      }} 
+      onClick={(e) => e.target === e.currentTarget && setEnlargedPhoto(null)}
+    >
+      <div 
+        style={{ 
+          position: 'relative', 
+          maxWidth: '90vw', 
+          maxHeight: '90vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }} 
+        onClick={(e) => e.stopPropagation()}
+      >
+        <img 
+          src={enlargedPhoto.blob_url} 
+          alt={enlargedPhoto.description || 'Observation photo'} 
+          style={{ 
+            maxWidth: '90vw', 
+            maxHeight: '90vh', 
+            width: 'auto',
+            height: 'auto',
+            objectFit: 'contain', 
+            borderRadius: 8,
+            display: 'block'
+          }} 
+        />
+        <button 
+          onClick={() => setEnlargedPhoto(null)} 
+          style={{ 
+            position: 'absolute', 
+            top: -15, 
+            right: -15, 
+            width: 40, 
+            height: 40, 
+            backgroundColor: '#dc2626', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '50%', 
+            fontSize: 20, 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+            zIndex: 10000
+          }}
+        >
+          ×
+        </button>
+        <div 
+          style={{ 
+            position: 'absolute', 
+            bottom: -50, 
+            left: '50%', 
+            transform: 'translateX(-50%)', 
+            background: 'rgba(0,0,0,0.8)', 
+            color: 'white', 
+            padding: '8px 16px', 
+            borderRadius: 6, 
+            fontSize: 14, 
+            whiteSpace: 'nowrap',
+            maxWidth: '90vw',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+        >
           {enlargedPhoto.original_filename} ({Math.round(enlargedPhoto.file_size / 1024)}KB)
         </div>
       </div>

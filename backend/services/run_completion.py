@@ -232,13 +232,16 @@ def complete_run(db: Session, run_id: int) -> Dict[str, Any]:
 
 def _store_summary(db: Session, run_id: int, summary: Dict[str, Any]):
     """Store summary in run and mark as completed"""
-    db.execute(sa.text(f"""
-        UPDATE {T_RUNS}
-        SET summary_json = :summary::jsonb,
-            observed_at_end = COALESCE(observed_at_end, NOW())
-        WHERE id = :rid
-    """), {"summary": json.dumps(summary), "rid": run_id})
-    db.commit()
+    from db.models.observation_run import ObservationRun
+    from datetime import datetime
+    
+    run = db.get(ObservationRun, run_id)
+    if run:
+        run.summary_json = summary
+        if not run.observed_at_end:
+            run.observed_at_end = datetime.now(timezone.utc)
+        db.add(run)
+        db.commit()
 
 def _process_calculated_summary(
     spots: List[Dict[str, Any]],
