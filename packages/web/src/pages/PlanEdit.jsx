@@ -33,7 +33,7 @@ export default function PlanEdit() {
   const [originalPlan, setOriginalPlan] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [blocks, setBlocks] = useState([]);
-  const [blockTargets, setBlockTargets] = useState({}); // { blockId: { selected: bool, rowStart: '', rowEnd: '', spots: number } }
+  const [blockTargets, setBlockTargets] = useState({});
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -59,12 +59,10 @@ export default function PlanEdit() {
         setTemplates(asArray(tplRes));
         setBlocks(asArray(blkRes));
 
-        // Populate form with existing plan data
         setName(plan.name || '');
         setInstructions(plan.instructions || '');
         setTemplateId(String(plan.template_id || ''));
 
-        // Convert targets to blockTargets format
         const targetsMap = {};
         if (plan.targets) {
           plan.targets.forEach(target => {
@@ -93,7 +91,14 @@ export default function PlanEdit() {
     return () => { mounted = false; };
   }, [id, companyId]);
 
-  // When templateId changes, find template object
+  // Set body background
+  useEffect(() => {
+    document.body.classList.add("primary-bg");
+    return () => {
+      document.body.classList.remove("primary-bg");
+    };
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -108,7 +113,6 @@ export default function PlanEdit() {
         return;
       }
       
-      // Fetch full template (ensure we have schema)
       try {
         const full = await observationService.getTemplate?.(templateId);
         if (!mounted) return;
@@ -162,15 +166,12 @@ export default function PlanEdit() {
     
     if (name !== (originalPlan.name || '')) return true;
     if (instructions !== (originalPlan.instructions || '')) return true;
-    // Remove template comparison since it's now locked
     
-    // Check if targets have changed
     const currentTargets = getSelectedTargets();
     const originalTargets = originalPlan.targets || [];
     
     if (currentTargets.length !== originalTargets.length) return true;
     
-    // Compare targets (simplified comparison)
     for (let i = 0; i < currentTargets.length; i++) {
       const current = currentTargets[i];
       const original = originalTargets.find(t => t.block_id === current.block_id);
@@ -216,271 +217,480 @@ export default function PlanEdit() {
     }
   };
 
+  if (loading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f8fafc',
+        paddingTop: '70px'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading Plan Data...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f8fafc',
+        paddingTop: '70px'
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: '500px', padding: '2rem' }}>
+          <h2 style={{ color: '#dc2626' }}>❌ Error Loading Plan</h2>
+          <p style={{ marginBottom: '1rem' }}>{error}</p>
+          <button 
+            onClick={() => navigate('/observations')} 
+            style={{
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Back to Observations
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
-      {/* Back button */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button
-          className="btn"
-          onClick={() => navigate(`/plandetail/${id}`)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <ArrowLeft size={16} /> Back to Plan
-        </button>
-      </div>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: '#f8fafc',
+      paddingTop: '70px',
+      paddingBottom: '80px'
+    }}>
+      <div style={{ 
+        maxWidth: '1400px', 
+        margin: '0 auto', 
+        padding: '1rem' 
+      }}>
+        
+        {/* Back button */}
+        <div style={{ marginBottom: '1rem' }}>
+          <button
+            onClick={() => navigate(`/plandetail/${id}`)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              background: '#f3f4f6',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Plan
+          </button>
+        </div>
 
-      {/* Header */}
-      <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ClipboardList /> <span>Edit Observation Plan</span>
-      </div>
+        {/* Header */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}>
+          <h1 style={{ 
+            margin: 0, 
+            fontSize: '1.5rem', 
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <ClipboardList size={24} /> Edit Observation Plan
+          </h1>
+        </div>
 
-      {loading && <div className="stat-card" style={{ marginTop: 12 }}>Loading plan data…</div>}
-      {error && <div className="stat-card" style={{ marginTop: 12, borderColor: 'red' }}>{error}</div>}
+        {error && (
+          <div style={{ 
+            background: '#fef2f2',
+            border: '1px solid #fca5a5',
+            borderRadius: '12px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            color: '#dc2626'
+          }}>
+            {error}
+          </div>
+        )}
 
-      {!loading && (
-        <div className="grid" style={{ display: 'grid', gap: 16 }}>
-          {/* Plan Basics */}
-          <section className="stat-card">
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Target /> Plan Details
+        {/* Plan Details */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 1rem 0', 
+            fontSize: '1rem', 
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <Target size={18} /> Plan Details
+          </h3>
+          
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            <label>
+              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                Plan Name
+              </div>
+              <input
+                placeholder="e.g. Phenology tracking – Block A"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </label>
+
+            <label>
+              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                Instructions / Description
+              </div>
+              <textarea 
+                rows={3} 
+                value={instructions} 
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="Any special instructions for this observation plan..."
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </label>
+
+            <label>
+              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                Template (cannot be changed)
+              </div>
+              <div style={{ 
+                padding: '0.75rem', 
+                border: '1px solid #d1d5db', 
+                borderRadius: '6px', 
+                background: '#f9fafb',
+                color: '#6b7280',
+                fontSize: '0.875rem'
+              }}>
+                {template?.name || templates.find(t => String(t.id) === templateId)?.name || `Template #${templateId}`}
+              </div>
+              <small style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                Template cannot be changed after plan creation to preserve data integrity
+              </small>
+            </label>
+          </div>
+        </div>
+
+        {/* Targets */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1rem', 
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <MapPin size={18} /> Targets (Blocks)
             </h3>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <label>
-                <div>Plan Name</div>
-                <input
-                  placeholder="e.g. Phenology tracking — Block A"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
+            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+              Select blocks and configure observation details
+            </div>
+          </div>
 
-              <label>
-                <div>Instructions / Description</div>
-                <textarea 
-                  rows={3} 
-                  value={instructions} 
-                  onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Any special instructions for this observation plan..."
-                />
-              </label>
+          {blocks.length === 0 && (
+            <div style={{ 
+              padding: '2rem', 
+              color: '#6b7280', 
+              background: '#f8fafc', 
+              borderRadius: '8px',
+              textAlign: 'center',
+              fontStyle: 'italic'
+            }}>
+              No blocks found for your company.
+            </div>
+          )}
 
-              <label>
-                <div>Template (cannot be changed)</div>
-                <div style={{ 
-                  padding: '8px 12px', 
-                  border: '1px solid #d1d5db', 
-                  borderRadius: 6, 
-                  background: '#f9fafb',
-                  color: '#6b7280',
-                  fontSize: 18
+          {blocks.length > 0 && (
+            <>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: '0.875rem'
                 }}>
-                  {template?.name || templates.find(t => String(t.id) === templateId)?.name || `Template #${templateId}`}
-                </div>
-                <small style={{ color: '#666', fontSize: 12 }}>
-                  Template cannot be changed after plan creation to preserve data integrity
-                </small>
-              </label>
-            </div>
-          </section>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Select</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block Name</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Variety</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Row Start</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Row End</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Spots</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {blocks.map(b => {
+                      const bid = Number(b.id ?? b.block_id);
+                      const target = blockTargets[bid] || { selected: false, rowStart: '', rowEnd: '', spots: 1 };
+                      const displayName = b.name ?? b.block_name ?? b.label ?? `Block ${bid}`;
+                      const displayVariety = b.variety ?? b.variety_name ?? b.cultivar ?? b.clone ?? '';
 
-          {/* Targets */}
-          <section className="stat-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MapPin /> Targets (Blocks)
+                      return (
+                        <tr 
+                          key={bid} 
+                          style={{ 
+                            borderBottom: '1px solid #f3f4f6',
+                            background: target.selected ? '#f0f9ff' : 'transparent'
+                          }}
+                          onMouseEnter={(e) => !target.selected && (e.target.closest('tr').style.background = '#f8fafc')}
+                          onMouseLeave={(e) => !target.selected && (e.target.closest('tr').style.background = 'transparent')}
+                        >
+                          <td style={{ padding: 12 }}>
+                            <input
+                              type="checkbox"
+                              checked={target.selected}
+                              onChange={() => toggleBlock(bid)}
+                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                            />
+                          </td>
+                          <td style={{ padding: 12, fontWeight: target.selected ? '600' : '400' }}>
+                            {displayName}
+                          </td>
+                          <td style={{ padding: 12, color: '#6b7280' }}>
+                            {displayVariety || '—'}
+                          </td>
+                          <td style={{ padding: 12 }}>
+                            <input
+                              type="text"
+                              placeholder="1"
+                              value={target.rowStart}
+                              onChange={(e) => updateBlockTarget(bid, 'rowStart', e.target.value)}
+                              disabled={!target.selected}
+                              style={{
+                                width: 80,
+                                padding: '0.375rem 0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                background: target.selected ? '#fff' : '#f9fafb',
+                                opacity: target.selected ? 1 : 0.6,
+                                fontSize: '0.813rem'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: 12 }}>
+                            <input
+                              type="text"
+                              placeholder="10"
+                              value={target.rowEnd}
+                              onChange={(e) => updateBlockTarget(bid, 'rowEnd', e.target.value)}
+                              disabled={!target.selected}
+                              style={{
+                                width: 80,
+                                padding: '0.375rem 0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                background: target.selected ? '#fff' : '#f9fafb',
+                                opacity: target.selected ? 1 : 0.6,
+                                fontSize: '0.813rem'
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: 12 }}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={target.spots}
+                              onChange={(e) => updateBlockTarget(bid, 'spots', e.target.value)}
+                              disabled={!target.selected}
+                              style={{
+                                width: 80,
+                                padding: '0.375rem 0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                background: target.selected ? '#fff' : '#f9fafb',
+                                opacity: target.selected ? 1 : 0.6,
+                                fontSize: '0.813rem'
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {getSelectedTargets().length > 0 && (
+                <div style={{ 
+                  marginTop: '1rem', 
+                  padding: '0.75rem', 
+                  background: '#f0f9ff', 
+                  borderRadius: '8px', 
+                  border: '1px solid #bfdbfe' 
+                }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: '#1e40af' }}>
+                    Summary:
+                  </div>
+                  <div style={{ fontSize: '0.813rem', color: '#374151' }}>
+                    {getSelectedTargets().length} block{getSelectedTargets().length === 1 ? '' : 's'} selected, {' '}
+                    {getSelectedTargets().reduce((sum, t) => sum + t.required_spots, 0)} total observation spots per run
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Template Fields Preview */}
+        {template && (
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '1.25rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
+                {template.name} : Template Fields
               </h3>
-              <div style={{ fontSize: 13, color: '#666' }}>
-                Select blocks and configure observation details
+              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                {fields.length} field{fields.length === 1 ? '' : 's'}
               </div>
             </div>
 
-            {blocks.length === 0 && (
-              <div style={{ padding: 16, color: '#777', background: '#f9fafb', borderRadius: 8 }}>
-                No blocks found for your company.
-              </div>
-            )}
-
-            {blocks.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
-                <thead style={{ background: '#f9fafb' }}>
-                  <tr>
-                    <th style={{ padding: 12, textAlign: 'left', fontWeight: 600 }}>Select</th>
-                    <th style={{ padding: 12, textAlign: 'left', fontWeight: 600 }}>Block Name</th>
-                    <th style={{ padding: 12, textAlign: 'left', fontWeight: 600 }}>Variety</th>
-                    <th style={{ padding: 12, textAlign: 'left', fontWeight: 600, width: 100 }}>Row Start</th>
-                    <th style={{ padding: 12, textAlign: 'left', fontWeight: 600, width: 100 }}>Row End</th>
-                    <th style={{ padding: 12, textAlign: 'left', fontWeight: 600, width: 100 }}>Spots</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {blocks.map(b => {
-                    const bid = Number(b.id ?? b.block_id);
-                    const target = blockTargets[bid] || { selected: false, rowStart: '', rowEnd: '', spots: 1 };
-                    const displayName = b.name ?? b.block_name ?? b.label ?? `Block ${bid}`;
-                    const displayVariety = b.variety ?? b.variety_name ?? b.cultivar ?? b.clone ?? '';
-
-                    return (
-                      <tr 
-                        key={bid} 
-                        style={{ 
-                          borderBottom: '1px solid #f2f2f2',
-                          background: target.selected ? '#f0f9ff' : '#fff'
-                        }}
-                      >
-                        <td style={{ padding: 12 }}>
-                          <input
-                            type="checkbox"
-                            checked={target.selected}
-                            onChange={() => toggleBlock(bid)}
-                            style={{ cursor: 'pointer' }}
-                          />
-                        </td>
-                        <td style={{ padding: 12, fontWeight: target.selected ? 600 : 400 }}>
-                          {displayName}
-                        </td>
-                        <td style={{ padding: 12, color: '#6b7280', fontSize: 14 }}>
-                          {displayVariety || '—'}
-                        </td>
-                        <td style={{ padding: 12 }}>
-                          <input
-                            type="text"
-                            placeholder="1"
-                            value={target.rowStart}
-                            onChange={(e) => updateBlockTarget(bid, 'rowStart', e.target.value)}
-                            disabled={!target.selected}
-                            style={{
-                              width: 80,
-                              padding: '6px 8px',
-                              border: '1px solid #d1d5db',
-                              borderRadius: 6,
-                              background: target.selected ? '#fff' : '#f9fafb',
-                              opacity: target.selected ? 1 : 0.6
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: 12 }}>
-                          <input
-                            type="text"
-                            placeholder="10"
-                            value={target.rowEnd}
-                            onChange={(e) => updateBlockTarget(bid, 'rowEnd', e.target.value)}
-                            disabled={!target.selected}
-                            style={{
-                              width: 80,
-                              padding: '6px 8px',
-                              border: '1px solid #d1d5db',
-                              borderRadius: 6,
-                              background: target.selected ? '#fff' : '#f9fafb',
-                              opacity: target.selected ? 1 : 0.6
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: 12 }}>
-                          <input
-                            type="number"
-                            min="1"
-                            value={target.spots}
-                            onChange={(e) => updateBlockTarget(bid, 'spots', e.target.value)}
-                            disabled={!target.selected}
-                            style={{
-                              width: 80,
-                              padding: '6px 8px',
-                              border: '1px solid #d1d5db',
-                              borderRadius: 6,
-                              background: target.selected ? '#fff' : '#f9fafb',
-                              opacity: target.selected ? 1 : 0.6
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-
-            {getSelectedTargets().length > 0 && (
-              <div style={{ marginTop: 12, padding: 12, background: '#f0f9ff', borderRadius: 8, border: '1px solid #bfdbfe' }}>
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Summary:</div>
-                <div style={{ fontSize: 13, color: '#374151' }}>
-                  {getSelectedTargets().length} block{getSelectedTargets().length === 1 ? '' : 's'} selected, {' '}
-                  {getSelectedTargets().reduce((sum, t) => sum + t.required_spots, 0)} total observation spots per run
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Template Fields Preview */}
-          {template && (
-            <section className="stat-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h3 style={{ margin: 0 }}>{template.name} : Template Fields</h3>
-                <div style={{ fontSize: 12, color: '#666' }}>
-                  {fields.length} field{fields.length === 1 ? '' : 's'}
-                </div>
-              </div>
-
-              <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
-                <thead style={{ background: '#f9fafb' }}>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th style={{ padding: 10 }}>Label</th>
-                    <th style={{ padding: 10 }}>Name</th>
-                    <th style={{ padding: 10 }}>Required</th>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                fontSize: '0.875rem'
+              }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Label</th>
+                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Name</th>
+                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Required</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fields.length === 0 && (
-                    <tr><td colSpan={3} style={{ padding: 14, color: '#777' }}>No fields defined.</td></tr>
+                    <tr>
+                      <td colSpan={3} style={{ padding: 20, color: '#6b7280', textAlign: 'center', fontStyle: 'italic' }}>
+                        No fields defined.
+                      </td>
+                    </tr>
                   )}
                   {fields.map((f, i) => (
-                    <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                      <td style={{ padding: 10, fontWeight: 500 }}>{f.label || '—'}</td>
+                    <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: 10, fontWeight: '500' }}>{f.label || '—'}</td>
                       <td style={{ padding: 10 }}>{f.name || '—'}</td>
                       <td style={{ padding: 10 }}>{f.required ? 'Yes' : 'No'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </section>
-          )}
-
-          {/* Changes indicator */}
-          {hasChanges() && (
-            <div style={{ padding: 12, background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, color: '#92400e' }}>
-              <strong>Unsaved changes detected.</strong> Click "Update Plan" to save your changes.
             </div>
-          )}
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between' }}>
-            <button 
-              className="btn" 
-              onClick={() => navigate(`/plandetail/${id}`)}
-              style={{ padding: '8px 16px', borderRadius: 8, background: '#f3f4f6' }}
-            >
-              Cancel
-            </button>
-            <button 
-              className="btn" 
-              disabled={!canSubmit || busy || !hasChanges()}
-              onClick={submit}
-              style={{ 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                gap: 6, 
-                padding: '8px 16px', 
-                borderRadius: 8, 
-                background: hasChanges() ? '#059669' : '#9ca3af', 
-                color: '#fff' 
-              }}
-            >
-              <Save size={16} /> {busy ? 'Updating...' : 'Update Plan'}
-            </button>
           </div>
+        )}
 
-          <MobileNavigation />
+        {/* Changes indicator */}
+        {hasChanges() && (
+          <div style={{ 
+            padding: '0.75rem', 
+            background: '#fef3c7', 
+            border: '1px solid #f59e0b', 
+            borderRadius: '8px', 
+            color: '#92400e',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem'
+          }}>
+            <strong>Unsaved changes detected.</strong> Click "Update Plan" to save your changes.
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '0.75rem', 
+          justifyContent: 'space-between',
+          marginBottom: '1.5rem'
+        }}>
+          <button 
+            onClick={() => navigate(`/plandetail/${id}`)}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              borderRadius: '6px', 
+              background: '#f3f4f6',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              color: '#374151'
+            }}
+          >
+            Cancel
+          </button>
+          <button 
+            disabled={!canSubmit || busy || !hasChanges()}
+            onClick={submit}
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              padding: '0.5rem 1rem', 
+              borderRadius: '6px', 
+              background: canSubmit && hasChanges() && !busy ? '#059669' : '#9ca3af', 
+              color: '#fff',
+              border: 'none',
+              cursor: canSubmit && hasChanges() && !busy ? 'pointer' : 'not-allowed',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            <Save size={16} /> {busy ? 'Updating...' : 'Update Plan'}
+          </button>
         </div>
-      )}
+
+        <MobileNavigation />
+      </div>
     </div>
   );
 }

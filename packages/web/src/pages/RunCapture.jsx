@@ -92,6 +92,14 @@ export default function RunCapture() {
   const [uploadingVideo, setUploadingVideo] = useState({});
   const [uploadingDoc, setUploadingDoc] = useState({});
 
+  const [runLabConfig, setRunLabConfig] = useState({
+    analyses_requested: [],
+    harvest_date: '',
+    collected_by: '',
+    lab_ref: ''
+  });
+  const runLabReportRef = useRef(null);
+
   const fields = useMemo(() => readTemplateFields(template), [template]);
   const blockMap = useMemo(() => {
     const m = new Map();
@@ -117,6 +125,10 @@ export default function RunCapture() {
       setTemplate(tpl || null);
       setBlocks(asArray(blks));
 
+      if (r?.metadata_json?.lab_config) {
+        setRunLabConfig(r.metadata_json.lab_config);
+      }
+      
       const normalized = await Promise.all(
         asArray(sp).map(async (spot) => {
           const n = normalizeSpot(spot);
@@ -167,6 +179,27 @@ export default function RunCapture() {
       setLoading(false);
     }
   }
+
+  const saveRunLabConfig = async (config) => {
+    try {
+      setBusy(true);
+      await observationService.updateRun(id, { 
+        metadata_json: { 
+          ...(run.metadata_json || {}), 
+          lab_config: config 
+        } 
+      });
+      setRunLabConfig(config);
+      // Reload to get updated run
+      const r = await observationService.getRun(id);
+      setRun(r);
+    } catch (e) {
+      console.error('Failed to save lab config', e);
+      alert('Failed to save lab configuration');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   function normalizeSpot(s) {
     if (!s) return s;
@@ -432,6 +465,34 @@ export default function RunCapture() {
     }
   };
 
+  const handleRunLabReportUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Upload to first spot
+    const firstSpot = spots[0];
+    if (!firstSpot || firstSpot._isNew) {
+      alert('Please save at least one sample before uploading the lab report');
+      return;
+    }
+    
+    try {
+      setBusy(true);
+      await filesApi.uploadToSpot(firstSpot.id, file, 'document');
+      await refreshSpotMedia(firstSpot.id);
+      alert('Lab report uploaded successfully!');
+    } catch (e) {
+      console.error('Upload failed:', e);
+      alert('Failed to upload lab report: ' + (e?.message || 'Error'));
+    } finally {
+      setBusy(false);
+      // Clear input
+      if (runLabReportRef.current) {
+        runLabReportRef.current.value = '';
+      }
+    }
+  };
+
   const downloadFile = async (fileId, filename) => {
     try {
       const blob = await filesApi.downloadBlob(fileId);
@@ -507,12 +568,40 @@ export default function RunCapture() {
 
           <Summary run={run} />
 
+          {/* NEW: Add these three sections */}
+          <LabConfigSection 
+            template={template}
+            runLabConfig={runLabConfig}
+            onSave={saveRunLabConfig}
+            disabled={isRunCompleted}
+          />
+
+          <LabSamplingSummary spots={spots} template={template} />
+
+          <LabReportUploadSection 
+            spots={spots}
+            isLabTemplate={template?.observation_type === 'lab_sampling_pre_winery' || 
+                          template?.type === 'lab_sampling_pre_winery' ||
+                          template?.name?.toLowerCase().includes('lab sampling')}
+            runLabReportRef={runLabReportRef}
+            onUpload={handleRunLabReportUpload}
+            busy={busy}
+          />
+
           <section>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><MapPin /> Spots ({spots.length})</h3>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MapPin /> 
+                {(template?.observation_type === 'lab_sampling_pre_winery' || 
+                  template?.type === 'lab_sampling_pre_winery' ||
+                  template?.name?.toLowerCase().includes('lab sampling')) ? 'Samples' : 'Spots'} ({spots.length})
+              </h3>
               {!isRunCompleted && (
                 <button className="btn" onClick={addSpot} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}>
-                  <Plus size={16} /> Add Spot
+                  <Plus size={16} /> 
+                  {(template?.observation_type === 'lab_sampling_pre_winery' || 
+                    template?.type === 'lab_sampling_pre_winery' ||
+                    template?.name?.toLowerCase().includes('lab sampling')) ? 'Add Sample' : 'Add Spot'}
                 </button>
               )}
             </div>
@@ -531,6 +620,7 @@ export default function RunCapture() {
                   blocks={blocks}
                   runBlockId={run.block_id}
                   template={template}
+                  runLabConfig={runLabConfig}  // NEW: Add this prop
                   isRunCompleted={isRunCompleted}
                   onChange={updateSpot}
                   onSave={saveSpot}
@@ -556,6 +646,234 @@ export default function RunCapture() {
   );
 }
 
+function LabConfigSection({ template, runLabConfig, onSave, disabled }) {
+  const isLabTemplate = template?.observation_type === 'lab_sampling_pre_winery' || 
+                        template?.type === 'lab_sampling_pre_winery' ||
+                        template?.name?.toLowerCase().includes('lab sampling');
+  
+  if (!isLabTemplate) return null;
+
+  const [localConfig, setLocalConfig] = useState(runLabConfig);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setLocalConfig(runLabConfig);
+  }, [runLabConfig]);
+
+  const analysesOptions = [
+    { label: "Brix (°Bx)", value: "brix" },
+    { label: "pH", value: "ph" },
+    { label: "TA (g/L)", value: "ta_gpl" },
+    { label: "YAN (mg N/L)", value: "yan" },
+    { label: "Malic (g/L)", value: "malic" },
+    { label: "Glucose/Fructose (g/L)", value: "glu_fru" },
+    { label: "Turbidity (NTU)", value: "ntu" },
+    { label: "Smoke markers", value: "smoke_markers" },
+    { label: "Minerals/metals", value: "minerals" }
+  ];
+
+  const handleSave = async () => {
+    await onSave(localConfig);
+    setEditing(false);
+  };
+
+  return (
+    <section className="stat-card" style={{ background: '#eff6ff', border: '1px solid #3b82f6' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>Lab Submission Configuration</h3>
+        {!disabled && (
+          <button 
+            className="btn" 
+            onClick={() => editing ? handleSave() : setEditing(true)}
+            style={{ background: '#3b82f6', color: '#fff' }}
+          >
+            {editing ? 'Save Configuration' : 'Edit Configuration'}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <label>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Analyses Requested (for all samples)</div>
+            <select 
+              multiple 
+              value={localConfig.analyses_requested || []}
+              onChange={(e) => {
+                const selected = Array.from(e.target.selectedOptions, opt => opt.value);
+                setLocalConfig({ ...localConfig, analyses_requested: selected });
+              }}
+              style={{ minHeight: '120px', width: '100%' }}
+            >
+              {analysesOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+              Hold Ctrl/Cmd to select multiple
+            </div>
+          </label>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label>
+              <div>Harvest Date (planned/actual)</div>
+              <input 
+                type="date"
+                value={localConfig.harvest_date || ''}
+                onChange={(e) => setLocalConfig({ ...localConfig, harvest_date: e.target.value })}
+              />
+            </label>
+            <label>
+              <div>Collected By</div>
+              <input 
+                type="text"
+                value={localConfig.collected_by || ''}
+                onChange={(e) => setLocalConfig({ ...localConfig, collected_by: e.target.value })}
+                placeholder="Name or initials"
+              />
+            </label>
+          </div>
+
+          <label>
+            <div>Lab Reference</div>
+            <input 
+              type="text"
+              value={localConfig.lab_ref || ''}
+              onChange={(e) => setLocalConfig({ ...localConfig, lab_ref: e.target.value })}
+              placeholder="Lab job number or reference"
+            />
+          </label>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div>
+            <span style={{ fontWeight: 600 }}>Analyses Requested:</span>{' '}
+            {localConfig.analyses_requested?.length > 0 
+              ? localConfig.analyses_requested.map(a => 
+                  analysesOptions.find(opt => opt.value === a)?.label || a
+                ).join(', ')
+              : <span style={{ color: '#999', fontStyle: 'italic' }}>Not configured</span>
+            }
+          </div>
+          {localConfig.harvest_date && (
+            <div><span style={{ fontWeight: 600 }}>Harvest Date:</span> {localConfig.harvest_date}</div>
+          )}
+          {localConfig.collected_by && (
+            <div><span style={{ fontWeight: 600 }}>Collected By:</span> {localConfig.collected_by}</div>
+          )}
+          {localConfig.lab_ref && (
+            <div><span style={{ fontWeight: 600 }}>Lab Reference:</span> {localConfig.lab_ref}</div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LabSamplingSummary({ spots, template }) {
+  const isLabTemplate = template?.observation_type === 'lab_sampling_pre_winery' || 
+                        template?.type === 'lab_sampling_pre_winery' ||
+                        template?.name?.toLowerCase().includes('lab sampling');
+  
+  if (!isLabTemplate || spots.length === 0) return null;
+
+  const spotsWithReports = spots.filter(s => s.documents?.length > 0);
+  const spotsWithoutReports = spots.filter(s => !s.documents || s.documents.length === 0);
+  
+  return (
+    <section className="stat-card" style={{ background: '#f0f9ff', border: '1px solid #0284c7' }}>
+      <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <FileText size={18} />
+        Lab Sampling Status
+      </h3>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#0284c7' }}>
+            {spots.length}
+          </div>
+          <div style={{ fontSize: 14, color: '#6b7280' }}>Total Samples</div>
+        </div>
+        
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>
+            {spotsWithReports.length}
+          </div>
+          <div style={{ fontSize: 14, color: '#6b7280' }}>Reports Uploaded</div>
+        </div>
+        
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#dc2626' }}>
+            {spotsWithoutReports.length}
+          </div>
+          <div style={{ fontSize: 14, color: '#6b7280' }}>Awaiting Reports</div>
+        </div>
+        
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#0284c7' }}>
+            {spots.length > 0 ? Math.round((spotsWithReports.length / spots.length) * 100) : 0}%
+          </div>
+          <div style={{ fontSize: 14, color: '#6b7280' }}>Complete</div>
+        </div>
+      </div>
+
+      {spotsWithoutReports.length > 0 && (
+        <div style={{ marginTop: 16, padding: 12, background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#92400e' }}>
+            Samples awaiting lab reports:
+          </div>
+          <div style={{ fontSize: 12, color: '#92400e' }}>
+            {spotsWithoutReports.map(s => s.values?.sample_id || `Spot #${s.id}`).join(', ')}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LabReportUploadSection({ spots, isLabTemplate, runLabReportRef, onUpload, busy }) {
+  if (!isLabTemplate || spots.length === 0) return null;
+
+  const firstSpot = spots[0];
+  const hasLabReport = firstSpot?.documents?.length > 0;
+
+  return (
+    <section className="stat-card">
+      <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <FileText size={18} />
+        Lab Report Upload
+      </h3>
+      <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 12 }}>
+        Upload the lab report PDF for this entire submission. It will be attached to all samples.
+      </p>
+      <input 
+        ref={runLabReportRef} 
+        type="file" 
+        accept=".pdf,.xlsx,.xls,.csv" 
+        style={{ display: 'none' }} 
+        onChange={onUpload} 
+      />
+      <button 
+        type="button" 
+        className="btn" 
+        onClick={() => runLabReportRef.current?.click()}
+        disabled={busy || spots.length === 0 || firstSpot?._isNew}
+        style={{ background: '#059669', color: '#fff' }}
+      >
+        📄 Upload Lab Report
+      </button>
+      
+      {hasLabReport && (
+        <div style={{ marginTop: 12, padding: 12, background: '#dcfce7', border: '1px solid #22c55e', borderRadius: 8 }}>
+          ✅ Lab report uploaded ({firstSpot.documents.length} document{firstSpot.documents.length > 1 ? 's' : ''})
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
 function Summary({ run }) {
   const js = run?.summary_json || run?.summary || null;
   if (!js || (typeof js === 'object' && Object.keys(js).length === 0)) return null;
@@ -572,7 +890,7 @@ function Summary({ run }) {
 /**
  * Spot Editor with media & phenology helpers
  */
-function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRunCompleted, onChange, onSave, onRemove, uploadingPhoto, uploadingVideo, uploadingDoc, onUploadPhotos, onUploadVideos, onUploadDocuments, onDeleteFile, onDownloadFile, busy }) {
+function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, runLabConfig, isRunCompleted, onChange, onSave, onRemove, uploadingPhoto, uploadingVideo, uploadingDoc, onUploadPhotos, onUploadVideos, onUploadDocuments, onDeleteFile, onDownloadFile, busy }) {
   const filePhotoRef = useRef(null);
   const fileVideoRef = useRef(null);
   const fileDocRef = useRef(null);
@@ -582,6 +900,12 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRu
   const values = spot.values || {};
   const hasUnsavedChanges = spot._hasUnsavedChanges || spot._isNew;
   const isLocked = runBlockId != null;
+
+  const isLabSamplingSpot = template?.observation_type === 'lab_sampling_pre_winery' || 
+                            template?.type === 'lab_sampling_pre_winery' ||
+                            template?.name?.toLowerCase().includes('lab sampling');
+  const hasLabReport = isLabSamplingSpot && (spot.documents?.length > 0);
+  const sampleId = values?.sample_id;
 
   const setValue = (k, v) => onChange(idx, { values: { ...(values || {}), [k]: v } });
 
@@ -625,9 +949,45 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRu
       <div style={{ display: 'grid', gap: 12 }}>
         {/* Header */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontWeight: 700 }}>Spot {spot.id?.toString().startsWith('tmp-') ? '(unsaved)' : `#${spot.id}`}</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700 }}>
+              {isLabSamplingSpot ? 'Sample' : 'Spot'} {spot.id?.toString().startsWith('tmp-') ? '(unsaved)' : `#${spot.id}`}
+            </span>
+            {sampleId && (
+              <span style={{ fontSize: 13, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                ID: {sampleId}
+              </span>
+            )}
             {isLocked && <span title="Block locked" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#6b7280' }}><Lock size={14} /></span>}
+            {isLabSamplingSpot && (
+              hasLabReport ? (
+                <span style={{ 
+                  fontSize: 12, 
+                  color: '#166534', 
+                  background: '#dcfce7', 
+                  padding: '2px 8px', 
+                  borderRadius: 4,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                  ✅ Lab report uploaded
+                </span>
+              ) : (
+                <span style={{ 
+                  fontSize: 12, 
+                  color: '#991b1b', 
+                  background: '#fee2e2', 
+                  padding: '2px 8px', 
+                  borderRadius: 4,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                  ⏳ Awaiting lab report
+                </span>
+              )
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!isRunCompleted && (
@@ -789,7 +1149,13 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, isRu
         {/* Dynamic fields */}
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           {fields.map((f) => (
-            <FieldRenderer key={String(f.key || f.name)} field={f} value={values?.[f.key || f.name]} onChange={(v) => setValue(f.key || f.name, v)} disabled={isRunCompleted} template={template} />
+            <FieldRenderer 
+            key={String(f.key || f.name)} 
+            field={f} value={values?.[f.key || f.name]} 
+            onChange={(v) => setValue(f.key || f.name, v)} 
+            disabled={isRunCompleted} 
+            template={template} 
+            runLabConfig={runLabConfig} />
           ))}
         </div>
 
@@ -1006,7 +1372,14 @@ function DocumentList({ items, onDownload, onDelete, disabled }) {
 /**
  * Field Renderer with EL Phenology Support
  */
-function FieldRenderer({ field, value, onChange, disabled = false, template }) {
+function FieldRenderer({ field, value, onChange, disabled = false, template, runLabConfig }) {
+  const fieldName = field?.key || field?.name;
+  const runLevelFields = ['analyses_requested', 'harvest_date', 'collected_by', 'lab_ref'];
+    
+  if (runLevelFields.includes(fieldName) && runLabConfig?.analyses_requested?.length > 0) {
+    return null; // Field is configured at run level, don't show on individual spots
+  }
+
   const type = (field?.type || field?.input_type || 'text').toLowerCase();
   const label = field?.label || field?.name || field?.key || 'Field';
 
@@ -1098,8 +1471,40 @@ function FieldRenderer({ field, value, onChange, disabled = false, template }) {
     );
   }
 
-  if (type === 'select' || type === 'single-select') {
+if (type === 'select' || type === 'single-select') {
     const options = Array.isArray(field?.options) ? field.options : [];
+    const isMultiple = field?.multiple === true;
+
+    if (isMultiple) {
+      // Multi-select handling
+      const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+      return (
+        <label>
+          <div>{label}</div>
+          <select 
+            multiple 
+            value={selectedValues} 
+            onChange={(e) => {
+              const selected = Array.from(e.target.selectedOptions, opt => opt.value);
+              onChange(selected);
+            }} 
+            disabled={disabled}
+            style={{ minHeight: '80px' }}
+          >
+            {options.map((opt) => {
+              const val = opt?.value ?? opt?.key ?? opt;
+              const text = opt?.label ?? String(val);
+              return <option key={String(val)} value={String(val)}>{text}</option>;
+            })}
+          </select>
+          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+            Hold Ctrl/Cmd to select multiple
+          </div>
+        </label>
+      );
+    }
+
+    // Single-select handling
     return (
       <label>
         <div>{label}</div>

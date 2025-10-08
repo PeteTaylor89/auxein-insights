@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, MapPin, ArrowLeft, ArrowRight } from 'lucide-react';
 import { observationService, authService, blocksService, usersService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import BlockSelectionModal from '../components/BlockSelectionModal'; // Import the modal
+import BlockSelectionModal from '../components/BlockSelectionModal';
 
 const asArray = (v) => Array.isArray(v) ? v : (v?.items ?? v?.results ?? v?.data ?? v?.rows ?? []);
 const safe = (v, d = '—') => (v ?? v === 0 ? v : d);
@@ -22,7 +22,6 @@ export default function PlanDetail() {
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // Block selection modal state - replace the old modal state
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
 
@@ -52,9 +51,19 @@ export default function PlanDetail() {
 
   useEffect(() => { load(); }, [id]);
 
+  // Set body background
+  useEffect(() => {
+    document.body.classList.add("primary-bg");
+    return () => {
+      document.body.classList.remove("primary-bg");
+    };
+  }, []);
+
   const blockMap = useMemo(() => {
     const m = new Map();
-    for (const b of asArray(blocks)) m.set(String(b.id), b.name || `Block ${b.id}`);
+    for (const b of asArray(blocks)) {
+      m.set(String(b.id), b.block_name || `Block ${b.id}`);
+    }
     return m;
   }, [blocks]);
 
@@ -67,20 +76,30 @@ export default function PlanDetail() {
     return m;
   }, [users]);
 
-  const badge = (s) => {
-    const base = { display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 12, border: '1px solid #ddd' };
+  const StatusBadge = ({ status }) => {
     const colors = {
-      scheduled: { background: '#f6f9ff', border: '1px solid #cfe0ff' },
-      active: { background: '#f4fff6', border: '1px solid #cdeccd' },
-      completed: { background: '#f8f8f8', border: '1px solid #e0e0e0' },
-      canceled: { background: '#fff6f6', border: '1px solid #ffd6d6' },
-      cancelled: { background: '#fff6f6', border: '1px solid #ffd6d6' },
-      default: { background: '#f8f8f8' },
+      scheduled: { bg: '#e0f2fe', color: '#0369a1' },
+      active: { bg: '#dcfce7', color: '#166534' },
+      completed: { bg: '#f3f4f6', color: '#374151' },
+      canceled: { bg: '#fee2e2', color: '#dc2626' },
+      cancelled: { bg: '#fee2e2', color: '#dc2626' },
     };
-    return <span style={{ ...base, ...(colors[s] || colors.default) }}>{s || '—'}</span>;
+    const style = colors[status] || { bg: '#f3f4f6', color: '#374151' };
+    
+    return (
+      <span style={{
+        background: style.bg,
+        color: style.color,
+        padding: '0.25rem 0.5rem',
+        borderRadius: '999px',
+        fontSize: '0.75rem',
+        fontWeight: '500'
+      }}>
+        {status || '—'}
+      </span>
+    );
   };
 
-  // Replace the old startRunForTarget function with this modal approach
   const openBlockModal = () => {
     setBlockModalOpen(true);
   };
@@ -122,7 +141,6 @@ export default function PlanDetail() {
     }
   };
 
-  // Individual target run function for the table actions
   const startRunForTarget = async (targetBlockId) => {
     try {
       setBusy(true);
@@ -148,187 +166,357 @@ export default function PlanDetail() {
     return true;
   };
 
+  if (loading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f8fafc',
+        paddingTop: '70px'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading Plan Details...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (err) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f8fafc',
+        paddingTop: '70px'
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: '500px', padding: '2rem' }}>
+          <h2 style={{ color: '#dc2626' }}>❌ Error Loading Plan</h2>
+          <p style={{ marginBottom: '1rem' }}>{err}</p>
+          <button 
+            onClick={() => navigate('/observations')} 
+            style={{
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Back to Observations
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button
-          className="btn"
-          onClick={() => (navigate('/observations'))}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-      </div>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: '#f8fafc',
+      paddingTop: '70px',
+      paddingBottom: '80px'
+    }}>
+      <div style={{ 
+        maxWidth: '1400px', 
+        margin: '0 auto', 
+        padding: '1rem' 
+      }}>
+        
+        {/* Back button */}
+        <div style={{ marginBottom: '1rem' }}>
+          <button
+            onClick={() => navigate('/observations')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              background: '#f3f4f6',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Observations
+          </button>
+        </div>
 
-      <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ClipboardList /> <span>Plan Detail</span>
-      </div>
-
-      {loading && <div className="stat-card">Loading…</div>}
-      {err && <div className="stat-card" style={{ borderColor: 'red' }}>{err}</div>}
-
-      {!loading && !err && plan && (
-        <div className="grid" style={{ display: 'grid', gap: 16 }}>
-          {/* Header summary */}
-          <section className="stat-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{plan.name || `Plan #${plan.id}`}</div>
-              <div style={{ color: '#666', marginTop: 4 }}>
-                {badge(plan.status)} &nbsp;·&nbsp; Template: {plan.template_name || plan.template?.name || `#${plan.template_id}`}
+        {plan && (
+          <>
+            {/* Header Card */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem'
+              }}>
+                <div>
+                  <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '1.5rem', fontWeight: '600' }}>
+                    {plan.name || `Plan #${plan.id}`}
+                  </h1>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                    <StatusBadge status={plan.status} />
+                    <span>•</span>
+                    <span>Template: {plan.template_name || plan.template?.name || `#${plan.template_id}`}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => navigate(`/planedit/${plan.id}`)}
+                    style={{
+                      background: '#f3f4f6',
+                      color: '#111827',
+                      border: 'none',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Edit Plan
+                  </button>
+                  <button
+                    disabled={!canStart() || startingRun}
+                    onClick={openBlockModal}
+                    style={{
+                      background: canStart() && !startingRun ? '#3b82f6' : '#9ca3af',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      cursor: canStart() && !startingRun ? 'pointer' : 'not-allowed',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}
+                    title="Start a run for this plan"
+                  >
+                    <PlayCircle size={16} /> {startingRun ? 'Starting...' : 'Start Run'}
+                  </button>
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn"
-                onClick={() => navigate(`/planedit/${plan.id}`)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f3f4f6', color: '#111827' }}
-              >
-                Edit Plan
-              </button>
-              <button
-                className="btn"
-                disabled={!canStart() || startingRun}
-                onClick={openBlockModal}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}
-                title="Start a run for this plan"
-              >
-                <PlayCircle size={16} /> {startingRun ? 'Starting...' : 'Start Run'}
-              </button>
-            </div>
-          </section>
 
-          {/* Instructions */}
-          {plan.instructions && (
-            <section className="stat-card">
-              <h3 style={{ marginTop: 0 }}>Instructions</h3>
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{plan.instructions}</div>
-            </section>
-          )}
+            {/* Instructions */}
+            {plan.instructions && (
+              <div style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                marginBottom: '1.5rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+              }}>
+                <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem', fontWeight: '600' }}>Instructions</h3>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#374151', fontSize: '0.875rem' }}>
+                  {plan.instructions}
+                </div>
+              </div>
+            )}
 
-          {/* Targets */}
-          <section className="stat-card">
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <MapPin /> Targets
-            </h3>
-            <div style={{ marginTop: 8 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-                <thead style={{ background: '#f9fafb' }}>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Block</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Row Start</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Row End</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Required Spots</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(!plan.targets || plan.targets.length === 0) && (
-                    <tr>
-                      <td colSpan={5} style={{ padding: 16, textAlign: 'center', color: '#777' }}>
-                        No targets specified.
-                      </td>
+            {/* Targets */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <h3 style={{ 
+                margin: '0 0 1rem 0', 
+                fontSize: '1rem', 
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <MapPin size={18} /> Targets
+              </h3>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: '0.875rem'
+                }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Row Start</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Row End</th>
+                      <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Required Spots</th>
+                      <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Action</th>
                     </tr>
-                  )}
-                  {(plan.targets || []).map((t, idx) => {
-                    const blockId = t.block_id;
-                    const blockName = blockMap.get(String(blockId)) || `Block ${blockId || '—'}`;
-                    const rowLabels = t.row_labels || [];
-                    const rowStart = rowLabels[0] || '—';
-                    const rowEnd = rowLabels[1] || (rowLabels.length > 1 ? rowLabels[rowLabels.length - 1] : '—');
-                    
-                    return (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                        <td style={{ padding: 12 }}>{blockName}</td>
-                        <td style={{ padding: 12 }}>{rowStart}</td>
-                        <td style={{ padding: 12 }}>{rowEnd}</td>
-                        <td style={{ padding: 12 }}>{safe(t.sample_size, 0)}</td>
+                  </thead>
+                  <tbody>
+                    {(!plan.targets || plan.targets.length === 0) && (
+                      <tr>
+                        <td colSpan={5} style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>
+                          No targets specified.
+                        </td>
+                      </tr>
+                    )}
+                    {(plan.targets || []).map((t, idx) => {
+                      const blockId = t.block_id;
+                      
+                      const displayName = t.name ?? t.block_name ?? t.label ?? `Block ${blockId}`;
+                      const rowLabels = t.row_labels || [];
+                      const rowStart = rowLabels[0] || '—';
+                      const rowEnd = rowLabels[1] || (rowLabels.length > 1 ? rowLabels[rowLabels.length - 1] : '—');
+                      
+                      return (
+                        <tr 
+                          key={idx} 
+                          style={{ borderBottom: '1px solid #f3f4f6' }}
+                          onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
+                          onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
+                        >
+                          <td style={{ padding: 12, fontWeight: '500' }}>{displayName}</td>
+                          <td style={{ padding: 12 }}>{rowStart}</td>
+                          <td style={{ padding: 12 }}>{rowEnd}</td>
+                          <td style={{ padding: 12, textAlign: 'center' }}>{safe(t.sample_size, 0)}</td>
+                          <td style={{ padding: 12, textAlign: 'right' }}>
+                            <button
+                              disabled={!canStart() || busy}
+                              onClick={() => startRunForTarget(blockId)}
+                              style={{
+                                background: canStart() && !busy ? '#10b981' : '#9ca3af',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '4px',
+                                cursor: canStart() && !busy ? 'pointer' : 'not-allowed',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '500'
+                              }}
+                              title={`Start run for ${displayName}`}
+                            >
+                              <PlayCircle size={14} /> Start
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Runs */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <h3 style={{ 
+                margin: '0 0 1rem 0', 
+                fontSize: '1rem', 
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <ClipboardList size={18} /> Runs ({runs.length})
+              </h3>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: '0.875rem'
+                }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>ID</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Started</th>
+                      <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Status</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block</th>
+                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Created By</th>
+                      <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runs.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>
+                          No runs yet. Click <em>Start Run</em> to begin.
+                        </td>
+                      </tr>
+                    )}
+                    {runs.map((r) => (
+                      <tr 
+                        key={r.id} 
+                        style={{ borderBottom: '1px solid #f3f4f6' }}
+                        onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
+                        onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
+                      >
+                        <td style={{ padding: 12, fontWeight: '500' }}>#{r.id}</td>
                         <td style={{ padding: 12 }}>
+                          {r.created_at ? dayjs(r.created_at).format('MMM DD, HH:mm') : '—'}
+                        </td>
+                        <td style={{ padding: 12, textAlign: 'center' }}>
+                          <StatusBadge status={r.status} />
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          {blockMap.get(String(r.block_id)) || r.block_name || `Block ${r.block_id}` || '—'}
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          {userMap.get(String(r.creator_name)) || '—'}
+                        </td>
+                        <td style={{ padding: 12, textAlign: 'right' }}>
                           <button
-                            className="btn"
-                            disabled={!canStart() || busy}
-                            onClick={() => startRunForTarget(blockId)}
-                            style={{ 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: 6, 
-                              background: '#10b981', 
+                            onClick={() => navigate(`/observations/runcapture/${r.id}`)}
+                            style={{
+                              background: '#065f46',
                               color: '#fff',
-                              fontSize: 12,
-                              padding: '4px 8px'
+                              border: 'none',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontSize: '0.75rem',
+                              fontWeight: '500'
                             }}
-                            title={`Start run for ${blockName}`}
                           >
-                            <PlayCircle size={14} /> Start
+                            Open <ArrowRight size={14} />
                           </button>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </section>
+          </>
+        )}
 
-          {/* Runs */}
-          <section className="stat-card">
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ClipboardList /> Runs ({runs.length})
-            </h3>
-
-            <div style={{ marginTop: 8 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-                <thead style={{ background: '#f9fafb' }}>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>ID</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Started</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Status</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Block</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }}>Created By</th>
-                    <th style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 600 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ padding: 16, textAlign: 'center', color: '#777' }}>
-                        No runs yet. Click <em>Start Run</em> to begin.
-                      </td>
-                    </tr>
-                  )}
-                  {runs.map((r) => (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                      <td style={{ padding: 12 }}>#{r.id}</td>
-                      <td style={{ padding: 12 }}>
-                        {r.created_at ? dayjs(r.created_at).format('MMM DD, HH:mm') : '—'}
-                      </td>
-                      <td style={{ padding: 12 }}>{badge(r.status)}</td>
-                      <td style={{ padding: 12 }}>
-                        {blockMap.get(String(r.block_name)) || `${r.block_name || '—'}`}
-                      </td>
-                      <td style={{ padding: 12 }}>
-                        {userMap.get(String(r.creator_name)) || '—'}
-                      </td>
-                      <td style={{ padding: 12, textAlign: 'right' }}>
-                        <button
-                          className="btn"
-                          onClick={() => navigate(`/observations/runcapture/${r.id}`)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#065f46' }}
-                        >
-                          Open <ArrowRight size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <MobileNavigation />
-        </div>
-      )}
+        <MobileNavigation />
+      </div>
       
-      {/* Block Selection Modal */}
       <BlockSelectionModal
         open={blockModalOpen}
         plan={plan}

@@ -71,6 +71,14 @@ export default function AdhocObservationCreate() {
     return () => { mounted = false; };
   }, [companyId]);
 
+  // Set body background
+  useEffect(() => {
+    document.body.classList.add("primary-bg");
+    return () => {
+      document.body.classList.remove("primary-bg");
+    };
+  }, []);
+
   const handleModeSelect = (selectedMode) => {
     setMode(selectedMode);
     setError(null);
@@ -110,19 +118,13 @@ export default function AdhocObservationCreate() {
       };
 
       if (mode === 'plan') {
-        // Use existing plan flow
         const plan = plans.find(p => String(p.id) === String(selectedPlanId));
         payload.plan_id = Number(selectedPlanId);
         payload.template_id = plan?.template_id;
       } else if (mode === 'template') {
-        // Direct template usage
         payload.template_id = Number(selectedTemplateId);
       } else if (mode === 'freeform') {
-        // Freeform - we'll need a basic template or handle this differently
-        // Option 1: Create a minimal "freeform" template on the backend
-        // Option 2: Use summary_stats to store the freeform content
-        // Let's go with option 2 for now
-        payload.template_id = 1; // Assuming you have a basic "freeform" template with ID 1
+        payload.template_id = 1;
         payload.summary_stats = {
           type: 'freeform',
           notes: freeformNotes,
@@ -151,23 +153,25 @@ export default function AdhocObservationCreate() {
 
   const ModeCard = ({ modeKey, icon: Icon, title, description, isSelected, onClick }) => (
     <div
-      className="stat-card"
       onClick={onClick}
       style={{
         cursor: 'pointer',
         border: isSelected ? '2px solid #2563eb' : '1px solid #e5e7eb',
         background: isSelected ? '#f0f9ff' : '#fff',
-        transition: 'all 0.2s ease',
-        ':hover': { borderColor: '#2563eb' }
+        padding: '1rem',
+        borderRadius: '8px',
+        transition: 'all 0.2s ease'
       }}
+      onMouseEnter={(e) => !isSelected && (e.currentTarget.style.borderColor = '#bfdbfe')}
+      onMouseLeave={(e) => !isSelected && (e.currentTarget.style.borderColor = '#e5e7eb')}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Icon size={24} color={isSelected ? '#2563eb' : '#6b7280'} />
         <div>
-          <div style={{ fontWeight: 600, color: isSelected ? '#2563eb' : '#111827' }}>
+          <div style={{ fontWeight: 600, color: isSelected ? '#2563eb' : '#111827', fontSize: '0.938rem' }}>
             {title}
           </div>
-          <div style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>
+          <div style={{ fontSize: '0.813rem', color: '#6b7280', marginTop: 4 }}>
             {description}
           </div>
         </div>
@@ -175,178 +179,335 @@ export default function AdhocObservationCreate() {
     </div>
   );
 
+  if (loading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#f8fafc',
+        paddingTop: '70px'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading...</h2>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container" style={{ maxWidth: 800, margin: '0 auto', padding: '5rem 1rem' }}>
-      {/* Back button */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button
-          className="btn"
-          onClick={() => navigate('/observations')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <ArrowLeft size={16} /> Back to Observations
-        </button>
-      </div>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: '#f8fafc',
+      paddingTop: '70px',
+      paddingBottom: '80px'
+    }}>
+      <div style={{ 
+        maxWidth: '900px', 
+        margin: '0 auto', 
+        padding: '1rem' 
+      }}>
+        
+        {/* Back button */}
+        <div style={{ marginBottom: '1rem' }}>
+          <button
+            onClick={() => navigate('/observations')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              background: '#f3f4f6',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Observations
+          </button>
+        </div>
 
-      {/* Header */}
-      <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ClipboardList /> <span>Create New Observation</span>
-      </div>
+        {/* Header */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}>
+          <h1 style={{ 
+            margin: 0, 
+            fontSize: '1.5rem', 
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <ClipboardList size={24} /> Create New Observation
+          </h1>
+        </div>
 
-      {loading && <div className="stat-card" style={{ marginTop: 12 }}>Loading…</div>}
-      {error && <div className="stat-card" style={{ marginTop: 12, borderColor: 'red' }}>{error}</div>}
+        {error && (
+          <div style={{ 
+            background: '#fef2f2',
+            border: '1px solid #fca5a5',
+            borderRadius: '12px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            color: '#dc2626',
+            fontSize: '0.875rem'
+          }}>
+            {error}
+          </div>
+        )}
 
-      {!loading && (
-        <div className="grid" style={{ display: 'grid', gap: 16 }}>
-          
-          {/* Mode Selection */}
-          {!mode && (
-            <section className="stat-card">
-              <h3 style={{ marginTop: 0 }}>Choose Observation Type</h3>
-              <p style={{ color: '#666', marginBottom: 16 }}>
-                How would you like to create your observation?
-              </p>
+        {/* Mode Selection */}
+        {!mode && (
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '1.25rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+              Choose Observation Type
+            </h3>
+            <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '0.875rem' }}>
+              How would you like to create your observation?
+            </p>
+            
+            <div style={{ display: 'grid', gap: 12 }}>
+              <ModeCard
+                modeKey="plan"
+                icon={Target}
+                title="From Existing Plan"
+                description="Start a run from a pre-configured observation plan"
+                isSelected={false}
+                onClick={() => handleModeSelect('plan')}
+              />
               
-              <div style={{ display: 'grid', gap: 12 }}>
-                <ModeCard
-                  modeKey="plan"
-                  icon={Target}
-                  title="From Existing Plan"
-                  description="Start a run from a pre-configured observation plan"
-                  isSelected={false}
-                  onClick={() => handleModeSelect('plan')}
-                />
-                
-                <ModeCard
-                  modeKey="freeform"
-                  icon={Edit3}
-                  title="Free-form Notes"
-                  description="Quick observation with free-text notes only"
-                  isSelected={false}
-                  onClick={() => handleModeSelect('freeform')}
-                />
+              <ModeCard
+                modeKey="freeform"
+                icon={Edit3}
+                title="Free-form Notes"
+                description="Quick observation with free-text notes only"
+                isSelected={false}
+                onClick={() => handleModeSelect('freeform')}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Form based on selected mode */}
+        {mode && (
+          <>
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
+                  Observation Details
+                </h3>
+                <button 
+                  onClick={() => setMode('')}
+                  style={{ 
+                    background: '#f3f4f6', 
+                    border: 'none',
+                    fontSize: '0.75rem', 
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: '500'
+                  }}
+                >
+                  Change Type
+                </button>
               </div>
-            </section>
-          )}
 
-          {/* Form based on selected mode */}
-          {mode && (
-            <>
-              <section className="stat-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h3 style={{ margin: 0 }}>Observation Details</h3>
-                  <button 
-                    className="btn" 
-                    onClick={() => setMode('')}
-                    style={{ background: '#f3f4f6', fontSize: 12, padding: '4px 8px' }}
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <label>
+                  <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                    Observation Name
+                  </div>
+                  <input
+                    placeholder="Enter observation name..."
+                    value={observationName}
+                    onChange={(e) => setObservationName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </label>
+
+                <label>
+                  <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                    Block
+                  </div>
+                  <select
+                    value={selectedBlockId}
+                    onChange={(e) => setSelectedBlockId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem',
+                      background: 'white'
+                    }}
                   >
-                    Change Type
-                  </button>
-                </div>
+                    <option value="">— Select a block —</option>
+                    {blocks.map(b => (
+                      <option key={b.block_name} value={b.block_name}>
+                        {b.block_name || `Block ${b.block_name}`}
+                        {b.variety && ` (${b.variety})`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                <div style={{ display: 'grid', gap: 12 }}>
+                {mode === 'plan' && (
                   <label>
-                    <div>Observation Name</div>
-                    <input
-                      placeholder="Enter observation name..."
-                      value={observationName}
-                      onChange={(e) => setObservationName(e.target.value)}
-                    />
-                  </label>
-
-                  <label>
-                    <div>Block</div>
+                    <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                      Plan
+                    </div>
                     <select
-                      value={selectedBlockId}
-                      onChange={(e) => setSelectedBlockId(e.target.value)}
+                      value={selectedPlanId}
+                      onChange={(e) => setSelectedPlanId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '0.875rem',
+                        background: 'white'
+                      }}
                     >
-                      <option value="">— Select a block —</option>
-                      {blocks.map(b => (
-                        <option key={b.id} value={b.id}>
-                          {b.name || `Block ${b.id}`}
-                          {b.variety && ` (${b.variety})`}
+                      <option value="">— Select a plan —</option>
+                      {plans.filter(p => p.status !== 'completed' && p.status !== 'cancelled').map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name || `Plan #${p.id}`}
+                          {p.template_name && ` (${p.template_name})`}
                         </option>
                       ))}
                     </select>
                   </label>
+                )}
 
-                  {mode === 'plan' && (
-                    <label>
-                      <div>Plan</div>
-                      <select
-                        value={selectedPlanId}
-                        onChange={(e) => setSelectedPlanId(e.target.value)}
-                      >
-                        <option value="">— Select a plan —</option>
-                        {plans.filter(p => p.status !== 'completed' && p.status !== 'cancelled').map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name || `Plan #${p.id}`}
-                            {p.template_name && ` (${p.template_name})`}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-
-                  {mode === 'freeform' && (
-                    <label>
-                      <div>Notes</div>
-                      <textarea 
-                        rows={6} 
-                        value={freeformNotes} 
-                        onChange={(e) => setFreeformNotes(e.target.value)}
-                        placeholder="Enter your observation notes here..."
-                      />
-                    </label>
-                  )}
-                </div>
-              </section>
-
-              {/* Summary */}
-              <section className="stat-card" style={{ background: '#f9fafb' }}>
-                <h4 style={{ marginTop: 0 }}>Summary</h4>
-                <div style={{ fontSize: 14, color: '#374151' }}>
-                  <div><strong>Type:</strong> {mode === 'plan' ? 'Plan-based' : mode === 'template' ? 'Template-based' : 'Free-form'}</div>
-                  <div><strong>Block:</strong> {selectedBlockId ? (blocks.find(b => String(b.id) === selectedBlockId)?.name || `Block ${selectedBlockId}`) : 'Not selected'}</div>
-                  {mode === 'plan' && selectedPlanId && (
-                    <div><strong>Plan:</strong> {plans.find(p => String(p.id) === selectedPlanId)?.name || `Plan #${selectedPlanId}`}</div>
-                  )}
-                  {mode === 'template' && selectedTemplateId && (
-                    <div><strong>Template:</strong> {templates.find(t => String(t.id) === selectedTemplateId)?.name || `Template #${selectedTemplateId}`}</div>
-                  )}
-                </div>
-              </section>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button 
-                  className="btn" 
-                  onClick={() => navigate('/observations')}
-                  style={{ background: '#f3f4f6' }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="btn" 
-                  disabled={!canSubmit() || busy} 
-                  onClick={handleSubmit} 
-                  style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: 6, 
-                    background: '#2563eb', 
-                    color: '#fff' 
-                  }}
-                >
-                  <PlayCircle size={18}/> Create & Start Observation
-                </button>
+                {mode === 'freeform' && (
+                  <label>
+                    <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                      Notes
+                    </div>
+                    <textarea 
+                      rows={6} 
+                      value={freeformNotes} 
+                      onChange={(e) => setFreeformNotes(e.target.value)}
+                      placeholder="Enter your observation notes here..."
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '0.875rem',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </label>
+                )}
               </div>
-            </>
-          )}
+            </div>
 
-          <MobileNavigation />
-        </div>
-      )}
+            {/* Summary */}
+            <div style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.938rem', fontWeight: '600' }}>
+                Summary
+              </h4>
+              <div style={{ fontSize: '0.875rem', color: '#374151', display: 'grid', gap: '0.5rem' }}>
+                <div>
+                  <strong>Type:</strong> {mode === 'plan' ? 'Plan-based' : mode === 'template' ? 'Template-based' : 'Free-form'}
+                </div>
+                <div>
+                  <strong>Block:</strong> {selectedBlockId ? (blocks.find(b => String(b.id) === selectedBlockId)?.name || `Block ${selectedBlockId}`) : 'Not selected'}
+                </div>
+                {mode === 'plan' && selectedPlanId && (
+                  <div>
+                    <strong>Plan:</strong> {plans.find(p => String(p.id) === selectedPlanId)?.name || `Plan #${selectedPlanId}`}
+                  </div>
+                )}
+                {mode === 'template' && selectedTemplateId && (
+                  <div>
+                    <strong>Template:</strong> {templates.find(t => String(t.id) === selectedTemplateId)?.name || `Template #${selectedTemplateId}`}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.75rem', 
+              justifyContent: 'flex-end',
+              marginBottom: '1.5rem'
+            }}>
+              <button 
+                onClick={() => navigate('/observations')}
+                style={{ 
+                  padding: '0.5rem 1rem', 
+                  borderRadius: '6px', 
+                  background: '#f3f4f6',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                disabled={!canSubmit() || busy} 
+                onClick={handleSubmit} 
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  padding: '0.5rem 1rem', 
+                  borderRadius: '6px', 
+                  background: canSubmit() && !busy ? '#3b82f6' : '#9ca3af', 
+                  color: '#fff',
+                  border: 'none',
+                  cursor: canSubmit() && !busy ? 'pointer' : 'not-allowed',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                <PlayCircle size={16}/> {busy ? 'Creating...' : 'Create & Start Observation'}
+              </button>
+            </div>
+          </>
+        )}
+
+        <MobileNavigation />
+      </div>
     </div>
   );
 }

@@ -5,12 +5,10 @@ import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket } from 'lucide-react';
 import { observationService, usersService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import BlockSelectionModal from '../components/BlockSelectionModal'; // Import our new modal
+import BlockSelectionModal from '../components/BlockSelectionModal';
 
 function readTemplateFields(tpl) {
   if (!tpl) return [];
-  // Backend returns ObservationTemplateOut with alias: schema <- fields_json
-  // schema may be { fields: [...] } or an array
   const s = tpl.schema?.fields ?? tpl.schema ?? tpl.fields_json ?? [];
   return Array.isArray(s) ? s : Array.isArray(s.fields) ? s.fields : [];
 }
@@ -22,14 +20,13 @@ export default function ObservationDashboard() {
   const StatusBadge = ({ status, type = 'default' }) => {
     const colors = {
       "in progress": { bg: '#dbeafe', color: '#1e40af' },
-      "complete": { bg: '#f3f4f6', color: '#374151' },
+      "complete": { bg: '#dcfce7', color: '#166534' },
       "not started": { bg: '#fef3c7', color: '#92400e' },
       "scheduled": { bg: '#e0f2fe', color: '#0369a1' },
       "cancelled": { bg: '#fee2e2', color: '#dc2626' },
-      "active": { bg: '#d1fae5', color: '#065f46' } // fallback for "active"
+      "active": { bg: '#d1fae5', color: '#065f46' }
     };
     
-    // Get style or fallback to a default
     const style = colors[status] || colors.active || { bg: '#f3f4f6', color: '#374151' };
     
     return (
@@ -46,60 +43,132 @@ export default function ObservationDashboard() {
     );
   };
 
+  // Set body background
+  useEffect(() => {
+    document.body.classList.add("primary-bg");
+    return () => {
+      document.body.classList.remove("primary-bg");
+    };
+  }, []);
+
   return (
-    <div className="container" style={{ maxWidth: 1200, margin: '0 auto', padding: '3rem 1rem' }}>
-      {/* Header */}
-      <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 600 }}>
-        <span>Observations</span>
-      </div>
-
-      {/* KPI strip (placeholder counts for now) */}
-      <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px,1fr))', gap: 16, marginTop: 20 }}>
-        {['Active Plans','Runs In Progress','Submitted Today','Overdue Plans'].map(label => (
-          <div key={label} className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fafafa' }}>
-            <div style={{ color: '#666', fontSize: 14 }}>{label}</div>
-            <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>—</div>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: '#f8fafc',
+      paddingTop: '70px',
+      paddingBottom: '80px'
+    }}>
+      <div style={{ 
+        maxWidth: '1400px', 
+        margin: '0 auto', 
+        padding: '1rem' 
+      }}>
+        
+        {/* Dashboard Overview Stats */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem',
+            paddingBottom: '0.5rem',
+            borderBottom: '1px solid #f3f4f6'
+          }}>
+            <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+              Observations Dashboard
+            </h1>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => navigate('/planobservation')}
+                style={{
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <Plus size={16} /> Create Plan
+              </button>
+              <button
+                onClick={() => navigate('/observations/adhoc')}
+                style={{
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                title="Start a one-off run without a plan"
+              >
+                <Rocket size={16} /> Ad-hoc Observation
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* Action row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, margin: '24px 0' }}>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            className="btn"
-            onClick={() => navigate('/planobservation')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#2563eb', color: '#fff' }}
-          >
-            <Plus size={16} /> Create a Plan
-          </button>
-
-          <button
-            className="btn"
-            onClick={() => navigate('/observations/adhoc')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#10b981', color: '#fff' }}
-            title="Start a one-off run without a plan"
-          >
-            <Rocket size={16} /> Log an Ad-hoc Observation
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="stat-card" style={{ borderRadius: 12, border: '1px solid #eee', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #eee', background: '#f9fafb' }}>
-          <TabButton label="Plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
-          <TabButton label="Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
-          <TabButton label="Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '1rem'
+          }}>
+            {['Active Plans', 'Runs In Progress', 'Submitted Today', 'Overdue Plans'].map(label => (
+              <div key={label} style={{
+                textAlign: 'center',
+                padding: '0.75rem',
+                background: '#f8fafc',
+                borderRadius: '8px'
+              }}>
+                <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#3b82f6' }}>
+                  —
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div style={{ padding: 16 }}>
-          {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
-          {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
-          {tab === 'templates' && <TemplatesTab />}
-        </div>
-      </div>
+        {/* Tab Navigation */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '0',
+          marginBottom: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            display: 'flex',
+            borderBottom: '1px solid #f3f4f6'
+          }}>
+            <TabButton label="Plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
+            <TabButton label="Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
+            <TabButton label="Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
+          </div>
 
+          <div style={{ padding: '1.25rem' }}>
+            {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
+            {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
+            {tab === 'templates' && <TemplatesTab />}
+          </div>
+        </div>
+
+      </div>
       <MobileNavigation />
     </div>
   );
@@ -109,15 +178,17 @@ function TabButton({ label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="btn"
       style={{
         flex: 1,
-        padding: '12px 16px',
-        fontWeight: 500,
-        background: active ? '#515a77ff' : '#92a2d8ff',
+        padding: '1rem',
         border: 'none',
-        borderBottom: active ? '3px solid #2563eb' : '3px solid transparent',
-        cursor: 'pointer'
+        background: active ? '#f8fafc' : 'white',
+        borderBottom: active ? '2px solid #3b82f6' : '2px solid transparent',
+        cursor: 'pointer',
+        fontSize: '0.875rem',
+        fontWeight: '500',
+        color: active ? '#3b82f6' : '#6b7280',
+        transition: 'all 0.2s ease'
       }}
     >
       {label}
@@ -130,9 +201,8 @@ function TemplatePreviewModal({ open, template, onClose }) {
   
   const fields = readTemplateFields(template);
 
-  // Handle escape key and body scroll
   useEffect(() => {
-    if (!open) return; // Only run effect when modal is actually open
+    if (!open) return;
     
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
@@ -140,26 +210,22 @@ function TemplatePreviewModal({ open, template, onClose }) {
       }
     };
     
-    // Store the original overflow value
     const originalOverflow = document.body.style.overflow;
     
     document.addEventListener('keydown', handleEscape);
    
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      // Restore the original overflow value
       document.body.style.overflow = originalOverflow;
     };
-  }, [open, onClose]); // Keep the dependencies
+  }, [open, onClose]);
 
   const handleBackdropClick = (e) => {
-    // Only close if clicking directly on the backdrop, not bubbled events
     if (e.target === e.currentTarget) {
       onClose();
     }
   };
 
-  // The modal content
   const modalContent = (
     <div
       role="dialog"
@@ -172,77 +238,80 @@ function TemplatePreviewModal({ open, template, onClose }) {
         alignItems: 'center', 
         justifyContent: 'center', 
         padding: 16, 
-        zIndex: 9999 // Higher z-index since it's rendered at body level
+        zIndex: 9999
       }}
       onClick={handleBackdropClick}
     >
       <div
-        className="stat-card"
         style={{ 
           background: '#fff', 
-          border: '1px solid #eee', 
           borderRadius: 12, 
           width: 'min(860px, 95vw)', 
           maxHeight: '85vh', 
           overflow: 'auto', 
-          padding: 16 
+          padding: 24,
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>{template.name} Template</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>{template.name} Template</h3>
           <button 
-            className="btn" 
             onClick={onClose} 
-            style={{ padding: '6px 12px', borderRadius: 6, background: '#f3f4f6' }}
+            style={{ 
+              padding: '0.5rem 1rem', 
+              borderRadius: 6, 
+              background: '#f3f4f6',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem'
+            }}
           >
             Close
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div className="stat-card" style={{ padding: 12, borderRadius: 8, border: '1px solid #eee', background: '#fafafa' }}>
-            <div style={{ color: '#666', fontSize: 13, marginBottom: 6 }}>Scope</div>
-            <div><strong>Template:</strong> {template.type}</div>
-            <div><strong>Owner:</strong> {template.company_id ? 'Company' : 'Global Template'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div style={{ padding: 16, borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb' }}>
+            <div style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: 8, fontWeight: '500' }}>Scope</div>
+            <div style={{ fontSize: '0.875rem', marginBottom: 4 }}><strong>Template:</strong> {template.type}</div>
+            <div style={{ fontSize: '0.875rem' }}><strong>Owner:</strong> {template.company_id ? 'Company' : 'Global Template'}</div>
           </div>
 
-          <div className="stat-card" style={{ padding: 12, borderRadius: 8, border: '1px solid #eee', background: '#fafafa' }}>
-            <div><strong>Note:</strong> All observation runs will also include automatically captured data related to GPS location, date and time, and user. GPS locations can relate back to the block observed.</div>
+          <div style={{ padding: 16, borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb' }}>
+            <div style={{ fontSize: '0.875rem' }}><strong>Note:</strong> All observation runs will also include automatically captured data related to GPS location, date and time, and user. GPS locations can relate back to the block observed.</div>
           </div>
         </div>
 
-        <h4 style={{ marginTop: 16, marginBottom: 8 }}>Fields</h4>
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
-          <thead style={{ background: '#f9fafb' }}>
-            <tr style={{ textAlign: 'left' }}>
-              <th style={{ padding: 10 }}>Field</th>
-              <th style={{ padding: 10 }}>Required</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 14, color: '#777' }}>No fields defined.</td></tr>
-            )}
-            {fields.map((f, i) => (
-              <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                <td style={{ padding: 10, fontWeight: 500 }}>{f.label || '—'}</td>
-                <td style={{ padding: 10 }}>{f.required ? 'Yes' : 'No'}</td>
+        <h4 style={{ marginTop: 16, marginBottom: 12, fontSize: '1rem', fontWeight: '600' }}>Fields</h4>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Field</th>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Required</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {fields.length === 0 && (
+                <tr><td colSpan={2} style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>No fields defined.</td></tr>
+              )}
+              {fields.map((f, i) => (
+                <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: 12, fontWeight: '500' }}>{f.label || '—'}</td>
+                  <td style={{ padding: 12 }}>{f.required ? 'Yes' : 'No'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 
-  // Render the modal content using a portal to document.body
   return createPortal(modalContent, document.body);
 }
 
-/* ---------------------------
- * Plans Tab
- * --------------------------- */
 function PlansTab({ StatusBadge }) {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
@@ -251,7 +320,6 @@ function PlansTab({ StatusBadge }) {
   const [plans, setPlans] = useState([]);
   const [users, setUsers] = useState([]);
 
-  // Block selection modal state
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [startingRun, setStartingRun] = useState(false);
@@ -337,66 +405,166 @@ function PlansTab({ StatusBadge }) {
     }
   };
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+        <div>Loading plans…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '2rem', 
+        color: '#dc2626',
+        background: '#fef2f2',
+        borderRadius: '8px'
+      }}>
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div>
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input placeholder="Search by plan name…" value={q} onChange={e => setQ(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, flex: 1, minWidth: 200 }} />
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1rem',
+        paddingBottom: '0.5rem',
+        borderBottom: '1px solid #f3f4f6'
+      }}>
+        <h2 style={{ 
+          fontSize: '1.1rem', 
+          fontWeight: '600', 
+          margin: 0
+        }}>
+          Observation Plans ({filtered.length})
+        </h2>
       </div>
 
-      {loading && <div className="stat-card">Loading…</div>}
-      {error && <div className="stat-card" style={{ borderColor: 'red' }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input 
+          placeholder="Search by plan name…" 
+          value={q} 
+          onChange={e => setQ(e.target.value)} 
+          style={{ 
+            padding: '0.5rem', 
+            borderRadius: 6, 
+            border: '1px solid #d1d5db',
+            flex: 1, 
+            minWidth: 200,
+            fontSize: '0.875rem'
+          }} 
+        />
+      </div>
 
-      {!loading && !error && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
-          <thead style={{ background: '#f9fafb' }}>
-            <tr style={{ textAlign: 'left' }}>
-              <th style={{ padding: 12 }}>Plan Name</th>
-              <th style={{ padding: 12 }}>Observation Template</th>
-              <th style={{ padding: 12 }}>Runs Captured</th> 
-              <th style={{ padding: 12 }}>Latest Observation Run</th>
-              <th style={{ padding: 12 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ padding: 20, textAlign: 'center', color: '#777' }}>No plans found.</td>
+      {filtered.length > 0 ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ 
+            width: '100%', 
+            borderCollapse: 'collapse',
+            fontSize: '0.875rem'
+          }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Plan Name</th>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Observation Template</th>
+                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Runs Captured</th>
+                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Latest Run</th>
+                <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Actions</th>
               </tr>
-            )}
-            {filtered.map(p => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                <td style={{ padding: 12, fontWeight: 500 }}>{p.name || `Plan #${p.id}`}</td>
-                <td style={{ padding: 12 }}>{p.template_name  || p.template_id || '—'}</td>
-                <td style={{ padding: 12 }}>{typeof p.runs_count === 'number' ? p.runs_count : '—'}</td>
-                <td style={{ padding: 12 }}>
-                  {p.latest_run_started_at ? dayjs(p.latest_run_started_at).format('YYYY-MM-DD HH:mm') : '—'}
-                </td>
-                <td style={{ padding: 12, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn"
-                    onClick={() => navigate(`/plandetail/${p.id}`)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#4e638bff', color: '#fff' }}
-                  >
-                    Open <ArrowRight size={16} />
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => openBlockModal(p)}
-                    disabled={startingRun}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff' }}
-                    title="Start a run for this plan"
-                  >
-                    <PlayCircle size={16} /> {startingRun ? 'Starting...' : 'Start Run'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map(p => (
+                <tr 
+                  key={p.id} 
+                  style={{ borderBottom: '1px solid #f3f4f6' }}
+                  onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
+                >
+                  <td style={{ padding: 12, fontWeight: '500' }}>{p.name || `Plan #${p.id}`}</td>
+                  <td style={{ padding: 12 }}>{p.template_name || p.template_id || '—'}</td>
+                  <td style={{ padding: 12, textAlign: 'center' }}>{typeof p.runs_count === 'number' ? p.runs_count : '—'}</td>
+                  <td style={{ padding: 12, textAlign: 'center' }}>
+                    {p.latest_run_started_at ? dayjs(p.latest_run_started_at).format('YYYY-MM-DD HH:mm') : '—'}
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => navigate(`/plandetail/${p.id}`)}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 6, 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: 4, 
+                          background: '#6b7280', 
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        Open <ArrowRight size={14} />
+                      </button>
+                      <button
+                        onClick={() => openBlockModal(p)}
+                        disabled={startingRun}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 6, 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: 4, 
+                          background: '#3b82f6', 
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem'
+                        }}
+                        title="Start a run for this plan"
+                      >
+                        <PlayCircle size={14} /> {startingRun ? 'Starting...' : 'Start Run'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ 
+          textAlign: 'center',
+          padding: '2rem',
+          color: '#6b7280',
+          fontStyle: 'italic'
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
+          <div>No plans found</div>
+          <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+            <button
+              onClick={() => navigate('/planobservation')}
+              style={{
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.875rem'
+              }}
+            >
+              Create Your First Plan
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Block Selection Modal */}
       <BlockSelectionModal
         open={blockModalOpen}
         plan={selectedPlan}
@@ -407,9 +575,6 @@ function PlansTab({ StatusBadge }) {
   );
 }
 
-/* ---------------------------
- * Runs Tab
- * --------------------------- */
 function RunsTab({ StatusBadge }) {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
@@ -437,7 +602,6 @@ function RunsTab({ StatusBadge }) {
       await reload();
     })();
     return () => { mounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
   const setStatus = async (runId, status) => {
@@ -484,74 +648,149 @@ function RunsTab({ StatusBadge }) {
     }
   };
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+        <div>Loading runs…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '2rem', 
+        color: '#dc2626',
+        background: '#fef2f2',
+        borderRadius: '8px'
+      }}>
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div>
-      {loading && <div className="stat-card">Loading runs…</div>}
-      {error && <div className="stat-card" style={{ borderColor: 'red' }}>{error}</div>}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1rem',
+        paddingBottom: '0.5rem',
+        borderBottom: '1px solid #f3f4f6'
+      }}>
+        <h2 style={{ 
+          fontSize: '1.1rem', 
+          fontWeight: '600', 
+          margin: 0
+        }}>
+          Observation Runs ({runs.length})
+        </h2>
+      </div>
 
-      {!loading && !error && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 8, overflow: 'hidden' }}>
-          <thead style={{ background: '#f9fafb' }}>
-            <tr style={{ textAlign: 'left' }}>
-              <th style={{ padding: 12 }}>Run Number</th>
-              <th style={{ padding: 12 }}>Plan Name</th>
-              <th style={{ padding: 12 }}>Block</th>
-              <th style={{ padding: 12 }}>Status</th>
-              <th style={{ padding: 12 }}>Started</th>
-              <th style={{ padding: 12 }}>Completed</th>
-              <th style={{ padding: 12, textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ padding: 20, textAlign: 'center', color: '#777' }}>No runs found.</td>
+      {runs.length > 0 ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ 
+            width: '100%', 
+            borderCollapse: 'collapse',
+            fontSize: '0.875rem'
+          }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Run Number</th>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Plan Name</th>
+                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block</th>
+                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Status</th>
+                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Started</th>
+                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Completed</th>
+                <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Actions</th>
               </tr>
-            )}
-            {runs.map(r => (
-              <tr key={r.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                <td style={{ padding: 12, fontWeight: 500 }}>{r.name || `Run #${r.id}`}</td>
-                <td style={{ padding: 12 }}>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
-                <td style={{ padding: 12 }}>{r.block_name ? `${r.block_name}` : '—'}</td>
-                <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                  <StatusBadge status={r.status || 'active'} />
-                </td>
-                <td style={{ padding: 12 }}>{r.observed_at_start ? dayjs(r.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}</td>
-                <td style={{ padding: 12 }}>{r.observed_at_end ? dayjs(r.observed_at_end).format('YYYY-MM-DD HH:mm') : '—'}</td>
-                <td style={{ padding: 12, textAlign: 'right' }}>
-                  <div style={{ display: 'inline-flex', gap: 8 }}>
-                    <button
-                      className="btn"
-                      onClick={() => navigate(`/observations/runcapture/${r.id}`)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#065f46' }}
-                    >
-                      Open <ArrowRight size={16} />
-                    </button>
+            </thead>
+            <tbody>
+              {runs.map(r => (
+                <tr 
+                  key={r.id} 
+                  style={{ borderBottom: '1px solid #f3f4f6' }}
+                  onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
+                >
+                  <td style={{ padding: 12, fontWeight: '500' }}>{r.name || `Run #${r.id}`}</td>
+                  <td style={{ padding: 12 }}>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
+                  <td style={{ padding: 12 }}>{r.block_name ? `${r.block_name}` : '—'}</td>
+                  <td style={{ padding: 12, textAlign: 'center' }}>
+                    <StatusBadge status={r.status || 'active'} />
+                  </td>
+                  <td style={{ padding: 12, textAlign: 'center' }}>
+                    {r.observed_at_start ? dayjs(r.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}
+                  </td>
+                  <td style={{ padding: 12, textAlign: 'center' }}>
+                    {r.observed_at_end ? dayjs(r.observed_at_end).format('YYYY-MM-DD HH:mm') : '—'}
+                  </td>
+                  <td style={{ padding: 12 }}>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => navigate(`/observations/runcapture/${r.id}`)}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 6, 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: 4, 
+                          background: '#065f46',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        Open <ArrowRight size={14} />
+                      </button>
 
-                    <button
-                      className="btn"
-                      onClick={() => completeRun(r.id)}
-                      disabled={busyId === r.id}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#e0f2fe', color: '#075985' }}
-                      title="Compute server-side summary for this run"
-                    >
-                      <CheckCircle size={16} /> Complete
-                    </button>
-
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      <button
+                        onClick={() => completeRun(r.id)}
+                        disabled={busyId === r.id}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: 6, 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: 4, 
+                          background: '#3b82f6',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem'
+                        }}
+                        title="Compute server-side summary for this run"
+                      >
+                        <CheckCircle size={14} /> Complete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ 
+          textAlign: 'center',
+          padding: '2rem',
+          color: '#6b7280',
+          fontStyle: 'italic'
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
+          <div>No runs found</div>
+          <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+            Start a run from a plan to begin observations
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-/* ---------------------------
- * Templates Tab
- * --------------------------- */
 function TemplatesTab() {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
@@ -586,40 +825,135 @@ function TemplatesTab() {
     setPreviewOpen(true);
   };
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+        <div>Loading templates…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '2rem', 
+        color: '#dc2626',
+        background: '#fef2f2',
+        borderRadius: '8px'
+      }}>
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div>
-      {loading && <div className="stat-card">Loading templates…</div>}
-      {error && <div className="stat-card" style={{ borderColor: 'red' }}>{error}</div>}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1rem',
+        paddingBottom: '0.5rem',
+        borderBottom: '1px solid #f3f4f6'
+      }}>
+        <h2 style={{ 
+          fontSize: '1.1rem', 
+          fontWeight: '600', 
+          margin: 0
+        }}>
+          Observation Templates ({templates.length})
+        </h2>
+      </div>
 
-      {!loading && !error && (
-        <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+      {templates.length > 0 ? (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+          gap: 16 
+        }}>
           {templates.map(t => (
-            <div key={t.id ?? t.name} className="stat-card" style={{ padding: 16, border: '1px solid #eee', borderRadius: 12, background: '#fff' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <FileText size={18} /> <span style={{ fontWeight: 600 }}>{t.name || `Template #${t.id}`}</span>
+            <div 
+              key={t.id ?? t.name} 
+              style={{ 
+                padding: 16, 
+                border: '1px solid #e5e7eb', 
+                borderRadius: 12, 
+                background: '#fff',
+                transition: 'box-shadow 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <FileText size={18} color="#3b82f6" /> 
+                <span style={{ fontWeight: 600, fontSize: '0.938rem' }}>{t.name || `Template #${t.id}`}</span>
               </div>
-              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>{labelFor(t)}</div>
+              <div style={{ 
+                fontSize: '0.75rem', 
+                color: '#6b7280', 
+                marginBottom: 16,
+                padding: '0.25rem 0.5rem',
+                background: '#f8fafc',
+                borderRadius: '4px',
+                display: 'inline-block'
+              }}>
+                {labelFor(t)}
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  className="btn"
                   onClick={() => navigate('/planobservation', { state: { template: t } })}
-                  style={{ padding: '6px 12px', borderRadius: 6, background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ 
+                    flex: 1,
+                    padding: '0.5rem 0.75rem', 
+                    borderRadius: 6, 
+                    background: '#3b82f6', 
+                    color: '#fff', 
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    gap: 6,
+                    fontSize: '0.813rem',
+                    fontWeight: '500'
+                  }}
                   title="Create an observation plan using this template"
                 >
                   <Plus size={14} /> Use Template
                 </button>
                 <button
-                  className="btn"
                   onClick={() => onViewTemplate(t)}
-                  style={{ padding: '6px 12px', borderRadius: 6, background: '#e5e7eb', color: '#111827', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ 
+                    padding: '0.5rem 0.75rem', 
+                    borderRadius: 6, 
+                    background: '#f3f4f6', 
+                    color: '#374151',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: 6,
+                    fontSize: '0.813rem',
+                    fontWeight: '500'
+                  }}
                   title="View this template"
                 >
-                  View Template
+                  View
                 </button>
               </div>
             </div>
           ))}
-          {templates.length === 0 && <div style={{ color: '#777' }}>No templates available.</div>}
+        </div>
+      ) : (
+        <div style={{ 
+          textAlign: 'center',
+          padding: '2rem',
+          color: '#6b7280',
+          fontStyle: 'italic'
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
+          <div>No templates available</div>
         </div>
       )}
 
@@ -630,4 +964,5 @@ function TemplatesTab() {
       />
     </div>
   );
-}
+} 
+                
