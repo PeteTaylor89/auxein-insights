@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from enum import Enum
 
 # Enums for validation
@@ -48,6 +48,12 @@ class StockMovementType(str, Enum):
     adjustment = "adjustment"
     disposal = "disposal"
 
+class CertificationScheme(str, Enum):
+    organics = "organics"
+    regenerative = "regenerative"
+    biodynamic = "biodynamic"
+    swnz = "swnz"
+
 # Asset Schemas
 class AssetBase(BaseModel):
     name: str
@@ -76,6 +82,10 @@ class AssetBase(BaseModel):
     application_rate_min: Optional[Decimal] = None
     application_rate_max: Optional[Decimal] = None
     withholding_period_days: Optional[int] = None
+    certified_for: Optional[Dict[str, bool]] = Field(
+        default_factory=dict,
+        description="Certification schemes this consumable is approved for"
+    )
     registration_number: Optional[str] = None
     registration_expiry: Optional[date] = None
     
@@ -138,8 +148,19 @@ class AssetResponse(AssetBase):
     stock_status: Optional[str] = None
     needs_reorder: Optional[bool] = None
     
+    is_organic_certified: Optional[bool] = None
+    is_regenerative_certified: Optional[bool] = None
+    is_biodynamic_certified: Optional[bool] = None
+    is_swnz_certified: Optional[bool] = None
+    certification_summary: Optional[List[str]] = None
+
     class Config:
         from_attributes = True
+
+class CertificationFilter(BaseModel):
+    """Filter consumables by certification"""
+    scheme: Optional[CertificationScheme] = None
+    certified_only: bool = True
 
 class AssetSummary(BaseModel):
     """Lightweight asset info for dropdowns and references"""

@@ -40,7 +40,8 @@ class Asset(Base):
     application_rate_min = Column(Numeric(10, 4))  # Min application rate per hectare
     application_rate_max = Column(Numeric(10, 4))  # Max application rate per hectare
     withholding_period_days = Column(Integer)  # Days before harvest
-    
+    certified_for = Column(JSON, default=dict)  # {"organics": true, "regenerative": false, "biodynamic": true, "swnz": true}
+
     # Registration and compliance
     registration_number = Column(String(100))  # ACVM number for chemicals
     registration_expiry = Column(Date)
@@ -171,6 +172,49 @@ class Asset(Base):
             return "overstocked"
         else:
             return "adequate"
+    
+    @property
+    def is_organic_certified(self):
+        """Check if consumable is certified for organic use"""
+        if not self.is_consumable or not self.certified_for:
+            return False
+        return self.certified_for.get('organics', False)
+    
+    @property
+    def is_regenerative_certified(self):
+        """Check if consumable is certified for regenerative agriculture"""
+        if not self.is_consumable or not self.certified_for:
+            return False
+        return self.certified_for.get('regenerative', False)
+    
+    @property
+    def is_biodynamic_certified(self):
+        """Check if consumable is certified for biodynamic use"""
+        if not self.is_consumable or not self.certified_for:
+            return False
+        return self.certified_for.get('biodynamic', False)
+    
+    @property
+    def is_swnz_certified(self):
+        """Check if consumable is certified for Sustainable Winegrowing NZ"""
+        if not self.is_consumable or not self.certified_for:
+            return False
+        return self.certified_for.get('swnz', False)
+    
+    @property
+    def certification_summary(self):
+        """Get list of certifications this consumable is approved for"""
+        if not self.is_consumable or not self.certified_for:
+            return []
+        
+        cert_map = {
+            'organics': 'Organic',
+            'regenerative': 'Regenerative',
+            'biodynamic': 'Biodynamic',
+            'swnz': 'SWNZ'
+        }
+        
+        return [cert_map[key] for key, value in self.certified_for.items() if value]
 
 
 class AssetMaintenance(Base):

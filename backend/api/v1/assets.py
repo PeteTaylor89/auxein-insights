@@ -13,7 +13,7 @@ from db.models.contractor import Contractor
 from db.models.company import Company
 from schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetSummary, AssetStats,
-    MaintenanceDue, CalibrationDue, ComplianceAlert, StockAlert
+    MaintenanceDue, CalibrationDue, ComplianceAlert, StockAlert, CertificationScheme
 )
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
 
@@ -65,6 +65,9 @@ def list_assets(
     requires_maintenance: Optional[bool] = None,
     requires_calibration: Optional[bool] = None,
     low_stock_only: bool = False,
+    # NEW: Certification filtering
+    certification_scheme: Optional[str] = None,
+    certified_only: bool = False,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -77,7 +80,6 @@ def list_assets(
     if isinstance(current_user_or_contractor, User):
         company_id = current_user_or_contractor.company_id
     else:
-        # For contractors, business logic dependent
         company_id = None
     
     query = db.query(Asset)
@@ -105,6 +107,14 @@ def list_assets(
                 Asset.asset_type == "consumable",
                 Asset.current_stock <= Asset.minimum_stock
             )
+        )
+    
+    # NEW: Certification filtering
+    if certification_scheme and certified_only:
+        # Filter for consumables certified for the specified scheme
+        query = query.filter(
+            Asset.asset_type == "consumable",
+            Asset.certified_for[certification_scheme].astext.cast(db.Boolean) == True
         )
     
     # Filter active assets only
@@ -345,6 +355,67 @@ def get_asset(
     
     return asset
 
+@router.get("/consumables/by-certification", response_model=List[AssetResponse])
+def get_consumables_by_certification(
+    scheme: str = Query(..., description="Certification scheme: organics, regenerative, biodynamic, swnz"),
+    include_uncertified: bool = False,
+    low_stock_only: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get consumables filtered by certification scheme"""
+    company_id = current_user.company_id
+    
+    query = db.query(Asset).filter(
+        Asset.company_id == company_id,
+        Asset.asset_type == "consumable",
+        Asset.is_active == True
+    )
+    
+    if not include_uncertified:
+        # Only show items certified for this scheme
+        query = query.filter(
+            Asset.certified_for[scheme].astext.cast(db.Boolean) == True
+        )
+    
+    if low_stock_only:
+        query = query.filter(Asset.current_stock <= Asset.minimum_stock)
+    
+    consumables = query.all()
+    
+    logger.info(f"Retrieved {len(consumables)} consumables for scheme: {scheme}")
+    return consumables
+
+@router.get("/consumables/certification-summary")
+def get_certification_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get summary of consumables by certification scheme"""
+    company_id = current_user.company_id
+    
+    consumables = db.query(Asset).filter(
+        Asset.company_id == company_id,
+        Asset.asset_type == "consumable",
+        Asset.is_active == True
+    ).all()
+    
+    summary = {
+        "organics": 0,
+        "regenerative": 0,
+        "biodynamic": 0,
+        "swnz": 0,
+        "total_consumables": len(consumables)
+    }
+    
+    for consumable in consumables:
+        if consumable.certified_for:
+            for scheme, certified in consumable.certified_for.items():
+                if certified and scheme in summary:
+                    summary[scheme] += 1
+    
+    return summary
+
 @router.put("/{asset_id}", response_model=AssetResponse)
 def update_asset(
     asset_id: int,
@@ -433,18 +504,25 @@ def get_assets_by_category(
 
 @router.get("/consumables/low-stock", response_model=List[AssetResponse])
 def get_low_stock_consumables(
+    certification_scheme: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get consumables with low stock levels"""
-    consumables = db.query(Asset).filter(
+    """Get consumables with low stock levels, optionally filtered by certification"""
+    query = db.query(Asset).filter(
         Asset.company_id == current_user.company_id,
         Asset.asset_type == "consumable",
         Asset.current_stock <= Asset.minimum_stock,
         Asset.is_active == True
-    ).all()
+    )
     
-    # Computed properties are automatically available
+    # NEW: Filter by certification if specified
+    if certification_scheme:
+        query = query.filter(
+            Asset.certified_for[certification_scheme].astext.cast(db.Boolean) == True
+        )
+    
+    consumables = query.all()
     
     return consumables
 

@@ -1,6 +1,7 @@
 // packages/shared/src/api/index.js
 export { default as api } from './api.js';
 export { default as adminService } from './adminService.js';
+export { default as assetService } from './assetService.js';
 export { default as authService } from './authService.js';
 export { requestPasswordReset, resetPassword } from './authService.js';
 export { default as blocksService } from './blocksService.js';
