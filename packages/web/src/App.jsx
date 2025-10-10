@@ -30,6 +30,7 @@ import ObservationDashboard from './pages/ObservationDashboard';
 import PlanEdit from './pages/PlanEdit';
 import RunStart from './pages/RunStart';
 import AdhocObservationCreate from './pages/AdhocObservationCreate';
+import AssetsDashboard from './pages/AssetsDashboard';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -204,6 +205,11 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      <Route path="/assets" element={
+        <ProtectedRoute>
+          <AssetsDashboard  />
+        </ProtectedRoute>
+      } />
 
 
       <Route path="/training/take/:recordId" element={<TakeTraining />} />

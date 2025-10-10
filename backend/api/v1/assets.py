@@ -56,6 +56,7 @@ def create_asset(
     logger.info(f"Asset {asset.id} created successfully by user {current_user.id}")
     return asset
 
+@router.get("", response_model=List[AssetResponse])
 @router.get("/", response_model=List[AssetResponse])
 def list_assets(
     category: Optional[str] = None,

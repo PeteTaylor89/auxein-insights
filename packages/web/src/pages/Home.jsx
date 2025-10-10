@@ -117,6 +117,9 @@ function Home() {
             <Link to="/observations" className="stat-card">
               <div className="actions-title">Observations</div>
             </Link>
+            <Link to="/assets" className="stat-card">
+              <div className="actions-title">Asset Management</div>
+            </Link>
           </div>
         </div>
 

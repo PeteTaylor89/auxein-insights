@@ -71,6 +71,7 @@ def create_maintenance_record(
     logger.info(f"Maintenance record {maintenance.id} created for asset {asset.id}")
     return maintenance
 
+@router.get("", response_model=List[MaintenanceResponse])
 @router.get("/", response_model=List[MaintenanceResponse])
 def list_maintenance_records(
     asset_id: Optional[int] = None,

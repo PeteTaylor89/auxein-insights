@@ -338,11 +338,8 @@ if os.path.exists(static_dir):
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
         # Skip API, docs, and OpenAPI schema
-        if (
-            full_path in ("openapi.json",) or
-            full_path.startswith(("api/", "docs", "redoc"))
-        ):
-            return {"error": "Route not found"}
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
         
         # Check if file exists in static directory
         file_path = os.path.join(static_dir, full_path)
