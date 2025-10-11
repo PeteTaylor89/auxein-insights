@@ -20,6 +20,7 @@ from api.deps import get_current_user, get_current_contractor, get_current_user_
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+@router.post("", response_model=CalibrationResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=CalibrationResponse, status_code=status.HTTP_201_CREATED)
 def create_calibration_record(
     calibration_in: CalibrationCreate,
@@ -93,6 +94,7 @@ def create_calibration_record(
     logger.info(f"Calibration record {calibration.id} created for asset {asset.id}")
     return calibration
 
+@router.get("", response_model=List[CalibrationResponse])
 @router.get("/", response_model=List[CalibrationResponse])
 def list_calibration_records(
     asset_id: Optional[int] = None,

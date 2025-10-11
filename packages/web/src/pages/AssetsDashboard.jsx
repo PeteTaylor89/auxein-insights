@@ -290,12 +290,6 @@ function DashboardStats() {
             color="#ef4444"
             icon="⚠️"
           />
-          <StatCard 
-            label="Compliance Alerts" 
-            value={stats?.compliance_alerts || 0}
-            color="#dc2626"
-            icon="📋"
-          />
 
         </div>
       )}
@@ -471,7 +465,7 @@ function EquipmentTab({ StatusBadge }) {
                   style={{ borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}
                   onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
                   onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
-                  onClick={() => navigate(`/assets/equipment/${item.id}`)}
+                  onClick={() => navigate(`/assets/equipment/${item.id}/edit`)}
                 >
                   <td style={{ padding: 12, fontWeight: '500', color: '#3b82f6' }}>
                     {item.asset_number}
@@ -492,7 +486,7 @@ function EquipmentTab({ StatusBadge }) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/assets/equipment/${item.id}`);
+                          navigate(`/assets/equipment/${item.id}/edit`);
                         }}
                         style={{ 
                           display: 'inline-flex', 
@@ -721,7 +715,7 @@ function ConsumablesTab({ StatusBadge }) {
                     style={{ borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}
                     onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
                     onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
-                    onClick={() => navigate(`/assets/consumables/${item.id}`)}
+                    onClick={() => navigate(`/assets/consumables/${item.id}/edit`)}
                   >
                     <td style={{ padding: 12, fontWeight: '500' }}>{item.name}</td>
                     <td style={{ padding: 12, textTransform: 'capitalize', color: '#6b7280' }}>
@@ -753,7 +747,7 @@ function ConsumablesTab({ StatusBadge }) {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/assets/consumables/${item.id}`);
+                            navigate(`/assets/consumables/${item.id}/edit`);
                           }}
                           style={{ 
                             display: 'inline-flex', 

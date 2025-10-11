@@ -20,6 +20,7 @@ from api.deps import get_current_user, get_current_contractor, get_current_user_
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+@router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 def create_asset(
     asset_in: AssetCreate,

@@ -31,6 +31,8 @@ import PlanEdit from './pages/PlanEdit';
 import RunStart from './pages/RunStart';
 import AdhocObservationCreate from './pages/AdhocObservationCreate';
 import AssetsDashboard from './pages/AssetsDashboard';
+import AssetForm from './pages/AssetForm';
+import ConsumableForm from './pages/ConsumableForm'
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -211,6 +213,29 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      <Route path="/assets/equipment/new" element={
+        <ProtectedRoute>
+          <AssetForm  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/assets/equipment/:id/edit" element={
+        <ProtectedRoute>
+          <AssetForm  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/assets/consumables/new" element={
+        <ProtectedRoute>
+          <ConsumableForm  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/assets/consumables/:id/edit" element={
+        <ProtectedRoute>
+          <ConsumableForm  />
+        </ProtectedRoute>
+      } />
 
       <Route path="/training/take/:recordId" element={<TakeTraining />} />
 
