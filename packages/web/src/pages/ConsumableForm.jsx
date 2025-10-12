@@ -607,7 +607,7 @@ export default function ConsumableForm() {
             {/* Basic Information */}
             <FormSection title="Basic Information" icon={<Package size={18} color="#10b981" />}>
               <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
-                <FormField label="Asset Number" required>
+                <FormField label="Product Code" required>
                   <input
                     type="text"
                     value={formData.asset_number}
@@ -641,7 +641,7 @@ export default function ConsumableForm() {
                   />
                 </FormField>
 
-                <FormField label="Subcategory">
+                <FormField label="Category">
                   <select
                     value={formData.subcategory}
                     onChange={(e) => handleChange('subcategory', e.target.value)}
@@ -1120,96 +1120,6 @@ export default function ConsumableForm() {
               </div>
             </FormSection>
 
-            {/* Financial Information */}
-            <FormSection title="Financial Information">
-              <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                <FormField label="Purchase Date">
-                  <input
-                    type="date"
-                    value={formData.purchase_date}
-                    onChange={(e) => handleChange('purchase_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-                </FormField>
-
-                <FormField label="Purchase Price (NZD)">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.purchase_price}
-                    onChange={(e) => handleChange('purchase_price', e.target.value)}
-                    placeholder="0.00"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-                </FormField>
-
-                <FormField label="Current Value (NZD)">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.current_value}
-                    onChange={(e) => handleChange('current_value', e.target.value)}
-                    placeholder="0.00"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-                </FormField>
-              </div>
-            </FormSection>
-
-            {/* Maintenance Settings */}
-            <FormSection title="Maintenance Settings">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                <input
-                  type="checkbox"
-                  id="requires_maintenance"
-                  checked={formData.requires_maintenance}
-                  onChange={(e) => handleChange('requires_maintenance', e.target.checked)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <label htmlFor="requires_maintenance" style={{ fontSize: '0.875rem', cursor: 'pointer' }}>
-                  This consumable requires equipment maintenance (e.g., spray equipment servicing)
-                </label>
-              </div>
-
-              {formData.requires_maintenance && (
-                <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
-                  <FormField label="Maintenance Interval (days)">
-                    <input
-                      type="number"
-                      value={formData.maintenance_interval_days}
-                      onChange={(e) => handleChange('maintenance_interval_days', e.target.value)}
-                      placeholder="e.g., 90"
-                      style={{
-                        width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    />
-                  </FormField>
-                </div>
-              )}
-            </FormSection>
-
             {/* Photos */}
             {isEditMode && (
               <FormSection 
@@ -1434,6 +1344,20 @@ function FormField({ label, required, children }) {
 
 function PhotoThumbnail({ photo, onDelete }) {
   const [enlarged, setEnlarged] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const url = await assetService.files.getObjectUrl(photo.id);
+        if (alive) setPreviewUrl(url);
+      } catch {}
+    })();
+    return () => {
+      alive = false;
+      if (previewUrl) assetService.files.revokeObjectUrl(previewUrl);
+    };
+  }, [photo.id])
 
   return (
     <>
@@ -1447,7 +1371,7 @@ function PhotoThumbnail({ photo, onDelete }) {
         cursor: 'pointer'
       }}>
         <img 
-          src={assetService.files.getFileDownloadUrl(photo)}
+          src={previewUrl || ''}
           alt={photo.description || 'Consumable photo'} 
           style={{ 
             width: '100%', 
@@ -1499,7 +1423,7 @@ function PhotoThumbnail({ photo, onDelete }) {
           }}
         >
           <img 
-            src={assetService.files.getFileDownloadUrl(photo)}
+            src={previewUrl || ''}
             alt={photo.description || 'Consumable photo'} 
             style={{ 
               maxWidth: '90vw', 
@@ -1537,7 +1461,12 @@ function DocumentItem({ document, onDelete }) {
       </div>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button
-          onClick={() => window.open(assetService.files.getFileDownloadUrl(document), '_blank')}
+          onClick={async () => {
+            const blob = await assetService.files.downloadBlob(document.id);
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          }}
           style={{
             padding: '0.25rem 0.75rem',
             background: '#10b981',

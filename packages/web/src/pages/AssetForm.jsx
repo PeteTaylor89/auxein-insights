@@ -792,58 +792,6 @@ export default function AssetForm() {
               )}
             </FormSection>
 
-            {/* Maintenance Settings */}
-            <FormSection title="Maintenance Settings">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                <input
-                  type="checkbox"
-                  id="requires_maintenance"
-                  checked={formData.requires_maintenance}
-                  onChange={(e) => handleChange('requires_maintenance', e.target.checked)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <label htmlFor="requires_maintenance" style={{ fontSize: '0.875rem', cursor: 'pointer' }}>
-                  This equipment requires regular maintenance
-                </label>
-              </div>
-
-              {formData.requires_maintenance && (
-                <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                  <FormField label="Maintenance Interval (days)">
-                    <input
-                      type="number"
-                      value={formData.maintenance_interval_days}
-                      onChange={(e) => handleChange('maintenance_interval_days', e.target.value)}
-                      placeholder="e.g., 90"
-                      style={{
-                        width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    />
-                  </FormField>
-
-                  <FormField label="Maintenance Interval (hours)">
-                    <input
-                      type="number"
-                      value={formData.maintenance_interval_hours}
-                      onChange={(e) => handleChange('maintenance_interval_hours', e.target.value)}
-                      placeholder="e.g., 250"
-                      style={{
-                        width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    />
-                  </FormField>
-                </div>
-              )}
-            </FormSection>
-
             {/* Usage Tracking */}
             {formData.category === 'equipment' || formData.category === 'vehicle' && (
               <FormSection title="Usage Tracking">
@@ -1206,6 +1154,22 @@ function FormField({ label, required, children }) {
 
 function PhotoThumbnail({ photo, onDelete }) {
   const [enlarged, setEnlarged] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const url = await assetService.files.getObjectUrl(photo.id);
+        if (alive) setPreviewUrl(url);
+      } catch {
+        // swallow; keep previewUrl null
+      }
+    })();
+    return () => {
+      alive = false;
+      if (previewUrl) assetService.files.revokeObjectUrl(previewUrl);
+    };
+  }, [photo.id]);
 
   return (
     <>
@@ -1219,7 +1183,7 @@ function PhotoThumbnail({ photo, onDelete }) {
         cursor: 'pointer'
       }}>
         <img 
-          src={assetService.files.getFileDownloadUrl(photo)}
+          src={previewUrl || ''}
           alt={photo.description || 'Asset photo'} 
           style={{ 
             width: '100%', 
@@ -1271,7 +1235,7 @@ function PhotoThumbnail({ photo, onDelete }) {
           }}
         >
           <img 
-            src={assetService.files.getFileDownloadUrl(photo)}
+            src={previewUrl || ''}
             alt={photo.description || 'Asset photo'} 
             style={{ 
               maxWidth: '90vw', 
@@ -1309,7 +1273,12 @@ function DocumentItem({ document, onDelete }) {
       </div>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button
-          onClick={() => window.open(assetService.files.getFileDownloadUrl(document), '_blank')}
+          onClick={async () => {
+            const blob = await assetService.files.downloadBlob(document.id);
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          }}
           style={{
             padding: '0.25rem 0.75rem',
             background: '#3b82f6',
@@ -1320,7 +1289,7 @@ function DocumentItem({ document, onDelete }) {
             fontSize: '0.75rem'
           }}
         >
-          View
+          Download
         </button>
         <button
           onClick={() => {

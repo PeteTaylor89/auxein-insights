@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete 
+from api.v1 import auth, blocks, tasks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements
 from core.config import settings
 import logging
 import traceback
@@ -266,6 +266,12 @@ app.include_router(
 )
 
 app.include_router(
+    stock_movements.router, 
+    prefix="/api/stock-movements",
+    tags=["stock-movements "]
+)
+
+app.include_router(
     observations.router, 
     prefix="/api/observations",
     tags=["observations"]
@@ -276,6 +282,9 @@ app.include_router(
     prefix="/api/observation_runs_complete ",
     tags=["observation_runs_complete "]
 )
+
+
+
 
 # API endpoints
 @app.get("/api", tags=["root"])

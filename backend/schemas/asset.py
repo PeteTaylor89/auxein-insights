@@ -127,7 +127,9 @@ class AssetUpdate(BaseModel):
     status: Optional[AssetStatus] = None
     location: Optional[str] = None
     current_value: Optional[Decimal] = None
-
+    requires_calibration: Optional[bool] = None
+    calibration_interval_days: Optional[int] = None
+    
 class AssetResponse(AssetBase):
     id: int
     company_id: int

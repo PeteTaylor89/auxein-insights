@@ -182,18 +182,38 @@ def get_asset_stats(
     ).scalar() or 0
     
     # Assets needing maintenance (simplified check)
-    assets_needing_maintenance = db.query(func.count(Asset.id)).filter(
-        Asset.company_id == company_id,
-        Asset.requires_maintenance == True,
-        Asset.is_active == True
+    today = date.today()
+    assets_needing_maintenance = db.query(func.count(func.distinct(AssetMaintenance.asset_id))).filter(
+        AssetMaintenance.company_id == company_id,
+        AssetMaintenance.scheduled_date.isnot(None),
+        AssetMaintenance.scheduled_date < today,  # Overdue
+        AssetMaintenance.status.in_(['scheduled', 'in_progress'])  # Not completed or cancelled
     ).scalar() or 0
     
-    # Assets needing calibration (simplified check)
-    assets_needing_calibration = db.query(func.count(Asset.id)).filter(
+    # Assets needing calibration (overdue or due soon)
+    assets_requiring_calibration = db.query(Asset).filter(
         Asset.company_id == company_id,
         Asset.requires_calibration == True,
+        Asset.calibration_interval_days.isnot(None),
         Asset.is_active == True
-    ).scalar() or 0
+    ).all()
+    
+    assets_needing_calibration = 0
+    for asset in assets_requiring_calibration:
+        # Get the most recent calibration for this asset
+        latest_calibration = db.query(AssetCalibration).filter(
+            AssetCalibration.asset_id == asset.id,
+            AssetCalibration.company_id == company_id
+        ).order_by(AssetCalibration.calibration_date.desc()).first()
+        
+        if latest_calibration:
+            # Calculate next due date based on last calibration + interval
+            next_due = latest_calibration.calibration_date + timedelta(days=asset.calibration_interval_days)
+            if next_due <= today:
+                assets_needing_calibration += 1
+        else:
+            # No calibration record exists - needs initial calibration
+            assets_needing_calibration += 1
     
     # Low stock consumables
     low_stock_consumables = db.query(func.count(Asset.id)).filter(
@@ -345,8 +365,7 @@ def get_asset(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Asset not found"
         )
-    
-    # Check permissions
+
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
         if user.role != "admin" and asset.company_id != user.company_id:
@@ -354,7 +373,24 @@ def get_asset(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
             )
+
+    if asset.requires_calibration and asset.calibration_interval_days:
+        latest_calibration = db.query(AssetCalibration).filter(
+            AssetCalibration.asset_id == asset.id,
+            AssetCalibration.company_id == asset.company_id
+        ).order_by(AssetCalibration.calibration_date.desc()).first()
     
+        if latest_calibration:
+            next_due = latest_calibration.calibration_date + timedelta(days=asset.calibration_interval_days)
+            today = date.today()
+            days_until_due = (next_due - today).days
+            
+            # Add computed fields (these would need to be added to AssetResponse schema)
+            asset.last_calibration_date = latest_calibration.calibration_date
+            asset.next_calibration_due = next_due
+            asset.calibration_days_until_due = days_until_due
+            asset.calibration_is_overdue = days_until_due < 0
+
     return asset
 
 @router.get("/consumables/by-certification", response_model=List[AssetResponse])

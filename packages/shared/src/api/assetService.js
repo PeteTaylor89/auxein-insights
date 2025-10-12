@@ -646,6 +646,21 @@ const fileOperations = {
     if (mime.includes('word')) return 'word';
     return 'document';
   },
+
+  downloadBlob: async (fileId) => {
+  // Force a blob so we can generate a preview/download regardless of auth headers
+  const res = await api.get(`/files/${fileId}/download`, { responseType: 'blob' });
+  return res.data; // Blob
+},
+
+  getObjectUrl: async (fileId) => {
+    const blob = await fileOperations.downloadBlob(fileId);
+    return URL.createObjectURL(blob);
+  },
+
+  revokeObjectUrl: (url) => {
+    try { if (url) URL.revokeObjectURL(url); } catch {}
+  },
 };
 
 // ============================================================================

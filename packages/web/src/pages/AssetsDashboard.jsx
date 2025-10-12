@@ -13,15 +13,19 @@ import {
   Clock,
   Droplet,
   Truck,
-  Settings
+  Settings,
+  TrendingUp
 } from 'lucide-react';
 import { assetService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import QuickStockAdjustment from '../components/QuickStockAdjustment';
 
 export default function AssetsDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('equipment'); // equipment, consumables, maintenance
-
+  const [showQuickAdjustment, setShowQuickAdjustment] = useState(false);
+  const [selectedConsumableId, setSelectedConsumableId] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const StatusBadge = ({ status, type = 'default' }) => {
     const colors = {
       "active": { bg: '#dcfce7', color: '#166534' },
@@ -76,8 +80,8 @@ export default function AssetsDashboard() {
       }}>
         
         {/* Dashboard Overview Stats */}
-        <DashboardStats />
 
+        <DashboardStats key={`stats-${refreshKey}`} />
         {/* Tab Navigation */}
         <div style={{
           background: 'white',
@@ -113,12 +117,35 @@ export default function AssetsDashboard() {
 
           <div style={{ padding: '1.25rem' }}>
             {tab === 'equipment' && <EquipmentTab StatusBadge={StatusBadge} />}
-            {tab === 'consumables' && <ConsumablesTab StatusBadge={StatusBadge} />}
+            {tab === 'consumables' && (
+            <ConsumablesTab 
+              StatusBadge={StatusBadge}
+              onQuickAdjust={(consumableId) => {  // UPDATED
+                setSelectedConsumableId(consumableId);
+                setShowQuickAdjustment(true);
+              }}
+              key={`consumables-${refreshKey}`}
+            />
+            )}
             {tab === 'maintenance' && <MaintenanceTab StatusBadge={StatusBadge} />}
           </div>
         </div>
 
       </div>
+      {/* Quick Stock Adjustment Modal - MOVED INSIDE COMPONENT */}
+      <QuickStockAdjustment
+        isOpen={showQuickAdjustment}
+        initialAssetId={selectedConsumableId}
+        onClose={() => {
+          setShowQuickAdjustment(false);
+          setSelectedConsumableId(null);  
+        }}
+        onSuccess={() => {
+          setRefreshKey(prev => prev + 1);
+          setShowQuickAdjustment(false);
+          setSelectedConsumableId(null);
+        }}
+      />
       <MobileNavigation />
     </div>
   );
@@ -210,7 +237,7 @@ function DashboardStats() {
         borderBottom: '1px solid #f3f4f6'
       }}>
         <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
-          Assets Dashboard
+          Asset Management Dashboard
         </h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
@@ -228,7 +255,7 @@ function DashboardStats() {
               fontSize: '0.875rem'
             }}
           >
-            <Plus size={16} /> Add Equipment
+            <Plus size={16} /> Register Asset / Equipment
           </button>
           <button
             onClick={() => navigate('/assets/consumables/new')}
@@ -245,7 +272,7 @@ function DashboardStats() {
               fontSize: '0.875rem'
             }}
           >
-            <Plus size={16} /> Add Consumable
+            <Plus size={16} /> Register Stock / Consumable
           </button>
         </div>
       </div>
@@ -541,7 +568,7 @@ function EquipmentTab({ StatusBadge }) {
   );
 }
 
-function ConsumablesTab({ StatusBadge }) {
+function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -704,10 +731,11 @@ function ConsumablesTab({ StatusBadge }) {
                 <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Status</th>
                 <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Certifications</th>
                 <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Actions</th>
+                <th style={{ padding: 10, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Quick Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(item => {
+              {filtered.map(item => {  // CHANGED: consumable -> item
                 const stockStatus = assetService.helpers.formatStockStatus(item);
                 return (
                   <tr 
@@ -765,6 +793,33 @@ function ConsumablesTab({ StatusBadge }) {
                           View <ArrowRight size={14} />
                         </button>
                       </div>
+                    </td>
+                    <td style={{ padding: 10, textAlign: 'right' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onQuickAdjust(item.id);  
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.375rem 0.75rem',
+                          background: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.813rem',
+                          fontWeight: '500',
+                          transition: 'background 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+                      >
+                        <TrendingUp size={14} />
+                        Quick Adjust
+                      </button>
                     </td>
                   </tr>
                 );
