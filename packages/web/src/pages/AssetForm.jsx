@@ -16,6 +16,7 @@ import { assetService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import CalibrationInlineManager from '../components/CalibrationInlineManager';
 import MaintenanceTable from '../components/MaintenanceTable';
+import MaintenanceInlineManager from '../components/MaintenanceInlineManager';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50MB
 
@@ -191,7 +192,7 @@ export default function AssetForm() {
       }
 
       // Navigate to detail page
-      navigate(`/assets/equipment/${savedAsset.id}`);
+      navigate(`/assets`);
     } catch (e) {
       console.error('Failed to save asset:', e);
       const detail = e?.response?.data?.detail || e?.message || 'Failed to save asset';
@@ -232,9 +233,10 @@ export default function AssetForm() {
           alert(`${file.name} exceeds 50MB limit`);
           continue;
         }
+        // FIX: Pass individual file, not array
         await assetService.files.uploadAssetFile({
-          assetId: id,
-          file,
+          assetId: parseInt(id), // Also ensure ID is a number
+          file: file, // Individual file
           fileCategory: 'photo',
           description: `Photo: ${file.name}`
         });
@@ -245,7 +247,7 @@ export default function AssetForm() {
       setPhotos(photoFiles || []);
     } catch (e) {
       console.error('Photo upload failed:', e);
-      alert('Photo upload failed: ' + (e?.message || 'Error'));
+      alert('Photo upload failed: ' + (e?.response?.data?.detail || e?.message || 'Error'));
     } finally {
       setUploadingPhoto(false);
       if (photoInputRef.current) {
@@ -268,9 +270,10 @@ export default function AssetForm() {
           alert(`${file.name} exceeds 50MB limit`);
           continue;
         }
+        // FIX: Pass individual file, not array
         await assetService.files.uploadAssetFile({
-          assetId: id,
-          file,
+          assetId: parseInt(id), // Also ensure ID is a number
+          file: file, // Individual file
           fileCategory: 'document',
           description: `Document: ${file.name}`
         });
@@ -281,7 +284,7 @@ export default function AssetForm() {
       setDocuments(docFiles || []);
     } catch (e) {
       console.error('Document upload failed:', e);
-      alert('Document upload failed: ' + (e?.message || 'Error'));
+      alert('Document upload failed: ' + (e?.response?.data?.detail || e?.message || 'Error'));
     } finally {
       setUploadingDoc(false);
       if (docInputRef.current) {
@@ -356,7 +359,7 @@ export default function AssetForm() {
               alignItems: 'center',
               gap: '0.5rem',
               padding: '0.5rem 1rem',
-              background: '#f3f4f6',
+              background: '#667594ff',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -1055,7 +1058,7 @@ export default function AssetForm() {
 
         {/* Maintenance Tab */}
         {activeTab === 'maintenance' && isEditMode && (
-          <MaintenanceTable assetId={id} />
+          <MaintenanceInlineManager assetId={id} inline={true} />
         )}
 
         {/* Calibration Manager Modal */}

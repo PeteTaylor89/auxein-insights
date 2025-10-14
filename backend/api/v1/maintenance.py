@@ -18,6 +18,8 @@ from api.deps import get_current_user, get_current_contractor, get_current_user_
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+@router.post("", response_model=MaintenanceResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=MaintenanceResponse, status_code=status.HTTP_201_CREATED)
 def create_maintenance_record(
     maintenance_in: MaintenanceCreate,
@@ -53,13 +55,28 @@ def create_maintenance_record(
     maintenance = AssetMaintenance(
         **maintenance_data,
         company_id=asset.company_id,
-        created_by=created_by,
-        status="scheduled"
+        created_by=created_by
+        # REMOVED: status="scheduled" - let it use the status from maintenance_in
     )
+    
+    # Calculate total cost if cost components are provided
+    if any(cost in maintenance_data for cost in ['labor_cost', 'parts_cost', 'external_cost']):
+        total_cost = 0
+        if maintenance.labor_cost:
+            total_cost += float(maintenance.labor_cost)
+        if maintenance.parts_cost:
+            total_cost += float(maintenance.parts_cost)
+        if maintenance.external_cost:
+            total_cost += float(maintenance.external_cost)
+        maintenance.total_cost = total_cost
     
     # Calculate next due date if this is scheduled maintenance
     if maintenance.maintenance_type == "scheduled" and asset.maintenance_interval_days:
-        if maintenance.scheduled_date:
+        if maintenance.completed_date and maintenance.status == "completed":
+            # If completed, calculate from completion date
+            maintenance.next_due_date = maintenance.completed_date + timedelta(days=asset.maintenance_interval_days)
+        elif maintenance.scheduled_date:
+            # Otherwise calculate from scheduled date
             maintenance.next_due_date = maintenance.scheduled_date + timedelta(days=asset.maintenance_interval_days)
         else:
             maintenance.next_due_date = date.today() + timedelta(days=asset.maintenance_interval_days)

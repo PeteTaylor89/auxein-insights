@@ -119,6 +119,8 @@ class AssetUpdate(BaseModel):
     subcategory: Optional[str] = None
     make: Optional[str] = None
     model: Optional[str] = None
+    serial_number: Optional[str] = None  
+    year_manufactured: Optional[int] = None  
     specifications: Optional[Dict[str, Any]] = None
     current_stock: Optional[Decimal] = None
     minimum_stock: Optional[Decimal] = None
@@ -129,6 +131,30 @@ class AssetUpdate(BaseModel):
     current_value: Optional[Decimal] = None
     requires_calibration: Optional[bool] = None
     calibration_interval_days: Optional[int] = None
+    active_ingredient: Optional[str] = None
+    concentration: Optional[str] = None
+    application_rate_min: Optional[Decimal] = None
+    application_rate_max: Optional[Decimal] = None
+    withholding_period_days: Optional[int] = None
+    registration_number: Optional[str] = None
+    registration_expiry: Optional[date] = None
+    safety_data_sheet_url: Optional[str] = None
+    hazard_classifications: Optional[Dict[str, Any]] = None
+    certified_for: Optional[Dict[str, bool]] = None
+    
+    # Storage & Handling - THESE WERE MISSING!
+    storage_requirements: Optional[Dict[str, Any]] = None
+    batch_tracking_required: Optional[bool] = None
+    expiry_tracking_required: Optional[bool] = None
+    
+    # Financial
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[Decimal] = None
+    
+    # Maintenance
+    requires_maintenance: Optional[bool] = None
+    maintenance_interval_days: Optional[int] = None
+    maintenance_interval_hours: Optional[int] = None
     
 class AssetResponse(AssetBase):
     id: int
@@ -155,6 +181,11 @@ class AssetResponse(AssetBase):
     is_biodynamic_certified: Optional[bool] = None
     is_swnz_certified: Optional[bool] = None
     certification_summary: Optional[List[str]] = None
+
+    storage_requirements: Optional[Dict[str, Any]] = None
+    batch_tracking_required: Optional[bool] = None
+    expiry_tracking_required: Optional[bool] = None
+    hazard_classifications: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -195,17 +226,31 @@ class MaintenanceCreate(MaintenanceBase):
 class MaintenanceUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
+    maintenance_type: Optional[str] = None
+    maintenance_category: Optional[str] = None
     scheduled_date: Optional[date] = None
     completed_date: Optional[date] = None
     status: Optional[MaintenanceStatus] = None
     performed_by: Optional[str] = None
+    performed_by_user_id: Optional[int] = None
+    performed_by_contractor_id: Optional[int] = None
     labor_hours: Optional[Decimal] = None
     labor_cost: Optional[Decimal] = None
     parts_cost: Optional[Decimal] = None
     external_cost: Optional[Decimal] = None
     total_cost: Optional[Decimal] = None
     parts_used: Optional[List[Dict[str, Any]]] = None
+    consumables_used: Optional[List[Dict[str, Any]]] = None
+    asset_hours_at_maintenance: Optional[Decimal] = None
+    asset_kilometers_at_maintenance: Optional[Decimal] = None
+    condition_before: Optional[str] = None
     condition_after: Optional[str] = None
+    next_due_date: Optional[date] = None
+    next_due_hours: Optional[Decimal] = None
+    next_due_kilometers: Optional[Decimal] = None
+    compliance_certificate_number: Optional[str] = None
+    compliance_expiry_date: Optional[date] = None
+    compliance_status: Optional[str] = None
     notes: Optional[str] = None
 
 class MaintenanceResponse(MaintenanceBase):
@@ -214,18 +259,44 @@ class MaintenanceResponse(MaintenanceBase):
     company_id: int
     completed_date: Optional[date] = None
     status: MaintenanceStatus
+    
+    # Execution details
+    performed_by_user_id: Optional[int] = None
+    performed_by_contractor_id: Optional[int] = None
+    asset_hours_at_maintenance: Optional[Decimal] = None
+    asset_kilometers_at_maintenance: Optional[Decimal] = None
+    condition_before: Optional[str] = None
+    condition_after: Optional[str] = None
+    
+    # Cost tracking
     labor_hours: Optional[Decimal] = None
     labor_cost: Optional[Decimal] = None
     parts_cost: Optional[Decimal] = None
+    external_cost: Optional[Decimal] = None  # MISSING
     total_cost: Optional[Decimal] = None
-    condition_before: Optional[str] = None
-    condition_after: Optional[str] = None
+    
+    # Parts and materials
+    parts_used: Optional[List[Dict[str, Any]]] = None  # MISSING
+    consumables_used: Optional[List[Dict[str, Any]]] = None  # MISSING
+    
+    # Next maintenance
     next_due_date: Optional[date] = None
+    next_due_hours: Optional[Decimal] = None  # MISSING
+    next_due_kilometers: Optional[Decimal] = None  # MISSING
+    
+    # Compliance
     compliance_certificate_number: Optional[str] = None
     compliance_expiry_date: Optional[date] = None
+    compliance_status: Optional[str] = None  # MISSING
+    
+    # Files
     photo_file_ids: List[str] = []
     document_file_ids: List[str] = []
+    
+    # Notes
     notes: Optional[str] = None
+    
+    # Timestamps
     created_at: datetime
     created_by: Optional[int] = None
     

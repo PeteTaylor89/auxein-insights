@@ -63,7 +63,7 @@ export default function ConsumableForm() {
     },
     
     // Storage & Handling
-    storage_requirements: {},
+    storage_requirements: { notes: '' },
     batch_tracking_required: false,
     expiry_tracking_required: false,
     
@@ -164,7 +164,7 @@ export default function ConsumableForm() {
         },
         
         // Storage & Handling
-        storage_requirements: asset.storage_requirements || {},
+        storage_requirements: asset.storage_requirements || { notes: '' },
         batch_tracking_required: asset.batch_tracking_required || false,
         expiry_tracking_required: asset.expiry_tracking_required || false,
         
@@ -258,7 +258,10 @@ export default function ConsumableForm() {
         withholding_period_days: formData.withholding_period_days ? Number(formData.withholding_period_days) : null,
         purchase_price: formData.purchase_price ? Number(formData.purchase_price) : null,
         current_value: formData.current_value ? Number(formData.current_value) : null,
-        maintenance_interval_days: formData.maintenance_interval_days ? Number(formData.maintenance_interval_days) : null
+        maintenance_interval_days: formData.maintenance_interval_days ? Number(formData.maintenance_interval_days) : null,
+        batch_tracking_required: Boolean(formData.batch_tracking_required),
+        expiry_tracking_required: Boolean(formData.expiry_tracking_required),
+        storage_requirements: formData.storage_requirements || {}
       });
 
       let savedAsset;
@@ -269,7 +272,7 @@ export default function ConsumableForm() {
       }
 
       // Navigate to detail page or back to consumables list
-      navigate(`/assets/consumables/${savedAsset.id}`);
+      navigate(`/assets/`);
     } catch (e) {
       console.error('Failed to save consumable:', e);
       const detail = e?.response?.data?.detail || e?.message || 'Failed to save consumable';
@@ -303,16 +306,17 @@ export default function ConsumableForm() {
       return;
     }
 
-    setUploadingPhoto(true);
+  setUploadingPhoto(true);
     try {
       for (const file of files) {
         if (file.size > MAX_FILE_BYTES) {
           alert(`${file.name} exceeds 50MB limit`);
           continue;
         }
+        // FIX: Pass individual file, not array
         await assetService.files.uploadAssetFile({
-          assetId: id,
-          file,
+          assetId: parseInt(id), // Also ensure ID is a number
+          file: file, // Individual file
           fileCategory: 'photo',
           description: `Photo: ${file.name}`
         });
@@ -323,7 +327,7 @@ export default function ConsumableForm() {
       setPhotos(photoFiles || []);
     } catch (e) {
       console.error('Photo upload failed:', e);
-      alert('Photo upload failed: ' + (e?.message || 'Error'));
+      alert('Photo upload failed: ' + (e?.response?.data?.detail || e?.message || 'Error'));
     } finally {
       setUploadingPhoto(false);
       if (photoInputRef.current) {
@@ -346,9 +350,10 @@ export default function ConsumableForm() {
           alert(`${file.name} exceeds 50MB limit`);
           continue;
         }
+        // FIX: Pass individual file, not array
         await assetService.files.uploadAssetFile({
-          assetId: id,
-          file,
+          assetId: parseInt(id), // Also ensure ID is a number
+          file: file, // Individual file
           fileCategory: 'document',
           description: `Document: ${file.name}`
         });
@@ -359,7 +364,7 @@ export default function ConsumableForm() {
       setDocuments(docFiles || []);
     } catch (e) {
       console.error('Document upload failed:', e);
-      alert('Document upload failed: ' + (e?.message || 'Error'));
+      alert('Document upload failed: ' + (e?.response?.data?.detail || e?.message || 'Error'));
     } finally {
       setUploadingDoc(false);
       if (docInputRef.current) {
@@ -439,7 +444,7 @@ export default function ConsumableForm() {
               alignItems: 'center',
               gap: '0.5rem',
               padding: '0.5rem 1rem',
-              background: '#f3f4f6',
+              background: '#667594ff',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -1071,8 +1076,8 @@ export default function ConsumableForm() {
 
             {/* Storage & Handling */}
             <FormSection title="Storage & Handling" icon={<Package size={18} color="#10b981" />}>
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={formData.batch_tracking_required}
@@ -1084,7 +1089,7 @@ export default function ConsumableForm() {
                   </span>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={formData.expiry_tracking_required}
@@ -1097,27 +1102,25 @@ export default function ConsumableForm() {
                 </label>
               </div>
 
-              <div style={{ marginTop: '1rem' }}>
-                <FormField label="Storage Requirements">
-                  <textarea
-                    rows={2}
-                    value={formData.storage_requirements.notes || ''}
-                    onChange={(e) => handleChange('storage_requirements', { 
-                      ...formData.storage_requirements, 
-                      notes: e.target.value 
-                    })}
-                    placeholder="e.g., Store in cool, dry place. Keep away from direct sunlight. Temperature: 5-25°C"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      fontFamily: 'inherit'
-                    }}
-                  />
-                </FormField>
-              </div>
+              <FormField label="Storage Requirements">
+                <textarea
+                  rows={3}
+                  value={formData.storage_requirements?.notes || ''}
+                  onChange={(e) => handleChange('storage_requirements', { 
+                    ...formData.storage_requirements, 
+                    notes: e.target.value 
+                  })}
+                  placeholder="e.g., Store in cool, dry place. Keep away from direct sunlight. Temperature: 5-25°C"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '0.875rem',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </FormField>
             </FormSection>
 
             {/* Photos */}

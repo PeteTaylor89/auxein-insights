@@ -480,12 +480,16 @@ const fileOperations = {
 
     const formData = new FormData();
     formData.append('entity_type', 'asset');
-    formData.append('entity_id', String(assetId));
+    formData.append('entity_id', String(assetId)); // Ensure it's a string for the form
     formData.append('file_category', fileCategory);
     if (description) formData.append('description', description);
-    formData.append('file', file);
+    formData.append('file', file); // IMPORTANT: 'file' must be last or at least after other fields
 
-    const res = await api.post('/files/upload', formData);
+    const res = await api.post('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data' // Ensure proper content type
+      }
+    });
     return res.data;
   },
 
@@ -504,7 +508,11 @@ const fileOperations = {
     if (description) formData.append('description', description);
     formData.append('file', file);
 
-    const res = await api.post('/files/upload', formData);
+    const res = await api.post('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return res.data;
   },
 
@@ -523,7 +531,11 @@ const fileOperations = {
     if (description) formData.append('description', description);
     formData.append('file', file);
 
-    const res = await api.post('/files/upload', formData);
+    const res = await api.post('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return res.data;
   },
 
@@ -542,7 +554,11 @@ const fileOperations = {
     if (description) formData.append('description', description);
     formData.append('file', file);
 
-    const res = await api.post('/files/upload', formData);
+    const res = await api.post('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return res.data;
   },
 
