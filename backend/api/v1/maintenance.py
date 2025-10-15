@@ -138,6 +138,7 @@ def list_maintenance_records(
     
     # Apply pagination
     maintenance_records = query.offset(skip).limit(limit).all()
+ 
     logger.info(f"Retrieved {len(maintenance_records)} maintenance records")
     return maintenance_records
 

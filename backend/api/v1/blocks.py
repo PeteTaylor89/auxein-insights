@@ -136,7 +136,12 @@ def get_block_by_id(
         "centroid_longitude": block.centroid_longitude,
         "centroid_latitude": block.centroid_latitude,
         "company_id": block.company_id,
-        "geometry_geojson": None
+        "geometry_geojson": None,
+        "row_start": block.row_start,
+        "row_end": block.row_end,
+        "row_count": block.row_count,
+        "training_system": block.training_system,
+        "rootstock": block.rootstock,
     }
     
     # Add geometry if available

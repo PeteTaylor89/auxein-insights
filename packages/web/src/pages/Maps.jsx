@@ -7,12 +7,93 @@ import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import {blocksService, tasksService, parcelsService, companiesService, spatialAreasService, vineyardRowsService, api} from '@vineyard/shared';
+import {blocksService, parcelsService, companiesService, spatialAreasService, vineyardRowsService} from '@vineyard/shared';
 import * as turf from '@turf/turf';
 import SlidingEditForm from '../components/SlidingEditForm';
 import SpatialAreaSlidingEditForm from '../components/SpatialAreasSlidingEditForm';
 
-mapboxgl.accessToken = 'pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q';
+const __MAPBOX_TOKEN__ =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_MAPBOX_TOKEN) ||
+  (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.REACT_APP_MAPBOX_TOKEN)) ||
+  '';
+
+if (!__MAPBOX_TOKEN__) {
+  // Don’t crash — but make the issue obvious in dev logs
+  console.error(
+    'Missing Mapbox token. Set VITE_MAPBOX_TOKEN in your .env (root).'
+  );
+}
+mapboxgl.accessToken = __MAPBOX_TOKEN__;
+
+
+
+function showDraftGeometry(map, geometry) {
+  const sourceId = 'draft-geom-src';
+  const fillLayerId = 'draft-geom-fill';
+  const lineLayerId = 'draft-geom-line';
+
+  try {
+    if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
+    if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+  } catch (e) {
+    console.warn('Cleanup draft geom (pre):', e);
+  }
+
+  map.addSource(sourceId, {
+    type: 'geojson',
+    data: {
+      type: 'Feature',
+      geometry,
+      properties: {}
+    }
+  });
+
+  map.addLayer({
+    id: fillLayerId,
+    type: 'fill',
+    source: sourceId,
+    paint: {
+      'fill-color': '#3b82f6',
+      'fill-opacity': 0.25
+    }
+  });
+
+  map.addLayer({
+    id: lineLayerId,
+    type: 'line',
+    source: sourceId,
+    paint: {
+      'line-color': '#3b82f6',
+      'line-width': 2
+    }
+  });
+}
+
+function clearDraftGeometry(map) {
+  const sourceId = 'draft-geom-src';
+  const fillLayerId = 'draft-geom-fill';
+  const lineLayerId = 'draft-geom-line';
+
+  try {
+    if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+    if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+  } catch (e) {
+    console.warn('Cleanup draft geom:', e);
+  }
+}
+
+function freezeDrawing(drawControl, map) {
+  try {
+    // Drop any live Draw features & exit interactive modes
+    drawControl?.deleteAll();
+    drawControl?.changeMode('simple_select');
+  } catch (e) {
+    console.warn('freezeDrawing error:', e);
+  }
+}
+
 
 function resolveViewerRole(user) {
   const AUXEIN_ADMIN_EMAIL = "pete.taylor@auxein.co.nz"; // MVP hard-code
@@ -63,11 +144,9 @@ function Maps() {
     centroid_latitude: null
   });
   const [showDrawingForm, setShowDrawingForm] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
   const [blocksData, setBlocksData] = useState(null);
   const [blockOpacity, setBlockOpacity] = useState(0); // Default opacity
-
-  const splitControlRef = useRef(null);
-  const [currentLocation, setCurrentLocation] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editSpatialAreaData, setEditSpatialAreaData] = useState(null);
   const [showEditSpatialAreaForm, setShowEditSpatialAreaForm] = useState(false);
@@ -85,7 +164,6 @@ function Maps() {
   const [terrainExaggeration, setTerrainExaggeration] = useState(1);
   const [parcelsData, setParcelsData] = useState(null);
   const [showParcelsLayer, setShowParcelsLayer] = useState(false);
-  const [parcelOpacity, setParcelOpacity] = useState(0.4);
   const [isLoadingParcels, setIsLoadingParcels] = useState(false);
   const [parcelCount, setParcelCount] = useState(0);
   const [assignedParcelCount, setAssignedParcelCount] = useState(0);
@@ -204,21 +282,17 @@ function Maps() {
     
     try {
       console.log('Removing 3D terrain...');
-      
-      // Remove terrain
+
       map.current.setTerrain(null);
-      
-      // Remove sky layer
+
       if (map.current.getLayer('sky')) {
         map.current.removeLayer('sky');
       }
-      
-      // Remove terrain source
+
       if (map.current.getSource('mapbox-dem')) {
         map.current.removeSource('mapbox-dem');
       }
-      
-      // Reset lighting
+
       map.current.setLight({});
       
       console.log('3D terrain removed');
@@ -248,19 +322,6 @@ function Maps() {
       });
     }
   };
-
-  const updateTerrainExaggeration = (value) => {
-    const exaggeration = parseFloat(value);
-    setTerrainExaggeration(exaggeration);
-    
-    if (map.current && map.current.getTerrain()) {
-      map.current.setTerrain({
-        'source': 'mapbox-dem',
-        'exaggeration': exaggeration
-      });
-    }
-  };
-
 
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -301,17 +362,12 @@ function Maps() {
   return () => window.removeEventListener('keydown', handleKeyPress);
 }, [is3DMode, blockToSplit]);
 
-  const handleOpacityChange = (opacity) => {
-    setBlockOpacity(opacity);
-  };
-
   const resetBlockHighlighting = () => {
     if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
-      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', blockOpacity);
+      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity');
     }
   };
-  
-  // Touch handling state
+
   const touchStartTime = useRef(null);
   const touchStartPosition = useRef(null);
   const isLongPress = useRef(false);
@@ -600,60 +656,6 @@ function Maps() {
     };
   }
 
-  // Return the full GeoJSON Feature for the currently selected block.
-  // Works whether you stored the feature itself or just its id.
-  function getSelectedBlockFeature() {
-    if (selectedBlockForSplit && selectedBlockForSplit.type === "Feature") {
-      return selectedBlockForSplit;
-    }
-    const selId = selectedBlockForSplit?.id || selectedBlockForSplit?.properties?.id;
-    if (!selId || !blocksData?.features) return null;
-    return blocksData.features.find(
-      f => `${f?.properties?.id}` === `${selId}` || `${f?.id}` === `${selId}`
-    ) || null;
-  }
-
-  // Quick permission check per your API rule
-  function canUserSplitBlock(blockFeature, user) {
-    const blockCompany = Number(blockFeature?.properties?.company_id);
-    const userCompany = Number(user?.company_id);
-    return !!blockCompany && !!userCompany && blockCompany === userCompany;
-  }
-
-  // Validate the drawn line against the selected block
-  function validateSplitGeometry(blockFeature, lineFeature) {
-    if (!blockFeature?.geometry) {
-      return { ok: false, reason: "No block geometry found." };
-    }
-    if (!lineFeature?.geometry || lineFeature.geometry.type !== "LineString") {
-      return { ok: false, reason: "Please draw a line (LineString)." };
-    }
-
-    const blockGeom = blockFeature; // already a Polygon/MultiPolygon feature
-    const lineGeom = lineFeature;
-
-    // basic length check to avoid near-zero lines (meters)
-    const lengthMeters = turf.length(lineGeom, { units: "kilometers" }) * 1000;
-    if (lengthMeters < 3) {
-      return { ok: false, reason: "Split line is too short. Please draw a longer line across the block." };
-    }
-
-    // must intersect the polygon
-    const intersects = turf.booleanIntersects(blockGeom, lineGeom);
-    if (!intersects) {
-      return { ok: false, reason: "The line must cross the block boundary in two places." };
-    }
-
-    // must have at least 2 intersection points with the polygon boundary
-    const intersections = turf.lineIntersect(lineGeom, blockGeom);
-    const count = intersections?.features?.length || 0;
-    if (count < 2) {
-      return { ok: false, reason: "The line must cross the block boundary in two places." };
-    }
-
-    return { ok: true };
-  }
-
   // Handle newly drawn polygon or line
   const handleDrawCreate = (e) => {
     console.log('=== handleDrawCreate called ===');
@@ -673,19 +675,26 @@ function Maps() {
       handleSplitLineDrawn(feature, activeBlock);  // <— pass it
     } else if (!activeBlock && feature.geometry.type === 'Polygon') {
       console.log('=== PROCESSING POLYGON ===');
-      // Handle regular polygon creation (existing code)
-      const area = turf.area(feature.geometry) / 10000;
-      const centroid = turf.centroid(feature.geometry);
+
+      // 1) Snapshot geometry and computed fields for the form
+      const geom = feature.geometry;
+      const area = turf.area(geom) / 10000;
+      const centroid = turf.centroid(geom);
       const centroidCoords = centroid.geometry.coordinates;
-      
-      setDrawingCoordinates(feature.geometry);
-      setNewBlockInfo(prev => ({ 
-        ...prev, 
+
+      setDrawingCoordinates(geom);
+      setNewBlockInfo(prev => ({
+        ...prev,
         area: parseFloat(area.toFixed(2)),
         centroid_longitude: centroidCoords[0],
         centroid_latitude: centroidCoords[1]
       }));
-      
+
+      // 2) Immediately freeze any interactive Draw state and show a static preview
+      freezeDrawing(drawControl.current, map.current);
+      showDraftGeometry(map.current, geom);
+
+      // 3) Open the form (no live vertex remains on the map)
       setShowDrawingForm(true);
       setIsDrawing(true);
     } else {
@@ -914,55 +923,11 @@ function Maps() {
         centroid_latitude: null
       });
       setShowDrawingForm(false);
+      clearDraftGeometry(map.current);
       setIsDrawing(false);
     }
   };
 
-  const performBlockSplit = async () => {
-    console.log('performBlockSplit called');
-    console.log('selectedBlockForSplit:', selectedBlockForSplit);
-    console.log('splitLine:', splitLine);
-    
-    if (!selectedBlockForSplit || !splitLine) {
-      setApiStatus('Error: No block or split line selected');
-      return;
-    }
-
-    try {
-      setApiStatus('Splitting block...');
-      
-      // Use blocksService to split the block
-      const response = await blocksService.splitBlock(
-        selectedBlockForSplit.properties.id,
-        splitLine
-      );
-      
-      console.log('Split response:', response);
-      
-      if (response && response.new_blocks) {
-        setApiStatus(
-          `Block split successfully into ${response.new_blocks.length} parts`
-        );
-        
-        // Reset split mode
-        setIsSplitting(false);
-        setSelectedBlockForSplit(null);
-        setSplitLine(null);
-        drawControl.current.deleteAll();
-        
-        // Update the button state
-        document.querySelector('.split-block-btn')?.classList.remove('active');
-        
-        // Reload blocks
-        loadBlocksData();
-      }
-      
-    } catch (error) {
-      console.error('Error splitting block:', error);
-      setApiStatus(`Error splitting block: ${error.response?.data?.detail || error.message}`);
-      drawControl.current.deleteAll();
-    }
-  };
 
   const handleNewBlockSubmit = async (e) => {
     e.preventDefault();
@@ -997,6 +962,7 @@ function Maps() {
         setApiStatus(`Block created successfully: ${response.block_name}`);
         drawControl.current.deleteAll();
         setShowDrawingForm(false);
+        clearDraftGeometry(map.current);
         setIsDrawing(false);
         
         loadBlocksData();
@@ -1044,6 +1010,7 @@ function Maps() {
         setApiStatus(`Spatial area created successfully: ${response.name}`);
         drawControl.current.deleteAll();
         setShowDrawingForm(false);
+        clearDraftGeometry(map.current);
         setIsDrawing(false);
         setIsMapping(false);
         setMappingType('');
@@ -1158,17 +1125,6 @@ function Maps() {
       setApiStatus('Failed to load spatial areas');
     }
   }
-
-
-
-
-
-
-
-
-
-
-
 
   const addSpatialAreasToMap = (geojsonData, userCompanyId) => {
     if (!map.current) {
@@ -1295,7 +1251,7 @@ function Maps() {
         layout: {
           'text-field': ['get', 'name'],
           'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-          'text-size': 15,
+          'text-size': 12,
           'text-offset': [0, 0],
           'text-anchor': 'center',
           'visibility': showSpatialAreasLayer ? 'visible' : 'none'
@@ -1441,7 +1397,6 @@ const loadAvailableParentAreas = async () => {
     console.error('Error loading parent areas:', error);
   }
 };
-
 
 useEffect(() => {
   if (map.current && map.current.getLayer && map.current.getLayer('spatial-areas-fill')) {
@@ -1838,7 +1793,6 @@ useEffect(() => {
   };
 }, [showParcelsLayer, user]);
 
-
 useEffect(() => {
   if (!map.current || !user) return;
   
@@ -1863,8 +1817,6 @@ useEffect(() => {
     }
   };
 }, [user]);
-
-
 
 // Helper to detect when drawing mode is active
 useEffect(() => {
@@ -1931,14 +1883,6 @@ useEffect(() => {
   }
 }, [showParcelsLayer]);
 
-// Update parcel opacity when it changes
-useEffect(() => {
-  if (map.current && map.current.getLayer('land-parcels-fill')) {
-    map.current.setPaintProperty('land-parcels-fill', 'fill-opacity', parcelOpacity);
-  }
-}, [parcelOpacity]);
-
-// Load parcels when user changes and is admin
 useEffect(() => {
   if (map.current && showParcelsLayer) {
     console.log('Triggering parcel load for user:', user.email);
@@ -2026,46 +1970,6 @@ useEffect(() => {
   };
 }, []);
 
-  const handleTouchStart = (e) => {
-    const now = Date.now();
-    const touch = e.originalEvent?.touches?.[0] || e.originalEvent?.changedTouches?.[0];
-    
-    console.log('Touch start triggered:', { hasTouch: !!touch, timestamp: now });
-    
-    if (touch) {
-      touchStartTime.current = now;
-      touchStartPosition.current = { x: touch.clientX, y: touch.clientY };
-      isLongPress.current = false;
-      
-      // Set up long press detection
-      setTimeout(() => {
-        if (touchStartTime.current === now) {
-          isLongPress.current = true;
-          console.log('Long press detected');
-        }
-      }, 500);
-    }
-    
-    // Add visual feedback for touch
-    if (e.features && e.features.length > 0) {
-      const feature = e.features[0];
-      console.log('Touch start on block:', feature.properties.id);
-      
-      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', [
-        'case',
-        ['==', ['get', 'id'], feature.properties.id],
-        0.8,
-        blockOpacity
-      ]);
-      
-      // Reset after a short delay
-      setTimeout(() => {
-        if (map.current && map.current.getPaintProperty) {
-          map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', blockOpacity);
-        }
-      }, 200);
-    }
-  };
 
   const handleTouchEnd = (e) => {
     console.log('Touch end triggered with features:', e.features?.length);
@@ -2647,7 +2551,6 @@ useEffect(() => {
             }
           }
         });
-
         // Also handle touch events separately for mobile
         map.current.on('touchend', (e) => {
           // Skip touch handling if we're in split mode
@@ -2892,23 +2795,6 @@ useEffect(() => {
     tryAddParcelLayers();
   };
 
-  const getFirstVisibleLayer = () => {
-    const possibleLayers = [
-      'spatial-areas-fill',
-      'vineyard-blocks-fill', 
-      'land-parcels-fill'
-    ];
-    
-    for (const layerId of possibleLayers) {
-      if (map.current.getLayer(layerId)) {
-        return layerId;
-      }
-    }
-    return null; // Add to top if no other layers exist
-  };
-
-
-
   return (
     <div className="maps-page">
       <div className="sidebar">
@@ -2933,46 +2819,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* 3D Terrain Controls */}
-          <div className="control-section">
-            <h4>3D Terrain</h4>
-            
-            <button
-              className={`tool-button terrain-toggle ${is3DMode ? 'active' : ''}`}
-              onClick={toggle3DMode}
-            >
-              <span className="button-icon">{is3DMode ? '🗻' : '🏔️'}</span>
-              {is3DMode ? 'Disable 3D' : 'Enable 3D'}
-            </button>
-            
-            {is3DMode && (
-              <div className="terrain-controls">
-                <div className="control-group">
-                  <label>Terrain Height</label>
-                  <div className="slider-control">
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="2"
-                      step="0.1"
-                      value={terrainExaggeration}
-                      onChange={(e) => updateTerrainExaggeration(e.target.value)}
-                      className="terrain-slider"
-                    />
-                    <span className="slider-value">{terrainExaggeration}x</span>
-                  </div>
-                </div>
-                
-                <div className="terrain-info">
-                  <small>🎮 Controls:</small>
-                  <small>• Ctrl+Drag: Rotate view</small>
-                  <small>• Ctrl+R: Reset rotation</small>
-                </div>
-              </div>
-            )}
-          </div>
-
-
           {/* Block Tools */}
           <div className="control-section">
             <h4>Mapping Tools</h4>
@@ -2983,7 +2829,6 @@ useEffect(() => {
               <span className="button-icon">✏️</span>
               Map New Area
             </button>
-            
           </div>
 
           <div className="control-section">
@@ -3010,23 +2855,6 @@ useEffect(() => {
                     </small>
                   )}
                 </div>
-                
-                {showParcelsLayer && (
-                  <div className="opacity-control">
-                    <label>Parcel Opacity</label>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="1"
-                      step="0.1"
-                      value={parcelOpacity}
-                      onChange={(e) => setParcelOpacity(parseFloat(e.target.value))}
-                      className="opacity-slider"
-                    />
-                    <span className="opacity-value">{Math.round(parcelOpacity * 100)}%</span>
-                  </div>
-                )}
-                
                 <div className="admin-subsection">
                   <h5>Block Assignment</h5>
                   <small>Click any block to assign it to a company - </small>
@@ -3044,7 +2872,6 @@ useEffect(() => {
                   />
                   Show Your Parcels
                 </label>
-                
                 <div className="parcel-info">
                   <small>Your assigned land parcels</small>
                   {parcelCount > 0 && (
@@ -3052,21 +2879,6 @@ useEffect(() => {
                   )}
                 </div>
                 
-                {showParcelsLayer && (
-                  <div className="opacity-control">
-                    <label>Parcel Visibility</label>
-                    <input
-                      type="range"
-                      min="0.3"
-                      max="1"
-                      step="0.1"
-                      value={parcelOpacity}
-                      onChange={(e) => setParcelOpacity(parseFloat(e.target.value))}
-                      className="opacity-slider"
-                    />
-                    <span className="opacity-value">{Math.round(parcelOpacity * 100)}%</span>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -3263,30 +3075,6 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Statistics */}
-          <div className="control-section">
-          <h4>Statistics</h4>
-          <div className="stats">
-            <div className="stat-item">
-              <span className="stat-label">Vineyard Blocks:</span>
-              <span className="stat-value">{ownBlockCount}</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-label">Mapped Areas:</span>
-              <span className="stat-value">{spatialAreaCount}</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-label">LINZ Land Parcels:</span>
-              <span className="stat-value">{parcelCount}</span>
-            </div>
-            {isAuxeinAdmin && (
-              <div className="stat-item">
-                <span className="stat-label">Total Blocks:</span>
-                <span className="stat-value">{blockCount}</span>
-              </div>
-            )}
-          </div>
-        </div>
         </div>
       </div>
 
@@ -3427,6 +3215,7 @@ useEffect(() => {
                   <button type="button" onClick={() => {
                     drawControl.current.deleteAll();
                     setShowDrawingForm(false);
+                    clearDraftGeometry(map.current);
                     setIsMapping(false);
                     setMappingType('');
                     setSpatialAreaType('');
@@ -3469,14 +3258,14 @@ useEffect(() => {
         onCreateRows={handleCreateRows}
       />
       <SpatialAreaSlidingEditForm
-        isOpen={showEditSpatialAreaForm}  // Fixed: was showSpatialEditForm
+        isOpen={showEditSpatialAreaForm}  
         onClose={() => {
-          setShowEditSpatialAreaForm(false);  // Fixed: was showSpatialEditForm(false)
-          setEditSpatialAreaData(null);  // Fixed: was setEditSpatialData(null)
+          setShowEditSpatialAreaForm(false);  
+          setEditSpatialAreaData(null);  
         }}
-        spatialAreaData={editSpatialAreaData}  // Fixed: was spatialAreaData
-        onSubmit={handleSpatialAreaUpdate}  // You need to create this function
-        availableParentAreas={availableParentAreas}  // You need to populate this
+        spatialAreaData={editSpatialAreaData} 
+        onSubmit={handleSpatialAreaUpdate} 
+        availableParentAreas={availableParentAreas}  
       />
       
       {/* Add mobile-specific styles */}
@@ -3552,37 +3341,6 @@ useEffect(() => {
           border-color: #3b82f6;
         }
 
-        .opacity-control {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .opacity-slider {
-          flex: 1;
-          height: 6px;
-          background: #e5e7eb;
-          border-radius: 3px;
-          outline: none;
-          cursor: pointer;
-        }
-
-        .opacity-slider::-webkit-slider-thumb {
-          appearance: none;
-          width: 18px;
-          height: 18px;
-          background: #3b82f6;
-          border-radius: 50%;
-          cursor: pointer;
-        }
-
-        .opacity-value {
-          font-size: 12px;
-          font-weight: 500;
-          color: #6b7280;
-          min-width: 35px;
-        }
-
         .tool-button {
           width: 100%;
           padding: 10px 16px;
@@ -3604,55 +3362,6 @@ useEffect(() => {
           background: #ef4444;
           color: white;
           border-color: #ef4444;
-        }
-
-        .stats {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .stat-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 12px;
-          background: #f9fafb;
-          border-radius: 6px;
-        }
-
-        .stat-label {
-          font-size: 13px;
-          color: #6b7280;
-        }
-
-        .stat-value {
-          font-size: 14px;
-          font-weight: 600;
-          color: #374151;
-        }
-
-        .action-button {
-          width: 100%;
-          padding: 10px 16px;
-          margin-bottom: 8px;
-          border: 1px solid #3b82f6;
-          background: #ffffff;
-          color: #3b82f6;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .action-button:hover {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .action-button:last-child {
-          margin-bottom: 0;
         }
 
         .maps-container {
@@ -3728,47 +3437,6 @@ useEffect(() => {
           line-height: 16px;
         }
 
-        /* Claim Dialog Styles */
-        .claim-dialog-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-        }
-
-        .claim-dialog {
-          background: white;
-          padding: 24px;
-          border-radius: 12px;
-          max-width: 500px;
-          margin: 20px;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        }
-
-        .claim-warning {
-          margin: 16px 0;
-        }
-
-        .block-info {
-          background: #f9fafb;
-          padding: 12px;
-          border-radius: 6px;
-          margin: 12px 0;
-        }
-
-        .dialog-actions {
-          display: flex;
-          gap: 12px;
-          justify-content: flex-end;
-          margin-top: 20px;
-        }
-
         .cancel-button {
           padding: 10px 20px;
           border: 1px solid #d1d5db;
@@ -3777,14 +3445,7 @@ useEffect(() => {
           cursor: pointer;
         }
 
-        .claim-confirm-button {
-          padding: 10px 20px;
-          border: none;
-          background: #ef4444;
-          color: white;
-          border-radius: 6px;
-          cursor: pointer;
-        }
+
 
         /* Drawing Form Styles */
         .drawing-form-container {
@@ -3819,13 +3480,6 @@ useEffect(() => {
           border: 1px solid #d1d5db;
           border-radius: 6px;
           font-size: 14px;
-        }
-
-        .coordinates-display {
-          background: #f9fafb;
-          padding: 8px 12px;
-          border-radius: 6px;
-          font-size: 13px;
         }
 
         .form-actions {
@@ -4112,76 +3766,7 @@ useEffect(() => {
             top: 2px;
             right: 2px;
           }
-          
-          .terrain-toggle {
-            width: 100%;
-            margin-bottom: 10px;
-          }
-          
-          .terrain-controls {
-            background: #f8f9fa;
-            border-radius: 4px;
-            padding: 10px;
-            margin-top: 10px;
-          }
-          
-          .control-group {
-            margin-bottom: 10px;
-          }
-          
-          .slider-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }
-          
-          .terrain-slider {
-            flex: 1;
-          }
-          
-          .slider-value {
-            min-width: 35px;
-            font-size: 12px;
-            font-weight: bold;
-          }
-          
-          .terrain-info {
-            border-top: 1px solid #e9ecef;
-            padding-top: 8px;
-            margin-top: 8px;
-          }
-          
-          .terrain-info small {
-            display: block;
-            line-height: 1.3;
-            color: #6c757d;
-          }
-          
-          .camera-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-          }
-          
-          .camera-button {
-            padding: 6px 8px;
-            font-size: 11px;
-            border: 1px solid #dee2e6;
-            background: white;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: all 0.2s;
-          }
-          
-          .camera-button:hover {
-            background: #e9ecef;
-            transform: translateY(-1px);
-          }
-          
-          .terrain-toggle.active {
-            background: #28a745;
-            color: white;
-          }
+
         }
       `}</style>
     </div>

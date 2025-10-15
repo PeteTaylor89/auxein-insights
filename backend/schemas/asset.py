@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, validator, Field, computed_field
 from enum import Enum
 
 # Enums for validation
@@ -299,7 +299,9 @@ class MaintenanceResponse(MaintenanceBase):
     # Timestamps
     created_at: datetime
     created_by: Optional[int] = None
-    
+
+    asset_name: Optional[str] = None
+
     class Config:
         from_attributes = True
 

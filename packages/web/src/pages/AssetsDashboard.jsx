@@ -1070,7 +1070,7 @@ function MaintenanceTab({ StatusBadge }) {
                   style={{ borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}
                   onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
                   onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
-                  onClick={() => navigate(`/assets/maintenance/${item.id}`)}
+                  onClick={() => navigate(`/assets/equipment/${item.asset_id}/edit`)}
                 >
                   <td style={{ padding: 12, fontWeight: '500' }}>
                     {item.title || `Maintenance #${item.id}`}
@@ -1095,7 +1095,7 @@ function MaintenanceTab({ StatusBadge }) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/assets/maintenance/${item.id}`);
+                          navigate(`/assets/equipment/${item.asset_id}/edit`);
                         }}
                         style={{ 
                           display: 'inline-flex', 

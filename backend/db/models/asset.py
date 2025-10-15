@@ -285,6 +285,11 @@ class AssetMaintenance(Base):
     asset = relationship("Asset", back_populates="maintenance_records")
     company = relationship("Company")
     
+    @property
+    def asset_name(self):
+        """Get asset name from relationship"""
+        return self.asset.name if self.asset else None
+
     def get_files_by_category(self, db_session, category: str = None):
         """Get files associated with this maintenance record"""
         from db.models.file import File

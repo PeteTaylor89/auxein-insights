@@ -92,6 +92,21 @@ def bulk_create_rows(
     for row in created_rows:
         db.refresh(row)
     
+    block.row_start = str(request.row_start)
+    block.row_end = str(request.row_end)
+    block.row_count = request.row_count
+    
+    if request.vine_spacing is not None:
+        block.vine_spacing = request.vine_spacing
+    if request.variety is not None:
+        block.variety = request.variety
+    if request.clone is not None:
+        block.clone = request.clone
+    if request.rootstock is not None:
+        block.rootstock = request.rootstock
+
+    db.commit()
+
     logger.info(f"Bulk created {len(created_rows)} rows for block {request.block_id}")
     
     return BulkRowCreationResponse(
