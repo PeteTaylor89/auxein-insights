@@ -239,7 +239,7 @@ class BlockchainService:
         db.add(genesis_node)
         db.commit()
         
-        print(f"✅ Auto-created flexible blockchain chain {chain.id} for block {vineyard_block_id}, season {season_id} ({season_type})")
+        print(f"Auto-created flexible blockchain chain {chain.id} for block {vineyard_block_id}, season {season_id} ({season_type})")
         
         return chain
     
@@ -277,7 +277,7 @@ class BlockchainService:
             
             db.commit()
             
-            print(f"✅ Updated chain {current_chain.id} for late harvest scenario")
+            print(f"Updated chain {current_chain.id} for late harvest scenario")
         
         return current_chain
     

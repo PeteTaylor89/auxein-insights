@@ -100,25 +100,3 @@ class BlockService:
         
         return block
 
-# Example usage in your existing block update endpoint:
-"""
-@router.patch("/{block_id}")
-def update_block(
-    block_id: int,
-    block_update: BlockUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # Your existing update logic...
-    
-    # If company_id is being changed, use the blockchain-aware service
-    if hasattr(block_update, 'company_id') and block_update.company_id is not None:
-        block = BlockService.assign_block_to_company(
-            db, block_id, block_update.company_id, current_user.id
-        )
-    else:
-        # Regular update without company change
-        # Your existing update logic...
-    
-    return block
-"""

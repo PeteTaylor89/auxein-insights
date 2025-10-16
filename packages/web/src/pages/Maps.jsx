@@ -94,6 +94,81 @@ function freezeDrawing(drawControl, map) {
   }
 }
 
+const SPLIT_MASK_SOURCE_ID = 'split-mode-mask-src';
+const SPLIT_MASK_LAYER_ID  = 'split-mode-mask-layer';
+
+const WORLD_POLY = {
+  type: 'FeatureCollection',
+  features: [
+    {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[
+          [-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]
+        ]]
+      }
+    }
+  ]
+};
+
+function addSplitMask(map) {
+  if (!map?.current) return;
+  try {
+    if (!map.current.getSource(SPLIT_MASK_SOURCE_ID)) {
+      map.current.addSource(SPLIT_MASK_SOURCE_ID, { type: 'geojson', data: WORLD_POLY });
+    }
+    if (!map.current.getLayer(SPLIT_MASK_LAYER_ID)) {
+      map.current.addLayer({
+        id: SPLIT_MASK_LAYER_ID,
+        type: 'fill',
+        source: SPLIT_MASK_SOURCE_ID,
+        paint: { 'fill-opacity': 0 }, 
+      });
+
+      map.current.on('click', SPLIT_MASK_LAYER_ID, () => {});
+      map.current.on('touchend', SPLIT_MASK_LAYER_ID, () => {});
+    }
+  } catch (e) {
+    console.warn('addSplitMask error', e);
+  }
+}
+
+function removeSplitMask(map) {
+  if (!map?.current) return;
+  try {
+    if (map.current.getLayer(SPLIT_MASK_LAYER_ID)) {
+      map.current.off('click', SPLIT_MASK_LAYER_ID, () => {});
+      map.current.off('touchend', SPLIT_MASK_LAYER_ID, () => {});
+      map.current.removeLayer(SPLIT_MASK_LAYER_ID);
+    }
+    if (map.current.getSource(SPLIT_MASK_SOURCE_ID)) {
+      map.current.removeSource(SPLIT_MASK_SOURCE_ID);
+    }
+  } catch (e) {
+    console.warn('removeSplitMask error', e);
+  }
+}
+
+function setSplitModeActive(active, map, setMode, currentPopup) {
+  setMode(active ? 'split' : 'idle');
+
+  // Disable map's double-click zoom while drawing the split line
+  try {
+    if (map?.current?.doubleClickZoom) {
+      map.current.doubleClickZoom[active ? 'disable' : 'enable']();
+    }
+  } catch (e) {
+    console.warn('doubleClickZoom toggle failed', e);
+  }
+
+  // Close any open popup so it doesn't get in the way
+  if (currentPopup?.current) {
+    currentPopup.current.remove();
+    currentPopup.current = null;
+  }
+}
 
 function resolveViewerRole(user) {
   const AUXEIN_ADMIN_EMAIL = "pete.taylor@auxein.co.nz"; // MVP hard-code
@@ -116,6 +191,7 @@ function Maps() {
   const [blockToSplit, setBlockToSplit] = useState(null);
   const [splitLineDrawn, setSplitLineDrawn] = useState(null);
   const blockToSplitRef = useRef(null);
+  const splitLineRef = useRef(null);
   
   useEffect(() => {
     blockToSplitRef.current = blockToSplit;
@@ -144,6 +220,8 @@ function Maps() {
     centroid_latitude: null
   });
   const [showDrawingForm, setShowDrawingForm] = useState(false);
+  const [mode, setMode] = useState('idle');
+  const [isSplitProcessing, setIsSplitProcessing] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [blocksData, setBlocksData] = useState(null);
   const [blockOpacity, setBlockOpacity] = useState(0); // Default opacity
@@ -191,7 +269,6 @@ function Maps() {
   const [showSpatialAreasLayer, setShowSpatialAreasLayer] = useState(true);
   const [spatialAreaOpacity, setSpatialAreaOpacity] = useState(0.5);
   const [spatialAreaCount, setSpatialAreaCount] = useState(0);
-
 
   const handleCreateRows = async (rowCreationData) => {
     try {
@@ -331,7 +408,6 @@ function Maps() {
         
         setBlockToSplit(null);
         setSplitLineDrawn(null);
-        resetBlockHighlighting();
         drawControl.current?.deleteAll();
         drawControl.current?.changeMode('simple_select');
         setApiStatus('Split cancelled');
@@ -361,12 +437,6 @@ function Maps() {
   window.addEventListener('keydown', handleKeyPress);
   return () => window.removeEventListener('keydown', handleKeyPress);
 }, [is3DMode, blockToSplit]);
-
-  const resetBlockHighlighting = () => {
-    if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
-      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity');
-    }
-  };
 
   const touchStartTime = useRef(null);
   const touchStartPosition = useRef(null);
@@ -433,10 +503,8 @@ function Maps() {
       }
     });
 
-      // Add navigation controls
       map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-      // Add geolocate control
       map.current.addControl(
         new mapboxgl.GeolocateControl({
           positionOptions: {
@@ -448,7 +516,6 @@ function Maps() {
         'top-right'
       );
 
-      // Add geocoder (search) control
       map.current.addControl(
         new MapboxGeocoder({
           accessToken: mapboxgl.accessToken,
@@ -599,12 +666,9 @@ function Maps() {
       
       map.current.addControl(drawControl.current, 'top-right');
 
-      // Register draw events
       map.current.on('draw.create', handleDrawCreate);
       map.current.on('draw.delete', handleDrawDelete);
       map.current.on('draw.update', handleDrawUpdate);
-
-
 
       map.current.on('style.load', handleStyleLoad);
 
@@ -694,6 +758,8 @@ function Maps() {
       freezeDrawing(drawControl.current, map.current);
       showDraftGeometry(map.current, geom);
 
+
+
       // 3) Open the form (no live vertex remains on the map)
       setShowDrawingForm(true);
       setIsDrawing(true);
@@ -729,13 +795,20 @@ function Maps() {
       return;
     }
 
-    // store the FULL feature (avoids shape mismatches later)
-    setSplitLineDrawn({ type: 'Feature', geometry: lineFeature.geometry });
+    const featureToStore = { type: 'Feature', geometry: lineFeature.geometry };
+    splitLineRef.current = featureToStore;
 
-    showSplitConfirmationDialog(activeBlock);
+    // (Keep the state update if you rely on it for UI)
+    setSplitLineDrawn(featureToStore);
+
+    // Pass it through to avoid reading stale state
+    showSplitConfirmationDialog(activeBlock, featureToStore);
   };
 
-  const showSplitConfirmationDialog = (activeBlock = blockToSplitRef.current) => {
+  const showSplitConfirmationDialog = (
+    activeBlock = blockToSplitRef.current,
+    lineFeature = splitLineRef.current
+  ) => {
     const blockName = activeBlock?.properties?.block_name || 'Unknown Block';
     const confirmed = window.confirm(
       `Split "${blockName}" into two separate blocks?\n\n` +
@@ -743,14 +816,16 @@ function Maps() {
       `Click OK to proceed, or Cancel to draw a different line.`
     );
     if (confirmed) {
-      executeSplit(activeBlock);     // pass it through
+      executeSplit(activeBlock, lineFeature);  // pass the captured line
     } else {
       drawControl.current?.deleteAll();
       setSplitLineDrawn(null);
+      setMode('idle');
+      removeSplitMask(map);
+      splitLineRef.current = null;            // <-- clear the ref as well
       setApiStatus(`Draw a new line through "${blockName}" to split it, or click elsewhere to cancel.`);
     }
   };
-
 
   const validateSplitLine = (blockFeature, lineFeature) => {
     console.log('=== validateSplitLine called ===');
@@ -822,9 +897,11 @@ function Maps() {
     }
   };
 
-  const executeSplit = async (activeBlock = blockToSplitRef.current) => {
+  const executeSplit = async (
+    activeBlock = blockToSplitRef.current,
+    lineFeature = splitLineRef.current
+  ) => {
     // Use the ref/arg, not state
-    const lineFeature = splitLineDrawn; // we stored a Feature above
     if (!activeBlock || !lineFeature) {
       setApiStatus('Missing block or line for split operation');
       return;
@@ -835,24 +912,23 @@ function Maps() {
       setApiStatus('Splitting block... Please wait.');
 
       const blockId = activeBlock.properties.id;
-      // Send a Feature payload; some backends expect a Feature not bare geometry.
+
+      // Always send a Feature
       const splitLineGeoJSON = lineFeature.type === 'Feature'
         ? lineFeature
         : { type: 'Feature', geometry: lineFeature.geometry || lineFeature };
 
-      console.log('Executing split for block:', blockId);
-      console.log('Split line (Feature):', splitLineGeoJSON);
-
       const response = await blocksService.splitBlock(blockId, splitLineGeoJSON);
 
-      console.log('Split response:', response);
       if (response && response.new_blocks) {
         setApiStatus(`Block split successfully into ${response.new_blocks.length} parts`);
         setBlockToSplit(null);
         setSplitLineDrawn(null);
+        splitLineRef.current = null;                   // <-- clear the ref
         drawControl.current?.deleteAll();
         drawControl.current?.changeMode('simple_select');
-        resetBlockHighlighting();
+        setMode('idle');
+        removeSplitMask(map);
         await loadBlocksData();
       } else {
         throw new Error('Invalid response from split operation');
@@ -862,10 +938,14 @@ function Maps() {
       setApiStatus(`Split failed: ${error.response?.data?.detail || error.message}`);
       drawControl.current?.deleteAll();
       setSplitLineDrawn(null);
+      setMode('idle');
+      removeSplitMask(map);
+      splitLineRef.current = null;                     // <-- clear the ref
     } finally {
       setIsSplitProcessing(false);
     }
   };
+
 
   useEffect(() => {
     console.log('=== blockToSplit state changed ===');
@@ -909,7 +989,6 @@ function Maps() {
       setBlockToSplit(null);
       blockToSplitRef.current = null;
       setSplitLineDrawn(null);
-      resetBlockHighlighting();
       drawControl.current?.changeMode('simple_select');
       setApiStatus('Split cancelled');
     } else if (!isMapping) {
@@ -2240,17 +2319,9 @@ useEffect(() => {
 
     // Switch to line drawing mode
     drawControl.current?.changeMode('draw_line_string');
-    
-    // Highlight the selected block
-    if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
-      map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', [
-        'case',
-        ['==', ['get', 'id'], blockFeature.properties.id],
-        0.8,
-        blockOpacity * 0.3 // Dim other blocks
-      ]);
-    }
-    
+    setMode('split');
+    addSplitMask(map);
+       
     setApiStatus(`Draw a line through "${blockFeature.properties.block_name}" to split it. Double-click to finish the line.`);
 
     // Debug: Check state after a delay
@@ -2483,10 +2554,7 @@ useEffect(() => {
         // Add a universal click handler that checks for all feature types
         map.current.on('click', (e) => {
           // Skip processing if we're in split mode - let the drawing tool handle it
-          if (blockToSplit) {
-            console.log('Click ignored - in split mode, letting draw tool handle it');
-            return;
-          }
+          if (mode === 'split') return;
 
           // Query all features at the click point
           const allFeatures = map.current.queryRenderedFeatures(e.point, {

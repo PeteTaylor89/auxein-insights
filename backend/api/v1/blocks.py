@@ -3,7 +3,7 @@ from typing import List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
-from shapely.geometry import mapping, shape, LineString, Polygon
+from shapely.geometry import mapping, shape, LineString, Polygon, MultiPolygon
 from shapely.ops import split
 from api.deps import get_db, get_current_user
 from db.models.user import User
@@ -12,11 +12,20 @@ from schemas.block import Block, BlockCreate, BlockUpdate
 import logging
 from datetime import datetime
 from services.blockchain_service import BlockchainService
-
+from pyproj import Geod
+GEOD = Geod(ellps="WGS84")
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+def area_ha(geom) -> float:
+    """Return area in hectares for a shapely Polygon/MultiPolygon (WGS84 lon/lat)."""
+    if isinstance(geom, (Polygon, MultiPolygon)):
+        # geometry_area_perimeter returns signed area in m^2 (negative for clockwise)
+        area_m2, _ = GEOD.geometry_area_perimeter(geom)
+        return abs(area_m2) / 10_000.0
+    return 0.0
 
 @router.get("/geojson", response_model=dict)
 def get_all_blocks_geojson(
@@ -313,7 +322,7 @@ def create_block_with_polygon(
                     "season_id": chain.season_id,
                     "genesis_hash": chain.genesis_hash[:16] + "..."
                 }
-                logger.info(f"✅ Auto-created blockchain chain {chain.id} for new block {new_block.id}")
+                logger.info(f"Auto-created blockchain chain {chain.id} for new block {new_block.id}")
             except Exception as e:
                 logger.error(f"Blockchain creation failed for new block {new_block.id}: {e}")
         
@@ -402,7 +411,7 @@ def assign_block_to_company(
                     "season_type": chain.season_type,
                     "genesis_hash": chain.genesis_hash[:16] + "..."
                 }
-                logger.info(f"✅ Created blockchain chain {chain.id} for block {block_id}")
+                logger.info(f"Created blockchain chain {chain.id} for block {block_id}")
                 
             elif old_company_id != new_company_id:
                 # Reassignment - archive old chain and create new one
@@ -418,7 +427,7 @@ def assign_block_to_company(
                     "genesis_hash": chain.genesis_hash[:16] + "...",
                     "reassignment": True
                 }
-                logger.info(f"✅ Created new blockchain chain {chain.id} after reassignment")
+                logger.info(f"Created new blockchain chain {chain.id} after reassignment")
                 
         except Exception as blockchain_error:
             # Log blockchain error but don't fail the assignment
@@ -516,108 +525,118 @@ def split_block(
     if not original_block:
         raise HTTPException(status_code=404, detail="Block not found")
     
-    # Check if user has permission to split this block
-    if original_block.company_id != current_user.company_id:
+       # Check permissions (allow same-company; optionally allow admins)
+    is_admin = getattr(current_user, "is_admin", False) or \
+               ("admin" in (getattr(current_user, "roles", []) or []))
+    if not is_admin and original_block.company_id != current_user.company_id:
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="You can only split blocks owned by your company"
         )
-    
+
     # Get the split line from request
     split_line_geojson = split_data.get("split_line")
     if not split_line_geojson:
         raise HTTPException(status_code=400, detail="Split line geometry required")
-    
+
     try:
         # Convert geometries to shapely objects
-        block_shape = to_shape(original_block.geometry)
-        split_line = shape(split_line_geojson)
-        
-        # Ensure split line is a LineString
-        if not isinstance(split_line, LineString):
-            raise HTTPException(status_code=400, detail="Split line must be a LineString")
-        
-        # Perform the split
-        split_result = split(block_shape, split_line)
-        
-        # Check if split was successful (should result in multiple geometries)
-        if len(split_result.geoms) < 2:
-            raise HTTPException(
-                status_code=400, 
-                detail="Split line does not properly divide the block"
-            )
-        
-        # Create new blocks from the split geometries
-        new_blocks = []
-        for i, geom in enumerate(split_result.geoms):
-            # Skip very small polygons (slivers)
-            area_ha = geom.area * 111319.9 * 111319.9 * 0.0001  # Rough conversion to hectares
-            if area_ha < 0.01:  # Skip if less than 0.01 hectares
+        block_shape = to_shape(original_block.geometry)  # Polygon/MultiPolygon
+        line_shape = shape(split_line_geojson if "type" in split_line_geojson else {"type":"Feature","geometry":split_line_geojson})
+
+        # Perform the split (shapely.ops.split)
+        split_parts = split(block_shape, line_shape)
+
+        if not split_parts or len(split_parts.geoms) < 2:
+            raise HTTPException(status_code=400, detail="Split did not produce multiple parts")
+
+        # Build list of parts with areas (m^2)
+        parts = []
+        for geom in split_parts.geoms:
+            # Ignore zero/near-zero slivers
+            if geom.area <= 0:
                 continue
-            
-            # Create new block with inherited properties
-            new_block_data = {
-                "block_name": f"{original_block.block_name}_part{i+1}",
-                "variety": original_block.variety,
-                "clone": original_block.clone,
-                "planted_date": original_block.planted_date,
-                "row_spacing": original_block.row_spacing,
-                "vine_spacing": original_block.vine_spacing,
-                "area": area_ha,
-                "region": original_block.region,
-                "swnz": original_block.swnz,
-                "organic": original_block.organic,
-                "winery": original_block.winery,
-                "gi": original_block.gi,
-                "elevation": original_block.elevation,
-                "company_id": original_block.company_id,
-                "geometry": from_shape(geom, srid=4326)
-            }
-            
-            # Calculate centroid for the new geometry
-            centroid = geom.centroid
-            new_block_data["centroid_longitude"] = centroid.x
-            new_block_data["centroid_latitude"] = centroid.y
-            
-            new_block = VineyardBlock(**new_block_data)
-            db.add(new_block)
-            new_blocks.append(new_block)
-        
-        if len(new_blocks) < 2:
-            raise HTTPException(
-                status_code=400, 
-                detail="Split did not result in valid blocks"
+            parts.append(geom)
+        if len(parts) < 2:
+            raise HTTPException(status_code=422, detail="Split resulted in invalid or zero-area parts")
+
+        # Choose the largest part to become the UPDATED original block
+        parts_sorted = sorted(parts, key=lambda g: g.area, reverse=True)
+        largest = parts_sorted[0]
+        children = parts_sorted[1:]
+
+        original_block.geometry = from_shape(largest, srid=4326)
+        largest_centroid = largest.centroid
+        original_block.centroid_longitude = float(largest_centroid.x)
+        original_block.centroid_latitude  = float(largest_centroid.y)
+
+        original_block.area = area_ha(largest)
+
+        db.add(original_block)
+
+        # OPTIONALLY: copy naming scheme for the new child(ren)
+        def child_name(base: str, index: int) -> str:
+            # e.g., "BlockName (Split B)", "BlockName (Split C)" etc.
+            suffix = chr(ord('A') + index)  # A, B, C...
+            return f"{base} (Split {suffix})"
+
+        new_blocks = []
+        for idx, geom in enumerate(children):
+            new_block = VineyardBlock(
+                block_name = child_name(original_block.block_name or "Block", idx),
+                variety = original_block.variety,
+                clone = original_block.clone,
+                rootstock = getattr(original_block, "rootstock", None),
+                planted_date = original_block.planted_date,
+                removed_date = None,
+                row_spacing = original_block.row_spacing,
+                vine_spacing = original_block.vine_spacing,
+                area = area_ha(geom),  # <-- set geodesic area (ha)
+                region = original_block.region,
+                swnz = original_block.swnz,
+                organic = original_block.organic,
+                winery = original_block.winery,
+                gi = original_block.gi,
+                elevation = original_block.elevation,
+                centroid_longitude = float(geom.centroid.x),
+                centroid_latitude = float(geom.centroid.y),
+                company_id = original_block.company_id,
+                geometry = from_shape(geom, srid=4326)
             )
-        
-        # Delete the original block
-        db.delete(original_block)
-        
-        # Commit all changes
+            db.add(new_block)
+            db.flush()  # get new_block.id for chain creation
+            new_blocks.append(new_block)
+
+        try:
+            existing_chain = BlockchainService.get_active_chain_for_block(db, original_block.id)
+        except Exception:
+            existing_chain = None
+
+        if existing_chain:
+            season_type = getattr(existing_chain, "season_type", "standard")
+            for nb in new_blocks:
+                BlockchainService.auto_create_chain_on_assignment(
+                    db, nb.id, nb.company_id, current_user.id, season_type
+                )
+
         db.commit()
-        
-        # Prepare response
-        response_blocks = []
-        for block in new_blocks:
-            db.refresh(block)
-            response_blocks.append({
-                "id": block.id,
-                "block_name": block.block_name,
-                "area": block.area,
-                "centroid_longitude": block.centroid_longitude,
-                "centroid_latitude": block.centroid_latitude
-            })
-        
-        logger.info(
-            f"Block {block_id} successfully split into {len(new_blocks)} blocks "
-            f"by user {current_user.id}"
-        )
-        
+
+        # Build response summary
+        response_blocks = [{
+            "id": nb.id,
+            "block_name": nb.block_name,
+            "company_id": nb.company_id
+        } for nb in new_blocks]
+
         return {
-            "message": f"Block split successfully into {len(new_blocks)} parts",
-            "original_block_id": block_id,
+            "message": f"Block split successfully into {1 + len(new_blocks)} parts",
+            "updated_block_id": original_block.id,
             "new_blocks": response_blocks
         }
-        
+
+    except HTTPException:
+        # passthrough
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Error splitting block {block_id}: {str(e)}")
