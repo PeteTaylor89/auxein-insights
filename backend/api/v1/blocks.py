@@ -641,3 +641,70 @@ def split_block(
         db.rollback()
         logger.error(f"Error splitting block {block_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error splitting block: {str(e)}")
+
+@router.put("/{block_id}/geometry")
+def update_block_geometry(
+    block_id: int,
+    payload: Dict = Body(..., example={
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[[174.0, -41.0],[174.1,-41.0],[174.1,-41.1],[174.0,-41.1],[174.0,-41.0]]]
+        }
+    }),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update a block's polygon geometry (GeoJSON), recompute area (ha), and centroid.
+    """
+    # --- Load & check block
+    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+
+    # Permissions: same-company or admin
+    is_admin = getattr(current_user, "is_admin", False) or ("admin" in (getattr(current_user, "roles", []) or []))
+    if not is_admin and block.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="You can only edit blocks owned by your company")
+
+    # --- Validate input
+    geometry = payload.get("geometry")
+    if not geometry or geometry.get("type") != "Polygon":
+        raise HTTPException(status_code=400, detail="Valid Polygon GeoJSON 'geometry' is required")
+
+    try:
+        # Convert GeoJSON -> shapely
+        shp = shape(geometry)  # Polygon
+        if shp.is_empty or not shp.is_valid:
+            raise HTTPException(status_code=400, detail="Invalid polygon geometry")
+
+        # Compute area (ha) using WGS84-aware helper
+        new_area_ha = area_ha(shp)  # authoritative area
+
+        # Compute centroid (lon/lat)
+        centroid = shp.centroid
+        centroid_lon, centroid_lat = centroid.x, centroid.y
+
+        # Persist
+        block.geometry = from_shape(shp, srid=4326)  # WGS84 storage
+        block.area = float(new_area_ha)
+        block.centroid_longitude = float(centroid_lon)
+        block.centroid_latitude = float(centroid_lat)
+
+        db.commit()
+        db.refresh(block)
+
+        # Return lightweight result
+        return {
+            "id": block.id,
+            "area": block.area,
+            "centroid_longitude": block.centroid_longitude,
+            "centroid_latitude": block.centroid_latitude,
+            "message": "Block geometry updated"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating geometry for block {block_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update block geometry")

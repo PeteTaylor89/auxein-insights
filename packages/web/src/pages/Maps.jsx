@@ -18,14 +18,11 @@ const __MAPBOX_TOKEN__ =
   '';
 
 if (!__MAPBOX_TOKEN__) {
-  // Don’t crash — but make the issue obvious in dev logs
   console.error(
     'Missing Mapbox token. Set VITE_MAPBOX_TOKEN in your .env (root).'
   );
 }
 mapboxgl.accessToken = __MAPBOX_TOKEN__;
-
-
 
 function showDraftGeometry(map, geometry) {
   const sourceId = 'draft-geom-src';
@@ -124,12 +121,26 @@ function addSplitMask(map) {
         id: SPLIT_MASK_LAYER_ID,
         type: 'fill',
         source: SPLIT_MASK_SOURCE_ID,
-        paint: { 'fill-opacity': 0 }, 
+        paint: { 'fill-opacity': 0 },
       });
-
-      map.current.on('click', SPLIT_MASK_LAYER_ID, () => {});
-      map.current.on('touchend', SPLIT_MASK_LAYER_ID, () => {});
     }
+
+    if (!splitMaskStopHandler) {
+      splitMaskStopHandler = (e) => {
+        if (e?.preventDefault) e.preventDefault();
+        if (e?.originalEvent?.stopPropagation) e.originalEvent.stopPropagation();
+      };
+    }
+
+    // attach using the SAME function reference we’ll later remove
+    const m = map.current;
+    m.on('mousedown', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+    m.on('click', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+    m.on('mouseup', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+    m.on('touchstart', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+    m.on('touchend', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+    m.on('dblclick', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+    m.on('contextmenu', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
   } catch (e) {
     console.warn('addSplitMask error', e);
   }
@@ -138,14 +149,18 @@ function addSplitMask(map) {
 function removeSplitMask(map) {
   if (!map?.current) return;
   try {
-    if (map.current.getLayer(SPLIT_MASK_LAYER_ID)) {
-      map.current.off('click', SPLIT_MASK_LAYER_ID, () => {});
-      map.current.off('touchend', SPLIT_MASK_LAYER_ID, () => {});
-      map.current.removeLayer(SPLIT_MASK_LAYER_ID);
+    const m = map.current;
+    if (splitMaskStopHandler && m.getLayer(SPLIT_MASK_LAYER_ID)) {
+      m.off('mousedown', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+      m.off('click', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+      m.off('mouseup', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+      m.off('touchstart', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+      m.off('touchend', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+      m.off('dblclick', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
+      m.off('contextmenu', SPLIT_MASK_LAYER_ID, splitMaskStopHandler);
     }
-    if (map.current.getSource(SPLIT_MASK_SOURCE_ID)) {
-      map.current.removeSource(SPLIT_MASK_SOURCE_ID);
-    }
+    if (m.getLayer(SPLIT_MASK_LAYER_ID)) m.removeLayer(SPLIT_MASK_LAYER_ID);
+    if (m.getSource(SPLIT_MASK_SOURCE_ID)) m.removeSource(SPLIT_MASK_SOURCE_ID);
   } catch (e) {
     console.warn('removeSplitMask error', e);
   }
@@ -223,13 +238,17 @@ function Maps() {
   const [mode, setMode] = useState('idle');
   const [isSplitProcessing, setIsSplitProcessing] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
+  
   const [blocksData, setBlocksData] = useState(null);
   const [blockOpacity, setBlockOpacity] = useState(0); // Default opacity
   const [showEditForm, setShowEditForm] = useState(false);
   const [editSpatialAreaData, setEditSpatialAreaData] = useState(null);
   const [showEditSpatialAreaForm, setShowEditSpatialAreaForm] = useState(false);
   const [editBlockData, setEditBlockData] = useState(null);
-  // Map style options
+  const [isEditingBlockArea, setIsEditingBlockArea] = useState(false);
+  const [editingBlockFeature, setEditingBlockFeature] = useState(null);
+  const editingDrawFeatureIdRef = useRef(null);
+
   const mapStyles = [
     { id: 'mapbox://styles/mapbox/streets-v12', name: 'Streets' },
     { id: 'mapbox://styles/mapbox/satellite-streets-v12', name: 'Satellite' },
@@ -262,6 +281,14 @@ function Maps() {
     company_id: '',
     notes: ''
   });
+  const [risksGeoJSON, setRisksGeoJSON] = useState({ type: 'FeatureCollection', features: [] });
+  const [riskFilters, setRiskFilters] = useState({
+    risk_type: null,      // e.g., 'chemical', 'flood', etc.
+    risk_level: null,     // 'low' | 'medium' | 'high' | 'critical'
+    status: 'active'      // default to active
+  });
+  const [showRisksLayer, setShowRisksLayer] = useState(true);
+
   const [isMapping, setIsMapping] = useState(false);
   const [mappingType, setMappingType] = useState(''); 
   const [spatialAreaType, setSpatialAreaType] = useState('');
@@ -269,36 +296,34 @@ function Maps() {
   const [showSpatialAreasLayer, setShowSpatialAreasLayer] = useState(true);
   const [spatialAreaOpacity, setSpatialAreaOpacity] = useState(0.5);
   const [spatialAreaCount, setSpatialAreaCount] = useState(0);
+  const splitMaskHandlersRef = useRef(null);
+  let splitMaskStopHandler = null;
+  const [isEditedPolygonValid, setIsEditedPolygonValid] = useState(true);
+  const modeRef = useRef('idle');
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   const handleCreateRows = async (rowCreationData) => {
     try {
       const result = await vineyardRowsService.bulkCreateRows(rowCreationData);
-      // Handle success - show message, reload data, etc.
       return result;
     } catch (error) {
-      // Handle error
       throw error;
     }
   };
 
-  // Handle map style change
   const handleStyleChange = (styleId) => {
     if (map.current) {
       const selectedStyle = mapStyles.find(s => s.id === styleId);
       const newIs3D = selectedStyle?.is3D || false;
       
       setMapStyle(styleId);
-      
-      // Update 3D mode if style requires it
       if (newIs3D !== is3DMode) {
         setIs3DMode(newIs3D);
       }
-      
-      // Use baseStyle if available, otherwise use the styleId
+
       const actualStyleId = selectedStyle?.baseStyle || styleId;
       map.current.setStyle(actualStyleId);
-      
-      // Adjust pitch based on 3D mode
+
       setTimeout(() => {
         map.current.easeTo({
           pitch: newIs3D ? 45 : 0,
@@ -313,22 +338,19 @@ function Maps() {
     
     try {
       console.log('Adding 3D terrain...');
-      
-      // Add terrain source
+
       map.current.addSource('mapbox-dem', {
         'type': 'raster-dem',
         'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
         'tileSize': 512,
         'maxzoom': 14
       });
-      
-      // Add the terrain layer
+
       map.current.setTerrain({ 
         'source': 'mapbox-dem', 
         'exaggeration': terrainExaggeration 
       });
-      
-      // Add sky layer for better 3D effect
+
       map.current.addLayer({
         'id': 'sky',
         'type': 'sky',
@@ -338,8 +360,7 @@ function Maps() {
           'sky-atmosphere-sun-intensity': 15
         }
       });
-      
-      // Add some lighting effects
+
       map.current.setLight({
         'color': 'rgba(255, 255, 255, 1)',
         'intensity': 0.4,
@@ -359,20 +380,14 @@ function Maps() {
     
     try {
       console.log('Removing 3D terrain...');
-
       map.current.setTerrain(null);
-
       if (map.current.getLayer('sky')) {
         map.current.removeLayer('sky');
       }
-
       if (map.current.getSource('mapbox-dem')) {
         map.current.removeSource('mapbox-dem');
       }
-
       map.current.setLight({});
-      
-      console.log('3D terrain removed');
       setApiStatus('3D terrain disabled');
     } catch (error) {
       console.error('Error removing 3D terrain:', error);
@@ -400,28 +415,228 @@ function Maps() {
     }
   };
 
+  const loadRisksData = async (filters = {}) => {
+    try {
+      // 1) Get list (filtered)
+      const list = await riskManagementService.getRisksWithFilters({
+        ...filters,
+        limit: 1000
+      }); // returns SiteRiskSummary items (no geometry) :contentReference[oaicite:2]{index=2}
+
+      // 2) Fetch details in parallel to get geometry (location as GeoJSON) :contentReference[oaicite:3]{index=3}
+      const detailPromises = list.map(r => riskManagementService.getRiskById(r.id));
+      const details = await Promise.allSettled(detailPromises);
+
+      // 3) Build FeatureCollection
+      const features = [];
+      details.forEach((res, idx) => {
+        if (res.status !== 'fulfilled') return;
+        const risk = res.value;
+        const loc = risk.location; // Point GeoJSON from SiteRiskResponse model validator :contentReference[oaicite:4]{index=4}
+        if (!loc || loc.type !== 'Point') return;
+
+        const summary = list[idx]; // keep list fields (level/score/type)
+        features.push({
+          type: 'Feature',
+          geometry: loc,
+          properties: {
+            id: summary.id,
+            risk_title: summary.risk_title,
+            risk_type: summary.risk_type,
+            risk_level: summary.inherent_risk_level,         // 'low' | 'medium' | 'high' | 'critical'
+            risk_score: summary.inherent_risk_score,
+            status: summary.status || 'active'
+          }
+        });
+      });
+
+      setRisksGeoJSON({ type: 'FeatureCollection', features });
+    } catch (err) {
+      console.error('Failed loading risks:', err);
+      setRisksGeoJSON({ type: 'FeatureCollection', features: [] });
+    }
+  };
+
+  const addRisksToMap = (geojsonData) => {
+    if (!map.current) return;
+
+    // Remove existing if any
+    if (map.current.getLayer('risks-circles')) map.current.removeLayer('risks-circles');
+    if (map.current.getLayer('risks-labels')) map.current.removeLayer('risks-labels');
+    if (map.current.getSource('risks')) map.current.removeSource('risks');
+
+    map.current.addSource('risks', { type: 'geojson', data: geojsonData });
+
+    // Circle layer: color by risk_level
+    map.current.addLayer({
+      id: 'risks-circles',
+      type: 'circle',
+      source: 'risks',
+      layout: {
+        visibility: showRisksLayer ? 'visible' : 'none'
+      },
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          8, 4,
+          12, 6,
+          16, 10
+        ],
+        'circle-color': [
+          'match',
+          ['get', 'risk_level'],
+          'low', '#16a34a',
+          'medium', '#f59e0b',
+          'high', '#ea580c',
+          'critical', '#dc2626',
+          '#6b7280' // default
+        ],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#fff',
+        'circle-opacity': 0.9
+      }
+    });
+
+    // Label layer: tiny text (risk type or score)
+    map.current.addLayer({
+      id: 'risks-labels',
+      type: 'symbol',
+      source: 'risks',
+      minzoom: 12,
+      layout: {
+        'text-field': ['get', 'risk_type'],
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': 10,
+        'text-offset': [0, 1.2],
+        'text-anchor': 'top',
+        'visibility': showRisksLayer ? 'visible' : 'none'
+      },
+      paint: {
+        'text-color': '#111827',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.2
+      }
+    });
+
+    // Click popup
+    map.current.off('click', 'risks-circles');
+    map.current.on('click', 'risks-circles', (e) => {
+      const f = e.features && e.features[0];
+      if (!f) return;
+      const { id, risk_title, risk_type, risk_level, risk_score, status } = f.properties || {};
+
+      const coords = e.lngLat || (f.geometry?.coordinates ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] } : null);
+      if (!coords) return;
+
+      const html = `
+        <div class="risk-popup">
+          <div class="popup-title">${risk_title || 'Risk'}</div>
+          <div><b>Type:</b> ${risk_type || '-'}</div>
+          <div><b>Level:</b> ${risk_level || '-'} (${risk_score || '-'})</div>
+          <div><b>Status:</b> ${status || '-'}</div>
+          <button class="popup-button mobile-button touch-friendly" onclick="window.open('/risks/${id}', '_blank')">Open risk</button>
+        </div>
+      `;
+
+      const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true })
+        .setLngLat([coords.lng, coords.lat])
+        .setHTML(html)
+        .addTo(map.current);
+      currentPopup.current = popup;
+    });
+
+    // Hover cursor
+    map.current.off('mouseenter', 'risks-circles');
+    map.current.off('mouseleave', 'risks-circles');
+    map.current.on('mouseenter', 'risks-circles', () => { if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = 'pointer'; });
+    map.current.on('mouseleave', 'risks-circles', () => { if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = ''; });
+  };
+
+  useEffect(() => {
+    if (!map.current) return;
+    addRisksToMap(risksGeoJSON);
+  }, [risksGeoJSON, showRisksLayer]);
+
+  useEffect(() => {
+    loadRisksData(riskFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    loadRisksData(riskFilters);
+  }, [riskFilters]);
+
+  useEffect(() => {
+    if (!map.current || !drawControl.current) return;
+
+    const validateCurrentEdit = () => {
+      try {
+        const id = editingDrawFeatureIdRef.current;
+        if (!id) return;
+        const f = drawControl.current.get(id);
+        if (!f || f.geometry?.type !== 'Polygon') {
+          setIsEditedPolygonValid(false);
+          return;
+        }
+        // reuse your client validator if available; otherwise quick checks:
+        //  - at least 4 points (closed ring)
+        //  - non-empty and valid shape (Draw prevents self-intersections in many cases, but we still guard)
+        const coords = f.geometry.coordinates?.[0] ?? [];
+        const hasMinPoints = Array.isArray(coords) && coords.length >= 4;
+        setIsEditedPolygonValid(!!hasMinPoints);
+      } catch {
+        setIsEditedPolygonValid(false);
+      }
+    };
+
+    const onUpdate = () => validateCurrentEdit();
+    const onChange = () => validateCurrentEdit();
+    const onSelectionChange = () => validateCurrentEdit();
+
+    map.current.on('draw.update', onUpdate);
+    map.current.on('draw.change', onChange);
+    map.current.on('draw.selectionchange', onSelectionChange);
+
+    return () => {
+      try { map.current.off('draw.update', onUpdate); } catch {}
+      try { map.current.off('draw.change', onChange); } catch {}
+      try { map.current.off('draw.selectionchange', onSelectionChange); } catch {}
+    };
+  }, [map, isEditingBlockArea]);
+
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if (e.key === 'Escape' && blockToSplit) {
-        console.log('Escape pressed - cancelling split mode');
-        console.log('blockToSplit before cancel:', blockToSplit?.properties?.block_name);
-        
-        setBlockToSplit(null);
-        setSplitLineDrawn(null);
-        drawControl.current?.deleteAll();
-        drawControl.current?.changeMode('simple_select');
-        setApiStatus('Split cancelled');
+      if (e.key === 'Escape') {
+
+        if (isEditingBlockArea) {
+          cancelEditBlockArea();
+          setApiStatus('Edit cancelled');
+          return; 
+        }
+
+        if (blockToSplit) {
+          console.log('Escape pressed - cancelling split mode');
+          console.log('blockToSplit before cancel:', blockToSplit?.properties?.block_name);
+
+          setBlockToSplit(null);
+          setSplitLineDrawn(null);
+          try { drawControl.current?.deleteAll(); } catch {}
+          try { drawControl.current?.changeMode('simple_select'); } catch {}
+          removeSplitMask(map);                     // ensure mask is gone
+          setSplitModeActive(false, map, setMode, currentPopup); // re-enable dclk zoom etc.
+          setApiStatus('Split cancelled');
+          return;
+        }
       }
-      
-      // Existing 3D controls
       if (e.ctrlKey) {
-        switch(e.key) {
-          case '3':
+        switch (e.key) {
+          case '3': {
             e.preventDefault();
             toggle3DMode();
             break;
-          case 'r':
-            if (is3DMode) {
+          }
+          case 'r': {
+            if (is3DMode && map.current) {
               e.preventDefault();
               map.current.easeTo({
                 bearing: 0,
@@ -430,13 +645,22 @@ function Maps() {
               });
             }
             break;
+          }
+          default:
+            break;
         }
       }
     };
-  
-  window.addEventListener('keydown', handleKeyPress);
-  return () => window.removeEventListener('keydown', handleKeyPress);
-}, [is3DMode, blockToSplit]);
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [
+    is3DMode,
+    blockToSplit,
+    isEditingBlockArea,  
+    map
+  ]);
+
 
   const touchStartTime = useRef(null);
   const touchStartPosition = useRef(null);
@@ -461,7 +685,80 @@ function Maps() {
     
   };
 
-  // Initialize map
+  const startEditBlockArea = (blockFeature) => {
+    if (!map.current || !drawControl.current || !blockFeature) return;
+
+    // Hard stop any other mapping modes you have
+    try { freezeDrawing(drawControl.current, map.current); } catch {}
+    setIsEditingBlockArea(true);
+    setEditingBlockFeature(blockFeature);
+
+    // Load the block polygon into Draw as a feature
+    const featureToEdit = {
+      id: `edit-block-${blockFeature.properties.id}`,
+      type: 'Feature',
+      properties: { source: 'block-edit', block_id: blockFeature.properties.id },
+      geometry: blockFeature.geometry
+    };
+
+    try {
+      drawControl.current.add(featureToEdit);
+      editingDrawFeatureIdRef.current = featureToEdit.id;
+      // Switch to direct vertex editing
+      drawControl.current.changeMode('direct_select', { featureId: featureToEdit.id });
+    } catch (e) {
+      console.error('Failed to enter edit mode:', e);
+    }
+  };
+
+  const cancelEditBlockArea = () => {
+    if (!map.current || !drawControl.current) return;
+    try { drawControl.current.deleteAll(); } catch {}
+    try { drawControl.current.changeMode('simple_select'); } catch {}
+    setIsEditingBlockArea(false);
+    setEditingBlockFeature(null);
+    editingDrawFeatureIdRef.current = null;
+    // Clean any draft layers you use elsewhere
+    try { clearDraftGeometry(map.current); } catch {}
+  };
+
+  const saveEditedBlockArea = async () => {
+    if (!map.current || !drawControl.current || !editingBlockFeature) return;
+
+    const featureId = editingDrawFeatureIdRef.current;
+    if (!featureId) return;
+
+    try {
+      // Ensure we’re editing exactly one polygon
+      const edited = drawControl.current.get(featureId);
+      if (!edited || edited.type !== 'Feature' || edited.geometry?.type !== 'Polygon') {
+        throw new Error('Edited geometry must be a Polygon');
+      }
+
+      // Optional: preview area with turf (UI only). Server is source of truth.
+      // const haPreview = turf.area(edited) / 10000.0;
+
+      const blockId = editingBlockFeature.properties.id;
+
+      // (Optional) client validation before send
+      try { blocksService.validateBlockGeometry(edited.geometry); } catch (e) { throw e; }
+
+      // Persist to API
+      const result = await blocksService.updateBlockGeometry(blockId, edited.geometry);
+
+      // Clean editing state
+      cancelEditBlockArea();
+
+      await loadBlocksData();
+
+      // Optionally show a toast/snackbar with new area
+      console.log('Block updated:', result?.area, 'ha');
+    } catch (e) {
+      console.error('Saving edited block failed:', e);
+      // Optionally surface a UI error
+    }
+  };
+
   useEffect(() => {
     if (map.current) return;
 
@@ -534,7 +831,7 @@ function Maps() {
         displayControlsDefault: false,
         controls: {
           polygon: true,
-          line_string: true,   // <-- allow lines
+          line_string: false,   // <-- allow lines
           trash: true          // (nice to have) allow clearing current sketch
         },
 
@@ -720,7 +1017,6 @@ function Maps() {
     };
   }
 
-  // Handle newly drawn polygon or line
   const handleDrawCreate = (e) => {
     console.log('=== handleDrawCreate called ===');
     console.log('Features count:', e.features.length);
@@ -754,13 +1050,8 @@ function Maps() {
         centroid_latitude: centroidCoords[1]
       }));
 
-      // 2) Immediately freeze any interactive Draw state and show a static preview
       freezeDrawing(drawControl.current, map.current);
       showDraftGeometry(map.current, geom);
-
-
-
-      // 3) Open the form (no live vertex remains on the map)
       setShowDrawingForm(true);
       setIsDrawing(true);
     } else {
@@ -823,7 +1114,7 @@ function Maps() {
       setMode('idle');
       removeSplitMask(map);
       splitLineRef.current = null;            // <-- clear the ref as well
-      setApiStatus(`Draw a new line through "${blockName}" to split it, or click elsewhere to cancel.`);
+      setApiStatus(`Draw a new line through "${blockName}" to split it.`);
     }
   };
 
@@ -989,7 +1280,9 @@ function Maps() {
       setBlockToSplit(null);
       blockToSplitRef.current = null;
       setSplitLineDrawn(null);
-      drawControl.current?.changeMode('simple_select');
+      try { drawControl.current?.changeMode('simple_select'); } catch {}
+      removeSplitMask(map);
+      setSplitModeActive(false, map, setMode, currentPopup);
       setApiStatus('Split cancelled');
     } else if (!isMapping) {
       // Regular polygon deletion
@@ -2143,6 +2436,7 @@ useEffect(() => {
       const editFunctionName = `openEditForm_${properties.id}_${Date.now()}`;
       const splitFunctionName = `splitBlock_${properties.id}_${Date.now()}`; // This is the key fix
       const assignBlockFunctionName = `assignBlock_${properties.id}_${Date.now()}`;
+      const editAreaFnName = `editBlockArea_${properties.id}_${Date.now()}`;
 
       // Create popup content
       let popupContent;
@@ -2167,6 +2461,14 @@ useEffect(() => {
           // Call startBlockSplit with the FULL feature object
           startBlockSplit(feature);
           
+          if (currentPopup.current) {
+            currentPopup.current.remove();
+            currentPopup.current = null;
+          }
+        };
+
+        window[editAreaFnName] = () => {
+          startEditBlockArea(feature);
           if (currentPopup.current) {
             currentPopup.current.remove();
             currentPopup.current = null;
@@ -2198,6 +2500,12 @@ useEffect(() => {
                 ontouchstart=""
                 style="background-color: #dc2626; color: white;">
                 Split Block
+              </button>
+              <button
+                onclick="window.${editAreaFnName}()"
+                class="popup-button mobile-button touch-friendly"
+                ontouchstart="">
+                Edit Block Area
               </button>
             </div>
           </div>
@@ -2274,7 +2582,8 @@ useEffect(() => {
       popup._functionNames = [
         editFunctionName,
         splitFunctionName,
-        assignBlockFunctionName
+        assignBlockFunctionName,
+        editAreaFnName
       ].filter(name => window[name]);
       
       popup.addTo(map.current);
@@ -2554,7 +2863,7 @@ useEffect(() => {
         // Add a universal click handler that checks for all feature types
         map.current.on('click', (e) => {
           // Skip processing if we're in split mode - let the drawing tool handle it
-          if (mode === 'split') return;
+          if (modeRef.current === 'split' || blockToSplitRef.current) return;
 
           // Query all features at the click point
           const allFeatures = map.current.queryRenderedFeatures(e.point, {
@@ -2622,9 +2931,9 @@ useEffect(() => {
         // Also handle touch events separately for mobile
         map.current.on('touchend', (e) => {
           // Skip touch handling if we're in split mode
-          if (blockToSplit) {
-            console.log('Touch ignored - in split mode');
-            return;
+          if (blockToSplitRef.current || modeRef.current === 'split') {
+              console.log('Touch ignored - in split mode');
+              return;
           }
 
           // Same logic as click but for touch
@@ -2889,18 +3198,30 @@ useEffect(() => {
 
           {/* Block Tools */}
           <div className="control-section">
-            <h4>Mapping Tools</h4>
-            <button
-              className={`tool-button map-button ${isMapping ? 'active' : ''}`}
-              onClick={startMapping}
-              >
-              <span className="button-icon">✏️</span>
-              Map New Area
-            </button>
+            <h4>🗺️ Mapping Tools</h4>
+            <small>
+              🌿 To draw a new vineyard block or spatial area — including orchards, paddocks, forestry, or conservation areas —  
+              select <strong>"Polygon Tool"</strong> on the map.
+            </small>
+            <br /><br />
+            <small>
+              ✂️ To split a vineyard into multiple management blocks —  
+              select the vineyard, press <strong>"Split Block"</strong>, then draw the line for the split.  
+              <br />
+              ⚠️ <em>Note:</em> Only split a block into <strong>two portions per split</strong>.  
+              Both new blocks will inherit the data from the original.
+            </small>
+              <br /><br />
+            <small>
+              🧩 To edit vineyard block shape — select the block, press <strong>"Edit Area"</strong>, then move the points and lines  
+              to fit the new boundary or shape as needed.
+              <br />
+              ⚠️ <em>Note:</em> This edit tool only works for <strong>vineyard block areas</strong>.  
+            </small>
           </div>
 
           <div className="control-section">
-            <h4>{isAuxeinAdmin ? 'Admin Tools' : 'Your Land Parcels'}</h4>
+            <h4>{isAuxeinAdmin ? 'Admin Tools' : 'Layers'}</h4>
             
             {isAuxeinAdmin ? (
               // Admin controls (existing)
@@ -2932,22 +3253,56 @@ useEffect(() => {
             ) : (
               // Regular user controls
               <div className="user-parcel-controls">
+                <hr style={{ margin: '0.75rem 0', opacity: 0.3 }} />
+                {/* Parcels Layer */}
                 <label className="layer-toggle">
                   <input
                     type="checkbox"
                     checked={showParcelsLayer}
                     onChange={(e) => setShowParcelsLayer(e.target.checked)}
+                    style={{ marginRight: '0.5rem' }}
                   />
-                  Show Your Parcels
+                  🗺️ Land Parcels
                 </label>
-                <div className="parcel-info">
-                  <small>Your assigned land parcels</small>
-                  {parcelCount > 0 && (
-                    <small>You have {parcelCount} assigned parcels</small>
-                  )}
+                {/* Placeholder Toggles */}
+                <br /><br />
+                <label className="layer-toggle">
+                  <input type="checkbox" 
+                  style={{ marginRight: '0.5rem' }}
+                  disabled />
+                  ✅ Tasks <small style={{ opacity: 0.6 }}>(coming soon)</small>
+                </label>
+                <br /><br />  
+                <label className="layer-toggle">
+                  <input type="checkbox" 
+                  style={{ marginRight: '0.5rem' }}
+                  disabled />
+                  👁️ Observations <small style={{ opacity: 0.6 }}>(coming soon)</small>
+                </label>
+                <br /><br /> 
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={showRisksLayer}
+                    onChange={(e) => setShowRisksLayer(e.target.checked)}
+                  /> Show Risks
+                </label>
+                <br /><br /> 
+                <label className="layer-toggle">
+                  <input type="checkbox" 
+                  style={{ marginRight: '0.5rem' }}
+                  disabled />
+                  🚨 Incidents <small style={{ opacity: 0.6 }}>(coming soon)</small>
+                </label>
+
+                <hr style={{ margin: '0.75rem 0', opacity: 0.3 }} />
+
+                {/* Placeholder for filters */}
+                <div className="layer-filters">
+                  <small>🔍 Filters will appear here once layer data is available.</small>
                 </div>
-                
               </div>
+
             )}
           </div>
 
@@ -3160,6 +3515,39 @@ useEffect(() => {
             </span>
           )}
         </div>
+
+        {isEditingBlockArea && (
+          <div
+            style={{
+              position: 'absolute',
+              zIndex: 50,
+              top: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'white',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              display: 'flex',
+              gap: 8
+            }}
+          >
+            <button
+              className="tool-button map-button"
+              onClick={saveEditedBlockArea}
+              disabled={!isEditingBlockArea}
+              title={!isEditedPolygonValid ? 'Polygon is incomplete/invalid' : 'Save'}
+            >
+              Save
+            </button>
+            <button
+              className="tool-button"
+              onClick={cancelEditBlockArea}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
         {/* Drawing Form */}
         {showDrawingForm && (
@@ -3384,14 +3772,14 @@ useEffect(() => {
 
         .style-buttons {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: 1fr 1fr 1fr;
           gap: 8px;
         }
 
         .style-button {
           padding: 8px 12px;
           border: 1px solid #d1d5db;
-          background:rgb(170, 89, 89);
+          background:rgba(96, 170, 89, 1);
           border-radius: 6px;
           font-size: 13px;
           cursor: pointer;
@@ -3399,8 +3787,8 @@ useEffect(() => {
         }
 
         .style-button:hover {
-          background: #f9fafb;
-          border-color: #9ca3af;
+          background: rgba(96, 170, 89, 1);
+          border-color: #7dd6ffff;
         }
 
         .style-button.active {
@@ -3834,6 +4222,8 @@ useEffect(() => {
             top: 2px;
             right: 2px;
           }
+
+        
 
         }
       `}</style>

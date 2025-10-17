@@ -150,7 +150,14 @@ const blocksService = {
     const hectares = area * 111319.9 * 111319.9 * 0.0001;
     
     return hectares;
+  },
+
+  updateBlockGeometry: async (blockId, geometry) => {
+    try { blocksService.validateBlockGeometry(geometry); } catch (e) { throw e; }
+    const response = await api.put(`/blocks/${blockId}/geometry`, { geometry });
+    return response.data; 
   }
+
 };
 
 export default blocksService;
