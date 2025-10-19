@@ -7,7 +7,7 @@ import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import {blocksService, parcelsService, companiesService, spatialAreasService, vineyardRowsService} from '@vineyard/shared';
+import {blocksService, parcelsService, companiesService, spatialAreasService, vineyardRowsService, riskManagementService} from '@vineyard/shared';
 import * as turf from '@turf/turf';
 import SlidingEditForm from '../components/SlidingEditForm';
 import SpatialAreaSlidingEditForm from '../components/SpatialAreasSlidingEditForm';
@@ -66,6 +66,8 @@ function showDraftGeometry(map, geometry) {
     }
   });
 }
+
+
 
 function clearDraftGeometry(map) {
   const sourceId = 'draft-geom-src';
@@ -283,11 +285,11 @@ function Maps() {
   });
   const [risksGeoJSON, setRisksGeoJSON] = useState({ type: 'FeatureCollection', features: [] });
   const [riskFilters, setRiskFilters] = useState({
-    risk_type: null,      // e.g., 'chemical', 'flood', etc.
-    risk_level: null,     // 'low' | 'medium' | 'high' | 'critical'
-    status: 'active'      // default to active
+    risk_type: '',      
+    risk_level: '',     
+    status: 'active'      
   });
-  const [showRisksLayer, setShowRisksLayer] = useState(true);
+  const [showRisksLayer, setShowRisksLayer] = useState(false);
 
   const [isMapping, setIsMapping] = useState(false);
   const [mappingType, setMappingType] = useState(''); 
@@ -302,6 +304,38 @@ function Maps() {
   const modeRef = useRef('idle');
   useEffect(() => { modeRef.current = mode; }, [mode]);
 
+  const addRiskIconIfMissing = () => {
+    if (!map.current) return;
+    if (map.current.hasImage && map.current.hasImage('risk-warning')) return;
+
+    // Draw a simple warning triangle icon on a canvas
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Triangle
+    ctx.beginPath();
+    ctx.moveTo(size / 2, 6);
+    ctx.lineTo(size - 6, size - 6);
+    ctx.lineTo(6, size - 6);
+    ctx.closePath();
+    ctx.fillStyle = '#f59e0b'; // amber
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#111827';
+    ctx.stroke();
+
+    // Exclamation mark
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(size / 2 - 3, size / 3, 6, size / 3);
+    ctx.beginPath();
+    ctx.arc(size / 2, size - 18, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    map.current.addImage('risk-warning', canvas, { pixelRatio: 2 });
+  };
+
   const handleCreateRows = async (rowCreationData) => {
     try {
       const result = await vineyardRowsService.bulkCreateRows(rowCreationData);
@@ -311,6 +345,14 @@ function Maps() {
     }
   };
 
+  const CLICK_PRIORITY = [
+    'risks-symbol',
+    'observations-symbol',
+    'tasks-symbol',
+    'incidents-symbol',
+    'vineyard-blocks-fill'
+  ];
+  
   const handleStyleChange = (styleId) => {
     if (map.current) {
       const selectedStyle = mapStyles.find(s => s.id === styleId);
@@ -420,7 +462,7 @@ function Maps() {
       // 1) Get list (filtered)
       const list = await riskManagementService.getRisksWithFilters({
         ...filters,
-        limit: 1000
+        limit: 100
       }); // returns SiteRiskSummary items (no geometry) :contentReference[oaicite:2]{index=2}
 
       // 2) Fetch details in parallel to get geometry (location as GeoJSON) :contentReference[oaicite:3]{index=3}
@@ -461,28 +503,40 @@ function Maps() {
     if (!map.current) return;
 
     // Remove existing if any
-    if (map.current.getLayer('risks-circles')) map.current.removeLayer('risks-circles');
-    if (map.current.getLayer('risks-labels')) map.current.removeLayer('risks-labels');
+    ['risks-symbol', 'risks-labels'].forEach((id) => {
+      if (map.current.getLayer(id)) map.current.removeLayer(id);
+    });
     if (map.current.getSource('risks')) map.current.removeSource('risks');
 
+    // Source
     map.current.addSource('risks', { type: 'geojson', data: geojsonData });
 
-    // Circle layer: color by risk_level
+    // --- ICON + TITLE in one symbol layer (icon above fills/lines) ---
     map.current.addLayer({
-      id: 'risks-circles',
-      type: 'circle',
+      id: 'risks-symbol',
+      type: 'symbol',
       source: 'risks',
       layout: {
-        visibility: showRisksLayer ? 'visible' : 'none'
+        // triangle-15 is available in Mapbox default styles; shows as a warning icon
+        'icon-image': 'risk-warning',
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          8, 0.9,
+          16, 1.4
+        ],
+        // label uses risk_title (requested)
+        'text-field': ['get', 'risk_title'],
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': 11,
+        'text-offset': [0, 1.2],
+        'text-anchor': 'top',
+        'icon-allow-overlap': true,
+        'text-allow-overlap': false,
+        'visibility': showRisksLayer ? 'visible' : 'none'
       },
       paint: {
-        'circle-radius': [
-          'interpolate', ['linear'], ['zoom'],
-          8, 4,
-          12, 6,
-          16, 10
-        ],
-        'circle-color': [
+        // icon color by risk_level
+        'icon-color': [
           'match',
           ['get', 'risk_level'],
           'low', '#16a34a',
@@ -491,66 +545,74 @@ function Maps() {
           'critical', '#dc2626',
           '#6b7280' // default
         ],
-        'circle-stroke-width': 1.5,
-        'circle-stroke-color': '#fff',
-        'circle-opacity': 0.9
-      }
-    });
-
-    // Label layer: tiny text (risk type or score)
-    map.current.addLayer({
-      id: 'risks-labels',
-      type: 'symbol',
-      source: 'risks',
-      minzoom: 12,
-      layout: {
-        'text-field': ['get', 'risk_type'],
-        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-        'text-size': 10,
-        'text-offset': [0, 1.2],
-        'text-anchor': 'top',
-        'visibility': showRisksLayer ? 'visible' : 'none'
-      },
-      paint: {
         'text-color': '#111827',
         'text-halo-color': '#ffffff',
-        'text-halo-width': 1.2
+        'text-halo-width': 1.4
       }
     });
 
-    // Click popup
-    map.current.off('click', 'risks-circles');
-    map.current.on('click', 'risks-circles', (e) => {
+    // Ensure risks sit ON TOP so clicks hit risks before blocks/parcels/etc.
+    try { map.current.moveLayer('risks-symbol'); } catch {}
+
+    // Click → block-style popup
+    map.current.off('click', 'risks-symbol');
+    map.current.on('click', 'risks-symbol', (e) => {
       const f = e.features && e.features[0];
       if (!f) return;
       const { id, risk_title, risk_type, risk_level, risk_score, status } = f.properties || {};
-
       const coords = e.lngLat || (f.geometry?.coordinates ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] } : null);
       if (!coords) return;
 
+      // Match the same styling/classnames as your block popups
       const html = `
-        <div class="risk-popup">
-          <div class="popup-title">${risk_title || 'Risk'}</div>
-          <div><b>Type:</b> ${risk_type || '-'}</div>
-          <div><b>Level:</b> ${risk_level || '-'} (${risk_score || '-'})</div>
-          <div><b>Status:</b> ${status || '-'}</div>
-          <button class="popup-button mobile-button touch-friendly" onclick="window.open('/risks/${id}', '_blank')">Open risk</button>
+        <div class="map-popup owned mobile-optimized">
+          <h3>${risk_title || 'Risk'}</h3>
+          <div class="popup-details">
+            <div><strong>Type:</strong> ${risk_type || '-'}</div>
+            <div><strong>Level:</strong> ${risk_level || '-'}${risk_score ? ` (${risk_score})` : ''}</div>
+            <div><strong>Status:</strong> ${status || '-'}</div>
+          </div>
+          <div class="popup-actions mobile-actions">
+            <button class="popup-button mobile-button touch-friendly" onclick="window.open('/risks/${id}', '_blank')">
+              Open Risk
+            </button>
+          </div>
         </div>
       `;
 
-      const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true })
+      // Use the same popup class for consistent styling
+      const popup = new mapboxgl.Popup({
+        closeButton: true,
+        closeOnClick: true,
+        maxWidth: 'min(90vw, 400px)',
+        className: 'mobile-friendly-popup',   // <— same as blocks
+        anchor: 'top',
+        focusAfterOpen: false
+      })
         .setLngLat([coords.lng, coords.lat])
         .setHTML(html)
         .addTo(map.current);
+
       currentPopup.current = popup;
+
+      // Prevent the global map click handler from also firing
+      if (e && e.originalEvent) {
+        e.originalEvent.cancelBubble = true;
+        if (typeof e.originalEvent.stopPropagation === 'function') e.originalEvent.stopPropagation();
+      }
     });
 
     // Hover cursor
-    map.current.off('mouseenter', 'risks-circles');
-    map.current.off('mouseleave', 'risks-circles');
-    map.current.on('mouseenter', 'risks-circles', () => { if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = 'pointer'; });
-    map.current.on('mouseleave', 'risks-circles', () => { if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = ''; });
+    map.current.off('mouseenter', 'risks-symbol');
+    map.current.off('mouseleave', 'risks-symbol');
+    map.current.on('mouseenter', 'risks-symbol', () => {
+      if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = 'pointer';
+    });
+    map.current.on('mouseleave', 'risks-symbol', () => {
+      if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = '';
+    });
   };
+
 
   useEffect(() => {
     if (!map.current) return;
@@ -990,11 +1052,14 @@ function Maps() {
       if (blocksData) addBlocksToMap(blocksData, user?.company_id);
       if (spatialAreasData) addSpatialAreasToMap(spatialAreasData, user?.company_id);
       if (parcelsData) addParcelsToMap(parcelsData);
+      if (risksGeoJSON) addRisksToMap(risksGeoJSON);
+      addRiskIconIfMissing();
+
     };
 
     map.current.on('style.load', onStyleLoad);
     return () => map.current?.off('style.load', onStyleLoad);
-  }, [blocksData, spatialAreasData, parcelsData, is3DMode, user?.company_id]);
+  }, [blocksData, spatialAreasData, parcelsData, is3DMode, user?.company_id, risksGeoJSON]);
 
 
   // Update opacity when it changes
@@ -2865,59 +2930,60 @@ useEffect(() => {
           // Skip processing if we're in split mode - let the drawing tool handle it
           if (modeRef.current === 'split' || blockToSplitRef.current) return;
 
-          // Query all features at the click point
-          const allFeatures = map.current.queryRenderedFeatures(e.point, {
-            layers: [
-              'spatial-areas-fill',
-              'vineyard-blocks-fill', 
-              'land-parcels-fill'
-            ].filter(layerId => map.current.getLayer(layerId)) // Only include layers that exist
-          });
-          
+          // 🔺 PRIORITY: if a risk icon is under the cursor, let the risk handler own the click
+          const RISK_LAYER_ID = 'risks-symbol';
+          if (map.current.getLayer(RISK_LAYER_ID)) {
+            const riskHits = map.current.queryRenderedFeatures(e.point, { layers: [RISK_LAYER_ID] });
+            if (riskHits && riskHits.length) {
+              // If you already attach a dedicated click handler on 'risks-symbol',
+              // just return here so *only* the risk popup opens.
+              // (That per-layer handler will run automatically.)
+              return;
+              // --- If you DON'T have a per-layer handler, call your risk popup opener here instead:
+              // handleRiskClick({ ...e, features: riskHits });
+              // return;
+            }
+          }
+
+          // Query all features at the click point (non-risk layers)
+          const layerIds = [
+            'spatial-areas-fill',
+            'vineyard-blocks-fill',
+            'land-parcels-fill'
+          ].filter((layerId) => map.current.getLayer(layerId));
+
+          const allFeatures = map.current.queryRenderedFeatures(e.point, { layers: layerIds });
+
           console.log('Click detected, features found:', allFeatures.length);
           allFeatures.forEach((feature, index) => {
             console.log(`Feature ${index}:`, feature.layer.id, feature.properties);
           });
-          
+
           // Separate features by type
-          const spatialFeatures = allFeatures.filter(f => f.layer.id === 'spatial-areas-fill');
-          const blockFeatures = allFeatures.filter(f => f.layer.id === 'vineyard-blocks-fill');
-          const parcelFeatures = allFeatures.filter(f => f.layer.id === 'land-parcels-fill');
-          
+          const spatialFeatures = allFeatures.filter((f) => f.layer.id === 'spatial-areas-fill');
+          const blockFeatures   = allFeatures.filter((f) => f.layer.id === 'vineyard-blocks-fill');
+          const parcelFeatures  = allFeatures.filter((f) => f.layer.id === 'land-parcels-fill');
+
           // Handle based on what was clicked - prioritize the most specific feature
           if (blockFeatures.length > 0 && spatialFeatures.length > 0) {
-            // Both block and spatial area - check which is more specific
+            // Both block and spatial area - prefer block for now (your current behavior)
             console.log('Both block and spatial area clicked');
-            
-            // For now, let's prefer blocks but make sure spatial areas are still accessible
-            handleBlockInteraction({
-              ...e,
-              features: blockFeatures
-            }, 'click');
-            
+            handleBlockInteraction({ ...e, features: blockFeatures }, 'click');
+
           } else if (blockFeatures.length > 0) {
             console.log('Block only clicked');
             if (!(e.originalEvent instanceof TouchEvent)) {
-              handleBlockInteraction({
-                ...e,
-                features: blockFeatures
-              }, 'click');
+              handleBlockInteraction({ ...e, features: blockFeatures }, 'click');
             }
-            
+
           } else if (spatialFeatures.length > 0) {
             console.log('Spatial area only clicked');
-            handleSpatialAreaClick({
-              ...e,
-              features: spatialFeatures
-            });
-            
+            handleSpatialAreaClick({ ...e, features: spatialFeatures });
+
           } else if (parcelFeatures.length > 0 && isAuxeinAdmin) {
             console.log('Parcel only clicked');
-            handleParcelClick({
-              ...e,
-              features: parcelFeatures
-            });
-            
+            handleParcelClick({ ...e, features: parcelFeatures });
+
           } else {
             // Close any existing popup if clicking on empty space
             // BUT NOT if we're in split mode
@@ -2928,6 +2994,7 @@ useEffect(() => {
             }
           }
         });
+
         // Also handle touch events separately for mobile
         map.current.on('touchend', (e) => {
           // Skip touch handling if we're in split mode
@@ -3280,10 +3347,10 @@ useEffect(() => {
                   👁️ Observations <small style={{ opacity: 0.6 }}>(coming soon)</small>
                 </label>
                 <br /><br /> 
-                <label style={{ marginRight: 8 }}>
+                <label style={{ marginRight: '0.5rem' }}>
                   <input
                     type="checkbox"
-                    checked={showRisksLayer}
+                    checked={!!showRisksLayer}
                     onChange={(e) => setShowRisksLayer(e.target.checked)}
                   /> Show Risks
                 </label>
@@ -3300,6 +3367,45 @@ useEffect(() => {
                 {/* Placeholder for filters */}
                 <div className="layer-filters">
                   <small>🔍 Filters will appear here once layer data is available.</small>
+                  <br></br>
+                  <strong>🔍 Risk Filters.</strong>
+                  <div className="map-overlay-controls">
+                  <select
+                    value={riskFilters.risk_type || ''}
+                    onChange={(e) => setRiskFilters((s) => ({ ...s, risk_type: e.target.value || null }))}
+                    style={{ marginRight: 8 }}
+                  >
+                    <option value="">All types</option>
+                    <option value="health_safety">Health & Safety</option>
+                    <option value="environmental">Environmental</option>
+                    <option value="production">Production</option>
+                    <option value="operational">Operational</option>
+                    <option value="financial">Financial</option>
+                    <option value="regulatory">Regulatory</option>
+                    <option value="reputational">Reputational</option>
+                  </select>
+
+                  <select
+                    value={riskFilters.risk_level || ''}
+                    onChange={(e) => setRiskFilters((s) => ({ ...s, risk_level: e.target.value || null }))}
+                    style={{ marginRight: 8 }}
+                  >
+                    <option value="">All levels</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+
+                  <select
+                    value={riskFilters.status || 'active'}
+                    onChange={(e) => setRiskFilters((s) => ({ ...s, status: e.target.value || null }))}
+                  >
+                    <option value="active">Active</option>
+                    <option value="closed">Closed</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                  </div>
                 </div>
               </div>
 
