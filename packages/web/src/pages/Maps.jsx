@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
@@ -209,12 +210,10 @@ function Maps() {
   const [splitLineDrawn, setSplitLineDrawn] = useState(null);
   const blockToSplitRef = useRef(null);
   const splitLineRef = useRef(null);
-  
+  const navigate = useNavigate();
   useEffect(() => {
     blockToSplitRef.current = blockToSplit;
   }, [blockToSplit]);
-
-
   const scopeKey = useMemo(() => {
     return scope === "global" ? "global" : `company:${companyId ?? "none"}`;
   }, [scope, companyId]);
@@ -254,11 +253,10 @@ function Maps() {
   const mapStyles = [
     { id: 'mapbox://styles/mapbox/streets-v12', name: 'Streets' },
     { id: 'mapbox://styles/mapbox/satellite-streets-v12', name: 'Satellite' },
-    { id: 'mapbox://styles/mapbox/navigation-night-v1', name: 'Night' },
     { id: 'mapbox://styles/mapbox/outdoors-v12', name: 'Outdoors' }, 
-    { id: 'mapbox://styles/mapbox/satellite-v9', name: '3D Satellite', is3D: true },
-    { id: 'mapbox://styles/mapbox/outdoors-v12-3d', name: '3D Outdoors', is3D: true, baseStyle: 'mapbox://styles/mapbox/outdoors-v12' }
+    { id: 'mapbox://styles/mapbox/satellite-v9', name: '3D Satellite', is3D: true }
   ];
+
   const [is3DMode, setIs3DMode] = useState(false);
   const [terrainExaggeration, setTerrainExaggeration] = useState(1);
   const [parcelsData, setParcelsData] = useState(null);
@@ -290,12 +288,15 @@ function Maps() {
     status: 'active'      
   });
   const [showRisksLayer, setShowRisksLayer] = useState(false);
-
+  const SPATIAL_SRC_ID = 'spatial-areas';
+  const L_SPATIAL_FILL = 'spatial-areas-fill';
+  const L_SPATIAL_LINE = 'spatial-areas-outline';
+  const L_SPATIAL_LABEL = 'spatial-areas-labels';
   const [isMapping, setIsMapping] = useState(false);
   const [mappingType, setMappingType] = useState(''); 
   const [spatialAreaType, setSpatialAreaType] = useState('');
   const [spatialAreasData, setSpatialAreasData] = useState(null);
-  const [showSpatialAreasLayer, setShowSpatialAreasLayer] = useState(true);
+  const [showSpatialAreasLayer, setShowSpatialAreasLayer] = useState(false);
   const [spatialAreaOpacity, setSpatialAreaOpacity] = useState(0.5);
   const [spatialAreaCount, setSpatialAreaCount] = useState(0);
   const splitMaskHandlersRef = useRef(null);
@@ -303,37 +304,12 @@ function Maps() {
   const [isEditedPolygonValid, setIsEditedPolygonValid] = useState(true);
   const modeRef = useRef('idle');
   useEffect(() => { modeRef.current = mode; }, [mode]);
-
-  const addRiskIconIfMissing = () => {
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const mapHandlersRef = useRef({ onClick: null, onTouchEnd: null });
+  const withStyleReady = (fn) => {
     if (!map.current) return;
-    if (map.current.hasImage && map.current.hasImage('risk-warning')) return;
-
-    // Draw a simple warning triangle icon on a canvas
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Triangle
-    ctx.beginPath();
-    ctx.moveTo(size / 2, 6);
-    ctx.lineTo(size - 6, size - 6);
-    ctx.lineTo(6, size - 6);
-    ctx.closePath();
-    ctx.fillStyle = '#f59e0b'; // amber
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#111827';
-    ctx.stroke();
-
-    // Exclamation mark
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(size / 2 - 3, size / 3, 6, size / 3);
-    ctx.beginPath();
-    ctx.arc(size / 2, size - 18, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    map.current.addImage('risk-warning', canvas, { pixelRatio: 2 });
+    if (map.current.isStyleLoaded()) { fn(); }
+    else { map.current.once('style.load', fn); }
   };
 
   const handleCreateRows = async (rowCreationData) => {
@@ -346,7 +322,7 @@ function Maps() {
   };
 
   const CLICK_PRIORITY = [
-    'risks-symbol',
+    'risks-circles',
     'observations-symbol',
     'tasks-symbol',
     'incidents-symbol',
@@ -354,66 +330,109 @@ function Maps() {
   ];
   
   const handleStyleChange = (styleId) => {
-    if (map.current) {
-      const selectedStyle = mapStyles.find(s => s.id === styleId);
-      const newIs3D = selectedStyle?.is3D || false;
-      
-      setMapStyle(styleId);
-      if (newIs3D !== is3DMode) {
-        setIs3DMode(newIs3D);
-      }
+    if (!map.current) return;
 
-      const actualStyleId = selectedStyle?.baseStyle || styleId;
-      map.current.setStyle(actualStyleId);
+    const selected = mapStyles.find(s => s.id === styleId);
+    const wants3D = !!selected?.is3D;
+    const actualStyleId = selected?.baseStyle || styleId;
 
-      setTimeout(() => {
-        map.current.easeTo({
-          pitch: newIs3D ? 45 : 0,
-          duration: 1500
-        });
-      }, 100);
+    // update local UI state
+    setMapStyle(styleId);
+    setIs3DMode(wants3D);
+
+    // Clear terrain before swapping styles (prevents odd “carry-over”)
+    try { map.current.setTerrain(null); } catch {}
+    try { if (map.current.getLayer('sky')) map.current.removeLayer('sky'); } catch {}
+    try { if (map.current.getSource('mapbox-dem')) map.current.removeSource('mapbox-dem'); } catch {}
+
+    // Swap the base style
+    map.current.setStyle(actualStyleId);
+
+    // When the new style is ready, reapply terrain (if needed) and re-add layers once
+    map.current.once('style.load', () => {
+      if (wants3D) add3DTerrain(); else remove3DTerrain();
+
+      // Reattach your data layers using the latest state
+      if (blocksData) addBlocksToMap(blocksData, user?.company_id);
+      if (spatialAreasData) addSpatialAreasToMap(spatialAreasData, user?.company_id);
+      if (parcelsData) addParcelsToMap(parcelsData);
+      if (risksGeoJSON) addRisksToMap(risksGeoJSON);
+
+      // Smoothly pitch the camera for 3D/2D
+      map.current.easeTo({ pitch: wants3D ? 45 : 0, bearing: 0, duration: 800 });
+    });
+  };
+
+  const handleRiskClick = (e) => {
+    if (!e?.features?.length) return;
+
+    const f = e.features[0];
+    const p = f.properties || {};
+
+    // Close any existing popup
+    if (currentPopup.current) {
+      currentPopup.current.remove();
+      currentPopup.current = null;
     }
+
+      const html = `
+        <div class="map-popup owned mobile-optimized">
+          <h3>${p.risk_title || 'Risk'}</h3>
+          <div class="popup-details">
+            <div><strong>Type:</strong> ${p.risk_type || '—'}</div>
+            <div><strong>Level:</strong> ${p.risk_level || '—'}</div>
+            ${p.risk_score ? `<div><strong>Score:</strong> ${p.risk_score}</div>` : ''}
+            <div><strong>Status:</strong> ${p.status || 'active'}</div>
+            <div><strong>ID:</strong> ${p.id || '—'}</div>
+          </div>
+          <div class="popup-actions mobile-actions">
+            <button 
+              class="popup-button mobile-button touch-friendly"
+              onclick="window.openRiskForEdit('${p.id}')">
+              Open Risk
+            </button>
+          </div>
+        </div>
+      `;
+
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      maxWidth: 'min(90vw, 400px)',
+      className: 'mobile-friendly-popup',
+      anchor: 'top',
+      focusAfterOpen: false
+    })
+      .setLngLat(e.lngLat)
+      .setHTML(html)
+      .addTo(map.current);
+
+    currentPopup.current = popup;
   };
 
   const add3DTerrain = () => {
-    if (!map.current) return;
-    
-    try {
-      console.log('Adding 3D terrain...');
-
+    if (!map.current?.getSource('mapbox-dem')) {
       map.current.addSource('mapbox-dem', {
-        'type': 'raster-dem',
-        'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-        'tileSize': 512,
-        'maxzoom': 14
+        type: 'raster-dem',
+        url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+        tileSize: 512,
+        maxzoom: 14
       });
+    }
 
-      map.current.setTerrain({ 
-        'source': 'mapbox-dem', 
-        'exaggeration': terrainExaggeration 
-      });
+    // set the terrain and sky AFTER the dem is added
+    map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
 
+    if (!map.current.getLayer('sky')) {
       map.current.addLayer({
-        'id': 'sky',
-        'type': 'sky',
-        'paint': {
+        id: 'sky',
+        type: 'sky',
+        paint: {
           'sky-type': 'atmosphere',
           'sky-atmosphere-sun': [0.0, 0.0],
           'sky-atmosphere-sun-intensity': 15
         }
       });
-
-      map.current.setLight({
-        'color': 'rgba(255, 255, 255, 1)',
-        'intensity': 0.4,
-        'position': [1.5, 90, 80]
-      });
-      
-      console.log('3D terrain added successfully');
-      setApiStatus('3D terrain enabled');
-    } catch (error) {
-      console.error('Error adding 3D terrain:', error);
-      setApiStatus('Error enabling 3D terrain');
     }
   };
 
@@ -421,7 +440,6 @@ function Maps() {
     if (!map.current) return;
     
     try {
-      console.log('Removing 3D terrain...');
       map.current.setTerrain(null);
       if (map.current.getLayer('sky')) {
         map.current.removeLayer('sky');
@@ -499,124 +517,70 @@ function Maps() {
     }
   };
 
-  const addRisksToMap = (geojsonData) => {
-    if (!map.current) return;
+  const addRisksToMap = (geojson) => {
+    if (!map.current || !geojson) return;
 
-    // Remove existing if any
-    ['risks-symbol', 'risks-labels'].forEach((id) => {
-      if (map.current.getLayer(id)) map.current.removeLayer(id);
-    });
-    if (map.current.getSource('risks')) map.current.removeSource('risks');
+    withStyleReady(() => {
+      try {
+        if (map.current.getLayer('risks-circles')) map.current.removeLayer('risks-circles');
+        if (map.current.getSource('risks')) map.current.removeSource('risks');
 
-    // Source
-    map.current.addSource('risks', { type: 'geojson', data: geojsonData });
+        map.current.addSource('risks', {
+          type: 'geojson',
+          data: geojson,
+        });
 
-    // --- ICON + TITLE in one symbol layer (icon above fills/lines) ---
-    map.current.addLayer({
-      id: 'risks-symbol',
-      type: 'symbol',
-      source: 'risks',
-      layout: {
-        // triangle-15 is available in Mapbox default styles; shows as a warning icon
-        'icon-image': 'risk-warning',
-        'icon-size': [
-          'interpolate', ['linear'], ['zoom'],
-          8, 0.9,
-          16, 1.4
-        ],
-        // label uses risk_title (requested)
-        'text-field': ['get', 'risk_title'],
-        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-        'text-size': 11,
-        'text-offset': [0, 1.2],
-        'text-anchor': 'top',
-        'icon-allow-overlap': true,
-        'text-allow-overlap': false,
-        'visibility': showRisksLayer ? 'visible' : 'none'
-      },
-      paint: {
-        // icon color by risk_level
-        'icon-color': [
+        const circleColor = [
           'match',
-          ['get', 'risk_level'],
-          'low', '#16a34a',
+          ['downcase', ['coalesce', ['to-string', ['get', 'risk_level']], '']],
+          'low', '#22c55e',
           'medium', '#f59e0b',
-          'high', '#ea580c',
-          'critical', '#dc2626',
-          '#6b7280' // default
-        ],
-        'text-color': '#111827',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.4
+          'high', '#ef4444',
+          'critical', '#991b1b',
+          /* default */ '#6b7280'
+        ];
+
+        map.current.addLayer({
+          id: 'risks-circles',
+          type: 'circle',
+          source: 'risks',
+          paint: {
+            'circle-color': circleColor,
+            'circle-opacity': 0.9,
+            'circle-radius': [
+              'interpolate', ['linear'], ['zoom'],
+              8, 4,   // small at low zoom
+              12, 6,
+              16, 8   // larger when zoomed in
+            ],
+            'circle-stroke-color': '#111827',
+            'circle-stroke-width': 1
+          },
+          layout: {
+            'visibility': showRisksLayer ? 'visible' : 'none'
+          }
+        });
+
+        map.current.off('click', 'risks-circles', handleRiskClick);
+        map.current.on('click', 'risks-circles', handleRiskClick);
+
+        map.current.off('mouseenter', 'risks-circles');
+        map.current.off('mouseleave', 'risks-circles');
+        map.current.on('mouseenter', 'risks-circles', () => {
+          if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = 'pointer';
+        });
+        map.current.on('mouseleave', 'risks-circles', () => {
+          if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = '';
+        });
+      } catch (e) {
+        console.error('Error adding risks layer:', e);
       }
-    });
-
-    // Ensure risks sit ON TOP so clicks hit risks before blocks/parcels/etc.
-    try { map.current.moveLayer('risks-symbol'); } catch {}
-
-    // Click → block-style popup
-    map.current.off('click', 'risks-symbol');
-    map.current.on('click', 'risks-symbol', (e) => {
-      const f = e.features && e.features[0];
-      if (!f) return;
-      const { id, risk_title, risk_type, risk_level, risk_score, status } = f.properties || {};
-      const coords = e.lngLat || (f.geometry?.coordinates ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] } : null);
-      if (!coords) return;
-
-      // Match the same styling/classnames as your block popups
-      const html = `
-        <div class="map-popup owned mobile-optimized">
-          <h3>${risk_title || 'Risk'}</h3>
-          <div class="popup-details">
-            <div><strong>Type:</strong> ${risk_type || '-'}</div>
-            <div><strong>Level:</strong> ${risk_level || '-'}${risk_score ? ` (${risk_score})` : ''}</div>
-            <div><strong>Status:</strong> ${status || '-'}</div>
-          </div>
-          <div class="popup-actions mobile-actions">
-            <button class="popup-button mobile-button touch-friendly" onclick="window.open('/risks/${id}', '_blank')">
-              Open Risk
-            </button>
-          </div>
-        </div>
-      `;
-
-      // Use the same popup class for consistent styling
-      const popup = new mapboxgl.Popup({
-        closeButton: true,
-        closeOnClick: true,
-        maxWidth: 'min(90vw, 400px)',
-        className: 'mobile-friendly-popup',   // <— same as blocks
-        anchor: 'top',
-        focusAfterOpen: false
-      })
-        .setLngLat([coords.lng, coords.lat])
-        .setHTML(html)
-        .addTo(map.current);
-
-      currentPopup.current = popup;
-
-      // Prevent the global map click handler from also firing
-      if (e && e.originalEvent) {
-        e.originalEvent.cancelBubble = true;
-        if (typeof e.originalEvent.stopPropagation === 'function') e.originalEvent.stopPropagation();
-      }
-    });
-
-    // Hover cursor
-    map.current.off('mouseenter', 'risks-symbol');
-    map.current.off('mouseleave', 'risks-symbol');
-    map.current.on('mouseenter', 'risks-symbol', () => {
-      if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = 'pointer';
-    });
-    map.current.on('mouseleave', 'risks-symbol', () => {
-      if (!('ontouchstart' in window)) map.current.getCanvas().style.cursor = '';
     });
   };
 
-
   useEffect(() => {
     if (!map.current) return;
-    addRisksToMap(risksGeoJSON);
+    withStyleReady(() => addRisksToMap(risksGeoJSON));
   }, [risksGeoJSON, showRisksLayer]);
 
   useEffect(() => {
@@ -766,7 +730,6 @@ function Maps() {
     try {
       drawControl.current.add(featureToEdit);
       editingDrawFeatureIdRef.current = featureToEdit.id;
-      // Switch to direct vertex editing
       drawControl.current.changeMode('direct_select', { featureId: featureToEdit.id });
     } catch (e) {
       console.error('Failed to enter edit mode:', e);
@@ -780,289 +743,178 @@ function Maps() {
     setIsEditingBlockArea(false);
     setEditingBlockFeature(null);
     editingDrawFeatureIdRef.current = null;
-    // Clean any draft layers you use elsewhere
     try { clearDraftGeometry(map.current); } catch {}
   };
 
   const saveEditedBlockArea = async () => {
     if (!map.current || !drawControl.current || !editingBlockFeature) return;
-
     const featureId = editingDrawFeatureIdRef.current;
     if (!featureId) return;
-
     try {
-      // Ensure we’re editing exactly one polygon
       const edited = drawControl.current.get(featureId);
       if (!edited || edited.type !== 'Feature' || edited.geometry?.type !== 'Polygon') {
         throw new Error('Edited geometry must be a Polygon');
       }
 
-      // Optional: preview area with turf (UI only). Server is source of truth.
-      // const haPreview = turf.area(edited) / 10000.0;
-
       const blockId = editingBlockFeature.properties.id;
-
-      // (Optional) client validation before send
       try { blocksService.validateBlockGeometry(edited.geometry); } catch (e) { throw e; }
 
-      // Persist to API
       const result = await blocksService.updateBlockGeometry(blockId, edited.geometry);
-
-      // Clean editing state
       cancelEditBlockArea();
-
       await loadBlocksData();
 
-      // Optionally show a toast/snackbar with new area
       console.log('Block updated:', result?.area, 'ha');
     } catch (e) {
       console.error('Saving edited block failed:', e);
-      // Optionally surface a UI error
+
     }
   };
 
   useEffect(() => {
+    if (!map.current || !spatialAreasData) return;
+    withStyleReady(() => addSpatialAreasToMap(spatialAreasData));
+  }, [spatialAreasData, showSpatialAreasLayer]);
+
+  useEffect(() => {
     if (map.current) return;
-
-      setTimeout(() => {
-        map.current = new mapboxgl.Map({
-          container: mapContainer.current,
-          style: mapStyle,
-          center: [172.6148, -43.5272],
-          zoom: 8,
-          pitch: is3DMode ? 45 : 0, // Tilt the map for 3D effect
-          bearing: 0,
-          antialias: true // Better rendering for 3D
-        });
-
-      map.current.once('style.load', () => {
-        console.log('Style loaded, setting up 3D and layers');
-        
-        // Add 3D terrain if enabled
-        if (is3DMode) {
-          setTimeout(() => add3DTerrain(), 100);
-        }
-      
-      // Load blocks data only if we don't have it yet
-      if (blocksData) {
-        console.log('Blocks data exists, adding to map');
-        addBlocksToMap(blocksData, user?.company_id);
-        loadSpatialAreasData();
-      } else {
-        console.log('No blocks data yet, will load from API');
-        loadBlocksData();
-        loadSpatialAreasData();
-      }
-      if (spatialAreasData) {
-        console.log('Spatial areas data exists, adding to map');
-        addSpatialAreasToMap(spatialAreasData, user?.company_id);
-      } else {
-        console.log('No spatial areas data yet, will load from API');
-        loadSpatialAreasData();
-      }
+    const container = mapContainer.current;
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    map.current = new mapboxgl.Map({
+      container,
+      style: mapStyle,                 // <-- your current state value
+      center: [172.6148, -43.5272],
+      zoom: 8,
+      pitch: is3DMode ? 45 : 0,
+      bearing: 0,
+      antialias: true
     });
 
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    
+    const nav = new mapboxgl.NavigationControl();
+    const geo = new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true
+    });
+    map.current.addControl(nav, 'top-right');
+    map.current.addControl(geo, 'top-right');
 
-      map.current.addControl(
-        new mapboxgl.GeolocateControl({
-          positionOptions: {
-            enableHighAccuracy: true
-          },
-          trackUserLocation: true,
-          showUserHeading: true
-        }),
-        'top-right'
-      );
+    drawControl.current = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {
+        polygon: true,
+        line_string: true,   // (you had false in the comment; set true if you want lines)
+        trash: true
+      },
+      styles: [
 
-      map.current.addControl(
-        new MapboxGeocoder({
-          accessToken: mapboxgl.accessToken,
-          mapboxgl: mapboxgl,
-          placeholder: 'Search for locations...',
-          proximity: {
-            longitude: 175.3103,
-            latitude: -43.5320
-          }
-        }),
-        'top'
-      );
-
-      // Add drawing control
-      drawControl.current = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: {
-          polygon: true,
-          line_string: false,   // <-- allow lines
-          trash: true          // (nice to have) allow clearing current sketch
+        {
+          id: 'gl-draw-polygon-fill-inactive',
+          type: 'fill',
+          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+          paint: { 'fill-color': '#58e23c', 'fill-outline-color': '#58e23c', 'fill-opacity': 0.5 }
         },
 
-        styles: [
-          // Style for vertices
-          {
-            id: 'gl-draw-polygon-fill-inactive',
-            type: 'fill',
-            filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
-            paint: {
-              'fill-color': '#58e23c',
-              'fill-outline-color': '#58e23c',
-              'fill-opacity': 0.5
-            }
-          },
-          // Style for the polygon when active
-          {
-            id: 'gl-draw-polygon-fill-active',
-            type: 'fill',
-            filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-            paint: {
-              'fill-color': '#58e23c',
-              'fill-outline-color': '#58e23c',
-              'fill-opacity': 0.5
-            }
-          },
-          // Vertex style
-          {
-            id: 'gl-draw-polygon-midpoint',
-            type: 'circle',
-            filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']],
-            paint: {
-              'circle-radius': 4,
-              'circle-color': '#58e23c'
-            }
-          },
-          // Line style
-          {
-            id: 'gl-draw-line-inactive',
-            type: 'line',
-            filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString']],
-            layout: {
-              'line-cap': 'round',
-              'line-join': 'round'
-            },
-            paint: {
-              'line-color': '#ff0000',
-              'line-width': 3
-            }
-          },
-          // Active line style
-          {
-            id: 'gl-draw-line-active',
-            type: 'line',
-            filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString']],
-            layout: {
-              'line-cap': 'round',
-              'line-join': 'round'
-            },
-            paint: {
-              'line-color': '#ff0000',
-              'line-width': 3
-            }
-          },
-          // Vertex point style
-          {
-            id: 'gl-draw-point-point-stroke-inactive',
-            type: 'circle',
-            filter: [
-              'all',
-              ['==', 'active', 'false'],
-              ['==', '$type', 'Point'],
-              ['==', 'meta', 'vertex']
-            ],
-            paint: {
-              'circle-radius': 6,
-              'circle-opacity': 1,
-              'circle-color': '#fff',
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#58e23c'
-            }
-          },
-          {
-            id: 'gl-draw-point-inactive',
-            type: 'circle',
-            filter: [
-              'all',
-              ['==', 'active', 'false'],
-              ['==', '$type', 'Point'],
-              ['==', 'meta', 'vertex']
-            ],
-            paint: {
-              'circle-radius': 4,
-              'circle-color': '#58e23c'
-            }
-          },
-          {
-            id: 'gl-draw-point-stroke-active',
-            type: 'circle',
-            filter: [
-              'all',
-              ['==', '$type', 'Point'],
-              ['==', 'active', 'true'],
-              ['==', 'meta', 'vertex']
-            ],
-            paint: {
-              'circle-radius': 8,
-              'circle-color': '#fff',
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#58e23c'
-            }
-          },
-          {
-            id: 'gl-draw-point-active',
-            type: 'circle',
-            filter: [
-              'all',
-              ['==', '$type', 'Point'],
-              ['==', 'meta', 'active'],
-              ['==', 'active', 'true']
-            ],
-            paint: {
-              'circle-radius': 6,
-              'circle-color': '#58e23c'
-            }
+        {
+          id: 'gl-draw-polygon-fill-active',
+          type: 'fill',
+          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+          paint: { 'fill-color': '#58e23c', 'fill-outline-color': '#58e23c', 'fill-opacity': 0.5 }
+        },
+
+        {
+          id: 'gl-draw-polygon-midpoint',
+          type: 'circle',
+          filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']],
+          paint: { 'circle-radius': 4, 'circle-color': '#58e23c' }
+        },
+
+        {
+          id: 'gl-draw-line-inactive',
+          type: 'line',
+          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString']],
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#ff0000', 'line-width': 3 }
+        },
+
+        {
+          id: 'gl-draw-line-active',
+          type: 'line',
+          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString']],
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#ff0000', 'line-width': 3 }
+        },
+
+        {
+          id: 'gl-draw-point-point-stroke-inactive',
+          type: 'circle',
+          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['==', 'meta', 'vertex']],
+          paint: {
+            'circle-radius': 6, 'circle-opacity': 1, 'circle-color': '#fff',
+            'circle-stroke-width': 2, 'circle-stroke-color': '#58e23c'
           }
-        ]
-      });
-      
-      map.current.addControl(drawControl.current, 'top-right');
+        },
 
-      map.current.on('draw.create', handleDrawCreate);
-      map.current.on('draw.delete', handleDrawDelete);
-      map.current.on('draw.update', handleDrawUpdate);
+        {
+          id: 'gl-draw-point-inactive',
+          type: 'circle',
+          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['==', 'meta', 'vertex']],
+          paint: { 'circle-radius': 4, 'circle-color': '#58e23c' }
+        },
 
-      map.current.on('style.load', handleStyleLoad);
+        {
+          id: 'gl-draw-point-stroke-active',
+          type: 'circle',
+          filter: ['all', ['==', '$type', 'Point'], ['==', 'active', 'true'], ['==', 'meta', 'vertex']],
+          paint: {
+            'circle-radius': 8, 'circle-color': '#fff',
+            'circle-stroke-width': 2, 'circle-stroke-color': '#58e23c'
+          }
+        },
 
-      map.current.on('zoomstart', (e) => {
-        if (e.originalEvent) {
-          setUserInteracted(true);
+        {
+          id: 'gl-draw-point-active',
+          type: 'circle',
+          filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'active'], ['==', 'active', 'true']],
+          paint: { 'circle-radius': 6, 'circle-color': '#58e23c' }
         }
-      });
+      ]
+    });
+    map.current.addControl(drawControl.current, 'top-right');
 
-    }, 100);
+    map.current.on('draw.create', handleDrawCreate);
+    map.current.on('draw.update', handleDrawUpdate);
+    map.current.on('draw.delete', handleDrawDelete);
 
-    return () => map.current?.remove();
-  }, []);
+    map.current.once('style.load', () => {
+      if (is3DMode) add3DTerrain();
+    });
 
-  // Reattach layers after style changes using the latest state (no refetch)
-  useEffect(() => {
-    if (!map.current) return;
-
-    const onStyleLoad = () => {
-      console.log('Style changed -> reattach layers from state');
-      if (is3DMode) setTimeout(() => add3DTerrain(), 200);
-      if (blocksData) addBlocksToMap(blocksData, user?.company_id);
-      if (spatialAreasData) addSpatialAreasToMap(spatialAreasData, user?.company_id);
-      if (parcelsData) addParcelsToMap(parcelsData);
-      if (risksGeoJSON) addRisksToMap(risksGeoJSON);
-      addRiskIconIfMissing();
-
+    const onZoomStart = (e) => {
+      if (e?.originalEvent) setUserInteracted(true);
     };
+    map.current.on('zoomstart', onZoomStart);
 
-    map.current.on('style.load', onStyleLoad);
-    return () => map.current?.off('style.load', onStyleLoad);
-  }, [blocksData, spatialAreasData, parcelsData, is3DMode, user?.company_id, risksGeoJSON]);
+    return () => {
+      try {
+        map.current?.off('draw.create', handleDrawCreate);
+        map.current?.off('draw.update', handleDrawUpdate);
+        map.current?.off('draw.delete', handleDrawDelete);
+        map.current?.off('zoomstart', onZoomStart);
+        if (drawControl.current) {
 
+          map.current?.removeControl(drawControl.current);
+          drawControl.current = null;
+        }
+        map.current?.removeControl(nav);
+        map.current?.removeControl(geo);
+      } finally {
+        try { map.current?.remove(); } finally { map.current = null; }
+      }
+    };
+  }, []); 
 
-  // Update opacity when it changes
   useEffect(() => {
     if (map.current && map.current.getLayer('vineyard-blocks-fill')) {
       map.current.setPaintProperty('vineyard-blocks-fill', 'fill-opacity', blockOpacity);
@@ -1083,7 +935,6 @@ function Maps() {
   }
 
   const handleDrawCreate = (e) => {
-    console.log('=== handleDrawCreate called ===');
     console.log('Features count:', e.features.length);
 
     const activeBlock = blockToSplitRef.current; // <--- use ref
@@ -1092,16 +943,12 @@ function Maps() {
     if (e.features.length === 0) return;
 
     const feature = e.features[0];
-    console.log('Feature type:', feature.geometry.type);
-
     if (activeBlock && feature.geometry.type === 'LineString') {
       console.log('=== PROCESSING SPLIT LINE ===');
       console.log('Block to split:', activeBlock.properties.block_name);
       handleSplitLineDrawn(feature, activeBlock);  // <— pass it
     } else if (!activeBlock && feature.geometry.type === 'Polygon') {
-      console.log('=== PROCESSING POLYGON ===');
 
-      // 1) Snapshot geometry and computed fields for the form
       const geom = feature.geometry;
       const area = turf.area(geom) / 10000;
       const centroid = turf.centroid(geom);
@@ -1120,9 +967,7 @@ function Maps() {
       setShowDrawingForm(true);
       setIsDrawing(true);
     } else {
-      console.log('=== NO ACTION TAKEN ===');
-      console.log('Reason: blockToSplit exists?', !!activeBlock);
-      console.log('Feature type:', feature.geometry.type);
+
       if (blockToSplit) {
         console.log('blockToSplit details:', {
           name: blockToSplit.properties.block_name,
@@ -1134,7 +979,6 @@ function Maps() {
 
   const handleSplitLineDrawn = (lineFeature, activeBlock = blockToSplitRef.current) => {
     const name = activeBlock?.properties?.block_name || 'Unknown';
-    console.log('Split line drawn for block:', name);
 
     if (!activeBlock) {
       console.warn('No active block at split time; discarding drawn line.');
@@ -1184,10 +1028,7 @@ function Maps() {
   };
 
   const validateSplitLine = (blockFeature, lineFeature) => {
-    console.log('=== validateSplitLine called ===');
-    console.log('Block feature:', blockFeature);
-    console.log('Line feature:', lineFeature);
-    
+
     try {
       if (!blockFeature?.geometry && !blockFeature?.type) {
         console.log('Block validation failed: no geometry');
@@ -1220,27 +1061,21 @@ function Maps() {
 
       console.log('Converted geometries - Block:', blockGeom.geometry.type, 'Line:', lineGeom.geometry.type);
 
-      // Check line length (minimum 10 meters)
       const lengthMeters = turf.length(lineGeom, { units: "kilometers" }) * 1000;
-      console.log('Line length (meters):', lengthMeters);
       
       if (lengthMeters < 10) {
         return { isValid: false, reason: "Line too short. Draw a longer line across the block." };
       }
 
-      // Check if line intersects the block
       const intersects = turf.booleanIntersects(blockGeom, lineGeom);
-      console.log('Line intersects block:', intersects);
-      
+
       if (!intersects) {
         return { isValid: false, reason: "Line must intersect the block boundary" };
       }
 
-      // Check for proper crossing (at least 2 intersection points)
       const intersections = turf.lineIntersect(lineGeom, blockGeom);
       const intersectionCount = intersections.features ? intersections.features.length : 0;
-      console.log('Intersection points:', intersectionCount);
-      
+
       if (intersectionCount < 2) {
         return { isValid: false, reason: "Line must cross the block boundary at two points" };
       }
@@ -1296,25 +1131,11 @@ function Maps() {
       setSplitLineDrawn(null);
       setMode('idle');
       removeSplitMask(map);
-      splitLineRef.current = null;                     // <-- clear the ref
+      splitLineRef.current = null;                     
     } finally {
       setIsSplitProcessing(false);
     }
   };
-
-
-  useEffect(() => {
-    console.log('=== blockToSplit state changed ===');
-    console.log('New blockToSplit:', blockToSplit?.properties?.block_name || 'null');
-  }, [blockToSplit]);
-
-  useEffect(() => {
-    console.log('=== blockToSplit useEffect triggered ===');
-    console.log('Previous blockToSplit:', blockToSplit?.properties?.block_name || 'null');
-    console.log('blockToSplit is now:', blockToSplit?.properties?.block_name || 'null');
-    console.log('blockToSplit full object:', blockToSplit);
-  }, [blockToSplit]);
-
 
   const handleDrawUpdate = (e) => {
     if (e.features.length > 0 && !blockToSplit) {
@@ -1336,8 +1157,6 @@ function Maps() {
   };
 
   const handleDrawDelete = () => {
-    console.log('=== handleDrawDelete called ===');
-    console.log('blockToSplit before delete:', blockToSplit?.properties?.block_name || 'null');
     const activeBlock = blockToSplitRef.current;
     if (activeBlock) {
       // User deleted the split line - cancel split mode
@@ -1365,7 +1184,6 @@ function Maps() {
     }
   };
 
-
   const handleNewBlockSubmit = async (e) => {
     e.preventDefault();
     
@@ -1389,10 +1207,6 @@ function Maps() {
           coordinates: drawingCoordinates.coordinates
         }
       };
-      
-      console.log('Sending block data with geometry:', blockData);
-      
-      // Use blocksService to create the block
       const response = await blocksService.createBlock(blockData);
       
       if (response) {
@@ -1428,8 +1242,8 @@ function Maps() {
       
       const spatialAreaData = {
         area_type: spatialAreaType,
-        name: newBlockInfo.block_name, // Using the same field for name
-        description: newBlockInfo.variety || '', // Using variety field for description
+        name: newBlockInfo.block_name, 
+        description: newBlockInfo.variety || '', 
         area_hectares: newBlockInfo.area,
         geometry: {
           type: drawingCoordinates.type,
@@ -1438,9 +1252,6 @@ function Maps() {
         company_id: user?.company_id
       };
       
-      console.log('Sending spatial area data:', spatialAreaData);
-      
-      // Use spatialAreasService to create the area
       const response = await spatialAreasService.createSpatialArea(spatialAreaData);
       
       if (response) {
@@ -1459,8 +1270,7 @@ function Maps() {
           centroid_longitude: null,
           centroid_latitude: null
         });
-        
-        // Reload spatial areas
+
         loadSpatialAreasData();
       }
     } catch (error) {
@@ -1477,13 +1287,11 @@ function Maps() {
     
     // Prevent multiple simultaneous loads
     if (loadBlocksData.isLoading) {
-      console.log('Blocks already loading, skipping...');
       return;
     }
     
     try {
       loadBlocksData.isLoading = true;
-      console.log('Starting blocks data loading');
       setApiStatus('Loading blocks...');
       
       const response = await blocksService.getBlocksGeoJSON();
@@ -1501,8 +1309,7 @@ function Maps() {
         
         setApiStatus(`Loaded ${features.length} blocks (${ownedBlocks.length} owned)`);
         setBlocksData(response);
-        
-        console.log('Blocks data set, map will update via useEffect');
+
       } else {
         console.log('No blocks found in response');
         setApiStatus('No blocks found');
@@ -1521,218 +1328,109 @@ function Maps() {
     }
   };
 
-  async function loadSpatialAreasData() {
-    try {
-      setApiStatus('Loading spatial areas...');
 
-      let response;
-
-      if (isAuxeinAdmin) {
-        // Try to fetch ALL areas as GeoJSON (explicit scope hint for the API)
-        response = await spatialAreasService.getSpatialAreasGeoJSON({ scope: 'all' });
-
-        // Fallback if the API still scopes the GeoJSON endpoint for admins:
-        if (!response || !Array.isArray(response.features) || response.features.length === 0) {
-          // Adjust the list method name to match your service if needed:
-          // e.g. spatialAreasService.getSpatialAreas / listSpatialAreas / getAllSpatialAreas
-          const list = await spatialAreasService.getAllSpatialAreas
-            ? await spatialAreasService.getAllSpatialAreas({ scope: 'all' })
-            : await spatialAreasService.getSpatialAreas({ scope: 'all' });
-
-          response = toFeatureCollection(list);
-        }
-      } else {
-        // Company-scoped users: the server may already scope this; we still pass company_id in case it’s supported
-        response = await spatialAreasService.getSpatialAreasGeoJSON({ company_id: user?.company_id });
-      }
-
-      // Safety: ensure we have a FeatureCollection
-      if (!response || response.type !== 'FeatureCollection') {
-        console.warn('Spatial areas: normalizing to FeatureCollection');
-        response = toFeatureCollection(response?.items || response?.data || []);
-      }
-
-      // Persist + render
-      setSpatialAreasData(response);
-      addSpatialAreasToMap(response, user?.company_id);
-
-      setApiStatus(`Spatial areas loaded (${response.features?.length || 0})`);
-    } catch (err) {
-      console.error('Failed to load spatial areas', err);
-      setApiStatus('Failed to load spatial areas');
-    }
-  }
-
-  const addSpatialAreasToMap = (geojsonData, userCompanyId) => {
-    if (!map.current) {
-      console.log('Map not available, cannot add spatial areas');
+  const loadSpatialAreasData = async () => {
+    if (!user?.company_id) {
+      console.warn('loadSpatialAreasData: no company_id yet');
       return;
     }
-
-    console.log('Adding spatial areas to map');
-
     try {
-      // Remove existing spatial area layers if they exist
-      if (map.current.getLayer('spatial-areas-fill')) {
-        map.current.removeLayer('spatial-areas-fill');
-      }
-      if (map.current.getLayer('spatial-areas-outline')) {
-        map.current.removeLayer('spatial-areas-outline');
-      }
-      if (map.current.getLayer('spatial-areas-labels')) {
-        map.current.removeLayer('spatial-areas-labels');
-      }
-      if (map.current.getSource('spatial-areas')) {
-        map.current.removeSource('spatial-areas');
-      }
+      setApiStatus?.('Loading spatial areas…');
 
-      let filteredFeatures = geojsonData.features;
-
-      // FIX: Admin should see ALL spatial areas, not filter by company
-      if (!isAuxeinAdmin) {
-        // Only filter for non-admin users
-        filteredFeatures = geojsonData.features.filter(
-          feature => Number(feature.properties.company_id) === Number(userCompanyId)
-        );
-      }
-      // If admin, use all features without filtering
-
-      console.log(`Admin: ${isAuxeinAdmin}, Total features: ${geojsonData.features.length}, Filtered features: ${filteredFeatures.length}`);
-
-      const filteredGeoJSON = {
-        type: 'FeatureCollection',
-        features: filteredFeatures
-      };
-
-      map.current.addSource('spatial-areas', {
-        type: 'geojson',
-        data: filteredGeoJSON
+      const response = await spatialAreasService.getSpatialAreasGeoJSON({
+        company_id: user.company_id,
       });
 
-      const findLayerPosition = () => {
-        if (map.current.getLayer('vineyard-blocks-fill')) {
-          return 'vineyard-blocks-fill';
-        }
-        if (map.current.getLayer('land-parcels-fill')) {
-          return 'land-parcels-fill';
-        }
-        return null;
-      };
+      const fc =
+        Array.isArray(response)
+          ? { type: 'FeatureCollection', features: response }
+          : response?.type === 'FeatureCollection'
+            ? response
+            : { type: 'FeatureCollection', features: [] };
 
-      const beforeLayer = findLayerPosition();
-      console.log('Adding spatial areas before layer:', beforeLayer || 'top');
+      if (!Array.isArray(fc.features)) fc.features = [];
 
-      // Add fill layer with color coding based on area type
-      const layerConfig = {
-        id: 'spatial-areas-fill',
-        type: 'fill',
-        source: 'spatial-areas',
-        paint: {
-          'fill-color': [
-            'match',
-            ['get', 'area_type'],
-            'paddock', '#22c55e',
-            'orchard', '#f59e0b',
-            'plantation_forestry', '#059669',
-            'native_forest', '#065f46',
-            'infrastructure_zone', '#6b7280',
-            'waterway', '#3b82f6',
-            'wetland', '#06b6d4',
-            'conservation_area', '#10b981',
-            'waste_management', '#dc2626',
-            '#9ca3af' // default color
-          ],
-          'fill-opacity': spatialAreaOpacity
-        },
-        layout: {
-          'visibility': showSpatialAreasLayer ? 'visible' : 'none'
-        }
-      };
-
-      if (beforeLayer) {
-        map.current.addLayer(layerConfig, beforeLayer);
-      } else {
-        map.current.addLayer(layerConfig);
-      }
-
-      // Add outline layer
-      const outlineConfig = {
-        id: 'spatial-areas-outline',
-        type: 'line',
-        source: 'spatial-areas',
-        paint: {
-          'line-color': '#1f2937',
-          'line-width': 1,
-          'line-opacity': 0.7,
-          'line-dasharray': [2, 2]
-        },
-        layout: {
-          'visibility': showSpatialAreasLayer ? 'visible' : 'none'
-        }
-      };
-
-      const outlineBeforeLayer = map.current.getLayer('vineyard-blocks-outline') ? 'vineyard-blocks-outline' : null;
-      
-      if (outlineBeforeLayer) {
-        map.current.addLayer(outlineConfig, outlineBeforeLayer);
-      } else {
-        map.current.addLayer(outlineConfig);
-      }
-
-      // Add labels for spatial areas
-      map.current.addLayer({
-        id: 'spatial-areas-labels',
-        type: 'symbol',
-        source: 'spatial-areas',
-        minzoom: 12,
-        layout: {
-          'text-field': ['get', 'name'],
-          'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-          'text-size': 12,
-          'text-offset': [0, 0],
-          'text-anchor': 'center',
-          'visibility': showSpatialAreasLayer ? 'visible' : 'none'
-        },
-        paint: {
-          'text-color': '#1f2937',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 2
-        }
-      });
-
-      // Add click handler for spatial areas
-      map.current.off('click', 'spatial-areas-fill');
-      map.current.on('click', 'spatial-areas-fill', handleSpatialAreaClick);
-
-      // Mouse hover effects
-      map.current.off('mouseenter', 'spatial-areas-fill');
-      map.current.off('mouseleave', 'spatial-areas-fill');
-      
-      map.current.on('mouseenter', 'spatial-areas-fill', () => {
-        if (!('ontouchstart' in window)) {
-          map.current.getCanvas().style.cursor = 'pointer';
-        }
-      });
-
-      map.current.on('mouseleave', 'spatial-areas-fill', () => {
-        if (!('ontouchstart' in window)) {
-          map.current.getCanvas().style.cursor = '';
-        }
-      });
-
-      console.log(`Added ${filteredFeatures.length} spatial areas to map`);
-
-    } catch (error) {
-      console.error('Error adding spatial areas to map:', error);
-      console.error('Error details:', error.message);
+      setSpatialAreasData(fc);
+      setApiStatus?.(`Spatial areas loaded (${fc.features.length})`);
+      console.debug('Spatial areas FC:', fc);
+    } catch (err) {
+      console.error('Failed loading spatial areas', err);
+      setApiStatus?.('Failed to load spatial areas');
     }
   };
 
+
+
+
+  const addSpatialAreasToMap = (geojson) => {
+    if (!map.current || !geojson) return;
+
+    // Remove stale layers/sources (idempotent)
+    [L_SPATIAL_LABEL, L_SPATIAL_LINE, L_SPATIAL_FILL].forEach(id => {
+      if (map.current.getLayer(id)) { try { map.current.removeLayer(id); } catch {} }
+    });
+    if (map.current.getSource(SPATIAL_SRC_ID)) {
+      try { map.current.removeSource(SPATIAL_SRC_ID); } catch {}
+    }
+
+    map.current.addSource(SPATIAL_SRC_ID, {
+      type: 'geojson',
+      data: geojson
+    });
+
+    const visibility = showSpatialAreasLayer ? 'visible' : 'none';
+
+    const beforeId = map.current.getLayer('vineyard-blocks-outline') ? 'vineyard-blocks-outline' : undefined;
+
+    map.current.addLayer({
+      id: L_SPATIAL_FILL,
+      type: 'fill',
+      source: SPATIAL_SRC_ID,
+      layout: { visibility },
+      paint: {
+        'fill-color': '#b0e9c5',
+        'fill-opacity': 0.18
+      }
+    }, beforeId);
+
+    map.current.addLayer({
+      id: L_SPATIAL_LINE,
+      type: 'line',
+      source: SPATIAL_SRC_ID,
+      layout: { visibility },
+      paint: {
+        'line-color': 'rgba(0, 0, 0, 1)',
+        'line-width': 3,
+        'line-dasharray': [3, 1]
+      }
+    }, beforeId);
+
+    map.current.addLayer({
+      id: L_SPATIAL_LABEL,
+      type: 'symbol',
+      source: SPATIAL_SRC_ID,
+      layout: {
+        visibility,
+        'text-field': ['coalesce', ['get', 'name'], ['get', 'label'], ''],
+        'text-size': 12,
+        'text-allow-overlap': false
+      },
+      paint: {
+        'text-color': '#1f2937',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 2
+      }
+    }, beforeId);
+
+  map.current.off('click', 'spatial-areas-fill', handleSpatialAreaClick);
+  map.current.on('click', 'spatial-areas-fill', handleSpatialAreaClick)
+  
+  };
+
   const handleSpatialAreaClick = (e) => {
-    console.log('Spatial area clicked:', e.features[0]);
-    
-    // Prevent default map behavior
-    e.preventDefault();
+    if (typeof e?.preventDefault === 'function') e.preventDefault();
+    if (e?.originalEvent?.preventDefault) e.originalEvent.preventDefault();
+    if (e?.originalEvent?.stopPropagation) e.originalEvent.stopPropagation();
     
     // Close any existing popup
     if (currentPopup.current) {
@@ -1764,7 +1462,7 @@ function Maps() {
               ${properties.created_at ? `<div><strong>Created:</strong> ${new Date(properties.created_at).toLocaleDateString()}</div>` : ''}
             </div>
             <div class="popup-actions">
-              <button onclick="handleEditSpatialArea(${properties.id})" class="edit-btn">
+              <button onclick="handleEditSpatialArea(${properties.id})" class="popup-button mobile-button touch-friendly">
                 Edit Details
               </button>
             </div>
@@ -1787,9 +1485,10 @@ function Maps() {
       const popup = new mapboxgl.Popup({
         closeButton: true,
         closeOnClick: true,
-        maxWidth: 'min(90vw, 350px)',
-        className: 'spatial-area-popup',
-        anchor: 'top'
+        maxWidth: 'min(90vw, 400px)',
+        className: 'mobile-friendly-popup',
+        anchor: 'top',
+        focusAfterOpen: false
       })
         .setLngLat(e.lngLat)
         .setHTML(popupContent)
@@ -1807,6 +1506,17 @@ const handleEditSpatialArea = (spatialAreaId) => {
 
 // Make the function globally available for the popup button onclick
 window.handleEditSpatialArea = handleEditSpatialArea
+
+window.openRiskForEdit = async (riskId) => {
+  try {
+    const riskDetails = await riskManagementService.getRiskById(riskId);
+    navigate('/risks/create', {
+      state: { editMode: true, riskData: riskDetails }
+    });
+  } catch (e) {
+    console.error('Failed to open risk:', e);
+  }
+};
   
 const handleSpatialAreaUpdate = async (spatialAreaId, updateData) => {
   try {
@@ -1836,26 +1546,15 @@ const loadAvailableParentAreas = async () => {
 };
 
 useEffect(() => {
-  if (map.current && map.current.getLayer && map.current.getLayer('spatial-areas-fill')) {
-    const visibility = showSpatialAreasLayer ? 'visible' : 'none';
-    console.log('Setting spatial areas visibility to:', visibility);
-    
-    try {
-      map.current.setLayoutProperty('spatial-areas-fill', 'visibility', visibility);
-      map.current.setLayoutProperty('spatial-areas-outline', 'visibility', visibility);
-      map.current.setLayoutProperty('spatial-areas-labels', 'visibility', visibility);
-    } catch (error) {
-      console.error('Error setting spatial areas visibility:', error);
+  if (!map.current) return;
+  const vis = showSpatialAreasLayer ? 'visible' : 'none';
+  [L_SPATIAL_FILL, L_SPATIAL_LINE, L_SPATIAL_LABEL].forEach(id => {
+    if (map.current.getLayer(id)) {
+      try { map.current.setLayoutProperty(id, 'visibility', vis); } catch {}
     }
-  } else if (showSpatialAreasLayer && spatialAreasData && user) {
-    // If layers don't exist but we want them visible and have data, try to add them
-    console.log('Spatial areas layers missing but should be visible, attempting to add');
-    addSpatialAreasToMap(spatialAreasData, user.company_id);
-  }
-}, [showSpatialAreasLayer, spatialAreasData, user]);
+  });
+}, [showSpatialAreasLayer]);
 
-
-// Separate useEffect to handle blocksData updates
 useEffect(() => {
   if (map.current && map.current.isStyleLoaded() && blocksData && user?.company_id) {
     console.log('Blocks data updated, refreshing map');
@@ -1903,9 +1602,7 @@ const loadParcelsData = async (forceLoad = false) => {
       console.log('🔍 Loading ALL parcels for admin');
       response = await parcelsService.loadParcelsForViewport(map.current, minZoom, false);
     } else {
-      // Regular users load only their company's parcels
-      console.log('🔍 Loading company parcels for user company:', user.company_id);
-      
+
       if (!user.company_id) {
         console.error('❌ User has no company_id');
         setApiStatus('No company assigned to user');
@@ -1918,9 +1615,7 @@ const loadParcelsData = async (forceLoad = false) => {
         minZoom
       );
     }
-    
-    console.log('🔍 Parcels response:', response);
-    
+
     if (response && response.features) {
       const features = response.features;
       setParcelCount(features.length);
@@ -1953,15 +1648,10 @@ const loadParcelsData = async (forceLoad = false) => {
 
 const loadAvailableCompanies = async () => {
   try {
-    console.log('Loading available companies...');
+
     setIsLoadingCompanies(true);
     
     const response = await companiesService.getAllCompanies();
-    console.log('Raw companies response:', response);
-    console.log('Response type:', typeof response);
-    console.log('Response keys:', Object.keys(response || {}));
-    
-    // Handle different possible response structures
     let companies = [];
     
     if (Array.isArray(response)) {
@@ -1981,7 +1671,7 @@ const loadAvailableCompanies = async () => {
       const possibleArrays = Object.values(response).filter(Array.isArray);
       if (possibleArrays.length > 0) {
         companies = possibleArrays[0];
-        console.log('Found array in response:', possibleArrays[0]);
+
       } else {
         console.error('No array found in response object:', response);
         companies = [];
@@ -1990,10 +1680,7 @@ const loadAvailableCompanies = async () => {
       console.error('Unexpected companies response structure:', response);
       companies = [];
     }
-    
-    console.log('Final companies array:', companies);
-    console.log('Companies count:', companies.length);
-    
+
     setAvailableCompanies(companies);
     
   } catch (error) {
@@ -2234,25 +1921,13 @@ useEffect(() => {
   if (!map.current || !user) return;
   
   const loadData = () => {
-    console.log('Initial load triggered');
     loadBlocksData();        
     loadSpatialAreasData();   
-    
   };
   
-  if (map.current.loaded()) {
-    console.log('Map already loaded, loading blocks');
-    loadData();
-  } else {
-    console.log('Map not loaded yet, setting up load event');
-    map.current.once('load', loadData);
-  }
-  
-  return () => {
-    if (map.current) {
-      map.current.off('load', loadData);
-    }
-  };
+  if (map.current.isStyleLoaded()) loadData();
+  else map.current.once('style.load', loadData);
+  return () => { try { map.current?.off('style.load', loadData); } catch {} };
 }, [user]);
 
 // Helper to detect when drawing mode is active
@@ -2270,22 +1945,6 @@ useEffect(() => {
   }
 }, [isMapping]);
 
-// Load spatial areas when component mounts or user changes
-useEffect(() => {
-  if (user && map.current) {
-    loadSpatialAreasData();
-  }
-}, [user]);
-
-// Handle spatial areas layer visibility toggle
-useEffect(() => {
-  if (map.current && map.current.getLayer('spatial-areas-fill')) {
-    const visibility = showSpatialAreasLayer ? 'visible' : 'none';
-    map.current.setLayoutProperty('spatial-areas-fill', 'visibility', visibility);
-    map.current.setLayoutProperty('spatial-areas-outline', 'visibility', visibility);
-    map.current.setLayoutProperty('spatial-areas-labels', 'visibility', visibility);
-  }
-}, [showSpatialAreasLayer]);
 
 // Update spatial area opacity when it changes
 useEffect(() => {
@@ -2327,25 +1986,12 @@ useEffect(() => {
   }
 }, [showParcelsLayer]);
 
-useEffect(() => {
-  // Auto-show parcels for regular users (non-admin)
-  if (user && isCompanyScope && map.current) {
-    console.log('Auto-enabling parcels for regular user:', user.email);
-    setShowParcelsLayer(true);
-    // Also trigger loading if map is ready
-    if (map.current) {
-      console.log('Map ready, loading parcels for regular user');
-      setTimeout(() => loadParcelsData(), 500); // Small delay to ensure state is updated
-    }
-  }
-}, [user]);
 
 useEffect(() => {
   if (isAuxeinAdmin && availableCompanies.length === 0) {
     loadAvailableCompanies();
   }
 }, [user]);
-
 
 const handleBlockUpdate = async (blockId, updateData) => {
   try {
@@ -2361,8 +2007,6 @@ const handleBlockUpdate = async (blockId, updateData) => {
 
 useEffect(() => {
   const handleOpenEditSpatialAreaForm = async (e) => {
-    console.log('Opening edit form for spatial area:', e.detail.spatialAreaId);
-    
     try {
       // Fetch full spatial area details
       const spatialAreaDetails = await spatialAreasService.getSpatialAreaById(e.detail.spatialAreaId);
@@ -2387,8 +2031,6 @@ useEffect(() => {
 
 useEffect(() => {
   const handleOpenEditForm = async (e) => {
-    console.log('Opening edit form for block:', e.detail.blockId);
-    
     try {
       // Fetch full block details
       const blockDetails = await blocksService.getBlockById(e.detail.blockId);
@@ -2409,8 +2051,7 @@ useEffect(() => {
 
 
   const handleTouchEnd = (e) => {
-    console.log('Touch end triggered with features:', e.features?.length);
-    
+
     const now = Date.now();
     const touch = e.originalEvent?.changedTouches?.[0];
     
@@ -2420,30 +2061,15 @@ useEffect(() => {
         Math.pow(touch.clientX - touchStartPosition.current.x, 2) + 
         Math.pow(touch.clientY - touchStartPosition.current.y, 2)
       );
-      
-      // Consider it a tap if:
-      // - Duration is less than 500ms (not a long press)
-      // - Movement is less than 10 pixels (not a drag)
+
       const isTap = touchDuration < 500 && touchDistance < 10;
       
-      console.log('Touch end analysis:', {
-        duration: touchDuration,
-        distance: touchDistance,
-        isTap,
-        isLongPress: isLongPress.current,
-        featuresCount: e.features?.length,
-        hasFeatures: !!(e.features && e.features.length > 0)
-      });
-      
       if (isTap && e.features && e.features.length > 0) {
-        console.log('Valid tap detected, calling handleBlockInteraction');
-        // Prevent the click event from also firing
         if (e.originalEvent) {
           e.originalEvent.preventDefault();
           e.originalEvent.stopPropagation();
         }
-        
-        // Store the event data before the timeout to avoid losing it
+
         const eventData = {
           ...e,
           features: e.features,
@@ -2451,10 +2077,8 @@ useEffect(() => {
           originalEvent: e.originalEvent,
           preventDefault: () => {}
         };
-        
-        // Add a small delay to ensure touch feedback is visible, then show popup
+
         setTimeout(() => {
-          console.log('Calling handleBlockInteraction with preserved features:', eventData.features?.length);
           handleBlockInteraction(eventData, 'touch');
         }, 150);
       } else {
@@ -2476,12 +2100,7 @@ useEffect(() => {
 
 // Enhanced block interaction handler for both click and touch
   const handleBlockInteraction = (e, eventType = 'click') => {
-    console.log(`Block ${eventType} event:`, {
-      eventType,
-      featuresCount: e.features?.length
-    });
 
-    // Close any existing popup first
     if (currentPopup.current) {
       currentPopup.current.remove();
       currentPopup.current = null;
@@ -2508,7 +2127,7 @@ useEffect(() => {
       
       if (isOwnedBlock) {
         window[editFunctionName] = () => {
-          console.log('Opening edit form for block:', properties.id);
+
           window.dispatchEvent(new CustomEvent('openEditForm', { 
             detail: { blockId: properties.id } 
           }));
@@ -2520,10 +2139,6 @@ useEffect(() => {
 
         // CRITICAL FIX: Make sure this function calls startBlockSplit correctly
         window[splitFunctionName] = () => {
-          console.log('=== Split button clicked in popup ===');
-          console.log('Calling startBlockSplit with feature:', feature.properties.block_name);
-          
-          // Call startBlockSplit with the FULL feature object
           startBlockSplit(feature);
           
           if (currentPopup.current) {
@@ -2580,7 +2195,6 @@ useEffect(() => {
         // Block belongs to another company or is unassigned (existing admin code)
         if (isAuxeinAdmin) {
           window[assignBlockFunctionName] = () => {
-            console.log('Assign block clicked for block:', properties);
             handleAssignBlock(properties);
             if (currentPopup.current) {
               currentPopup.current.remove();
@@ -2671,49 +2285,30 @@ useEffect(() => {
   };
 
   const startBlockSplit = (blockFeature) => {
-    console.log('=== startBlockSplit called ===');
-    console.log('Block feature received:', blockFeature);
-    console.log('Block name:', blockFeature?.properties?.block_name);
-    console.log('Block ID:', blockFeature?.properties?.id);
-    console.log('Feature type:', blockFeature?.type);
-    
-
     if (!blockFeature || !blockFeature.properties) {
       console.error('Invalid block feature passed to startBlockSplit');
       return;
     }
-    
-    // Store the block to split
-    console.log('Setting blockToSplit state...');
+
     setBlockToSplit(blockFeature);
     blockToSplitRef.current = blockFeature;
     setSplitLineDrawn(null);
 
-    console.log('State should be set. blockToSplit name:', blockFeature.properties.block_name);
-
-    // Switch to line drawing mode
     drawControl.current?.changeMode('draw_line_string');
     setMode('split');
     addSplitMask(map);
        
     setApiStatus(`Draw a line through "${blockFeature.properties.block_name}" to split it. Double-click to finish the line.`);
 
-    // Debug: Check state after a delay
     setTimeout(() => {
-      console.log('=== State check after 500ms ===');
-      // We can't directly access the state here, but we'll see in the next render
     }, 500);
   };
 
   const handleParcelClick = (e) => {
-    console.log('Parcel click event:', e);
-
-    // Only allow admin to interact with parcels
     if (!isAuxeinAdmin) {
       return;
     }
 
-    // Close any existing popup first
     if (currentPopup.current) {
       currentPopup.current.remove();
       currentPopup.current = null;
@@ -2733,7 +2328,6 @@ useEffect(() => {
       if (properties.has_assignment) {
         // Parcel is already assigned
         window[removeFunctionName] = () => {
-          console.log('Remove assignment clicked for parcel:', properties.id);
           handleRemoveParcelAssignment(properties.id, properties.assigned_company_id);
           if (currentPopup.current) {
             currentPopup.current.remove();
@@ -2767,7 +2361,6 @@ useEffect(() => {
       } else {
         // Parcel is unassigned
         window[assignFunctionName] = () => {
-          console.log('Assign parcel clicked for parcel:', properties.id);
           handleAssignParcel(properties);
           if (currentPopup.current) {
             currentPopup.current.remove();
@@ -2920,32 +2513,22 @@ useEffect(() => {
           }
         });;
 
-        // Remove existing click handlers first
-        map.current.off('click', 'vineyard-blocks-fill');
-        map.current.off('touchstart', 'vineyard-blocks-fill');
-        map.current.off('touchend', 'vineyard-blocks-fill');
-
-        // Add a universal click handler that checks for all feature types
-        map.current.on('click', (e) => {
+        if (mapHandlersRef.current.onClick) {
+          try { map.current.off('click', mapHandlersRef.current.onClick); } catch {}
+        }
+        const onClick = (e) => {
           // Skip processing if we're in split mode - let the drawing tool handle it
           if (modeRef.current === 'split' || blockToSplitRef.current) return;
 
           // 🔺 PRIORITY: if a risk icon is under the cursor, let the risk handler own the click
-          const RISK_LAYER_ID = 'risks-symbol';
+          const RISK_LAYER_ID = 'risks-circles';
           if (map.current.getLayer(RISK_LAYER_ID)) {
             const riskHits = map.current.queryRenderedFeatures(e.point, { layers: [RISK_LAYER_ID] });
             if (riskHits && riskHits.length) {
-              // If you already attach a dedicated click handler on 'risks-symbol',
-              // just return here so *only* the risk popup opens.
-              // (That per-layer handler will run automatically.)
               return;
-              // --- If you DON'T have a per-layer handler, call your risk popup opener here instead:
-              // handleRiskClick({ ...e, features: riskHits });
-              // return;
             }
           }
 
-          // Query all features at the click point (non-risk layers)
           const layerIds = [
             'spatial-areas-fill',
             'vineyard-blocks-fill',
@@ -2966,40 +2549,37 @@ useEffect(() => {
 
           // Handle based on what was clicked - prioritize the most specific feature
           if (blockFeatures.length > 0 && spatialFeatures.length > 0) {
-            // Both block and spatial area - prefer block for now (your current behavior)
-            console.log('Both block and spatial area clicked');
             handleBlockInteraction({ ...e, features: blockFeatures }, 'click');
 
           } else if (blockFeatures.length > 0) {
-            console.log('Block only clicked');
             if (!(e.originalEvent instanceof TouchEvent)) {
               handleBlockInteraction({ ...e, features: blockFeatures }, 'click');
             }
 
           } else if (spatialFeatures.length > 0) {
-            console.log('Spatial area only clicked');
-            handleSpatialAreaClick({ ...e, features: spatialFeatures });
 
+            handleSpatialAreaClick({ ...e, features: spatialFeatures });
           } else if (parcelFeatures.length > 0 && isAuxeinAdmin) {
             console.log('Parcel only clicked');
             handleParcelClick({ ...e, features: parcelFeatures });
 
           } else {
-            // Close any existing popup if clicking on empty space
-            // BUT NOT if we're in split mode
             if (currentPopup.current && !blockToSplit) {
-              console.log('Closing popup - clicked on empty space');
+
               currentPopup.current.remove();
               currentPopup.current = null;
             }
           }
-        });
+        };
+        map.current.on('click', onClick);
+        mapHandlersRef.current.onClick = onClick;
 
-        // Also handle touch events separately for mobile
-        map.current.on('touchend', (e) => {
+        if (mapHandlersRef.current.onTouchEnd) {
+          try { map.current.off('touchend', mapHandlersRef.current.onTouchEnd); } catch {}
+        }
+        const onTouchEnd = (e) => {
           // Skip touch handling if we're in split mode
           if (blockToSplitRef.current || modeRef.current === 'split') {
-              console.log('Touch ignored - in split mode');
               return;
           }
 
@@ -3027,13 +2607,14 @@ useEffect(() => {
               features: spatialFeatures
             });
           }
-        });
+        };
+        map.current.on('touchend', onTouchEnd);
+        mapHandlersRef.current.onTouchEnd = onTouchEnd;
 
         // Add click handler for map background to close popups
         map.current.on('touchend', (e) => {
           // Only close popup if we didn't touch a block and popup exists AND we're not in split mode
           if (currentPopup.current && (!e.features || e.features.length === 0) && !blockToSplit) {
-            console.log('Touch on map background, closing popup');
             currentPopup.current.remove();
             currentPopup.current = null;
           }
@@ -3097,28 +2678,8 @@ useEffect(() => {
         console.error('Error adding layers:', error);
       }
     };
-
-    const maxRetries = 5;
-    let retryCount = 0;
     
-    const tryAddLayers = () => {
-      if (map.current.isStyleLoaded()) {
-        console.log('Style loaded, adding layers now');
-        addLayers();
-      } else if (retryCount < maxRetries) {
-        console.log(`Style not loaded yet, retry ${retryCount + 1}/${maxRetries}`);
-        retryCount++;
-        setTimeout(tryAddLayers, 200);
-      } else {
-        console.log('Failed to add layers after max retries');
-        map.current.once('style.load', () => {
-          console.log('Final attempt to add layers on style.load event');
-          addLayers();
-        });
-      }
-    };
-    
-    tryAddLayers();
+    withStyleReady(addLayers);
   };
 
   const addParcelsToMap = (geojsonData) => {
@@ -3126,14 +2687,8 @@ useEffect(() => {
       console.log('Map not available, cannot add parcels');
       return;
     }
-
-    console.log('Adding parcels to map, style loaded:', map.current.isStyleLoaded());
-
     const addParcelLayers = () => {
       try {
-        console.log('Adding parcel layers to map');
-        
-        // Remove existing parcel layers if they exist
         if (map.current.getLayer('land-parcels-fill')) {
           map.current.removeLayer('land-parcels-fill');
         }
@@ -3212,31 +2767,11 @@ useEffect(() => {
           });
         }
 
-        console.log('Parcel layers added successfully');
-        
       } catch (error) {
         console.error('Error adding parcel layers:', error);
       }
     };
-
-    const maxRetries = 5;
-    let retryCount = 0;
-    
-    const tryAddParcelLayers = () => {
-      if (map.current.isStyleLoaded()) {
-        console.log('Style loaded, adding parcel layers now');
-        addParcelLayers();
-      } else if (retryCount < maxRetries) {
-        console.log(`Style not loaded yet, retry ${retryCount + 1}/${maxRetries}`);
-        retryCount++;
-        setTimeout(tryAddParcelLayers, 200);
-      } else {
-          console.log('Failed to add parcel layers after max retries');
-          // No nested style.load listener here. Reattachment happens in handleStyleLoad.
-        }
-    };
-    
-    tryAddParcelLayers();
+    withStyleReady(addParcelLayers);
   };
 
   return (
@@ -3257,7 +2792,7 @@ useEffect(() => {
                   title={style.is3D ? `${style.name} (3D Terrain)` : style.name}
                 >
                   {style.name}
-                  {style.is3D && <span className="3d-indicator">🏔️</span>}
+                  {style.is3D && <span className="indicator-3d">🏔️</span>}
                 </button>
               ))}
             </div>
@@ -3311,6 +2846,16 @@ useEffect(() => {
                     </small>
                   )}
                 </div>
+               {/* Spatial Areas Layer */}
+               <label className="layer-toggle">
+                 <input
+                   type="checkbox"
+                   checked={showSpatialAreasLayer}
+                   onChange={(e) => setShowSpatialAreasLayer(e.target.checked)}
+                   style={{ marginRight: '0.5rem' }}
+                 />
+                 🧭 Spatial Areas
+               </label>
                 <div className="admin-subsection">
                   <h5>Block Assignment</h5>
                   <small>Click any block to assign it to a company - </small>
@@ -3321,6 +2866,17 @@ useEffect(() => {
               // Regular user controls
               <div className="user-parcel-controls">
                 <hr style={{ margin: '0.75rem 0', opacity: 0.3 }} />
+                {/* Spatial Areas Layer */}
+               <label className="layer-toggle">
+                 <input
+                   type="checkbox"
+                   checked={showSpatialAreasLayer}
+                   onChange={(e) => setShowSpatialAreasLayer(e.target.checked)}
+                   style={{ marginRight: '0.5rem' }}
+                 />
+                 🧭 Spatial Areas
+               </label>
+               <br /><br />
                 {/* Parcels Layer */}
                 <label className="layer-toggle">
                   <input
@@ -3347,12 +2903,13 @@ useEffect(() => {
                   👁️ Observations <small style={{ opacity: 0.6 }}>(coming soon)</small>
                 </label>
                 <br /><br /> 
-                <label style={{ marginRight: '0.5rem' }}>
+                <label >
                   <input
                     type="checkbox"
+                    style={{ marginRight: '0.5rem' }}
                     checked={!!showRisksLayer}
                     onChange={(e) => setShowRisksLayer(e.target.checked)}
-                  /> Show Risks
+                  /> ⚠️ Risks & Hazards
                 </label>
                 <br /><br /> 
                 <label className="layer-toggle">
@@ -3608,8 +3165,8 @@ useEffect(() => {
       </div>
 
       <div className="maps-container">
-        <div ref={mapContainer} className="map-container" />
-
+        <div ref={mapContainer} id="map" className="map-container" />
+        <div className="map-overlays">
         {/* Status bar */}
         <div className="map-status-bar">
           <span>{apiStatus}</span>
@@ -3805,6 +3362,7 @@ useEffect(() => {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       <MobileNavigation />
@@ -3935,6 +3493,13 @@ useEffect(() => {
           width: 100%;
           height: 100%;
         }
+
+        .maps-container { position: relative; }
+        .map-container { position: absolute; inset: 0; } 
+        .map-overlays { position: absolute; inset: 0; pointer-events: none; }
+        .map-overlays .tool-button,
+        .map-overlays .drawing-form,
+        .map-overlays .map-status-bar { pointer-events: auto; } 
 
         .map-status-bar {
           position: absolute;
@@ -4322,14 +3887,12 @@ useEffect(() => {
             position: relative;
           }
           
-          .3d-indicator {
+          .indicator-3d {
             font-size: 10px;
             position: absolute;
             top: 2px;
             right: 2px;
           }
-
-        
 
         }
       `}</style>

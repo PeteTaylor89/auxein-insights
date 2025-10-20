@@ -375,22 +375,12 @@ const VisitorRegistrationPortal = () => {
         
         {!formData.inductionCompleted ? (
           <div className="induction-card">
-            <div className="induction-header">
-              <h4>Watch Safety Video</h4>
-              <span className="duration">~5 minutes</span>
-            </div>
-            <div className="mock-video">
-              <div className="video-placeholder">
-                <FileText className="video-icon" />
-                <p>Safety Induction Video</p>
-                <span>Click to start</span>
-              </div>
-            </div>
+            <p className="section-subtitle">Please speak to staff on site to receive your <strong>Site Induction</strong> </p>
             <button
               onClick={mockInductionStart}
               className="induction-button"
             >
-              Start Safety Induction
+              I confirm I've received a site induction
             </button>
           </div>
         ) : (
@@ -494,7 +484,7 @@ const VisitorRegistrationPortal = () => {
           </div>
           <div className="status-item">
             <CheckCircle className="status-icon success" />
-            <span>Safety briefing accepted</span>
+            <span>Health & Safety conditions accepted</span>
           </div>
         </div>
       </div>
@@ -504,7 +494,7 @@ const VisitorRegistrationPortal = () => {
         <ul className="next-steps">
           <li>You will be signed in automatically</li>
           <li>Do not go into any unauthorised areas without supervision</li>
-          <li>Remember to sign out when leaving</li>
+          <li>Remember to have a staff member sign you out when leaving</li>
         </ul>
       </div>
     </div>
