@@ -25,6 +25,12 @@ class SpatialArea(Base):
     company = relationship("Company", back_populates="spatial_areas")
     parent_area = relationship("SpatialArea", remote_side=[id], back_populates="child_areas")
     child_areas = relationship("SpatialArea", back_populates="parent_area")
+    tasks = relationship(
+        "Task", 
+        back_populates="spatial_area", 
+        cascade="all, delete-orphan",
+        foreign_keys="[Task.spatial_area_id]"
+    )
     
     @property
     def geometry_geojson(self):

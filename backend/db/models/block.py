@@ -42,7 +42,12 @@ class VineyardBlock(Base):
     
     # Relationships
     company = relationship("Company", back_populates="blocks")
-    tasks = relationship("Task", back_populates="block")
+    tasks = relationship(
+        "Task", 
+        back_populates="block", 
+        cascade="all, delete-orphan",
+        foreign_keys="[Task.block_id]"
+    )
     
     rows = relationship("VineyardRow", back_populates="block", cascade="all, delete-orphan")
     blockchain_chains = relationship("BlockchainChain", back_populates="vineyard_block")

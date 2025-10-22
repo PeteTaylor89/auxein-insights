@@ -85,7 +85,6 @@ class RiskAction(Base):
     assignee = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_risk_actions")
     responsible = relationship("User", foreign_keys=[responsible_person], back_populates="responsible_risk_actions")
     creator = relationship("User", foreign_keys=[created_by], back_populates="created_risk_actions")
-    task = relationship("Task", back_populates="risk_action", uselist=False)
     effectiveness_reviewer = relationship("User", foreign_keys=[effectiveness_reviewed_by])
     verifier = relationship("User", foreign_keys=[verified_by])
     

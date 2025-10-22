@@ -62,9 +62,6 @@ class User(Base):
 
     # Relationships - SIMPLIFIED (commented out problematic ones)
     company = relationship("Company", back_populates="users")
-    tasks_created = relationship("Task", foreign_keys="Task.created_by", back_populates="creator")
-    tasks_assigned = relationship("Task", foreign_keys="Task.assigned_to", back_populates="assignee")
-   
     owned_risks = relationship("SiteRisk", foreign_keys="SiteRisk.owner_id", back_populates="owner")
     created_risks = relationship("SiteRisk", foreign_keys="SiteRisk.created_by", back_populates="creator")
     assigned_risk_actions = relationship("RiskAction", foreign_keys="RiskAction.assigned_to", back_populates="assignee")
@@ -114,6 +111,26 @@ class User(Base):
         "ObservationPlanAssignee",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+    task_assignments = relationship(
+        "TaskAssignment",
+        foreign_keys="[TaskAssignment.user_id]",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    
+    new_tasks_created = relationship(
+        "Task",
+        foreign_keys="[Task.created_by]",
+        back_populates="creator",
+        overlaps="tasks_created"
+    )
+    
+    new_tasks_completed = relationship(
+        "Task",
+        foreign_keys="[Task.completed_by]",
+        back_populates="completer"
     )
 
     

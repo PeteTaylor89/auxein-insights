@@ -97,7 +97,6 @@ class ContractorAssignment(Base):
     # Relationships
     contractor = relationship("Contractor", back_populates="assignments")
     company = relationship("Company", back_populates="contractor_assignments")
-    task = relationship("Task", back_populates="contractor_assignments")
     assigner = relationship("User", foreign_keys=[assigned_by])
     completer = relationship("User", foreign_keys=[completed_by])
     approver = relationship("User", foreign_keys=[approved_by])

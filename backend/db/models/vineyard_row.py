@@ -22,7 +22,12 @@ class VineyardRow(Base):
     
     # Relationships
     block = relationship("VineyardBlock", back_populates="rows")
-    tasks = relationship("Task", back_populates="row")
+    task_rows = relationship(
+        "TaskRow", 
+        back_populates="vineyard_row", 
+        cascade="all, delete-orphan",
+        foreign_keys="[TaskRow.vineyard_row_id]"
+    )
     observation_spots = relationship("ObservationSpot", back_populates="row", cascade="all, delete-orphan")
     
     # Calculated property

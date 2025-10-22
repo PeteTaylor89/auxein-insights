@@ -35,5 +35,10 @@ from db.models.observation_run import ObservationRun, ObservationSpot
 from db.models.observation_plan import ObservationPlan, ObservationPlanTarget, ObservationPlanAssignee
 from db.models.observation_template import ObservationTemplate
 from db.models.reference_item_file import ReferenceItemFile
+from db.models.task_template import TaskTemplate
+from db.models.task import Task
+from db.models.task_assignment import TaskAssignment
+from db.models.task_row import TaskRow
+from db.models.task_gps_track import TaskGPSTrack
 
 from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived

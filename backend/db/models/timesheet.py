@@ -8,7 +8,7 @@ from typing import Optional, List
 
 from sqlalchemy import (
     Column, Integer, ForeignKey, Date, Enum, Numeric, Text, DateTime,
-    UniqueConstraint, CheckConstraint, func
+    UniqueConstraint, CheckConstraint, func, String
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
@@ -146,8 +146,11 @@ class TimeEntry(Base):  # type: ignore[misc]
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     timesheet_day = relationship("TimesheetDay", back_populates="entries", lazy="joined")
-    task = relationship("Task", back_populates="time_entries", foreign_keys=[task_id], lazy="joined")
-
+    task = relationship(
+        "Task", 
+        back_populates="time_entries", 
+        foreign_keys="[TimeEntry.task_id]"
+    )
     __table_args__ = (
         CheckConstraint("hours >= 0", name="ck_te_hours_nonneg"),
         CheckConstraint("hours <= 24.00", name="ck_te_hours_le_24"),
@@ -162,3 +165,9 @@ class TimeEntry(Base):  # type: ignore[misc]
         if Decimal(str(hours)) <= 0:
             raise ValueError("entry hours must be > 0")
         self.hours = _q(Decimal(str(hours)))
+
+    entry_source: Mapped[str] = mapped_column(
+        String(20), 
+        default="manual_timesheet", 
+        nullable=False
+    )  

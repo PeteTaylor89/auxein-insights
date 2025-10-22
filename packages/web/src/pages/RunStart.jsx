@@ -235,7 +235,7 @@ export default function RunStart() {
             </h3>
 
             {availableBlocks.length === 0 && (
-              <div style={{ padding: 16, color: '#777', background: '#364452ff', borderRadius: 8 }}>
+              <div style={{ padding: 16, color: '#777', background: '#f9fafb', borderRadius: 8 }}>
                 No blocks available. Check that the plan has configured targets or your company has blocks.
               </div>
             )}

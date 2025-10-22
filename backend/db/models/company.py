@@ -75,6 +75,17 @@ class Company(Base):
     training_modules = relationship("TrainingModule", back_populates="company")
     timesheets = relationship("TimesheetDay", back_populates="company", cascade="all, delete-orphan")
     assets = relationship("Asset", back_populates="company")
+    task_templates = relationship(
+        "TaskTemplate", 
+        back_populates="company", 
+        cascade="all, delete-orphan"
+    )
+    
+    tasks = relationship(
+        "Task", 
+        back_populates="company", 
+        cascade="all, delete-orphan"
+    )
     contractor_relationships = relationship(
         "ContractorRelationship", 
         back_populates="company", 

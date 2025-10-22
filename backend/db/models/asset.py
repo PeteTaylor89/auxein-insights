@@ -1,9 +1,17 @@
 # db/models/asset.py - Updated Asset Management with File Integration
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey, JSON, Numeric
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from db.base_class import Base
+from datetime import datetime, date
 from decimal import Decimal
+from typing import Optional
+
+from sqlalchemy import (
+    Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey,
+    JSON, Numeric
+)
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship, mapped_column, Mapped
+
+from db.base_class import Base
+
 
 class Asset(Base):
     __tablename__ = "assets"
@@ -469,14 +477,23 @@ class TaskAsset(Base):
     calibration_completed = Column(Boolean, default=False)
     calibration_id = Column(Integer, ForeignKey("asset_calibrations.id"))
     
-    # Notes
+    pre_task_check_completed = Column(Boolean, default=False, nullable=False)
+    pre_task_check_notes = Column(Text, nullable=True)
+    pre_task_check_at = Column(DateTime(timezone=True), nullable=True)
+    post_task_reading = Column(Numeric(10, 2), nullable=True)
+    post_task_notes = Column(Text, nullable=True)
+    post_task_recorded_at = Column(DateTime(timezone=True), nullable=True)
+    usage_started_at = Column(DateTime(timezone=True), nullable=True)
+    usage_ended_at = Column(DateTime(timezone=True), nullable=True)
+    batch_number = Column(String(100), nullable=True)
+    expiry_date = Column(Date, nullable=True)
+    actual_cost = Column(Numeric(10, 2), nullable=True)
+    
     notes = Column(Text)
-    
-    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # Relationships
-    task = relationship("Task", back_populates="task_assets")
+    # UPDATE RELATIONSHIPS (use string references):
+    task = relationship("Task", back_populates="task_assets", foreign_keys=[task_id])
     asset = relationship("Asset", back_populates="task_usage")
     calibration = relationship("AssetCalibration")
