@@ -21,7 +21,7 @@ class FileEntityType(str, Enum):
     reference_item = "reference_item"
     training_slide = "training_slide"
     observation_spot = "observation_spot"
-    # task = "task"
+    task = "task"
     # incident = "incident"
 
 class UploadStatus(str, Enum):
@@ -90,5 +90,10 @@ class FileSummary(BaseModel):
     mime_type: Optional[str] = None
     uploaded_at: datetime
     
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        return f"/api/v1/files/{self.id}/download"
+            
     class Config:
         from_attributes = True

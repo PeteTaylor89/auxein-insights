@@ -71,3 +71,4 @@ class ObservationSpot(Base):
     block = relationship("VineyardBlock")
     row = relationship("VineyardRow")
     creator = relationship("User")
+
