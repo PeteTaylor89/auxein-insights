@@ -81,7 +81,7 @@ export default function ObservationDashboard() {
             borderBottom: '1px solid #f3f4f6'
           }}>
             <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
-              Observations Dashboard
+              Vineyard Management Dashboard
             </h1>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
@@ -99,7 +99,7 @@ export default function ObservationDashboard() {
                   fontSize: '0.875rem'
                 }}
               >
-                <Plus size={16} /> Create Plan
+                <Plus size={16} /> Create Observaiton Plan
               </button>
               <button
                 onClick={() => navigate('/observations/adhoc')}
@@ -156,9 +156,11 @@ export default function ObservationDashboard() {
             display: 'flex',
             borderBottom: '1px solid #f3f4f6'
           }}>
-            <TabButton label="Plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
-            <TabButton label="Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
-            <TabButton label="Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
+            <TabButton label="Task Management"/>
+            <TabButton label="Observation Plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
+            <TabButton label="Observation Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
+            <TabButton label="Observation Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
+            <TabButton label="Task Templates"/>
           </div>
 
           <div style={{ padding: '1.25rem' }}>

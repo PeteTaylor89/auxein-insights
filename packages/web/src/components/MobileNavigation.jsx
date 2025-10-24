@@ -1,6 +1,6 @@
 // src/components/MobileNavigation.jsx
 import { Link, useLocation } from 'react-router-dom';
-import { Home, MapPin, Camera, User, UserCheck, CalendarDays, Lightbulb, TriangleAlert} from "lucide-react";
+import { Home, MapPin, User, UserCheck, CalendarDays, Lightbulb, TriangleAlert, Grape} from "lucide-react";
 import { useAuth } from '@vineyard/shared';
 
 function MobileNavigation() {
@@ -10,6 +10,7 @@ function MobileNavigation() {
   const navItems = [
     { path: "/", label: "Home", icon: <Home /> },
     { path: "/maps", label: "Map", icon: <MapPin /> },
+    { path: "/observations", label: "Vineyard Management", icon: <Grape /> },
     { path: "/RiskDashboard", label: "Risk Management", icon: <TriangleAlert /> },
     { path: "/calendar", label: "Calendar", icon: <CalendarDays /> },
     { path: "/insights", label: "Insights", icon: <Lightbulb /> },
