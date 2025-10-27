@@ -111,20 +111,6 @@ function Home() {
 
         <div className="stats-container">
           <div className="container-title">
-            <span>Observation Links</span>
-          </div>
-          <div className="stats-grid">
-            <Link to="/observations" className="stat-card">
-              <div className="actions-title">Observations</div>
-            </Link>
-            <Link to="/assets" className="stat-card">
-              <div className="actions-title">Asset Management</div>
-            </Link>
-          </div>
-        </div>
-
-        <div className="stats-container">
-          <div className="container-title">
             <span>Quick Actions</span>
           </div>
           <div className="stats-grid">

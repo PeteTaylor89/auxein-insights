@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket } from 'lucide-react';
-import { observationService, usersService, authService } from '@vineyard/shared';
+import { observationService, usersService, authService, tasksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import BlockSelectionModal from '../components/BlockSelectionModal';
+import { TaskTemplateCard, TaskTemplatePreviewModal  } from '@/components/TaskManagement';
+
 
 function readTemplateFields(tpl) {
   if (!tpl) return [];
@@ -101,6 +103,25 @@ export default function ObservationDashboard() {
               >
                 <Plus size={16} /> Create Observaiton Plan
               </button>
+
+              <button
+                onClick={() => navigate('/tasks/new')}
+                style={{
+                  background: '#1a7403ff',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <Plus size={16} /> Create New Task
+              </button>
+
               <button
                 onClick={() => navigate('/observations/adhoc')}
                 style={{
@@ -156,17 +177,19 @@ export default function ObservationDashboard() {
             display: 'flex',
             borderBottom: '1px solid #f3f4f6'
           }}>
-            <TabButton label="Task Management"/>
+            <TabButton label="Task Management" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
             <TabButton label="Observation Plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
             <TabButton label="Observation Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
             <TabButton label="Observation Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
-            <TabButton label="Task Templates"/>
+            <TabButton label="Task Templates" active={tab === 'task-templates'} onClick={() => setTab('task-templates')} />
           </div>
 
           <div style={{ padding: '1.25rem' }}>
+            {tab === 'tasks' && <TasksTab StatusBadge={StatusBadge} />}
             {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
             {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
             {tab === 'templates' && <TemplatesTab />}
+            {tab === 'task-templates' && <TaskTemplatesTab />}
           </div>
         </div>
 
@@ -967,4 +990,985 @@ function TemplatesTab() {
     </div>
   );
 } 
-                
+      
+function TaskTemplatesTab() {
+  const navigate = useNavigate();
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Filters
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [activeOnly, setActiveOnly] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Preview modal
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const params = {};
+        if (categoryFilter !== 'all') {
+          params.task_category = categoryFilter;
+        }
+        if (activeOnly) {
+          params.is_active = true;
+        }
+
+        const res = await tasksService.getTemplates?.(params).catch(() => []);
+        if (!mounted) return;
+        setTemplates(Array.isArray(res) ? res : res?.items || []);
+      } catch (e) {
+        console.error(e);
+        setError('Failed to load templates');
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [categoryFilter, activeOnly]);
+
+  const onViewTemplate = (tpl) => {
+    setPreviewTemplate(tpl);
+    setPreviewOpen(true);
+  };
+
+  // Filter templates by search
+  const filteredTemplates = templates.filter(template => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      template.name.toLowerCase().includes(query) ||
+      template.task_category.toLowerCase().includes(query) ||
+      template.task_subcategory?.toLowerCase().includes(query)
+    );
+  });
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+        <div>Loading templates…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '2rem', 
+        color: '#dc2626',
+        background: '#fef2f2',
+        borderRadius: '8px'
+      }}>
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1rem',
+        paddingBottom: '0.5rem',
+        borderBottom: '1px solid #f3f4f6'
+      }}>
+        <h2 style={{ 
+          fontSize: '1.1rem', 
+          fontWeight: '600', 
+          margin: 0
+        }}>
+          Task Templates ({filteredTemplates.length})
+        </h2>
+        <button
+          onClick={() => navigate('/tasks/templates/new')}
+          style={{
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+            fontSize: '0.813rem',
+            fontWeight: '500'
+          }}
+        >
+          <Plus size={14} /> New Template
+        </button>
+      </div>
+
+      {/* Filters - Collapsible */}
+      <div style={{ marginBottom: '1rem' }}>
+        <details style={{ marginBottom: '1rem' }}>
+          <summary style={{ 
+            cursor: 'pointer', 
+            padding: '0.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            color: '#6b7280',
+            userSelect: 'none'
+          }}>
+            <Filter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
+            Filters
+          </summary>
+          <div style={{
+            display: 'flex',
+            gap: '0.75rem',
+            marginTop: '0.75rem',
+            flexWrap: 'wrap',
+            padding: '0.75rem',
+            background: '#f9fafb',
+            borderRadius: '6px'
+          }}>
+            {/* Search */}
+            <input
+              type="text"
+              placeholder="Search templates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: '1',
+                minWidth: '200px',
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.813rem'
+              }}
+            />
+
+            {/* Category Filter */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.813rem',
+                cursor: 'pointer',
+                background: 'white'
+              }}
+            >
+              <option value="all">All Categories</option>
+              <option value="vineyard">🍇 Vineyard</option>
+              <option value="land_management">🌱 Land Management</option>
+              <option value="asset_management">🔧 Asset Management</option>
+              <option value="compliance">📋 Compliance</option>
+              <option value="general">📌 General</option>
+            </select>
+
+            {/* Active Only Toggle */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer',
+              fontSize: '0.813rem',
+              padding: '0.5rem 0.75rem',
+              background: 'white',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px'
+            }}>
+              <input
+                type="checkbox"
+                checked={activeOnly}
+                onChange={(e) => setActiveOnly(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Active only
+            </label>
+          </div>
+        </details>
+      </div>
+
+      {/* Templates Grid */}
+      {filteredTemplates.length > 0 ? (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+          gap: 16 
+        }}>
+          {filteredTemplates.map(t => (
+            <TemplateCard 
+              key={t.id} 
+              template={t} 
+              onView={onViewTemplate}
+              onEdit={(tpl) => navigate(`/tasks/templates/${tpl.id}/edit`)}
+              onUse={(tpl) => navigate(`/tasks/new?template=${tpl.id}`)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div style={{ 
+          textAlign: 'center',
+          padding: '2rem',
+          color: '#6b7280',
+          fontStyle: 'italic'
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
+          <div>
+            {searchQuery 
+              ? 'No templates match your search'
+              : 'No templates available'
+            }
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal - Will add in next package */}
+      {previewOpen && previewTemplate && (
+        <TaskTemplatePreviewModal
+          open={previewOpen}
+          template={previewTemplate}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Template Card Component - Matches observation card styling
+function TemplateCard({ template, onView, onEdit, onUse }) {
+  const categoryIcons = {
+    vineyard: '🍇',
+    land_management: '🌱',
+    asset_management: '🔧',
+    compliance: '📋',
+    general: '📌'
+  };
+
+  const categoryLabels = {
+    vineyard: 'Vineyard',
+    land_management: 'Land Management',
+    asset_management: 'Asset Management',
+    compliance: 'Compliance',
+    general: 'General'
+  };
+
+  const priorityEmojis = {
+    low: '⬇️',
+    medium: '➡️',
+    high: '⬆️',
+    urgent: '🚨'
+  };
+
+  const icon = template.icon || categoryIcons[template.task_category] || '📌';
+  const categoryLabel = categoryLabels[template.task_category] || template.task_category;
+  const taskCount = template.task_count || 0;
+
+  return (
+    <div 
+      style={{ 
+        padding: 16, 
+        border: '1px solid #e5e7eb', 
+        borderRadius: 12, 
+        background: '#fff',
+        transition: 'box-shadow 0.2s ease'
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}
+      onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+    >
+      {/* Header with icon and name */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: '1.25rem' }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: '0.938rem', marginBottom: '0.25rem' }}>
+            {template.name}
+          </div>
+          {/* Status badges */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {!template.is_active && (
+              <span style={{
+                fontSize: '0.75rem',
+                color: '#6b7280',
+                padding: '0.125rem 0.375rem',
+                background: '#f3f4f6',
+                borderRadius: '4px',
+                display: 'inline-block'
+              }}>
+                Inactive
+              </span>
+            )}
+            {template.quick_create_enabled && template.is_active && (
+              <span style={{
+                fontSize: '0.75rem',
+                color: '#059669',
+                padding: '0.125rem 0.375rem',
+                background: '#d1fae5',
+                borderRadius: '4px',
+                display: 'inline-block'
+              }}>
+                Quick
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Category */}
+      <div style={{ 
+        fontSize: '0.75rem', 
+        color: '#6b7280', 
+        marginBottom: 12,
+        padding: '0.25rem 0.5rem',
+        background: '#f8fafc',
+        borderRadius: '4px',
+        display: 'inline-block'
+      }}>
+        {categoryLabel}
+        {template.task_subcategory && ` • ${template.task_subcategory}`}
+      </div>
+
+      {/* Description */}
+      {template.description && (
+        <div style={{
+          fontSize: '0.813rem',
+          color: '#6b7280',
+          marginBottom: 12,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
+          {template.description}
+        </div>
+      )}
+
+      {/* Template info */}
+      <div style={{ 
+        display: 'flex', 
+        gap: 12, 
+        marginBottom: 12,
+        fontSize: '0.75rem',
+        color: '#6b7280'
+      }}>
+        {/* Priority */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span>{priorityEmojis[template.default_priority]}</span>
+          <span style={{ textTransform: 'capitalize' }}>{template.default_priority}</span>
+        </div>
+
+        {/* GPS */}
+        {template.requires_gps_tracking && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>📍</span>
+            <span>GPS</span>
+          </div>
+        )}
+
+        {/* Equipment */}
+        {template.required_equipment_ids?.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>🔧</span>
+            <span>{template.required_equipment_ids.length}</span>
+          </div>
+        )}
+
+        {/* Usage count */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+          <span>📊</span>
+          <span>{taskCount}×</span>
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => onUse(template)}
+          disabled={!template.is_active}
+          style={{ 
+            flex: 1,
+            padding: '0.5rem 0.75rem', 
+            borderRadius: 6, 
+            background: template.is_active ? '#3b82f6' : '#d1d5db', 
+            color: '#fff', 
+            border: 'none',
+            cursor: template.is_active ? 'pointer' : 'not-allowed',
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: 6,
+            fontSize: '0.813rem',
+            fontWeight: '500',
+            opacity: template.is_active ? 1 : 0.6
+          }}
+          title={template.is_active ? "Create task using this template" : "Template is inactive"}
+        >
+          <Plus size={14} /> Use Template
+        </button>
+        <button
+          onClick={() => onView(template)}
+          style={{ 
+            padding: '0.5rem 0.75rem', 
+            borderRadius: 6, 
+            background: '#f3f4f6', 
+            color: '#374151',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: 6,
+            fontSize: '0.813rem',
+            fontWeight: '500'
+          }}
+          title="View this template"
+        >
+          View
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// OPTIONAL CHANGE 5: Add TasksTab component (for task list view - can be done later)
+function TasksTab() {
+  const navigate = useNavigate();
+  
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    loadTasks();
+  }, [statusFilter, categoryFilter, priorityFilter]);
+
+  const loadTasks = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (categoryFilter !== 'all') params.task_category = categoryFilter;
+      if (priorityFilter !== 'all') params.priority = priorityFilter;
+
+      const res = await tasksService.listTasks(params);
+      setTasks(Array.isArray(res) ? res : res?.items || []);
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+      setError('Failed to load tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) {
+      return;
+    }
+
+    try {
+      await tasksService.deleteTask(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      alert('Failed to delete task');
+    }
+  };
+
+  // Filter tasks by search
+  const filteredTasks = tasks.filter(task => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      task.title?.toLowerCase().includes(query) ||
+      task.task_category.toLowerCase().includes(query) ||
+      task.description?.toLowerCase().includes(query)
+    );
+  });
+
+  // Group tasks by status
+  const groupedTasks = {
+    pending: filteredTasks.filter(t => t.status === 'pending'),
+    in_progress: filteredTasks.filter(t => t.status === 'in_progress'),
+    completed: filteredTasks.filter(t => t.status === 'completed'),
+    cancelled: filteredTasks.filter(t => t.status === 'cancelled')
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+        <div>Loading tasks…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '2rem', 
+        color: '#dc2626',
+        background: '#fef2f2',
+        borderRadius: '8px'
+      }}>
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1rem',
+        paddingBottom: '0.5rem',
+        borderBottom: '1px solid #f3f4f6'
+      }}>
+        <h2 style={{ 
+          fontSize: '1.1rem', 
+          fontWeight: '600', 
+          margin: 0
+        }}>
+          Tasks ({filteredTasks.length})
+        </h2>
+        <button
+          onClick={() => navigate('/tasks/new')}
+          style={{
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+            fontSize: '0.813rem',
+            fontWeight: '500'
+          }}
+        >
+          <Plus size={14} /> New Task
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ marginBottom: '1rem' }}>
+        <details style={{ marginBottom: '1rem' }}>
+          <summary style={{ 
+            cursor: 'pointer', 
+            padding: '0.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            color: '#6b7280',
+            userSelect: 'none'
+          }}>
+            <Filter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
+            Filters
+          </summary>
+          <div style={{
+            display: 'flex',
+            gap: '0.75rem',
+            marginTop: '0.75rem',
+            flexWrap: 'wrap',
+            padding: '0.75rem',
+            background: '#f9fafb',
+            borderRadius: '6px'
+          }}>
+            {/* Search */}
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: '1',
+                minWidth: '200px',
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.813rem'
+              }}
+            />
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.813rem',
+                cursor: 'pointer',
+                background: 'white'
+              }}
+            >
+              <option value="all">All Statuses</option>
+              <option value="pending">⏳ Pending</option>
+              <option value="in_progress">🔄 In Progress</option>
+              <option value="completed">✅ Completed</option>
+              <option value="cancelled">❌ Cancelled</option>
+            </select>
+
+            {/* Category Filter */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.813rem',
+                cursor: 'pointer',
+                background: 'white'
+              }}
+            >
+              <option value="all">All Categories</option>
+              <option value="vineyard">🍇 Vineyard</option>
+              <option value="land_management">🌱 Land Management</option>
+              <option value="asset_management">🔧 Asset Management</option>
+              <option value="compliance">📋 Compliance</option>
+              <option value="general">📌 General</option>
+            </select>
+
+            {/* Priority Filter */}
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.813rem',
+                cursor: 'pointer',
+                background: 'white'
+              }}
+            >
+              <option value="all">All Priorities</option>
+              <option value="low">⬇️ Low</option>
+              <option value="medium">➡️ Medium</option>
+              <option value="high">⬆️ High</option>
+              <option value="urgent">🚨 Urgent</option>
+            </select>
+          </div>
+        </details>
+      </div>
+
+      {/* Task List - Grouped by Status */}
+      {filteredTasks.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Pending Tasks */}
+          {groupedTasks.pending.length > 0 && (
+            <TaskGroup 
+              title="Pending" 
+              count={groupedTasks.pending.length}
+              icon="⏳"
+              tasks={groupedTasks.pending}
+              onView={(task) => navigate(`/tasks/${task.id}`)}
+              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+              onDelete={handleDeleteTask}
+            />
+          )}
+
+          {/* In Progress Tasks */}
+          {groupedTasks.in_progress.length > 0 && (
+            <TaskGroup 
+              title="In Progress" 
+              count={groupedTasks.in_progress.length}
+              icon="🔄"
+              tasks={groupedTasks.in_progress}
+              onView={(task) => navigate(`/tasks/${task.id}`)}
+              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+              onDelete={handleDeleteTask}
+            />
+          )}
+
+          {/* Completed Tasks */}
+          {groupedTasks.completed.length > 0 && (
+            <TaskGroup 
+              title="Completed" 
+              count={groupedTasks.completed.length}
+              icon="✅"
+              tasks={groupedTasks.completed}
+              onView={(task) => navigate(`/tasks/${task.id}`)}
+              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+              onDelete={handleDeleteTask}
+            />
+          )}
+
+          {/* Cancelled Tasks */}
+          {groupedTasks.cancelled.length > 0 && (
+            <TaskGroup 
+              title="Cancelled" 
+              count={groupedTasks.cancelled.length}
+              icon="❌"
+              tasks={groupedTasks.cancelled}
+              onView={(task) => navigate(`/tasks/${task.id}`)}
+              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+              onDelete={handleDeleteTask}
+            />
+          )}
+        </div>
+      ) : (
+        <div style={{ 
+          textAlign: 'center',
+          padding: '2rem',
+          color: '#6b7280',
+          fontStyle: 'italic'
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
+          <div>
+            {searchQuery 
+              ? 'No tasks match your search'
+              : 'No tasks found'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Task Group Component
+function TaskGroup({ title, count, icon, tasks, onView, onEdit, onDelete }) {
+  return (
+    <div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        marginBottom: '0.75rem',
+        fontSize: '0.938rem',
+        fontWeight: '600',
+        color: '#374151'
+      }}>
+        <span>{icon}</span>
+        <span>{title}</span>
+        <span style={{ 
+          fontSize: '0.75rem', 
+          color: '#6b7280',
+          fontWeight: '500',
+          background: '#f3f4f6',
+          padding: '0.125rem 0.5rem',
+          borderRadius: '12px'
+        }}>
+          {count}
+        </span>
+      </div>
+
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+        gap: 12 
+      }}>
+        {tasks.map(task => (
+          <TaskCard 
+            key={task.id} 
+            task={task}
+            onView={onView}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Task Card Component
+function TaskCard({ task, onView, onEdit, onDelete }) {
+  const categoryIcons = {
+    vineyard: '🍇',
+    land_management: '🌱',
+    asset_management: '🔧',
+    compliance: '📋',
+    general: '📌'
+  };
+
+  const priorityEmojis = {
+    low: '⬇️',
+    medium: '➡️',
+    high: '⬆️',
+    urgent: '🚨'
+  };
+
+  const statusColors = {
+    pending: '#fbbf24',
+    in_progress: '#3b82f6',
+    completed: '#10b981',
+    cancelled: '#6b7280'
+  };
+
+  const icon = categoryIcons[task.task_category] || '📌';
+
+  return (
+    <div 
+      style={{ 
+        padding: 14, 
+        border: '1px solid #e5e7eb', 
+        borderRadius: 10, 
+        background: '#fff',
+        transition: 'box-shadow 0.2s ease',
+        borderLeft: `3px solid ${statusColors[task.status]}`
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}
+      onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: '1.125rem' }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+            {task.title}
+          </div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{
+              fontSize: '0.75rem',
+              color: '#6b7280',
+              padding: '0.125rem 0.375rem',
+              background: '#f3f4f6',
+              borderRadius: '4px'
+            }}>
+              {task.task_category}
+            </span>
+            <span style={{ fontSize: '0.75rem' }}>
+              {priorityEmojis[task.priority]}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      {task.description && (
+        <div style={{
+          fontSize: '0.75rem',
+          color: '#6b7280',
+          marginBottom: 10,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
+          {task.description}
+        </div>
+      )}
+
+      {/* Metadata */}
+      <div style={{ 
+        display: 'flex', 
+        flexWrap: 'wrap',
+        gap: 10, 
+        marginBottom: 10,
+        fontSize: '0.75rem',
+        color: '#6b7280'
+      }}>
+        {/* Scheduled Date */}
+        {task.scheduled_date && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Calendar size={12} />
+            <span>{new Date(task.scheduled_date).toLocaleDateString('en-NZ', { 
+              month: 'short', 
+              day: 'numeric' 
+            })}</span>
+          </div>
+        )}
+
+        {/* Duration */}
+        {task.estimated_duration_hours && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Clock size={12} />
+            <span>{task.estimated_duration_hours}h</span>
+          </div>
+        )}
+
+        {/* GPS */}
+        {task.requires_gps_tracking && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MapPin size={12} />
+            <span>GPS</span>
+          </div>
+        )}
+
+        {/* Equipment Count */}
+        {task.required_equipment_ids?.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>🔧</span>
+            <span>{task.required_equipment_ids.length}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={() => onView(task)}
+          style={{ 
+            flex: 1,
+            padding: '0.375rem 0.5rem', 
+            borderRadius: 5, 
+            background: '#3b82f6', 
+            color: '#fff', 
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: 4,
+            fontSize: '0.75rem',
+            fontWeight: '500'
+          }}
+        >
+          <Eye size={12} /> View
+        </button>
+        <button
+          onClick={() => onEdit(task)}
+          style={{ 
+            padding: '0.375rem 0.5rem', 
+            borderRadius: 5, 
+            background: '#f3f4f6', 
+            color: '#374151',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex', 
+            alignItems: 'center',
+            gap: 4,
+            fontSize: '0.75rem',
+            fontWeight: '500'
+          }}
+        >
+          <Edit size={12} />
+        </button>
+        <button
+          onClick={() => onDelete(task.id)}
+          style={{ 
+            padding: '0.375rem 0.5rem', 
+            borderRadius: 5, 
+            background: '#fee2e2', 
+            color: '#dc2626',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex', 
+            alignItems: 'center',
+            gap: 4,
+            fontSize: '0.75rem',
+            fontWeight: '500'
+          }}
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+

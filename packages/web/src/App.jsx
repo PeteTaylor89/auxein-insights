@@ -9,7 +9,6 @@ import ChangePasswordForm from './components/ChangePasswordForm';
 import AcceptInvitation from './components/AcceptInvitation'; 
 import Profile from './pages/Profile';
 import Maps from './pages/Maps';
-import Tasks from './pages/Tasks';
 import RiskDashboard from './pages/RiskDashboard';
 import CreateRisk from './pages/CreateRisk';
 import CreateAction from './pages/CreateAction';
@@ -33,6 +32,10 @@ import AdhocObservationCreate from './pages/AdhocObservationCreate';
 import AssetsDashboard from './pages/AssetsDashboard';
 import AssetForm from './pages/AssetForm';
 import ConsumableForm from './pages/ConsumableForm'
+
+import TaskTemplateEditor from './pages/TaskTemplateEditor';
+import TaskCreationWizard from './pages/TaskCreationWizard';
+
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -75,12 +78,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      <Route path="/tasks" element={
-        <ProtectedRoute>
-          <Tasks />
-        </ProtectedRoute>
-      } />
-
       <Route path="/profile" element={
         <ProtectedRoute>
           <Profile />
@@ -234,6 +231,30 @@ function AppRoutes() {
       <Route path="/assets/consumables/:id/edit" element={
         <ProtectedRoute>
           <ConsumableForm  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/tasks/templates/new" element={
+        <ProtectedRoute>
+          <TaskTemplateEditor  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/tasks/templates/:id/edit" element={
+        <ProtectedRoute>
+          <TaskTemplateEditor  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/tasks/new" element={
+        <ProtectedRoute>
+          <TaskCreationWizard  />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/tasks/create" element={
+        <ProtectedRoute>
+          <TaskCreationWizard  />
         </ProtectedRoute>
       } />
 

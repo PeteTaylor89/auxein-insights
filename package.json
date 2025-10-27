@@ -11,22 +11,16 @@
     "dev:mobile": "cd packages/mobile && npm start",
     "dev:all": "concurrently --kill-others --names \"API,WEB\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:web\"",
     "dev:full": "concurrently --kill-others \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\"",
-    
     "kill:node": "powershell \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Node processes to kill",
     "kill:python": "powershell \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Python processes to kill",
     "kill:all": "npm run kill:node && npm run kill:python",
-    
     "clean:cache": "cd backend && powershell \"Get-ChildItem -Recurse -Name '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue\" 2>nul && powershell \"Get-ChildItem -Recurse -Name '*.pyc' | Remove-Item -Force -ErrorAction SilentlyContinue\" 2>nul || echo Cache cleaned",
-    
     "check:ports": "echo === Checking development ports === && netstat -ano | findstr :8000 && netstat -ano | findstr :5173 && netstat -ano | findstr :3000 || echo No servers found on development ports",
     "check:processes": "echo === Node processes === && tasklist | findstr node.exe && echo === Python processes === && tasklist | findstr python.exe || echo No development processes found",
-    
     "dev:clean": "npm run kill:all && powershell \"Start-Sleep 2\" && npm run clean:cache && npm run dev:all",
     "dev:fresh": "npm run kill:all && npm run clean:cache && npm run dev:all",
-    
     "stop": "npm run kill:all",
     "status": "npm run check:ports && npm run check:processes",
-    
     "install:all": "npm install",
     "install:packages": "cd packages/shared && npm install && cd ../web && npm install"
   },
@@ -41,5 +35,8 @@
   "overrides": {
     "react": "18.3.1",
     "react-dom": "18.3.1"
+  },
+  "dependencies": {
+    "prop-types": "^15.8.1"
   }
 }
