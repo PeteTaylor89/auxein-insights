@@ -1,13 +1,14 @@
 // src/pages/TaskCreationWizard.jsx
 // REVISED - Matches actual API schema
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
   Wrench, Package, FileText, AlertCircle, Plus, Settings
 } from 'lucide-react';
-import { tasksService, assetService, blocksService } from '@vineyard/shared';
+import { tasksService, assetService, blocksService, adminService, spatialAreasService } from '@vineyard/shared';
+import RiskLocationMap from '../components/RiskLocationMap';
 
 function TaskCreationWizard() {
   const navigate = useNavigate();
@@ -26,9 +27,16 @@ function TaskCreationWizard() {
   const [equipmentAssets, setEquipmentAssets] = useState([]);
   const [consumableAssets, setConsumableAssets] = useState([]);
   const [blocks, setBlocks] = useState([]);
+  const [spatialAreas, setSpatialAreas] = useState([]);
+  const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [selectedAreaId, setSelectedAreaId] = useState(null);
+  const [showMap, setShowMap] = useState(false);
+  const [mapGeometry, setMapGeometry] = useState(null);
   const [users, setUsers] = useState([]);
-  const [teams, setTeams] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
+  const [requiredEquipment, setRequiredEquipment] = useState([]);
+  const [taskCategory, setTaskCategory] = useState('general');
 
   // Task data - MATCHES ACTUAL API SCHEMA
   const [formData, setFormData] = useState({
@@ -86,7 +94,6 @@ function TaskCreationWizard() {
 
   // UI state
   const [selectedEquipment, setSelectedEquipment] = useState('');
-  const [selectedOptionalEquipment, setSelectedOptionalEquipment] = useState('');
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('');
 
@@ -103,6 +110,30 @@ function TaskCreationWizard() {
       loadAndApplyTemplate(templateIdFromQuery);
     }
   }, [templateFromState, templateIdFromQuery]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (formData.task_category === 'vineyard') {
+          const res = await blocksService.getCompanyBlocks?.() 
+            ?? await blocksService.getAllBlocks?.();
+          setBlocks(Array.isArray(res) ? res : (res.blocks || res.items || []));
+          setSpatialAreas([]);
+        } else if (formData.task_category === 'land_management') {
+          const res = await spatialAreasService.getCompanySpatialAreas?.();
+          setSpatialAreas(Array.isArray(res) ? res : (res.spatial_areas || res.items || []));
+          setBlocks([]);
+        } else {
+          setBlocks([]);
+          setSpatialAreas([]);
+        }
+      } catch (err) {
+        console.error('Failed to load location options:', err);
+        setBlocks([]);
+        setSpatialAreas([]);
+      }
+    })();
+  }, [formData.task_category]);
 
   const loadAssets = async () => {
     setLoadingAssets(true);
@@ -133,17 +164,15 @@ function TaskCreationWizard() {
 
   const loadUsersAndTeams = async () => {
     try {
-      // Assuming you have these endpoints
-      // const usersRes = await api.get('/users');
-      // const teamsRes = await api.get('/teams');
-      // setUsers(usersRes.data);
-      // setTeams(teamsRes.data);
-      
-      // Mock for now
-      setUsers([]);
-      setTeams([]);
+      const list = await adminService.getCompanyUsers?.() 
+        ?? await adminService.listCompanyUsers?.() 
+        ?? [];
+      setUsers(Array.isArray(list) ? list : (list.items || []));
+      setTeams([]); // we’re removing teams UI anyway
     } catch (err) {
       console.error('Failed to load users/teams:', err);
+      setUsers([]);
+      setTeams([]);
     }
   };
 
@@ -218,22 +247,6 @@ function TaskCreationWizard() {
     }));
   };
 
-  const handleAddOptionalEquipment = () => {
-    if (selectedOptionalEquipment && !taskAssets.optional_equipment.includes(parseInt(selectedOptionalEquipment))) {
-      setTaskAssets(prev => ({
-        ...prev,
-        optional_equipment: [...prev.optional_equipment, parseInt(selectedOptionalEquipment)]
-      }));
-      setSelectedOptionalEquipment('');
-    }
-  };
-
-  const handleRemoveOptionalEquipment = (equipId) => {
-    setTaskAssets(prev => ({
-      ...prev,
-      optional_equipment: prev.optional_equipment.filter(id => id !== equipId)
-    }));
-  };
 
   // Consumable handlers
   const handleAddConsumable = () => {
@@ -280,23 +293,6 @@ function TaskCreationWizard() {
     }));
   };
 
-  const handleAddTeam = () => {
-    if (selectedTeam && !taskAssignments.assigned_teams.includes(parseInt(selectedTeam))) {
-      setTaskAssignments(prev => ({
-        ...prev,
-        assigned_teams: [...prev.assigned_teams, parseInt(selectedTeam)]
-      }));
-      setSelectedTeam('');
-    }
-  };
-
-  const handleRemoveTeam = (teamId) => {
-    setTaskAssignments(prev => ({
-      ...prev,
-      assigned_teams: prev.assigned_teams.filter(id => id !== teamId)
-    }));
-  };
-
   // Helper functions
   const getAssetName = (assetId) => {
     const asset = [...equipmentAssets, ...consumableAssets].find(a => a.id === assetId);
@@ -321,12 +317,6 @@ function TaskCreationWizard() {
   const getAvailableEquipment = () => {
     return equipmentAssets.filter(asset => 
       !taskAssets.required_equipment.includes(asset.id)
-    );
-  };
-
-  const getAvailableOptionalEquipment = () => {
-    return equipmentAssets.filter(asset => 
-      !taskAssets.optional_equipment.includes(asset.id)
     );
   };
 
@@ -370,7 +360,6 @@ function TaskCreationWizard() {
 
       // Then create task assets if any
       if (taskAssets.required_equipment.length > 0 || 
-          taskAssets.optional_equipment.length > 0 || 
           taskAssets.required_consumables.length > 0) {
         
         const assetPayloads = [];
@@ -382,17 +371,6 @@ function TaskCreationWizard() {
             asset_id: equipId,
             asset_type: 'equipment',
             is_required: true,
-            quantity: 1
-          });
-        });
-
-        // Optional equipment
-        taskAssets.optional_equipment.forEach(equipId => {
-          assetPayloads.push({
-            task_id: newTask.id,
-            asset_id: equipId,
-            asset_type: 'equipment',
-            is_required: false,
             quantity: 1
           });
         });
@@ -664,43 +642,65 @@ function TaskCreationWizard() {
 
           {/* Location */}
           <FormSection title="Location" icon={<MapPin size={18} />}>
-            <FormField label="Block">
-              <select
-                value={formData.block_id || ''}
-                onChange={(e) => handleInputChange('block_id', e.target.value ? parseInt(e.target.value) : null)}
-                style={inputStyle}
-              >
-                <option value="">Select block...</option>
-                {blocks.map(block => (
-                  <option key={block.id} value={block.id}>
-                    {block.name} {block.area_hectares && `(${block.area_hectares} ha)`}
-                  </option>
-                ))}
-              </select>
-            </FormField>
 
-            <FormField label="Total Rows">
-              <input
-                type="number"
-                value={formData.rows_total}
-                onChange={(e) => handleInputChange('rows_total', e.target.value)}
-                placeholder="Number of rows"
-                min="0"
-                style={inputStyle}
-              />
-            </FormField>
+            {/* Vineyard → Blocks */}
+            {formData.task_category === 'vineyard' && (
+              <FormField label="Block">
+                <select
+                  value={formData.block_id || ''}
+                  onChange={(e) => handleInputChange('block_id', e.target.value ? parseInt(e.target.value) : null)}
+                  style={inputStyle}
+                >
+                  <option value="">Select block...</option>
+                  {blocks.map(block => (
+                    <option key={block.id} value={block.id}>
+                      {block.name || block.block_name || `Block #${block.id}`}
+                      {block.area_hectares && ` (${block.area_hectares} ha)`}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            )}
 
-            <FormField label="Total Area (hectares)">
-              <input
-                type="number"
-                value={formData.area_total_hectares}
-                onChange={(e) => handleInputChange('area_total_hectares', e.target.value)}
-                placeholder="Area in hectares"
-                min="0"
-                step="0.1"
-                style={inputStyle}
-              />
-            </FormField>
+            {/* Land Management → Spatial Areas */}
+            {formData.task_category === 'land_management' && (
+              <FormField label="Spatial Area">
+                <select
+                  value={formData.spatial_area_id || ''}
+                  onChange={(e) => handleInputChange('spatial_area_id', e.target.value ? parseInt(e.target.value) : null)}
+                  style={inputStyle}
+                >
+                  <option value="">Select spatial area...</option>
+                  {spatialAreas.map(area => (
+                    <option key={area.id} value={area.id}>
+                      {area.name || `Area #${area.id}`}
+                      {area.area_hectares && ` (${area.area_hectares} ha)`}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            )}
+
+            {/* General → Drop a pin */}
+            {formData.task_category === 'general' && (
+              <FormField label="Map Pin">
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" onClick={() => setShowMap(true)} style={buttonStyle}>
+                    <MapPin size={16} /> Drop a pin
+                  </button>
+                  {mapGeometry && <span style={{ fontSize: '0.875rem', color: '#16a34a' }}>Pin set ✓</span>}
+                </div>
+
+                {showMap && (
+                  <RiskLocationMap
+                    onClose={() => setShowMap(false)}
+                    onLocationSet={(geom) => { setMapGeometry(geom); setShowMap(false); }}
+                  />
+                )}
+              </FormField>
+            )}
+
+            {/* Shared fields */}
 
             <FormField label="Location Notes">
               <textarea
@@ -725,15 +725,6 @@ function TaskCreationWizard() {
               <span>📍 Require GPS tracking</span>
             </label>
 
-            <FormField label="Weather Conditions">
-              <input
-                type="text"
-                value={formData.weather_conditions || ''}
-                onChange={(e) => handleInputChange('weather_conditions', e.target.value)}
-                placeholder="e.g., Sunny, 18°C"
-                style={inputStyle}
-              />
-            </FormField>
           </FormSection>
         </div>
 
@@ -796,61 +787,6 @@ function TaskCreationWizard() {
               )}
             </FormField>
 
-            {/* Teams */}
-            <FormField label="Assign Teams">
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  style={{ ...inputStyle, flex: 1 }}
-                  disabled={teams.length === 0}
-                >
-                  <option value="">
-                    {teams.length === 0 ? 'No teams available' : 'Select team...'}
-                  </option>
-                  {teams.filter(t => !taskAssignments.assigned_teams.includes(t.id)).map(team => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleAddTeam}
-                  disabled={!selectedTeam}
-                  style={{
-                    ...buttonStyle,
-                    background: selectedTeam ? '#3b82f6' : '#d1d5db',
-                    color: 'white',
-                    border: 'none',
-                    cursor: selectedTeam ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-
-              {taskAssignments.assigned_teams.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {taskAssignments.assigned_teams.map((teamId) => (
-                    <div key={teamId} style={selectedItemStyle}>
-                      <span style={{ fontSize: '0.875rem' }}>{getTeamName(teamId)}</span>
-                      <button
-                        onClick={() => handleRemoveTeam(teamId)}
-                        style={removeButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={emptyStateStyle}>No teams assigned</p>
-              )}
-            </FormField>
-          </FormSection>
-
           {/* Required Equipment */}
           <FormSection title="Required Equipment" icon={<Wrench size={18} />}>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -906,64 +842,6 @@ function TaskCreationWizard() {
               </div>
             ) : (
               <p style={emptyStateStyle}>No required equipment</p>
-            )}
-          </FormSection>
-
-          {/* Optional Equipment */}
-          <FormSection title="Optional Equipment" icon={<Wrench size={18} />}>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <select
-                value={selectedOptionalEquipment}
-                onChange={(e) => setSelectedOptionalEquipment(e.target.value)}
-                style={{ ...inputStyle, flex: 1 }}
-                disabled={loadingAssets || getAvailableOptionalEquipment().length === 0}
-              >
-                <option value="">
-                  {loadingAssets 
-                    ? 'Loading equipment...' 
-                    : getAvailableOptionalEquipment().length === 0
-                    ? 'No equipment available'
-                    : 'Select equipment...'}
-                </option>
-                {getAvailableOptionalEquipment().map(asset => (
-                  <option key={asset.id} value={asset.id}>
-                    {asset.name} ({asset.asset_code})
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleAddOptionalEquipment}
-                disabled={!selectedOptionalEquipment}
-                style={{
-                  ...buttonStyle,
-                  background: selectedOptionalEquipment ? '#3b82f6' : '#d1d5db',
-                  color: 'white',
-                  border: 'none',
-                  cursor: selectedOptionalEquipment ? 'pointer' : 'not-allowed'
-                }}
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-
-            {taskAssets.optional_equipment.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {taskAssets.optional_equipment.map((equipId) => (
-                  <div key={equipId} style={{ ...selectedItemStyle, opacity: 0.7 }}>
-                    <span style={{ fontSize: '0.875rem' }}>{getAssetName(equipId)}</span>
-                    <button
-                      onClick={() => handleRemoveOptionalEquipment(equipId)}
-                      style={removeButtonStyle}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p style={emptyStateStyle}>No optional equipment</p>
             )}
           </FormSection>
 
