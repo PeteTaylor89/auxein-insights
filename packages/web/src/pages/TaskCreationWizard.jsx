@@ -2,6 +2,7 @@
 // REVISED - Matches actual API schema
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@vineyard/shared';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
@@ -14,9 +15,13 @@ function TaskCreationWizard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  
+  const { user } = useAuth();
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const templateFromState = location.state?.template;
   const templateIdFromQuery = searchParams.get('template');
+  const [multiMode, setMultiMode] = useState(false);
+  const [blockRows, setBlockRows] = useState([]);
 
   // Form state
   const [loading, setLoading] = useState(false);
@@ -32,8 +37,6 @@ function TaskCreationWizard() {
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [mapGeometry, setMapGeometry] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [requiredEquipment, setRequiredEquipment] = useState([]);
   const [taskCategory, setTaskCategory] = useState('general');
@@ -71,10 +74,7 @@ function TaskCreationWizard() {
     related_observation_run_id: null,
     related_maintenance_id: null,
     related_calibration_id: null,
-    
-    // Weather
-    weather_conditions: '',
-    
+
     // Tags
     tags: []
   });
@@ -95,12 +95,9 @@ function TaskCreationWizard() {
   // UI state
   const [selectedEquipment, setSelectedEquipment] = useState('');
   const [selectedUser, setSelectedUser] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState('');
 
   useEffect(() => {
     loadAssets();
-    loadBlocks();
-    loadUsersAndTeams();
   }, []);
 
   useEffect(() => {
@@ -135,11 +132,37 @@ function TaskCreationWizard() {
     })();
   }, [formData.task_category]);
 
+  useEffect(() => {
+    if (!multiMode || formData.task_category !== 'vineyard') {
+      setBlockRows([]);
+      return;
+    }
+    // Make a row for each available block
+    const rows = (blocks || []).map(b => ({
+      block_id: b.id,
+      selected: false,
+      user_ids: [],          // per-row assignees
+      start_date: formData.scheduled_start_date || '',
+      end_date: formData.scheduled_end_date || ''
+    }));
+    setBlockRows(rows);
+  }, [multiMode, formData.task_category, blocks, formData.scheduled_start_date, formData.scheduled_end_date]);
+
+  const setRow = (blockId, patch) => {
+    setBlockRows(prev => prev.map(r => r.block_id === blockId ? { ...r, ...patch } : r));
+  };
+
+  const toggleRow = (blockId) => setRow(blockId, { selected: !blockRows.find(r => r.block_id === blockId)?.selected });
+
+  const setRowUsers = (blockId, userIds) => setRow(blockId, { user_ids: userIds });
+
+  const setRowDate = (blockId, key, val) => setRow(blockId, { [key]: val });
+
   const loadAssets = async () => {
     setLoadingAssets(true);
     try {
       const [equipment, consumables] = await Promise.all([
-        assetService.listAssets({ category: 'equipment', status: 'active', limit: 500 }),
+        assetService.listAssets({ asset_type: 'physical', status: 'active', limit: 500 }),
         assetService.listAssets({ asset_type: 'consumable', status: 'active', limit: 500 })
       ]);
       
@@ -152,29 +175,56 @@ function TaskCreationWizard() {
     }
   };
 
-  const loadBlocks = async () => {
-    try {
-      const result = await blocksService.getAllBlocks();
-      setBlocks(Array.isArray(result) ? result : result?.items || []);
-    } catch (err) {
-      console.error('Failed to load blocks:', err);
-      setBlocks([]);
-    }
-  };
+  useEffect(() => {
+    const fetchCompanyUsers = async () => {
+      try {
+        setLoadingUsers(true);
 
-  const loadUsersAndTeams = async () => {
-    try {
-      const list = await adminService.getCompanyUsers?.() 
-        ?? await adminService.listCompanyUsers?.() 
-        ?? [];
-      setUsers(Array.isArray(list) ? list : (list.items || []));
-      setTeams([]); // we’re removing teams UI anyway
-    } catch (err) {
-      console.error('Failed to load users/teams:', err);
-      setUsers([]);
-      setTeams([]);
+        let usersData;
+
+        // Preferred (but admin-only on backend):
+        // GET /admin/companies/{company_id}/users
+        // NOTE: This requires role=admin backend-side.
+        try {
+          usersData = await adminService.getCompanyUsers(user.company_id, { limit: 200 });
+        } catch (e) {
+          // If caller is not system admin, fall back to:
+          // GET /admin/users?company_id=... (admin or manager allowed)
+          usersData = await adminService.getAllUsers({
+            company_id: user.company_id,
+            status: 'active',
+            limit: 200,
+          });
+        }
+
+        // Normalize response formats
+        let usersArray = [];
+        if (Array.isArray(usersData)) {
+          usersArray = usersData;
+        } else if (usersData && Array.isArray(usersData.data)) {
+          usersArray = usersData.data;
+        } else if (usersData && Array.isArray(usersData.users)) {
+          usersArray = usersData.users;
+        }
+
+        // Filter to active, non-suspended users
+        const activeUsers = usersArray.filter(u => u.is_active && !u.is_suspended);
+
+        setCompanyUsers(activeUsers);
+        console.log('✅ Loaded company users for assignment:', activeUsers);
+      } catch (error) {
+        console.error('❌ Error fetching company users:', error);
+        setCompanyUsers([]);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    if (user?.company_id) {
+      fetchCompanyUsers();
     }
-  };
+  }, [user?.company_id]);
+
 
   const loadAndApplyTemplate = async (templateId) => {
     setLoading(true);
@@ -300,18 +350,19 @@ function TaskCreationWizard() {
   };
 
   const getBlockName = (blockId) => {
-    const block = blocks.find(b => b.id === blockId);
-    return block ? `${block.name} (${block.area_hectares || 0} ha)` : `Block #${blockId}`;
+    // normalize id types (string/number)
+    const block = blocks.find(b => String(b.id) === String(blockId));
+    if (!block) return `Block #${blockId}`;
+    const label = block.name || block.block_name || `Block #${block.id}`;
+    const ha = typeof block.area_hectares === 'number' ? block.area_hectares : (block.area_hectares ? Number(block.area_hectares) : 0);
+    return ha ? `${label} (${ha} ha)` : label;
   };
 
   const getUserName = (userId) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.name || user.email : `User #${userId}`;
-  };
-
-  const getTeamName = (teamId) => {
-    const team = teams.find(t => t.id === teamId);
-    return team ? team.name : `Team #${teamId}`;
+    const user = companyUsers.find(u => u.id === userId);
+    return user
+      ? user.full_name || user.name || user.email || `User #${userId}`
+      : `User #${userId}`;
   };
 
   const getAvailableEquipment = () => {
@@ -330,14 +381,9 @@ function TaskCreationWizard() {
   };
 
   const handleSave = async () => {
-    // Validation
+    // Validation common to both modes
     if (!formData.title.trim()) {
       setError('Task title is required');
-      return;
-    }
-
-    if (!formData.scheduled_start_date) {
-      setError('Start date is required');
       return;
     }
 
@@ -345,87 +391,151 @@ function TaskCreationWizard() {
     setError(null);
 
     try {
-      // Prepare main task payload
+      // ----- MULTI MODE (one task per selected block) -----
+      if (multiMode && formData.task_category === 'vineyard') {
+        const rowsToCreate = blockRows.filter(r => r.selected);
+        if (rowsToCreate.length === 0) {
+          setError('Select at least one block in the table.');
+          setSaving(false);
+          return;
+        }
+
+        const created = [];
+        for (const row of rowsToCreate) {
+          // build payload per-row using row dates & block id
+          const perTaskPayload = {
+            ...formData,
+            block_id: row.block_id,
+            spatial_area_id: null,
+            location_type: null,
+            // per row schedule (allow empty end date)
+            scheduled_start_date: row.start_date || formData.scheduled_start_date || '',
+            scheduled_end_date: row.end_date || '',
+            // type coercions
+            estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null,
+            rows_total: formData.rows_total ? parseInt(formData.rows_total) : null,
+            area_total_hectares: formData.area_total_hectares ? parseFloat(formData.area_total_hectares) : null,
+          };
+
+          // Create
+          const newTask = await tasksService.createTask(perTaskPayload);
+
+          // Equipment (required)
+          if (taskAssets.required_equipment.length > 0) {
+            const eqPayloads = taskAssets.required_equipment.map((equipId) => ({
+              task_id: newTask.id,
+              asset_id: equipId,
+              asset_type: 'equipment',
+              is_required: true,
+              quantity: 1
+            }));
+            await Promise.all(eqPayloads.map(p => tasksService.addTaskAsset(newTask.id, p)));
+          }
+
+          // Consumables
+          if (taskAssets.required_consumables.length > 0) {
+            const consPayloads = taskAssets.required_consumables
+              .filter(c => c.asset_id && c.quantity)
+              .map(cons => ({
+                task_id: newTask.id,
+                asset_id: parseInt(cons.asset_id),
+                asset_type: 'consumable',
+                is_required: true,
+                quantity: parseFloat(cons.quantity),
+                unit: cons.unit
+              }));
+            if (consPayloads.length) {
+              await Promise.all(consPayloads.map(p => tasksService.addTaskAsset(newTask.id, p)));
+            }
+          }
+
+          // Bulk assign per-row users (if any)
+          if (row.user_ids.length > 0) {
+            await tasksService.assignMultipleUsers(newTask.id, {
+              user_ids: row.user_ids,
+              role: 'assignee',
+              estimated_hours: null,
+              set_first_as_primary: true
+            });
+          }
+
+          created.push(newTask);
+        }
+
+        // Navigate: if single created, go to it; if many, go to tasks tab
+        if (created.length === 1) {
+          navigate(`/tasks/${created[0].id}`);
+        } else {
+          navigate('/dashboard?tab=tasks');
+        }
+
+        setSaving(false);
+        return;
+      }
+
+      // ----- SINGLE MODE (your existing path) -----
+      // Prepare main task payload (same as you had, with category-driven location)
       const taskPayload = {
         ...formData,
-        block_id: formData.block_id ? parseInt(formData.block_id) : null,
-        spatial_area_id: formData.spatial_area_id ? parseInt(formData.spatial_area_id) : null,
+        block_id: formData.task_category === 'vineyard'
+          ? (formData.block_id ? parseInt(formData.block_id) : null)
+          : null,
+        spatial_area_id: formData.task_category === 'land_management'
+          ? (formData.spatial_area_id ? parseInt(formData.spatial_area_id) : null)
+          : null,
+        location_type: formData.task_category === 'general' ? 'point' : null,
+        location_notes: formData.task_category === 'general' && mapGeometry
+          ? `${formData.location_notes || ''}\n\nPin: ${JSON.stringify(mapGeometry)}`
+          : formData.location_notes,
+
         estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null,
         rows_total: formData.rows_total ? parseInt(formData.rows_total) : null,
-        area_total_hectares: formData.area_total_hectares ? parseFloat(formData.area_total_hectares) : null
+        area_total_hectares: formData.area_total_hectares ? parseFloat(formData.area_total_hectares) : null,
       };
 
-      // Create the task first
+      // 1) Create the task
       const newTask = await tasksService.createTask(taskPayload);
 
-      // Then create task assets if any
-      if (taskAssets.required_equipment.length > 0 || 
-          taskAssets.required_consumables.length > 0) {
-        
-        const assetPayloads = [];
+      // 2) Required equipment
+      if (taskAssets.required_equipment.length > 0) {
+        const assetPayloads = taskAssets.required_equipment.map((equipId) => ({
+          task_id: newTask.id,
+          asset_id: equipId,
+          asset_type: 'equipment',
+          is_required: true,
+          quantity: 1
+        }));
+        await Promise.all(assetPayloads.map(p => tasksService.addTaskAsset(newTask.id, p)));
+      }
 
-        // Required equipment
-        taskAssets.required_equipment.forEach(equipId => {
-          assetPayloads.push({
-            task_id: newTask.id,
-            asset_id: equipId,
-            asset_type: 'equipment',
-            is_required: true,
-            quantity: 1
-          });
-        });
-
-        // Consumables
-        taskAssets.required_consumables
+      // 3) Consumables
+      if (taskAssets.required_consumables.length > 0) {
+        const consumablePayloads = taskAssets.required_consumables
           .filter(c => c.asset_id && c.quantity)
-          .forEach(consumable => {
-            assetPayloads.push({
-              task_id: newTask.id,
-              asset_id: parseInt(consumable.asset_id),
-              asset_type: 'consumable',
-              is_required: true,
-              quantity: parseFloat(consumable.quantity),
-              unit: consumable.unit
-            });
-          });
-
-        // Post all task assets
-        await Promise.all(
-          assetPayloads.map(payload => 
-            tasksService.addTaskAsset(newTask.id, payload)
-          )
-        );
+          .map(consumable => ({
+            task_id: newTask.id,
+            asset_id: parseInt(consumable.asset_id),
+            asset_type: 'consumable',
+            is_required: true,
+            quantity: parseFloat(consumable.quantity),
+            unit: consumable.unit
+          }));
+        if (consumablePayloads.length) {
+          await Promise.all(consumablePayloads.map(p => tasksService.addTaskAsset(newTask.id, p)));
+        }
       }
 
-      // Create task assignments if any
-      if (taskAssignments.assigned_users.length > 0 || taskAssignments.assigned_teams.length > 0) {
-        const assignmentPayloads = [];
-
-        taskAssignments.assigned_users.forEach(userId => {
-          assignmentPayloads.push({
-            task_id: newTask.id,
-            user_id: userId,
-            assigned_at: new Date().toISOString()
-          });
+      // 4) Bulk assign users (from right column, single mode)
+      if (taskAssignments.assigned_users.length > 0) {
+        await tasksService.assignMultipleUsers(newTask.id, {
+          user_ids: taskAssignments.assigned_users,
+          role: 'assignee',
+          estimated_hours: null,
+          set_first_as_primary: true
         });
-
-        taskAssignments.assigned_teams.forEach(teamId => {
-          assignmentPayloads.push({
-            task_id: newTask.id,
-            team_id: teamId,
-            assigned_at: new Date().toISOString()
-          });
-        });
-
-        // Post all assignments
-        await Promise.all(
-          assignmentPayloads.map(payload =>
-            tasksService.assignTask(newTask.id, payload)
-          )
-        );
       }
 
-      // Navigate to task detail
+      // 5) Navigate to the new task
       navigate(`/tasks/${newTask.id}`);
     } catch (err) {
       console.error('Failed to create task:', err);
@@ -434,6 +544,7 @@ function TaskCreationWizard() {
       setSaving(false);
     }
   };
+
 
   const handleCancel = () => {
     if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
@@ -564,6 +675,31 @@ function TaskCreationWizard() {
               </select>
             </FormField>
 
+            {formData.task_category === 'vineyard' && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                  <label style={{ ...checkboxLabelStyle, margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={multiMode}
+                      onChange={(e) => setMultiMode(e.target.checked)}
+                    />
+                    <span>Apply to multiple blocks</span>
+                  </label>
+                </div>
+
+                <label style={checkboxLabelStyle}>
+                  <input
+                    type="checkbox"
+                    checked={formData.requires_gps_tracking}
+                    onChange={(e) => handleInputChange('requires_gps_tracking', e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>📍 Require GPS tracking</span>
+                </label>
+              </div>
+            )}
+
             <FormField label="Subcategory">
               <input
                 type="text"
@@ -598,195 +734,149 @@ function TaskCreationWizard() {
             </FormField>
           </FormSection>
 
-          {/* Scheduling */}
-          <FormSection title="Scheduling" icon={<Calendar size={18} />}>
-            <FormField label="Start Date" required>
-              <input
-                type="date"
-                value={formData.scheduled_start_date}
-                onChange={(e) => handleInputChange('scheduled_start_date', e.target.value)}
-                style={inputStyle}
-              />
-            </FormField>
 
-            <FormField label="End Date">
-              <input
-                type="date"
-                value={formData.scheduled_end_date}
-                onChange={(e) => handleInputChange('scheduled_end_date', e.target.value)}
-                style={inputStyle}
-              />
-            </FormField>
-
-            <FormField label="Start Time">
-              <input
-                type="time"
-                value={formData.scheduled_start_time || ''}
-                onChange={(e) => handleInputChange('scheduled_start_time', e.target.value)}
-                style={inputStyle}
-              />
-            </FormField>
-
-            <FormField label="Estimated Hours">
-              <input
-                type="number"
-                value={formData.estimated_hours}
-                onChange={(e) => handleInputChange('estimated_hours', e.target.value)}
-                placeholder="8"
-                min="0"
-                step="0.5"
-                style={inputStyle}
-              />
-            </FormField>
-          </FormSection>
 
           {/* Location */}
-          <FormSection title="Location" icon={<MapPin size={18} />}>
+          {!multiMode && (
+            <FormSection title="Location" icon={<MapPin size={18} />}>
 
-            {/* Vineyard → Blocks */}
-            {formData.task_category === 'vineyard' && (
-              <FormField label="Block">
-                <select
-                  value={formData.block_id || ''}
-                  onChange={(e) => handleInputChange('block_id', e.target.value ? parseInt(e.target.value) : null)}
-                  style={inputStyle}
-                >
-                  <option value="">Select block...</option>
-                  {blocks.map(block => (
-                    <option key={block.id} value={block.id}>
-                      {block.name || block.block_name || `Block #${block.id}`}
-                      {block.area_hectares && ` (${block.area_hectares} ha)`}
-                    </option>
-                  ))}
-                </select>
+              {/* Vineyard → Blocks */}
+              {formData.task_category === 'vineyard' && (
+                <FormField label="Block">
+                  <select
+                    value={formData.block_id || ''}
+                    onChange={(e) => handleInputChange('block_id', e.target.value ? parseInt(e.target.value) : null)}
+                    style={inputStyle}
+                  >
+                    <option value="">Select block...</option>
+                    {blocks.map(block => (
+                      <option key={block.id} value={block.id}>
+                        {block.name || block.block_name || `Block #${block.id}`}
+                        {block.area_hectares && ` (${block.area_hectares} ha)`}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              )}
+
+              {/* Land Management → Spatial Areas */}
+              {formData.task_category === 'land_management' && (
+                <FormField label="Spatial Area">
+                  <select
+                    value={formData.spatial_area_id || ''}
+                    onChange={(e) => handleInputChange('spatial_area_id', e.target.value ? parseInt(e.target.value) : null)}
+                    style={inputStyle}
+                  >
+                    <option value="">Select spatial area...</option>
+                    {spatialAreas.map(area => (
+                      <option key={area.id} value={area.id}>
+                        {area.name || `Area #${area.id}`}
+                        {area.area_hectares && ` (${area.area_hectares} ha)`}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              )}
+
+              {/* General → Drop a pin */}
+              {formData.task_category === 'general' && (
+                <FormField label="Map Pin">
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button type="button" onClick={() => setShowMap(true)} style={buttonStyle}>
+                      <MapPin size={16} /> Drop a pin
+                    </button>
+                    {mapGeometry && <span style={{ fontSize: '0.875rem', color: '#16a34a' }}>Pin set ✓</span>}
+                  </div>
+
+                  {showMap && (
+                    <RiskLocationMap
+                      onClose={() => setShowMap(false)}
+                      onLocationSet={(geom) => { setMapGeometry(geom); setShowMap(false); }}
+                    />
+                  )}
+                </FormField>
+              )}
+
+              {/* Shared fields */}
+
+              <FormField label="Location Notes">
+                <textarea
+                  value={formData.location_notes}
+                  onChange={(e) => handleInputChange('location_notes', e.target.value)}
+                  placeholder="Additional location details..."
+                  rows={2}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
               </FormField>
-            )}
+            </FormSection>
+          )}
 
-            {/* Land Management → Spatial Areas */}
-            {formData.task_category === 'land_management' && (
-              <FormField label="Spatial Area">
-                <select
-                  value={formData.spatial_area_id || ''}
-                  onChange={(e) => handleInputChange('spatial_area_id', e.target.value ? parseInt(e.target.value) : null)}
-                  style={inputStyle}
-                >
-                  <option value="">Select spatial area...</option>
-                  {spatialAreas.map(area => (
-                    <option key={area.id} value={area.id}>
-                      {area.name || `Area #${area.id}`}
-                      {area.area_hectares && ` (${area.area_hectares} ha)`}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-            )}
-
-            {/* General → Drop a pin */}
-            {formData.task_category === 'general' && (
-              <FormField label="Map Pin">
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => setShowMap(true)} style={buttonStyle}>
-                    <MapPin size={16} /> Drop a pin
-                  </button>
-                  {mapGeometry && <span style={{ fontSize: '0.875rem', color: '#16a34a' }}>Pin set ✓</span>}
-                </div>
-
-                {showMap && (
-                  <RiskLocationMap
-                    onClose={() => setShowMap(false)}
-                    onLocationSet={(geom) => { setMapGeometry(geom); setShowMap(false); }}
-                  />
-                )}
-              </FormField>
-            )}
-
-            {/* Shared fields */}
-
-            <FormField label="Location Notes">
-              <textarea
-                value={formData.location_notes}
-                onChange={(e) => handleInputChange('location_notes', e.target.value)}
-                placeholder="Additional location details..."
-                rows={2}
-                style={{ ...inputStyle, resize: 'vertical' }}
-              />
-            </FormField>
-          </FormSection>
-
-          {/* Options */}
-          <FormSection title="Options" icon={<Settings size={18} />}>
-            <label style={checkboxLabelStyle}>
-              <input
-                type="checkbox"
-                checked={formData.requires_gps_tracking}
-                onChange={(e) => handleInputChange('requires_gps_tracking', e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              <span>📍 Require GPS tracking</span>
-            </label>
-
-          </FormSection>
         </div>
 
         {/* Right Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* Assignments */}
-          <FormSection title="Assign To" icon={<Users size={18} />}>
-            {/* Users */}
-            <FormField label="Assign Users">
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <select
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
-                  style={{ ...inputStyle, flex: 1 }}
-                  disabled={users.length === 0}
-                >
-                  <option value="">
-                    {users.length === 0 ? 'No users available' : 'Select user...'}
-                  </option>
-                  {users.filter(u => !taskAssignments.assigned_users.includes(u.id)).map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.name || user.email}
+          {!multiMode && (
+            <FormSection title="Assign To" icon={<Users size={18} />}>
+              {/* Users */}
+              <FormField label="Assign Users">
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <select
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                    style={{ ...inputStyle, flex: 1 }}
+                    disabled={companyUsers.length === 0}
+                  >
+                    <option value="">
+                      {companyUsers.length === 0 ? 'No users available' : 'Select user...'}
                     </option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleAddUser}
-                  disabled={!selectedUser}
-                  style={{
-                    ...buttonStyle,
-                    background: selectedUser ? '#3b82f6' : '#d1d5db',
-                    color: 'white',
-                    border: 'none',
-                    cursor: selectedUser ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-
-              {taskAssignments.assigned_users.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {taskAssignments.assigned_users.map((userId) => (
-                    <div key={userId} style={selectedItemStyle}>
-                      <span style={{ fontSize: '0.875rem' }}>{getUserName(userId)}</span>
-                      <button
-                        onClick={() => handleRemoveUser(userId)}
-                        style={removeButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
+                    {companyUsers
+                      .filter(u => !taskAssignments.assigned_users.includes(u.id))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name || u.name || u.email}
+                        </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleAddUser}
+                    disabled={!selectedUser}
+                    style={{
+                      ...buttonStyle,
+                      background: selectedUser ? '#3b82f6' : '#d1d5db',
+                      color: 'white',
+                      border: 'none',
+                      cursor: selectedUser ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    <Plus size={16} />
+                  </button>
                 </div>
-              ) : (
-                <p style={emptyStateStyle}>No users assigned</p>
-              )}
-            </FormField>
 
+                {taskAssignments.assigned_users.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {taskAssignments.assigned_users.map((userId) => (
+                      <div key={userId} style={selectedItemStyle}>
+                        <span style={{ fontSize: '0.875rem' }}>{getUserName(userId)}</span>
+                        <button
+                          onClick={() => handleRemoveUser(userId)}
+                          style={removeButtonStyle}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={emptyStateStyle}>No users assigned</p>
+                )}
+              </FormField>
+
+            </FormSection>
+          )}
           {/* Required Equipment */}
           <FormSection title="Required Equipment" icon={<Wrench size={18} />}>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -912,7 +1002,150 @@ function TaskCreationWizard() {
               <p style={{ ...emptyStateStyle, marginTop: '0.75rem' }}>No consumables required</p>
             )}
           </FormSection>
+
+                    {/* Scheduling */}
+          {!multiMode && (
+          <FormSection title="Scheduling" icon={<Calendar size={18} />}>
+            <FormField label="Start Date" required>
+              <input
+                type="date"
+                value={formData.scheduled_start_date}
+                onChange={(e) => handleInputChange('scheduled_start_date', e.target.value)}
+                style={inputStyle}
+              />
+            </FormField>
+
+            <FormField label="End Date">
+              <input
+                type="date"
+                value={formData.scheduled_end_date}
+                onChange={(e) => handleInputChange('scheduled_end_date', e.target.value)}
+                style={inputStyle}
+              />
+            </FormField>
+
+            <FormField label="Start Time">
+              <input
+                type="time"
+                value={formData.scheduled_start_time || ''}
+                onChange={(e) => handleInputChange('scheduled_start_time', e.target.value)}
+                style={inputStyle}
+              />
+            </FormField>
+
+            <FormField label="Estimated Hours">
+              <input
+                type="number"
+                value={formData.estimated_hours}
+                onChange={(e) => handleInputChange('estimated_hours', e.target.value)}
+                placeholder="8"
+                min="0"
+                step="0.5"
+                style={inputStyle}
+              />
+            </FormField>
+          </FormSection>
+          )}
         </div>
+
+        {formData.task_category === 'vineyard' && multiMode && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormSection title="Apply to Multiple Blocks" icon={<MapPin size={18} />}>
+              <div style={{ width: '100%' }}>
+                <div style={{
+                  width: '100%',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: 'white'
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '56px 2fr 1.5fr 1.5fr 2fr',
+                    gap: 0,
+                    background: '#f9fafb',
+                    borderBottom: '1px solid #e5e7eb',
+                    width: '100%'
+                  }}>
+                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>✓</div>
+                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>Block</div>
+                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>Start Date</div>
+                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>End Date</div>
+                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>Assignees</div>
+                  </div>
+
+                  {blockRows.length === 0 ? (
+                    <div style={{ padding: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>
+                      No blocks to show.
+                    </div>
+                  ) : blockRows.map(row => (
+                    <div
+                      key={row.block_id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '56px 2fr 1.5fr 1.5fr 2fr',
+                        borderBottom: '1px solid #f3f4f6',
+                        width: '100%'
+                      }}
+                    >
+                      <div style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={row.selected}
+                          onChange={() => toggleRow(row.block_id)}
+                        />
+                      </div>
+                      <div style={{ padding: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                        {getBlockName(row.block_id)}
+                      </div>
+                      <div style={{ padding: '0.5rem' }}>
+                        <input
+                          type="date"
+                          value={row.start_date}
+                          onChange={(e) => setRowDate(row.block_id, 'start_date', e.target.value)}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ padding: '0.5rem' }}>
+                        <input
+                          type="date"
+                          value={row.end_date}
+                          onChange={(e) => setRowDate(row.block_id, 'end_date', e.target.value)}
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={{ padding: '0.5rem' }}>
+                        <select
+                          multiple
+                          value={row.user_ids.map(String)}
+                          onChange={(e) => {
+                            const ids = Array.from(e.target.options)
+                              .filter(o => o.selected)
+                              .map(o => parseInt(o.value));
+                            setRowUsers(row.block_id, ids);
+                          }}
+                          style={{ ...inputStyle, height: 96 }}
+                          disabled={companyUsers.length === 0}
+                        >
+                          {companyUsers.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.full_name || u.name || u.email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>
+                  Selected rows will create one task per block with its own assignees and schedule.
+                </p>
+              </div>
+            </FormSection>
+          </div>
+        )}
+
       </div>
     </div>
   );
