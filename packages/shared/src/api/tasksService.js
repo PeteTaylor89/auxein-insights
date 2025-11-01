@@ -71,6 +71,11 @@ const tasksService = {
     return res.data;
   },
 
+  addTaskAsset: async (taskId, payload) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/assets`, payload);
+    return res.data;
+  },
+
   // ============================================================================
   // TASKS - ACTIONS
   // ============================================================================

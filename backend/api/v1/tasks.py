@@ -1,13 +1,14 @@
 # app/api/v1/tasks.py - Complete Task Management API
 import logging
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_, desc, asc
-
+from pydantic import BaseModel, Field, validator
 from db.session import get_db
+
 from db.models.task_template import TaskTemplate, TaskCategory
 from db.models.task import Task, TaskStatus
 from db.models.task_assignment import TaskAssignment
@@ -18,6 +19,7 @@ from db.models.company import Company
 from db.models.block import VineyardBlock
 from db.models.spatial_area import SpatialArea
 from db.models.vineyard_row import VineyardRow
+from db.models.asset import Asset, TaskAsset
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -1840,3 +1842,106 @@ def get_task_stats(
         tasks_completed_this_week=tasks_completed_this_week,
         tasks_completed_this_month=tasks_completed_this_month
     )
+
+class TaskAssetUpsert(BaseModel):
+    asset_id: int
+    asset_type: Literal["equipment", "consumable"]  # sent by wizard
+    is_required: bool = True
+    quantity: Optional[Decimal] = Field(None, ge=0)     # for consumables (planned_quantity)
+    planned_hours: Optional[Decimal] = Field(None, ge=0)  # for equipment (optional UI)
+    planned_rate: Optional[Decimal] = Field(None, ge=0)
+    role: Optional[Literal["primary", "secondary", "consumable"]] = None
+    unit: Optional[str] = None
+    notes: Optional[str] = None
+
+    @validator("role", always=True)
+    def default_role(cls, v, values):
+        # sensible defaults per asset_type
+        if v is not None:
+            return v
+        return "consumable" if values.get("asset_type") == "consumable" else "primary"
+
+@router.post("/tasks/{task_id}/assets", status_code=status.HTTP_201_CREATED)
+def add_or_update_task_asset(
+    task_id: int,
+    payload: TaskAssetUpsert,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create or update a TaskAsset entry based on (task_id, asset_id).
+    - Equipment → role primary/secondary, planned_hours/rate
+    - Consumable → role consumable, planned_quantity = quantity
+    """
+    # AuthN/AuthZ and tenant scoping
+    task = check_task_access(db, task_id, current_user)  # must raise 404/403 appropriately
+
+    # Validate asset
+    asset = db.query(Asset).filter(Asset.id == payload.asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # Optional: Company/tenant guard
+    if getattr(task, "company_id", None) and getattr(asset, "company_id", None):
+        if task.company_id != asset.company_id:
+            raise HTTPException(status_code=403, detail="Asset belongs to a different company")
+
+    # Optional: Validate unit for consumables
+    if payload.asset_type == "consumable" and payload.unit:
+        expected = (asset.unit_of_measure or "").strip().lower()
+        given = payload.unit.strip().lower()
+        if expected and given and expected != given:
+            # Don't block; warn in response
+            unit_warning = f"Provided unit '{payload.unit}' does not match asset unit_of_measure '{asset.unit_of_measure}'."
+        else:
+            unit_warning = None
+    else:
+        unit_warning = None
+
+    # Upsert by (task_id, asset_id)
+    ta = (
+        db.query(TaskAsset)
+        .filter(TaskAsset.task_id == task_id, TaskAsset.asset_id == payload.asset_id)
+        .first()
+    )
+
+    if ta is None:
+        ta = TaskAsset(task_id=task_id, asset_id=payload.asset_id)
+
+    # Map common fields
+    ta.role = payload.role
+    ta.is_required = payload.is_required
+    ta.planned_rate = payload.planned_rate
+    ta.notes = payload.notes
+
+    # Equipment vs Consumable specifics
+    if payload.asset_type == "consumable":
+        ta.planned_quantity = payload.quantity  # wizard quantity → planned_quantity
+        # clear equipment-only fields
+        ta.planned_hours = None
+        ta.requires_calibration = False
+    else:
+        ta.planned_hours = payload.planned_hours
+        # good default for equipment
+        ta.requires_calibration = bool(asset.requires_calibration)
+        # clear consumable-only fields
+        ta.planned_quantity = None
+
+    db.add(ta)
+    db.commit()
+    db.refresh(ta)
+
+    out = {
+        "id": ta.id,
+        "task_id": ta.task_id,
+        "asset_id": ta.asset_id,
+        "role": ta.role,
+        "is_required": ta.is_required,
+        "planned_quantity": str(ta.planned_quantity) if ta.planned_quantity is not None else None,
+        "planned_hours": str(ta.planned_hours) if ta.planned_hours is not None else None,
+        "planned_rate": str(ta.planned_rate) if ta.planned_rate is not None else None,
+        "requires_calibration": ta.requires_calibration,
+        "notes": ta.notes,
+        "unit_warning": unit_warning,
+    }
+    return out

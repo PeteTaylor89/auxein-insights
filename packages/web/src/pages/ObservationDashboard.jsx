@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin } from 'lucide-react';
 import { observationService, usersService, authService, tasksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import BlockSelectionModal from '../components/BlockSelectionModal';
@@ -1493,13 +1493,22 @@ function TasksTab() {
     );
   });
 
-  // Group tasks by status
-  const groupedTasks = {
-    pending: filteredTasks.filter(t => t.status === 'pending'),
-    in_progress: filteredTasks.filter(t => t.status === 'in_progress'),
-    completed: filteredTasks.filter(t => t.status === 'completed'),
-    cancelled: filteredTasks.filter(t => t.status === 'cancelled')
+  // Normalize backend statuses to UI buckets
+  const normalizeStatus = (s) => {
+    const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
+    if (['pending', 'not_started'].includes(k)) return 'pending';
+    if (['in_progress', 'active', 'started', 'ongoing'].includes(k)) return 'in_progress';
+    if (['completed', 'complete', 'done'].includes(k)) return 'completed';
+    if (['cancelled', 'canceled'].includes(k)) return 'cancelled';
+    if (['scheduled', 'planning'].includes(k)) return 'scheduled';
+    return 'other';
   };
+
+  // Group tasks by normalized status
+  const groupedTasks = { pending: [], in_progress: [], completed: [], cancelled: [], scheduled: [], other: [] };
+  for (const t of filteredTasks) {
+    groupedTasks[normalizeStatus(t.status)].push(t);
+  }
 
   if (loading) {
     return (
@@ -1666,61 +1675,69 @@ function TasksTab() {
 
       {/* Task List - Grouped by Status */}
       {filteredTasks.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          {/* Pending Tasks */}
-          {groupedTasks.pending.length > 0 && (
-            <TaskGroup 
-              title="Pending" 
-              count={groupedTasks.pending.length}
-              icon="⏳"
-              tasks={groupedTasks.pending}
-              onView={(task) => navigate(`/tasks/${task.id}`)}
-              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-              onDelete={handleDeleteTask}
-            />
-          )}
-
-          {/* In Progress Tasks */}
-          {groupedTasks.in_progress.length > 0 && (
-            <TaskGroup 
-              title="In Progress" 
-              count={groupedTasks.in_progress.length}
-              icon="🔄"
-              tasks={groupedTasks.in_progress}
-              onView={(task) => navigate(`/tasks/${task.id}`)}
-              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-              onDelete={handleDeleteTask}
-            />
-          )}
-
-          {/* Completed Tasks */}
-          {groupedTasks.completed.length > 0 && (
-            <TaskGroup 
-              title="Completed" 
-              count={groupedTasks.completed.length}
-              icon="✅"
-              tasks={groupedTasks.completed}
-              onView={(task) => navigate(`/tasks/${task.id}`)}
-              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-              onDelete={handleDeleteTask}
-            />
-          )}
-
-          {/* Cancelled Tasks */}
-          {groupedTasks.cancelled.length > 0 && (
-            <TaskGroup 
-              title="Cancelled" 
-              count={groupedTasks.cancelled.length}
-              icon="❌"
-              tasks={groupedTasks.cancelled}
-              onView={(task) => navigate(`/tasks/${task.id}`)}
-              onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-              onDelete={handleDeleteTask}
-            />
-          )}
-        </div>
-      ) : (
+        (() => {
+          const any =
+            groupedTasks.pending.length ||
+            groupedTasks.in_progress.length ||
+            groupedTasks.scheduled.length ||
+            groupedTasks.completed.length ||
+            groupedTasks.cancelled.length ||
+            groupedTasks.other.length;
+          if (!any) {
+            return (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280', fontStyle: 'italic' }}>
+                No tasks match the selected filters.
+              </div>
+            );
+          }
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {groupedTasks.pending.length > 0 && (
+                <TaskGroup title="Pending" icon="⏳" count={groupedTasks.pending.length} tasks={groupedTasks.pending}
+                  onView={(task) => navigate(`/tasks/${task.id}`)}
+                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+                  onDelete={handleDeleteTask}
+                />
+              )}
+              {groupedTasks.in_progress.length > 0 && (
+                <TaskGroup title="In Progress" icon="🔄" count={groupedTasks.in_progress.length} tasks={groupedTasks.in_progress}
+                  onView={(task) => navigate(`/tasks/${task.id}`)}
+                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+                  onDelete={handleDeleteTask}
+                />
+              )}
+              {groupedTasks.scheduled.length > 0 && (
+                <TaskGroup title="Scheduled" icon="📅" count={groupedTasks.scheduled.length} tasks={groupedTasks.scheduled}
+                  onView={(task) => navigate(`/tasks/${task.id}`)}
+                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+                  onDelete={handleDeleteTask}
+                />
+              )}
+              {groupedTasks.completed.length > 0 && (
+                <TaskGroup title="Completed" icon="✅" count={groupedTasks.completed.length} tasks={groupedTasks.completed}
+                  onView={(task) => navigate(`/tasks/${task.id}`)}
+                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+                  onDelete={handleDeleteTask}
+                />
+              )}
+              {groupedTasks.cancelled.length > 0 && (
+                <TaskGroup title="Cancelled" icon="❌" count={groupedTasks.cancelled.length} tasks={groupedTasks.cancelled}
+                  onView={(task) => navigate(`/tasks/${task.id}`)}
+                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+                  onDelete={handleDeleteTask}
+                />
+              )}
+              {groupedTasks.other.length > 0 && (
+                <TaskGroup title="Other" icon="📌" count={groupedTasks.other.length} tasks={groupedTasks.other}
+                  onView={(task) => navigate(`/tasks/${task.id}`)}
+                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
+                  onDelete={handleDeleteTask}
+                />
+              )}
+            </div>
+          );
+        })()
+        ) : (
         <div style={{ 
           textAlign: 'center',
           padding: '2rem',
@@ -1873,21 +1890,18 @@ function TaskCard({ task, onView, onEdit, onDelete }) {
         color: '#6b7280'
       }}>
         {/* Scheduled Date */}
-        {task.scheduled_date && (
+        { (task.scheduled_date || task.scheduled_start_date) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <Calendar size={12} />
-            <span>{new Date(task.scheduled_date).toLocaleDateString('en-NZ', { 
-              month: 'short', 
-              day: 'numeric' 
-            })}</span>
+            <span>{new Date(task.scheduled_date || task.scheduled_start_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })}</span>
           </div>
         )}
 
         {/* Duration */}
-        {task.estimated_duration_hours && (
+        {(task.estimated_duration_hours || task.estimated_hours) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <Clock size={12} />
-            <span>{task.estimated_duration_hours}h</span>
+            <span>{(task.estimated_duration_hours ?? task.estimated_hours)}h</span>
           </div>
         )}
 
