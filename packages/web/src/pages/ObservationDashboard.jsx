@@ -1432,49 +1432,140 @@ function TemplateCard({ template, onView, onEdit, onUse }) {
 }
 
 // OPTIONAL CHANGE 5: Add TasksTab component (for task list view - can be done later)
+// TasksTab — table view (drop-in replacement)
 function TasksTab() {
   const navigate = useNavigate();
-  
+  const companyId = authService.getCompanyId();
+
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filters
+  // Client-side filters (do NOT refetch on change)
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Fetch once per company (no infinite loop)
   useEffect(() => {
-    loadTasks();
-  }, [statusFilter, categoryFilter, priorityFilter]);
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const loadTasks = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {};
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (categoryFilter !== 'all') params.task_category = categoryFilter;
-      if (priorityFilter !== 'all') params.priority = priorityFilter;
+        // Prefer listTasks; fall back to list/getTasks if needed.
+        const res =
+          (await tasksService.listTasks?.({ company_id: companyId, limit: 500 }).catch(() => null)) ??
+          (await tasksService.list?.({ company_id: companyId, limit: 500 }).catch(() => null)) ??
+          (await tasksService.getTasks?.({ company_id: companyId, limit: 500 }).catch(() => null)) ??
+          [];
 
-      const res = await tasksService.listTasks(params);
-      setTasks(Array.isArray(res) ? res : res?.items || []);
-    } catch (err) {
-      console.error('Failed to load tasks:', err);
-      setError('Failed to load tasks');
-    } finally {
-      setLoading(false);
-    }
+        if (!mounted) return;
+        const items = Array.isArray(res) ? res : (res?.items ?? res?.data ?? res?.tasks ?? []);
+        setTasks(Array.isArray(items) ? items : []);
+      } catch (err) {
+        console.error('Failed to load tasks:', err);
+        setError('Failed to load tasks');
+        setTasks([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [companyId]);
+
+  const fmtDate = (d) => {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' }); }
+    catch { return '—'; }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Are you sure you want to delete this task?')) {
-      return;
-    }
+  const fmtLocation = (t) => {
+    if (t.block?.name || t.block_name) return t.block?.name ?? t.block_name;
+    if (t.spatial_area?.name || t.spatial_area_name) return t.spatial_area?.name ?? t.spatial_area_name;
+    if (t.block_id) return `Block #${t.block_id}`;
+    if (t.spatial_area_id) return `Area #${t.spatial_area_id}`;
+    return t.location_type === 'point' ? '📍 Pin' : '—';
+  };
 
+  const fmtAssignees = (t) => {
+    // Prefer embedded assignments if present
+    if (Array.isArray(t.assignments) && t.assignments.length > 0) {
+      const names = t.assignments
+        .map(a => a.user_name || a.user?.full_name || a.user?.name || a.user?.email)
+        .filter(Boolean);
+      if (names.length <= 2) return names.join(', ');
+      return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+    }
+    if (typeof t.assigned_user_count === 'number') return `${t.assigned_user_count} user(s)`;
+    return '—';
+  };
+
+  const badge = (s) => {
+    const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
+    const map = {
+      pending:   { bg:'#f3f4f6', fg:'#374151', text:'Pending' },
+      not_started:{ bg:'#f3f4f6', fg:'#374151', text:'Pending' },
+      scheduled: { bg:'#e0f2fe', fg:'#0369a1', text:'Scheduled' },
+      in_progress:{ bg:'#fef9c3', fg:'#854d0e', text:'In Progress' },
+      completed: { bg:'#dcfce7', fg:'#166534', text:'Completed' },
+      cancelled: { bg:'#fee2e2', fg:'#991b1b', text:'Cancelled' },
+    };
+    const m = map[k] || { bg:'#eee', fg:'#444', text:(s || 'Other') };
+    return (
+      <span style={{
+        background: m.bg, color: m.fg, padding: '2px 8px', borderRadius: 999,
+        fontSize: 12, fontWeight: 600
+      }}>{m.text}</span>
+    );
+  };
+
+  const fmtPriority = (p) => {
+    const v = String(p || '').toLowerCase();
+    const color = v === 'high' || v === 'urgent' ? '#dc2626'
+                : v === 'medium' ? '#f59e0b'
+                : '#6b7280';
+    const label = v ? v.charAt(0).toUpperCase() + v.slice(1) : '—';
+    return <span style={{ color, fontWeight: 600 }}>{label}</span>;
+  };
+
+  // Client-side filtering
+  const filteredTasks = (Array.isArray(tasks) ? tasks : []).filter(task => {
+    if (statusFilter !== 'all') {
+      const k = String(task.status || '').toLowerCase().replace(/\s+/g, '_');
+      const wanted = statusFilter;
+      const norm = (s) => {
+        if (['pending','not_started'].includes(s)) return 'pending';
+        if (['in_progress','active','started','ongoing'].includes(s)) return 'in_progress';
+        if (['completed','complete','done'].includes(s)) return 'completed';
+        if (['cancelled','canceled'].includes(s)) return 'cancelled';
+        if (['scheduled','planning'].includes(s)) return 'scheduled';
+        return 'other';
+      };
+      if (norm(k) !== wanted) return false;
+    }
+    if (categoryFilter !== 'all' && String(task.task_category || '') !== categoryFilter) return false;
+    if (priorityFilter !== 'all' && String(task.priority || '').toLowerCase() !== priorityFilter) return false;
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const hay =
+        (task.title || '') + ' ' +
+        (task.description || '') + ' ' +
+        (task.task_category || '') + ' ' +
+        (task.block_name || '') + ' ' +
+        (task.spatial_area_name || '');
+      if (!hay.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
     try {
-      await tasksService.deleteTask(taskId);
+      await tasksService.deleteTask?.(taskId);
       setTasks(prev => prev.filter(t => t.id !== taskId));
     } catch (err) {
       console.error('Failed to delete task:', err);
@@ -1482,51 +1573,12 @@ function TasksTab() {
     }
   };
 
-  // Filter tasks by search
-  const filteredTasks = tasks.filter(task => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      task.title?.toLowerCase().includes(query) ||
-      task.task_category.toLowerCase().includes(query) ||
-      task.description?.toLowerCase().includes(query)
-    );
-  });
-
-  // Normalize backend statuses to UI buckets
-  const normalizeStatus = (s) => {
-    const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
-    if (['pending', 'not_started'].includes(k)) return 'pending';
-    if (['in_progress', 'active', 'started', 'ongoing'].includes(k)) return 'in_progress';
-    if (['completed', 'complete', 'done'].includes(k)) return 'completed';
-    if (['cancelled', 'canceled'].includes(k)) return 'cancelled';
-    if (['scheduled', 'planning'].includes(k)) return 'scheduled';
-    return 'other';
-  };
-
-  // Group tasks by normalized status
-  const groupedTasks = { pending: [], in_progress: [], completed: [], cancelled: [], scheduled: [], other: [] };
-  for (const t of filteredTasks) {
-    groupedTasks[normalizeStatus(t.status)].push(t);
-  }
-
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-        <div>Loading tasks…</div>
-      </div>
-    );
+    return <div style={{ textAlign:'center', padding:'2rem', color:'#6b7280' }}>Loading tasks…</div>;
   }
-
   if (error) {
     return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem', 
-        color: '#dc2626',
-        background: '#fef2f2',
-        borderRadius: '8px'
-      }}>
+      <div style={{ textAlign:'center', padding:'2rem', color:'#dc2626', background:'#fef2f2', borderRadius:8 }}>
         {error}
       </div>
     );
@@ -1536,111 +1588,66 @@ function TasksTab() {
     <div>
       {/* Header */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        paddingBottom: '0.5rem',
-        borderBottom: '1px solid #f3f4f6'
+        display:'flex', justifyContent:'space-between', alignItems:'center',
+        marginBottom:'1rem', paddingBottom:'0.5rem', borderBottom:'1px solid #f3f4f6'
       }}>
-        <h2 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: '600', 
-          margin: 0
-        }}>
+        <h2 style={{ fontSize:'1.1rem', fontWeight:600, margin:0 }}>
           Tasks ({filteredTasks.length})
         </h2>
         <button
           onClick={() => navigate('/tasks/new')}
           style={{
-            background: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            padding: '0.5rem 0.75rem',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.375rem',
-            fontSize: '0.813rem',
-            fontWeight: '500'
+            background:'#3b82f6', color:'#fff', border:'none', padding:'0.5rem 0.75rem',
+            borderRadius:6, cursor:'pointer', display:'inline-flex', alignItems:'center',
+            gap:'0.375rem', fontSize:'0.813rem', fontWeight:500
           }}
         >
           <Plus size={14} /> New Task
         </button>
       </div>
 
-      {/* Filters */}
-      <div style={{ marginBottom: '1rem' }}>
-        <details style={{ marginBottom: '1rem' }}>
-          <summary style={{ 
-            cursor: 'pointer', 
-            padding: '0.5rem',
-            fontSize: '0.875rem',
-            fontWeight: '500',
-            color: '#6b7280',
-            userSelect: 'none'
+      {/* Filters (collapsible), client-side only */}
+      <div style={{ marginBottom:'1rem' }}>
+        <details>
+          <summary style={{
+            cursor:'pointer', padding:'0.5rem', fontSize:'0.875rem',
+            fontWeight:500, color:'#6b7280', userSelect:'none'
           }}>
-            <Filter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
+            <Filter size={14} style={{ display:'inline', marginRight:4 }}/>
             Filters
           </summary>
           <div style={{
-            display: 'flex',
-            gap: '0.75rem',
-            marginTop: '0.75rem',
-            flexWrap: 'wrap',
-            padding: '0.75rem',
-            background: '#f9fafb',
-            borderRadius: '6px'
+            display:'flex', gap:'0.75rem', marginTop:'0.75rem', flexWrap:'wrap',
+            padding:'0.75rem', background:'#f9fafb', borderRadius:6
           }}>
-            {/* Search */}
             <input
               type="text"
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                flex: '1',
-                minWidth: '200px',
-                padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.813rem'
+                flex:'1', minWidth:200, padding:'0.5rem 0.75rem',
+                border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem'
               }}
             />
 
-            {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.813rem',
-                cursor: 'pointer',
-                background: 'white'
-              }}
+              style={{ padding:'0.5rem 0.75rem', border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem', background:'white' }}
             >
               <option value="all">All Statuses</option>
               <option value="pending">⏳ Pending</option>
+              <option value="scheduled">📅 Scheduled</option>
               <option value="in_progress">🔄 In Progress</option>
               <option value="completed">✅ Completed</option>
               <option value="cancelled">❌ Cancelled</option>
             </select>
 
-            {/* Category Filter */}
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              style={{
-                padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.813rem',
-                cursor: 'pointer',
-                background: 'white'
-              }}
+              style={{ padding:'0.5rem 0.75rem', border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem', background:'white' }}
             >
               <option value="all">All Categories</option>
               <option value="vineyard">🍇 Vineyard</option>
@@ -1650,18 +1657,10 @@ function TasksTab() {
               <option value="general">📌 General</option>
             </select>
 
-            {/* Priority Filter */}
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              style={{
-                padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.813rem',
-                cursor: 'pointer',
-                background: 'white'
-              }}
+              style={{ padding:'0.5rem 0.75rem', border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem', background:'white' }}
             >
               <option value="all">All Priorities</option>
               <option value="low">⬇️ Low</option>
@@ -1673,134 +1672,114 @@ function TasksTab() {
         </details>
       </div>
 
-      {/* Task List - Grouped by Status */}
+      {/* Table (Observation-style) */}
       {filteredTasks.length > 0 ? (
-        (() => {
-          const any =
-            groupedTasks.pending.length ||
-            groupedTasks.in_progress.length ||
-            groupedTasks.scheduled.length ||
-            groupedTasks.completed.length ||
-            groupedTasks.cancelled.length ||
-            groupedTasks.other.length;
-          if (!any) {
-            return (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280', fontStyle: 'italic' }}>
-                No tasks match the selected filters.
-              </div>
-            );
-          }
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {groupedTasks.pending.length > 0 && (
-                <TaskGroup title="Pending" icon="⏳" count={groupedTasks.pending.length} tasks={groupedTasks.pending}
-                  onView={(task) => navigate(`/tasks/${task.id}`)}
-                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-                  onDelete={handleDeleteTask}
-                />
-              )}
-              {groupedTasks.in_progress.length > 0 && (
-                <TaskGroup title="In Progress" icon="🔄" count={groupedTasks.in_progress.length} tasks={groupedTasks.in_progress}
-                  onView={(task) => navigate(`/tasks/${task.id}`)}
-                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-                  onDelete={handleDeleteTask}
-                />
-              )}
-              {groupedTasks.scheduled.length > 0 && (
-                <TaskGroup title="Scheduled" icon="📅" count={groupedTasks.scheduled.length} tasks={groupedTasks.scheduled}
-                  onView={(task) => navigate(`/tasks/${task.id}`)}
-                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-                  onDelete={handleDeleteTask}
-                />
-              )}
-              {groupedTasks.completed.length > 0 && (
-                <TaskGroup title="Completed" icon="✅" count={groupedTasks.completed.length} tasks={groupedTasks.completed}
-                  onView={(task) => navigate(`/tasks/${task.id}`)}
-                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-                  onDelete={handleDeleteTask}
-                />
-              )}
-              {groupedTasks.cancelled.length > 0 && (
-                <TaskGroup title="Cancelled" icon="❌" count={groupedTasks.cancelled.length} tasks={groupedTasks.cancelled}
-                  onView={(task) => navigate(`/tasks/${task.id}`)}
-                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-                  onDelete={handleDeleteTask}
-                />
-              )}
-              {groupedTasks.other.length > 0 && (
-                <TaskGroup title="Other" icon="📌" count={groupedTasks.other.length} tasks={groupedTasks.other}
-                  onView={(task) => navigate(`/tasks/${task.id}`)}
-                  onEdit={(task) => navigate(`/tasks/${task.id}/edit`)}
-                  onDelete={handleDeleteTask}
-                />
-              )}
-            </div>
-          );
-        })()
-        ) : (
-        <div style={{ 
-          textAlign: 'center',
-          padding: '2rem',
-          color: '#6b7280',
-          fontStyle: 'italic'
-        }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
-          <div>
-            {searchQuery 
-              ? 'No tasks match your search'
-              : 'No tasks found'}
-          </div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.875rem' }}>
+            <thead>
+              <tr style={{ background:'#f8fafc' }}>
+                <th style={th}>Task</th>
+                <th style={th}>Category</th>
+                <th style={th}>Location</th>
+                <th style={thCenter}>Start</th>
+                <th style={thCenter}>End</th>
+                <th style={thCenter}>Priority</th>
+                <th style={th}>Assignees</th>
+                <th style={thRight}>Status</th>
+                <th style={thRight}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTasks.map(t => (
+                <tr
+                  key={t.id}
+                  style={{ borderBottom:'1px solid #f3f4f6' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <td style={{ ...td, fontWeight:500 }}>
+                    {t.title || `Task #${t.id}`}
+                    {t.description && (
+                      <div style={{ fontSize:'0.75rem', color:'#6b7280', marginTop:2, maxWidth:520, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {t.description}
+                      </div>
+                    )}
+                  </td>
+                  <td style={td}>{(t.task_category || '').replace(/_/g,' ') || '—'}</td>
+                  <td style={td}>{fmtLocation(t)}</td>
+                  <td style={{ ...td, textAlign:'center' }}>{fmtDate(t.scheduled_start_date || t.scheduled_date)}</td>
+                  <td style={{ ...td, textAlign:'center' }}>{fmtDate(t.scheduled_end_date)}</td>
+                  <td style={{ ...td, textAlign:'center' }}>{fmtPriority(t.priority)}</td>
+                  <td style={td}>{fmtAssignees(t)}</td>
+                  <td style={{ ...td, justifyContent:'flex-end' }}>{badge(t.status)}</td>
+                  <td style={{ ...td, justifyContent:'flex-end' }}>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button
+                        onClick={() => navigate(`/tasks/${t.id}`)}
+                        style={btnPrimary}
+                        title="View"
+                      >
+                        <Eye size={12}/> View
+                      </button>
+                      <button
+                        onClick={() => navigate(`/tasks/${t.id}/edit`)}
+                        style={btnGhost}
+                        title="Edit"
+                      >
+                        <Edit size={12}/>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTask(t.id)}
+                        style={btnDanger}
+                        title="Delete"
+                      >
+                        <Trash2 size={12}/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ textAlign:'center', padding:'2rem', color:'#6b7280', fontStyle:'italic' }}>
+          <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>📋</div>
+          <div>{searchQuery ? 'No tasks match your search' : 'No tasks found'}</div>
         </div>
       )}
     </div>
   );
+
+  // table cell styles (reuse like Plans/Runs)
+  function thBase(align='left') {
+    return { padding:12, textAlign:align, fontWeight:600, color:'#374151' };
+  }
+  const th = thBase('left');
+  const thCenter = thBase('center');
+  const thRight = thBase('right');
+  const td = { padding:12, fontSize:'0.875rem', color:'#374151' };
+
+  const btnPrimary = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'0.25rem 0.5rem', borderRadius:4,
+    background:'#3b82f6', color:'#fff', border:'none',
+    cursor:'pointer', fontSize:'0.75rem', fontWeight:500
+  };
+  const btnGhost = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'0.25rem 0.5rem', borderRadius:4,
+    background:'#f3f4f6', color:'#374151', border:'none',
+    cursor:'pointer', fontSize:'0.75rem', fontWeight:500
+  };
+  const btnDanger = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'0.25rem 0.5rem', borderRadius:4,
+    background:'#fee2e2', color:'#dc2626', border:'none',
+    cursor:'pointer', fontSize:'0.75rem', fontWeight:500
+  };
 }
 
-// Task Group Component
-function TaskGroup({ title, count, icon, tasks, onView, onEdit, onDelete }) {
-  return (
-    <div>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        marginBottom: '0.75rem',
-        fontSize: '0.938rem',
-        fontWeight: '600',
-        color: '#374151'
-      }}>
-        <span>{icon}</span>
-        <span>{title}</span>
-        <span style={{ 
-          fontSize: '0.75rem', 
-          color: '#6b7280',
-          fontWeight: '500',
-          background: '#f3f4f6',
-          padding: '0.125rem 0.5rem',
-          borderRadius: '12px'
-        }}>
-          {count}
-        </span>
-      </div>
-
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
-        gap: 12 
-      }}>
-        {tasks.map(task => (
-          <TaskCard 
-            key={task.id} 
-            task={task}
-            onView={onView}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // Task Card Component
 function TaskCard({ task, onView, onEdit, onDelete }) {

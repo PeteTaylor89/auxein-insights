@@ -13,11 +13,18 @@ import logging
 from datetime import datetime
 from services.blockchain_service import BlockchainService
 from pyproj import Geod
+from sqlalchemy import func, cast
+from sqlalchemy.types import UserDefinedType
 GEOD = Geod(ellps="WGS84")
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+class Geography(UserDefinedType):
+    """Custom type for PostGIS Geography casting"""
+    def get_col_spec(self):
+        return "GEOGRAPHY"
 
 def area_ha(geom) -> float:
     """Return area in hectares for a shapely Polygon/MultiPolygon (WGS84 lon/lat)."""
@@ -708,3 +715,474 @@ def update_block_geometry(
         db.rollback()
         logger.error(f"Error updating geometry for block {block_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update block geometry")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@router.get("/report/summary")
+def get_vineyard_summary_report(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    variety: Optional[str] = None,
+    gi: Optional[str] = None,
+    region: Optional[str] = None,
+    organic_only: Optional[bool] = None,
+    company_id: Optional[int] = None
+):
+    """
+    Generate summary statistics for vineyard blocks with optional filters,
+    created as Demo for NVR reporting and analytics.
+    
+    Query parameters:
+    - variety: Filter by grape variety (e.g., "Pinot Noir")
+    - gi: Filter by Geographic Indication
+    - region: Filter by region (e.g., "Auckland")
+    - organic_only: Filter for organic vineyards only
+    - company_id: Filter by company (admin only)
+    """
+    # Build query with filters
+    query = db.query(VineyardBlock)
+    
+    if variety:
+        query = query.filter(VineyardBlock.variety.ilike(f"%{variety}%"))
+    if gi:
+        query = query.filter(VineyardBlock.gi.ilike(f"%{gi}%"))
+    if region:
+        query = query.filter(VineyardBlock.region.ilike(f"%{region}%"))
+    if organic_only:
+        query = query.filter(VineyardBlock.organic == True)
+    if company_id:
+        # Only allow company_id filter for admins
+        if current_user.email != "pete.taylor@auxein.co.nz":
+            raise HTTPException(status_code=403, detail="Company filtering restricted to admins")
+        query = query.filter(VineyardBlock.company_id == company_id)
+    
+    blocks = query.all()
+    
+    if not blocks:
+        return {
+            "filters": {
+                "variety": variety,
+                "gi": gi,
+                "region": region,
+                "organic_only": organic_only
+            },
+            "summary": {
+                "total_blocks": 0,
+                "total_area_ha": 0,
+                "message": "No blocks found matching filters"
+            }
+        }
+    
+    # Calculate summary statistics
+    total_area = sum(block.area or 0 for block in blocks)
+    organic_blocks = [b for b in blocks if b.organic]
+    
+    # Group by variety
+    variety_breakdown = {}
+    for block in blocks:
+        var = block.variety or "Unknown"
+        if var not in variety_breakdown:
+            variety_breakdown[var] = {"count": 0, "area_ha": 0}
+        variety_breakdown[var]["count"] += 1
+        variety_breakdown[var]["area_ha"] += block.area or 0
+    
+    # Group by GI
+    gi_breakdown = {}
+    for block in blocks:
+        gi_name = block.gi or "Unknown"
+        if gi_name not in gi_breakdown:
+            gi_breakdown[gi_name] = {"count": 0, "area_ha": 0}
+        gi_breakdown[gi_name]["count"] += 1
+        gi_breakdown[gi_name]["area_ha"] += block.area or 0
+    
+    # Group by region
+    region_breakdown = {}
+    for block in blocks:
+        reg = block.region or "Unknown"
+        if reg not in region_breakdown:
+            region_breakdown[reg] = {"count": 0, "area_ha": 0}
+        region_breakdown[reg]["count"] += 1
+        region_breakdown[reg]["area_ha"] += block.area or 0
+    
+    # Calculate planted date statistics
+    planted_dates = [b.planted_date for b in blocks if b.planted_date]
+    avg_year = None
+    if planted_dates:
+        avg_year = sum(d.year for d in planted_dates) / len(planted_dates)
+    
+    # Calculate spacing statistics
+    row_spacings = [b.row_spacing for b in blocks if b.row_spacing]
+    vine_spacings = [b.vine_spacing for b in blocks if b.vine_spacing]
+    
+    return {
+        "filters": {
+            "variety": variety,
+            "gi": gi,
+            "region": region,
+            "organic_only": organic_only,
+            "company_id": company_id
+        },
+        "summary": {
+            "total_blocks": len(blocks),
+            "total_area_ha": round(total_area, 2),
+            "organic_blocks": len(organic_blocks),
+            "organic_area_ha": round(sum(b.area or 0 for b in organic_blocks), 2),
+            "average_block_size_ha": round(total_area / len(blocks), 2) if blocks else 0,
+            "average_planting_year": round(avg_year, 1) if avg_year else None,
+            "average_row_spacing_m": round(sum(row_spacings) / len(row_spacings), 2) if row_spacings else None,
+            "average_vine_spacing_m": round(sum(vine_spacings) / len(vine_spacings), 2) if vine_spacings else None
+        },
+        "breakdown_by_variety": {
+            k: {
+                "count": v["count"],
+                "area_ha": round(v["area_ha"], 2),
+                "percentage_of_total": round((v["area_ha"] / total_area * 100), 1) if total_area > 0 else 0
+            }
+            for k, v in sorted(variety_breakdown.items(), key=lambda x: x[1]["area_ha"], reverse=True)
+        },
+        "breakdown_by_gi": {
+            k: {
+                "count": v["count"],
+                "area_ha": round(v["area_ha"], 2),
+                "percentage_of_total": round((v["area_ha"] / total_area * 100), 1) if total_area > 0 else 0
+            }
+            for k, v in sorted(gi_breakdown.items(), key=lambda x: x[1]["area_ha"], reverse=True)
+        },
+        "breakdown_by_region": {
+            k: {
+                "count": v["count"],
+                "area_ha": round(v["area_ha"], 2),
+                "percentage_of_total": round((v["area_ha"] / total_area * 100), 1) if total_area > 0 else 0
+            }
+            for k, v in sorted(region_breakdown.items(), key=lambda x: x[1]["area_ha"], reverse=True)
+        }
+    }
+
+
+@router.get("/report/nearby/{block_id}")
+def get_nearby_blocks(
+    block_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    radius_km: float = 5.0,
+    limit: int = 20,
+    variety: Optional[str] = None,
+    same_variety_only: bool = False
+):
+    """
+    Find blocks within a specified radius of a given block using spatial queries.
+    Perfect for regional analysis, disease tracking, and neighbor identification.
+    
+    Query params:
+    - radius_km: Search radius in kilometers (default: 5km)
+    - limit: Maximum number of results (default: 20)
+    - variety: Filter results by variety
+    - same_variety_only: Only show blocks with same variety as source block
+    """
+    # Get the source block
+    source_block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    if not source_block:
+        raise HTTPException(status_code=404, detail="Source block not found")
+    
+    if not source_block.geometry:
+        raise HTTPException(status_code=400, detail="Source block has no geometry")
+    
+    # Convert radius to meters for PostGIS
+    radius_m = radius_km * 1000
+    
+    # Build spatial query using ST_DWithin (works with geography for accurate distance)
+    # ST_DWithin uses the spatial index for efficiency
+    query = db.query(
+        VineyardBlock,
+        func.ST_Distance(
+            cast(func.ST_Transform(VineyardBlock.geometry, 4326), Geography),
+            cast(func.ST_Transform(source_block.geometry, 4326), Geography)
+        ).label('distance_m')
+    ).filter(
+        VineyardBlock.id != block_id  # Exclude the source block itself
+    ).filter(
+        func.ST_DWithin(
+            cast(func.ST_Transform(VineyardBlock.geometry, 4326), Geography),
+            cast(func.ST_Transform(source_block.geometry, 4326), Geography),
+            radius_m
+        )
+    )
+    
+    # Apply variety filters
+    if same_variety_only and source_block.variety:
+        query = query.filter(VineyardBlock.variety == source_block.variety)
+    elif variety:
+        query = query.filter(VineyardBlock.variety.ilike(f"%{variety}%"))
+    
+    # Order by distance and limit results
+    results = query.order_by('distance_m').limit(limit).all()
+    
+    # Format results
+    nearby_blocks = []
+    for block, distance_m in results:
+        nearby_blocks.append({
+            "id": block.id,
+            "block_name": block.block_name,
+            "variety": block.variety,
+            "area_ha": round(block.area, 2) if block.area else None,
+            "region": block.region,
+            "gi": block.gi,
+            "organic": block.organic,
+            "winery": block.winery,
+            "distance_km": round(distance_m / 1000, 2),
+            "distance_m": round(distance_m, 1),
+            "centroid": {
+                "longitude": block.centroid_longitude,
+                "latitude": block.centroid_latitude
+            },
+            "same_variety": block.variety == source_block.variety if source_block.variety else False,
+            "company_id": block.company_id
+        })
+    
+    return {
+        "source_block": {
+            "id": source_block.id,
+            "block_name": source_block.block_name,
+            "variety": source_block.variety,
+            "region": source_block.region,
+            "gi": source_block.gi,
+            "centroid": {
+                "longitude": source_block.centroid_longitude,
+                "latitude": source_block.centroid_latitude
+            }
+        },
+        "search_parameters": {
+            "radius_km": radius_km,
+            "variety_filter": variety,
+            "same_variety_only": same_variety_only,
+            "limit": limit
+        },
+        "results": {
+            "count": len(nearby_blocks),
+            "blocks": nearby_blocks
+        }
+    }
+
+
+@router.get("/report/variety-distribution")
+def get_variety_distribution_map(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    variety: str = "Pinot Noir"
+):
+    """
+    Get geographic distribution of a specific variety as GeoJSON.
+    Useful for mapping variety concentrations and regional patterns.
+    """
+    blocks = db.query(VineyardBlock).filter(
+        VineyardBlock.variety.ilike(f"%{variety}%"),
+        VineyardBlock.geometry.isnot(None)
+    ).all()
+    
+    features = []
+    for block in blocks:
+        try:
+            shape_obj = to_shape(block.geometry)
+            feature = {
+                "type": "Feature",
+                "geometry": mapping(shape_obj),
+                "properties": {
+                    "id": block.id,
+                    "block_name": block.block_name,
+                    "variety": block.variety,
+                    "area_ha": round(block.area, 2) if block.area else None,
+                    "region": block.region,
+                    "gi": block.gi,
+                    "organic": block.organic,
+                    "planted_date": str(block.planted_date) if block.planted_date else None,
+                    "winery": block.winery
+                }
+            }
+            features.append(feature)
+        except Exception as e:
+            logger.error(f"Error processing block {block.id} geometry: {e}")
+            continue
+    
+    # Calculate summary statistics
+    total_area = sum(block.area or 0 for block in blocks)
+    organic_area = sum(block.area or 0 for block in blocks if block.organic)
+    
+    # Region breakdown
+    region_stats = {}
+    for block in blocks:
+        reg = block.region or "Unknown"
+        if reg not in region_stats:
+            region_stats[reg] = {"count": 0, "area_ha": 0}
+        region_stats[reg]["count"] += 1
+        region_stats[reg]["area_ha"] += block.area or 0
+    
+    return {
+        "variety": variety,
+        "summary": {
+            "total_blocks": len(blocks),
+            "total_area_ha": round(total_area, 2),
+            "organic_area_ha": round(organic_area, 2),
+            "regions": {
+                k: {
+                    "count": v["count"],
+                    "area_ha": round(v["area_ha"], 2)
+                }
+                for k, v in sorted(region_stats.items(), key=lambda x: x[1]["area_ha"], reverse=True)
+            }
+        },
+        "geojson": {
+            "type": "FeatureCollection",
+            "features": features
+        }
+    }
+
+
+@router.get("/report/cluster-analysis")
+def analyze_vineyard_clusters(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    variety: Optional[str] = None,
+    cluster_distance_km: float = 2.0
+):
+    """
+    Identify geographic clusters of vineyards. Useful for understanding
+    regional concentration, planning cooperative initiatives, or disease risk zones.
+    
+    Query params:
+    - variety: Analyze clusters for specific variety
+    - cluster_distance_km: Maximum distance between blocks in same cluster (default: 2km)
+    """
+    # Get blocks with geometry
+    query = db.query(VineyardBlock).filter(VineyardBlock.geometry.isnot(None))
+    
+    if variety:
+        query = query.filter(VineyardBlock.variety.ilike(f"%{variety}%"))
+    
+    blocks = query.all()
+    
+    if not blocks:
+        return {
+            "message": "No blocks found matching criteria",
+            "clusters": []
+        }
+    
+    # Simple clustering based on distance
+    # For production, consider using ST_ClusterDBSCAN or ST_ClusterKMeans
+    clusters = []
+    assigned = set()
+    
+    for i, block in enumerate(blocks):
+        if i in assigned:
+            continue
+            
+        # Start new cluster
+        cluster = {
+            "blocks": [block],
+            "block_ids": [block.id]
+        }
+        assigned.add(i)
+        
+        # Find nearby blocks
+        for j, other_block in enumerate(blocks):
+            if j in assigned or i == j:
+                continue
+            
+            # Calculate distance between centroids (simple approach)
+            if block.centroid_longitude and block.centroid_latitude and \
+               other_block.centroid_longitude and other_block.centroid_latitude:
+                
+                # Use pyproj GEOD for accurate distance
+                _, _, distance_m = GEOD.inv(
+                    block.centroid_longitude, block.centroid_latitude,
+                    other_block.centroid_longitude, other_block.centroid_latitude
+                )
+                
+                if distance_m / 1000 <= cluster_distance_km:
+                    cluster["blocks"].append(other_block)
+                    cluster["block_ids"].append(other_block.id)
+                    assigned.add(j)
+        
+        clusters.append(cluster)
+    
+    # Format cluster results
+    formatted_clusters = []
+    for idx, cluster in enumerate(clusters):
+        cluster_blocks = cluster["blocks"]
+        total_area = sum(b.area or 0 for b in cluster_blocks)
+        
+        # Calculate cluster centroid (average of block centroids)
+        lons = [b.centroid_longitude for b in cluster_blocks if b.centroid_longitude]
+        lats = [b.centroid_latitude for b in cluster_blocks if b.centroid_latitude]
+        cluster_lon = sum(lons) / len(lons) if lons else None
+        cluster_lat = sum(lats) / len(lats) if lats else None
+        
+        # Variety breakdown
+        varieties = {}
+        for b in cluster_blocks:
+            var = b.variety or "Unknown"
+            varieties[var] = varieties.get(var, 0) + (b.area or 0)
+        
+        formatted_clusters.append({
+            "cluster_id": idx + 1,
+            "block_count": len(cluster_blocks),
+            "total_area_ha": round(total_area, 2),
+            "centroid": {
+                "longitude": cluster_lon,
+                "latitude": cluster_lat
+            },
+            "varieties": {k: round(v, 2) for k, v in varieties.items()},
+            "primary_variety": max(varieties.items(), key=lambda x: x[1])[0] if varieties else None,
+            "block_ids": cluster["block_ids"],
+            "regions": list(set(b.region for b in cluster_blocks if b.region))
+        })
+    
+    # Sort by cluster size (area)
+    formatted_clusters.sort(key=lambda x: x["total_area_ha"], reverse=True)
+    
+    return {
+        "variety_filter": variety,
+        "cluster_distance_km": cluster_distance_km,
+        "summary": {
+            "total_clusters": len(formatted_clusters),
+            "total_blocks_analyzed": len(blocks),
+            "clustered_area_ha": round(sum(c["total_area_ha"] for c in formatted_clusters), 2)
+        },
+        "clusters": formatted_clusters
+    }
