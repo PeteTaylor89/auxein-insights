@@ -348,19 +348,29 @@ function Maps() {
     // Swap the base style
     map.current.setStyle(actualStyleId);
 
-    // When the new style is ready, reapply terrain (if needed) and re-add layers once
     map.current.once('style.load', () => {
-      if (wants3D) add3DTerrain(); else remove3DTerrain();
 
-      // Reattach your data layers using the latest state
+      if (wants3D) {
+        add3DTerrain();
+
+        // Wait for terrain to be fully ready
+        map.current.once('idle', () => {
+          reattachAllLayers();
+        });
+
+      } else {
+        remove3DTerrain();
+        reattachAllLayers();
+      }
+    });
+
+    const reattachAllLayers = () => {
       if (blocksData) addBlocksToMap(blocksData, user?.company_id);
       if (spatialAreasData) addSpatialAreasToMap(spatialAreasData, user?.company_id);
       if (parcelsData) addParcelsToMap(parcelsData);
       if (risksGeoJSON) addRisksToMap(risksGeoJSON);
+    };
 
-      // Smoothly pitch the camera for 3D/2D
-      map.current.easeTo({ pitch: wants3D ? 45 : 0, bearing: 0, duration: 800 });
-    });
   };
 
   const handleRiskClick = (e) => {
@@ -411,28 +421,47 @@ function Maps() {
   };
 
   const add3DTerrain = () => {
-    if (!map.current?.getSource('mapbox-dem')) {
-      map.current.addSource('mapbox-dem', {
+    if (!map.current) return;
+    const m = map.current;
+
+    // Ensure DEM source exists
+    if (!m.getSource('mapbox-dem')) {
+      m.addSource('mapbox-dem', {
         type: 'raster-dem',
         url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
         tileSize: 512,
-        maxzoom: 14
+        maxzoom: 14,
       });
     }
 
-    // set the terrain and sky AFTER the dem is added
-    map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
+    const applyTerrain = () => {
+      m.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
 
-    if (!map.current.getLayer('sky')) {
-      map.current.addLayer({
-        id: 'sky',
-        type: 'sky',
-        paint: {
-          'sky-type': 'atmosphere',
-          'sky-atmosphere-sun': [0.0, 0.0],
-          'sky-atmosphere-sun-intensity': 15
+      if (!m.getLayer('sky')) {
+        m.addLayer({
+          id: 'sky',
+          type: 'sky',
+          paint: {
+            'sky-type': 'atmosphere',
+            'sky-atmosphere-sun': [0.0, 0.0],
+            'sky-atmosphere-sun-intensity': 15,
+          },
+        });
+      }
+    };
+
+    // If the source is already loaded, apply immediately
+    if (m.isSourceLoaded && m.isSourceLoaded('mapbox-dem')) {
+      applyTerrain();
+    } else {
+      // Otherwise wait for it exactly once
+      const onData = (e) => {
+        if (e.sourceId === 'mapbox-dem' && e.isSourceLoaded) {
+          m.off('sourcedata', onData);
+          applyTerrain();
         }
-      });
+      };
+      m.on('sourcedata', onData);
     }
   };
 
@@ -804,8 +833,8 @@ function Maps() {
       displayControlsDefault: false,
       controls: {
         polygon: true,
-        line_string: true,   // (you had false in the comment; set true if you want lines)
-        trash: true
+        line_string: true,
+        trash: false
       },
       styles: [
 
@@ -886,6 +915,19 @@ function Maps() {
     map.current.on('draw.create', handleDrawCreate);
     map.current.on('draw.update', handleDrawUpdate);
     map.current.on('draw.delete', handleDrawDelete);
+
+    setTimeout(() => {
+      const controls = document.querySelectorAll('.mapbox-gl-draw_ctrl-draw-btn');
+
+      controls.forEach(btn => {
+        if (btn.classList.contains('mapbox-gl-draw_polygon')) {
+          btn.title = "Draw a new Vineyard, or spatial area";
+        }
+        if (btn.classList.contains('mapbox-gl-draw_line')) {
+          btn.title = "Split a Vineyard Block";
+        }
+      });
+    }, 100);
 
     map.current.once('style.load', () => {
       if (is3DMode) add3DTerrain();
@@ -2792,7 +2834,7 @@ useEffect(() => {
                   title={style.is3D ? `${style.name} (3D Terrain)` : style.name}
                 >
                   {style.name}
-                  {style.is3D && <span className="indicator-3d">🏔️</span>}
+                  {style.is3D && <span className="indicator-3d"></span>}
                 </button>
               ))}
             </div>

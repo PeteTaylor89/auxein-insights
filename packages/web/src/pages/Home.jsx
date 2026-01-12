@@ -4,24 +4,22 @@ import MobileNavigation from '../components/MobileNavigation';
 import { useAuth } from '@vineyard/shared';
 import { companiesService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget'; 
-import { Link } from 'react-router'
-import { User, Lightbulb, Users, LibraryBig} from "lucide-react"
-
+import { Link } from 'react-router';
+import { User, Users } from "lucide-react";
+import Logo from '../assets/App_Logo_September 2025.jpg'; 
 
 function Home() {
-  const {user } = useAuth();
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [weatherLocation, setWeatherLocation] = useState(null);
   
-  // Fetch company data and stats
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        // Get company data if not already in user object
         let companyData = user?.company;
         if (!companyData && user?.company_id) {
           const response = await companiesService.getCompanyById(user.company_id);
@@ -36,16 +34,13 @@ function Home() {
         }
         setCompany(companyData);
         
-        // Get stats
         const statsData = await companiesService.getCurrentCompanyStats();
         setStats(statsData);
 
-        // ADD THIS: Fetch vineyard blocks for weather location
         try {
           const blocksResponse = await api.get('/blocks/company');
           const blocks = blocksResponse.data.blocks || [];
           
-          // If user has blocks, use the first one for weather location
           let location = null;
           if (blocks.length > 0 && blocks[0].centroid_latitude && blocks[0].centroid_longitude) {
             location = {
@@ -71,18 +66,23 @@ function Home() {
     }
   }, [user]);
   
-  // Set body background color
-  useEffect(() => {
-    document.body.classList.add("primary-bg");
-    
-    return () => {
-      document.body.classList.remove("primary-bg");
-    };
-  }, []);
+
   
   return (
     <div className="home-page">
-            
+      {/* Top bar with logo + title */}
+      <header className="home-header">
+        <div className="home-brand">
+          <img src={Logo} alt="Auxein Logo" className="home-logo" />
+          <div className="home-title-block">
+            <h1 className="home-title">Auxein Insights</h1>
+            <p className="home-subtitle">
+              Welcome back{user?.first_name ? `, ${user.first_name}` : ''}.
+            </p>
+          </div>
+        </div>
+      </header>
+      
       <div className="home-content">
         {/* Quick Stats Row */}
         <div className="stats-container">
@@ -94,11 +94,11 @@ function Home() {
               <div className="stat-value">{stats?.block_count || '0'}</div>
               <div className="stat-label">Vineyard Blocks</div>
             </Link>
-            <Link to="/planobservation" className="stat-card">
+            <Link to="/observations" className="stat-card">
               <div className="stat-value">{stats?.observation_count || '0'}</div>
               <div className="stat-label">Observations</div>
             </Link>
-            <Link to="/listplan" className="stat-card">
+            <Link to="/observations" className="stat-card">
               <div className="stat-value">{stats?.task_count || '0'}</div>
               <div className="stat-label">Tasks</div>
             </Link>
@@ -109,28 +109,31 @@ function Home() {
           </div>
         </div>
 
-        <div className="stats-container">
-          <div className="container-title">
-            <span>Quick Actions</span>
+        <div className="two-column-section">
+          
+          <div className="stats-container column-item">
+            <div className="container-title">
+              <span>Quick Actions</span>
+            </div>
+            <div className="stats-grid">
+              <Link to="/admin/visitors" className="stat-card">
+                <div className="icon-wrapper"><Users /></div>
+                <div className="actions-title">Visitor Log</div>
+              </Link>
+              <Link to="/visitors" className="stat-card">
+                <div className="icon-wrapper"><User /></div>
+                <div className="actions-title">Register Visitor</div>
+              </Link>
+            </div>
           </div>
-          <div className="stats-grid">
-            <Link to="/admin/visitors" className="stat-card">
-              <div className="icon-wrapper"><Users /></div>
-              <div className="actions-title">Visitor Log</div>
-            </Link>
-            <Link to="/visitors" className="stat-card">
-              <div className="icon-wrapper"><User /></div>
-              <div className="actions-title">Register Visitor</div>
-            </Link>
 
+          <div className="content-container weather-container column-item">
+            <WeatherWidget location={weatherLocation} />
           </div>
-        </div>
-        
-        <div className="content-container weather-container">
-          <WeatherWidget location={weatherLocation} />
+
         </div>       
-
       </div>
+
       <MobileNavigation />
     </div>
   );

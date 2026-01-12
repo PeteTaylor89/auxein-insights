@@ -130,6 +130,7 @@ class CompanyWithStats(CompanyWithSubscription):
 
 class CompanyStats(BaseModel):
     """Standalone statistics schema - now gets limits from subscription"""
+    block_count: int
     observation_count: int
     task_count: int
     user_count: int

@@ -41,4 +41,6 @@ from db.models.task_assignment import TaskAssignment
 from db.models.task_row import TaskRow
 from db.models.task_gps_track import TaskGPSTrack
 
+from db.models.weather import WeatherStation, WeatherData, IngestionLog
+
 from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived

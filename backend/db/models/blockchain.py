@@ -138,7 +138,7 @@ class FruitReceived(Base):
     # Source information
     chain_id = Column(Integer, ForeignKey("blockchain_chains.id"), nullable=False)
     vineyard_block_id = Column(Integer, ForeignKey("vineyard_blocks.id"), nullable=False)
-    harvest_event_id = Column(Integer, ForeignKey("harvest_events.id"), nullable=True)
+    harvest_event_id = Column(Integer, nullable=True)
     
     # Blockchain reference
     blockchain_node_id = Column(Integer, ForeignKey("blockchain_nodes.id"), nullable=False)

@@ -1,6 +1,6 @@
 // frontend/src/components/widgets/WeatherWidget.jsx
 import { useState, useEffect } from 'react';
-import {weatherCacheService} from '@vineyard/shared';
+import { weatherCacheService } from '@vineyard/shared';
 
 const WeatherWidget = ({ location = null, className = '' }) => {
   const [weather, setWeather] = useState(null);
@@ -25,13 +25,11 @@ const WeatherWidget = ({ location = null, className = '' }) => {
       
       const loc = location || defaultLocation;
       
-      // Fetch both current weather and forecast using cache service
       const [weatherData, forecastData] = await Promise.all([
         weatherCacheService.getCachedCurrentWeather(loc.lat, loc.lon, forceRefresh),
         weatherCacheService.getCachedWeatherForecast(loc.lat, loc.lon, forceRefresh)
       ]);
 
-      // Get cache status for display
       const cacheStatus = weatherCacheService.getCacheStatus();
       setCacheInfo(cacheStatus);
       
@@ -47,17 +45,11 @@ const WeatherWidget = ({ location = null, className = '' }) => {
   };
 
   useEffect(() => {
-    // Only fetch weather if we have a location or are using the default
     if (location || !location) {
-      // Initial load - use cache if available
       fetchWeather(false);
     }
-    
-    // Don't set up auto-refresh interval anymore since we're using cache
-    // Users can manually refresh if needed
-  }, [location]); // Re-fetch when location changes
+  }, [location]);
 
-  // Enhanced formatting functions that handle the new data structure
   const formatTemperature = (temp) => {
     if (temp?.value === null || temp?.value === undefined || isNaN(temp?.value)) {
       return 'N/A';
@@ -90,7 +82,6 @@ const WeatherWidget = ({ location = null, className = '' }) => {
     if (speed?.value === null || speed?.value === undefined || isNaN(speed?.value)) {
       return 'N/A';
     }
-    // Use pre-calculated km/h value if available, otherwise convert
     const kmh = speed.kmh || (speed.value * 3.6);
     return `${Math.round(kmh * 10) / 10} km/h`;
   };
@@ -106,13 +97,11 @@ const WeatherWidget = ({ location = null, className = '' }) => {
   const getWeatherIcon = (condition, timestamp = null) => {
     if (!condition) return '🌤️';
     
-    // Determine if it's nighttime (between 6 PM and 6 AM)
     let isNight = false;
     if (timestamp) {
       const hour = new Date(timestamp).getHours();
       isNight = hour >= 18 || hour < 6;
     } else {
-      // For current weather, use current time
       const currentHour = new Date().getHours();
       isNight = currentHour >= 18 || currentHour < 6;
     }
@@ -137,7 +126,7 @@ const WeatherWidget = ({ location = null, className = '' }) => {
     return (
       <div className={`weather-widget loading ${className}`}>
         <div className="widget-header">
-          <h3>Weather</h3>
+          <div className="location-info">Weather</div>
         </div>
         <div className="widget-content">
           <div className="loading-spinner">
@@ -153,7 +142,7 @@ const WeatherWidget = ({ location = null, className = '' }) => {
     return (
       <div className={`weather-widget error ${className}`}>
         <div className="widget-header">
-          <h3>Weather</h3>
+          <div className="location-info">Weather</div>
         </div>
         <div className="widget-content">
           <div className="error-message">
@@ -172,7 +161,7 @@ const WeatherWidget = ({ location = null, className = '' }) => {
     return (
       <div className={`weather-widget error ${className}`}>
         <div className="widget-header">
-          <h3>Weather</h3>
+          <div className="location-info">Weather</div>
         </div>
         <div className="widget-content">
           <div className="error-message">
@@ -187,39 +176,32 @@ const WeatherWidget = ({ location = null, className = '' }) => {
     );
   }
 
-  // Get values with enhanced error checking
   const weatherData = weather.weather;
   const condition = weatherData.condition || 'Unknown';
   const windDir = weatherData.windDirection?.compass || 'N/A';
   const locationName = location?.name || defaultLocation.name;
-
-  // Show debug info if there are issues (only in development)
   const showDebug = process.env.NODE_ENV === 'development' && weather.debug?.hasNullValues;
 
   return (
     <div className={`weather-widget ${className}`}>
       <div className="widget-header">
-
         <div className="location-info">
-          {location ? location.name : (loading ? 'Loading location...' : locationName)}
+          {location ? location.name : locationName}
         </div>
         {weather.location && (
           <div className="coordinates">
             {weather.location.lat?.toFixed(3)}, {weather.location.lon?.toFixed(3)}
           </div>
-
         )}
       </div>
       
       <div className="widget-content">
-        {/* Debug information (development only) */}
         {showDebug && (
           <div className="debug-info">
             <span>⚠️ Some data missing: {weather.debug.nullFields.join(', ')}</span>
           </div>
         )}
 
-        {/* Toggle between current and forecast */}
         <div className="view-toggle">
           <button 
             className={`toggle-button ${!showForecast ? 'active' : ''}`}
@@ -237,7 +219,6 @@ const WeatherWidget = ({ location = null, className = '' }) => {
 
         {!showForecast ? (
           <>
-            {/* Main weather display */}
             <div className="weather-main">
               <div className="weather-condition">
                 <span className="weather-icon">{getWeatherIcon(condition)}</span>
@@ -248,7 +229,6 @@ const WeatherWidget = ({ location = null, className = '' }) => {
               </div>
             </div>
 
-            {/* Weather details grid */}
             <div className="weather-details">
               <div className="weather-item">
                 <span className="label">Humidity</span>
@@ -284,7 +264,6 @@ const WeatherWidget = ({ location = null, className = '' }) => {
             </div>
           </>
         ) : (
-          /* 24-hour forecast display */
           <div className="forecast-container">
             {forecast && forecast.forecast ? (
               <div className="forecast-grid">
@@ -319,11 +298,9 @@ const WeatherWidget = ({ location = null, className = '' }) => {
           </div>
         )}
 
-        {/* Last updated timestamp */}
         <div className="weather-footer">
           <div className="last-updated">
             <div>Last updated: {lastUpdated?.toLocaleTimeString()}</div>
-            
           </div>
           <button 
             onClick={() => fetchWeather(true)} 
@@ -338,56 +315,50 @@ const WeatherWidget = ({ location = null, className = '' }) => {
 
       <style jsx>{`
         .weather-widget {
-          background: white;
+          background: #FFFFFF;
           border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 2px 8px rgba(47, 47, 47, 0.1);
           overflow: hidden;
-          border: 1px solid #e5e7eb;
+          border: 1px solid rgba(91, 104, 48, 0.25); /* Olive */
           transition: box-shadow 0.3s ease;
+          font-family: Calibri, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          color: #2F2F2F; /* Charcoal */
         }
 
         .weather-widget:hover {
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 4px 12px rgba(47, 47, 47, 0.18);
         }
 
         .widget-header {
-          background:rgb(255, 255, 255);
-          color: white;
-          padding: 16px;
-          text-align: center;
-        }
-
-        .widget-header h3 {
-          margin: 0 0 4px 0;
-          font-size: 18px;
-          font-weight: 600;
+          background: #FDF6E3; /* Warm Sand */
+          padding: 12px 16px;
+          text-align: left;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.25);
         }
 
         .location-info {
-          font-size: 14px;
-          opacity: 0.9;
-          font-size: 18px;
-          color:rgb(0, 0, 0);
+          font-size: 16px;
+          font-weight: bold;
+          color: #2F2F2F; /* Charcoal */
           margin-bottom: 2px;
         }
 
         .coordinates {
           font-size: 12px;
-          opacity: 0.7;
-          font-size: 14px;
-          color:rgb(2, 1, 1);
-          font-family: 'Courier New', monospace;
+          color: #5B6830; /* Olive */
+          opacity: 0.9;
         }
 
         .widget-content {
-          padding: 10px;
+          padding: 12px 14px;
+          background: #FFFFFF;
         }
 
         .view-toggle {
           display: flex;
           gap: 8px;
           margin-bottom: 10px;
-          background: #f3f4f6;
+          background: #FDF6E3; /* Warm Sand */
           padding: 4px;
           border-radius: 8px;
         }
@@ -402,34 +373,34 @@ const WeatherWidget = ({ location = null, className = '' }) => {
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s;
-          color: #6b7280;
+          color: #5B6830; /* Olive */
         }
 
         .toggle-button.active {
-          background: white;
-          color: #1f2937;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          background: #D1583B; /* Terracotta */
+          color: #FFFFFF;
+          box-shadow: 0 1px 3px rgba(47, 47, 47, 0.25);
         }
 
         .toggle-button:hover:not(.active) {
-          color: #374151;
+          background: rgba(209, 88, 59, 0.12); /* light Terracotta tint */
         }
 
         .debug-info {
-          background: #fef3cd;
-          border: 1px solid #fbbf24;
+          background: #FDF6E3;
+          border: 1px solid #D1583B;
           border-radius: 6px;
           padding: 8px 12px;
-          margin-bottom: 16px;
+          margin-bottom: 12px;
           font-size: 12px;
-          color: #92400e;
+          color: #2F2F2F;
         }
 
         .weather-main {
           text-align: center;
-          margin-bottom: 20px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid #e5e7eb;
+          margin-bottom: 16px;
+          padding-bottom: 14px;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.18);
         }
 
         .weather-condition {
@@ -437,105 +408,106 @@ const WeatherWidget = ({ location = null, className = '' }) => {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
 
         .weather-icon {
-          font-size: 32px;
+          font-size: 26px;
         }
 
         .condition-text {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 500;
-          color: #374151;
+          color: #2F2F2F;
         }
 
         .temperature-display {
-          font-size: 36px;
+          font-size: 28px;
           font-weight: 700;
-          color: #1f2937;
+          color: #5B6830; /* Olive */
           margin-bottom: 4px;
         }
 
         .weather-details {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-bottom: 16px;
+          gap: 10px;
+          margin-bottom: 12px;
         }
 
         .weather-item {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 8px 0;
+          padding: 4px 0;
         }
 
         .weather-item .label {
-          font-size: 14px;
-          color: #6b7280;
+          font-size: 13px;
+          color: #5B6830;
           font-weight: 500;
         }
 
         .weather-item .value {
-          font-size: 14px;
-          color: #1f2937;
+          font-size: 13px;
+          color: #2F2F2F;
           font-weight: 600;
         }
 
-        /* Forecast styles */
         .forecast-container {
           max-height: 400px;
           overflow-y: auto;
-          padding-right: 8px;
+          padding-right: 6px;
         }
 
         .forecast-grid {
           display: grid;
-          gap: 12px;
+          gap: 10px;
         }
 
         .forecast-item {
           display: grid;
           grid-template-columns: 60px 40px 1fr auto;
           align-items: center;
-          gap: 12px;
-          padding: 12px;
-          background: #f9fafb;
+          gap: 10px;
+          padding: 10px;
+          background: #FDF6E3; /* Warm Sand */
           border-radius: 8px;
-          transition: background-color 0.2s;
+          border: 1px solid rgba(91, 104, 48, 0.18);
+          transition: background-color 0.2s, box-shadow 0.2s;
         }
 
         .forecast-item:hover {
-          background: #f3f4f6;
+          background: #F5EBD5;
+          box-shadow: 0 2px 4px rgba(47, 47, 47, 0.15);
         }
 
         .forecast-time {
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
-          color: #374151;
+          color: #2F2F2F;
         }
 
         .forecast-icon {
-          font-size: 24px;
+          font-size: 22px;
           text-align: center;
         }
 
         .forecast-temp {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
-          color: #1f2937;
+          color: #5B6830;
         }
 
         .forecast-details {
           display: flex;
-          gap: 16px;
+          gap: 12px;
           flex-wrap: wrap;
         }
 
         .forecast-detail {
-          font-size: 13px;
-          color: #6b7280;
+          font-size: 12px;
+          color: #2F2F2F;
           display: flex;
           align-items: center;
           gap: 4px;
@@ -543,42 +515,37 @@ const WeatherWidget = ({ location = null, className = '' }) => {
 
         .no-forecast {
           text-align: center;
-          padding: 40px 20px;
-          color: #6b7280;
+          padding: 32px 16px;
+          color: #2F2F2F;
         }
 
         .weather-footer {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-top: 12px;
-          border-top: 1px solid #e5e7eb;
+          padding-top: 10px;
+          border-top: 1px solid rgba(91, 104, 48, 0.18);
         }
 
         .last-updated {
-          font-size: 12px;
-          color: #6b7280;
-        }
-
-        .cache-info {
           font-size: 11px;
-          color: #9ca3af;
-          margin-top: 2px;
+          color: #2F2F2F;
+          opacity: 0.8;
         }
 
         .refresh-button {
           background: none;
-          border: none;
+          border: 1px solid rgba(91, 104, 48, 0.6);
           font-size: 16px;
           cursor: pointer;
-          padding: 4px;
-          border-radius: 4px;
+          padding: 4px 8px;
+          border-radius: 6px;
           transition: all 0.2s;
+          color: #5B6830;
         }
 
         .refresh-button:hover:not(:disabled) {
-          background-color: #f3f4f6;
-          transform: rotate(180deg);
+          background-color: #FDF6E3;
         }
 
         .refresh-button:disabled {
@@ -590,16 +557,16 @@ const WeatherWidget = ({ location = null, className = '' }) => {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 12px;
-          color: #6b7280;
-          padding: 20px;
+          gap: 10px;
+          color: #2F2F2F;
+          padding: 18px;
         }
 
         .spinner {
           width: 24px;
           height: 24px;
-          border: 2px solid #e5e7eb;
-          border-top: 2px solid #3b82f6;
+          border: 2px solid #FDF6E3;
+          border-top: 2px solid #D1583B; /* Terracotta */
           border-radius: 50%;
           animation: spin 1s linear infinite;
         }
@@ -615,16 +582,16 @@ const WeatherWidget = ({ location = null, className = '' }) => {
           align-items: center;
           gap: 8px;
           text-align: center;
-          color: #ef4444;
+          color: #D1583B;
           padding: 20px;
         }
 
         .error-icon {
-          font-size: 24px;
+          font-size: 22px;
         }
 
         .retry-button {
-          background: #ef4444;
+          background: #D1583B; /* Terracotta */
           color: white;
           border: none;
           padding: 8px 16px;
@@ -635,36 +602,34 @@ const WeatherWidget = ({ location = null, className = '' }) => {
         }
 
         .retry-button:hover {
-          background: #dc2626;
+          background: #b1462f;
         }
 
-        /* Scrollbar styles for forecast */
         .forecast-container::-webkit-scrollbar {
           width: 6px;
         }
 
         .forecast-container::-webkit-scrollbar-track {
-          background: #f3f4f6;
+          background: #FDF6E3;
           border-radius: 3px;
         }
 
         .forecast-container::-webkit-scrollbar-thumb {
-          background: #d1d5db;
+          background: #D1D5DB;
           border-radius: 3px;
         }
 
         .forecast-container::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
+          background: #9CA3AF;
         }
 
-        /* Mobile responsive */
         @media (max-width: 768px) {
           .weather-details {
             grid-template-columns: 1fr;
           }
           
           .temperature-display {
-            font-size: 28px;
+            font-size: 26px;
           }
           
           .weather-icon {
@@ -677,7 +642,7 @@ const WeatherWidget = ({ location = null, className = '' }) => {
 
           .forecast-details {
             grid-column: 1 / -1;
-            margin-top: 8px;
+            margin-top: 6px;
           }
         }
       `}</style>

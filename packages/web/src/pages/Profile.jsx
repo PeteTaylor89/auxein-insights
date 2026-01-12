@@ -251,11 +251,11 @@ function Profile() {
                   User Management
                 </button>
                 <button 
-                    className="change-password-button"
+                    className="tab-button subtle"
                     onClick={() => navigate('/timesheets')}
                   >
                     Open TimeSheets
-                  </button>
+                </button>
               </div>
 
               <div className="admin-content">
@@ -285,13 +285,13 @@ function Profile() {
                   ✉️ Invite Members
                 </button>
                 <button 
-                    className="tab-button"
+                    className="tab-button subtle"
                     onClick={() => navigate('/timesheets')}
                   >
                     Open TimeSheets
                 </button>
                 <button 
-                    className="tab-button"
+                    className="tab-button subtle"
                     onClick={() => navigate('/training')}
                   >
                     Manage Training
@@ -429,7 +429,7 @@ function Profile() {
                 <label>Timesheet</label>
                 <span>
                   <button 
-                    className="change-password-button"
+                    className="change-password-button subtle-secondary"
                     onClick={() => navigate('/timesheets')}
                   >
                     Open My TimeSheet
@@ -600,8 +600,6 @@ function Profile() {
             </div>
           )}
 
-
-
           {/* Actions */}
           <div className="profile-actions">
             <button 
@@ -621,469 +619,533 @@ function Profile() {
       </div>
       
       <MobileNavigation />
-            <style jsx>{`
+      <style jsx>{`
+        :global(body) {
+          font-family: Calibri, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          color: #2F2F2F;
+        }
+
         .profile-container {
           width: 100%;
-          max-width: 1200px; /* Increase this value to make it wider */
+          max-width: 1200px;
           margin: 0 auto;
           padding: 28px;
         }
-        
-        
-        .admin-panel {
-          background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-          border: 2px solid #3b82f6;
-          border-radius: 12px;
-          padding: 24px;
-          margin-bottom: 32px;
-          width: 100%;
+
+        .profile-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          border-bottom: 2px solid #FDF6E3; /* Warm Sand */
+          padding-bottom: 8px;
         }
-        
+
+        .profile-header h1 {
+          margin: 0;
+          font-size: 20pt;           /* Primary heading */
+          font-weight: bold;
+          color: #2F2F2F;            /* Charcoal */
+        }
+
+        .profile-content {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+
+        .loading-message {
+          font-size: 14pt;
+          color: #5B6830; /* Olive */
+        }
+
+        .error-message {
+          background: #FBE4DE;
+          border: 1px solid #D1583B;
+          color: #D1583B;
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+          font-size: 0.95rem;
+        }
+
+        /* Admin panels */
+
+        .admin-panel {
+          background: #FDF6E3; /* Warm Sand */
+          border: 1px solid #5B6830; /* Olive */
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 8px;
+        }
+
+        .admin-panel h2 {
+          margin: 0 0 16px 0;
+          font-size: 16pt; /* Secondary heading */
+          font-weight: bold;
+          color: #D1583B;  /* Terracotta */
+        }
+
         .admin-badge {
-          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-          color: white;
-          padding: 8px 16px;
+          background: #D1583B; /* Terracotta */
+          color: #FFFFFF;
+          padding: 6px 14px;
           border-radius: 20px;
           font-size: 0.9rem;
           font-weight: 600;
           display: inline-block;
-          margin-left: 16px;
         }
-        
+
         .admin-tabs {
           display: flex;
+          flex-wrap: wrap;
           gap: 8px;
-          margin-bottom: 24px;
-          border-bottom: 2px solid #e5e7eb;
+          margin-bottom: 16px;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.25);
           padding-bottom: 8px;
         }
-        
+
         .tab-button {
-          padding: 10px 16px;
-          border: none;
-          background:  #3b82f6;
+          padding: 8px 14px;
           border-radius: 8px;
-          colour: black;
+          border: 1px solid transparent;
+          background: #FDF6E3;      /* Warm Sand */
+          color: #5B6830;           /* Olive */
           cursor: pointer;
           font-weight: 500;
+          font-size: 0.9rem;
           transition: all 0.2s ease;
         }
-        
+
+        .tab-button.subtle {
+          background: #FFFFFF;
+          border-color: rgba(91,104,48,0.25);
+          color: #2F2F2F;
+        }
+
         .tab-button:hover {
-          background:rgb(100, 121, 163);
+          background: #F5EBD5;      /* slightly deeper Warm Sand */
         }
-        
+
         .tab-button.active {
-          background: #0764f8ff;
-          color: white;
+          background: #D1583B;      /* Terracotta */
+          color: #FFFFFF;
+          border-color: #D1583B;
         }
-        
+
         .admin-content {
-          background: white;
+          background: #FFFFFF;
           border-radius: 8px;
-          padding: 20px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          padding: 16px;
+          box-shadow: 0 2px 6px rgba(47, 47, 47, 0.12);
         }
-        
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+
+        /* Generic sections & cards */
+
+        .profile-section {
+          background: #FFFFFF;
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 2px 6px rgba(47, 47, 47, 0.08);
+          border: 1px solid rgba(91, 104, 48, 0.2);
+        }
+
+        .profile-section h2 {
+          margin: 0 0 16px 0;
+          font-size: 16pt;      /* Secondary heading */
+          font-weight: bold;
+          color: #D1583B;       /* Terracotta */
+        }
+
+        .profile-section h3 {
+          margin: 0 0 8px 0;
+          font-size: 14pt;      /* Tertiary heading */
+          font-weight: bold;
+          color: #5B6830;       /* Olive */
+        }
+
+        .profile-card {
+          border-radius: 10px;
+          padding: 16px 18px;
+          background: #FDF6E3; /* Warm Sand */
+        }
+
+        .profile-field {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           gap: 16px;
+          padding: 6px 0;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.12);
         }
-        
-        .stat-card {
-          background: white;
-          padding: 20px;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          text-align: center;
+
+        .profile-field:last-child {
+          border-bottom: none;
         }
-        
-        .stat-number {
-          font-size: 2rem;
-          font-weight: 700;
-          color: #1e293b;
-          margin-bottom: 4px;
+
+        .profile-field label {
+          font-size: 11pt;              /* Subheading style-ish */
+          font-weight: bold;
+          font-style: italic;
+          color: #2F2F2F;
         }
-        
-        .stat-label {
-          font-size: 0.9rem;
-          color: #64748b;
-          margin-bottom: 4px;
+
+        .profile-field span {
+          font-size: 0.95rem;
+          text-align: right;
         }
-        
-        .stat-limit {
+
+        .pricing-info {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 3px;
+        }
+
+        .pricing-breakdown {
           font-size: 0.8rem;
-          color: #94a3b8;
-          margin-bottom: 8px;
+          color: #5B6830;
         }
-        
-        .stat-progress {
-          height: 6px;
-          background: #e2e8f0;
-          border-radius: 3px;
-          overflow: hidden;
+
+        .savings-highlight {
+          color: #5B6830;
+          font-weight: 600;
         }
-        
-        .stat-progress-bar {
-          height: 100%;
-          background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-          transition: width 0.3s ease;
-        }
-        
-        .role-badge, .status-badge, .tier-badge, .trial-badge {
-          padding: 4px 12px;
+
+        .trial-badge {
+          padding: 4px 10px;
           border-radius: 12px;
+          background: #FBE4DE;
+          color: #D1583B;
           font-size: 0.85rem;
           font-weight: 600;
         }
-        
-        .role-badge.admin {
-          background: #ddd6fe;
-          color: #5b21b6;
-        }
-        
-        .role-badge.user {
-          background: #dbeafe;
-          color: #1d4ed8;
-        }
-        
-        .status-badge.active, .status-badge.verified {
-          background: #dcfce7;
-          color: #166534;
-        }
-        
-        .status-badge.inactive, .status-badge.unverified {
-          background: #fef2f2;
-          color: #991b1b;
-        }
-        
-        .tier-badge.free {
-          background: #f3f4f6;
-          color: #374151;
-        }
-        
-        .tier-badge.basic {
-          background: #dbeafe;
-          color: #1d4ed8;
-        }
-        
-        .tier-badge.premium {
-          background: #fef3c7;
-          color: #92400e;
-        }
-        
-        .tier-badge.enterprise {
-          background: #f3e8ff;
-          color: #6b21a8;
-        }
-        
-        .trial-badge {
-          background: #fff7ed;
-          color: #ea580c;
-        }
-        
-        .company-id, .company-slug {
-          font-family: monospace;
-          background: #f8fafc;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 0.9rem;
-        }
-        
-        .profile-actions {
-          display: flex;
-          gap: 22px;
-          flex-wrap: wrap;
-          justify-content: center;
-          margin-top: 1px;
-          margin-bottom: 100px;
-        }
-        
-        .profile-actions button {
-          padding: 12px 24px;
-          border: none;
-          border-radius: 8px;
+
+        /* Badges */
+
+        .role-badge,
+        .status-badge {
+          padding: 4px 10px;
+          border-radius: 14px;
+          font-size: 0.85rem;
           font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
         }
-        
-        .edit-profile-button {
-          background: #3b82f6;
-          color: white;
+
+        .role-badge.admin,
+        .role-badge.manager {
+          background: #FDF6E3;
+          color: #5B6830;
         }
-        
-        .change-password-button {
-          background: #f59e0b;
-          color: white;
+
+        .role-badge.user {
+          background: #FFFFFF;
+          color: #2F2F2F;
+          border: 1px solid rgba(91, 104, 48, 0.3);
         }
-        
-        .logout-button {
-          background: #ef4444;
-          color: white;
-          padding: 12px 24px;
+
+        .status-badge.active,
+        .status-badge.verified {
+          background: #E4F2DC;   /* soft green-ish from olive */
+          color: #5B6830;
         }
-        
-        .profile-actions button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+
+        .status-badge.inactive,
+        .status-badge.unverified {
+          background: #FBE4DE;   /* soft Terracotta tint */
+          color: #D1583B;
         }
-        
-        @media (max-width: 768px) {
-          .admin-tabs {
-            flex-direction: column;
-          }
-          
-          .stats-grid {
-            grid-template-columns: 1fr;
-          }
+
+        .status-badge.trial,
+        .status-badge.pending {
+          background: #FDF6E3;
+          color: #D1583B;
         }
+
+        /* Team / invitations */
 
         .section-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 20px;
+          margin-bottom: 12px;
         }
-        
+
         .toggle-form-button {
-          background: #3b82f6;
-          color: white;
+          background: #5B6830;        /* Olive */
+          color: #FFFFFF;
           border: none;
           padding: 8px 16px;
           border-radius: 6px;
           cursor: pointer;
           font-weight: 500;
+          font-size: 0.9rem;
           transition: all 0.2s ease;
         }
-        
+
         .toggle-form-button:hover {
-          background: #2563eb;
+          background: #495425;
         }
-        
+
         .toggle-form-button.active {
-          background: #dc2626;
+          background: #D1583B;        /* Terracotta */
         }
-        
+
         .invitations-list {
-          margin-top: 24px;
-          background: white;
+          margin-top: 12px;
+          background: #FFFFFF;
           border-radius: 8px;
-          padding: 20px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          padding: 14px 16px;
+          box-shadow: 0 2px 4px rgba(47, 47, 47, 0.12);
         }
-        
+
         .invitation-item {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 0;
-          border-bottom: 1px solid #e5e7eb;
+          padding: 10px 0;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.12);
         }
-        
+
         .invitation-item:last-child {
           border-bottom: none;
         }
-        
+
         .invitation-info {
           display: flex;
-          gap: 12px;
+          gap: 10px;
           align-items: center;
+          flex-wrap: wrap;
         }
-        
+
         .invitation-role {
-          background: #f3f4f6;
-          color: #374151;
+          background: #FDF6E3;
+          color: #2F2F2F;
           padding: 2px 8px;
           border-radius: 12px;
           font-size: 0.8rem;
         }
-        
+
         .invitation-status {
           padding: 2px 8px;
           border-radius: 12px;
           font-size: 0.8rem;
           font-weight: 500;
         }
-        
+
         .invitation-status.pending {
-          background: #fef3c7;
-          color: #92400e;
-        }
-        
-        .invitation-status.accepted {
-          background: #dcfce7;
-          color: #166534;
-        }
-        
-        .invitation-status.expired {
-          background: #fef2f2;
-          color: #dc2626;
-        }
-        
-        .invitation-date {
-          color: #6b7280;
-          font-size: 0.9rem;
+          background: #FBE4DE;
+          color: #D1583B;
         }
 
+        .invitation-status.accepted {
+          background: #E4F2DC;
+          color: #5B6830;
+        }
+
+        .invitation-status.expired {
+          background: #FBE4DE;
+          color: #D1583B;
+          opacity: 0.8;
+        }
+
+        .invitation-date {
+          color: #6B7280;
+          font-size: 0.85rem;
+        }
+
+        /* Training */
 
         .training-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 20px;
-          margin-top: 16px;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 16px;
+          margin-top: 8px;
         }
-        
+
         .training-card {
-          background: white;
+          background: #FFFFFF;
           border-radius: 12px;
-          padding: 20px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          padding: 16px;
+          box-shadow: 0 2px 6px rgba(47, 47, 47, 0.08);
           cursor: pointer;
           transition: all 0.2s ease;
-          border: 2px solid transparent;
+          border: 1px solid rgba(91, 104, 48, 0.35);
         }
-        
+
         .training-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-          border-color: #3b82f6;
+          box-shadow: 0 4px 12px rgba(47, 47, 47, 0.15);
+          border-color: #D1583B;
         }
-        
+
         .training-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
+          gap: 8px;
         }
-        
+
         .training-header h3 {
           margin: 0;
-          font-size: 1.1rem;
-          font-weight: 600;
-          color: #1e293b;
-          line-height: 1.3;
+          font-size: 14pt;       /* Tertiary heading */
+          font-weight: bold;
+          color: #5B6830;
           flex: 1;
-          margin-right: 12px;
         }
-        
+
         .training-status {
-          padding: 4px 12px;
+          padding: 4px 10px;
           border-radius: 12px;
           font-size: 0.8rem;
           font-weight: 600;
-          white-space: nowrap;
         }
-        
+
         .training-status.assigned {
-          background: #dbeafe;
-          color: #1d4ed8;
+          background: #FDF6E3;
+          color: #5B6830;
         }
-        
+
         .training-status.in_progress {
-          background: #fef3c7;
-          color: #92400e;
+          background: #FBE4DE;
+          color: #D1583B;
         }
-        
+
         .training-details {
-          margin-bottom: 16px;
+          margin-bottom: 10px;
         }
-        
+
         .training-description {
-          color: #64748b;
+          color: #4B5563;
           font-size: 0.9rem;
-          margin: 0 0 12px 0;
+          margin: 0 0 8px 0;
           line-height: 1.4;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
         }
-        
+
         .training-meta {
           display: flex;
-          gap: 16px;
-          margin-bottom: 8px;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-bottom: 6px;
         }
-        
-        .training-duration, .training-category {
-          color: #6b7280;
+
+        .training-duration,
+        .training-category {
+          color: #6B7280;
           font-size: 0.85rem;
           display: flex;
           align-items: center;
           gap: 4px;
         }
-        
+
         .training-expiry {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           font-size: 0.85rem;
         }
-        
+
         .expiry-label {
-          color: #6b7280;
+          color: #6B7280;
         }
-        
+
         .expiry-date {
-          color: #dc2626;
+          color: #D1583B;
           font-weight: 500;
         }
-        
+
         .training-action {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-top: 12px;
-          border-top: 1px solid #e5e7eb;
+          padding-top: 8px;
+          border-top: 1px solid rgba(91, 104, 48, 0.18);
         }
-        
+
         .action-text {
-          color: #3b82f6;
+          color: #D1583B;
           font-weight: 500;
           font-size: 0.9rem;
         }
-        
+
         .action-arrow {
-          color: #3b82f6;
+          color: #D1583B;
           font-weight: 600;
           transition: transform 0.2s ease;
         }
-        
+
         .training-card:hover .action-arrow {
           transform: translateX(4px);
         }
-        
+
+        /* Profile actions */
+
+        .profile-actions {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-top: 4px;
+          margin-bottom: 80px;
+        }
+
+        .profile-actions button {
+          padding: 10px 20px;
+          border-radius: 8px;
+          border: none;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 0.95rem;
+        }
+
+        .change-password-button {
+          background: #5B6830;    /* Olive */
+          color: #FFFFFF;
+        }
+
+        .change-password-button.subtle-secondary {
+          background: #FDF6E3;
+          color: #5B6830;
+          border: 1px solid rgba(91,104,48,0.4);
+          padding: 6px 14px;
+          font-size: 0.85rem;
+        }
+
+        .logout-button {
+          background: #D1583B;    /* Terracotta */
+          color: #FFFFFF;
+        }
+
+        .profile-actions button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(47, 47, 47, 0.18);
+        }
+
+        /* Responsiveness */
+
         @media (max-width: 768px) {
+          .profile-container {
+            padding: 16px;
+          }
+
           .admin-tabs {
             flex-direction: column;
           }
-          
-          .stats-grid {
-            grid-template-columns: 1fr;
+
+          .profile-field {
+            flex-direction: column;
+            align-items: flex-start;
           }
-          
+
+          .profile-field span {
+            text-align: left;
+          }
+
           .training-grid {
             grid-template-columns: 1fr;
           }
-          
-          .training-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 8px;
-          }
-          
-          .training-header h3 {
-            margin-right: 0;
-          }
-          
-          .training-meta {
-            flex-direction: column;
-            gap: 4px;
-          }
         }
-
       `}</style>
     </div>
   );

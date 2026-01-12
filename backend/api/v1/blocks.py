@@ -1075,7 +1075,7 @@ def get_variety_distribution_map(
 
 
 @router.get("/report/cluster-analysis")
-def analyze_vineyard_clusters(
+def analyse_vineyard_clusters(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     variety: Optional[str] = None,
@@ -1086,7 +1086,7 @@ def analyze_vineyard_clusters(
     regional concentration, planning cooperative initiatives, or disease risk zones.
     
     Query params:
-    - variety: Analyze clusters for specific variety
+    - variety: Analyse clusters for specific variety
     - cluster_distance_km: Maximum distance between blocks in same cluster (default: 2km)
     """
     # Get blocks with geometry

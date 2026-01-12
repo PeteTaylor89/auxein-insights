@@ -16,7 +16,7 @@ from db.models.subscription import Subscription
 from schemas.company import Company as CompanySchema
 from schemas.user import User as UserSchema
 from core.email_templates import send_welcome_email
-from core.email import send_admin_welcome_email
+from core.email_utils import send_admin_welcome_email
 
 router = APIRouter()
 

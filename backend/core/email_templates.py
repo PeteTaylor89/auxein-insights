@@ -161,7 +161,7 @@ def send_invitation_email(
 ) -> bool:
     """Send invitation email"""
     
-    from core.email import email_service
+    from core.email_utils import email_service
     
     # Create invitation link
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
@@ -195,7 +195,7 @@ def send_invitation_reminder_email(
 ) -> bool:
     """Send invitation reminder email"""
     
-    from core.email import email_service
+    from core.email_utils import email_service
     
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
     invitation_link = f"{frontend_url}/accept-invitation?token={invitation_token}"
@@ -251,7 +251,7 @@ def send_welcome_email(
 ) -> bool:
     """Send welcome email to new company admin"""
     
-    from core.email import email_service
+    from core.email_utils import email_service
     
     # Create login link
     frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')

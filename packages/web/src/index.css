@@ -12,7 +12,7 @@
   --white: #FFFFFF;
   --border-radius: 4px;
   --box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  --nav-bg: #677075;
+  --nav-bg: #2F2F2F;
   --nav-active-color: #ff7300; /* Tailwind's blue-600 */
   --nav-inactive-color: #ffffff; /* Tailwind's gray-500 */
   --nav-border-color: #e5e7eb; /* Tailwind's gray-200 */
@@ -263,210 +263,142 @@ button:hover {
 
 /* Basic page layout */
 .primary-bg {
-  background-color: var(--background);
+  background-color: #ffffff; /* Warm Sand */
 }
 
 .home-page {
   min-height: 100vh;
+  padding: 24px 16px 80px;
+  color: #2F2F2F; /* Charcoal Black */
+  font-family: Calibri, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Header with logo in top-left */
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-logo {
+  height: 70px;
+  width: auto;
+}
+
+.home-title-block {
   display: flex;
   flex-direction: column;
 }
 
-.home-content {
-  flex: 1;
-  padding: 1rem;
-  padding-top: 70px;
-  padding-bottom: 80px; /* Space for mobile navigation */
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.home-header {
-  margin-bottom: 1.5rem;
-}
-
-.welcome-message {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 0.25rem 0;
-}
-
-.current-date {
-  color: #6b7280;
-  font-size: 0.9rem;
+.home-title {
   margin: 0;
+  font-size: 24pt;        /* Primary heading style */
+  font-weight: bold;
+  color: #2F2F2F;         /* Charcoal Black */
 }
 
-/* Card containers */
-.content-container, .stats-container {
-  background: white;
+.home-subtitle {
+  margin: 2px 0 0;
+  font-size: 14pt;        /* Sub-heading-ish */
+  font-style: italic;
+  color: #5B6830;         /* Olive Green */
+}
+
+/* Containers & cards */
+.home-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stats-container,
+.content-container {
+  background: #FFFFFF;
   border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 1.5rem;
-  overflow: hidden;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(47, 47, 47, 0.08);
+  border-top: 4px solid #D1583B; /* Terracotta accent */
 }
 
-.container-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #111827;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #f3f4f6;
+.container-title span {
+  font-size: 14pt;        /* Tertiary/secondary heading size */
+  font-weight: bold;
+  color: #5B6830;         /* Olive Green */
 }
 
-/* Two column layout for medium+ screens */
-.two-column-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 768px) {
-  .two-column-layout {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* Quick Stats */
-.stats-container {
-  margin-bottom: 1.5rem;
-}
-
+/* Grid + cards */
 .stats-grid {
+  margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .stats-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .stat-card {
-  text-align: center;
-  padding: 0.75rem;
-  background-color: #f8fafc;
-  border-radius: 8px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  background: #FDF6E3;
+  border-radius: 10px;
+  padding: 10px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(91, 104, 48, 0.25); /* Olive, light */
+  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(47, 47, 47, 0.12);
+  border-color: #D1583B; /* Terracotta on hover */
 }
 
 .stat-value {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #3b82f6;
-  margin-bottom: 0.25rem;
+  font-size: 20px;
+  font-weight: bold;
 }
 
-.stat-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.stat-label,
+.actions-title {
+  font-size: 20px;
+  color: #2F2F2F;
 }
 
 .icon-wrapper {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 0.5rem;
-}
-.actions-title {
-  font-size: 1.2rem;
-  font-weight: 500;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: center;
-  display: block; 
-  margin: 0 auto;  
+  margin-bottom: 4px;
 }
 
-/* Weather Container */
+/* Two-column layout */
+.two-column-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Ensure consistent card styling */
+.column-item {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Weather widget should stretch properly */
 .weather-container {
-  margin-bottom: 1.5rem;
-}
-
-.weather-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-}
-
-@media (min-width: 480px) {
-  .weather-content {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
-}
-
-.weather-current {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-@media (min-width: 480px) {
-  .weather-current {
-    margin-bottom: 0;
-  }
-}
-
-.weather-icon {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-}
-
-.weather-temp {
-  font-size: 2rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.weather-desc {
-  color: #6b7280;
-}
-
-.weather-forecast {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  text-align: center;
-}
-
-.forecast-day {
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  min-width: 50px;
-}
-
-.forecast-day > div:first-child {
-  font-weight: 500;
-  font-size: 0.9rem;
-}
-
-.forecast-day > div:nth-child(2) {
-  font-size: 1.5rem;
-}
-
-.forecast-day > div:last-child {
-  font-weight: 600;
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */

@@ -14,8 +14,9 @@ from api.deps import get_db, get_current_user, get_current_contractor, get_curre
 from db.models.user import User
 from db.models.contractor import Contractor
 from db.models.block import VineyardBlock
+from db.models.observation_run import ObservationRun
+from db.models.task import Task, TaskStatus
 
-from db.models.task import Task
 import logging
 logger = logging.getLogger(__name__)
 
@@ -366,7 +367,7 @@ def get_current_company_stats(
     
     logger.info(f"Found company: {company.name} with subscription: {company.subscription.display_name}")
     
-    # Count vineyard blocks
+    # --- Vineyard blocks ---
     block_count = 0
     try:
         block_count = db.query(func.count(VineyardBlock.id)).filter(
@@ -375,18 +376,16 @@ def get_current_company_stats(
     except Exception as e:
         logger.warning(f"Error counting blocks: {e}")
     
-    # Get all block IDs for this company
-    company_blocks = []
-    company_block_ids = []
+    # --- Observations (runs) ---
+    observation_count = 0
     try:
-        company_blocks = db.query(VineyardBlock).filter(
-            VineyardBlock.company_id == company_id
-        ).all()
-        company_block_ids = [block.id for block in company_blocks]
+        observation_count = db.query(func.count(ObservationRun.id)).filter(
+            ObservationRun.company_id == company_id
+        ).scalar() or 0
     except Exception as e:
-        logger.warning(f"Error getting company blocks: {e}")
+        logger.warning(f"Error counting observation runs: {e}")
     
-    # Get all user IDs for this company
+    # --- Company users ---
     company_users = []
     company_user_ids = []
     try:
@@ -397,32 +396,26 @@ def get_current_company_stats(
     except Exception as e:
         logger.warning(f"Error getting company users: {e}")
     
-       
-    # Count tasks
+    # --- Tasks (open/in-progress for this company) ---
     task_count = 0
-    if company_user_ids:
-        try:
-            task_count = db.query(func.count(Task.id)).filter(
-                and_(
-                    or_(
-                        Task.created_by.in_(company_user_ids),
-                        Task.assigned_to.in_(company_user_ids)
-                    ),
-                    Task.status != "completed"
-                )
-            ).scalar() or 0
-        except Exception as e:
-            logger.warning(f"Error counting tasks: {e}")
+    try:
+        task_count = db.query(func.count(Task.id)).filter(
+            Task.company_id == company_id,
+            Task.status != TaskStatus.completed,
+            Task.status != TaskStatus.cancelled
+        ).scalar() or 0
+    except Exception as e:
+        logger.warning(f"Error counting tasks: {e}")
     
-    # Count team members
+    # Team members
     user_count = len(company_users)
     
-    # Get limits from subscription
+    # Subscription limits
     subscription = company.subscription
     max_users = subscription.max_users
     max_storage_gb = float(subscription.max_storage_gb) if subscription.max_storage_gb != -1 else -1
     
-    # Calculate usage percentages
+    # Usage percentages
     user_usage_percent = 0.0
     try:
         user_usage_percent = subscription.get_usage_percentage(user_count, 'max_users')
@@ -431,7 +424,7 @@ def get_current_company_stats(
     
     storage_usage_percent = 0.0  # TODO: Calculate actual storage usage
     
-    # Get enabled features from subscription
+    # Enabled features
     enabled_features = []
     try:
         enabled_features = subscription.features.get("enabled_features", []) if subscription.features else []
@@ -439,7 +432,9 @@ def get_current_company_stats(
         logger.warning(f"Error getting enabled features: {e}")
     
     result = {
-
+        # Core stats
+        "block_count": block_count,
+        "observation_count": observation_count,
         "task_count": task_count,
         "user_count": user_count,
         "storage_used_gb": 0.0,  # TODO: Calculate actual storage usage
