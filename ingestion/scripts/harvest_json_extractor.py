@@ -6,7 +6,7 @@ site_list = ['barbour', 'black_estate', 'muddy_water', 'netherwood']
 site = "barbour"
 
 with open(
-    f"A:\\auxein-insights-V0.1\\backend\\scripts\\data_import\\harvest_api\\harvest_graphs_{site}.json",
+    f"A:\\auxein-insights-V0.1\\ingestion\\config\\harvest_graphs_{site}.json",
     "r"
 ) as f:
     data = json.load(f)
