@@ -44,19 +44,6 @@ HARVEST_STATIONS = [
         }
     },
     {
-        'station_code': 'HARV_BLACK_04_TEMP',
-        'station_name': 'BLACK ESTATE CARAVAN - Temperature',
-        'data_source': 'HARVEST',
-        'source_id': '16118',  # YOUR ACTUAL TRACE_ID
-        'latitude': -43.0368,  # YOUR ACTUAL COORDINATES
-        'longitude': 172.8102,
-        'elevation': 85.81,
-        'region': 'Waipara',
-        'notes': {
-            'company': 'BLACK ESTATE'
-        }
-    },
-    {
         'station_code': 'HARV_BLACK_05_TEMP',
         'station_name': 'BLACK ESTATE ROW 10 - Temperature',
         'data_source': 'HARVEST',
@@ -74,32 +61,6 @@ HARVEST_STATIONS = [
         'station_name': 'BLACK ESTATE BASE - PRECIPITATION',
         'data_source': 'HARVEST',
         'source_id': '16121',  # YOUR ACTUAL TRACE_ID
-        'latitude': -43.0364,  # YOUR ACTUAL COORDINATES
-        'longitude': 172.8117,
-        'elevation': 82.37,
-        'region': 'Waipara',
-        'notes': {
-            'company': 'BLACK ESTATE'
-        }
-    },
-    {
-        'station_code': 'HARV_BLACK_06_HUMIDITY',
-        'station_name': 'BLACK ESTATE BASE - HUMIDITY',
-        'data_source': 'HARVEST',
-        'source_id': '16120',  # YOUR ACTUAL TRACE_ID
-        'latitude': -43.0364,  # YOUR ACTUAL COORDINATES
-        'longitude': 172.8117,
-        'elevation': 82.37,
-        'region': 'Waipara',
-        'notes': {
-            'company': 'BLACK ESTATE'
-        }
-    },
-    {
-        'station_code': 'HARV_BLACK_06_PRESSURE',
-        'station_name': 'BLACK ESTATE BASE - PRESSURE',
-        'data_source': 'HARVEST',
-        'source_id': '588184',  # YOUR ACTUAL TRACE_ID
         'latitude': -43.0364,  # YOUR ACTUAL COORDINATES
         'longitude': 172.8117,
         'elevation': 82.37,
