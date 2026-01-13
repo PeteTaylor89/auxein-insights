@@ -1,16 +1,32 @@
-name: Harvest Weather Data Ingestion
+name: Weather Data Ingestion
 
 on:
   schedule:
     # Run every 6 hours at :05 past the hour (UTC time)
-    # This runs at: 12:05am, 6:05am, 12:05pm, 6:05pm UTC
-    # Which is: 1:05pm, 7:05pm, 1:05am, 7:05am NZ time (during NZDT)
     - cron: '5 */6 * * *'
   
-  workflow_dispatch:  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Data source to ingest'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - harvest
+          - ecan
+      period:
+        description: 'Ingestion period'
+        required: true
+        default: 'incremental'
+        type: choice
+        options:
+          - incremental
+          - backfill
 
 jobs:
-  ingest-harvest:
+  ingest-weather:
     runs-on: ubuntu-latest
     
     steps:
@@ -33,7 +49,7 @@ jobs:
           cd ingestion
           pip install -r requirements.txt
       
-      - name: Setup stations and run Harvest ingestion
+      - name: Run weather data ingestion
         env:
           ENV: staging
           AWS_REGION: ap-southeast-2
@@ -49,8 +65,7 @@ jobs:
           RDS_DATABASE: auxein_db
         run: |
           cd ingestion
-          python run_ingestion.py
-
+          python run_ingestion.py --source ${{ github.event.inputs.source || 'all' }} --period ${{ github.event.inputs.period || 'incremental' }}
       
       - name: Check ingestion results
         if: always()
@@ -59,9 +74,6 @@ jobs:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          HARVEST_API_KEY: ${{ secrets.HARVEST_API_KEY }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
           RDS_USER: ${{ secrets.RDS_USER }}
           RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
           RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
@@ -76,14 +88,14 @@ jobs:
           engine = get_ingestion_engine()
           
           with engine.connect() as conn:
-              # Get latest ingestion log
+              # Get latest ingestion log for both sources
               result = conn.execute(text("""
                   SELECT data_source, status, COUNT(*) as count,
                          SUM(records_inserted) as total_records
                   FROM ingestion_log
-                  WHERE data_source = 'HARVEST'
-                    AND start_time > NOW() - INTERVAL '1 hour'
+                  WHERE start_time > NOW() - INTERVAL '1 hour'
                   GROUP BY data_source, status
+                  ORDER BY data_source
               """))
               
               print("\nIngestion Summary (last hour):")
