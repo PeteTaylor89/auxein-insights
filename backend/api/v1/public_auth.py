@@ -1,4 +1,4 @@
-# api/v1/public_auth.py - Authentication Endpoints with Marketing & Segmentation
+# api/v1/public_auth.py - Updated to use EmailService
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
@@ -30,6 +30,7 @@ from core.public_security import (
     generate_reset_token,
     get_current_public_user
 )
+from services.email_service import email_service
 
 router = APIRouter(prefix="/public/auth", tags=["Public Authentication"])
 
@@ -72,13 +73,13 @@ async def signup(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         
-        # NEW: User segmentation
+        # User segmentation
         user_type=user_data.user_type,
         company_name=user_data.company_name,
         job_title=user_data.job_title,
         region_of_interest=user_data.region_of_interest,
         
-        # NEW: Marketing opt-ins
+        # Marketing opt-ins
         newsletter_opt_in=user_data.newsletter_opt_in,
         marketing_opt_in=user_data.marketing_opt_in,
         research_opt_in=user_data.research_opt_in,
@@ -95,7 +96,7 @@ async def signup(
     
     # Send verification email (background task)
     background_tasks.add_task(
-        send_verification_email,
+        email_service.send_verification_email,
         email=new_user.email,
         token=verification_token,
         name=new_user.first_name or "there"
@@ -276,12 +277,14 @@ async def update_marketing_preferences(
 @router.post("/verify-email", response_model=MessageResponse)
 async def verify_email(
     verification: EmailVerificationRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
     Verify user's email address using verification token.
     
     - Marks account as verified
+    - Sends welcome email
     - Allows user to login
     """
     user = db.query(PublicUser).filter(
@@ -304,6 +307,13 @@ async def verify_email(
     user.verification_token = None  # Clear token after use
     
     db.commit()
+    
+    # Send welcome email (optional - background task)
+    background_tasks.add_task(
+        email_service.send_welcome_email,
+        email=user.email,
+        name=user.first_name or "there"
+    )
     
     return MessageResponse(
         message="Email verified successfully. You can now log in."
@@ -347,7 +357,7 @@ async def resend_verification(
     
     # Send email (background task)
     background_tasks.add_task(
-        send_verification_email,
+        email_service.send_verification_email,
         email=user.email,
         token=new_token,
         name=user.first_name or "there"
@@ -393,7 +403,7 @@ async def request_password_reset(
     
     # Send reset email (background task)
     background_tasks.add_task(
-        send_password_reset_email,
+        email_service.send_password_reset_email,
         email=user.email,
         token=reset_token,
         name=user.first_name or "there"
@@ -459,7 +469,7 @@ async def get_user_types():
     Returns user type options with descriptions and whether
     company name is required.
     """
-    from app.schemas.public_user import USER_TYPE_DESCRIPTIONS
+    from schemas.public_user import USER_TYPE_DESCRIPTIONS
     return USER_TYPE_DESCRIPTIONS
 
 @router.get("/regions", response_model=list)
@@ -469,94 +479,5 @@ async def get_regions():
     
     Returns region options with descriptions.
     """
-    from app.schemas.public_user import NZ_REGION_DESCRIPTIONS
+    from schemas.public_user import NZ_REGION_DESCRIPTIONS
     return NZ_REGION_DESCRIPTIONS
-
-# ============================================
-# ANALYTICS ENDPOINTS (Admin only - for future)
-# ============================================
-
-# NOTE: These would need admin authentication middleware
-# For now, they're placeholders to show what's possible
-
-# @router.get("/admin/stats", response_model=UserStats)
-# async def get_user_stats(
-#     db: Session = Depends(get_db),
-#     admin_user = Depends(get_admin_user)  # Future: admin auth
-# ):
-#     """Get user statistics for analytics dashboard"""
-#     pass
-
-# @router.get("/admin/segmentation", response_model=list[UserSegmentationReport])
-# async def get_segmentation_report(
-#     db: Session = Depends(get_db),
-#     admin_user = Depends(get_admin_user)  # Future: admin auth
-# ):
-#     """Get detailed user segmentation report for marketing"""
-#     pass
-
-# ============================================
-# HELPER FUNCTIONS (Email sending)
-# ============================================
-
-async def send_verification_email(email: str, token: str, name: str):
-    """
-    Send verification email to user.
-    
-    TODO: Integrate with your email service (SMTP, SendGrid, etc.)
-    """
-    verification_link = f"https://insights.auxein.co.nz/verify?token={token}"
-    
-    print(f"""
-    ========================================
-    VERIFICATION EMAIL
-    ========================================
-    To: {email}
-    Subject: Verify your Auxein Regional Intelligence account
-    
-    Hi {name},
-    
-    Welcome to Auxein Regional Intelligence!
-    
-    Please click the link below to verify your email:
-    {verification_link}
-    
-    If you didn't create this account, please ignore this email.
-    
-    Best regards,
-    The Auxein Team
-    ========================================
-    """)
-    
-    # TODO: Replace with actual email sending
-
-async def send_password_reset_email(email: str, token: str, name: str):
-    """
-    Send password reset email to user.
-    
-    TODO: Integrate with your email service
-    """
-    reset_link = f"https://insights.auxein.co.nz/reset-password?token={token}"
-    
-    print(f"""
-    ========================================
-    PASSWORD RESET EMAIL
-    ========================================
-    To: {email}
-    Subject: Reset your Auxein Regional Intelligence password
-    
-    Hi {name},
-    
-    We received a request to reset your password.
-    
-    Click the link below to reset your password (expires in 1 hour):
-    {reset_link}
-    
-    If you didn't request this, please ignore this email.
-    
-    Best regards,
-    The Auxein Team
-    ========================================
-    """)
-    
-    # TODO: Replace with actual email sending

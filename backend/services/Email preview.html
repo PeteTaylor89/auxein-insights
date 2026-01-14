@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Templates Preview - Auxein Regional Intelligence</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .preview-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            color: #2F2F2F;
+        }
+        .header p {
+            margin: 0;
+            color: #666;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .tab {
+            padding: 12px 24px;
+            background: #f4f4f4;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2F2F2F;
+            transition: all 0.2s;
+        }
+        .tab:hover {
+            background: #e0e0e0;
+        }
+        .tab.active {
+            background: #5B6830;
+            color: white;
+        }
+        .email-preview {
+            display: none;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .email-preview.active {
+            display: block;
+        }
+        .email-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+            border-left: 4px solid #5B6830;
+        }
+        .email-info h3 {
+            margin: 0 0 10px 0;
+            color: #5B6830;
+        }
+        .email-info p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .device-toggle {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .device-btn {
+            padding: 8px 16px;
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .device-btn.active {
+            background: #5B6830;
+            color: white;
+            border-color: #5B6830;
+        }
+        .email-frame {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .email-frame.desktop {
+            max-width: 100%;
+        }
+        .email-frame.mobile {
+            max-width: 375px;
+            margin: 0 auto;
+        }
+        iframe {
+            width: 100%;
+            min-height: 700px;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-container">
+        <div class="header">
+            <h1>📧 Email Templates Preview</h1>
+            <p>Auxein Regional Intelligence - Public Authentication Emails</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showEmail('verification')">
+                ✉️ Verification Email
+            </button>
+            <button class="tab" onclick="showEmail('reset')">
+                🔑 Password Reset
+            </button>
+            <button class="tab" onclick="showEmail('welcome')">
+                🎉 Welcome Email
+            </button>
+        </div>
+
+        <!-- Verification Email -->
+        <div id="verification" class="email-preview active">
+            <div class="email-info">
+                <h3>Email Verification Template</h3>
+                <p><strong>Trigger:</strong> User signs up for new account</p>
+                <p><strong>Purpose:</strong> Verify email address before allowing login</p>
+                <p><strong>Token Expiry:</strong> 24 hours (or until used)</p>
+            </div>
+
+            <div class="device-toggle">
+                <button class="device-btn active" onclick="setDevice('verification', 'desktop')">
+                    💻 Desktop
+                </button>
+                <button class="device-btn" onclick="setDevice('verification', 'mobile')">
+                    📱 Mobile
+                </button>
+            </div>
+
+            <div class="email-frame desktop" id="verification-frame">
+                <iframe srcdoc='<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td style="padding: 40px 40px 30px 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">Auxein Regional Intelligence</h1>
+                            <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px;">Climate Intelligence for New Zealand Wine Regions</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 20px 0; color: #2F2F2F; font-size: 24px;">Hi Pete,</h2>
+                            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                                Welcome to Auxein Regional Intelligence! We&apos;re excited to have you join our community of wine professionals and enthusiasts.
+                            </p>
+                            <p style="margin: 0 0 30px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                                Please verify your email address by clicking the button below:
+                            </p>
+                            <table role="presentation" style="margin: 0 auto;">
+                                <tr>
+                                    <td style="border-radius: 6px; background-color: #D1583B;">
+                                        <a href="#verification-link" target="_blank" style="display: inline-block; padding: 16px 40px; font-size: 16px; color: #ffffff; text-decoration: none; font-weight: bold;">
+                                            Verify Email Address
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="margin: 30px 0 0 0; color: #888888; font-size: 14px; line-height: 1.6;">
+                                Or copy and paste this link into your browser:<br>
+                                <a href="#verification-link" style="color: #5B6830; word-break: break-all;">https://insights.auxein.co.nz/verify?token=abc123...</a>
+                            </p>
+                            <p style="margin: 30px 0 0 0; color: #888888; font-size: 14px; line-height: 1.6;">
+                                This link will expire in 24 hours.
+                            </p>
+                            <p style="margin: 20px 0 0 0; color: #888888; font-size: 14px; line-height: 1.6;">
+                                If you didn&apos;t create this account, please ignore this email.
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                            <p style="margin: 0 0 10px 0; color: #888888; font-size: 14px;">
+                                Best regards,<br>
+                                <strong style="color: #5B6830;">The Auxein Team</strong>
+                            </p>
+                            <p style="margin: 20px 0 0 0; color: #888888; font-size: 12px;">
+                                Auxein Limited<br>
+                                <a href="https://auxein.co.nz" style="color: #5B6830; text-decoration: none;">auxein.co.nz</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>'></iframe>
+            </div>
+        </div>
+
+        <!-- Password Reset Email -->
+        <div id="reset" class="email-preview">
+            <div class="email-info">
+                <h3>Password Reset Template</h3>
+                <p><strong>Trigger:</strong> User requests password reset</p>
+                <p><strong>Purpose:</strong> Secure password reset with token</p>
+                <p><strong>Token Expiry:</strong> 1 hour</p>
+            </div>
+
+            <div class="device-toggle">
+                <button class="device-btn active" onclick="setDevice('reset', 'desktop')">
+                    💻 Desktop
+                </button>
+                <button class="device-btn" onclick="setDevice('reset', 'mobile')">
+                    📱 Mobile
+                </button>
+            </div>
+
+            <div class="email-frame desktop" id="reset-frame">
+                <iframe srcdoc='<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0;">
+</head>
+<body style="margin: 0; padding: 0; font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td style="padding: 40px 40px 30px 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">Auxein Regional Intelligence</h1>
+                            <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px;">Climate Intelligence for New Zealand Wine Regions</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 20px 0; color: #2F2F2F; font-size: 24px;">Hi Pete,</h2>
+                            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                                We received a request to reset your password for Auxein Regional Intelligence.
+                            </p>
+                            <p style="margin: 0 0 30px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                                Click the button below to reset your password:
+                            </p>
+                            <table role="presentation" style="margin: 0 auto;">
+                                <tr>
+                                    <td style="border-radius: 6px; background-color: #D1583B;">
+                                        <a href="#reset-link" target="_blank" style="display: inline-block; padding: 16px 40px; font-size: 16px; color: #ffffff; text-decoration: none; font-weight: bold;">
+                                            Reset Password
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="margin: 30px 0 0 0; color: #888888; font-size: 14px; line-height: 1.6;">
+                                Or copy and paste this link into your browser:<br>
+                                <a href="#reset-link" style="color: #5B6830; word-break: break-all;">https://insights.auxein.co.nz/reset-password?token=xyz789...</a>
+                            </p>
+                            <p style="margin: 30px 0 0 0; color: #D1583B; font-size: 14px; line-height: 1.6; font-weight: bold;">
+                                ⚠️ This link will expire in 1 hour.
+                            </p>
+                            <p style="margin: 20px 0 0 0; color: #888888; font-size: 14px; line-height: 1.6;">
+                                If you didn&apos;t request this password reset, please ignore this email. Your password will remain unchanged.
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                            <p style="margin: 0 0 10px 0; color: #888888; font-size: 14px;">
+                                Best regards,<br>
+                                <strong style="color: #5B6830;">The Auxein Team</strong>
+                            </p>
+                            <p style="margin: 20px 0 0 0; color: #888888; font-size: 12px;">
+                                Auxein Limited<br>
+                                <a href="https://auxein.co.nz" style="color: #5B6830; text-decoration: none;">auxein.co.nz</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>'></iframe>
+            </div>
+        </div>
+
+        <!-- Welcome Email -->
+        <div id="welcome" class="email-preview">
+            <div class="email-info">
+                <h3>Welcome Email Template</h3>
+                <p><strong>Trigger:</strong> User verifies their email address</p>
+                <p><strong>Purpose:</strong> Welcome new users and guide next steps</p>
+                <p><strong>Features:</strong> Platform overview + premium upsell</p>
+            </div>
+
+            <div class="device-toggle">
+                <button class="device-btn active" onclick="setDevice('welcome', 'desktop')">
+                    💻 Desktop
+                </button>
+                <button class="device-btn" onclick="setDevice('welcome', 'mobile')">
+                    📱 Mobile
+                </button>
+            </div>
+
+            <div class="email-frame desktop" id="welcome-frame">
+                <iframe srcdoc='<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td style="padding: 40px 40px 30px 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">Welcome to Auxein!</h1>
+                            <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px;">Your account is now active</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 20px 0; color: #2F2F2F; font-size: 24px;">Hi Pete,</h2>
+                            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                                Thank you for verifying your email! Your Auxein Regional Intelligence account is now active.
+                            </p>
+                            <h3 style="margin: 30px 0 15px 0; color: #5B6830; font-size: 18px;">What you can explore:</h3>
+                            <ul style="margin: 0 0 30px 0; padding-left: 20px; color: #505050; font-size: 16px; line-height: 1.8;">
+                                <li>Interactive climate maps for all New Zealand wine regions</li>
+                                <li>Historical climate data and long-term trends</li>
+                                <li>Growing degree days and viticultural metrics</li>
+                                <li>Regional climate comparisons and analysis</li>
+                            </ul>
+                            <table role="presentation" style="margin: 0 auto 30px auto;">
+                                <tr>
+                                    <td style="border-radius: 6px; background-color: #5B6830;">
+                                        <a href="https://insights.auxein.co.nz" target="_blank" style="display: inline-block; padding: 16px 40px; font-size: 16px; color: #ffffff; text-decoration: none; font-weight: bold;">
+                                            Start Exploring
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <div style="margin: 30px 0 0 0; padding: 20px; background-color: #FDF6E3; border-left: 4px solid #D1583B; border-radius: 6px;">
+                                <h4 style="margin: 0 0 10px 0; color: #5B6830; font-size: 16px;">Need Vineyard-Specific Insights?</h4>
+                                <p style="margin: 0 0 15px 0; color: #505050; font-size: 14px; line-height: 1.6;">
+                                    Our premium Auxein Insights platform offers detailed climate analysis, risk management, and comprehensive vineyard management tools.
+                                </p>
+                                <a href="https://auxein.co.nz/insights" style="color: #D1583B; font-weight: bold; text-decoration: none;">
+                                    Learn More →
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                            <p style="margin: 0 0 10px 0; color: #888888; font-size: 14px;">
+                                Best regards,<br>
+                                <strong style="color: #5B6830;">The Auxein Team</strong>
+                            </p>
+                            <p style="margin: 20px 0 0 0; color: #888888; font-size: 12px;">
+                                Auxein Limited<br>
+                                <a href="https://auxein.co.nz" style="color: #5B6830; text-decoration: none;">auxein.co.nz</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>'></iframe>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function showEmail(type) {
+            // Hide all previews
+            document.querySelectorAll('.email-preview').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Remove active from all tabs
+            document.querySelectorAll('.tab').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Show selected preview
+            document.getElementById(type).classList.add('active');
+            
+            // Activate selected tab
+            event.target.classList.add('active');
+        }
+
+        function setDevice(emailType, device) {
+            const frame = document.getElementById(`${emailType}-frame`);
+            const buttons = event.target.parentElement.querySelectorAll('.device-btn');
+            
+            // Update button states
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update frame size
+            frame.className = `email-frame ${device}`;
+        }
+    </script>
+</body>
+</html>
