@@ -1,16 +1,24 @@
-// pages/LandingPage.jsx - Single-page Auxein Regional Intelligence
+// pages/LandingPage.jsx - Cleaner auth integration with contextual prompts
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X } from 'lucide-react';
+import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock } from 'lucide-react';
 import ClimateContainer from '../components/climate/ClimateContainer';
 import RegionMap from '../components/RegionMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
 import MainLogo from '../assets/Logo_September 2025.png';
 import './LandingPage.css';
+import { usePublicAuth } from '../contexts/PublicAuthContext';
+import AuthModal from '../components/auth/AuthModal';
+import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
-  
+  const { isAuthenticated, user, logout } = usePublicAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authContext, setAuthContext] = useState(''); // Track what triggered auth
+  const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
   // Featured regions data
   const featuredRegions = [
     { id: 'marlborough', name: 'Marlborough', temp: '15.2°C', gdd: 1250, lat: -41.5, lon: 173.9 },
@@ -28,14 +36,14 @@ function LandingPage() {
     { id: 'climateprojection', icon: <ChartSpline size={28} />, label: 'Climate Projections', placeholder: 'Climate Projections coming soon...' }
   ];
 
-  // Default weather location
-  const defaultWeatherLocation = {
-    lat: -41.2865,
-    lon: 174.7762,
-    name: 'Wellington, NZ'
-  };
-
   const handleInsightClick = (insightId) => {
+    if (!isAuthenticated) {
+      // Show auth modal instead
+      setAuthContext('insights');
+      setAuthModalOpen(true);
+      return;
+    }
+
     setActiveInsight(activeInsight === insightId ? null : insightId);
     
     // Smooth scroll to insights section
@@ -47,6 +55,31 @@ function LandingPage() {
         });
       }, 100);
     }
+  };
+
+  const handleMapInteraction = () => {
+    if (!isAuthenticated) {
+      setAuthContext('map');
+      setAuthModalOpen(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleLogout = () => {
+    logout();
+    setUserMenuOpen(false);
+    setActiveInsight(null); // Close any open insights
+  };
+
+  const handlePreferences = () => {
+    setUserMenuOpen(false);
+    setPreferencesModalOpen(true);
+  };
+
+  const handleAuthModalClose = () => {
+    setAuthModalOpen(false);
+    setAuthContext('');
   };
 
   const renderActiveInsight = () => {
@@ -116,66 +149,126 @@ function LandingPage() {
             >
               Auxein
             </a>
+
+            {/* Auth Section */}
+            {!isAuthenticated ? (
+              <button 
+                className="auth-header-btn"
+                onClick={() => {
+                  setAuthContext('header');
+                  setAuthModalOpen(true);
+                }}
+              >
+                Sign In
+              </button>
+            ) : (
+              <div className="user-menu-container">
+                <button 
+                  className="user-menu-trigger"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                >
+                  <User size={18} />
+                  <span>{user?.first_name || 'Account'}</span>
+                </button>
+
+                {userMenuOpen && (
+                  <div className="user-dropdown">
+                    <div className="user-dropdown-header">
+                      <strong>{user?.full_name || user?.email}</strong>
+                      {user?.user_type && (
+                        <small>{user.user_type.replace('_', ' ')}</small>
+                      )}
+                    </div>
+                    <button 
+                      className="user-dropdown-item"
+                      onClick={handlePreferences}
+                    >
+                      <Settings size={16} />
+                      Preferences
+                    </button>
+                    <button 
+                      className="user-dropdown-item"
+                      onClick={handleLogout}
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
         </div>
       </header>
 
-      {/* Insights Section */}
+      {/* Insights Section - Always visible, auth check on click */}
       <section id="insights-section" className="insights-section">
         <div className="section-header">
-          <h2>Vine-Sights</h2>
-
+          <h2>V<strong>in</strong>e-<strong>Sights</strong></h2>
+          {!isAuthenticated && (
+            <span className="auth-hint">
+              <Lock size={14} /> Sign in to access insights
+            </span>
+          )}
         </div>
         <div className="insights-grid">
           {insightOptions.map(insight => (
             <button
               key={insight.id}
-              className={`insight-card ${activeInsight === insight.id ? 'active' : ''}`}
+              className={`insight-card ${activeInsight === insight.id ? 'active' : ''} ${!isAuthenticated ? 'locked' : ''}`}
               onClick={() => handleInsightClick(insight.id)}
             >
               <div className="insight-icon">{insight.icon}</div>
               <div className="insight-label">{insight.label}</div>
+              {!isAuthenticated && (
+                <div className="card-lock-overlay">
+                  <Lock size={20} />
+                </div>
+              )}
             </button>
           ))}
         </div>
 
-        {/* Active Insight Display */}
-        {activeInsight && (
+        {/* Active Insight Display - only when authenticated */}
+        {activeInsight && isAuthenticated && (
           <div className="active-insight-container">
             {renderActiveInsight()}
           </div>
         )}
       </section>
 
-      {/* Map Section */}
+      {/* Map Section - Always visible, auth check on interaction */}
       <section className="map-section">
         <div className="section-header">
           <h2>Regional Explorer</h2>
+          {!isAuthenticated && (
+          <span className="auth-hint">
+            <Lock size={14} /> Sign in to explore the map
+          </span>
+          )}
         </div>
         
-        <div className="map-container-wrapper">
-          <RegionMap regions={featuredRegions} />
+        <div className={`map-container-wrapper ${!isAuthenticated ? 'locked' : ''}`}>
+          {!isAuthenticated ? (
+            <div className="map-locked-overlay" onClick={handleMapInteraction}>
+              <div className="map-lock-content">
+                <h3>Vine Atlas</h3>
+                <p>Sign in to explore New Zealand wine regions</p>
+              </div>
+              {/* Blurred preview underneath */}
+              <div className="map-preview-blur">
+                <RegionMap regions={featuredRegions} />
+              </div>
+            </div>
+          ) : (
+            <RegionMap regions={featuredRegions} />
+          )}
         </div>
-
       </section>
 
-
-
-      {/* About/CTA Section */}
+      {/* About/CTA Section - PUBLIC */}
       <section className="about-cta-section">
         <div className="about-content">
-          <h2>Auxein Insights</h2>
-          <p>
-            Access comprehensive climate data and insights for New Zealand's wine regions. 
-            Our platform aggregates decades of climate information to help viticulturists 
-            and wine industry professionals understand regional climate patterns.
-          </p>
-          <p>
-            Built on over 600 million climate data points, we provide analysis of temperature 
-            patterns, rainfall trends, growing degree days, and other critical metrics that 
-            impact viticulture.
-          </p>
-          
           <div className="premium-cta">
             <h3>Vineyard Management & Insights</h3>
             <p>
@@ -194,7 +287,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer - PUBLIC */}
       <footer className="landing-footer">
         <div className="footer-content">
           <div className="footer-brand">
@@ -215,6 +308,26 @@ function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Auth Modal with Context */}
+      <AuthModal 
+        isOpen={authModalOpen}
+        onClose={handleAuthModalClose}
+        context={authContext}
+      />
+      
+      <UserPreferencesModal 
+        isOpen={preferencesModalOpen}
+        onClose={() => setPreferencesModalOpen(false)}
+      />
+
+      {/* Close user menu when clicking outside */}
+      {userMenuOpen && (
+        <div 
+          className="user-menu-overlay"
+          onClick={() => setUserMenuOpen(false)}
+        />
+      )}
     </div>
   );
 }

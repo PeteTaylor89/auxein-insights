@@ -1,4 +1,4 @@
-# app/main.py - FINAL CORRECTED VERSION
+# app/main.py 
 from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -285,10 +285,9 @@ app.include_router(
 
 app.include_router(
     public_auth.router, 
-    prefix="/api/public_auth",
-    tags=["public_auth"]
+    prefix="/api/v1",
+    tags=["Public Authentication"]
 )
-
 
 # API endpoints
 @app.get("/api", tags=["root"])

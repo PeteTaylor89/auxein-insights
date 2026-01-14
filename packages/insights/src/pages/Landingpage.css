@@ -90,11 +90,14 @@
 .section-header {
   text-align: center;
   margin-bottom: 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .section-header h2 {
   font-size: 24pt;
-  font-weight: 700;
+  font-weight: 500;
   color: #2F2F2F;
   margin: 0 0 12px 0;
 }
@@ -653,5 +656,385 @@
   
   .insights-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================
+   HEADER AUTH BUTTON
+   ============================================ */
+
+.auth-header-btn {
+  padding: 8px 20px;
+  background: #D1583B;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.auth-header-btn:hover {
+  background: #B84A2E;
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   USER MENU
+   ============================================ */
+
+.user-menu-container {
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2F2F2F;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-menu-trigger:hover {
+  background: #e8e8e8;
+  border-color: #5B6830;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.user-dropdown-header {
+  padding: 16px;
+  background: linear-gradient(135deg, #446145 0%, #5B6830 100%);
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-dropdown-header strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.user-dropdown-header small {
+  display: block;
+  font-size: 12px;
+  opacity: 0.9;
+  text-transform: capitalize;
+}
+
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-top: 1px solid #f0f0f0;
+  font-size: 14px;
+  color: #2F2F2F;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.user-dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.user-dropdown-item:first-of-type {
+  border-top: none;
+}
+
+.user-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+}
+
+/* ============================================
+   PUBLIC CTA (before login)
+   ============================================ */
+
+.public-cta {
+  margin: 32px 0;
+  padding: 32px;
+  background: linear-gradient(135deg, #f8fbff 0%, #e8f4ff 100%);
+  border: 2px solid #5B6830;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.public-cta h3 {
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  color: #2F2F2F;
+}
+
+.public-cta p {
+  margin: 0 0 24px 0;
+  color: #505050;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.cta-btn {
+  padding: 14px 32px;
+  background: #D1583B;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(209, 88, 59, 0.3);
+}
+
+.cta-btn:hover {
+  background: #B84A2E;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(209, 88, 59, 0.4);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .user-menu-trigger span {
+    display: none; /* Hide name on mobile */
+  }
+
+  .user-dropdown {
+    right: -8px;
+  }
+
+  .public-cta {
+    padding: 24px 20px;
+  }
+
+  .public-cta h3 {
+    font-size: 18px;
+  }
+
+  .cta-btn {
+    width: 100%;
+  }
+}
+
+/* ============================================
+   AUTH HINT (Section Headers)
+   ============================================ */
+
+.auth-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(209, 88, 59, 0.1);
+  border: 1px solid rgba(209, 88, 59, 0.3);
+  border-radius: 20px;
+  font-size: 13px;
+  color: #D1583B;
+  font-weight: 500;
+  margin-left: 16px;
+}
+
+/* ============================================
+   LOCKED INSIGHT CARDS
+   ============================================ */
+
+.insight-card.locked {
+  position: relative;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.insight-card.locked:hover {
+  opacity: 1;
+  transform: translateY(-4px);
+  border-color: #D1583B;
+}
+
+.card-lock-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(209, 88, 59, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+/* ============================================
+   LOCKED MAP OVERLAY
+   ============================================ */
+
+.map-container-wrapper.locked {
+  position: relative;
+  min-height: 600px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.map-locked-overlay {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.map-lock-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+}
+
+.map-lock-content svg {
+  color: #5B6830;
+  margin-bottom: 20px;
+}
+
+.map-lock-content h3 {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  color: #2F2F2F;
+}
+
+.map-lock-content p {
+  margin: 0 0 24px 0;
+  color: #666;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.unlock-btn {
+  padding: 12px 32px;
+  background: #D1583B;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unlock-btn:hover {
+  background: #B84A2E;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(209, 88, 59, 0.3);
+}
+
+.map-preview-blur {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  filter: blur(8px);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ============================================
+   SECTION HEADER LAYOUT
+   ============================================ */
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .auth-hint {
+    font-size: 12px;
+    padding: 4px 10px;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .section-header {
+    flex-direction: column;
+  }
+
+  .map-lock-content {
+    padding: 32px 24px;
+    max-width: 90%;
+  }
+
+  .map-lock-content h3 {
+    font-size: 20px;
+  }
+
+  .map-lock-content svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .card-lock-overlay {
+    width: 28px;
+    height: 28px;
+  }
+
+  .card-lock-overlay svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-locked-overlay {
+    height: 500px;
+  }
+
+  .unlock-btn {
+    width: 100%;
   }
 }

@@ -1,7 +1,7 @@
 # backend/schemas/public_user.py - Pydantic Schemas with Marketing & User Segmentation
 from typing import Optional, Literal
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, validator, Field
+from pydantic import BaseModel, EmailStr, validator, Field, ConfigDict
 
 # ============================================
 # ENUMS / CONSTANTS
@@ -116,6 +116,7 @@ class PublicUserResponse(BaseModel):
     Schema for user data in responses (without password).
     This is what gets returned after login/signup/profile fetch.
     """
+    model_config = ConfigDict(from_attributes=True)
     id: int
     email: str
     first_name: Optional[str] = None
@@ -145,8 +146,6 @@ class PublicUserResponse(BaseModel):
     is_wine_professional: Optional[bool] = None
     marketing_segment: Optional[str] = None
     
-    class Config:
-        orm_mode = True
 
 class PublicUserToken(BaseModel):
     """Schema for auth token response"""
