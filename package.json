@@ -8,8 +8,9 @@
   "scripts": {
     "dev:backend": "cd backend && cross-env PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
     "dev:web": "cd packages/web && npm run dev",
+    "dev:insights": "concurrently --kill-others --names \"API,INSIGHTS\" --prefix-colors \"blue,magenta\" \"npm run dev:backend\" \"cd packages/insights && npm run dev\"",
     "dev:mobile": "cd packages/mobile && npm start",
-    "dev:all": "concurrently --kill-others --names \"API,WEB\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:web\"",
+    "dev:all": "concurrently --kill-others --names \"API,WEB\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:insights\"",
     "dev:full": "concurrently --kill-others \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\"",
     "kill:node": "powershell \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Node processes to kill",
     "kill:python": "powershell \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Python processes to kill",
