@@ -67,38 +67,3 @@ jobs:
           cd ingestion
           python run_ingestion.py --source ${{ github.event.inputs.source || 'all' }} --period ${{ github.event.inputs.period || 'incremental' }}
       
-      - name: Check ingestion results
-        if: always()
-        env:
-          ENV: staging
-          AWS_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          RDS_USER: ${{ secrets.RDS_USER }}
-          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
-          RDS_PORT: 5432
-          RDS_DATABASE: auxein_db
-        run: |
-          cd ingestion
-          python << 'EOF'
-          from sqlalchemy import text
-          from db_connection import get_ingestion_engine
-          
-          engine = get_ingestion_engine()
-          
-          with engine.connect() as conn:
-              # Get latest ingestion log for both sources
-              result = conn.execute(text("""
-                  SELECT data_source, status, COUNT(*) as count,
-                         SUM(records_inserted) as total_records
-                  FROM ingestion_log
-                  WHERE start_time > NOW() - INTERVAL '1 hour'
-                  GROUP BY data_source, status
-                  ORDER BY data_source
-              """))
-              
-              print("\nIngestion Summary (last hour):")
-              for row in result:
-                  print(f"  {row[0]} - {row[1]}: {row[2]} runs, {row[3]} records")
-          EOF
