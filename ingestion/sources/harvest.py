@@ -46,15 +46,18 @@ class HarvestIngestion:
             
             last_time = result.scalar()
             if last_time:
+                # Ensure the returned timestamp is timezone-aware (NZ)
+                from zoneinfo import ZoneInfo
+                nz_tz = ZoneInfo('Pacific/Auckland')
+                if last_time.tzinfo is None:
+                    last_time = last_time.replace(tzinfo=nz_tz)
                 return last_time
             else:
-                # Backdate to January 1, 2026 WITH TIMEZONE
-                from datetime import datetime, timezone
+                # First run: start from 2 days ago instead of Jan 1
+                from datetime import datetime
                 from zoneinfo import ZoneInfo
-                
-                # Use NZ timezone to match your data
                 nz_tz = ZoneInfo('Pacific/Auckland')
-                return datetime(2026, 1, 1, 0, 0, 0, tzinfo=nz_tz)
+                return datetime.now(nz_tz) - timedelta(days=2)
     
     def fetch_harvest_data(self, trace_id, start_time, end_time):
         """Fetch data from Harvest API with pagination support"""
