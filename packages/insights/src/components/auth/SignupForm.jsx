@@ -3,10 +3,8 @@ import { useState, useEffect } from 'react';
 import { usePublicAuth } from '../../contexts/PublicAuthContext';
 import * as publicAuthService from '../../services/publicAuthService';
 
-
 console.log('publicAuthService methods:', Object.keys(publicAuthService));
 console.log('getUserTypes type:', typeof publicAuthService.getUserTypes);
-
 
 function SignupForm({ onSuccess, onSwitchToLogin }) {
   const { signup } = usePublicAuth();

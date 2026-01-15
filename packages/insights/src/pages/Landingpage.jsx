@@ -1,6 +1,6 @@
-// pages/LandingPage.jsx - Cleaner auth integration with contextual prompts
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+// pages/LandingPage.jsx - Updated with email verification modal
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock } from 'lucide-react';
 import ClimateContainer from '../components/climate/ClimateContainer';
 import RegionMap from '../components/RegionMap';
@@ -10,14 +10,43 @@ import './LandingPage.css';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import AuthModal from '../components/auth/AuthModal';
 import UserPreferencesModal from '../components/auth/UserPreferencesModal';
+import EmailVerificationModal from '../components/auth/EmailVerificationModal';
 
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
   const { isAuthenticated, user, logout } = usePublicAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authContext, setAuthContext] = useState(''); // Track what triggered auth
+  const [authContext, setAuthContext] = useState('');
   const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  
+  // Get verification token from URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  const verificationToken = searchParams.get('token');
+
+  // Check for verification token on mount
+  useEffect(() => {
+    if (verificationToken) {
+      setVerificationModalOpen(true);
+    }
+  }, [verificationToken]);
+
+  useEffect(() => {
+    console.log('=== VERIFICATION DEBUG ===');
+    console.log('Token from URL:', verificationToken);
+    console.log('Modal open:', verificationModalOpen);
+    console.log('Search params:', Object.fromEntries(searchParams));
+  }, [verificationToken, verificationModalOpen, searchParams]);
+
+  // Clear token from URL when verification modal closes
+  const handleVerificationClose = () => {
+    setVerificationModalOpen(false);
+    if (verificationToken) {
+      searchParams.delete('token');
+      setSearchParams(searchParams);
+    }
+  };
 
   // Featured regions data
   const featuredRegions = [
@@ -38,7 +67,6 @@ function LandingPage() {
 
   const handleInsightClick = (insightId) => {
     if (!isAuthenticated) {
-      // Show auth modal instead
       setAuthContext('insights');
       setAuthModalOpen(true);
       return;
@@ -46,7 +74,6 @@ function LandingPage() {
 
     setActiveInsight(activeInsight === insightId ? null : insightId);
     
-    // Smooth scroll to insights section
     if (activeInsight !== insightId) {
       setTimeout(() => {
         document.getElementById('insights-section')?.scrollIntoView({ 
@@ -69,7 +96,7 @@ function LandingPage() {
   const handleLogout = () => {
     logout();
     setUserMenuOpen(false);
-    setActiveInsight(null); // Close any open insights
+    setActiveInsight(null);
   };
 
   const handlePreferences = () => {
@@ -201,7 +228,7 @@ function LandingPage() {
         </div>
       </header>
 
-      {/* Insights Section - Always visible, auth check on click */}
+      {/* Insights Section */}
       <section id="insights-section" className="insights-section">
         <div className="section-header">
           <h2>V<strong>in</strong>e-<strong>Sights</strong></h2>
@@ -229,7 +256,6 @@ function LandingPage() {
           ))}
         </div>
 
-        {/* Active Insight Display - only when authenticated */}
         {activeInsight && isAuthenticated && (
           <div className="active-insight-container">
             {renderActiveInsight()}
@@ -237,7 +263,7 @@ function LandingPage() {
         )}
       </section>
 
-      {/* Map Section - Always visible, auth check on interaction */}
+      {/* Map Section */}
       <section className="map-section">
         <div className="section-header">
           <h2>Regional Explorer</h2>
@@ -255,7 +281,6 @@ function LandingPage() {
                 <h3>Vine Atlas</h3>
                 <p>Sign in to explore New Zealand wine regions</p>
               </div>
-              {/* Blurred preview underneath */}
               <div className="map-preview-blur">
                 <RegionMap regions={featuredRegions} />
               </div>
@@ -266,7 +291,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* About/CTA Section - PUBLIC */}
+      {/* About/CTA Section */}
       <section className="about-cta-section">
         <div className="about-content">
           <div className="premium-cta">
@@ -287,7 +312,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Footer - PUBLIC */}
+      {/* Footer */}
       <footer className="landing-footer">
         <div className="footer-content">
           <div className="footer-brand">
@@ -309,19 +334,27 @@ function LandingPage() {
         </div>
       </footer>
 
-      {/* Auth Modal with Context */}
+      {/* Auth Modal */}
       <AuthModal 
         isOpen={authModalOpen}
         onClose={handleAuthModalClose}
         context={authContext}
       />
       
+      {/* User Preferences Modal */}
       <UserPreferencesModal 
         isOpen={preferencesModalOpen}
         onClose={() => setPreferencesModalOpen(false)}
       />
 
-      {/* Close user menu when clicking outside */}
+      {/* Email Verification Modal */}
+      <EmailVerificationModal 
+        isOpen={verificationModalOpen}
+        onClose={handleVerificationClose}
+        token={verificationToken}
+      />
+
+      {/* Close user menu overlay */}
       {userMenuOpen && (
         <div 
           className="user-menu-overlay"

@@ -10,7 +10,7 @@ from db.models.user import User
 from db.models.company import Company
 from schemas.invitation import InvitationCreate, Invitation as InvitationSchema, InvitationAccept
 from api.deps import get_db, get_current_user
-from core.email_utils import send_invitation_email
+from services.email_service import UnifiedEmailService
 import logging
 logger = logging.getLogger(__name__)
 

@@ -26,10 +26,7 @@ from schemas.contractor import (
     ContractorCreate, ContractorUpdate, ContractorProfile, 
     Contractor as ContractorSchema
 )
-from core.email_utils import (
-    send_verification_email, send_password_reset_email,
-    send_contractor_verification_email, send_contractor_welcome_email
-) 
+from services.email_service import UnifiedEmailService 
 from jose import JWTError
 
 router = APIRouter()
