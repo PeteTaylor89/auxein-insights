@@ -1,4 +1,4 @@
-# api/v1/public_auth.py - Updated to use EmailService
+# api/v1/public_auth.py - FIXED with correct email service method names
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
@@ -94,9 +94,9 @@ async def signup(
     db.commit()
     db.refresh(new_user)
     
-    # Send verification email (background task)
+    # FIXED: Use correct method name for public auth
     background_tasks.add_task(
-        email_service.send_verification_email,
+        email_service.send_public_verification_email,  # ✅ Changed from send_verification_email
         email=new_user.email,
         token=verification_token,
         name=new_user.first_name or "there"
@@ -308,9 +308,9 @@ async def verify_email(
     
     db.commit()
     
-    # Send welcome email (optional - background task)
+    # FIXED: Use correct method name for public auth
     background_tasks.add_task(
-        email_service.send_welcome_email,
+        email_service.send_public_welcome_email,  # ✅ Changed from send_welcome_email
         email=user.email,
         name=user.first_name or "there"
     )
@@ -355,9 +355,9 @@ async def resend_verification(
     
     db.commit()
     
-    # Send email (background task)
+    # FIXED: Use correct method name for public auth
     background_tasks.add_task(
-        email_service.send_verification_email,
+        email_service.send_public_verification_email,  # ✅ Changed from send_verification_email
         email=user.email,
         token=new_token,
         name=user.first_name or "there"
@@ -401,9 +401,9 @@ async def request_password_reset(
     
     db.commit()
     
-    # Send reset email (background task)
+    # FIXED: Use correct method name for public auth
     background_tasks.add_task(
-        email_service.send_password_reset_email,
+        email_service.send_public_password_reset_email,  # ✅ Changed from send_password_reset_email
         email=user.email,
         token=reset_token,
         name=user.first_name or "there"

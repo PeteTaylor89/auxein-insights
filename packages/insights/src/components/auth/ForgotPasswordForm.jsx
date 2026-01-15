@@ -1,5 +1,6 @@
 // src/components/auth/ForgotPasswordForm.jsx
 import { useState } from 'react';
+import { usePublicAuth } from '../../contexts/PublicAuthContext';
 import * as publicAuthService from '../../services/publicAuthService';
 
 function ForgotPasswordForm({ onBack }) {
@@ -7,6 +8,7 @@ function ForgotPasswordForm({ onBack }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const service = publicAuthService.default || publicAuthService;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
