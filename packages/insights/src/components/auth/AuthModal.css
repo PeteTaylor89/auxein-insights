@@ -60,21 +60,24 @@
 
 .auth-modal-header {
   padding: 40px 40px 24px;
-  background: linear-gradient(135deg, #446145 0%, #5B6830 100%);
+  background: #ffffff 100%;
   color: white;
   border-radius: 12px 12px 0 0;
+  border: 2px solid #e5e7eb;
 }
 
 .auth-modal-header h2 {
   margin: 0 0 8px 0;
-  font-size: 24px;
+  color: rgb(0, 0, 0);
+  font-size: 26px;
   font-weight: 700;
 }
 
 .auth-modal-header p {
   margin: 0;
   opacity: 0.9;
-  font-size: 14px;
+  color: rgb(0, 0, 0);
+  font-size: 16px;
 }
 
 /* ============================================
@@ -103,6 +106,7 @@
 
 .form-group label {
   font-size: 14px;
+  margin-top: 8px;
   font-weight: 600;
   color: #2F2F2F;
 }
@@ -144,6 +148,7 @@
 
 .auth-submit-btn {
   padding: 14px;
+  margin-top: 15px;
   background: #D1583B;
   color: white;
   border: none;
@@ -167,6 +172,7 @@
 
 .auth-back-btn {
   padding: 14px;
+  margin-top: 15px;
   background: #f5f5f5;
   color: #2F2F2F;
   border: 1px solid #ddd;

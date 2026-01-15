@@ -9,6 +9,7 @@ function UserPreferencesModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'marketing'
   const [userTypes, setUserTypes] = useState([]);
   const [regions, setRegions] = useState([]);
+  const service = publicAuthService.default || publicAuthService;
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -39,14 +40,19 @@ function UserPreferencesModal({ isOpen, onClose }) {
         research_opt_in: user.research_opt_in || false
       });
 
-      // Load options
-      Promise.all([
-        publicAuthService.getUserTypes(),
-        publicAuthService.getRegions()
-      ]).then(([types, regs]) => {
-        setUserTypes(types);
-        setRegions(regs);
-      });
+      const loadOptions = async () => {
+        try {
+          const [typesData, regionsData] = await Promise.all([
+            await service.getUserTypes(),
+            await service.getRegions()
+          ]);
+          setUserTypes(typesData);
+          setRegions(regionsData);
+        } catch (err) {
+          console.error('Failed to load options:', err);
+        }
+      };
+      loadOptions();
     }
   }, [user, isOpen]);
 

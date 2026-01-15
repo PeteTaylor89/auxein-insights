@@ -95,7 +95,7 @@ function LoginForm({ onSuccess, onSwitchToSignup, onSwitchToForgot }) {
           className="link-button" 
           onClick={onSwitchToSignup}
         >
-          Create one
+          Create one for free
         </button>
       </div>
     </form>
