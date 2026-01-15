@@ -133,7 +133,7 @@ function LandingPage() {
             <img src={MainLogo} alt="Auxein Logo" className="header-logo" />
             <div className="header-title-block">
               <h1>Auxein Insights</h1>
-              <p>Viticultural Regional Intelligence</p>
+              <p>Regional Intelligence</p>
             </div>
           </div>
           
@@ -242,9 +242,9 @@ function LandingPage() {
         <div className="section-header">
           <h2>Regional Explorer</h2>
           {!isAuthenticated && (
-          <span className="auth-hint">
-            <Lock size={14} /> Sign in to explore the map
-          </span>
+            <span className="auth-hint">
+              <Lock size={14} /> Sign in to explore the map
+            </span>
           )}
         </div>
         
