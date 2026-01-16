@@ -1,6 +1,7 @@
 // src/components/RegionalMap/MapSidebar.jsx
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Map, Layers, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Map, Layers, MapPin, Eye, EyeOff, Shield, Grape } from 'lucide-react';
+import publicApi from '../../services/publicApi';
 
 const MAP_STYLES = [
   { id: 'satellite-streets-v12', name: 'Satellite', icon: '🛰️' },
@@ -8,19 +9,74 @@ const MAP_STYLES = [
   { id: 'outdoors-v12', name: 'Outdoors', icon: '🏔️' }
 ];
 
+// Fallback regions if API fails
+const FALLBACK_REGIONS = [
+  { name: 'Northland', slug: 'northland', bounds: { min_lng: 173.0, min_lat: -35.8, max_lng: 174.5, max_lat: -34.4 } },
+  { name: 'Auckland', slug: 'auckland', bounds: { min_lng: 174.4, min_lat: -37.2, max_lng: 175.3, max_lat: -36.2 } },
+  { name: 'Waikato / Bay of Plenty', slug: 'waikato-bay-of-plenty', bounds: { min_lng: 175.0, min_lat: -38.8, max_lng: 178.0, max_lat: -36.8 } },
+  { name: 'Gisborne', slug: 'gisborne', bounds: { min_lng: 177.0, min_lat: -39.0, max_lng: 178.7, max_lat: -37.5 } },
+  { name: "Hawke's Bay", slug: 'hawkes-bay', bounds: { min_lng: 176.0, min_lat: -40.0, max_lng: 178.0, max_lat: -38.5 } },
+  { name: 'Wairarapa', slug: 'wairarapa', bounds: { min_lng: 175.2, min_lat: -41.5, max_lng: 176.2, max_lat: -40.8 } },
+  { name: 'Nelson', slug: 'nelson', bounds: { min_lng: 172.5, min_lat: -41.8, max_lng: 173.5, max_lat: -40.8 } },
+  { name: 'Marlborough', slug: 'marlborough', bounds: { min_lng: 173.0, min_lat: -42.2, max_lng: 174.5, max_lat: -41.0 } },
+  { name: 'North Canterbury', slug: 'north-canterbury', bounds: { min_lng: 172.0, min_lat: -43.3, max_lng: 173.5, max_lat: -42.5 } },
+  { name: 'Waitaki Valley', slug: 'waitaki-valley', bounds: { min_lng: 170.0, min_lat: -45.2, max_lng: 171.5, max_lat: -44.5 } },
+  { name: 'Central Otago', slug: 'central-otago', bounds: { min_lng: 168.5, min_lat: -45.5, max_lng: 170.0, max_lat: -44.5 } },
+];
+
 function MapSidebar({ 
   currentStyle, 
   onStyleChange, 
+  // Block layer
   opacity, 
   onOpacityChange,
-  regions = [],
+  showBlocks = true,
+  onToggleBlocks,
+  // Region layer
+  showRegions = true,
+  onToggleRegions,
+  regionOpacity = 0.5,
+  onRegionOpacityChange,
+  // GI layer
+  showGIs = true,
+  onToggleGIs,
+  giOpacity = 0.0,
+  // Region navigation
   onRegionClick 
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activeSection, setActiveSection] = useState('styles'); // 'styles' | 'layers' | 'regions'
+  const [activeSection, setActiveSection] = useState('layers');
+  const [regions, setRegions] = useState([]);
+  const [loadingRegions, setLoadingRegions] = useState(true);
+
+  // Load regions from API
+  useEffect(() => {
+    loadRegions();
+  }, []);
+
+  const loadRegions = async () => {
+    try {
+      setLoadingRegions(true);
+      const response = await publicApi.get('/public/regions');
+      setRegions(response.data);
+    } catch (err) {
+      console.error('Error loading regions:', err);
+      setRegions(FALLBACK_REGIONS);
+    } finally {
+      setLoadingRegions(false);
+    }
+  };
 
   const toggleSection = (section) => {
     setActiveSection(activeSection === section ? null : section);
+  };
+
+  const formatArea = (ha) => {
+    if (!ha) return '';
+    if (ha >= 1000) {
+      return `${(ha / 1000).toFixed(1)}k ha`;
+    }
+    return `${Math.round(ha)} ha`;
   };
 
   return (
@@ -93,100 +149,143 @@ function MapSidebar({
                   <div className="layer-item">
                     <div className="layer-header">
                       <label className="layer-label">
-                        <input 
-                          type="checkbox" 
-                          checked={true}
-                          disabled
-                        />
+                        <button 
+                          className="layer-toggle-btn"
+                          onClick={onToggleBlocks}
+                          title={showBlocks ? 'Hide layer' : 'Show layer'}
+                        >
+                          {showBlocks ? <Eye size={16} /> : <EyeOff size={16} />}
+                        </button>
+                        <Grape size={14} className="layer-icon-grape" />
                         <span>Vineyard Blocks</span>
                       </label>
                     </div>
                     
-                    {/* Opacity Slider */}
-                    <div className="opacity-control">
-                      <label htmlFor="opacity-slider">
-                        Opacity: {Math.round(opacity * 100)}%
+                    {showBlocks && (
+                      <div className="opacity-control">
+                        <label htmlFor="block-opacity-slider">
+                          Opacity: {Math.round(opacity * 100)}%
+                        </label>
+                        <input
+                          id="block-opacity-slider"
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={opacity}
+                          onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+                          className="opacity-slider"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Wine Regions */}
+                  <div className="layer-item">
+                    <div className="layer-header">
+                      <label className="layer-label">
+                        <button 
+                          className="layer-toggle-btn"
+                          onClick={onToggleRegions}
+                          title={showRegions ? 'Hide layer' : 'Show layer'}
+                        >
+                          {showRegions ? <Eye size={16} /> : <EyeOff size={16} />}
+                        </button>
+                        <MapPin size={14} className="layer-icon-region" />
+                        <span>Wine Regions</span>
                       </label>
-                      <input
-                        id="opacity-slider"
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={opacity}
-                        onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-                        className="opacity-slider"
-                      />
                     </div>
+                    
+                    {showRegions && (
+                      <div className="opacity-control">
+                        <label htmlFor="region-opacity-slider">
+                          Opacity: {Math.round(regionOpacity * 100)}%
+                        </label>
+                        <input
+                          id="region-opacity-slider"
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={regionOpacity}
+                          onChange={(e) => onRegionOpacityChange(parseFloat(e.target.value))}
+                          className="opacity-slider"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Future Layers (Placeholders) */}
-                  <div className="layer-item disabled">
-                    <label className="layer-label">
-                      <input type="checkbox" disabled />
-                      <span>Wine Regions</span>
-                    </label>
-                    <span className="coming-soon">Coming Soon</span>
-                  </div>
+                  {/* Protected GIs */}
+                  <div className="layer-item">
+                    <div className="layer-header">
+                      <label className="layer-label">
+                        <button 
+                          className="layer-toggle-btn"
+                          onClick={onToggleGIs}
+                          title={showGIs ? 'Hide layer' : 'Show layer'}
+                        >
+                          {showGIs ? <Eye size={16} /> : <EyeOff size={16} />}
+                        </button>
+                        <Shield size={14} className="layer-icon-gi" />
+                        <span>Protected GIs</span>
+                      </label>
+                    </div>
+                    
 
-                  <div className="layer-item disabled">
-                    <label className="layer-label">
-                      <input type="checkbox" disabled />
-                      <span>Climate Zones</span>
-                    </label>
-                    <span className="coming-soon">Coming Soon</span>
-                  </div>
-
-                  <div className="layer-item disabled">
-                    <label className="layer-label">
-                      <input type="checkbox" disabled />
-                      <span>Temperature Overlay</span>
-                    </label>
-                    <span className="coming-soon">Coming Soon</span>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Regions Section */}
-            {regions && regions.length > 0 && (
-              <div className="sidebar-section">
-                <button 
-                  className="section-header"
-                  onClick={() => toggleSection('regions')}
-                >
-                  <div className="section-title">
-                    <MapPin size={18} />
-                    <span>Explore Regions</span>
-                  </div>
-                  <ChevronRight 
-                    size={16} 
-                    className={`chevron ${activeSection === 'regions' ? 'rotated' : ''}`}
-                  />
-                </button>
+            <div className="sidebar-section">
+              <button 
+                className="section-header"
+                onClick={() => toggleSection('regions')}
+              >
+                <div className="section-title">
+                  <MapPin size={18} />
+                  <span>Explore Regions</span>
+                </div>
+                <ChevronRight 
+                  size={16} 
+                  className={`chevron ${activeSection === 'regions' ? 'rotated' : ''}`}
+                />
+              </button>
 
-                {activeSection === 'regions' && (
-                  <div className="section-content">
+              {activeSection === 'regions' && (
+                <div className="section-content">
+                  {loadingRegions ? (
+                    <div className="loading-regions">
+                      <div className="loading-spinner small" />
+                      <span>Loading regions...</span>
+                    </div>
+                  ) : (
                     <div className="regions-list">
-                      {regions.map((region, idx) => (
+                      {regions.map((region) => (
                         <button
-                          key={idx}
+                          key={region.slug}
                           className="region-btn"
                           onClick={() => onRegionClick(region)}
                         >
                           <MapPin size={14} />
-                          <span>{region.name}</span>
+                          <span className="region-name">{region.name}</span>
+                          {region.total_planted_ha && (
+                            <span className="region-area">
+                              {formatArea(region.total_planted_ha)}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Legend */}
             <div className="sidebar-section">
-              <div className="section-header">
+              <div className="section-header" style={{ cursor: 'default' }}>
                 <div className="section-title">
                   <span>Legend</span>
                 </div>
@@ -200,8 +299,22 @@ function MapSidebar({
                     />
                     <span>Vineyard Blocks</span>
                   </div>
+                  <div className="legend-item">
+                    <div 
+                      className="legend-color" 
+                      style={{ backgroundColor: '#3b82f6' }}
+                    />
+                    <span>Wine Regions</span>
+                  </div>
+                  <div className="legend-item">
+                    <div 
+                      className="legend-color" 
+                      style={{ backgroundColor: '#961111' }}
+                    />
+                    <span>Protected GIs</span>
+                  </div>
                   <p className="legend-note">
-                    Click any block to view details
+                    Click any feature to view details
                   </p>
                 </div>
               </div>
@@ -233,18 +346,16 @@ function MapSidebar({
           >
             <Layers size={20} />
           </button>
-          {regions.length > 0 && (
-            <button 
-              className="collapsed-btn"
-              onClick={() => {
-                setIsCollapsed(false);
-                setActiveSection('regions');
-              }}
-              title="Regions"
-            >
-              <MapPin size={20} />
-            </button>
-          )}
+          <button 
+            className="collapsed-btn"
+            onClick={() => {
+              setIsCollapsed(false);
+              setActiveSection('regions');
+            }}
+            title="Regions"
+          >
+            <MapPin size={20} />
+          </button>
         </div>
       )}
     </>
