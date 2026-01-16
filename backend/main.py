@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query
 from core.config import settings
 import logging
 import traceback
@@ -288,6 +288,13 @@ app.include_router(
     prefix="/api/v1",
     tags=["Public Authentication"]
 )
+
+app.include_router(
+    blocks_query.router, 
+    prefix="/api/v1/public/blocks",
+    tags=["public-blocks"]
+)
+
 
 # API endpoints
 @app.get("/api", tags=["root"])
