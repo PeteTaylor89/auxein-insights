@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 """
-Optimized Bulk Climate Data Import Script
-Handles 8,744+ CSV files with >10GB of data efficiently
+Standalone Climate Data Import Script for EC2
+Optimized for AWS RDS import with PostgreSQL COPY
 
-Key optimizations:
-- PostgreSQL COPY for bulk inserts (100-1000x faster)
-- Parallel processing across multiple files
-- Removes per-row duplicate checking
-- Batch operations with large chunks
-- Progress tracking and resume capability
-
-Run from backend directory: python scripts/data_import/import_climate_csvs_optimized.py
+Usage:
+  export DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+  python3 import_climate_standalone.py --csv-dir ~/climate_data --workers 8
 """
 
 import os
@@ -28,40 +23,14 @@ import time
 import json
 from typing import Dict, List, Tuple
 
-# Find and add the backend directory to Python path
-current_file = Path(__file__).absolute()
-backend_dir = None
-
-search_paths = [
-    current_file.parent.parent.parent,
-    current_file.parent.parent,
-    current_file.parent,
-    Path.cwd(),
-]
-
-print("🔍 Searching for backend directory...")
-for path in search_paths:
-    db_path = path / 'db'
-    session_path = db_path / 'session.py'
-    if db_path.exists() and session_path.exists():
-        backend_dir = path
-        print(f"✅ Found backend at: {backend_dir}")
-        break
-
-if not backend_dir:
-    print("❌ Could not find backend directory!")
+# Get database URL from environment
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    print("❌ DATABASE_URL environment variable not set!")
+    print("Set it with: export DATABASE_URL='postgresql://user:pass@host:5432/db?sslmode=require'")
     sys.exit(1)
 
-sys.path.insert(0, str(backend_dir))
-
-# Import database configuration
-try:
-    from db.session import SessionLocal, engine
-    from core.config import settings
-    print("✅ Successfully imported database modules")
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    sys.exit(1)
+print(f"✅ Using database connection from DATABASE_URL")
 
 
 class BulkClimateImporter:
@@ -287,7 +256,6 @@ class BulkClimateImporter:
             buffer.seek(0)
             
             # First, delete any existing records for this block to avoid conflicts
-            # This is faster than checking each row individually
             cursor.execute(
                 "DELETE FROM climate_historical_data WHERE vineyard_block_id = %s",
                 (block_id,)
@@ -305,56 +273,6 @@ class BulkClimateImporter:
                 ],
                 sep='\t',
                 null=''
-            )
-            
-            conn.commit()
-            imported_count = len(df)
-            
-            return {
-                'success': True,
-                'imported': imported_count,
-                'deleted': deleted_count,
-                'error': None
-            }
-            
-        except Exception as e:
-            conn.rollback()
-            return {
-                'success': False,
-                'imported': 0,
-                'deleted': 0,
-                'error': str(e)
-            }
-        finally:
-            cursor.close()
-    
-    def bulk_insert_with_execute_values(self, conn, df: pd.DataFrame, block_id: int) -> Dict:
-        """Alternative method using execute_values (if COPY has issues)"""
-        try:
-            cursor = conn.cursor()
-            
-            # Delete existing records
-            cursor.execute(
-                "DELETE FROM climate_historical_data WHERE vineyard_block_id = %s",
-                (block_id,)
-            )
-            deleted_count = cursor.rowcount
-            
-            # Prepare data as list of tuples
-            records = [tuple(row) for row in df.to_numpy()]
-            
-            # Bulk insert using execute_values (much faster than executemany)
-            execute_values(
-                cursor,
-                """
-                INSERT INTO climate_historical_data 
-                (vineyard_block_id, date, temperature_mean, temperature_min,
-                 temperature_max, rainfall_amount, solar_radiation, data_quality,
-                 created_at, updated_at)
-                VALUES %s
-                """,
-                records,
-                page_size=5000
             )
             
             conn.commit()
@@ -417,10 +335,7 @@ class BulkClimateImporter:
             # Get connection and insert
             conn = self.get_connection()
             try:
-                if use_copy:
-                    result = self.bulk_insert_with_copy(conn, df, block_id)
-                else:
-                    result = self.bulk_insert_with_execute_values(conn, df, block_id)
+                result = self.bulk_insert_with_copy(conn, df, block_id)
                 
                 if result['success']:
                     self.save_progress(block_id)
@@ -444,21 +359,6 @@ class BulkClimateImporter:
                 'duration': time.time() - start_time,
                 'error': str(e)
             }
-    
-    def verify_block_exists(self, block_id: int) -> bool:
-        """Quick check if vineyard block exists in database"""
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT EXISTS(SELECT 1 FROM vineyard_blocks WHERE id = %s)",
-                (block_id,)
-            )
-            exists = cursor.fetchone()[0]
-            cursor.close()
-            return exists
-        finally:
-            conn.close()
     
     def get_existing_blocks(self, block_ids: List[int]) -> set:
         """Batch check which blocks exist in database"""
@@ -618,19 +518,13 @@ def main():
         epilog="""
 Examples:
   # Import all files with 8 parallel workers
-  python import_climate_csvs_optimized.py --csv-dir Z:\\Data\\NZ_Climate_History\\Vineyards\\Merged --workers 8
+  python3 import_climate_standalone.py --csv-dir ~/climate_data --workers 8
 
   # Test with first 100 files
-  python import_climate_csvs_optimized.py --csv-dir /path/to/csvs --limit 100 --workers 4
+  python3 import_climate_standalone.py --csv-dir ~/climate_data --limit 100 --workers 4
 
   # Resume interrupted import
-  python import_climate_csvs_optimized.py --csv-dir /path/to/csvs --workers 8
-
-  # Import specific blocks
-  python import_climate_csvs_optimized.py --csv-dir /path/to/csvs --block-ids 1,2,3,4,5
-
-  # Clear progress and start fresh
-  python import_climate_csvs_optimized.py --csv-dir /path/to/csvs --clear-progress
+  python3 import_climate_standalone.py --csv-dir ~/climate_data --workers 8
         """
     )
     
@@ -639,8 +533,6 @@ Examples:
     parser.add_argument('--limit', type=int, help='Limit number of files to process')
     parser.add_argument('--workers', type=int, default=4, 
                        help='Number of parallel workers (default: 4, recommended: 4-8)')
-    parser.add_argument('--use-execute-values', action='store_true',
-                       help='Use execute_values instead of COPY (slower but more compatible)')
     parser.add_argument('--skip-validation', action='store_true',
                        help='Skip checking if blocks exist in database')
     parser.add_argument('--clear-progress', action='store_true',
@@ -656,20 +548,6 @@ Examples:
         if progress_file.exists():
             progress_file.unlink()
             print("✅ Progress file cleared")
-    
-    # Get database connection string
-    try:
-        # Build connection string from settings
-        db_url = settings.DATABASE_URL
-        # Convert SQLAlchemy URL to psycopg2 format if needed
-        if db_url.startswith('postgresql://'):
-            connection_string = db_url
-        else:
-            print("❌ Unsupported database URL format")
-            return 1
-    except Exception as e:
-        print(f"❌ Could not get database connection: {e}")
-        return 1
     
     print(f"\n📂 Scanning CSV directory: {args.csv_dir}")
     
@@ -701,12 +579,12 @@ Examples:
     
     # Create importer and run
     importer = BulkClimateImporter(
-        connection_string=connection_string,
+        connection_string=DATABASE_URL,
         workers=args.workers,
         manage_indexes=not args.no_index_management
     )
     
-    use_copy = not args.use_execute_values
+    use_copy = True
     validate_blocks = not args.skip_validation
     
     importer.import_files_parallel(

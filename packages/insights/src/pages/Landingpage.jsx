@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock } from 'lucide-react';
 import ClimateContainer from '../components/climate/ClimateContainer';
-import RegionMap from '../components/RegionMap';
+import RegionalMap from '../components/RegionalMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
 import MainLogo from '../assets/Logo_September 2025.png';
 import './LandingPage.css';
@@ -11,6 +11,7 @@ import { usePublicAuth } from '../contexts/PublicAuthContext';
 import AuthModal from '../components/auth/AuthModal';
 import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
+
 
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
@@ -282,11 +283,11 @@ function LandingPage() {
                 <p>Sign in to explore New Zealand wine regions</p>
               </div>
               <div className="map-preview-blur">
-                <RegionMap regions={featuredRegions} />
+                <RegionalMap regions={featuredRegions} />
               </div>
             </div>
           ) : (
-            <RegionMap regions={featuredRegions} />
+            <RegionalMap regions={featuredRegions} />
           )}
         </div>
       </section>

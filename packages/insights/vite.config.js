@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [
     react()
   ],
+  envDir: '../../',
   resolve: {
     alias: {
       '@vineyard/shared': path.resolve(__dirname, '../shared/src'),
@@ -22,7 +23,13 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/static': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
     },
+    },
+    
     watch: {
       followSymlinks: true,
     },

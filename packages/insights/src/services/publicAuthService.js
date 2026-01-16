@@ -7,7 +7,7 @@ const publicAuthService = {
   // ============================================
   
   signup: async function(userData) {
-    const response = await publicApi.post('/v1/public/auth/signup', userData);
+    const response = await publicApi.post('/public/auth/signup', userData);
     return response.data;
   },
 
@@ -16,7 +16,7 @@ const publicAuthService = {
   // ============================================
   
   login: async function(email, password) {
-    const response = await publicApi.post('/v1/public/auth/login', { email, password });
+    const response = await publicApi.post('/public/auth/login', { email, password });
     
     // Store token and user
     if (response.data.access_token) {
@@ -32,7 +32,7 @@ const publicAuthService = {
   // ============================================
   
   getCurrentUser: async function() {
-    const response = await publicApi.get('/v1/public/auth/me');
+    const response = await publicApi.get('/public/auth/me');
     return response.data;
   },
 
@@ -41,7 +41,7 @@ const publicAuthService = {
   // ============================================
   
   updateProfile: async function(updates) {
-    const response = await publicApi.patch('/v1/public/auth/me', updates);
+    const response = await publicApi.patch('/public/auth/me', updates);
     
     // Update stored user
     if (response.data) {
@@ -56,7 +56,7 @@ const publicAuthService = {
   // ============================================
   
   updateMarketingPreferences: async function(preferences) {
-    const response = await publicApi.patch('/v1/public/auth/me/marketing-preferences', preferences);
+    const response = await publicApi.patch('/public/auth/me/marketing-preferences', preferences);
     return response.data;
   },
 
@@ -65,7 +65,7 @@ const publicAuthService = {
   // ============================================
   
   verifyEmail: async function(token) {
-    const response = await publicApi.post('/v1/public/auth/verify-email', { token });
+    const response = await publicApi.post('/public/auth/verify-email', { token });
     return response.data;
   },
 
@@ -74,7 +74,7 @@ const publicAuthService = {
   // ============================================
   
   resendVerification: async function(email) {
-    const response = await publicApi.post('/v1/public/auth/resend-verification', { email });
+    const response = await publicApi.post('/public/auth/resend-verification', { email });
     return response.data;
   },
 
@@ -83,7 +83,7 @@ const publicAuthService = {
   // ============================================
   
   forgotPassword: async function(email) {
-    const response = await publicApi.post('/v1/public/auth/forgot-password', { email });
+    const response = await publicApi.post('/public/auth/forgot-password', { email });
     return response.data;
   },
 
@@ -92,7 +92,7 @@ const publicAuthService = {
   // ============================================
   
   resetPassword: async function(token, newPassword) {
-    const response = await publicApi.post('/v1/public/auth/reset-password', {
+    const response = await publicApi.post('/public/auth/reset-password', {
       token,
       new_password: newPassword
     });
@@ -104,12 +104,12 @@ const publicAuthService = {
   // ============================================
   
   getUserTypes: async function() {
-    const response = await publicApi.get('/v1/public/auth/user-types');
+    const response = await publicApi.get('/public/auth/user-types');
     return response.data;
   },
 
   getRegions: async function() {
-    const response = await publicApi.get('/v1/public/auth/regions');
+    const response = await publicApi.get('/public/auth/regions');
     return response.data;
   },
 
