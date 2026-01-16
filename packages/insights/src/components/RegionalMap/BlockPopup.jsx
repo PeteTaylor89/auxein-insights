@@ -139,7 +139,7 @@ function BlockPopup({ block, onClose }) {
               className="report-issue-btn"
               onClick={() => setShowReportForm(true)}
             >
-              Report Data Issue
+              Suggest Data Update
             </button>
           ) : (
             <ReportIssueForm 

@@ -6,31 +6,24 @@
     "packages/*"
   ],
   "scripts": {
-
     "dev:backend": "cd backend && cross-env PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
-
     "dev:insights": "cd packages/insights && npm run dev",
     "dev:pro": "cd packages/web && npm run dev",
     "build:insights": "cd packages/insights && npm run build",
     "build:pro": "cd packages/web && npm run build",
-
     "dev:regional": "concurrently --kill-others --names \"API,INSIGHTS\" --prefix-colors \"blue,magenta\" \"npm run dev:backend\" \"npm run dev:insights\"",
     "dev:pro-app": "concurrently --kill-others --names \"API,PRO\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:pro\"",
     "dev:all": "concurrently --kill-others --names \"API,INSIGHTS,PRO\" --prefix-colors \"blue,magenta,green\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\"",
-
     "kill:node": "powershell \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Node processes",
     "kill:python": "powershell \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Python processes",
     "kill:all": "npm run kill:node && npm run kill:python",
     "clean:cache": "cd backend && powershell \"Get-ChildItem -Recurse -Name '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue\" 2>nul",
-
     "check:ports": "echo === Port Status === && netstat -ano | findstr \":8000 :5173 :5174\" || echo No servers running",
     "check:processes": "echo === Node === && tasklist | findstr node.exe && echo === Python === && tasklist | findstr python.exe || echo No dev processes",
     "status": "npm run check:ports && npm run check:processes",
-
     "install:all": "npm install && cd packages/insights && npm install && cd ../web && npm install",
     "install:insights": "cd packages/insights && npm install",
     "install:pro": "cd packages/web && npm install",
-
     "build:regional-deployment": "npm run build:insights",
     "build:pro-deployment": "npm run build:pro",
     "build:both": "npm run build:insights && npm run build:pro"
@@ -42,5 +35,8 @@
   "engines": {
     "node": ">=16.0.0",
     "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "recharts": "^3.6.0"
   }
 }

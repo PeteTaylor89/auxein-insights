@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
 from db.base_class import Base
-from api.deps import get_db, get_current_user
+
 
 class Incident(Base):
     __tablename__ = "incidents"
