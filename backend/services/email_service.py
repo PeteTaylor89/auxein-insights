@@ -289,14 +289,14 @@ The Auxein Team
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
     <tr>
         <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
-            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">🎉 Welcome to Auxein!</h1>
+            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Welcome to Auxein</h1>
         </td>
     </tr>
     <tr>
         <td style="padding: 40px;">
             <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Hi {name}!</h2>
             <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px;">
-                You're all set to explore New Zealand's wine regions with comprehensive climate intelligence.
+                You're all set to explore New Zealand's wine regions, and ahve direct insigth to historical, and projected climate with Auxein's climate intelligence.
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>

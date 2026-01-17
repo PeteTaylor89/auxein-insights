@@ -1,0 +1,1722 @@
+/* packages/insights/src/components/climate/PublicClimate.css */
+
+/* =============================================================================
+   PUBLIC CLIMATE CONTAINER
+   ============================================================================= */
+
+.public-climate-container {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.climate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-title h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.about-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.about-btn:hover {
+  background: #e9ecef;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #666;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+/* =============================================================================
+   VIEW TOGGLE
+   ============================================================================= */
+
+.view-toggle-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: #f1f3f4;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.view-toggle-btn {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.view-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.view-toggle-btn.active {
+  background: white;
+  color: #0066cc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* =============================================================================
+   ZONE SELECTOR
+   ============================================================================= */
+
+.zone-selector {
+  margin-bottom: 24px;
+}
+
+.zone-selector-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.zone-dropdown-container {
+  position: relative;
+}
+
+.zone-dropdown-trigger {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.zone-dropdown-trigger:hover {
+  border-color: #0066cc;
+}
+
+.zone-dropdown-trigger.open {
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.zone-dropdown-trigger:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.zone-dropdown-text {
+  color: #333;
+}
+
+.dropdown-chevron {
+  transition: transform 0.2s;
+}
+
+.dropdown-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.zone-dropdown-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.zone-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  max-width: 400px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+}
+
+.zone-region-group {
+  border-bottom: 1px solid #eee;
+}
+
+.zone-region-group:last-child {
+  border-bottom: none;
+}
+
+.zone-region-header {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  background: #f8f9fa;
+  position: sticky;
+  top: 0;
+}
+
+.zone-region-zones {
+  padding: 4px 0;
+}
+
+.zone-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.zone-option:hover {
+  background: #f5f8ff;
+}
+
+.zone-option.selected {
+  background: #e8f4ff;
+  color: #0066cc;
+}
+
+.zone-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zone-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: white;
+}
+
+.zone-checkbox.checked {
+  background: #0066cc;
+  border-color: #0066cc;
+}
+
+.zone-comparison-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.zone-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #e8f4ff;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #0066cc;
+}
+
+.zone-tag-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 16px;
+  color: #0066cc;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.zone-tag-remove:hover {
+  color: #004499;
+}
+
+.zone-selector-loading,
+.zone-selector-error {
+  padding: 16px;
+  text-align: center;
+  color: #666;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.zone-selector-error {
+  color: #dc3545;
+  background: #f8d7da;
+}
+
+/* =============================================================================
+   EXPLORER COMMON STYLES
+   ============================================================================= */
+
+.season-explorer,
+.projections-explorer {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.explorer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.explorer-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.explorer-mode-toggle {
+  display: flex;
+  gap: 4px;
+  background: white;
+  border-radius: 6px;
+  padding: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.explorer-placeholder,
+.explorer-loading,
+.explorer-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #666;
+}
+
+.explorer-placeholder svg {
+  margin-bottom: 16px;
+  color: #ccc;
+}
+
+.explorer-error {
+  color: #dc3545;
+}
+
+/* =============================================================================
+   BASELINE SUMMARY
+   ============================================================================= */
+
+.baseline-summary {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid #e9ecef;
+}
+
+.baseline-header {
+  margin-bottom: 12px;
+}
+
+.baseline-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.baseline-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.baseline-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.baseline-stat svg {
+  color: #0066cc;
+}
+
+.baseline-stat .stat-value {
+  font-weight: 600;
+  color: #333;
+}
+
+.baseline-stat .stat-label {
+  color: #666;
+  font-size: 13px;
+}
+
+/* =============================================================================
+   CHART CONTROLS & CONTAINER
+   ============================================================================= */
+
+.chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chart-metric-selector {
+  display: flex;
+  gap: 4px;
+  background: white;
+  border-radius: 6px;
+  padding: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.chart-type-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.chart-type-btn:hover {
+  background: #f5f5f5;
+}
+
+.chart-type-btn.active {
+  background: #0066cc;
+  color: white;
+}
+
+.season-limit-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+}
+
+.chart-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  height: 350px;
+  margin-bottom: 24px;
+}
+
+/* =============================================================================
+   SEASON CARDS
+   ============================================================================= */
+
+.seasons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.season-card {
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.season-card:hover {
+  border-color: #0066cc;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+}
+
+.season-card.selected {
+  border-color: #0066cc;
+  background: #f5f8ff;
+}
+
+.season-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.season-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+
+.season-ranking {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0066cc;
+  background: #e8f4ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.season-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.season-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.season-stat .stat-label {
+  font-size: 12px;
+  color: #666;
+  min-width: 40px;
+}
+
+.season-stat .stat-value {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.season-stat .stat-diff {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.stat-diff.positive {
+  color: #28a745;
+}
+
+.stat-diff.negative {
+  color: #dc3545;
+}
+
+.trend-icon.positive {
+  color: #28a745;
+}
+
+.trend-icon.negative {
+  color: #dc3545;
+}
+
+.trend-icon.neutral {
+  color: #6c757d;
+}
+
+/* =============================================================================
+   COMPARISON VIEW
+   ============================================================================= */
+
+.comparison-view {
+  margin-top: 20px;
+}
+
+.comparison-instructions {
+  text-align: center;
+  padding: 12px;
+  background: #fff3cd;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  color: #856404;
+}
+
+.seasons-selection-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.season-select-btn {
+  padding: 8px 16px;
+  border: 2px solid #e9ecef;
+  background: white;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.season-select-btn:hover:not(:disabled) {
+  border-color: #0066cc;
+}
+
+.season-select-btn.selected {
+  background: #0066cc;
+  border-color: #0066cc;
+  color: white;
+}
+
+.season-select-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.comparison-results {
+  overflow-x: auto;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.comparison-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  font-size: 13px;
+  color: #666;
+}
+
+.comparison-table td {
+  font-size: 14px;
+}
+
+.comparison-table td small {
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.comparison-table td small.positive {
+  color: #28a745;
+}
+
+.comparison-table td small.negative {
+  color: #dc3545;
+}
+
+/* =============================================================================
+   SSP SELECTOR (PROJECTIONS)
+   ============================================================================= */
+
+.ssp-selector,
+.period-selector {
+  margin-bottom: 24px;
+}
+
+.selector-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.ssp-tabs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ssp-tab {
+  flex: 1;
+  min-width: 150px;
+  padding: 16px;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.ssp-tab:hover {
+  border-color: var(--ssp-color, #0066cc);
+}
+
+.ssp-tab.active {
+  border-color: var(--ssp-color, #0066cc);
+  background: linear-gradient(180deg, white 0%, #f8f9fa 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ssp-name {
+  display: block;
+  font-weight: 700;
+  font-size: 15px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.ssp-short {
+  display: block;
+  font-size: 12px;
+  color: #666;
+}
+
+.ssp-description {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.ssp-description svg {
+  flex-shrink: 0;
+}
+
+/* =============================================================================
+   PERIOD SELECTOR
+   ============================================================================= */
+
+.period-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.period-btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 16px;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.period-btn:hover {
+  border-color: #0066cc;
+}
+
+.period-btn.active {
+  border-color: #0066cc;
+  background: #f5f8ff;
+}
+
+.period-name {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.period-years {
+  display: block;
+  font-size: 13px;
+  color: #0066cc;
+}
+
+/* =============================================================================
+   PROJECTION SUMMARY
+   ============================================================================= */
+
+.projection-summary {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.projection-summary h4 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.summary-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.summary-icon.gdd {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.summary-icon.temp {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.summary-icon.rain {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin: 4px 0;
+}
+
+.summary-change {
+  font-size: 13px;
+}
+
+.summary-change.positive {
+  color: #28a745;
+}
+
+.summary-change.negative {
+  color: #dc3545;
+}
+
+/* =============================================================================
+   MONTHLY DETAILS TABLE
+   ============================================================================= */
+
+.monthly-details {
+  margin-top: 24px;
+}
+
+.monthly-details h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.monthly-table-wrapper {
+  overflow-x: auto;
+}
+
+.monthly-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.monthly-table th,
+.monthly-table td {
+  padding: 10px 14px;
+  text-align: center;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 13px;
+}
+
+.monthly-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #666;
+}
+
+.monthly-table td.positive {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.monthly-table td.negative {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   ATTRIBUTION
+   ============================================================================= */
+
+.climate-attribution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.climate-attribution svg {
+  flex-shrink: 0;
+  color: #999;
+}
+
+/* =============================================================================
+   ABOUT MODAL
+   ============================================================================= */
+
+.climate-about-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.climate-about-modal {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.about-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.about-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #333;
+}
+
+.about-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.about-section {
+  margin-bottom: 32px;
+}
+
+.about-section:last-child {
+  margin-bottom: 0;
+}
+
+.about-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.section-icon {
+  float: left;
+  margin-right: 16px;
+  padding: 12px;
+  background: #f5f8ff;
+  border-radius: 10px;
+  color: #0066cc;
+}
+
+.section-icon.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.section-content p {
+  margin: 0 0 12px 0;
+  line-height: 1.6;
+  color: #555;
+}
+
+/* Variables Grid */
+.variables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.variable-card {
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.variable-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.variable-card p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.variable-card code {
+  display: block;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #0066cc;
+}
+
+/* SSP List */
+.ssp-list {
+  margin-top: 16px;
+}
+
+.ssp-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.ssp-item.ssp126 {
+  background: #dcfce7;
+}
+
+.ssp-item.ssp245 {
+  background: #fef3c7;
+}
+
+.ssp-item.ssp370 {
+  background: #fee2e2;
+}
+
+.ssp-badge {
+  padding: 4px 10px;
+  background: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ssp-desc {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.4;
+}
+
+/* Periods Grid */
+.periods-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.period-item {
+  text-align: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.period-item .period-label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.period-item .period-years {
+  display: block;
+  font-size: 14px;
+  color: #0066cc;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.period-item .period-desc {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* Guidelines */
+.guidelines-list {
+  margin: 16px 0 0 0;
+  padding-left: 20px;
+}
+
+.guidelines-list li {
+  margin-bottom: 12px;
+  line-height: 1.5;
+  color: #555;
+}
+
+/* Citations */
+.citations-list {
+  margin: 12px 0 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.citations-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+  color: #555;
+}
+
+.citations-list a {
+  color: #0066cc;
+}
+
+.about-footer {
+  padding: 20px 24px;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
+  text-align: center;
+}
+
+.about-footer p {
+  margin: 0 0 16px 0;
+  font-size: 15px;
+  color: #666;
+}
+
+.close-about-btn {
+  padding: 10px 32px;
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.close-about-btn:hover {
+  background: #0052a3;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .public-climate-container {
+    padding: 16px;
+  }
+
+  .header-title h2 {
+    font-size: 20px;
+  }
+
+  .view-toggle {
+    width: 100%;
+  }
+
+  .view-toggle-btn {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .zone-dropdown-trigger {
+    max-width: 100%;
+  }
+
+  .zone-dropdown-menu {
+    max-width: 100%;
+  }
+
+  .season-explorer,
+  .projections-explorer {
+    padding: 16px;
+  }
+
+  .explorer-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .baseline-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chart-metric-selector {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .chart-container {
+    height: 280px;
+  }
+
+  .seasons-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ssp-tabs {
+    flex-direction: column;
+  }
+
+  .ssp-tab {
+    min-width: unset;
+  }
+
+  .period-buttons {
+    flex-direction: column;
+  }
+
+  .period-btn {
+    min-width: unset;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .periods-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .climate-about-modal {
+    max-height: 95vh;
+    margin: 10px;
+  }
+
+  .about-content {
+    padding: 16px;
+  }
+
+  .variables-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .seasons-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-type-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+
+/* =============================================================================
+   SEASON EXPLORER - ENHANCED STYLES
+   ============================================================================= */
+
+.explorer-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.explorer-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.zone-region {
+  font-size: 14px;
+  color: #666;
+}
+
+/* View Mode Selector */
+.view-mode-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
+.mode-btn.active {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: white;
+}
+
+/* Include LTA Toggle */
+.include-lta-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+}
+
+.include-lta-toggle input {
+  cursor: pointer;
+}
+
+/* Season Selector */
+.season-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.season-selector label {
+  font-size: 13px;
+  color: #666;
+}
+
+.season-select {
+  padding: 6px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+}
+
+/* Compare Type Toggle */
+.compare-type-toggle {
+  display: flex;
+  gap: 16px;
+}
+
+.compare-type-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+}
+
+/* Comparison Season Selector */
+.comparison-season-selector {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.selector-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.season-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.season-pill {
+  padding: 6px 12px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.season-pill:hover:not(:disabled) {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
+.season-pill.selected {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: white;
+}
+
+.season-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Seasons Section with Pagination */
+.seasons-section {
+  margin-top: 24px;
+}
+
+.seasons-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.seasons-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.seasons-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #555;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 13px;
+  color: #666;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* Season Card - Enhanced */
+.season-card.comparing {
+  border-color: #F59E0B;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.season-card.comparing .season-label {
+  color: #F59E0B;
+}
+
+/* Chart Loading */
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #666;
+  font-size: 14px;
+}
+
+.chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #999;
+  font-size: 14px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+/* Explorer Placeholder */
+.explorer-placeholder,
+.explorer-loading,
+.explorer-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #666;
+}
+
+.explorer-placeholder svg {
+  margin-bottom: 16px;
+  color: #ccc;
+}
+
+.explorer-error {
+  color: #dc3545;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .view-mode-selector {
+    flex-direction: column;
+  }
+
+  .mode-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .chart-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .comparison-season-selector {
+    padding: 10px;
+  }
+
+  .season-pills {
+    gap: 6px;
+  }
+
+  .season-pill {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+}
+
+/* =============================================================================
+   ZONE SELECTOR - COMPARISON FEATURES
+   ============================================================================= */
+
+.zone-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.zone-comparison-section {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.comparison-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.comparison-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.add-comparison-container {
+  position: relative;
+}
+
+.add-comparison-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px dashed #ccc;
+  background: white;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-comparison-btn:hover {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
+.comparison-menu {
+  max-height: 250px;
+}
+
+.comparison-hint {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+}
+
+.zone-comparison-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.zone-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 12px;
+  background: #e0e7ff;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #3730a3;
+}
+
+.zone-tag-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: #c7d2fe;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #4338ca;
+  transition: all 0.2s;
+}
+
+.zone-tag-remove:hover {
+  background: #a5b4fc;
+}

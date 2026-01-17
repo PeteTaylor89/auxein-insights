@@ -1,8 +1,8 @@
-// pages/LandingPage.jsx - Updated with email verification modal
+// pages/LandingPage.jsx - Fixed version
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock } from 'lucide-react';
-import ClimateContainer from '../components/climate/ClimateContainer';
+import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock, History } from 'lucide-react';
+
 import RegionalMap from '../components/RegionalMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
 import MainLogo from '../assets/Logo_September 2025.png';
@@ -11,7 +11,7 @@ import { usePublicAuth } from '../contexts/PublicAuthContext';
 import AuthModal from '../components/auth/AuthModal';
 import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
-
+import { PublicClimateContainer } from '../components/climate';
 
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
@@ -57,13 +57,40 @@ function LandingPage() {
     { id: 'hawkes-bay', name: 'Hawke\'s Bay', temp: '15.8°C', gdd: 1400, lat: -39.6, lon: 176.9 }
   ];
 
-  // Insight options
+  // Insight options - FIXED NAMING
   const insightOptions = [
-    { id: 'currentseason', icon: <CloudSunRain size={28} />, label: 'Current Season', placeholder: 'Current Season Climate Analysis coming soon...' },
-    { id: 'phenology', icon: <Grape size={28} />, label: 'Phenology', placeholder: 'Phenology analysis coming soon...' },
-    { id: 'disease', icon: <ShieldCheck size={28} />, label: 'Disease', placeholder: 'Disease risk analysis coming soon...' },
-    { id: 'biosecurity', icon: <Bug size={28} />, label: 'Biosecurity', placeholder: 'Biosecurity monitoring coming soon...' },
-    { id: 'climateprojection', icon: <ChartSpline size={28} />, label: 'Climate Projections', placeholder: 'Climate Projections coming soon...' }
+    { 
+      id: 'currentseason', 
+      icon: <CloudSunRain size={28} />, 
+      label: 'Current Season', 
+      placeholder: 'Current season climate analysis coming soon...' 
+    },
+    { 
+      id: 'phenology', 
+      icon: <Grape size={28} />, 
+      label: 'Phenology', 
+      placeholder: 'Phenology analysis coming soon...' 
+    },
+    { 
+      id: 'disease', 
+      icon: <ShieldCheck size={28} />, 
+      label: 'Disease', 
+      placeholder: 'Disease risk analysis coming soon...' 
+    },
+    { 
+      id: 'climatehistory', 
+      icon: <History size={28} />,  // Changed icon to History
+      label: 'Climate History',     // Changed from "Current Season"
+      hasComponent: true,
+      initialView: 'seasons',
+    },
+    { 
+      id: 'climateprojections',  // Fixed: was 'climateprojection'
+      icon: <ChartSpline size={28} />, 
+      label: 'Climate Projections',
+      hasComponent: true,
+      initialView: 'projections',
+    }
   ];
 
   const handleInsightClick = (insightId) => {
@@ -110,29 +137,24 @@ function LandingPage() {
     setAuthContext('');
   };
 
+  // FIXED: renderActiveInsight now checks hasComponent properly
   const renderActiveInsight = () => {
     const insight = insightOptions.find(opt => opt.id === activeInsight);
     if (!insight) return null;
 
-    if (insight.component) {
-      const Component = insight.component;
+    // Check for hasComponent (climate components)
+    if (insight.hasComponent) {
       return (
         <div className="insight-content-wrapper">
-          <div className="insight-header">
-            <h3>{insight.label}</h3>
-            <button 
-              className="close-insight-btn"
-              onClick={() => setActiveInsight(null)}
-              aria-label={`Close ${insight.label}`}
-            >
-              <X size={24} />
-            </button>
-          </div>
-          <Component />
+          <PublicClimateContainer 
+            initialView={insight.initialView}
+            onClose={() => setActiveInsight(null)}
+          />
         </div>
       );
     }
 
+    // Fallback for placeholder insights
     return (
       <div className="insight-content-wrapper">
         <div className="insight-header">
@@ -257,6 +279,7 @@ function LandingPage() {
           ))}
         </div>
 
+        {/* === ACTIVE INSIGHT CONTAINER === */}
         {activeInsight && isAuthenticated && (
           <div className="active-insight-container">
             {renderActiveInsight()}
