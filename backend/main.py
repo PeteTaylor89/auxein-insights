@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate
 from core.config import settings
 import logging
 import traceback
@@ -307,6 +307,11 @@ app.include_router(
     tags=["geographical-indications"]
 )
 
+app.include_router(
+    public_climate.router,
+    prefix="/api/v1/public/public_climate",
+    tags=["public_climate"]
+)
 
 
 # API endpoints

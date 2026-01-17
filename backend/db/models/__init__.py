@@ -46,5 +46,6 @@ from db.models.wine_region import WineRegion
 from db.models.geographical_indication import GeographicalIndication
 from db.models.weather import WeatherStation, WeatherData, IngestionLog
 from db.models.public_user import PublicUser
+from db.models.climate import ClimateZone, ClimateHistoryMonthly, ClimateBaselineMonthly, ClimateProjection
 
 from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived
