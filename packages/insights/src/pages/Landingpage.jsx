@@ -1,7 +1,7 @@
-// pages/LandingPage.jsx - Fixed version
+// pages/LandingPage.jsx - With Admin Link
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock, History } from 'lucide-react';
+import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock, History, Shield } from 'lucide-react';
 
 import RegionalMap from '../components/RegionalMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
@@ -13,6 +13,13 @@ import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
 import { PublicClimateContainer } from '../components/climate';
 
+// Admin domain check
+const ADMIN_DOMAIN = 'auxein.co.nz';
+const isAdminEmail = (email) => {
+  if (!email) return false;
+  return email.toLowerCase().endsWith(`@${ADMIN_DOMAIN}`);
+};
+
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
   const { isAuthenticated, user, logout } = usePublicAuth();
@@ -21,6 +28,9 @@ function LandingPage() {
   const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  
+  // Check if current user is admin
+  const isAdmin = isAuthenticated && isAdminEmail(user?.email);
   
   // Get verification token from URL
   const [searchParams, setSearchParams] = useSearchParams();
@@ -200,6 +210,14 @@ function LandingPage() {
               Auxein
             </a>
 
+            {/* Admin Link - Only visible for @auxein.co.nz users */}
+            {isAdmin && (
+              <Link to="/admin" className="admin-header-link">
+                <Shield size={16} />
+                Admin
+              </Link>
+            )}
+
             {/* Auth Section */}
             {!isAuthenticated ? (
               <button 
@@ -229,6 +247,19 @@ function LandingPage() {
                         <small>{user.user_type.replace('_', ' ')}</small>
                       )}
                     </div>
+                    
+                    {/* Admin link in dropdown too */}
+                    {isAdmin && (
+                      <Link 
+                        to="/admin" 
+                        className="user-dropdown-item"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Shield size={16} />
+                        Admin Dashboard
+                      </Link>
+                    )}
+                    
                     <button 
                       className="user-dropdown-item"
                       onClick={handlePreferences}

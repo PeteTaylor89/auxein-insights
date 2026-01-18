@@ -1038,3 +1038,54 @@
     width: 100%;
   }
 }
+
+/* Admin header link */
+.admin-header-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+  color: white;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.admin-header-link:hover {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Admin link in user dropdown */
+.user-dropdown .user-dropdown-item.admin-link,
+.user-dropdown a.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.625rem 1rem;
+  background: none;
+  border: none;
+  color: #374151;
+  font-size: 0.875rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.user-dropdown a.user-dropdown-item:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+/* Shield icon in admin links */
+.admin-header-link svg,
+.user-dropdown-item svg {
+  flex-shrink: 0;
+}
