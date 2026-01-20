@@ -1,6 +1,7 @@
 # db/models/models/weather.py
-from sqlalchemy import Column, Integer, String, Numeric, Boolean, DateTime, Index, text
+from sqlalchemy import Column, Integer, String, Numeric, Boolean, DateTime, Index, ForeignKey, text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from geoalchemy2 import Geography
 from db.base_class import Base
 
@@ -17,10 +18,13 @@ class WeatherStation(Base):
     elevation = Column(Integer)
     location = Column(Geography(geometry_type='POINT', srid=4326))
     region = Column(String(100))
+    zone_id = Column(Integer, ForeignKey('climate_zones.id'), nullable=True)
     notes = Column(JSONB)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
     updated_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
+    
+    zone = relationship("ClimateZone", backref="weather_stations")
 
 class WeatherData(Base):
     __tablename__ = 'weather_data'

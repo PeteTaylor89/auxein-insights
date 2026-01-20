@@ -1,21 +1,59 @@
 // packages/insights/src/components/climate/PublicClimateContainer.jsx
 /**
- * PublicClimateContainer Component
+ * PublicClimateContainer Component (Updated)
  * 
- * Main wrapper for public climate features (Season Explorer & Projections).
- * Manages zone selection, comparison zones, and toggles between different views.
+ * Main wrapper for public climate features including:
+ * - Current Season: Live climate data with GDD progress
+ * - Phenology: Growth stage estimates and harvest predictions  
+ * - Climate History: Historical season explorer
+ * - Climate Projections: Future SSP projections
  */
 
 import React, { useState } from 'react';
 import { X, Info, HelpCircle } from 'lucide-react';
 import ZoneSelector from './ZoneSelector';
+import ZoneSelectorRealtime from './ZoneSelectorRealtime';
+import CurrentSeasonExplorer from './CurrentSeasonExplorer';
+import PhenologyExplorer from './PhenologyExplorer';
 import SeasonExplorer from './SeasonExplorer';
 import ProjectionsExplorer from './ProjectionsExplorer';
 import ClimateAbout from './ClimateAbout';
 import './PublicClimate.css';
+import './RealtimeClimate.css';
+
+const VIEW_CONFIG = {
+  currentseason: {
+    label: 'Current Season',
+    description: 'Live climate data and GDD accumulation',
+    component: CurrentSeasonExplorer,
+    allowComparison: false,
+    useRealtimeSelector: true,  // Use realtime zone selector
+  },
+  phenology: {
+    label: 'Phenology',
+    description: 'Growth stage estimates and harvest predictions',
+    component: PhenologyExplorer,
+    allowComparison: false,
+    useRealtimeSelector: true,  // Use realtime zone selector
+  },
+  seasons: {
+    label: 'Climate History',
+    description: 'Historical growing season analysis',
+    component: SeasonExplorer,
+    allowComparison: true,
+    useRealtimeSelector: false,
+  },
+  projections: {
+    label: 'Future Projections',
+    description: 'SSP climate scenarios to 2100',
+    component: ProjectionsExplorer,
+    allowComparison: false,
+    useRealtimeSelector: false,
+  },
+};
 
 const PublicClimateContainer = ({ 
-  initialView = 'seasons',  // 'seasons' or 'projections'
+  initialView = 'currentseason',
   onClose 
 }) => {
   const [selectedZone, setSelectedZone] = useState(null);
@@ -23,16 +61,40 @@ const PublicClimateContainer = ({
   const [activeView, setActiveView] = useState(initialView);
   const [showAbout, setShowAbout] = useState(false);
 
+  const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.currentseason;
+  const ContentComponent = currentViewConfig.component;
+
   const handleZoneChange = (zone) => {
     setSelectedZone(zone);
-    // Clear comparison zones when main zone changes
     setComparisonZones([]);
   };
 
   const handleComparisonZonesChange = (zones) => {
-    // Filter out the main selected zone from comparison
     const filtered = zones.filter(z => z.slug !== selectedZone?.slug);
-    setComparisonZones(filtered.slice(0, 4)); // Max 4 comparison zones
+    setComparisonZones(filtered.slice(0, 4));
+  };
+
+  // Render appropriate zone selector based on view type
+  const renderZoneSelector = () => {
+    if (currentViewConfig.useRealtimeSelector) {
+      return (
+        <ZoneSelectorRealtime
+          selectedZone={selectedZone}
+          onZoneChange={handleZoneChange}
+          label="Climate Zone"
+        />
+      );
+    }
+    
+    return (
+      <ZoneSelector
+        selectedZone={selectedZone}
+        onZoneChange={handleZoneChange}
+        comparisonZones={comparisonZones}
+        onComparisonZonesChange={handleComparisonZonesChange}
+        allowComparison={currentViewConfig.allowComparison}
+      />
+    );
   };
 
   return (
@@ -40,9 +102,7 @@ const PublicClimateContainer = ({
       {/* Header */}
       <div className="climate-header">
         <div className="header-title">
-          <h2>
-            {activeView === 'seasons' ? 'Climate History' : 'Climate Projections'}
-          </h2>
+          <h2>{currentViewConfig.label}</h2>
           <button
             className="about-btn"
             onClick={() => setShowAbout(true)}
@@ -61,7 +121,19 @@ const PublicClimateContainer = ({
 
       {/* View Toggle */}
       <div className="view-toggle-container">
-        <div className="view-toggle">
+        <div className="view-toggle expanded">
+          <button
+            className={`view-toggle-btn ${activeView === 'currentseason' ? 'active' : ''}`}
+            onClick={() => setActiveView('currentseason')}
+          >
+            Current Season
+          </button>
+          <button
+            className={`view-toggle-btn ${activeView === 'phenology' ? 'active' : ''}`}
+            onClick={() => setActiveView('phenology')}
+          >
+            Phenology
+          </button>
           <button
             className={`view-toggle-btn ${activeView === 'seasons' ? 'active' : ''}`}
             onClick={() => setActiveView('seasons')}
@@ -72,41 +144,32 @@ const PublicClimateContainer = ({
             className={`view-toggle-btn ${activeView === 'projections' ? 'active' : ''}`}
             onClick={() => setActiveView('projections')}
           >
-            Future Projections
+            Projections
           </button>
         </div>
       </div>
 
       {/* Zone Selector */}
       <div className="zone-selector-container">
-        <ZoneSelector
-          selectedZone={selectedZone}
-          onZoneChange={handleZoneChange}
-          comparisonZones={comparisonZones}
-          onComparisonZonesChange={handleComparisonZonesChange}
-          allowComparison={activeView === 'seasons'}
-        />
+        {renderZoneSelector()}
       </div>
 
       {/* Main Content */}
       <div className="climate-content">
-        {activeView === 'seasons' ? (
-          <SeasonExplorer 
-            zone={selectedZone} 
-            comparisonZones={comparisonZones}
-            onComparisonZonesChange={handleComparisonZonesChange}
-          />
-        ) : (
-          <ProjectionsExplorer zone={selectedZone} />
-        )}
+        <ContentComponent 
+          zone={selectedZone} 
+          comparisonZones={comparisonZones}
+          onComparisonZonesChange={handleComparisonZonesChange}
+        />
       </div>
 
       {/* Data Attribution */}
       <div className="climate-attribution">
         <Info size={14} />
         <span>
-          Climate Baseline: 1986-2005. 
-          Projections: CMIP6 models (SSP126, SSP245, SSP370).
+          {activeView === 'currentseason' || activeView === 'phenology' 
+            ? 'Real-time data from weather station network. Updated daily.'
+            : 'Climate Baseline: 1986-2005. Projections: CMIP6 models (SSP126, SSP245, SSP370).'}
         </span>
       </div>
 

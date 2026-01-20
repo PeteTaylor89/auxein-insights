@@ -1,4 +1,4 @@
-ClimateProjection// src/contexts/PublicAuthContext.jsx - Auth Context using consistent service pattern
+// src/contexts/PublicAuthContext.jsx - Auth Context using consistent service pattern
 import { createContext, useContext, useState, useEffect } from 'react';
 import publicAuthService from '../services/publicAuthService';
 
