@@ -73,7 +73,8 @@ function LandingPage() {
       id: 'currentseason', 
       icon: <CloudSunRain size={28} />, 
       label: 'Current Season', 
-      placeholder: 'Current season climate analysis coming soon...' 
+      hasComponent: true,
+      initialView: 'currentseason',  
     },
     { 
       id: 'phenology', 
