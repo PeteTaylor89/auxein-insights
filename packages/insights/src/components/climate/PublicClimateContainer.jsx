@@ -119,36 +119,6 @@ const PublicClimateContainer = ({
         )}
       </div>
 
-      {/* View Toggle */}
-      <div className="view-toggle-container">
-        <div className="view-toggle expanded">
-          <button
-            className={`view-toggle-btn ${activeView === 'currentseason' ? 'active' : ''}`}
-            onClick={() => setActiveView('currentseason')}
-          >
-            Current Season
-          </button>
-          <button
-            className={`view-toggle-btn ${activeView === 'phenology' ? 'active' : ''}`}
-            onClick={() => setActiveView('phenology')}
-          >
-            Phenology
-          </button>
-          <button
-            className={`view-toggle-btn ${activeView === 'seasons' ? 'active' : ''}`}
-            onClick={() => setActiveView('seasons')}
-          >
-            Climate History
-          </button>
-          <button
-            className={`view-toggle-btn ${activeView === 'projections' ? 'active' : ''}`}
-            onClick={() => setActiveView('projections')}
-          >
-            Projections
-          </button>
-        </div>
-      </div>
-
       {/* Zone Selector */}
       <div className="zone-selector-container">
         {renderZoneSelector()}

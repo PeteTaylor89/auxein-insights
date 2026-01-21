@@ -306,9 +306,6 @@ const CurrentSeasonExplorer = ({ zone }) => {
             <Clock size={14} />
             Data to {formatDate(season.latest_data_date)}
           </span>
-          <span className="days-count">
-            Day {season.days_into_season} of season
-          </span>
         </div>
       </div>
 
