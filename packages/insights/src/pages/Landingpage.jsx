@@ -80,7 +80,8 @@ function LandingPage() {
       id: 'phenology', 
       icon: <Grape size={28} />, 
       label: 'Phenology', 
-      placeholder: 'Phenology analysis coming soon...' 
+      hasComponent: true,
+      initialView: 'phenology',
     },
     { 
       id: 'disease', 

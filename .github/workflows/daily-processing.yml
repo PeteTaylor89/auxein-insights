@@ -1,0 +1,46 @@
+name: Daily Climate Processing
+
+on:
+  schedule:
+    # 6pm NZ = 5:00 or 6:00 UTC depending on DST
+    - cron: '0 5 * * *'   # NZDT (summer)
+    - cron: '0 6 * * *'   # NZST (winter)
+  
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to process (YYYY-MM-DD)'
+        required: false
+
+jobs:
+  daily-processing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install boto3 pydantic pydantic-settings
+          cd backend && pip install -r requirements.txt
+      
+      - name: Run daily processing
+        env:
+          ENV: staging
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_PORT: 5432
+          RDS_DATABASE: auxein_db
+        run: |
+          cd backend
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.date }}"
+          fi
+          python scripts/run_daily_processing.py $DATE_ARG
