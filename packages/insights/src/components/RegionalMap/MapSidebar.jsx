@@ -1,6 +1,10 @@
 // src/components/RegionalMap/MapSidebar.jsx
+// Fixed mobile bottom sheet - tap outside to close, doesn't cover map
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Map, Layers, MapPin, Eye, EyeOff, Shield, Grape } from 'lucide-react';
+import { 
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
+  Map, Layers, MapPin, Eye, EyeOff, Shield, Grape, X 
+} from 'lucide-react';
 import publicApi from '../../services/publicApi';
 
 const MAP_STYLES = [
@@ -9,7 +13,6 @@ const MAP_STYLES = [
   { id: 'outdoors-v12', name: 'Outdoors', icon: '🏔️' }
 ];
 
-// Fallback regions if API fails
 const FALLBACK_REGIONS = [
   { name: 'Northland', slug: 'northland', bounds: { min_lng: 173.0, min_lat: -35.8, max_lng: 174.5, max_lat: -34.4 } },
   { name: 'Auckland', slug: 'auckland', bounds: { min_lng: 174.4, min_lat: -37.2, max_lng: 175.3, max_lat: -36.2 } },
@@ -27,29 +30,38 @@ const FALLBACK_REGIONS = [
 function MapSidebar({ 
   currentStyle, 
   onStyleChange, 
-  // Block layer
   opacity, 
   onOpacityChange,
   showBlocks = true,
   onToggleBlocks,
-  // Region layer
   showRegions = true,
   onToggleRegions,
   regionOpacity = 0.5,
   onRegionOpacityChange,
-  // GI layer
   showGIs = true,
   onToggleGIs,
   giOpacity = 0.0,
-  // Region navigation
   onRegionClick 
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeSection, setActiveSection] = useState('layers');
   const [regions, setRegions] = useState([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
+  
+  // Mobile state - starts collapsed
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
-  // Load regions from API
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   useEffect(() => {
     loadRegions();
   }, []);
@@ -79,10 +91,277 @@ function MapSidebar({
     return `${Math.round(ha)} ha`;
   };
 
+  const handleRegionClick = (region) => {
+    onRegionClick(region);
+    if (isMobile) {
+      setMobileExpanded(false);
+    }
+  };
+
+  // Close mobile sheet when clicking overlay
+  const handleOverlayClick = () => {
+    setMobileExpanded(false);
+  };
+
+  const renderSidebarContent = () => (
+    <div className="sidebar-content">
+      {/* Map Styles Section */}
+      <div className="sidebar-section">
+        <button 
+          className="section-header"
+          onClick={() => toggleSection('styles')}
+        >
+          <div className="section-title">
+            <Map size={18} />
+            <span>Map Styles</span>
+          </div>
+          <ChevronRight 
+            size={16} 
+            className={`chevron ${activeSection === 'styles' ? 'rotated' : ''}`}
+          />
+        </button>
+
+        {activeSection === 'styles' && (
+          <div className="section-content">
+            <div className="style-options">
+              {MAP_STYLES.map(style => (
+                <button
+                  key={style.id}
+                  className={`style-btn ${currentStyle === style.id ? 'active' : ''}`}
+                  onClick={() => onStyleChange(style.id)}
+                >
+                  <span className="style-icon">{style.icon}</span>
+                  <span className="style-name">{style.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Layers Section */}
+      <div className="sidebar-section">
+        <button 
+          className="section-header"
+          onClick={() => toggleSection('layers')}
+        >
+          <div className="section-title">
+            <Layers size={18} />
+            <span>Layers</span>
+          </div>
+          <ChevronRight 
+            size={16} 
+            className={`chevron ${activeSection === 'layers' ? 'rotated' : ''}`}
+          />
+        </button>
+
+        {activeSection === 'layers' && (
+          <div className="section-content">
+            <div className="layer-item">
+              <div className="layer-header">
+                <label className="layer-label">
+                  <button 
+                    className="layer-toggle-btn"
+                    onClick={onToggleBlocks}
+                    title={showBlocks ? 'Hide layer' : 'Show layer'}
+                  >
+                    {showBlocks ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                  <Grape size={14} className="layer-icon-grape" />
+                  <span>Vineyard Blocks</span>
+                </label>
+              </div>
+              
+              {showBlocks && (
+                <div className="opacity-control">
+                  <label htmlFor="block-opacity-slider">
+                    Opacity: {Math.round(opacity * 100)}%
+                  </label>
+                  <input
+                    id="block-opacity-slider"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={opacity}
+                    onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+                    className="opacity-slider"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="layer-item">
+              <div className="layer-header">
+                <label className="layer-label">
+                  <button 
+                    className="layer-toggle-btn"
+                    onClick={onToggleRegions}
+                    title={showRegions ? 'Hide layer' : 'Show layer'}
+                  >
+                    {showRegions ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                  <MapPin size={14} className="layer-icon-region" />
+                  <span>Wine Regions</span>
+                </label>
+              </div>
+              
+              {showRegions && (
+                <div className="opacity-control">
+                  <label htmlFor="region-opacity-slider">
+                    Opacity: {Math.round(regionOpacity * 100)}%
+                  </label>
+                  <input
+                    id="region-opacity-slider"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={regionOpacity}
+                    onChange={(e) => onRegionOpacityChange(parseFloat(e.target.value))}
+                    className="opacity-slider"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="layer-item">
+              <div className="layer-header">
+                <label className="layer-label">
+                  <button 
+                    className="layer-toggle-btn"
+                    onClick={onToggleGIs}
+                    title={showGIs ? 'Hide layer' : 'Show layer'}
+                  >
+                    {showGIs ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                  <Shield size={14} className="layer-icon-gi" />
+                  <span>Protected GIs</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Regions Section */}
+      <div className="sidebar-section">
+        <button 
+          className="section-header"
+          onClick={() => toggleSection('regions')}
+        >
+          <div className="section-title">
+            <MapPin size={18} />
+            <span>Explore Regions</span>
+          </div>
+          <ChevronRight 
+            size={16} 
+            className={`chevron ${activeSection === 'regions' ? 'rotated' : ''}`}
+          />
+        </button>
+
+        {activeSection === 'regions' && (
+          <div className="section-content">
+            {loadingRegions ? (
+              <div className="loading-regions">
+                <div className="loading-spinner small" />
+                <span>Loading regions...</span>
+              </div>
+            ) : (
+              <div className="regions-list">
+                {regions.map((region) => (
+                  <button
+                    key={region.slug}
+                    className="region-btn"
+                    onClick={() => handleRegionClick(region)}
+                  >
+                    <MapPin size={14} />
+                    <span className="region-name">{region.name}</span>
+                    {region.total_planted_ha && (
+                      <span className="region-area">
+                        {formatArea(region.total_planted_ha)}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="sidebar-section">
+        <div className="section-header" style={{ cursor: 'default' }}>
+          <div className="section-title">
+            <span>Legend</span>
+          </div>
+        </div>
+        <div className="section-content">
+          <div className="legend-content">
+            <div className="legend-item">
+              <div className="legend-color" style={{ backgroundColor: '#22c55e' }} />
+              <span>Vineyard Blocks</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color" style={{ backgroundColor: '#3b82f6' }} />
+              <span>Wine Regions</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color" style={{ backgroundColor: '#961111' }} />
+              <span>Protected GIs</span>
+            </div>
+            <p className="legend-note">Click any feature to view details</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // MOBILE: Bottom sheet with overlay
+  if (isMobile) {
+    return (
+      <>
+        {/* Overlay - tap to close */}
+        {mobileExpanded && (
+          <div 
+            className="mobile-sidebar-overlay"
+            onClick={handleOverlayClick}
+          />
+        )}
+        
+        {/* Bottom sheet */}
+        <div className={`map-sidebar-mobile ${mobileExpanded ? 'expanded' : ''}`}>
+          {/* Header - always visible */}
+          <button 
+            className="mobile-sidebar-header"
+            onClick={() => setMobileExpanded(!mobileExpanded)}
+            aria-expanded={mobileExpanded}
+            aria-label={mobileExpanded ? 'Collapse map controls' : 'Expand map controls'}
+          >
+            <div className="mobile-drag-handle" />
+            <div className="mobile-header-content">
+              <Layers size={18} />
+              <span>Map Controls</span>
+              {mobileExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+            </div>
+          </button>
+
+          {/* Content - only when expanded */}
+          {mobileExpanded && (
+            <div className="mobile-sidebar-content">
+              {renderSidebarContent()}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // DESKTOP: Original sidebar
   return (
     <>
       <div className={`map-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-        {/* Collapse Toggle */}
         <button 
           className="sidebar-toggle"
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -91,239 +370,9 @@ function MapSidebar({
           {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
 
-        {!isCollapsed && (
-          <div className="sidebar-content">
-            {/* Map Styles Section */}
-            <div className="sidebar-section">
-              <button 
-                className="section-header"
-                onClick={() => toggleSection('styles')}
-              >
-                <div className="section-title">
-                  <Map size={18} />
-                  <span>Map Styles</span>
-                </div>
-                <ChevronRight 
-                  size={16} 
-                  className={`chevron ${activeSection === 'styles' ? 'rotated' : ''}`}
-                />
-              </button>
-
-              {activeSection === 'styles' && (
-                <div className="section-content">
-                  <div className="style-options">
-                    {MAP_STYLES.map(style => (
-                      <button
-                        key={style.id}
-                        className={`style-btn ${currentStyle === style.id ? 'active' : ''}`}
-                        onClick={() => onStyleChange(style.id)}
-                      >
-                        <span className="style-icon">{style.icon}</span>
-                        <span className="style-name">{style.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Layers Section */}
-            <div className="sidebar-section">
-              <button 
-                className="section-header"
-                onClick={() => toggleSection('layers')}
-              >
-                <div className="section-title">
-                  <Layers size={18} />
-                  <span>Layers</span>
-                </div>
-                <ChevronRight 
-                  size={16} 
-                  className={`chevron ${activeSection === 'layers' ? 'rotated' : ''}`}
-                />
-              </button>
-
-              {activeSection === 'layers' && (
-                <div className="section-content">
-                  {/* Vineyard Blocks */}
-                  <div className="layer-item">
-                    <div className="layer-header">
-                      <label className="layer-label">
-                        <button 
-                          className="layer-toggle-btn"
-                          onClick={onToggleBlocks}
-                          title={showBlocks ? 'Hide layer' : 'Show layer'}
-                        >
-                          {showBlocks ? <Eye size={16} /> : <EyeOff size={16} />}
-                        </button>
-                        <Grape size={14} className="layer-icon-grape" />
-                        <span>Vineyard Blocks</span>
-                      </label>
-                    </div>
-                    
-                    {showBlocks && (
-                      <div className="opacity-control">
-                        <label htmlFor="block-opacity-slider">
-                          Opacity: {Math.round(opacity * 100)}%
-                        </label>
-                        <input
-                          id="block-opacity-slider"
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={opacity}
-                          onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-                          className="opacity-slider"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Wine Regions */}
-                  <div className="layer-item">
-                    <div className="layer-header">
-                      <label className="layer-label">
-                        <button 
-                          className="layer-toggle-btn"
-                          onClick={onToggleRegions}
-                          title={showRegions ? 'Hide layer' : 'Show layer'}
-                        >
-                          {showRegions ? <Eye size={16} /> : <EyeOff size={16} />}
-                        </button>
-                        <MapPin size={14} className="layer-icon-region" />
-                        <span>Wine Regions</span>
-                      </label>
-                    </div>
-                    
-                    {showRegions && (
-                      <div className="opacity-control">
-                        <label htmlFor="region-opacity-slider">
-                          Opacity: {Math.round(regionOpacity * 100)}%
-                        </label>
-                        <input
-                          id="region-opacity-slider"
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={regionOpacity}
-                          onChange={(e) => onRegionOpacityChange(parseFloat(e.target.value))}
-                          className="opacity-slider"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Protected GIs */}
-                  <div className="layer-item">
-                    <div className="layer-header">
-                      <label className="layer-label">
-                        <button 
-                          className="layer-toggle-btn"
-                          onClick={onToggleGIs}
-                          title={showGIs ? 'Hide layer' : 'Show layer'}
-                        >
-                          {showGIs ? <Eye size={16} /> : <EyeOff size={16} />}
-                        </button>
-                        <Shield size={14} className="layer-icon-gi" />
-                        <span>Protected GIs</span>
-                      </label>
-                    </div>
-                    
-
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Regions Section */}
-            <div className="sidebar-section">
-              <button 
-                className="section-header"
-                onClick={() => toggleSection('regions')}
-              >
-                <div className="section-title">
-                  <MapPin size={18} />
-                  <span>Explore Regions</span>
-                </div>
-                <ChevronRight 
-                  size={16} 
-                  className={`chevron ${activeSection === 'regions' ? 'rotated' : ''}`}
-                />
-              </button>
-
-              {activeSection === 'regions' && (
-                <div className="section-content">
-                  {loadingRegions ? (
-                    <div className="loading-regions">
-                      <div className="loading-spinner small" />
-                      <span>Loading regions...</span>
-                    </div>
-                  ) : (
-                    <div className="regions-list">
-                      {regions.map((region) => (
-                        <button
-                          key={region.slug}
-                          className="region-btn"
-                          onClick={() => onRegionClick(region)}
-                        >
-                          <MapPin size={14} />
-                          <span className="region-name">{region.name}</span>
-                          {region.total_planted_ha && (
-                            <span className="region-area">
-                              {formatArea(region.total_planted_ha)}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Legend */}
-            <div className="sidebar-section">
-              <div className="section-header" style={{ cursor: 'default' }}>
-                <div className="section-title">
-                  <span>Legend</span>
-                </div>
-              </div>
-              <div className="section-content">
-                <div className="legend-content">
-                  <div className="legend-item">
-                    <div 
-                      className="legend-color" 
-                      style={{ backgroundColor: '#22c55e' }}
-                    />
-                    <span>Vineyard Blocks</span>
-                  </div>
-                  <div className="legend-item">
-                    <div 
-                      className="legend-color" 
-                      style={{ backgroundColor: '#3b82f6' }}
-                    />
-                    <span>Wine Regions</span>
-                  </div>
-                  <div className="legend-item">
-                    <div 
-                      className="legend-color" 
-                      style={{ backgroundColor: '#961111' }}
-                    />
-                    <span>Protected GIs</span>
-                  </div>
-                  <p className="legend-note">
-                    Click any feature to view details
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {!isCollapsed && renderSidebarContent()}
       </div>
 
-      {/* Collapsed State Icon Buttons */}
       {isCollapsed && (
         <div className="sidebar-collapsed-buttons">
           <button 

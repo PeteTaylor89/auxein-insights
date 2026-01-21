@@ -564,6 +564,35 @@ def run_disease_service(
                 )
                 
                 if not dry_run:
+                    import json
+                    
+                    # Build risk_factors JSON for API chart data
+                    risk_factors = {
+                        'scores': {
+                            'downy': int(dm.goidanich_index) if dm.goidanich_index else 0,
+                            'powdery': int(pm.cumulative_index) if pm.cumulative_index else 0,
+                            'botrytis': int(bot.severity) if bot.severity else 0,
+                        },
+                        'powdery': {
+                            'daily_index': pm.daily_index,
+                            'cumulative_index': pm.cumulative_index,
+                            'favorable_hours': pm.favorable_hours,
+                            'lethal_hours': pm.lethal_hours,
+                        },
+                        'botrytis': {
+                            'severity': bot.severity,
+                            'cumulative': bot.cumulative,
+                            'wet_hours': bot.wet_hours,
+                            'sporulation_index': bot.sporulation_index,
+                            'growth_stage': stage,
+                        },
+                        'downy': {
+                            'primary_met': dm.primary_met,
+                            'primary_score': dm.primary_score,
+                            'goidanich_index': dm.goidanich_index,
+                        },
+                    }
+                    
                     db.execute(text("""
                         INSERT INTO disease_pressure (
                             zone_id, date, vintage_year,
@@ -573,7 +602,8 @@ def run_disease_service(
                             botrytis_wet_hours, botrytis_sporulation_index,
                             downy_mildew_risk, dm_primary_met, dm_primary_score,
                             dm_goidanich_index,
-                            growth_stage, humidity_available
+                            growth_stage, humidity_available,
+                            risk_factors
                         ) VALUES (
                             :zone_id, :date, :vintage_year,
                             :pm_risk, :pm_daily, :pm_cumulative,
@@ -582,7 +612,8 @@ def run_disease_service(
                             :bot_wet, :bot_spor,
                             :dm_risk, :dm_primary, :dm_score,
                             :dm_goidanich,
-                            :stage, TRUE
+                            :stage, TRUE,
+                            :risk_factors
                         )
                         ON CONFLICT (zone_id, date) DO UPDATE SET
                             vintage_year = EXCLUDED.vintage_year,
@@ -601,7 +632,8 @@ def run_disease_service(
                             dm_primary_score = EXCLUDED.dm_primary_score,
                             dm_goidanich_index = EXCLUDED.dm_goidanich_index,
                             growth_stage = EXCLUDED.growth_stage,
-                            humidity_available = EXCLUDED.humidity_available
+                            humidity_available = EXCLUDED.humidity_available,
+                            risk_factors = EXCLUDED.risk_factors
                     """), {
                         'zone_id': zone_id,
                         'date': target,
@@ -621,6 +653,7 @@ def run_disease_service(
                         'dm_score': dm.primary_score,
                         'dm_goidanich': dm.goidanich_index,
                         'stage': stage,
+                        'risk_factors': json.dumps(risk_factors),
                     })
                     db.commit()
                 

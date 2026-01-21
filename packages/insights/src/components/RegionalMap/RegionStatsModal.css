@@ -605,3 +605,4 @@
     font-size: 18px;
   }
 }
+@import './styles/mobile-responsive.css';

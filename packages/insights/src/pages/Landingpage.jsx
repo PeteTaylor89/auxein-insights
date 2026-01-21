@@ -1,7 +1,11 @@
-// pages/LandingPage.jsx - With Admin Link
+// pages/LandingPage.jsx - Fixed mobile navigation (renders outside header)
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, Lock, History, Shield } from 'lucide-react';
+import { 
+  MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, 
+  CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, 
+  Lock, History, Shield, Menu 
+} from 'lucide-react';
 
 import RegionalMap from '../components/RegionalMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
@@ -13,7 +17,6 @@ import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
 import { PublicClimateContainer } from '../components/climate';
 
-// Admin domain check
 const ADMIN_DOMAIN = 'auxein.co.nz';
 const isAdminEmail = (email) => {
   if (!email) return false;
@@ -28,29 +31,42 @@ function LandingPage() {
   const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Check if current user is admin
   const isAdmin = isAuthenticated && isAdminEmail(user?.email);
   
-  // Get verification token from URL
   const [searchParams, setSearchParams] = useSearchParams();
   const verificationToken = searchParams.get('token');
 
-  // Check for verification token on mount
   useEffect(() => {
     if (verificationToken) {
       setVerificationModalOpen(true);
     }
   }, [verificationToken]);
 
+  // Close mobile menu on resize to desktop
   useEffect(() => {
-    console.log('=== VERIFICATION DEBUG ===');
-    console.log('Token from URL:', verificationToken);
-    console.log('Modal open:', verificationModalOpen);
-    console.log('Search params:', Object.fromEntries(searchParams));
-  }, [verificationToken, verificationModalOpen, searchParams]);
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  // Clear token from URL when verification modal closes
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
   const handleVerificationClose = () => {
     setVerificationModalOpen(false);
     if (verificationToken) {
@@ -59,7 +75,6 @@ function LandingPage() {
     }
   };
 
-  // Featured regions data
   const featuredRegions = [
     { id: 'marlborough', name: 'Marlborough', temp: '15.2°C', gdd: 1250, lat: -41.5, lon: 173.9 },
     { id: 'central-otago', name: 'Central Otago', temp: '11.8°C', gdd: 1050, lat: -45.0, lon: 169.1 },
@@ -67,42 +82,12 @@ function LandingPage() {
     { id: 'hawkes-bay', name: 'Hawke\'s Bay', temp: '15.8°C', gdd: 1400, lat: -39.6, lon: 176.9 }
   ];
 
-  // Insight options - FIXED NAMING
   const insightOptions = [
-    { 
-      id: 'currentseason', 
-      icon: <CloudSunRain size={28} />, 
-      label: 'Current Season', 
-      hasComponent: true,
-      initialView: 'currentseason',  
-    },
-    { 
-      id: 'phenology', 
-      icon: <Grape size={28} />, 
-      label: 'Phenology', 
-      hasComponent: true,
-      initialView: 'phenology',
-    },
-    { 
-      id: 'disease', 
-      icon: <ShieldCheck size={28} />, 
-      label: 'Disease', 
-      placeholder: 'Disease risk analysis coming soon...' 
-    },
-    { 
-      id: 'climatehistory', 
-      icon: <History size={28} />,  // Changed icon to History
-      label: 'Climate History',     // Changed from "Current Season"
-      hasComponent: true,
-      initialView: 'seasons',
-    },
-    { 
-      id: 'climateprojections',  // Fixed: was 'climateprojection'
-      icon: <ChartSpline size={28} />, 
-      label: 'Climate Projections',
-      hasComponent: true,
-      initialView: 'projections',
-    }
+    { id: 'currentseason', icon: <CloudSunRain size={28} />, label: 'Current Season', hasComponent: true, initialView: 'currentseason' },
+    { id: 'phenology', icon: <Grape size={28} />, label: 'Phenology', hasComponent: true, initialView: 'phenology' },
+    { id: 'disease', icon: <ShieldCheck size={28} />, label: 'Disease Pressures', hasComponent: true, initialView: 'disease' },
+    { id: 'climatehistory', icon: <History size={28} />, label: 'Climate History', hasComponent: true, initialView: 'seasons' },
+    { id: 'climateprojections', icon: <ChartSpline size={28} />, label: 'Climate Projections', hasComponent: true, initialView: 'projections' }
   ];
 
   const handleInsightClick = (insightId) => {
@@ -111,15 +96,10 @@ function LandingPage() {
       setAuthModalOpen(true);
       return;
     }
-
     setActiveInsight(activeInsight === insightId ? null : insightId);
-    
     if (activeInsight !== insightId) {
       setTimeout(() => {
-        document.getElementById('insights-section')?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
-        });
+        document.getElementById('insights-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     }
   };
@@ -136,11 +116,13 @@ function LandingPage() {
   const handleLogout = () => {
     logout();
     setUserMenuOpen(false);
+    setMobileMenuOpen(false);
     setActiveInsight(null);
   };
 
   const handlePreferences = () => {
     setUserMenuOpen(false);
+    setMobileMenuOpen(false);
     setPreferencesModalOpen(true);
   };
 
@@ -149,12 +131,14 @@ function LandingPage() {
     setAuthContext('');
   };
 
-  // FIXED: renderActiveInsight now checks hasComponent properly
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
   const renderActiveInsight = () => {
     const insight = insightOptions.find(opt => opt.id === activeInsight);
     if (!insight) return null;
 
-    // Check for hasComponent (climate components)
     if (insight.hasComponent) {
       return (
         <div className="insight-content-wrapper">
@@ -166,16 +150,11 @@ function LandingPage() {
       );
     }
 
-    // Fallback for placeholder insights
     return (
       <div className="insight-content-wrapper">
         <div className="insight-header">
           <h3>{insight.label}</h3>
-          <button 
-            className="close-insight-btn"
-            onClick={() => setActiveInsight(null)}
-            aria-label={`Close ${insight.label}`}
-          >
+          <button className="close-insight-btn" onClick={() => setActiveInsight(null)} aria-label={`Close ${insight.label}`}>
             <X size={24} />
           </button>
         </div>
@@ -199,20 +178,12 @@ function LandingPage() {
             </div>
           </div>
           
-          <nav className="header-nav">
+          {/* Desktop Navigation */}
+          <nav className="header-nav desktop-nav">
             <Link to="/about">About</Link>
-            <a href="https://auxein.co.nz/log-in" target="_blank" rel="noopener noreferrer">
-              Insights-Pro
-            </a>
-            <a 
-              href="https://auxein.co.nz" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              Auxein
-            </a>
+            <a href="https://auxein.co.nz/log-in" target="_blank" rel="noopener noreferrer">Insights-Pro</a>
+            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
 
-            {/* Admin Link - Only visible for @auxein.co.nz users */}
             {isAdmin && (
               <Link to="/admin" className="admin-header-link">
                 <Shield size={16} />
@@ -220,23 +191,13 @@ function LandingPage() {
               </Link>
             )}
 
-            {/* Auth Section */}
             {!isAuthenticated ? (
-              <button 
-                className="auth-header-btn"
-                onClick={() => {
-                  setAuthContext('header');
-                  setAuthModalOpen(true);
-                }}
-              >
+              <button className="auth-header-btn" onClick={() => { setAuthContext('header'); setAuthModalOpen(true); }}>
                 Sign In
               </button>
             ) : (
               <div className="user-menu-container">
-                <button 
-                  className="user-menu-trigger"
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                >
+                <button className="user-menu-trigger" onClick={() => setUserMenuOpen(!userMenuOpen)}>
                   <User size={18} />
                   <span>{user?.first_name || 'Account'}</span>
                 </button>
@@ -245,34 +206,21 @@ function LandingPage() {
                   <div className="user-dropdown">
                     <div className="user-dropdown-header">
                       <strong>{user?.full_name || user?.email}</strong>
-                      {user?.user_type && (
-                        <small>{user.user_type.replace('_', ' ')}</small>
-                      )}
+                      {user?.user_type && <small>{user.user_type.replace('_', ' ')}</small>}
                     </div>
                     
-                    {/* Admin link in dropdown too */}
                     {isAdmin && (
-                      <Link 
-                        to="/admin" 
-                        className="user-dropdown-item"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
+                      <Link to="/admin" className="user-dropdown-item" onClick={() => setUserMenuOpen(false)}>
                         <Shield size={16} />
                         Admin Dashboard
                       </Link>
                     )}
                     
-                    <button 
-                      className="user-dropdown-item"
-                      onClick={handlePreferences}
-                    >
+                    <button className="user-dropdown-item" onClick={handlePreferences}>
                       <Settings size={16} />
                       Preferences
                     </button>
-                    <button 
-                      className="user-dropdown-item"
-                      onClick={handleLogout}
-                    >
+                    <button className="user-dropdown-item" onClick={handleLogout}>
                       <LogOut size={16} />
                       Sign Out
                     </button>
@@ -281,8 +229,83 @@ function LandingPage() {
               </div>
             )}
           </nav>
+
+          {/* Mobile Hamburger Button */}
+          <button 
+            className="mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </header>
+
+      {/* ============================================
+          MOBILE NAVIGATION - RENDERED OUTSIDE HEADER
+          This is critical for proper full-screen overlay
+          ============================================ */}
+      {mobileMenuOpen && (
+        <>
+          <div className="mobile-menu-overlay" onClick={closeMobileMenu} />
+          <nav className="mobile-nav">
+            {/* Close button at top */}
+            <button className="mobile-nav-close" onClick={closeMobileMenu} aria-label="Close menu">
+              <X size={24} />
+            </button>
+
+            <Link to="/about" onClick={closeMobileMenu}>About</Link>
+            <a href="https://auxein.co.nz/log-in" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
+              Insights-Pro
+            </a>
+            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
+              Auxein
+            </a>
+
+            {isAdmin && (
+              <Link to="/admin" className="mobile-admin-link" onClick={closeMobileMenu}>
+                <Shield size={18} />
+                Admin Dashboard
+              </Link>
+            )}
+
+            <div className="mobile-nav-divider" />
+
+            {!isAuthenticated ? (
+              <button 
+                className="mobile-auth-btn"
+                onClick={() => {
+                  closeMobileMenu();
+                  setAuthContext('header');
+                  setAuthModalOpen(true);
+                }}
+              >
+                <User size={18} />
+                Sign In
+              </button>
+            ) : (
+              <>
+                <div className="mobile-user-info">
+                  <User size={20} />
+                  <div>
+                    <strong>{user?.full_name || user?.first_name || 'Account'}</strong>
+                    {user?.email && <small>{user.email}</small>}
+                  </div>
+                </div>
+                <button className="mobile-nav-item" onClick={() => { closeMobileMenu(); handlePreferences(); }}>
+                  <Settings size={18} />
+                  Preferences
+                </button>
+                <button className="mobile-nav-item mobile-logout" onClick={() => { closeMobileMenu(); handleLogout(); }}>
+                  <LogOut size={18} />
+                  Sign Out
+                </button>
+              </>
+            )}
+          </nav>
+        </>
+      )}
 
       {/* Insights Section */}
       <section id="insights-section" className="insights-section">
@@ -312,7 +335,6 @@ function LandingPage() {
           ))}
         </div>
 
-        {/* === ACTIVE INSIGHT CONTAINER === */}
         {activeInsight && isAuthenticated && (
           <div className="active-insight-container">
             {renderActiveInsight()}
@@ -357,12 +379,7 @@ function LandingPage() {
               Our premium Auxein Insights platform offers vineyard-specific climate analysis, 
               risk management tools, and comprehensive management features.
             </p>
-            <a 
-              href="https://auxein.co.nz/"
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="premium-btn"
-            >
+            <a href="https://auxein.co.nz/" target="_blank" rel="noopener noreferrer" className="premium-btn">
               Explore Auxein Insights →
             </a>
           </div>
@@ -378,12 +395,8 @@ function LandingPage() {
           </div>
           <div className="footer-links">
             <Link to="/about">About</Link>
-            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">
-              Auxein
-            </a>
-            <a href="https://auxein.co.nz/contact" target="_blank" rel="noopener noreferrer">
-              Contact
-            </a>
+            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
+            <a href="https://auxein.co.nz/contact" target="_blank" rel="noopener noreferrer">Contact</a>
           </div>
           <div className="footer-copyright">
             © {new Date().getFullYear()} Auxein Limited. All rights reserved.
@@ -391,33 +404,13 @@ function LandingPage() {
         </div>
       </footer>
 
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={authModalOpen}
-        onClose={handleAuthModalClose}
-        context={authContext}
-      />
-      
-      {/* User Preferences Modal */}
-      <UserPreferencesModal 
-        isOpen={preferencesModalOpen}
-        onClose={() => setPreferencesModalOpen(false)}
-      />
+      {/* Modals */}
+      <AuthModal isOpen={authModalOpen} onClose={handleAuthModalClose} context={authContext} />
+      <UserPreferencesModal isOpen={preferencesModalOpen} onClose={() => setPreferencesModalOpen(false)} />
+      <EmailVerificationModal isOpen={verificationModalOpen} onClose={handleVerificationClose} token={verificationToken} />
 
-      {/* Email Verification Modal */}
-      <EmailVerificationModal 
-        isOpen={verificationModalOpen}
-        onClose={handleVerificationClose}
-        token={verificationToken}
-      />
-
-      {/* Close user menu overlay */}
-      {userMenuOpen && (
-        <div 
-          className="user-menu-overlay"
-          onClick={() => setUserMenuOpen(false)}
-        />
-      )}
+      {/* User menu overlay (desktop) */}
+      {userMenuOpen && <div className="user-menu-overlay" onClick={() => setUserMenuOpen(false)} />}
     </div>
   );
 }

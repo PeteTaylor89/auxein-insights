@@ -1720,3 +1720,645 @@
 .zone-tag-remove:hover {
   background: #a5b4fc;
 }
+
+.model-thresholds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #E5E7EB;
+}
+
+.model-thresholds span {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  background: #F3F4F6;
+  border-radius: 4px;
+  color: #4B5563;
+}
+
+/* Stages Grid */
+.stages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.stage-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background: #F9FAFB;
+  border-radius: 8px;
+  border-left: 3px solid #8B5CF6;
+}
+
+.stage-name {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.9rem;
+}
+
+.stage-desc {
+  font-size: 0.8rem;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+/* Citation Items */
+.citation-item {
+  padding: 0.75rem;
+  background: #F9FAFB;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.citation-item strong {
+  display: block;
+  color: #1F2937;
+  margin-bottom: 0.25rem;
+}
+
+.citation-item p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #4B5563;
+  line-height: 1.4;
+}
+
+/* Formula Note */
+.formula-note {
+  font-size: 0.8rem;
+  color: #6B7280;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* About Section Code blocks */
+.about-section code {
+  display: inline-block;
+  background: #1F2937;
+  color: #F9FAFB;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
+}
+
+
+@media (max-width: 768px) {
+  /* Container padding */
+  .public-climate-container {
+    padding: 16px;
+    border-radius: 8px;
+  }
+
+  /* Header layout */
+  .climate-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-title {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header-title h2 {
+    font-size: 18px;
+    width: 100%;
+  }
+
+  .about-btn {
+    order: 2;
+  }
+
+  .close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  /* Zone selector full width */
+  .zone-dropdown-trigger,
+  .zone-dropdown-menu {
+    max-width: 100%;
+  }
+
+  .selector-trigger {
+    min-width: 100% !important;
+    width: 100%;
+  }
+
+  /* Chart container - CRITICAL for Chart.js */
+  .chart-container {
+    height: 250px !important;
+    min-height: 200px;
+    padding: 12px;
+  }
+
+  /* Summary grids */
+  .summary-grid,
+  .variables-grid,
+  .stats-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* SSP tabs - 2x2 grid */
+  .ssp-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .ssp-tab {
+    min-width: auto;
+    padding: 12px;
+  }
+
+  .ssp-name {
+    font-size: 13px;
+  }
+
+  .ssp-short {
+    font-size: 11px;
+  }
+
+  /* Period buttons */
+  .period-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  .period-btn {
+    min-width: auto;
+    padding: 10px;
+  }
+
+  .period-name {
+    font-size: 13px;
+  }
+
+  .period-years {
+    font-size: 11px;
+  }
+
+  /* Chart metric selector - horizontal scroll */
+  .chart-metric-selector {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .chart-type-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Projection summary */
+  .projection-summary {
+    padding: 12px;
+  }
+
+  .projection-summary h4 {
+    font-size: 14px;
+  }
+
+  .summary-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .summary-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .summary-value {
+    font-size: 18px;
+  }
+
+  .summary-label {
+    font-size: 11px;
+  }
+
+  /* Monthly table - horizontal scroll */
+  .monthly-table-wrapper,
+  .recent-days-table-wrapper {
+    margin: 0 -16px;
+    padding: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .monthly-table,
+  .recent-days-table {
+    min-width: 600px;
+  }
+
+  .monthly-table th,
+  .monthly-table td,
+  .recent-days-table th,
+  .recent-days-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* Seasons grid */
+  .seasons-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .season-card {
+    padding: 12px;
+  }
+
+  .season-label {
+    font-size: 14px;
+  }
+
+  /* Explorer containers */
+  .season-explorer,
+  .projections-explorer {
+    padding: 16px;
+  }
+
+  .explorer-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  /* Attribution */
+  .climate-attribution {
+    padding: 10px 12px;
+    font-size: 11px;
+  }
+}
+
+/* ============================================
+   480px - SMALL PHONES
+   ============================================ */
+
+@media (max-width: 480px) {
+  .public-climate-container {
+    padding: 12px;
+  }
+
+  .header-title h2 {
+    font-size: 16px;
+  }
+
+  /* Chart - smaller on phones */
+  .chart-container {
+    height: 200px !important;
+    min-height: 180px;
+    padding: 8px;
+  }
+
+  /* Summary grids - single column */
+  .summary-grid,
+  .variables-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .stats-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* SSP tabs - stack */
+  .ssp-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  /* Period buttons - 2 columns */
+  .period-buttons {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Seasons grid - 2 columns */
+  .seasons-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .season-card {
+    padding: 10px;
+  }
+
+  .season-label {
+    font-size: 13px;
+  }
+
+  /* Stages grid */
+  .stages-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Explorer padding */
+  .season-explorer,
+  .projections-explorer {
+    padding: 12px;
+  }
+}
+
+/* =============================================================================
+   MOBILE FIXES FOR REALTIME CLIMATE
+   
+   Add this to the END of RealtimeClimate.css
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  /* Container */
+  .current-season-explorer,
+  .phenology-explorer,
+  .disease-pressure-explorer {
+    padding: 12px;
+  }
+
+  /* Headers */
+  .season-header,
+  .phenology-header,
+  .disease-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .season-title h3,
+  .header-title h3 {
+    font-size: 1.1rem;
+  }
+
+  .season-meta,
+  .header-meta {
+    width: 100%;
+    align-items: flex-start;
+    font-size: 0.75rem;
+  }
+
+  /* Summary cards - 2 columns */
+  .summary-cards {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .summary-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .card-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .card-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .card-value {
+    font-size: 1.25rem;
+  }
+
+  .card-label {
+    font-size: 0.65rem;
+  }
+
+  .card-comparison {
+    font-size: 0.75rem;
+  }
+
+  /* Status badge */
+  .status-badge {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+  }
+
+  /* Chart section */
+  .chart-section .chart-container {
+    height: 220px;
+  }
+
+  .chart-controls {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .chart-tab {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Variety filter - horizontal scroll */
+  .variety-filter {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .variety-chips {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .variety-chip {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* Variety cards */
+  .variety-card-header {
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+
+  .variety-info {
+    flex: 1 1 60%;
+  }
+
+  .variety-name {
+    font-size: 0.9rem;
+  }
+
+  .variety-gdd {
+    font-size: 0.8rem;
+  }
+
+  /* Key dates */
+  .key-dates-summary {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .date-chip {
+    padding: 6px 10px;
+    min-width: 65px;
+  }
+
+  .date-label {
+    font-size: 0.55rem;
+  }
+
+  .date-value {
+    font-size: 0.75rem;
+  }
+
+  /* Harvest grid */
+  .harvest-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .harvest-item {
+    padding: 10px;
+  }
+
+  .harvest-label {
+    font-size: 0.65rem;
+  }
+
+  .harvest-date {
+    font-size: 0.8rem;
+  }
+
+  /* Disease cards */
+  .disease-card-header {
+    padding: 12px;
+  }
+
+  .disease-name {
+    font-size: 0.9rem;
+  }
+
+  .disease-score {
+    order: -1;
+    width: 100%;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+  }
+
+  .score-value {
+    font-size: 1.25rem;
+  }
+
+  .factors-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .factor-item {
+    padding: 8px;
+  }
+
+  .factor-label {
+    font-size: 0.65rem;
+  }
+
+  .factor-value {
+    font-size: 0.7rem;
+  }
+
+  /* Chart header */
+  .disease-pressure-explorer .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .days-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .disease-pressure-explorer .chart-container {
+    height: 200px;
+    padding: 8px;
+  }
+
+  /* General recommendations */
+  .general-recommendations {
+    padding: 12px;
+  }
+
+  .general-recommendations h4 {
+    font-size: 0.85rem;
+  }
+
+  .general-recommendations li {
+    font-size: 0.8rem;
+  }
+
+  /* Legend */
+  .phenology-legend,
+  .disease-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.7rem;
+  }
+
+  /* Timeline */
+  .timeline {
+    padding-left: 1.5rem;
+  }
+
+  .timeline-marker {
+    left: -1.5rem;
+  }
+
+  .stage-name {
+    font-size: 0.8rem;
+  }
+
+  .gdd-threshold {
+    font-size: 0.7rem;
+  }
+
+  .timeline-date {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Summary cards - stack on very small */
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Chart even smaller */
+  .chart-section .chart-container,
+  .disease-pressure-explorer .chart-container {
+    height: 180px;
+  }
+
+  /* Factors grid - still 2 col but tighter */
+  .factors-grid {
+    gap: 4px;
+  }
+
+  .factor-item {
+    padding: 6px;
+  }
+}

@@ -1310,3 +1310,371 @@
     width: auto;
   }
 }
+
+
+/* ============================================
+   OVERLAY - Tap to close
+   ============================================ */
+
+.mobile-sidebar-overlay {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 15;
+}
+
+/* ============================================
+   MOBILE BOTTOM SHEET
+   ============================================ */
+
+.map-sidebar-mobile {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  transition: transform 0.3s ease;
+}
+
+/* Collapsed state - just the header visible */
+.map-sidebar-mobile:not(.expanded) {
+  transform: translateY(0);
+}
+
+/* Expanded state - show content, max 50% of map */
+.map-sidebar-mobile.expanded {
+  max-height: 50%;
+}
+
+/* Header - always visible, acts as toggle */
+.mobile-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 10px 16px 14px;
+  background: white;
+  border: none;
+  border-radius: 16px 16px 0 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mobile-drag-handle {
+  width: 40px;
+  height: 4px;
+  background: #d1d5db;
+  border-radius: 2px;
+  margin-bottom: 10px;
+}
+
+.mobile-header-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  width: 100%;
+  justify-content: center;
+}
+
+.mobile-header-content svg:first-child {
+  color: #22c55e;
+}
+
+.mobile-header-content svg:last-child {
+  color: #6b7280;
+}
+
+/* Scrollable content area */
+.mobile-sidebar-content {
+  max-height: calc(50vh - 60px);
+  overflow-y: auto;
+  border-top: 1px solid #e5e7eb;
+}
+
+.mobile-sidebar-content .sidebar-content {
+  max-height: none;
+  padding: 12px 16px 20px;
+}
+
+/* Compact sections for mobile */
+.map-sidebar-mobile .sidebar-section {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+
+.map-sidebar-mobile .section-header {
+  padding: 10px 8px;
+}
+
+.map-sidebar-mobile .section-title {
+  font-size: 13px;
+}
+
+/* Style buttons - horizontal row */
+.map-sidebar-mobile .style-options {
+  display: flex;
+  gap: 8px;
+}
+
+.map-sidebar-mobile .style-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px;
+}
+
+.map-sidebar-mobile .style-name {
+  font-size: 12px;
+}
+
+/* Regions - 2 column grid */
+.map-sidebar-mobile .regions-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.map-sidebar-mobile .region-btn {
+  padding: 10px;
+  font-size: 12px;
+}
+
+.map-sidebar-mobile .region-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-sidebar-mobile .region-area {
+  display: none;
+}
+
+/* Layers - more compact */
+.map-sidebar-mobile .layer-item {
+  padding: 6px 0;
+}
+
+.map-sidebar-mobile .layer-label {
+  font-size: 13px;
+}
+
+.map-sidebar-mobile .opacity-control label {
+  font-size: 11px;
+}
+
+/* Legend - inline */
+.map-sidebar-mobile .legend-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.map-sidebar-mobile .legend-item {
+  font-size: 11px;
+}
+
+.map-sidebar-mobile .legend-note {
+  width: 100%;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+/* ============================================
+   RESPONSIVE BREAKPOINT
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Hide desktop sidebar */
+  .map-sidebar,
+  .sidebar-collapsed-buttons {
+    display: none !important;
+  }
+
+  /* Show mobile elements */
+  .mobile-sidebar-overlay {
+    display: block;
+  }
+  
+  .map-sidebar-mobile {
+    display: block;
+  }
+
+  /* Adjust map height */
+  .regional-map-container {
+    height: 500px;
+  }
+}
+
+@media (max-width: 480px) {
+  .regional-map-container {
+    height: 400px;
+    border-radius: 8px;
+  }
+
+  /* Single column on very small screens */
+  .map-sidebar-mobile .regions-list {
+    grid-template-columns: 1fr;
+  }
+  
+  .map-sidebar-mobile .style-options {
+    flex-direction: column;
+  }
+  
+  .map-sidebar-mobile .style-btn {
+    width: 100%;
+  }
+}
+
+/* Safe area padding for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-sidebar-content {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+
+/* ============================================
+   MOBILE REGION POPUP - Compact card style
+   ============================================ */
+
+@media (max-width: 768px) {
+  .region-popup {
+    /* Position as a card at bottom of map, not full height */
+    position: absolute;
+    top: auto !important;
+    right: 12px !important;
+    bottom: 70px !important; /* Above the mobile sidebar */
+    left: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 280px !important;
+    overflow: hidden;
+    border-radius: 12px;
+  }
+
+  /* Compact header */
+  .region-popup-header {
+    padding: 10px 14px;
+  }
+
+  .region-popup-title h3 {
+    font-size: 15px;
+  }
+
+  .region-popup-title svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Scrollable content area */
+  .region-popup-content {
+    padding: 12px 14px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  /* Compact summary text */
+  .region-summary {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 10px;
+    /* Limit to 2-3 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Compact stats */
+  .region-stats {
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  .region-stats .stat-item {
+    padding: 6px 0;
+  }
+
+  .region-stats .stat-label {
+    font-size: 11px;
+  }
+
+  .region-stats .stat-value {
+    font-size: 14px;
+  }
+
+  /* Compact varieties section */
+  .region-varieties {
+    margin-bottom: 10px;
+  }
+
+  .region-varieties h4 {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .variety-list {
+    gap: 4px;
+  }
+
+  .variety-item {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  /* Hide climate section on mobile to save space */
+  .region-climate {
+    display: none;
+  }
+
+  /* Compact action button */
+  .region-action-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Compact footer */
+  .region-popup .popup-footer {
+    padding: 6px 14px;
+    font-size: 10px;
+  }
+}
+
+/* Even smaller on very small screens */
+@media (max-width: 480px) {
+  .region-popup {
+    right: 8px !important;
+    left: 8px !important;
+    bottom: 65px !important;
+    max-height: 250px !important;
+  }
+
+  .region-popup-header {
+    padding: 8px 12px;
+  }
+
+  .region-popup-title h3 {
+    font-size: 14px;
+  }
+
+  .region-popup-content {
+    padding: 10px 12px;
+    max-height: 160px;
+  }
+
+  /* Show only 2 varieties on very small screens */
+  .variety-item:nth-child(n+3) {
+    display: none;
+  }
+}

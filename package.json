@@ -37,6 +37,7 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.19",
     "prop-types": "^15.8.1",
     "recharts": "^3.6.0"
   }

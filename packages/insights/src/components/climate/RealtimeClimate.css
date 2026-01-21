@@ -1234,3 +1234,426 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* =============================================================================
+   DISEASE PRESSURE EXPLORER - Add to RealtimeClimate.css
+   ============================================================================= */
+
+.disease-pressure-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Header */
+.disease-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.disease-header .header-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.disease-header .header-title h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.overall-risk-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Disease Cards */
+.disease-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.disease-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-left-width: 4px;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.disease-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.disease-card.expanded {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.disease-card-header {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  gap: 1rem;
+}
+
+.disease-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.disease-name-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.disease-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.risk-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.disease-score {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+}
+
+.score-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.score-label {
+  font-size: 0.75rem;
+  color: #9CA3AF;
+}
+
+/* Risk Icons */
+.risk-icon.low { color: #22C55E; }
+.risk-icon.moderate { color: #F59E0B; }
+.risk-icon.high { color: #EF4444; }
+.risk-icon.extreme { color: #991B1B; }
+.risk-icon.unknown { color: #6B7280; }
+
+/* Risk Bar */
+.risk-bar-container {
+  height: 8px;
+  background: #F3F4F6;
+  margin: 0 1.25rem;
+  position: relative;
+  border-radius: 4px;
+}
+
+.risk-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.risk-thresholds {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.risk-thresholds .threshold {
+  position: absolute;
+  top: 12px;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  color: #9CA3AF;
+}
+
+/* Expanded Content */
+.disease-card-expanded {
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid #F3F4F6;
+  margin-top: 0.75rem;
+}
+
+.disease-description {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #F9FAFB;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.disease-description svg {
+  color: #6B7280;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.disease-description p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #4B5563;
+  line-height: 1.5;
+}
+
+/* Contributing Factors */
+.contributing-factors {
+  margin-bottom: 1rem;
+}
+
+.contributing-factors h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.factors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.factor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #F9FAFB;
+  border-radius: 8px;
+}
+
+.factor-item svg {
+  color: #6B7280;
+  flex-shrink: 0;
+}
+
+.factor-label {
+  font-size: 0.75rem;
+  color: #6B7280;
+  flex: 1;
+}
+
+.factor-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.factor-value.favorable {
+  color: #DC2626;
+}
+
+/* Spray Recommendation */
+.spray-recommendation {
+  padding: 0.75rem;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+}
+
+.spray-recommendation h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #92400E;
+}
+
+.spray-recommendation p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #78350F;
+  line-height: 1.4;
+}
+
+/* Chart Section */
+.disease-pressure-explorer .chart-section {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.chart-header h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.days-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.days-selector span {
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+.days-btn {
+  padding: 0.35rem 0.65rem;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #4B5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.days-btn:hover {
+  background: #F3F4F6;
+}
+
+.days-btn.active {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #FFFFFF;
+}
+
+.disease-pressure-explorer .chart-container {
+  height: 280px;
+  padding: 1rem;
+}
+
+/* General Recommendations */
+.general-recommendations {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+
+.general-recommendations h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #166534;
+}
+
+.general-recommendations ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.general-recommendations li {
+  font-size: 0.85rem;
+  color: #15803D;
+  padding: 0.25rem 0;
+  line-height: 1.4;
+}
+
+/* Data Quality Note */
+.data-quality-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #FEF3C7;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #92400E;
+}
+
+/* Legend */
+.disease-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #F3F4F6;
+}
+
+.legend-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6B7280;
+}
+
+.disease-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #4B5563;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 640px) {
+  .disease-card-header {
+    padding: 0.875rem 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .disease-score {
+    order: -1;
+    width: 100%;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  
+  .factors-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .disease-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+@import './styles/mobile-responsive.css';
