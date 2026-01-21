@@ -1,0 +1,1059 @@
+/* =============================================================================
+   MOBILE RESPONSIVE OVERRIDES
+   packages/insights/src/styles/mobile-responsive.css
+   
+   Comprehensive mobile fixes for Auxein Regional Intelligence
+   Import this file AFTER all component CSS files
+   ============================================================================= */
+
+/* =============================================================================
+   480px BREAKPOINT - SMALL PHONES
+   ============================================================================= */
+
+@media (max-width: 480px) {
+  
+  /* ---------------------------------------------------------------------------
+     LANDING PAGE
+     --------------------------------------------------------------------------- */
+  
+  /* Header - reduce padding and logo size */
+  .landing-header {
+    padding: 12px 16px;
+  }
+  
+  .header-logo img {
+    height: 32px;
+  }
+  
+  /* Header navigation - stack links or use hamburger */
+  .header-nav {
+    gap: 8px;
+  }
+  
+  .header-nav a,
+  .header-nav button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  /* Hide text labels on smallest screens, show icons only */
+  .header-nav .nav-text {
+    display: none;
+  }
+  
+  /* Hero section */
+  .hero-content h1 {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+  
+  .hero-content p {
+    font-size: 0.9rem;
+  }
+  
+  /* Insights grid - force single column */
+  .insights-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+  
+  .insight-card {
+    padding: 16px;
+  }
+  
+  /* Active insight container */
+  .active-insight-container {
+    padding: 16px;
+    margin: 0 -16px;
+    border-radius: 0;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     REGIONAL MAP
+     --------------------------------------------------------------------------- */
+  
+  /* Sidebar - transform to bottom sheet on mobile */
+  .map-sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100%;
+    max-width: 100%;
+    max-height: 60vh;
+    border-radius: 16px 16px 0 0;
+    z-index: 200;
+    transform: translateY(calc(100% - 60px));
+    transition: transform 0.3s ease;
+  }
+  
+  .map-sidebar.expanded {
+    transform: translateY(0);
+  }
+  
+  /* Sidebar handle for mobile */
+  .sidebar-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: #d1d5db;
+    border-radius: 2px;
+    margin: 8px auto;
+  }
+  
+  /* Map container - full height minus bottom sheet peek */
+  .map-container {
+    height: calc(100vh - 60px);
+  }
+  
+  /* Region/GI popups - position at bottom */
+  .region-popup,
+  .gi-popup,
+  .block-popup {
+    position: fixed !important;
+    bottom: 70px;
+    left: 16px;
+    right: 16px;
+    top: auto !important;
+    max-width: none;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     PUBLIC CLIMATE CONTAINER
+     --------------------------------------------------------------------------- */
+  
+  .public-climate-container {
+    padding: 16px;
+    border-radius: 8px;
+  }
+  
+  /* Climate header */
+  .climate-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .header-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .header-title h2 {
+    font-size: 18px;
+  }
+  
+  .about-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+  
+  /* View toggle - horizontal scroll on small screens */
+  .view-toggle {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  
+  .view-toggle::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .view-toggle-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  
+  /* Zone selector */
+  .zone-dropdown-trigger {
+    max-width: 100%;
+  }
+  
+  .zone-dropdown-menu {
+    max-width: 100%;
+    left: 0;
+    right: 0;
+  }
+  
+  /* Explorer containers */
+  .season-explorer,
+  .projections-explorer {
+    padding: 16px;
+  }
+  
+  .explorer-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .explorer-header h3 {
+    font-size: 16px;
+  }
+  
+  /* Chart container */
+  .chart-container {
+    height: 220px !important;
+    min-height: 200px;
+  }
+  
+  /* SSP selector tabs - stack vertically */
+  .ssp-tabs {
+    flex-direction: column;
+  }
+  
+  .ssp-tab {
+    min-width: 100%;
+    padding: 12px;
+  }
+  
+  /* Period buttons - 2 columns */
+  .period-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .period-btn {
+    min-width: auto;
+    padding: 12px;
+  }
+  
+  /* Summary grid */
+  .summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Variables grid */
+  .variables-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Stages grid */
+  .stages-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Seasons grid */
+  .seasons-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+  
+  .season-card {
+    padding: 12px;
+  }
+  
+  .season-label {
+    font-size: 14px;
+  }
+  
+  /* Chart controls */
+  .chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .chart-metric-selector {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .chart-type-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  
+  /* Monthly table */
+  .monthly-table-wrapper {
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  
+  .monthly-table th,
+  .monthly-table td {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  
+  /* Projection summary */
+  .projection-summary {
+    padding: 12px;
+  }
+  
+  .projection-summary h4 {
+    font-size: 14px;
+  }
+  
+  .summary-card {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .summary-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .summary-value {
+    font-size: 18px;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     REALTIME CLIMATE (CurrentSeason, Phenology, Disease)
+     --------------------------------------------------------------------------- */
+  
+  .current-season-explorer,
+  .phenology-explorer,
+  .disease-pressure-explorer {
+    padding: 12px;
+  }
+  
+  /* Season header */
+  .season-header,
+  .phenology-header,
+  .disease-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .season-title h3,
+  .header-title h3,
+  .disease-header h3 {
+    font-size: 1.1rem;
+  }
+  
+  .season-meta,
+  .header-meta {
+    align-items: flex-start;
+    font-size: 0.75rem;
+  }
+  
+  /* Summary cards - single column */
+  .summary-cards {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+  
+  .summary-card {
+    padding: 12px;
+  }
+  
+  .card-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .card-value {
+    font-size: 1.25rem;
+  }
+  
+  .card-label {
+    font-size: 0.7rem;
+  }
+  
+  /* Milestones */
+  .milestones-section {
+    padding: 12px;
+  }
+  
+  .milestones-list {
+    gap: 8px;
+  }
+  
+  .milestone-item {
+    padding: 8px 12px;
+    flex: 1 1 auto;
+    min-width: calc(50% - 4px);
+  }
+  
+  /* Chart section */
+  .chart-section {
+    margin-bottom: 1rem;
+  }
+  
+  .chart-controls {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  
+  .chart-tab {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  
+  /* Recent days table */
+  .recent-days-table-wrapper {
+    margin: 0 -12px;
+    overflow-x: auto;
+  }
+  
+  .recent-days-table th,
+  .recent-days-table td {
+    padding: 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  
+  /* Variety filter */
+  .variety-filter {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .variety-chips {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .variety-chip {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+  
+  /* Variety cards */
+  .variety-card-header {
+    padding: 12px;
+  }
+  
+  .variety-name {
+    font-size: 0.9rem;
+  }
+  
+  .variety-gdd {
+    font-size: 0.8rem;
+  }
+  
+  /* Key dates summary */
+  .key-dates-summary {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  
+  .date-chip {
+    padding: 6px 10px;
+    min-width: 70px;
+  }
+  
+  .date-label {
+    font-size: 0.6rem;
+  }
+  
+  .date-value {
+    font-size: 0.8rem;
+  }
+  
+  /* Expanded content */
+  .variety-card-expanded {
+    padding: 12px;
+  }
+  
+  /* Harvest grid */
+  .harvest-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+  
+  .harvest-item {
+    padding: 10px;
+  }
+  
+  /* Phenology legend */
+  .phenology-legend {
+    gap: 0.75rem;
+    font-size: 0.7rem;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     DISEASE PRESSURE
+     --------------------------------------------------------------------------- */
+  
+  .disease-card-header {
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .disease-info {
+    gap: 8px;
+  }
+  
+  .disease-name {
+    font-size: 0.9rem;
+  }
+  
+  .disease-score {
+    order: -1;
+    width: 100%;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  
+  .score-value {
+    font-size: 1.25rem;
+  }
+  
+  /* Risk bar */
+  .risk-bar-container {
+    margin: 0 12px;
+  }
+  
+  /* Factors grid */
+  .factors-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+  
+  .factor-item {
+    padding: 8px 10px;
+  }
+  
+  .factor-label {
+    font-size: 0.7rem;
+  }
+  
+  .factor-value {
+    font-size: 0.75rem;
+  }
+  
+  /* Chart header */
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .days-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  /* Disease legend */
+  .disease-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  /* General recommendations */
+  .general-recommendations {
+    padding: 12px;
+  }
+  
+  .general-recommendations h4 {
+    font-size: 0.85rem;
+  }
+  
+  .general-recommendations li {
+    font-size: 0.8rem;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     ZONE SELECTOR REALTIME
+     --------------------------------------------------------------------------- */
+  
+  .zone-selector-realtime {
+    width: 100%;
+  }
+  
+  .selector-trigger {
+    min-width: 100% !important;
+    width: 100%;
+  }
+  
+  .selector-dropdown {
+    min-width: 100%;
+    left: 0;
+    right: 0;
+  }
+  
+  /* CTA Modal */
+  .cta-modal {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+  
+  .cta-icon {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .cta-modal h3 {
+    font-size: 1.25rem;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     REGION STATS MODAL
+     --------------------------------------------------------------------------- */
+  
+  .region-stats-overlay {
+    padding: 12px;
+  }
+  
+  .region-stats-modal {
+    max-height: 90vh;
+    padding: 16px;
+    border-radius: 12px;
+  }
+  
+  .region-stats-header h2 {
+    font-size: 1.1rem;
+  }
+  
+  .stats-summary-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+  
+  .stat-item {
+    padding: 12px;
+  }
+  
+  .stat-value {
+    font-size: 1.25rem;
+  }
+  
+  /* Varieties table */
+  .varieties-table-wrapper {
+    margin: 0 -16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     AUTH MODAL
+     --------------------------------------------------------------------------- */
+  
+  .auth-modal-content {
+    margin: 0;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  
+  .auth-modal-header {
+    padding: 24px 20px 16px;
+  }
+  
+  .auth-modal-header h2 {
+    font-size: 22px;
+  }
+  
+  .auth-modal-body {
+    padding: 20px;
+  }
+  
+  .signup-progress {
+    margin-bottom: 20px;
+  }
+  
+  .progress-line {
+    width: 32px;
+  }
+  
+  .progress-step {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     ABOUT PAGE
+     --------------------------------------------------------------------------- */
+  
+  .about-page {
+    padding: 16px;
+  }
+  
+  .about-hero h1 {
+    font-size: 1.75rem;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .contact-grid {
+    flex-direction: column;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     CLIMATE ABOUT MODAL
+     --------------------------------------------------------------------------- */
+  
+  .climate-about-overlay {
+    padding: 12px;
+  }
+  
+  .climate-about-modal {
+    max-width: 100%;
+    border-radius: 12px;
+  }
+  
+  .about-header {
+    padding: 16px 20px;
+  }
+  
+  .about-header h2 {
+    font-size: 18px;
+  }
+  
+  .about-content {
+    padding: 16px 20px;
+  }
+  
+  .about-section {
+    margin-bottom: 24px;
+  }
+  
+  .about-section h3 {
+    font-size: 16px;
+  }
+  
+  .section-icon {
+    float: none;
+    display: block;
+    margin: 0 0 12px 0;
+  }
+}
+
+/* =============================================================================
+   768px BREAKPOINT - TABLETS & LARGER PHONES
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  
+  /* ---------------------------------------------------------------------------
+     LANDING PAGE
+     --------------------------------------------------------------------------- */
+  
+  .landing-header {
+    padding: 16px 20px;
+  }
+  
+  .header-logo img {
+    height: 40px;
+  }
+  
+  .header-nav {
+    gap: 12px;
+  }
+  
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+  
+  /* Insights grid - 2 columns */
+  .insights-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  
+  .active-insight-container {
+    padding: 20px;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     REGIONAL MAP
+     --------------------------------------------------------------------------- */
+  
+  .map-sidebar {
+    width: 260px;
+    max-height: calc(100vh - 120px);
+  }
+  
+  .map-container {
+    height: 500px;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     PUBLIC CLIMATE CONTAINER
+     --------------------------------------------------------------------------- */
+  
+  .public-climate-container {
+    padding: 20px;
+  }
+  
+  .header-title h2 {
+    font-size: 20px;
+  }
+  
+  .view-toggle-btn {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  
+  /* Chart container */
+  .chart-container {
+    height: 280px;
+  }
+  
+  /* SSP tabs - 2 columns */
+  .ssp-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .ssp-tab {
+    min-width: auto;
+  }
+  
+  /* Seasons grid */
+  .seasons-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  /* Summary/variables/stages grids - 2 columns */
+  .summary-grid,
+  .variables-grid,
+  .stages-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     REALTIME CLIMATE
+     --------------------------------------------------------------------------- */
+  
+  .summary-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  /* Harvest grid */
+  .harvest-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  /* ---------------------------------------------------------------------------
+     DISEASE PRESSURE
+     --------------------------------------------------------------------------- */
+  
+  .factors-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  /* ---------------------------------------------------------------------------
+     REGION STATS MODAL
+     --------------------------------------------------------------------------- */
+  
+  .stats-summary-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  /* ---------------------------------------------------------------------------
+     AUTH MODAL
+     --------------------------------------------------------------------------- */
+  
+  .auth-modal-content {
+    max-width: 100%;
+    margin: 0 16px;
+    border-radius: 12px;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =============================================================================
+   1024px BREAKPOINT - SMALL DESKTOPS & LANDSCAPE TABLETS
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  
+  /* Landing page */
+  .insights-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  /* Regional map */
+  .map-sidebar {
+    width: 280px;
+  }
+  
+  /* SSP tabs */
+  .ssp-tabs {
+    gap: 8px;
+  }
+  
+  .ssp-tab {
+    padding: 12px;
+  }
+  
+  /* Period buttons */
+  .period-buttons {
+    gap: 8px;
+  }
+  
+  .period-btn {
+    padding: 12px;
+  }
+}
+
+/* =============================================================================
+   TOUCH DEVICE ENHANCEMENTS
+   ============================================================================= */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Increase touch targets */
+  .view-toggle-btn,
+  .chart-type-btn,
+  .chart-tab,
+  .variety-chip,
+  .season-pill,
+  .zone-option,
+  .rt-zone-option {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Remove hover states that cause sticky on touch */
+  .view-toggle-btn:hover,
+  .chart-type-btn:hover,
+  .zone-option:hover,
+  .season-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  /* Make scrollable areas more obvious */
+  .chart-controls,
+  .variety-chips,
+  .view-toggle {
+    position: relative;
+  }
+  
+  .chart-controls::after,
+  .variety-chips::after,
+  .view-toggle::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    background: linear-gradient(to left, white, transparent);
+    pointer-events: none;
+  }
+}
+
+/* =============================================================================
+   LANDSCAPE PHONE ORIENTATION
+   ============================================================================= */
+
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Reduce vertical space */
+  .map-sidebar {
+    max-height: 80vh;
+  }
+  
+  .chart-container {
+    height: 180px !important;
+  }
+  
+  .region-popup,
+  .gi-popup,
+  .block-popup {
+    max-height: 70vh;
+  }
+  
+  .auth-modal-content {
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+  
+  .cta-modal {
+    max-height: 95vh;
+    overflow-y: auto;
+  }
+}
+
+/* =============================================================================
+   SAFE AREA INSETS (for notched devices)
+   ============================================================================= */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .map-sidebar {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  
+  .region-popup,
+  .gi-popup,
+  .block-popup {
+    bottom: calc(70px + env(safe-area-inset-bottom));
+  }
+  
+  .auth-modal-content {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* =============================================================================
+   REDUCED MOTION PREFERENCE
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .map-sidebar,
+  .view-toggle-btn,
+  .chart-type-btn,
+  .season-card,
+  .variety-card,
+  .disease-card,
+  .auth-submit-btn {
+    transition: none;
+  }
+  
+  .spinning {
+    animation: none;
+  }
+}
+
+/* =============================================================================
+   PRINT STYLES
+   ============================================================================= */
+
+@media print {
+  .map-sidebar,
+  .view-toggle,
+  .chart-controls,
+  .zone-selector,
+  .about-btn,
+  .close-btn,
+  .auth-modal-overlay {
+    display: none !important;
+  }
+  
+  .chart-container {
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+  
+  .public-climate-container {
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}

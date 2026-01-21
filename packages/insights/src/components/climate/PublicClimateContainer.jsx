@@ -1,10 +1,11 @@
 // packages/insights/src/components/climate/PublicClimateContainer.jsx
 /**
- * PublicClimateContainer Component (Updated)
+ * PublicClimateContainer Component (Updated with Disease Pressure)
  * 
  * Main wrapper for public climate features including:
  * - Current Season: Live climate data with GDD progress
  * - Phenology: Growth stage estimates and harvest predictions  
+ * - Disease Pressure: Risk indicators and recommendations
  * - Climate History: Historical season explorer
  * - Climate Projections: Future SSP projections
  */
@@ -15,6 +16,7 @@ import ZoneSelector from './ZoneSelector';
 import ZoneSelectorRealtime from './ZoneSelectorRealtime';
 import CurrentSeasonExplorer from './CurrentSeasonExplorer';
 import PhenologyExplorer from './PhenologyExplorer';
+import DiseasePressureExplorer from './DiseasePressureExplorer';
 import SeasonExplorer from './SeasonExplorer';
 import ProjectionsExplorer from './ProjectionsExplorer';
 import ClimateAbout from './ClimateAbout';
@@ -27,14 +29,21 @@ const VIEW_CONFIG = {
     description: 'Live climate data and GDD accumulation',
     component: CurrentSeasonExplorer,
     allowComparison: false,
-    useRealtimeSelector: true,  // Use realtime zone selector
+    useRealtimeSelector: true,
   },
   phenology: {
     label: 'Phenology',
     description: 'Growth stage estimates and harvest predictions',
     component: PhenologyExplorer,
     allowComparison: false,
-    useRealtimeSelector: true,  // Use realtime zone selector
+    useRealtimeSelector: true,
+  },
+  disease: {
+    label: 'Disease Pressure',
+    description: 'Risk indicators for downy mildew, powdery mildew, and botrytis',
+    component: DiseasePressureExplorer,
+    allowComparison: false,
+    useRealtimeSelector: true,
   },
   seasons: {
     label: 'Climate History',
@@ -97,6 +106,14 @@ const PublicClimateContainer = ({
     );
   };
 
+  // Get attribution text based on view
+  const getAttribution = () => {
+    if (['currentseason', 'phenology', 'disease'].includes(activeView)) {
+      return 'Real-time data from weather station network. Updated daily.';
+    }
+    return 'Climate Baseline: 1986-2005. Projections: CMIP6 models (SSP126, SSP245, SSP370).';
+  };
+
   return (
     <div className="public-climate-container">
       {/* Header */}
@@ -136,16 +153,15 @@ const PublicClimateContainer = ({
       {/* Data Attribution */}
       <div className="climate-attribution">
         <Info size={14} />
-        <span>
-          {activeView === 'currentseason' || activeView === 'phenology' 
-            ? 'Real-time data from weather station network. Updated daily.'
-            : 'Climate Baseline: 1986-2005. Projections: CMIP6 models (SSP126, SSP245, SSP370).'}
-        </span>
+        <span>{getAttribution()}</span>
       </div>
 
       {/* About Modal */}
       {showAbout && (
-        <ClimateAbout onClose={() => setShowAbout(false)} />
+        <ClimateAbout 
+          onClose={() => setShowAbout(false)} 
+          activeView={activeView}
+        />
       )}
     </div>
   );
