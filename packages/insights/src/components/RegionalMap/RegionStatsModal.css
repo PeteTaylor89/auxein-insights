@@ -4,6 +4,8 @@
    ========================================================================== */
 
 /* Modal Overlay */
+@import '../../styles/mobile-responsive.css';
+
 .stats-modal-overlay {
   position: fixed;
   top: 0;
@@ -605,4 +607,3 @@
     font-size: 18px;
   }
 }
-@import './styles/mobile-responsive.css';

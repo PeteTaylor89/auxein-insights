@@ -140,6 +140,24 @@ const publicAuthService = {
   }
 };
 
-// CRITICAL: Export as default
-export default publicAuthService;
+// Named exports for components using destructured imports
+export const {
+  signup,
+  login,
+  getCurrentUser,
+  updateProfile,
+  updateMarketingPreferences,
+  verifyEmail,
+  resendVerification,
+  forgotPassword,
+  resetPassword,
+  getUserTypes,
+  getRegions,
+  logout,
+  isAuthenticated,
+  getStoredUser,
+  getToken
+} = publicAuthService;
 
+// Default export for components using the service object
+export default publicAuthService;
