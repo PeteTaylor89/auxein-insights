@@ -16,8 +16,6 @@ try:
 except ImportError:
     pass  # Skip blockchain import if services not ready
 
-
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -56,57 +54,27 @@ tags_metadata = [
     },
 ]
 
-app = FastAPI(
-    title="Auxein Insights API",
-    description="""
-    ## Auxein Insights System API
-    
-    This API provides endpoints for managing all aspects of Auxein Insights including:
-    
-    * **User authentication and management**
-    * **Vineyard block data with spatial (GIS) capabilities**
-    * **Task management for vineyard operations**
-    * **Observation recording and tracking**
-    * **Image management for observations**
-    * **Risk management and safety compliance**
-    * **Incident register with NZ WorkSafe integration**
-
-    ### Features:
-    
-    - JWT-based authentication
-    - Spatial queries using PostGIS
-    - GeoJSON support for mapping
-    - Comprehensive risk management system
-    - H&S incident tracking with complianc
-    - Filtering and searching capabilities
-    - Statistical reporting
-    - Image upload and serving
-    
-    ### Authentication:
-    
-    Most endpoints require authentication. Use the `/api/auth/login` endpoint to obtain tokens.
-    Include the access token in the Authorization header: `Bearer your-token-here`
-    
-    ### Risk Management:
-    
-    The system includes a comprehensive risk management module with:
-    - Site risk register with GIS mapping
-    - Risk actions with automatic task creation
-    - Incident register with NZ WorkSafe compliance
-    - Integrated dashboard and reporting
-
-    ### Data Structure:
-    
-    The system stores vineyard blocks with their spatial data (polygon boundaries) and attributes
-    including variety, planted date, area, organic status, and more.
-    """,
-    version="0.1.0",
-    openapi_tags=tags_metadata,
-    docs_url="/docs",
-    redoc_url="/redoc", 
-    swagger_ui_parameters={"persistAuthorization": True}
-
-)
+if os.getenv("ENV") == "production":
+    app = FastAPI(
+        title="Auxein Insights API",
+        description="""...""",  # your description
+        version="0.1.0",
+        openapi_tags=tags_metadata,
+        docs_url=None,  # or "/docs-secret-xyz123"
+        redoc_url=None,
+        openapi_url=None,  # or "/openapi-secret-xyz123.json"
+        swagger_ui_parameters={"persistAuthorization": True}
+    )
+else:
+    app = FastAPI(
+        title="Auxein Insights API",
+        description="""...""",  # your description
+        version="0.1.0",
+        openapi_tags=tags_metadata,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        swagger_ui_parameters={"persistAuthorization": True}
+    )
 
 @app.middleware("http")
 async def log_errors(request: Request, call_next):

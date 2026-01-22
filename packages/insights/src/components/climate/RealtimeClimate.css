@@ -6,6 +6,7 @@
 /* =============================================================================
    SHARED STYLES
    ============================================================================= */
+@import '../../styles/mobile-responsive.css';
 
 .current-season-explorer,
 .phenology-explorer {
@@ -1656,4 +1657,3 @@
   }
 }
 
-@import './styles/mobile-responsive.css';

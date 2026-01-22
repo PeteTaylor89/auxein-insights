@@ -6,7 +6,6 @@ export default defineConfig({
   plugins: [
     react()
   ],
-  envDir: '../../',
   resolve: {
     alias: {
       '@vineyard/shared': path.resolve(__dirname, '../shared/src'),
