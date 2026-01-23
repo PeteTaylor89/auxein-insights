@@ -296,7 +296,7 @@ The Auxein Team
         <td style="padding: 40px;">
             <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Hi {name}!</h2>
             <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px;">
-                You're all set to explore New Zealand's wine regions, and ahve direct insigth to historical, and projected climate with Auxein's climate intelligence.
+                You're all set to explore New Zealand's wine regions, and have direct insight to historical, and projected climate with Auxein's climate intelligence.
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
