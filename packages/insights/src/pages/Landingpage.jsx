@@ -1,5 +1,5 @@
-// pages/LandingPage.jsx - Fixed mobile navigation (renders outside header)
-import { useState, useEffect } from 'react';
+// pages/LandingPage.jsx - With scroll-aware header for mobile
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, 
@@ -23,6 +23,48 @@ const isAdminEmail = (email) => {
   return email.toLowerCase().endsWith(`@${ADMIN_DOMAIN}`);
 };
 
+// Custom hook for scroll-aware header
+function useScrollDirection() {
+  const [scrollDirection, setScrollDirection] = useState('up');
+  const [isAtTop, setIsAtTop] = useState(true);
+  const lastScrollY = useRef(0);
+  const ticking = useRef(false);
+
+  useEffect(() => {
+    const threshold = 10; // Minimum scroll amount to trigger direction change
+    const topThreshold = 50; // Consider "at top" within this range
+
+    const updateScrollDirection = () => {
+      const scrollY = window.scrollY;
+      
+      // Check if at top of page
+      setIsAtTop(scrollY < topThreshold);
+      
+      // Only update direction if we've scrolled more than threshold
+      if (Math.abs(scrollY - lastScrollY.current) < threshold) {
+        ticking.current = false;
+        return;
+      }
+
+      setScrollDirection(scrollY > lastScrollY.current ? 'down' : 'up');
+      lastScrollY.current = scrollY > 0 ? scrollY : 0;
+      ticking.current = false;
+    };
+
+    const onScroll = () => {
+      if (!ticking.current) {
+        window.requestAnimationFrame(updateScrollDirection);
+        ticking.current = true;
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return { scrollDirection, isAtTop };
+}
+
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
   const { isAuthenticated, user, logout } = usePublicAuth();
@@ -32,6 +74,10 @@ function LandingPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Scroll-aware header state
+  const { scrollDirection, isAtTop } = useScrollDirection();
+  const [isMobile, setIsMobile] = useState(false);
   
   const isAdmin = isAuthenticated && isAdminEmail(user?.email);
   
@@ -43,6 +89,14 @@ function LandingPage() {
       setVerificationModalOpen(true);
     }
   }, [verificationToken]);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Close mobile menu on resize to desktop
   useEffect(() => {
@@ -165,10 +219,14 @@ function LandingPage() {
     );
   };
 
+  // Determine header visibility class for mobile
+  // Header is hidden when: mobile + scrolling down + not at top + mobile menu closed
+  const headerHidden = isMobile && scrollDirection === 'down' && !isAtTop && !mobileMenuOpen;
+
   return (
     <div className="landing-page">
-      {/* Sticky Header */}
-      <header className="landing-header">
+      {/* Scroll-Aware Sticky Header */}
+      <header className={`landing-header ${headerHidden ? 'header-hidden' : ''}`}>
         <div className="header-container">
           <div className="header-brand">
             <img src={MainLogo} alt="Auxein Logo" className="header-logo" />

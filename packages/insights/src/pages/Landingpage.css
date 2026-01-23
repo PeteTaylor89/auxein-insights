@@ -1373,3 +1373,149 @@
     display: none;
   }
 }
+
+.landing-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  /* Add these for smooth animation */
+  transition: transform 0.3s ease;
+  will-change: transform;
+}
+
+/* Hidden state - only applies on mobile via JS class */
+.landing-header.header-hidden {
+  transform: translateY(-100%);
+  box-shadow: none;
+}
+
+/* ============================================
+   MOBILE-SPECIFIC HEADER BEHAVIOR
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Compact header on mobile to minimize space when visible */
+  .landing-header {
+    /* Slightly smaller on mobile */
+  }
+  
+  .header-container {
+    padding: 10px 16px;
+  }
+  
+  .header-logo {
+    height: 44px;
+  }
+  
+  .header-title-block h1 {
+    font-size: 15pt;
+  }
+  
+  .header-title-block p {
+    font-size: 10pt;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-container {
+    padding: 8px 12px;
+  }
+  
+  .header-logo {
+    height: 38px;
+  }
+  
+  .header-title-block h1 {
+    font-size: 14pt;
+  }
+  
+  .header-title-block p {
+    font-size: 9pt;
+  }
+}
+
+@media (max-width: 360px) {
+  /* On very small screens, hide title block entirely */
+  .header-title-block {
+    display: none;
+  }
+  
+  .header-logo {
+    height: 36px;
+  }
+}
+
+/* ============================================
+   PAGE CONTENT ADJUSTMENT
+   ============================================ */
+
+/* 
+   Since the header can hide/show, content should NOT jump.
+   The sticky header already handles this by remaining in the 
+   document flow. No additional spacing adjustment needed.
+   
+   However, if you want smooth content flow when header hides,
+   you could optionally add a spacer div - but this is usually
+   not needed with sticky positioning.
+*/
+
+/* ============================================
+   ACCESSIBILITY: Reduce motion preference
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-header {
+    transition: none;
+  }
+  
+  .landing-header.header-hidden {
+    /* Instead of animating, just make it smaller or semi-transparent */
+    transform: none;
+    opacity: 0.7;
+    padding: 4px 0;
+  }
+}
+
+/* ============================================
+   LANDSCAPE MOBILE OPTIMIZATION
+   ============================================ */
+
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Even more compact in landscape to maximize content area */
+  .header-container {
+    padding: 6px 16px;
+  }
+  
+  .header-logo {
+    height: 32px;
+  }
+  
+  .header-title-block {
+    display: none; /* Hide on landscape mobile */
+  }
+  
+  .mobile-menu-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ============================================
+   TOUCH FEEDBACK FOR MOBILE MENU BUTTON
+   ============================================ */
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
+  .mobile-menu-btn:active {
+    transform: scale(0.95);
+    background: #f0f0f0;
+  }
+}

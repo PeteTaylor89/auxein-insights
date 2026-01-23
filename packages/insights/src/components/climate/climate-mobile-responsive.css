@@ -1,0 +1,1496 @@
+/* =============================================================================
+   MOBILE-RESPONSIVE CLIMATE CHARTS & EXPLORERS
+   
+   Comprehensive responsive styles for:
+   - Current Season Explorer
+   - Phenology Explorer  
+   - Disease Pressure Explorer
+   - Season Explorer (History)
+   - Projections Explorer
+   
+   Breakpoints:
+   - 768px: Tablet
+   - 640px: Large mobile
+   - 480px: Small mobile
+   - 360px: Extra small mobile
+   ============================================================================= */
+
+/* =============================================================================
+   PUBLIC CLIMATE CONTAINER - MOBILE BASE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .public-climate-container {
+    padding: 16px;
+    border-radius: 8px;
+    margin: 0;
+  }
+  
+  .climate-header {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+  
+  .header-title {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .header-title h2 {
+    font-size: 20px;
+  }
+  
+  .about-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .about-btn span {
+    display: none;
+  }
+  
+  .climate-attribution {
+    padding: 10px 12px;
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .public-climate-container {
+    padding: 12px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  
+  .header-title h2 {
+    font-size: 18px;
+  }
+}
+
+/* =============================================================================
+   ZONE SELECTOR - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .zone-selector {
+    margin-bottom: 16px;
+  }
+  
+  .zone-selector-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .zone-dropdown-trigger {
+    max-width: 100%;
+    padding: 10px 12px;
+  }
+  
+  .zone-dropdown-menu {
+    max-width: 100%;
+    max-height: 60vh;
+    left: 0;
+    right: 0;
+  }
+  
+  .zone-comparison-section {
+    margin-top: 12px;
+  }
+  
+  .comparison-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .add-comparison-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px;
+  }
+  
+  .zone-comparison-tags {
+    gap: 6px;
+  }
+  
+  .zone-tag {
+    font-size: 12px;
+    padding: 5px 8px;
+  }
+}
+
+/* =============================================================================
+   REALTIME ZONE SELECTOR - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .zone-selector-realtime .selector-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  
+  .zone-selector-realtime .selector-trigger {
+    padding: 12px;
+    width: 100%;
+  }
+  
+  .zone-selector-realtime .selector-dropdown {
+    max-height: 60vh;
+    width: calc(100% - 24px);
+    left: 12px;
+    right: 12px;
+  }
+  
+  .rt-zone-option {
+    padding: 12px;
+    min-height: 44px;
+  }
+  
+  /* CTA Modal - Full screen on mobile */
+  .cta-modal {
+    width: 95%;
+    max-width: none;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px;
+    border-radius: 12px;
+  }
+  
+  .cta-icon svg {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .cta-modal h3 {
+    font-size: 1.25rem;
+  }
+  
+  .cta-benefits {
+    padding: 12px;
+  }
+  
+  .cta-benefits h4 {
+    font-size: 0.85rem;
+  }
+  
+  .cta-benefits li {
+    font-size: 0.8rem;
+  }
+  
+  .cta-email-btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.9rem;
+  }
+}
+
+/* =============================================================================
+   CHART CONTAINER - RESPONSIVE HEIGHTS
+   
+   Critical fix: Charts need proper height constraints on mobile
+   ============================================================================= */
+
+/* Base chart container improvements */
+.chart-container {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+}
+
+/* Desktop: comfortable viewing height */
+@media (min-width: 769px) {
+  .chart-container {
+    height: 350px;
+  }
+  
+  .disease-pressure-explorer .chart-container {
+    height: 280px;
+  }
+}
+
+/* Tablet */
+@media (max-width: 768px) {
+  .chart-container {
+    height: 280px;
+    padding: 12px;
+  }
+  
+  .disease-pressure-explorer .chart-container {
+    height: 240px;
+    padding: 10px;
+  }
+}
+
+/* Large mobile */
+@media (max-width: 640px) {
+  .chart-container {
+    height: 240px;
+    padding: 8px;
+    border-radius: 6px;
+  }
+  
+  .disease-pressure-explorer .chart-container {
+    height: 200px;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .chart-container {
+    height: 200px;
+    padding: 6px;
+    margin-bottom: 16px;
+  }
+  
+  .disease-pressure-explorer .chart-container {
+    height: 180px;
+  }
+}
+
+/* Landscape mobile - shorter charts */
+@media (max-width: 768px) and (orientation: landscape) {
+  .chart-container {
+    height: 180px;
+  }
+  
+  .disease-pressure-explorer .chart-container {
+    height: 160px;
+  }
+}
+
+/* =============================================================================
+   CHART CONTROLS - MOBILE OPTIMIZATION
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .chart-metric-selector {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 2px;
+    gap: 2px;
+  }
+  
+  .chart-metric-selector::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .chart-type-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-metric-selector {
+    justify-content: stretch;
+  }
+  
+  .chart-type-btn {
+    flex: 1;
+    padding: 10px 8px;
+    font-size: 11px;
+    min-width: 0;
+  }
+}
+
+/* Chart tabs for Current Season */
+@media (max-width: 768px) {
+  .chart-section .chart-controls {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+    margin: 0 -12px 12px;
+    padding: 0 12px 8px;
+  }
+  
+  .chart-tab {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+  
+  .chart-tab svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-tab {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    gap: 4px;
+  }
+}
+
+/* =============================================================================
+   SUMMARY CARDS - MOBILE GRID
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .summary-card {
+    padding: 1rem;
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+  }
+  
+  .card-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .card-label {
+    font-size: 0.65rem;
+  }
+  
+  .card-value {
+    font-size: 1.25rem;
+  }
+  
+  .card-comparison {
+    justify-content: center;
+    font-size: 0.75rem;
+  }
+  
+  .status-badge {
+    position: static;
+    margin-top: 0.5rem;
+    align-self: center;
+  }
+  
+  .temp-range {
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-cards {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .summary-card {
+    flex-direction: row;
+    text-align: left;
+    padding: 0.875rem;
+    gap: 0.75rem;
+  }
+  
+  .card-icon {
+    margin: 0;
+  }
+  
+  .card-content {
+    flex: 1;
+  }
+  
+  .status-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    margin: 0;
+  }
+  
+  .temp-range {
+    flex-direction: row;
+    gap: 1rem;
+  }
+}
+
+/* =============================================================================
+   SSP SCENARIO SELECTOR - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .ssp-selector {
+    margin-bottom: 16px;
+  }
+  
+  .ssp-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  
+  .ssp-tab {
+    min-width: 0;
+    padding: 12px 8px;
+  }
+  
+  .ssp-name {
+    font-size: 12px;
+  }
+  
+  .ssp-short {
+    font-size: 10px;
+  }
+  
+  .ssp-description {
+    font-size: 12px;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ssp-tabs {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  
+  .ssp-tab {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+  }
+  
+  .ssp-name {
+    font-size: 13px;
+  }
+  
+  .ssp-short {
+    font-size: 11px;
+    margin-left: auto;
+  }
+}
+
+/* =============================================================================
+   PERIOD SELECTOR - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .period-selector {
+    margin-bottom: 16px;
+  }
+  
+  .period-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  
+  .period-btn {
+    min-width: 0;
+    padding: 10px 8px;
+  }
+  
+  .period-name {
+    font-size: 11px;
+  }
+  
+  .period-years {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .period-buttons {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  
+  .period-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    padding: 10px 12px;
+  }
+  
+  .period-name {
+    font-size: 13px;
+  }
+  
+  .period-years {
+    margin-left: auto;
+    font-size: 12px;
+  }
+}
+
+/* =============================================================================
+   PROJECTION SUMMARY GRID - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .projection-summary {
+    padding: 16px;
+  }
+  
+  .projection-summary h4 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  
+  .summary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .summary-card {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .summary-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .summary-label {
+    font-size: 10px;
+  }
+  
+  .summary-value {
+    font-size: 18px;
+  }
+  
+  .summary-change {
+    font-size: 12px;
+  }
+}
+
+/* =============================================================================
+   MONTHLY DETAILS TABLE - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .monthly-details {
+    margin-top: 16px;
+  }
+  
+  .monthly-details h4 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  
+  .monthly-table-wrapper {
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Add scroll shadow indicators */
+  .monthly-table-wrapper::before,
+  .monthly-table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  .monthly-table {
+    min-width: 500px;
+  }
+  
+  .monthly-table th,
+  .monthly-table td {
+    padding: 8px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .monthly-table-wrapper {
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+  
+  .monthly-table th,
+  .monthly-table td {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+}
+
+/* =============================================================================
+   RECENT DAYS TABLE - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .recent-days-section h4 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  
+  .recent-days-table-wrapper {
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .recent-days-table {
+    min-width: 600px;
+  }
+  
+  .recent-days-table th,
+  .recent-days-table td {
+    padding: 8px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .recent-days-table-wrapper {
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+  
+  .recent-days-table th,
+  .recent-days-table td {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+}
+
+/* =============================================================================
+   SEASON EXPLORER (HISTORY) - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .season-explorer {
+    padding: 16px;
+    border-radius: 8px;
+  }
+  
+  .explorer-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .explorer-header h3 {
+    font-size: 16px;
+  }
+  
+  .explorer-mode-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  /* Baseline summary */
+  .baseline-summary {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .baseline-stats {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .baseline-stat {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 120px;
+  }
+  
+  .baseline-stat .stat-value {
+    font-size: 14px;
+  }
+  
+  .baseline-stat .stat-label {
+    font-size: 11px;
+  }
+  
+  /* Seasons grid */
+  .seasons-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  
+  .season-card {
+    padding: 12px;
+  }
+  
+  .season-label {
+    font-size: 14px;
+  }
+  
+  .season-ranking {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  .season-stat .stat-label {
+    font-size: 10px;
+    min-width: 32px;
+  }
+  
+  .season-stat .stat-value {
+    font-size: 12px;
+  }
+  
+  .season-stat .stat-diff {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .season-explorer {
+    padding: 12px;
+  }
+  
+  .seasons-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .baseline-stat {
+    flex: 1 1 100%;
+  }
+}
+
+/* Comparison view */
+@media (max-width: 768px) {
+  .comparison-instructions {
+    padding: 10px;
+    font-size: 12px;
+  }
+  
+  .seasons-selection-grid {
+    gap: 6px;
+  }
+  
+  .season-select-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .comparison-results {
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  
+  .comparison-table th,
+  .comparison-table td {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+}
+
+/* =============================================================================
+   PHENOLOGY EXPLORER - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .phenology-explorer {
+    padding: 1rem;
+  }
+  
+  .phenology-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+  }
+  
+  .header-title h3 {
+    font-size: 1.25rem;
+  }
+  
+  .vintage-label {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+  }
+  
+  .header-meta {
+    font-size: 0.75rem;
+  }
+  
+  /* Variety filter - horizontal scroll */
+  .variety-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  
+  .filter-label {
+    font-size: 0.8rem;
+  }
+  
+  .variety-chips {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    margin: 0 -1rem;
+    padding: 0 1rem 4px;
+  }
+  
+  .variety-chips::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .variety-chip {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    min-height: 36px;
+  }
+  
+  /* Variety cards */
+  .variety-card-header {
+    padding: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .variety-info {
+    flex: 1 1 60%;
+  }
+  
+  .variety-name {
+    font-size: 0.95rem;
+  }
+  
+  .variety-gdd {
+    font-size: 0.8rem;
+  }
+  
+  /* Key dates */
+  .key-dates-summary {
+    padding: 8px 12px;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  
+  .date-chip {
+    padding: 8px 10px;
+    min-width: 70px;
+    flex-shrink: 0;
+  }
+  
+  .date-label {
+    font-size: 0.6rem;
+  }
+  
+  .date-value {
+    font-size: 0.8rem;
+  }
+  
+  /* Progress bar */
+  .progress-bar-container {
+    margin: 0 12px;
+  }
+  
+  .progress-label {
+    font-size: 0.65rem;
+    top: -1rem;
+  }
+  
+  /* Expanded content */
+  .variety-card-expanded {
+    padding: 1rem;
+  }
+  
+  .stage-timeline h4,
+  .harvest-windows h4 {
+    font-size: 0.8rem;
+  }
+  
+  /* Timeline */
+  .timeline {
+    padding-left: 1.5rem;
+  }
+  
+  .timeline-marker {
+    left: -1.5rem;
+  }
+  
+  .stage-name {
+    font-size: 0.8rem;
+  }
+  
+  .gdd-threshold {
+    font-size: 0.7rem;
+  }
+  
+  .timeline-date {
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+  }
+  
+  .days-from-now {
+    display: block;
+    width: 100%;
+    margin-top: 2px;
+  }
+  
+  .baseline-diff {
+    font-size: 0.7rem;
+  }
+  
+  /* Harvest grid */
+  .harvest-windows {
+    margin-top: 1rem;
+  }
+  
+  .harvest-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .harvest-item {
+    padding: 10px;
+  }
+  
+  .harvest-label {
+    font-size: 0.7rem;
+  }
+  
+  .harvest-date {
+    font-size: 0.85rem;
+  }
+  
+  .harvest-days {
+    font-size: 0.7rem;
+  }
+  
+  /* Legend */
+  .phenology-legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.7rem;
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .phenology-header {
+    padding-bottom: 0.5rem;
+  }
+  
+  .header-title h3 {
+    font-size: 1.1rem;
+  }
+  
+  .variety-card-header {
+    padding: 10px;
+  }
+  
+  .variety-info {
+    flex: 1 1 100%;
+    order: 1;
+  }
+  
+  .variety-gdd {
+    order: 2;
+  }
+  
+  .expand-icon {
+    order: 3;
+  }
+  
+  .harvest-grid {
+    gap: 6px;
+  }
+  
+  .harvest-item {
+    padding: 8px;
+  }
+}
+
+/* =============================================================================
+   DISEASE PRESSURE EXPLORER - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .disease-pressure-explorer {
+    gap: 1rem;
+  }
+  
+  .disease-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .disease-header .header-title {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .disease-header .header-title h3 {
+    font-size: 1.1rem;
+  }
+  
+  .overall-risk-badge {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Disease cards */
+  .disease-card-header {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .disease-info {
+    gap: 0.5rem;
+  }
+  
+  .disease-name {
+    font-size: 0.9rem;
+  }
+  
+  .disease-score {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+  }
+  
+  .score-value {
+    font-size: 1.25rem;
+  }
+  
+  .score-label {
+    font-size: 0.65rem;
+  }
+  
+  /* Risk bar */
+  .risk-bar-container {
+    margin: 0 12px;
+    height: 6px;
+  }
+  
+  .risk-thresholds .threshold {
+    font-size: 0.55rem;
+    top: 10px;
+  }
+  
+  /* Expanded content */
+  .disease-card-expanded {
+    padding: 12px;
+  }
+  
+  .disease-description {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  .disease-description p {
+    font-size: 0.8rem;
+  }
+  
+  /* Factors grid */
+  .contributing-factors h4 {
+    font-size: 0.8rem;
+  }
+  
+  .factors-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  
+  .factor-item {
+    padding: 8px;
+    gap: 6px;
+  }
+  
+  .factor-item svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .factor-label {
+    font-size: 0.65rem;
+  }
+  
+  .factor-value {
+    font-size: 0.75rem;
+  }
+  
+  /* Spray recommendation */
+  .spray-recommendation {
+    padding: 10px;
+  }
+  
+  .spray-recommendation h4 {
+    font-size: 0.75rem;
+  }
+  
+  .spray-recommendation p {
+    font-size: 0.8rem;
+  }
+  
+  /* Chart section */
+  .disease-pressure-explorer .chart-section {
+    border-radius: 8px;
+  }
+  
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  
+  .chart-header h4 {
+    font-size: 0.85rem;
+  }
+  
+  .days-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .days-selector span {
+    font-size: 0.7rem;
+  }
+  
+  .days-btn {
+    padding: 6px 10px;
+    font-size: 0.7rem;
+    min-height: 32px;
+  }
+  
+  /* General recommendations */
+  .general-recommendations {
+    padding: 12px;
+  }
+  
+  .general-recommendations h4 {
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+  }
+  
+  .general-recommendations li {
+    font-size: 0.8rem;
+    padding: 3px 0;
+  }
+  
+  /* Data quality note */
+  .data-quality-note {
+    padding: 10px;
+    font-size: 0.75rem;
+  }
+  
+  /* Legend */
+  .disease-legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+  
+  .legend-title {
+    width: 100%;
+    font-size: 0.7rem;
+  }
+  
+  .disease-legend .legend-item {
+    font-size: 0.7rem;
+  }
+  
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .disease-header .header-title h3 {
+    font-size: 1rem;
+  }
+  
+  .disease-card-header {
+    padding: 10px;
+  }
+  
+  .disease-score {
+    order: -1;
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+  }
+  
+  .factors-grid {
+    gap: 4px;
+  }
+  
+  .factor-item {
+    padding: 6px;
+  }
+}
+
+/* =============================================================================
+   SEASON HEADER - MOBILE (Current Season)
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .current-season-explorer {
+    padding: 0.75rem;
+  }
+  
+  .season-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+  }
+  
+  .season-title h3 {
+    font-size: 1.25rem;
+  }
+  
+  .season-label {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+  }
+  
+  .season-meta {
+    align-items: flex-start;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .current-season-explorer {
+    padding: 0.5rem;
+  }
+  
+  .season-title h3 {
+    font-size: 1.1rem;
+  }
+}
+
+/* =============================================================================
+   ABOUT MODAL - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .climate-about-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+  
+  .climate-about-modal {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+  }
+  
+  .about-header {
+    padding: 16px 20px;
+  }
+  
+  .about-header h2 {
+    font-size: 18px;
+  }
+  
+  .about-content {
+    padding: 16px 20px;
+  }
+}
+
+/* =============================================================================
+   PROJECTIONS EXPLORER - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .projections-explorer {
+    padding: 16px;
+    border-radius: 8px;
+  }
+  
+  .explorer-header h3 {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .projections-explorer {
+    padding: 12px;
+  }
+}
+
+/* =============================================================================
+   LOADING & EMPTY STATES - MOBILE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .loading-state,
+  .error-state,
+  .no-zone-message,
+  .no-data-message,
+  .explorer-placeholder,
+  .explorer-loading,
+  .explorer-error {
+    padding: 2rem 1.5rem;
+  }
+  
+  .loading-state svg,
+  .error-state svg,
+  .no-zone-message svg,
+  .no-data-message svg,
+  .explorer-placeholder svg {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .loading-state h3,
+  .no-zone-message h3,
+  .no-data-message h3 {
+    font-size: 1.1rem;
+  }
+  
+  .loading-state p,
+  .error-state p,
+  .no-zone-message p,
+  .no-data-message p,
+  .explorer-placeholder p {
+    font-size: 0.8rem;
+  }
+}
+
+/* =============================================================================
+   TOUCH IMPROVEMENTS
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  /* Minimum touch targets */
+  .ssp-tab,
+  .period-btn,
+  .chart-type-btn,
+  .chart-tab,
+  .variety-chip,
+  .season-card,
+  .season-select-btn,
+  .disease-card-header,
+  .variety-card-header,
+  .days-btn,
+  .zone-option,
+  .rt-zone-option {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
+  /* Active states for touch feedback */
+  .ssp-tab:active,
+  .period-btn:active,
+  .chart-type-btn:active,
+  .chart-tab:active,
+  .variety-chip:active,
+  .season-card:active,
+  .season-select-btn:active,
+  .days-btn:active {
+    transform: scale(0.98);
+    transition: transform 0.1s;
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY - REDUCED MOTION
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
+  
+  .progress-bar,
+  .risk-bar,
+  .ssp-tab,
+  .period-btn,
+  .chart-type-btn,
+  .chart-tab,
+  .variety-chip,
+  .season-card,
+  .variety-card,
+  .disease-card {
+    transition: none;
+  }
+}
+
+/* =============================================================================
+   SAFE AREA INSETS (for notched phones)
+   ============================================================================= */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  @media (max-width: 768px) {
+    .public-climate-container {
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+    
+    .climate-about-modal {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+}
+
+/* =============================================================================
+   PRINT STYLES
+   ============================================================================= */
+
+@media print {
+  .chart-container {
+    height: auto !important;
+    min-height: 200px;
+    page-break-inside: avoid;
+  }
+  
+  .zone-selector,
+  .ssp-selector,
+  .period-selector,
+  .chart-controls,
+  .about-btn,
+  .close-btn {
+    display: none;
+  }
+}

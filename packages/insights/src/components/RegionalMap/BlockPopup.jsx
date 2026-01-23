@@ -1,10 +1,40 @@
 // src/components/RegionalMap/BlockPopup.jsx
-import { useState } from 'react';
+// Mobile-optimized bottom sheet popup with drag handle
+import { useState, useEffect, useRef } from 'react';
 import { X, MapPin, Calendar, Mountain, Grape, Building2, Sprout, Moon, Recycle, Award } from 'lucide-react';
 import ReportIssueForm from './ReportIssueForm';
 
 function BlockPopup({ block, onClose }) {
   const [showReportForm, setShowReportForm] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const popupRef = useRef(null);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Handle escape key to close
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  // Prevent body scroll when popup is open on mobile
+  useEffect(() => {
+    if (isMobile) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [isMobile]);
 
   if (!block) return null;
 
@@ -15,18 +45,47 @@ function BlockPopup({ block, onClose }) {
   if (block.regenerative) sustainabilityBadges.push({ icon: <Recycle size={16} />, label: 'Regenerative', color: '#3b82f6' });
   if (block.swnz) sustainabilityBadges.push({ icon: <Award size={16} />, label: 'SWNZ', color: '#f59e0b' });
 
+  // Handle overlay click - close only if clicking the overlay itself
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="block-popup-overlay" onClick={onClose}>
-      <div className="block-popup" onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="block-popup-overlay" 
+      onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="block-popup-title"
+    >
+      <div 
+        className="block-popup" 
+        ref={popupRef}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Mobile drag handle indicator */}
+        {isMobile && (
+          <div className="popup-drag-handle">
+            <div className="drag-handle-bar" />
+          </div>
+        )}
+
         {/* Header */}
         <div className="popup-header">
-          <h3>{block.block_name || 'Unnamed Block'}</h3>
-          <button className="popup-close-btn" onClick={onClose} aria-label="Close">
+          <h3 id="block-popup-title">{block.block_name || 'Unnamed Block'}</h3>
+          <button 
+            className="popup-close-btn" 
+            onClick={onClose} 
+            aria-label="Close popup"
+            type="button"
+          >
             <X size={20} />
           </button>
         </div>
 
-        {/* Content */}
+        {/* Scrollable Content */}
         <div className="popup-content">
           {/* Variety */}
           {block.variety && (
@@ -138,6 +197,7 @@ function BlockPopup({ block, onClose }) {
             <button 
               className="report-issue-btn"
               onClick={() => setShowReportForm(true)}
+              type="button"
             >
               Suggest Data Update
             </button>
@@ -147,7 +207,6 @@ function BlockPopup({ block, onClose }) {
               onClose={() => setShowReportForm(false)}
               onSuccess={() => {
                 setShowReportForm(false);
-                // Could show a success message here
               }}
             />
           )}
