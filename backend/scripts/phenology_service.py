@@ -238,11 +238,22 @@ def run_phenology_service(
                         ).first()
                         
                         if existing:
-                            for attr in ['gdd_accumulated', 'current_stage', 'flowering_date', 'veraison_date',
-                                        'harvest_170_date', 'harvest_180_date', 'harvest_190_date',
-                                        'harvest_200_date', 'harvest_210_date', 'harvest_220_date',
-                                        'days_vs_baseline', 'gdd_vs_baseline', 'confidence']:
+                            # Always update these fields
+                            for attr in ['gdd_accumulated', 'current_stage', 'days_vs_baseline', 
+                                        'gdd_vs_baseline', 'confidence']:
                                 setattr(existing, attr, getattr(record, attr))
+                            
+                            # For date fields, preserve existing dates for stages already reached
+                            # Only update if: no existing date, or new date is a future prediction
+                            date_fields = ['flowering_date', 'veraison_date', 'harvest_170_date', 
+                                        'harvest_180_date', 'harvest_190_date', 'harvest_200_date',
+                                        'harvest_210_date', 'harvest_220_date']
+                            
+                            for attr in date_fields:
+                                existing_date = getattr(existing, attr)
+                                new_date = getattr(record, attr)
+                                if existing_date is None or (new_date and new_date > target):
+                                    setattr(existing, attr, new_date)
                         else:
                             db.add(record)
                     
