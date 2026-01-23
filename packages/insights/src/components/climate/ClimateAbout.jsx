@@ -134,7 +134,7 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
           </p>
           <p>
             Our models are built using two studies on international wine growing regions that use GDD threshold to derive 
-            phenological timing. Presented in our first release are flowering and harvest estimates as phenology estimates 
+            phenological timing. Presented in our first release are flowering and harvest estimates as veraison estimates 
             contain higher estimation error.
           </p>
         </div>
