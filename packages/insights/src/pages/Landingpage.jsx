@@ -368,7 +368,7 @@ function LandingPage() {
       {/* Insights Section */}
       <section id="insights-section" className="insights-section">
         <div className="section-header">
-          <h2>V<strong>in</strong>e-<strong>Sights</strong></h2>
+          <h2>Vine - Sights</h2>
           {!isAuthenticated && (
             <span className="auth-hint">
               <Lock size={14} /> Sign in to access insights

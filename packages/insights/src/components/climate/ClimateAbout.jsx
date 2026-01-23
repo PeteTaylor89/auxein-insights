@@ -54,7 +54,7 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
           <p>
             Some climate zones in wine growing regions are not yet added to the "Current Season",
             "Phenology", or "Disease Pressures" insights as we do not have enough weather stations
-            contributing to our inisghts.
+            contributing to our insights.
           </p>
           <p>
             <strong>We need your help:</strong> Do you have a weather station, and would like to contribute?<br />
