@@ -3,14 +3,16 @@ backend/api/v1/regions.py
 
 Public API endpoints for wine regions.
 Requires public authentication.
+
+UPDATED: Uses ST_SimplifyPreserveTopology for GeoJSON endpoint to reduce
+payload size and prevent worker timeouts on complex region boundaries.
 """
 
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from geoalchemy2.shape import to_shape
-from shapely.geometry import mapping
+from sqlalchemy import func, text
+import json
 import logging
 
 from db.session import get_db
@@ -110,54 +112,98 @@ async def list_regions(
 
 @router.get("/geojson")
 async def get_regions_geojson(
+    simplify: float = Query(
+        0.002, 
+        ge=0, 
+        le=0.1, 
+        description="Geometry simplification tolerance in degrees. 0.002 ≈ ~200m. Use 0 for full detail."
+    ),
     current_user: PublicUser = Depends(get_current_public_user),
     db: Session = Depends(get_db)
 ):
     """
     Get all wine regions as GeoJSON FeatureCollection for map layer.
+    
+    Geometries are simplified server-side using PostGIS ST_SimplifyPreserveTopology
+    to reduce payload size and improve performance. Adjust 'simplify' parameter
+    for more/less detail:
+    - 0.001 = ~100m tolerance (more detail)
+    - 0.002 = ~200m tolerance (default, good balance)
+    - 0.005 = ~500m tolerance (faster, less detail)
+    - 0 = full detail (may be slow for complex boundaries)
     """
     try:
-        regions = db.query(WineRegion).filter(
-            WineRegion.is_active == True,
-            WineRegion.geometry.isnot(None)
-        ).order_by(WineRegion.display_order).all()
+        # Build the geometry expression based on simplification
+        if simplify > 0:
+            # Use ST_SimplifyPreserveTopology to reduce vertices while maintaining topology
+            geometry_sql = """
+                ST_AsGeoJSON(
+                    ST_SimplifyPreserveTopology(geometry, :tolerance)
+                ) as geometry_json
+            """
+        else:
+            # No simplification - full detail
+            geometry_sql = "ST_AsGeoJSON(geometry) as geometry_json"
+        
+        query = text(f"""
+            SELECT 
+                id,
+                name,
+                slug,
+                summary,
+                color,
+                display_order,
+                stats,
+                {geometry_sql}
+            FROM wine_regions
+            WHERE is_active = true AND geometry IS NOT NULL
+            ORDER BY display_order
+        """)
+        
+        results = db.execute(query, {"tolerance": simplify}).fetchall()
         
         features = []
-        for region in regions:
-            try:
-                # Convert PostGIS geometry to GeoJSON
-                shape = to_shape(region.geometry)
-                geometry = mapping(shape)
-                
-                # Extract stats for properties
-                total_ha = None
-                top_variety = None
-                if region.stats and isinstance(region.stats, dict):
-                    total_ha = region.stats.get('total_planted_ha')
-                    varieties = region.stats.get('varieties', [])
-                    if varieties and len(varieties) > 0:
-                        top_variety = varieties[0].get('name')
-                
-                feature = {
-                    "type": "Feature",
-                    "id": region.id,
-                    "geometry": geometry,
-                    "properties": {
-                        "id": region.id,
-                        "name": region.name,
-                        "slug": region.slug,
-                        "summary": region.summary,
-                        "total_planted_ha": total_ha,
-                        "top_variety": top_variety,
-                        "color": region.color or "#3b82f6",
-                        "display_order": region.display_order
-                    }
-                }
-                features.append(feature)
-                
-            except Exception as e:
-                logger.warning(f"Error converting geometry for region {region.slug}: {e}")
+        for row in results:
+            # Parse the geometry JSON from PostGIS (already simplified)
+            geometry = None
+            if row.geometry_json:
+                try:
+                    geometry = json.loads(row.geometry_json)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid geometry JSON for region {row.slug}")
+                    continue
+            
+            if not geometry:
                 continue
+            
+            # Extract stats for properties
+            total_ha = None
+            top_variety = None
+            stats = row.stats
+            if stats and isinstance(stats, dict):
+                total_ha = stats.get('total_planted_ha')
+                varieties = stats.get('varieties', [])
+                if varieties and len(varieties) > 0:
+                    top_variety = varieties[0].get('name')
+            
+            feature = {
+                "type": "Feature",
+                "id": row.id,
+                "geometry": geometry,
+                "properties": {
+                    "id": row.id,
+                    "name": row.name,
+                    "slug": row.slug,
+                    "summary": row.summary,
+                    "total_planted_ha": total_ha,
+                    "top_variety": top_variety,
+                    "color": row.color or "#3b82f6",
+                    "display_order": row.display_order
+                }
+            }
+            features.append(feature)
+        
+        logger.info(f"Returned {len(features)} regions with simplify={simplify}")
         
         return {
             "type": "FeatureCollection",

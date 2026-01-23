@@ -3,14 +3,16 @@ backend/api/v1/gis.py
 
 Public API endpoints for Geographical Indications (GIs).
 Requires public authentication.
+
+UPDATED: Uses ST_SimplifyPreserveTopology for GeoJSON endpoint to reduce
+payload size and prevent worker timeouts on complex GI boundaries.
 """
 
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from geoalchemy2.shape import to_shape
-from shapely.geometry import mapping
+from sqlalchemy import func, text
+import json
 import logging
 
 from db.session import get_db
@@ -123,58 +125,95 @@ async def list_gis(
 @router.get("/geojson")
 async def get_gis_geojson(
     region_slug: Optional[str] = Query(None, description="Filter by parent region slug"),
+    simplify: float = Query(
+        0.002, 
+        ge=0, 
+        le=0.1, 
+        description="Geometry simplification tolerance in degrees. 0.002 ≈ ~200m. Use 0 for full detail."
+    ),
     current_user: PublicUser = Depends(get_current_public_user),
     db: Session = Depends(get_db)
 ):
     """
     Get all GIs as GeoJSON FeatureCollection for map layer.
+    
+    Geometries are simplified server-side using PostGIS ST_SimplifyPreserveTopology
+    to reduce payload size and improve performance. Adjust 'simplify' parameter
+    for more/less detail:
+    - 0.001 = ~100m tolerance (more detail)
+    - 0.002 = ~200m tolerance (default, good balance)
+    - 0.005 = ~500m tolerance (faster, less detail)
+    - 0 = full detail (may be slow for complex boundaries)
     """
     try:
-        query = db.query(
-            GeographicalIndication,
-            WineRegion.name.label('region_name')
-        ).outerjoin(
-            WineRegion,
-            GeographicalIndication.region_id == WineRegion.id
-        ).filter(
-            GeographicalIndication.is_active == True,
-            GeographicalIndication.geometry.isnot(None)
-        )
+        # Build the geometry expression based on simplification
+        if simplify > 0:
+            geometry_expr = f"ST_AsGeoJSON(ST_SimplifyPreserveTopology(gi.geometry, :tolerance))"
+        else:
+            geometry_expr = "ST_AsGeoJSON(gi.geometry)"
         
-        # Filter by region if specified
+        # Build the WHERE clause
+        where_clauses = ["gi.is_active = true", "gi.geometry IS NOT NULL"]
+        params = {"tolerance": simplify}
+        
         if region_slug:
-            query = query.filter(WineRegion.slug == region_slug)
+            where_clauses.append("wr.slug = :region_slug")
+            params["region_slug"] = region_slug
         
-        query = query.order_by(GeographicalIndication.display_order)
-        results = query.all()
+        where_sql = " AND ".join(where_clauses)
+        
+        query = text(f"""
+            SELECT 
+                gi.id,
+                gi.name,
+                gi.slug,
+                gi.ip_number,
+                gi.status,
+                gi.iponz_url,
+                gi.color,
+                gi.display_order,
+                wr.name as region_name,
+                {geometry_expr} as geometry_json
+            FROM geographical_indications gi
+            LEFT JOIN wine_regions wr ON gi.region_id = wr.id
+            WHERE {where_sql}
+            ORDER BY gi.display_order
+        """)
+        
+        results = db.execute(query, params).fetchall()
         
         features = []
-        for gi, region_name in results:
-            try:
-                # Convert PostGIS geometry to GeoJSON
-                shape = to_shape(gi.geometry)
-                geometry = mapping(shape)
-                
-                feature = {
-                    "type": "Feature",
-                    "id": gi.id,
-                    "geometry": geometry,
-                    "properties": {
-                        "id": gi.id,
-                        "name": gi.name,
-                        "slug": gi.slug,
-                        "ip_number": gi.ip_number,
-                        "status": gi.status,
-                        "iponz_url": gi.iponz_url,
-                        "region_name": region_name,
-                        "color": gi.color or "#8b5cf6"
-                    }
-                }
-                features.append(feature)
-                
-            except Exception as e:
-                logger.warning(f"Error converting geometry for GI {gi.slug}: {e}")
+        for row in results:
+            # Parse the geometry JSON from PostGIS (already simplified)
+            geometry = None
+            if row.geometry_json:
+                try:
+                    geometry = json.loads(row.geometry_json)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid geometry JSON for GI {row.slug}")
+                    continue
+            
+            if not geometry:
                 continue
+            
+            feature = {
+                "type": "Feature",
+                "id": row.id,
+                "geometry": geometry,
+                "properties": {
+                    "id": row.id,
+                    "name": row.name,
+                    "slug": row.slug,
+                    "ip_number": row.ip_number,
+                    "status": row.status,
+                    "iponz_url": row.iponz_url,
+                    "region_name": row.region_name,
+                    "color": row.color or "#8b5cf6"
+                }
+            }
+            features.append(feature)
+        
+        logger.info(f"Returned {len(features)} GIs with simplify={simplify}")
         
         return {
             "type": "FeatureCollection",
