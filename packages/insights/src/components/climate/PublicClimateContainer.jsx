@@ -146,7 +146,7 @@ const PublicClimateContainer = ({
     if (['currentseason', 'phenology', 'disease'].includes(activeView)) {
       return 'Real-time data from weather station network. Updated daily.';
     }
-    return 'Climate Baseline: 1986-2005. Projections: CMIP6 models (SSP126, SSP245, SSP370).';
+    return 'Climate Baseline: 1986-2005. Projections: CMIP6 models (SSP1-2.6, SSP2-4.5, SSP3-7.0).';
   };
 
   return (

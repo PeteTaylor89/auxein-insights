@@ -647,12 +647,12 @@ def get_phenology_estimates(
         
         # Harvest stages
         harvest_levels = [
-            (170, 'harvest_170', 'Harvest (170g/L - Sparkling)'),
-            (180, 'harvest_180', 'Harvest (180g/L)'),
-            (190, 'harvest_190', 'Harvest (190g/L)'),
-            (200, 'harvest_200', 'Harvest (200g/L - Table Wine)'),
-            (210, 'harvest_210', 'Harvest (210g/L)'),
-            (220, 'harvest_220', 'Harvest (220g/L - Riper Style)'),
+            (170, 'harvest_170', 'Harvest (170g/L - 16 Brix)'),
+            (180, 'harvest_180', 'Harvest (180g/L - 16.9 Brix)'),
+            (190, 'harvest_190', 'Harvest (190g/L - 17.8 Brix)'),
+            (200, 'harvest_200', 'Harvest (200g/L - 18.6 Brix)'),
+            (210, 'harvest_210', 'Harvest (210g/L - 19.5 Brix)'),
+            (220, 'harvest_220', 'Harvest (220g/L - 20.3 Brix)'),
         ]
         
         for sugar, attr, label in harvest_levels:
