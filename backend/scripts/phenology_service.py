@@ -130,15 +130,16 @@ def estimate_date(current_gdd: Decimal, target_gdd: Optional[Decimal],
     
     Returns:
         - None if no target_gdd threshold defined
-        - current_date if threshold already reached (stage has occurred)
+        - None if threshold already reached (preserve historical date from previous estimate)
         - Estimated future date if threshold not yet reached
     """
     if not target_gdd:
         return None
     
-    # If threshold already reached, return current date (stage has occurred)
+    # If threshold already reached, return None to preserve the historical date
+    # The actual date will be carried forward from previous estimates
     if current_gdd >= target_gdd:
-        return current_date  # Mark as "reached by this date"
+        return None
     
     # If no rate data, can't predict future
     if not avg_daily or avg_daily <= 0:
@@ -147,6 +148,15 @@ def estimate_date(current_gdd: Decimal, target_gdd: Optional[Decimal],
     # Estimate future date
     days_to_reach = int((target_gdd - current_gdd) / avg_daily)
     return current_date + timedelta(days=days_to_reach)
+
+
+def get_previous_estimate(db, zone_id: int, variety_code: str, vintage_year: int) -> Optional[PhenologyEstimate]:
+    """Get the most recent previous estimate for this zone/variety/vintage."""
+    return db.query(PhenologyEstimate).filter(
+        PhenologyEstimate.zone_id == zone_id,
+        PhenologyEstimate.variety_code == variety_code,
+        PhenologyEstimate.vintage_year == vintage_year
+    ).order_by(PhenologyEstimate.estimate_date.desc()).first()
 
 
 def run_phenology_service(
@@ -252,9 +262,25 @@ def run_phenology_service(
                             for attr in date_fields:
                                 existing_date = getattr(existing, attr)
                                 new_date = getattr(record, attr)
-                                if existing_date is None or (new_date and new_date > target):
+                                # Only update if we have a new future prediction
+                                # Keep existing date if: it exists and new_date is None (threshold reached)
+                                if new_date is not None:
                                     setattr(existing, attr, new_date)
+                                # If new_date is None and existing is None, try previous estimate
+                                elif existing_date is None:
+                                    prev = get_previous_estimate(db, zone['zone_id'], variety['variety_code'], zone['vintage_year'])
+                                    if prev:
+                                        setattr(existing, attr, getattr(prev, attr))
                         else:
+                            # New record - carry forward historical dates from previous estimate
+                            prev = get_previous_estimate(db, zone['zone_id'], variety['variety_code'], zone['vintage_year'])
+                            if prev:
+                                for attr in ['flowering_date', 'veraison_date', 'harvest_170_date', 
+                                            'harvest_180_date', 'harvest_190_date', 'harvest_200_date',
+                                            'harvest_210_date', 'harvest_220_date']:
+                                    # If record has None (threshold reached), use previous estimate's date
+                                    if getattr(record, attr) is None:
+                                        setattr(record, attr, getattr(prev, attr))
                             db.add(record)
                     
                     count += 1

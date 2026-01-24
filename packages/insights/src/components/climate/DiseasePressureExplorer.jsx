@@ -455,19 +455,6 @@ const DiseasePressureExplorer = ({ zone }) => {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="disease-legend">
-        <span className="legend-title">Risk Levels:</span>
-        {Object.entries(RISK_LEVELS).filter(([k]) => k !== 'unknown').map(([key, info]) => (
-          <span key={key} className="legend-item">
-            <span 
-              className="legend-dot"
-              style={{ backgroundColor: info.color }}
-            />
-            {info.name}
-          </span>
-        ))}
-      </div>
     </div>
   );
 };
