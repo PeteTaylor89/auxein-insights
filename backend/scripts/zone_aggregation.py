@@ -157,8 +157,17 @@ def aggregate_zone_day(db, zone: dict, target_date: date) -> Optional[dict]:
     temp_max = mean_with_outlier_removal([s['temp_max'] for s in stations])
     temp_mean = mean_with_outlier_removal([s['temp_mean'] for s in stations])
     humidity_mean = mean_with_outlier_removal([s['humidity_mean'] for s in stations])
-    rainfall_mm = mean_with_outlier_removal([s['rainfall_mm'] for s in stations])
     solar_radiation = mean_with_outlier_removal([s['solar_radiation'] for s in stations])
+    
+    # Rainfall: use mean of reported values, but default to 0 if no rain recorded
+    # (no rain = valid 0mm, not missing data)
+    rainfall_values = [s['rainfall_mm'] for s in stations if s['rainfall_mm'] is not None]
+    if rainfall_values:
+        rainfall_mm = mean_with_outlier_removal(rainfall_values)
+        if rainfall_mm is None:
+            rainfall_mm = 0.0
+    else:
+        rainfall_mm = 0.0
     
     # GDD from mean temp
     gdd_daily = max(Decimal('0'), Decimal(str(temp_mean))) if temp_mean else None
