@@ -2,13 +2,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import About from './pages/About';
-
+import './components/legal/legal.css';
+import LegalPage from './components/legal/LegalPage';
 // Admin pages
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import UserDetail from './pages/UserDetail';
 import WeatherStatus from './pages/WeatherStatus';
 import StationDetail from './pages/StationDetail';
+
 
 // Auth
 import { PublicAuthProvider } from './contexts/PublicAuthContext';
@@ -22,7 +24,8 @@ function App() {
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<About />} />
-          
+          <Route path="/legal" element={<LegalPage />} />
+
           {/* Admin routes - @auxein.co.nz only */}
           <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
