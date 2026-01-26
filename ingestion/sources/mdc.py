@@ -63,8 +63,17 @@ class MDCIngestion:
                 return datetime.now(self.nz_tz) - timedelta(days=2)
     
     def fetch_data(self, site_name: str, measurement: str, 
-                   start_time: datetime, end_time: datetime) -> str:
-        """Fetch data from MDC Hilltop API"""
+                   start_time: datetime, end_time: datetime,
+                   interval: str = None) -> str:
+        """Fetch data from MDC Hilltop API
+        
+        Args:
+            site_name: Exact site name for API
+            measurement: Measurement name (e.g., 'Air Temperature')
+            start_time: Start of time range
+            end_time: End of time range
+            interval: Optional aggregation interval (e.g., '30 minutes', '1 hour')
+        """
         from urllib.parse import quote
         
         # Format dates as DD/MM/YYYY for Hilltop
@@ -81,6 +90,9 @@ class MDCIngestion:
             f"&From={quote(from_str)}"
             f"&To={quote(to_str)}"
         )
+        
+        if interval:
+            url += f"&Interval={quote(interval)}"
         
         try:
             print(f"      URL: {url}")
@@ -220,7 +232,8 @@ class MDCIngestion:
                 print(f"      Failed to log ingestion: {e}")
     
     def run(self, period: str = 'incremental', backfill_days: int = None,
-            start_date: str = None, end_date: str = None, dry_run: bool = False):
+            start_date: str = None, end_date: str = None, dry_run: bool = False,
+            interval: str = None):
         """
         Main ingestion process
         
@@ -230,12 +243,15 @@ class MDCIngestion:
             start_date: Explicit start date (DD/MM/YYYY) - overrides period logic
             end_date: Explicit end date (DD/MM/YYYY) - defaults to today
             dry_run: If True, fetch and parse but don't insert to database
+            interval: Data aggregation interval (e.g., '30 minutes', '1 hour')
         """
         print(f"\n{'='*60}")
         print(f"Starting MDC ingestion at {datetime.now()}")
         print(f"Period: {period}")
         if start_date:
             print(f"Date range: {start_date} to {end_date or 'today'}")
+        if interval:
+            print(f"Interval: {interval}")
         if dry_run:
             print(f"*** DRY RUN - No data will be inserted ***")
         print(f"{'='*60}\n")
@@ -306,7 +322,7 @@ class MDCIngestion:
                     
                     # Fetch from API
                     xml_response = self.fetch_data(site_name, measurement, 
-                                                    start_time, end_time)
+                                                    start_time, end_time, interval)
                     
                     if not xml_response:
                         if not dry_run:
@@ -375,6 +391,8 @@ if __name__ == '__main__':
                         help='Explicit end date (defaults to today)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Fetch and parse but do not insert to database')
+    parser.add_argument('--interval', type=str, default='30 minutes',
+                        help='Data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes')
     args = parser.parse_args()
     
     ingester = MDCIngestion()
@@ -383,5 +401,6 @@ if __name__ == '__main__':
         backfill_days=args.days,
         start_date=args.start,
         end_date=args.end,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        interval=args.interval
     )
