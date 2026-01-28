@@ -13,6 +13,7 @@
     "build:pro": "cd packages/web && npm run build",
     "dev:regional": "concurrently --kill-others --names \"API,INSIGHTS\" --prefix-colors \"blue,magenta\" \"npm run dev:backend\" \"npm run dev:insights\"",
     "dev:pro-app": "concurrently --kill-others --names \"API,PRO\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:pro\"",
+    "dev:marketing": "cd packages/auxein-marketing && npm run dev",
     "dev:all": "concurrently --kill-others --names \"API,INSIGHTS,PRO\" --prefix-colors \"blue,magenta,green\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\"",
     "kill:node": "powershell \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Node processes",
     "kill:python": "powershell \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Python processes",
