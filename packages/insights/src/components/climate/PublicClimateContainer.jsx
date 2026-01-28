@@ -1,6 +1,6 @@
 // packages/insights/src/components/climate/PublicClimateContainer.jsx
 /**
- * PublicClimateContainer Component (Updated with View Tabs)
+ * PublicClimateContainer Component (Updated with View Tabs + Analytics)
  * 
  * Main wrapper for public climate features including:
  * - Current Season: Live climate data with GDD progress
@@ -9,7 +9,11 @@
  * - Climate History: Historical season explorer
  * - Climate Projections: Future SSP projections
  * 
- * Now includes internal view tabs for easy switching between views
+ * Now includes Umami analytics tracking for:
+ * - View opens/closes with duration
+ * - Tab switches
+ * - Zone selections
+ * - About modal opens
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -25,6 +29,13 @@ import DiseasePressureExplorer from './DiseasePressureExplorer';
 import SeasonExplorer from './SeasonExplorer';
 import ProjectionsExplorer from './ProjectionsExplorer';
 import ClimateAbout from './ClimateAbout';
+import { 
+  trackClimateViewOpened, 
+  trackClimateViewChanged,
+  trackClimateAboutOpened,
+  trackClimateZoneSelected,
+  cleanupClimateTracking 
+} from '../../utils/analytics';
 import './PublicClimate.css';
 import './RealtimeClimate.css';
 import './climate-mobile-responsive.css';
@@ -88,10 +99,27 @@ const PublicClimateContainer = ({
   const [activeView, setActiveView] = useState(initialView);
   const [showAbout, setShowAbout] = useState(false);
   const tabsRef = useRef(null);
+  const previousViewRef = useRef(null);
+
+  // Track initial view open on mount
+  useEffect(() => {
+    trackClimateViewOpened(initialView);
+    previousViewRef.current = initialView;
+    
+    // Cleanup: track view close when component unmounts
+    return () => {
+      cleanupClimateTracking(previousViewRef.current);
+    };
+  }, []);
 
   // Sync internal state when initialView prop changes (fixes the multi-click issue)
   useEffect(() => {
-    setActiveView(initialView);
+    if (initialView !== activeView) {
+      // Track the view change from prop update
+      trackClimateViewChanged(initialView, previousViewRef.current);
+      previousViewRef.current = initialView;
+      setActiveView(initialView);
+    }
   }, [initialView]);
 
   const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.currentseason;
@@ -100,6 +128,11 @@ const PublicClimateContainer = ({
   const handleZoneChange = (zone) => {
     setSelectedZone(zone);
     setComparisonZones([]);
+    
+    // Track zone selection with current view context
+    if (zone) {
+      trackClimateZoneSelected(zone.name || zone.slug, activeView);
+    }
   };
 
   const handleComparisonZonesChange = (zones) => {
@@ -108,7 +141,14 @@ const PublicClimateContainer = ({
   };
 
   const handleViewChange = (viewKey) => {
+    if (viewKey === activeView) return; // Don't track if same view
+    
+    // Track the view change with duration of previous view
+    trackClimateViewChanged(viewKey, activeView);
+    previousViewRef.current = viewKey;
+    
     setActiveView(viewKey);
+    
     // Scroll tabs into view on mobile if needed
     if (tabsRef.current) {
       const activeTab = tabsRef.current.querySelector(`[data-view="${viewKey}"]`);
@@ -116,6 +156,11 @@ const PublicClimateContainer = ({
         activeTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
       }
     }
+  };
+
+  const handleAboutOpen = () => {
+    trackClimateAboutOpened(activeView);
+    setShowAbout(true);
   };
 
   // Render appropriate zone selector based on view type
@@ -157,7 +202,7 @@ const PublicClimateContainer = ({
           <h2>{currentViewConfig.label}</h2>
           <button
             className="about-btn"
-            onClick={() => setShowAbout(true)}
+            onClick={handleAboutOpen}
             title="About this data"
           >
             <HelpCircle size={18} />

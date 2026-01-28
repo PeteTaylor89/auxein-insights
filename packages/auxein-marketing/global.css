@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand colours as CSS variables */
+  --olive: #5B6830;
+  --olive-dark: #446145;
+  --sand: #FDF6E3;
+  --terracotta: #D1583B;
+  --charcoal: #2F2F2F;
+  --white: #FFFFFF;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply font-sans text-charcoal bg-white antialiased;
+    line-height: 1.6;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight text-charcoal;
+  }
+  
+  ::selection {
+    @apply bg-olive-100 text-olive-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 
+           bg-olive hover:bg-olive-600 text-white font-semibold 
+           rounded-lg transition-all duration-200 
+           shadow-sm hover:shadow-md active:scale-[0.98];
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 
+           bg-transparent border-2 border-olive-200 text-charcoal
+           hover:border-olive hover:text-olive font-semibold 
+           rounded-lg transition-all duration-200;
+  }
+  
+  .btn-accent {
+    @apply inline-flex items-center justify-center px-6 py-3 
+           bg-terracotta hover:bg-terracotta-600 text-white font-semibold 
+           rounded-lg transition-all duration-200 
+           shadow-sm hover:shadow-md active:scale-[0.98];
+  }
+  
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 
+           text-charcoal-700 hover:text-olive hover:bg-olive-50 
+           font-medium rounded-lg transition-all duration-200;
+  }
+  
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-sm 
+           border border-olive/10 
+           overflow-hidden transition-all duration-300
+           hover:shadow-lg hover:border-olive/25;
+  }
+  
+  .card-sand {
+    @apply bg-sand rounded-xl 
+           border-2 border-olive/25 
+           overflow-hidden transition-all duration-300
+           hover:shadow-lg hover:border-olive;
+  }
+  
+  .card-accent {
+    @apply bg-white rounded-xl shadow-sm 
+           border-t-4 border-t-terracotta
+           overflow-hidden;
+  }
+  
+  /* Matching Insights app stat-card style */
+  .stat-card {
+    @apply bg-sand rounded-xl p-4
+           border border-olive/25
+           transition-all duration-200
+           hover:shadow-md hover:border-terracotta hover:-translate-y-0.5;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+  
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+  
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+  
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+  
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+}
+
+/* Noise texture overlay for backgrounds */
+.texture-overlay {
+  @apply absolute inset-0 opacity-[0.03] pointer-events-none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-sand;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-olive/30 rounded-full hover:bg-olive/50;
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  @apply outline-2 outline-offset-2 outline-olive;
+}
