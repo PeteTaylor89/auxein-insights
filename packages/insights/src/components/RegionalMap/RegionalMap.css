@@ -602,11 +602,197 @@
 }
 
 /* ============================================================================
+   REPORT MODAL - Full screen overlay (rendered via portal to body)
+   ============================================================================ */
+
+.report-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000; /* Above everything */
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.report-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideUp 0.3s ease;
+}
+
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.report-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.report-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.report-modal-close {
+  background: #f3f4f6;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-modal-close:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.report-modal-context {
+  padding: 12px 24px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.context-label {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.context-value {
+  color: #1f2937;
+}
+
+.context-separator {
+  color: #d1d5db;
+}
+
+.report-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Hide the h4 title in report form when inside modal (we have header already) */
+.report-modal-body .report-issue-form h4 {
+  display: none;
+}
+
+/* Mobile adjustments for report modal */
+@media (max-width: 768px) {
+  .report-modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .report-modal {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 20px 20px 0 0;
+    animation: modalSlideUpMobile 0.3s ease;
+  }
+
+  @keyframes modalSlideUpMobile {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .report-modal-header {
+    padding: 16px 20px;
+  }
+
+  .report-modal-header h3 {
+    font-size: 18px;
+  }
+
+  .report-modal-close {
+    width: 40px;
+    height: 40px;
+  }
+
+  .report-modal-context {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+
+  .report-modal-body {
+    padding: 20px;
+    /* Safe area for phones with home indicators */
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 480px) {
+  .report-modal {
+    max-height: 95vh;
+  }
+
+  .report-modal-header {
+    padding: 14px 16px;
+  }
+
+  .report-modal-header h3 {
+    font-size: 17px;
+  }
+
+  .report-modal-context {
+    padding: 10px 16px;
+    font-size: 12px;
+  }
+
+  .report-modal-body {
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ============================================================================
    REPORT ISSUE FORM
    ============================================================================ */
 
 .report-issue-form {
   animation: slideDown 0.3s ease;
+  padding: 8px 0;
 }
 
 .report-issue-form h4 {
@@ -1751,10 +1937,12 @@
   .block-popup {
     max-width: 100%;
     width: 100%;
-    max-height: 70vh;
+    max-height: 85vh; /* Increased from 70vh to allow room for report form */
     border-radius: 16px 16px 0 0; /* Bottom sheet style */
     margin-bottom: 0;
     animation: slideUpMobile 0.3s ease;
+    display: flex;
+    flex-direction: column;
   }
   
   .popup-header {
@@ -1763,6 +1951,7 @@
     top: 0;
     z-index: 1;
     background: white;
+    flex-shrink: 0;
   }
   
   .popup-header h3 {
@@ -1788,6 +1977,8 @@
     padding: 16px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+    flex: 1;
+    min-height: 0; /* Allow shrinking */
   }
   
   .popup-row {
@@ -1817,7 +2008,7 @@
   }
   
   .block-popup {
-    max-height: 75vh;
+    max-height: 90vh; /* Increased from 75vh */
     border-radius: 20px 20px 0 0;
   }
   

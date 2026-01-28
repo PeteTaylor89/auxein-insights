@@ -1,7 +1,17 @@
 // src/components/RegionalMap/ReportIssueForm.jsx
+// Sends issue reports via EmailJS to insights@auxein.co.nz
 import { useState } from 'react';
 import { AlertCircle, Send, CheckCircle } from 'lucide-react';
-import publicApi from '../../services/publicApi';
+import emailjs from '@emailjs/browser';
+import { usePublicAuth } from '../../contexts/PublicAuthContext';
+
+// EmailJS configuration - you'll need to set these up at https://www.emailjs.com/
+// 1. Create account and add email service (e.g., Gmail, Outlook, or custom SMTP)
+// 2. Create email template with variables: {{block_name}}, {{block_id}}, {{issue_type}}, {{description}}, {{region}}, {{variety}}, {{area}}, {{reported_at}}, {{user_name}}, {{user_email}}
+// 3. Get your Service ID, Template ID, and Public Key
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'YOUR_SERVICE_ID';
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'YOUR_TEMPLATE_ID';
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'YOUR_PUBLIC_KEY';
 
 const ISSUE_TYPES = [
   { value: 'wrong_variety', label: 'Wrong Variety' },
@@ -11,7 +21,14 @@ const ISSUE_TYPES = [
   { value: 'other', label: 'Other Issue' }
 ];
 
+// Get human-readable issue type label
+function getIssueTypeLabel(value) {
+  const type = ISSUE_TYPES.find(t => t.value === value);
+  return type ? type.label : value;
+}
+
 function ReportIssueForm({ block, onClose, onSuccess }) {
+  const { user } = usePublicAuth();
   const [issueType, setIssueType] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -35,13 +52,43 @@ function ReportIssueForm({ block, onClose, onSuccess }) {
     setError(null);
 
     try {
-      await publicApi.post('/public/feedback/report-issue', {
-        block_id: block.id,
+      // Build user display name from first/last name fields
+      const userName = user 
+        ? [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Anonymous'
+        : 'Anonymous';
+
+      // Prepare template parameters for EmailJS
+      const templateParams = {
+        to_email: 'insights@auxein.co.nz',
         block_name: block.block_name || 'Unnamed Block',
-        issue_type: issueType,
+        block_id: block.id || 'Unknown',
+        issue_type: getIssueTypeLabel(issueType),
+        issue_type_value: issueType,
         description: description.trim(),
-        reported_at: new Date().toISOString()
-      });
+        region: block.region || 'Unknown',
+        variety: block.variety || 'Unknown',
+        area: block.area ? `${block.area.toFixed(2)} ha` : 'Unknown',
+        winery: block.winery || 'Unknown',
+        // User details from auth context
+        user_name: userName,
+        user_email: user?.email || 'Not provided',
+        user_id: user?.id || 'Unknown',
+        user_company: user?.company_name || 'Not provided',
+        user_type: user?.user_type || 'Unknown',
+        reported_at: new Date().toLocaleString('en-NZ', {
+          dateStyle: 'full',
+          timeStyle: 'short',
+          timeZone: 'Pacific/Auckland'
+        })
+      };
+
+      // Send email via EmailJS
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
 
       setSubmitted(true);
       
@@ -52,8 +99,16 @@ function ReportIssueForm({ block, onClose, onSuccess }) {
       }, 2000);
 
     } catch (err) {
-      console.error('Error reporting issue:', err);
-      setError(err.message || 'Failed to submit report. Please try again.');
+      console.error('Error sending issue report:', err);
+      
+      // Provide user-friendly error messages
+      if (err.text) {
+        setError(`Failed to send report: ${err.text}`);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError('Failed to submit report. Please try again or email insights@auxein.co.nz directly.');
+      }
     } finally {
       setSubmitting(false);
     }
