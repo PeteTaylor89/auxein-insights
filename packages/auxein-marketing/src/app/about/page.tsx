@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 const timeline = [
   {
-    year: '2024',
+    year: '2023-2024',
     title: 'Research Foundation',
     description:
       'Completed Masters of Wine and Viticulture at Lincoln University, conducted research on high-resolution climate modeling and its impacts on Pinot Noir quality in New Zealand.',
@@ -30,19 +30,20 @@ const timeline = [
       'Established Auxein Limited - To lead the global wine industry toward a sustainable and resilient future, creating a legacy for generations.',
   },
   {
-    year: '2026',
+    year: '2024 - 2026',
+    title: 'Auxein Insights Development',
+    description:
+      'Development of the Auxein Platform including climate and spatial modelling, Regional Insights, and our Auxein Insights Pro - comprehensive vineyard management app.',
+  },
+  {
+    year: 'January 2026',
     title: 'Auxein Insights Launch',
     description:
       'Released free regional intelligence climate and spatial platform for New Zealand wine regions.',
   },
+
   {
-    year: '2025 - 2026',
-    title: 'Auxein Insights Pro Development',
-    description:
-      'Development of comprehensive vineyard management platform with blockchain traceability.',
-  },
-  {
-    year: '2026',
+    year: 'May 2026',
     title: 'Auxein Insights Pro Launch',
     description:
       'Planned release of Auxein Insights Pro - your complete vineyard management solution.',
@@ -82,7 +83,7 @@ export default function AboutPage() {
         <Container className="relative z-10">
           <div className="max-w-3xl">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6">
-              Climate science meets wine expertise
+              The Resilient Vineyard
             </h1>
             <p className="text-xl text-charcoal-600 leading-relaxed">
               Auxein was founded to lead the global wine industry toward a sustainable and
@@ -119,7 +120,7 @@ export default function AboutPage() {
                   Pete brings a unique combination of academic rigour and
                   hands-on experience to Auxein. With a Master of Wine &
                   Viticulture from Lincoln University, a Master of Water Resource Management from Canterbury University, 
-                  and certification from the Court of Master Sommeliers, he understands wine from vine to glass.
+                  and Certified Sommelier from the Court of Master Sommeliers, he understands wine from vine to glass.
                 </p>
                 <p>
                   His research on climate impacts on Pinot Noir wine quality

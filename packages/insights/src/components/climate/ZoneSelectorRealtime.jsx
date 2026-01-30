@@ -206,32 +206,27 @@ const ZoneSelectorRealtime = ({
             <div className="cta-benefits">
               <h4>Benefits of contributing data:</h4>
               <ul>
-                <li>Access to regional climate insights</li>
+                <li>Expand our free regional climate insights</li>
                 <li>Phenology predictions for your area</li>
                 <li>Disease pressure monitoring</li>
                 <li>Comparison with other regions</li>
               </ul>
             </div>
-
-            <div className="cta-actions">
-              <button className="cta-email-btn" onClick={handleEmailClick}>
-                <Mail size={18} />
-                Submit Weather Station Details
-              </button>
-              
-              <a 
-                href="https://auxein.co.nz/contact" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="cta-learn-more"
-              >
-                Learn more about data partnerships
-                <ExternalLink size={14} />
-              </a>
-            </div>
+            <p className="cta-description">
+              If you have a weather station, linked with Harvest - and want to contribute, contact us below:
+            </p>
+            <a 
+              href="https://auxein.co.nz/contact/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="datasets-hero-btn"
+            >
+              <span>Contact Auxein</span>
+              <ExternalLink size={16} />
+            </a>
 
             <p className="cta-privacy">
-              Your data remains yours. We only use aggregated, anonymized data for regional insights.
+              Your data remains yours. We aggregate anonymised data for Regional Insights and other Auxein Products.
             </p>
           </div>
         </div>

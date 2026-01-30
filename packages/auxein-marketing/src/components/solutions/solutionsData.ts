@@ -12,6 +12,7 @@ import {
 export interface Solution {
   id: string;
   title: string;
+  image?: string;
   tagline: string;
   description: string;
   features: string[];
@@ -28,6 +29,7 @@ export const solutions: Solution[] = [
   {
     id: 'insights-pro',
     title: 'Auxein Insights Pro',
+    image: '/images/solutions/insights-pro.jpg',
     tagline: 'Complete vineyard management platform',
     description:
       'A comprehensive SaaS platform combining climate intelligence, blockchain-powered traceability, and precision vineyard management. From tracking phenology, disease pressures, and yield estimates, to managing your entire operation, Insights Pro gives you the data-driven edge your vineyard needs.',
@@ -42,7 +44,7 @@ export const solutions: Solution[] = [
     ],
     icon: BarChart3,
     cta: {
-      label: 'Join the Waitlist',
+      label: 'Explore in Detail',
       href: '/insights-pro',
     },
     badge: 'Coming May 2026',
@@ -51,6 +53,7 @@ export const solutions: Solution[] = [
   {
     id: 'regional-insights',
     title: 'Regional Intelligence',
+    image: '/images/solutions/regional-insights.jpg',
     tagline: 'Free climate insights for NZ wine regions',
     description:
       'Explore current and historical climate data across New Zealand wine regions. Our regional intelligence platform provides accessible climate analysis to help the industry understand and adapt to changing conditions.',
@@ -72,12 +75,13 @@ export const solutions: Solution[] = [
   {
     id: 'vineyard-dataset',
     title: 'NZ Vineyard Geodatabase',
+    image: '/images/solutions/vineyard-dataset.jpg',
     tagline: 'Complete vineyard boundary dataset',
     description:
       'A comprehensive geodatabase of New Zealand vineyard boundaries, varietals, and management practices. Ideal for research institutions, industry bodies, and agricultural technology companies.',
     features: [
       'National coverage of vineyard boundaries',
-      'Varietal and rootstock information where available',
+      'Varietal and geographic information where available',
       'Regular updates and validation',
       'GeoJSON, Shapefile, and PostGIS formats',
       'API access available',
@@ -85,32 +89,34 @@ export const solutions: Solution[] = [
     ],
     icon: Database,
     cta: {
-      label: 'Enquire About Licensing',
-      href: '/contact?inquiry=vineyard-data',
+      label: 'Enquire About Licensing and Specification',
+      href: '/contact?inquiry=data-licensing',
     },
   },
   {
     id: 'climate-dataset',
     title: 'Climate Dataset',
+    image: '/images/solutions/climate-dataset.jpg',
     tagline: 'Historical and projected climate data',
     description:
       'High-resolution vineyard-specific climate data including historical observations and future projections. Built on peer-reviewed methodology from published research on climate impacts on wine quality.',
     features: [
       'Vineyard-scale spatial resolution',
-      'Daily temperature, precipitation, humidity',
-      'Growing degree day calculations',
-      'Climate projections to 2100',
-      'Multiple emission scenarios (RCP/SSP)',
+      'Daily temperature, precipitation, radiation, GDD, statistics from 1900 - present',
+      'Extensive multi-model seasonal climate projections to 2100',
+      'Multiple climate scenarios (RCP/SSP)',
+      'Bespoke data services and APIs available',
     ],
     icon: CloudSun,
     cta: {
       label: 'Enquire About Licensing and Specification',
-      href: '/contact?inquiry=climate-data',
+      href: '/contact?inquiry=data-licensing',
     },
   },
   {
     id: 'coastal-risk',
     title: 'Coastal Inundation Risk',
+    image: '/images/solutions/coastal-risk.jpg',
     tagline: 'Sea level rise impact assessment',
     description:
       'Projected coastal inundation risk data for vineyard and agricultural assets. Understand long-term climate risks to your operations and make informed decisions about infrastructure investments.',
@@ -124,16 +130,17 @@ export const solutions: Solution[] = [
     ],
     icon: Waves,
     cta: {
-      label: 'Enquire About Licensing',
-      href: '/contact?inquiry=coastal-risk',
+      label: 'Enquire About Licensing and Specification',
+      href: '/contact?inquiry=data-licensing',
     },
   },
   {
     id: 'swnz-consulting',
-    title: 'SWNZ Consulting',
-    tagline: 'Sustainable Winegrowing NZ certification support',
+    title: 'Sustainability Consulting',
+    image: '/images/solutions/sustainability.jpg',
+    tagline: 'SWNZ | Organic | Certification Support',
     description:
-      'Expert guidance to achieve and maintain Sustainable Winegrowing New Zealand certification. We help you navigate the requirements, implement best practices, and document your sustainability journey.',
+      'Expert guidance to achieve and maintain SWNZ, or any international certification. We help you navigate the requirements, implement best practices, and document your sustainability journey.',
     features: [
       'Gap analysis and action planning',
       'Documentation and evidence preparation',
@@ -151,6 +158,7 @@ export const solutions: Solution[] = [
   {
     id: 'carbon-accounting',
     title: 'Carbon Accounting',
+    image: '/images/solutions/carbon.jpg',
     tagline: 'Measure and manage your carbon footprint',
     description:
       'Comprehensive carbon accounting services tailored for vineyards and wineries. Understand your emissions profile, identify reduction opportunities, and prepare for evolving reporting requirements.',
@@ -171,6 +179,7 @@ export const solutions: Solution[] = [
   {
     id: 'climate-risk',
     title: 'Climate Risk Consulting',
+    image: '/images/solutions/climate-risk.jpg',
     tagline: 'Strategic climate risk assessment',
     description:
       'Deep expertise in climate risk assessment for the wine industry. Drawing on published research and practical experience, we help vineyards and investors understand and manage climate-related risks.',

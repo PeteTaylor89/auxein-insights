@@ -29,6 +29,16 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
   // ==========================================================================
   const CurrentSeasonContent = () => (
     <>
+      <a 
+        href="https://auxein.co.nz/insights-pro/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="datasets-hero-btn"
+      >
+        <Database size={20} />
+        <span>Explore Insights Pro</span>
+        <ExternalLink size={16} />
+      </a>
       <section className="about-section">
         <div className="section-icon">
           <Sun size={24} />
@@ -121,6 +131,16 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
   // ==========================================================================
   const PhenologyContent = () => (
     <>
+      <a 
+        href="https://auxein.co.nz/insights-pro/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="datasets-hero-btn"
+      >
+        <Database size={20} />
+        <span>Explore Insights Pro</span>
+        <ExternalLink size={16} />
+      </a>
       <section className="about-section">
         <div className="section-icon">
           <Grape size={24} />
@@ -216,6 +236,16 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
   // ==========================================================================
   const DiseasePressureContent = () => (
     <>
+      <a 
+        href="https://auxein.co.nz/insights-pro/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="datasets-hero-btn"
+      >
+        <Database size={20} />
+        <span>Explore Insights Pro</span>
+        <ExternalLink size={16} />
+      </a>
       <section className="about-section">
         <div className="section-icon">
           <ShieldAlert size={24} />
@@ -365,11 +395,22 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
   // ==========================================================================
   const SeasonsContent = () => (
     <>
+      <a 
+        href="https://auxein.co.nz/solutions/#datasets" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="datasets-hero-btn"
+      >
+        <Database size={20} />
+        <span>Explore Our Climate Datasets</span>
+        <ExternalLink size={16} />
+      </a>
       <section className="about-section">
         <div className="section-icon">
           <Database size={24} />
         </div>
         <div className="section-content">
+
           <h3>Data Source</h3>
           <p>
             Climate data is sourced from a network of weather stations and the former 
@@ -440,6 +481,16 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
   // ==========================================================================
   const ProjectionsContent = () => (
     <>
+      <a 
+        href="https://auxein.co.nz/solutions/#datasets" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="datasets-hero-btn"
+      >
+        <Database size={20} />
+        <span>Explore Our Climate Projection Datasets</span>
+        <ExternalLink size={16} />
+      </a>
       <section className="about-section">
         <div className="section-icon">
           <TrendingUp size={24} />

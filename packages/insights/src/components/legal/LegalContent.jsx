@@ -442,14 +442,40 @@ export function TermsOfUse() {
           derivative works without our written permission.
         </p>
 
-        <h3>6.2 Your Data</h3>
+        <h3>6.2 Data Use Restrictions – Financial Services</h3>
+        <p>
+        The climate data, risk assessments, and related information provided through this Platform ("Data") are made available for general informational and educational purposes only. You expressly agree that you will NOT use, and will not permit any third party to use, the Data for any of the following purposes without first obtaining a separate commercial data licence from Auxein:<br/>
+        (a) <strong>Lending and Credit Decisions –</strong> evaluating, underwriting, pricing, approving, or declining any loan, mortgage, credit facility, or other financing arrangement;<br/>
+        (b) <strong> Insurance Purposes –</strong> underwriting, pricing, risk assessment, claims evaluation, policy issuance, renewal, cancellation, or any other insurance-related decision;<br/>
+        (c) <strong> Investment Analysis –</strong> asset valuation, portfolio risk assessment, due diligence, or investment decision-making by funds, asset managers, or financial institutions;<br/>
+        (d) <strong> Property Valuation –</strong> determining or influencing the value of any real property, agricultural asset, or business for financial purposes;<br/>
+        (e) <strong> Regulatory Compliance –</strong> satisfying climate risk disclosure, stress testing, or reporting obligations under any financial regulatory framework;<br/>
+        (f) <strong> Commercial Resale –</strong> redistributing, sublicensing, or incorporating the Data into any product or service offered to third parties.<br/>
+        Any use of Data for the purposes described above without a valid commercial licence constitutes a material breach of these Terms and may result in immediate termination of access, legal action, and claims for damages including disgorgement of profits derived from unauthorised use.<br/>
+        To enquire about commercial data licensing, contact: insights@auxein.co.nz  
+        </p>
+
+        <h3>6.3 Prohibited Data Extraction and Automated Access</h3>
+        <p>
+        You expressly agree that you will NOT, and will not permit any third party to:<br/>
+        (a) <strong>Bulk Extraction –</strong> download, copy, scrape, harvest, or otherwise extract Data in bulk, whether manually or through automated means, beyond what is reasonably necessary for individual, non-commercial use of the Platform;<br/>
+        (b) <strong>Automated Access –</strong> use any robot, spider, crawler, scraper, data mining tool, API exploitation, or other automated device, process, or means to access, retrieve, index, or collect Data from the Platform;<br/>
+        (c) <strong>Systematic Collection –</strong> engage in systematic or repeated extraction of Data to create or compile, directly or indirectly, a collection, compilation, database, or directory, whether for personal use or distribution to third parties;<br/>
+        (d) <strong>Circumvention –</strong> bypass, disable, or interfere with any technical measures implemented to prevent or restrict automated access or bulk extraction, including rate limiting, access controls, or CAPTCHAs;<br/>
+        (e) <strong>Aggregation –</strong> combine Data extracted from this Platform with data from other sources to create derivative datasets without express written authorisation.<br/>
+        For the avoidance of doubt, viewing individual data points, charts, or reports through normal use of the Platform interface does not constitute bulk extraction. However, any programmatic, scripted, or systematic access, regardless of volume, requires prior written consent and a valid data licence.<br/>
+        Unauthorised extraction or automated access constitutes a material breach of these Terms and may result in immediate termination of access without notice, IP address blocking, and legal action for damages.<br/>
+        To enquire about API access or data licensing, contact: insights@auxein.co.nz
+
+        </p>
+        <h3>6.4 Your Data</h3>
         <p>
           You retain ownership of any data you upload to the Platform ("User Data"). 
           By uploading User Data, you grant us a non-exclusive, worldwide licence to 
           use, store, and process your data solely to provide and improve the Platform.
         </p>
 
-        <h3>6.3 Feedback</h3>
+        <h3>6.5 Feedback</h3>
         <p>
           If you provide feedback, suggestions, or ideas about the Platform, you grant 
           us the right to use this feedback without restriction or compensation.

@@ -31,7 +31,7 @@ const credentials = [
   },
   {
     icon: Grape,
-    title: 'Published Research',
+    title: 'Pending Publications',
     subtitle: 'Climate impacts on Pinot Noir quality',
   },
   {
@@ -58,7 +58,7 @@ const features = [
     icon: Shield,
     title: 'Risk Management',
     description:
-      'Comprehensive climate risk assessment for vineyards and agricultural investments.',
+      'Comprehensive risk management for vineyards and agricultural investments.',
   },
 ];
 
@@ -90,7 +90,7 @@ export default function HomePage() {
             >
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-olive/10 text-olive text-sm font-semibold mb-6">
                 <Leaf className="w-4 h-4" />
-                Climate-tech for New Zealand viticulture
+                Viti-tech for the Global Wine Industry
               </span>
             </motion.div>
 
@@ -101,7 +101,7 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Data-driven insights for{' '}
-              <span className="text-olive">sustainable</span> viticulture
+              <span className="text-olive">resilient</span> viticulture
             </motion.h1>
 
             <motion.p
@@ -112,7 +112,7 @@ export default function HomePage() {
             >
               Auxein combines climate intelligence, precision agriculture, and
               deep wine industry expertise to help New Zealand vineyards thrive
-              in a changing climate.
+              in a changing world.
             </motion.p>
 
             <motion.div
@@ -127,6 +127,10 @@ export default function HomePage() {
               </Button>
               <Button href="/contact" variant="secondary" size="lg">
                 Get in Touch
+              </Button>
+                <Button href="https://insights.auxein.co.nz" size="lg">
+                Try Regional Insights
+                <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </motion.div>
           </div>
@@ -143,7 +147,7 @@ export default function HomePage() {
             viewport={{ once: true }}
           >
             <h2 className="text-3xl md:text-4xl font-bold text-charcoal mb-4">
-              Where climate science meets wine expertise
+              at the crossroads of technology and wine
             </h2>
             <p className="text-charcoal-600 text-lg">
               Built by a viticulturist with a background in climate risk
@@ -195,7 +199,7 @@ export default function HomePage() {
               </h2>
               <p className="text-charcoal-600 text-lg max-w-xl">
                 From free regional insights to comprehensive vineyard management
-                platforms—find the right tools for your operation.
+                platforms, we have the right tools for your operation.
               </p>
             </div>
             <Button href="/solutions" variant="secondary">
@@ -267,54 +271,40 @@ export default function HomePage() {
         </Container>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 bg-olive text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <pattern id="cta-pattern" width="5" height="5" patternUnits="userSpaceOnUse">
-                <circle cx="2.5" cy="2.5" r="0.5" fill="currentColor" />
-              </pattern>
-            </defs>
-            <rect width="100" height="100" fill="url(#cta-pattern)" />
-          </svg>
-        </div>
-
-        <Container className="relative z-10">
+      {/* Our Name Section */}
+      <section className="py-24 bg-sand">
+        <Container>
           <motion.div
-            className="text-center max-w-3xl mx-auto"
+            className="max-w-3xl mx-auto text-center"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Ready to future-proof your vineyard?
+            <span className="text-olive font-semibold text-sm uppercase tracking-wider">
+              Why Auxein?
+            </span>
+            <h2 className="text-3xl md:text-4xl font-bold text-charcoal mt-2 mb-6">
+              A name rooted in growth
             </h2>
-            <p className="text-olive-100 text-lg mb-8">
-              Whether you're looking for climate insights, sustainability
-              consulting, or comprehensive vineyard management tools—let's
-              talk about how Auxein can help.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Button
-                href="/contact"
-                className="bg-white text-olive hover:bg-sand"
-              >
-                Get in Touch
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-              <Button
-                href="https://insights.auxein.co.nz"
-                external
-                variant="secondary"
-                className="border-white/30 text-white hover:bg-white/10 hover:border-white/50"
-              >
-                Try Regional Insights
-              </Button>
+            <div className="space-y-4 text-charcoal-600 text-lg leading-relaxed">
+              <p>
+                Our name comes from the Greek <em>auxein</em> (αὔξειν)—simply meaning 
+                &quot;to grow.&quot; It&apos;s the root of <em>auxin</em>, the plant hormone that 
+                drives root formation, bud development, and the instinct to reach 
+                toward light.
+              </p>
+              <p>
+                We chose it because resilience isn&apos;t about standing still. It&apos;s about 
+                adapting, evolving, and growing stronger - whatever conditions you face.
+              </p>
+              <p className="text-charcoal font-medium">
+                <strong>That&apos;s the future we&apos;re building for the wine industry.</strong>
+              </p>
             </div>
           </motion.div>
         </Container>
       </section>
+
 
       <SolutionModal
         isOpen={isModalOpen}

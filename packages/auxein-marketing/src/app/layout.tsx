@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import '@/styles/globals.css';
+import { CookieConsent } from '@/components/CookieConsent';
 
 export const metadata: Metadata = {
   title: {
@@ -26,21 +27,21 @@ export const metadata: Metadata = {
     locale: 'en_NZ',
     url: 'https://auxein.co.nz',
     siteName: 'Auxein',
-    title: 'Auxein | Climate Intelligence for Viticulture',
+    title: 'Auxein | Intelligence for Viticulture',
     description:
-      'Precision climate intelligence and vineyard management solutions for the New Zealand wine industry.',
+      'Precision intelligence and vineyard management solutions for the New Zealand wine industry.',
     images: [
       {
-        url: '/images/og-image.jpg',
+        url: '/images/logo-square-rounded.jpg',
         width: 1200,
         height: 630,
-        alt: 'Auxein - Climate Intelligence for Viticulture',
+        alt: 'Auxein - Intelligence for Viticulture',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Auxein | Climate Intelligence for Viticulture',
+    title: 'Auxein | Intelligence for Viticulture',
     description:
       'Precision climate intelligence and vineyard management solutions for the New Zealand wine industry.',
     images: ['/images/og-image.jpg'],
@@ -60,11 +61,11 @@ export default function RootLayout({
     <html lang="en" className="scroll-smooth">
       <head>
         {/* Umami Analytics - replace with your actual ID */}
-        {process.env.NEXT_PUBLIC_UMAMI_ID && (
+        {process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
           <script
             defer
-            src="https://analytics.auxein.co.nz/script.js"
-            data-website-id={process.env.NEXT_PUBLIC_UMAMI_ID}
+            src="https://cloud.umami.is/script.js"
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
           />
         )}
       </head>
@@ -72,6 +73,7 @@ export default function RootLayout({
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />
+        <CookieConsent />
       </body>
     </html>
   );

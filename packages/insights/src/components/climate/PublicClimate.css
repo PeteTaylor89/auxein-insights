@@ -2600,3 +2600,29 @@
     transition: none;
   }
 }
+
+.datasets-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 28px;
+  background: linear-gradient(135deg, #5B6830 0%, #4a5628 100%);
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(91, 104, 48, 0.3);
+  transition: all 0.3s ease;
+  margin-top: 1.5rem;
+}
+
+.datasets-hero-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(91, 104, 48, 0.4);
+  background: linear-gradient(135deg, #6a7a3a 0%, #5B6830 100%);
+}
+
+.datasets-hero-btn:active {
+  transform: translateY(0);
+}

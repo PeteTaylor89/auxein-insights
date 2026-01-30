@@ -1,8 +1,18 @@
 import Link from 'next/link';
-import { Mail, MapPin, Linkedin, Youtube } from 'lucide-react';
+import { Mail, MapPin, Linkedin } from 'lucide-react';
 import Image from 'next/image';
 
-const footerLinks = {
+interface FooterLink {
+  label: string;
+  href: string;
+  external?: boolean;
+}
+
+const footerLinks: {
+  solutions: FooterLink[];
+  company: FooterLink[];
+  legal: FooterLink[];
+} = {
   solutions: [
     { label: 'Auxein Insights Pro', href: '/insights-pro' },
     { label: 'Regional Intelligence', href: 'https://insights.auxein.co.nz', external: true },
@@ -12,13 +22,35 @@ const footerLinks = {
   company: [
     { label: 'About', href: '/about' },
     { label: 'Contact', href: '/contact' },
-    
   ],
   legal: [
     { label: 'Privacy Policy', href: '/privacy' },
     { label: 'Terms of Service', href: '/terms' },
   ],
 };
+
+function FooterLinkItem({ link }: { link: FooterLink }) {
+  if (link.external) {
+    return (
+      <a
+        href={link.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
+      >
+        {link.label} ↗
+      </a>
+    );
+  }
+  return (
+    <Link
+      href={link.href}
+      className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
+    >
+      {link.label}
+    </Link>
+  );
+}
 
 export function Footer() {
   return (
@@ -30,11 +62,11 @@ export function Footer() {
           <div className="lg:col-span-1">
             <Link href="/" className="inline-block mb-4">
               <Image
-                src="/images/logo-square-rounded.jpg"
+                src="/images/logo-square.jpg"
                 alt="Auxein - to grow"
                 width={140}
                 height={57}
-                className="h-12 w-auto brightness-0 invert"
+                className="h-12 w-auto"
               />
             </Link>
             <p className="text-charcoal-300 text-sm leading-relaxed mb-6">
@@ -46,12 +78,11 @@ export function Footer() {
                 href="https://linkedin.com/company/auxein-nz"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-charcoal-400 hover:text-olive-300 transition-colors"
+                className="text-[#0A66C2] hover:text-[#004182] transition-colors"
                 aria-label="LinkedIn"
               >
-                <Linkedin className="w-5 h-5" />
+                <Linkedin className="w-6 h-6" />
               </a>
-
             </div>
           </div>
 
@@ -63,23 +94,7 @@ export function Footer() {
             <ul className="space-y-3">
               {footerLinks.solutions.map((link) => (
                 <li key={link.href}>
-                  {link.external ? (
-                    <a
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
-                    >
-                      {link.label} ↗
-                    </a>
-                  ) : (
-                    <Link
-                      href={link.href}
-                      className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
-                    >
-                      {link.label}
-                    </Link>
-                  )}
+                  <FooterLinkItem link={link} />
                 </li>
               ))}
             </ul>
@@ -93,23 +108,7 @@ export function Footer() {
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
                 <li key={link.href}>
-                  {link.external ? (
-                    <a
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
-                    >
-                      {link.label} ↗
-                    </a>
-                  ) : (
-                    <Link
-                      href={link.href}
-                      className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
-                    >
-                      {link.label}
-                    </Link>
-                  )}
+                  <FooterLinkItem link={link} />
                 </li>
               ))}
             </ul>
@@ -124,7 +123,7 @@ export function Footer() {
               <li className="flex items-start gap-3">
                 <Mail className="w-5 h-5 text-olive-400 shrink-0 mt-0.5" />
                 <a
-                  href="mailto:pete@auxein.co.nz"
+                  href="mailto:insights@auxein.co.nz"
                   className="text-charcoal-300 hover:text-olive-300 transition-colors text-sm"
                 >
                   insights@auxein.co.nz

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import type { Solution } from './solutionsData';
@@ -23,32 +24,49 @@ export function SolutionCard({ solution, onClick, index }: SolutionCardProps) {
       transition={{ delay: index * 0.1, duration: 0.5 }}
       whileHover={{ y: -4 }}
     >
-      {/* Header with icon */}
-      <div className="relative h-40 bg-gradient-to-br from-olive to-olive-600 overflow-hidden">
-        {/* Pattern background */}
-        <div className="absolute inset-0 opacity-10">
-          <svg
-            className="w-full h-full"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <pattern
-                id={`pattern-${solution.id}`}
-                width="20"
-                height="20"
-                patternUnits="userSpaceOnUse"
+      {/* Header with image or gradient fallback */}
+      <div className="relative h-40 overflow-hidden">
+        {solution.image ? (
+          <Image
+            src={solution.image}
+            alt={solution.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+          />
+        ) : (
+          <>
+            {/* Gradient fallback */}
+            <div className="absolute inset-0 bg-gradient-to-br from-olive to-olive-600" />
+            {/* Pattern background */}
+            <div className="absolute inset-0 opacity-10">
+              <svg
+                className="w-full h-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
               >
-                <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-              </pattern>
-            </defs>
-            <rect
-              width="100"
-              height="100"
-              fill={`url(#pattern-${solution.id})`}
-            />
-          </svg>
-        </div>
+                <defs>
+                  <pattern
+                    id={`pattern-${solution.id}`}
+                    width="20"
+                    height="20"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+                  </pattern>
+                </defs>
+                <rect
+                  width="100"
+                  height="100"
+                  fill={`url(#pattern-${solution.id})`}
+                />
+              </svg>
+            </div>
+          </>
+        )}
+
+        {/* Dark overlay for text/icon readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
         {/* Icon */}
         <div className="absolute inset-0 flex items-center justify-center">

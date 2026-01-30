@@ -1,42 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { Input, Textarea, Select } from '@/components/ui/Input';
+import { Send, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import emailjs from '@emailjs/browser';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Textarea } from '@/components/ui/Textarea';
+import { trackEvent } from '@/lib/analytics';
 
 const contactSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
-  inquiryType: z.string().min(1, 'Please select an inquiry type'),
-  message: z.string().min(10, 'Message must be at least 10 characters'),
+  name: z.string().min(2, 'Name is required'),
+  email: z.string().email('Please enter a valid email'),
+  company: z.string().optional(),
+  product: z.string().min(1, 'Please select an inquiry type'),
+  message: z.string().min(10, 'Please provide more details'),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
-const inquiryOptions = [
-  { value: '', label: 'Select an inquiry type...' },
-  { value: 'insights-pro', label: 'Auxein Insights Pro' },
-  { value: 'regional-insights', label: 'Regional Intelligence' },
-  { value: 'vineyard-data', label: 'Vineyard Geodatabase Licensing' },
-  { value: 'climate-data', label: 'Climate Dataset Licensing' },
-  { value: 'coastal-risk', label: 'Coastal Inundation Risk Data' },
-  { value: 'swnz', label: 'SWNZ Consulting' },
-  { value: 'carbon', label: 'Carbon Accounting' },
-  { value: 'climate-risk', label: 'Climate Risk Consulting' },
-  { value: 'general', label: 'General Inquiry' },
+const productOptions = [
+  { value: '', label: 'Select an option...' },
+  { value: 'insights-pro', label: 'Insights Pro - Waitlist' },
+  { value: 'regional-intelligence', label: 'Regional Intelligence' },
+  { value: 'data-licensing', label: 'Data Products' },
+  { value: 'climate-consulting', label: 'Climate Risk Consulting' },
   { value: 'partnership', label: 'Partnership Opportunity' },
+  { value: 'general', label: 'General Inquiry' },
 ];
 
 interface ContactFormProps {
-  defaultInquiryType?: string;
+  defaultProduct?: string;
+  defaultInquiryType?: string; // Alias for compatibility
 }
 
-export function ContactForm({ defaultInquiryType }: ContactFormProps) {
+export function ContactForm({ defaultProduct = '', defaultInquiryType }: ContactFormProps) {
+  // Support both prop names
+  const initialProduct = defaultProduct || defaultInquiryType || '';
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -44,46 +48,68 @@ export function ContactForm({ defaultInquiryType }: ContactFormProps) {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
-      inquiryType: defaultInquiryType || '',
+      name: '',
+      email: '',
+      company: '',
+      product: initialProduct,
+      message: '',
     },
   });
+
+  // Set product from URL param when component mounts or param changes
+  useEffect(() => {
+    if (initialProduct) {
+      setValue('product', initialProduct);
+    }
+  }, [initialProduct, setValue]);
 
   const onSubmit = async (data: ContactFormData) => {
     setStatus('loading');
     setErrorMessage('');
 
     try {
-      const response = await fetch(
-        process.env.NEXT_PUBLIC_API_URL || '/api/contact',
+      // Send via EmailJS
+      await emailjs.send(
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
+          from_name: data.name,
+          from_email: data.email,
+          company: data.company || 'Not provided',
+          inquiry_type: productOptions.find(o => o.value === data.product)?.label || data.product,
+          message: data.message,
+          submitted_at: new Date().toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }),
+        },
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
+      // Track successful submission in Umami
+      trackEvent('contact-form-submitted', {
+        product: data.product,
+        hasCompany: !!data.company,
+      });
 
       setStatus('success');
       reset();
     } catch (error) {
+      console.error('EmailJS error:', error);
+      setErrorMessage('Failed to send message. Please try again or email directly.');
       setStatus('error');
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Something went wrong. Please try again.'
-      );
+
+      // Track error in Umami
+      trackEvent('contact-form-error', {
+        product: data.product,
+      });
     }
   };
 
   return (
-    <div className="relative">
+    <div>
       <AnimatePresence mode="wait">
         {status === 'success' ? (
           <motion.div
@@ -93,14 +119,14 @@ export function ContactForm({ defaultInquiryType }: ContactFormProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             className="text-center py-12"
           >
-            <div className="w-16 h-16 rounded-full bg-olive-100 flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-full bg-olive/10 flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="w-8 h-8 text-olive" />
             </div>
-            <h3 className="text-2xl font-bold text-charcoal mb-2">
-              Message Sent!
+            <h3 className="text-xl font-bold text-charcoal mb-2">
+              Message sent!
             </h3>
             <p className="text-charcoal-600 mb-6">
-              Thanks for reaching out. I'll get back to you as soon as possible.
+              Thanks for reaching out. I&apos;ll get back to you as soon as possible.
             </p>
             <Button
               variant="secondary"
@@ -136,17 +162,25 @@ export function ContactForm({ defaultInquiryType }: ContactFormProps) {
               />
             </div>
 
+            <Input
+              label="Company / Vineyard"
+              placeholder="Your company or vineyard name (optional)"
+              error={errors.company?.message}
+              {...register('company')}
+            />
+
             <Select
-              label="Inquiry Type"
-              options={inquiryOptions}
-              error={errors.inquiryType?.message}
+              label="What are you interested in?"
+              options={productOptions}
+              error={errors.product?.message}
               required
-              {...register('inquiryType')}
+              {...register('product')}
             />
 
             <Textarea
               label="Message"
-              placeholder="Tell me about your project or question..."
+              placeholder="Tell me about your project, questions, or how I can help..."
+              rows={5}
               error={errors.message?.message}
               required
               {...register('message')}
@@ -156,7 +190,7 @@ export function ContactForm({ defaultInquiryType }: ContactFormProps) {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 p-4 bg-terracotta-50 border border-terracotta-200 rounded-lg text-terracotta-700"
+                className="flex items-center gap-3 p-4 bg-terracotta/10 border border-terracotta/20 rounded-lg text-terracotta"
               >
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <p className="text-sm">{errorMessage}</p>

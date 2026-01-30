@@ -36,7 +36,7 @@ function ContactContent() {
               <div>
                 <h3 className="font-semibold text-charcoal">Email</h3>
                 <a
-                  href="mailto:pete@auxein.co.nz"
+                  href="mailto:pete.taylor@auxein.co.nz"
                   className="text-olive hover:text-olive-600"
                 >
                   pete.taylor@auxein.co.nz
@@ -67,30 +67,6 @@ function ContactContent() {
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="mt-10 p-6 rounded-xl bg-sand border border-olive/25">
-            <div className="flex items-center gap-3 mb-4">
-              <MessageSquare className="w-5 h-5 text-olive" />
-              <h3 className="font-semibold text-charcoal">Quick Links</h3>
-            </div>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <a
-                  href="https://insights.auxein.co.nz"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-olive hover:text-olive-600"
-                >
-                  Try Regional Insights →
-                </a>
-              </li>
-              <li>
-                <a href="/insights-pro" className="text-olive hover:text-olive-600">
-                  Join the Auxein Insights Pro waitlist →
-                </a>
-              </li>
-            </ul>
-          </div>
         </motion.div>
       </div>
 

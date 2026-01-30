@@ -238,8 +238,8 @@ function LandingPage() {
           
           {/* Desktop Navigation */}
           <nav className="header-nav desktop-nav">
-            <Link to="/about">About</Link>
-            <a href="https://auxein.co.nz/log-in" target="_blank" rel="noopener noreferrer">Insights-Pro</a>
+            <a href="https://auxein.co.nz/about/" target="_blank" rel="noopener noreferrer">About</a>
+            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer">Insights-Pro</a>
             <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
 
             {isAdmin && (
@@ -432,13 +432,12 @@ function LandingPage() {
       <section className="about-cta-section">
         <div className="about-content">
           <div className="premium-cta">
-            <h3>Vineyard Management & Insights</h3>
+            <h3>Auxein Insights Pro</h3>
             <p>
-              Our premium Auxein Insights platform offers vineyard-specific climate analysis, 
-              risk management tools, and comprehensive management features.
+              The complete vineyard management platform. Climate intelligence, phenology tracking, disease pressure modeling, and blockchain traceability - all in one mobile-first solution.
             </p>
-            <a href="https://auxein.co.nz/" target="_blank" rel="noopener noreferrer" className="premium-btn">
-              Explore Auxein Insights →
+            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer" className="premium-btn">
+              Learn More →
             </a>
           </div>
         </div>

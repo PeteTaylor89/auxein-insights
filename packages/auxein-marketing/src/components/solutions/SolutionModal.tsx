@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, ArrowRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -59,28 +60,46 @@ export function SolutionModal({ isOpen, onClose, solution }: SolutionModalProps)
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="relative h-48 md:h-56 bg-gradient-to-br from-olive to-olive-600 shrink-0">
-                {/* Pattern overlay */}
-                <div className="absolute inset-0 opacity-10">
-                  <svg
-                    className="w-full h-full"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                  >
-                    <defs>
-                      <pattern
-                        id="modal-pattern"
-                        width="10"
-                        height="10"
-                        patternUnits="userSpaceOnUse"
+              {/* Header with image or gradient fallback */}
+              <div className="relative h-48 md:h-56 shrink-0 overflow-hidden">
+                {solution.image ? (
+                  <Image
+                    src={solution.image}
+                    alt={solution.title}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 672px"
+                    priority
+                  />
+                ) : (
+                  <>
+                    {/* Gradient fallback */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-olive to-olive-600" />
+                    {/* Pattern overlay */}
+                    <div className="absolute inset-0 opacity-10">
+                      <svg
+                        className="w-full h-full"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
                       >
-                        <circle cx="5" cy="5" r="1" fill="currentColor" />
-                      </pattern>
-                    </defs>
-                    <rect width="100" height="100" fill="url(#modal-pattern)" />
-                  </svg>
-                </div>
+                        <defs>
+                          <pattern
+                            id="modal-pattern"
+                            width="10"
+                            height="10"
+                            patternUnits="userSpaceOnUse"
+                          >
+                            <circle cx="5" cy="5" r="1" fill="currentColor" />
+                          </pattern>
+                        </defs>
+                        <rect width="100" height="100" fill="url(#modal-pattern)" />
+                      </svg>
+                    </div>
+                  </>
+                )}
+
+                {/* Dark overlay for readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
 
                 {/* Large Icon */}
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -97,7 +116,7 @@ export function SolutionModal({ isOpen, onClose, solution }: SolutionModalProps)
                 {/* Close Button */}
                 <button
                   onClick={onClose}
-                  className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                  className="absolute top-4 right-4 p-2 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5 text-white" />
@@ -106,16 +125,16 @@ export function SolutionModal({ isOpen, onClose, solution }: SolutionModalProps)
                 {/* Badge */}
                 {solution.badge && (
                   <div className="absolute top-4 left-4">
-                    <span className="px-3 py-1.5 text-sm font-semibold bg-terracotta text-white rounded-full">
+                    <span className="px-3 py-1.5 text-sm font-semibold bg-terracotta text-white rounded-full shadow-lg">
                       {solution.badge}
                     </span>
                   </div>
                 )}
 
                 {/* Title overlay */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/40 to-transparent">
+                <div className="absolute bottom-0 left-0 right-0 p-6">
                   <motion.h2
-                    className="text-2xl md:text-3xl font-bold text-white"
+                    className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg"
                     initial={{ y: 10, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.15 }}
@@ -123,7 +142,7 @@ export function SolutionModal({ isOpen, onClose, solution }: SolutionModalProps)
                     {solution.title}
                   </motion.h2>
                   <motion.p
-                    className="text-olive-100 mt-1"
+                    className="text-white/90 mt-1 drop-shadow"
                     initial={{ y: 10, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.2 }}
