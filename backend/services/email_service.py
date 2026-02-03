@@ -114,7 +114,7 @@ The Auxein Team
     
     def send_public_password_reset_email(self, email: str, token: str, name: str = "there"):
         """Send password reset for Regional Intelligence"""
-        reset_url = f"{self.regional_intelligence_url}/reset-password?token={token}"
+        reset_url = f"{self.regional_intelligence_url}?reset_token={token}"
         
         subject = "Reset Your Auxein Regional Intelligence Password"
         

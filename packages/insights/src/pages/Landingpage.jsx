@@ -16,6 +16,7 @@ import AuthModal from '../components/auth/AuthModal';
 import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
 import { PublicClimateContainer } from '../components/climate';
+import PasswordResetModal from '../components/auth/PasswordResetModal';
 
 const ADMIN_DOMAIN = 'auxein.co.nz';
 const isAdminEmail = (email) => {
@@ -74,6 +75,7 @@ function LandingPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [passwordResetModalOpen, setPasswordResetModalOpen] = useState(false);
   
   // Scroll-aware header state
   const { scrollDirection, isAtTop } = useScrollDirection();
@@ -83,12 +85,16 @@ function LandingPage() {
   
   const [searchParams, setSearchParams] = useSearchParams();
   const verificationToken = searchParams.get('token');
+  const resetToken = searchParams.get('reset_token');
 
   useEffect(() => {
     if (verificationToken) {
       setVerificationModalOpen(true);
     }
-  }, [verificationToken]);
+    if (resetToken) {
+      setPasswordResetModalOpen(true); // NEW: Open reset modal if token present
+    }
+  }, [verificationToken, resetToken]);
 
   // Detect mobile viewport
   useEffect(() => {
@@ -127,6 +133,16 @@ function LandingPage() {
       searchParams.delete('token');
       setSearchParams(searchParams);
     }
+  };
+
+  const handlePasswordResetClose = () => {
+    setPasswordResetModalOpen(false);
+    if (resetToken) {
+      searchParams.delete('reset_token');
+      setSearchParams(searchParams);
+    }
+    // Open login modal after successful reset
+    setAuthModalOpen(true);
   };
 
   const featuredRegions = [
@@ -314,7 +330,7 @@ function LandingPage() {
             </button>
 
             <Link to="/about" onClick={closeMobileMenu}>About</Link>
-            <a href="https://auxein.co.nz/log-in" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
+            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
               Insights-Pro
             </a>
             <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
@@ -468,7 +484,7 @@ function LandingPage() {
       <AuthModal isOpen={authModalOpen} onClose={handleAuthModalClose} context={authContext} />
       <UserPreferencesModal isOpen={preferencesModalOpen} onClose={() => setPreferencesModalOpen(false)} />
       <EmailVerificationModal isOpen={verificationModalOpen} onClose={handleVerificationClose} token={verificationToken} />
-
+      <PasswordResetModal isOpen={passwordResetModalOpen} onClose={handlePasswordResetClose} token={resetToken} />
       {/* User menu overlay (desktop) */}
       {userMenuOpen && <div className="user-menu-overlay" onClick={() => setUserMenuOpen(false)} />}
     </div>

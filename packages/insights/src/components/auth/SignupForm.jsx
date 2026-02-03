@@ -1,19 +1,21 @@
 // src/components/auth/SignupForm.jsx
-// Updated with legal agreement modal integration
+// Updated with password confirmation and legal agreement modal integration
 import { useState, useEffect } from 'react';
 import { usePublicAuth } from '../../contexts/PublicAuthContext';
-import * as publicAuthService from '../../services/publicAuthService';
+import publicAuthService from '../../services/publicAuthService';
 import LegalModal from '../legal/LegalModal';
+import { Eye, EyeOff } from 'lucide-react';
 
 function SignupForm({ onSuccess, onSwitchToLogin }) {
   const { signup } = usePublicAuth();
   const [step, setStep] = useState(1); // 1: Basic, 2: About You, 3: Stay Connected
   const [userTypes, setUserTypes] = useState([]);
   const [regions, setRegions] = useState([]);
-  const service = publicAuthService.default || publicAuthService;
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    confirmPassword: '', // NEW: Password confirmation field
     first_name: '',
     last_name: '',
     user_type: '',
@@ -24,9 +26,12 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
     marketing_opt_in: false,
     research_opt_in: false
   });
+  
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Legal agreement state
   const [showLegalModal, setShowLegalModal] = useState(false);
@@ -37,8 +42,8 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
     const loadOptions = async () => {
       try {
         const [typesData, regionsData] = await Promise.all([
-          await service.getUserTypes(),
-          await service.getRegions()
+          publicAuthService.getUserTypes(),
+          publicAuthService.getRegions()
         ]);
         setUserTypes(typesData);
         setRegions(regionsData);
@@ -58,15 +63,41 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
     setError('');
   };
 
+  const validatePassword = (password) => {
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!/[A-Z]/.test(password)) {
+      return 'Password must include an uppercase letter';
+    }
+    if (!/[a-z]/.test(password)) {
+      return 'Password must include a lowercase letter';
+    }
+    if (!/[0-9]/.test(password)) {
+      return 'Password must include a number';
+    }
+    return null;
+  };
+
   const validateStep1 = () => {
     if (!formData.email || !formData.password) {
       setError('Email and password are required');
       return false;
     }
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters');
+    
+    // Validate password strength
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      setError(passwordError);
       return false;
     }
+    
+    // Check password confirmation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    
     return true;
   };
 
@@ -106,7 +137,9 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
     setLoading(true);
 
     try {
-      await signup(formData);
+      // Remove confirmPassword before sending to API
+      const { confirmPassword, ...signupData } = formData;
+      await signup(signupData);
       setSuccess('Account created! Please check your email to verify your account.');
       
       // Auto-close after showing success message
@@ -122,6 +155,12 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
 
   const selectedUserType = userTypes.find(t => t.value === formData.user_type);
   const requiresCompany = selectedUserType?.requires_company;
+  
+  // Password match indicator
+  const passwordsMatch = formData.password && formData.confirmPassword && 
+                         formData.password === formData.confirmPassword;
+  const passwordsDontMatch = formData.confirmPassword && 
+                             formData.password !== formData.confirmPassword;
 
   return (
     <>
@@ -179,21 +218,65 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                 onChange={handleChange}
                 required
                 placeholder="your.email@example.com"
+                autoComplete="email"
               />
             </div>
 
             <div className="form-group">
               <label htmlFor="password">Password *</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                placeholder="Min. 8 characters"
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  placeholder="Min. 8 characters"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <small>Must include uppercase, lowercase, and number</small>
+            </div>
+
+            {/* NEW: Password Confirmation Field */}
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm Password *</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  placeholder="Re-enter password"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {/* Password match feedback */}
+              {passwordsDontMatch && (
+                <small className="password-mismatch">Passwords do not match</small>
+              )}
+              {passwordsMatch && (
+                <small className="password-match">✓ Passwords match</small>
+              )}
             </div>
 
             <button type="button" className="auth-submit-btn" onClick={handleNextStep}>

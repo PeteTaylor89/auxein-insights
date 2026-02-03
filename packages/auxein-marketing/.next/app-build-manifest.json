@@ -18,6 +18,28 @@
       "static/chunks/294-6ddd6882f86c0abe.js",
       "static/chunks/app/layout-a493d64e86928527.js"
     ],
+    "/page": [
+      "static/chunks/webpack-2cfbea3d60aa92d2.js",
+      "static/chunks/1dd3208c-98e3599f9203ece6.js",
+      "static/chunks/528-6ac19b0c2eb57444.js",
+      "static/chunks/main-app-6a018fcbe3afdcc4.js",
+      "static/chunks/340-8f75694b37711d34.js",
+      "static/chunks/263-17623cd033487807.js",
+      "static/chunks/294-6ddd6882f86c0abe.js",
+      "static/chunks/97-665340a5dd19bb97.js",
+      "static/chunks/app/page-89f98fceaf6ae72c.js"
+    ],
+    "/solutions/page": [
+      "static/chunks/webpack-2cfbea3d60aa92d2.js",
+      "static/chunks/1dd3208c-98e3599f9203ece6.js",
+      "static/chunks/528-6ac19b0c2eb57444.js",
+      "static/chunks/main-app-6a018fcbe3afdcc4.js",
+      "static/chunks/340-8f75694b37711d34.js",
+      "static/chunks/263-17623cd033487807.js",
+      "static/chunks/294-6ddd6882f86c0abe.js",
+      "static/chunks/97-665340a5dd19bb97.js",
+      "static/chunks/app/solutions/page-1fb12f1e45c1ff01.js"
+    ],
     "/contact/page": [
       "static/chunks/webpack-2cfbea3d60aa92d2.js",
       "static/chunks/1dd3208c-98e3599f9203ece6.js",
@@ -36,29 +58,7 @@
       "static/chunks/340-8f75694b37711d34.js",
       "static/chunks/263-17623cd033487807.js",
       "static/chunks/294-6ddd6882f86c0abe.js",
-      "static/chunks/app/insights-pro/page-d5ef787a0441d216.js"
-    ],
-    "/solutions/page": [
-      "static/chunks/webpack-2cfbea3d60aa92d2.js",
-      "static/chunks/1dd3208c-98e3599f9203ece6.js",
-      "static/chunks/528-6ac19b0c2eb57444.js",
-      "static/chunks/main-app-6a018fcbe3afdcc4.js",
-      "static/chunks/340-8f75694b37711d34.js",
-      "static/chunks/263-17623cd033487807.js",
-      "static/chunks/294-6ddd6882f86c0abe.js",
-      "static/chunks/97-665340a5dd19bb97.js",
-      "static/chunks/app/solutions/page-1fb12f1e45c1ff01.js"
-    ],
-    "/page": [
-      "static/chunks/webpack-2cfbea3d60aa92d2.js",
-      "static/chunks/1dd3208c-98e3599f9203ece6.js",
-      "static/chunks/528-6ac19b0c2eb57444.js",
-      "static/chunks/main-app-6a018fcbe3afdcc4.js",
-      "static/chunks/340-8f75694b37711d34.js",
-      "static/chunks/263-17623cd033487807.js",
-      "static/chunks/294-6ddd6882f86c0abe.js",
-      "static/chunks/97-665340a5dd19bb97.js",
-      "static/chunks/app/page-89f98fceaf6ae72c.js"
+      "static/chunks/app/insights-pro/page-b96209ae238b0b22.js"
     ],
     "/privacy/page": [
       "static/chunks/webpack-2cfbea3d60aa92d2.js",
