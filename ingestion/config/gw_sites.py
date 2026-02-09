@@ -11,7 +11,7 @@ GW_CLIMATE_SITES = {
     'GW_WAIRARAPA_COLLEGE': {
         'site_name': 'Wairarapa College AQ',  # Exact name for API
         'name': 'Wairarapa College',
-        'measurements': ['Air Temperature', 'Relative Humidity', ],
+        'measurements': ['Air Temperature (Lawa)', 'Relative Humidity', ],
         'region': 'Wairarapa',
         'zone_id': 8,  # Gladstone
         'lat': -40.9520,  

@@ -27,7 +27,7 @@ class GWIngestion:
         
         # Map GW measurement names to standard variable names
         self.measurement_map = {
-            'Air Temperature': ('temp', 'C'),
+            'Air Temperature (Lawa)': ('temp', 'C'),
             'Relative Humidity': ('rh', 'percent'),
             'Rainfall': ('rainfall', 'mm'),
         }
