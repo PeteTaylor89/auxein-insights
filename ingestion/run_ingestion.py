@@ -14,13 +14,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sources.harvest import HarvestIngestion
 from sources.ecan import ECANIngestion
 from sources.mdc import MDCIngestion
+from sources.gw import GWIngestion
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'all'], 
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'all'], 
         default='all',
         help='Data source to ingest'
     )
@@ -57,7 +58,7 @@ def main():
         '--interval',
         type=str,
         default='30 minutes',
-        help='MDC data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
+        help='MDC/GW data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
     )
     
     args = parser.parse_args()
@@ -116,6 +117,24 @@ def main():
             print("✓ MDC ingestion complete\n")
         except Exception as e:
             print(f"✗ MDC ingestion failed: {e}\n")
+            success = False
+    
+    # Run GW ingestion
+    if args.source in ['gw', 'all']:
+        try:
+            print("▶ Starting GW ingestion...\n")
+            ingester = GWIngestion()
+            ingester.run(
+                period=args.period, 
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval
+            )
+            print("✓ GW ingestion complete\n")
+        except Exception as e:
+            print(f"✗ GW ingestion failed: {e}\n")
             success = False
     
     print(f"{'='*70}")
