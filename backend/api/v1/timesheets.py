@@ -28,6 +28,9 @@ except Exception:
         recalc_day, set_day_hours, create_entry, update_entry, delete_entry
     )
 
+from services.notification_service import NotificationService
+from db.models.notification import NotificationType
+
 from api.deps import get_current_user
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
@@ -260,6 +263,14 @@ def submit_timesheet_day(
         raise HTTPException(status_code=400, detail="Cannot submit a zero-hour day")
 
     day.status = TimesheetStatus.submitted
+    notification_service = NotificationService(db)
+    notification_service.notify_managers(
+        company_id=current_user.company_id,
+        notification_type=NotificationType.timesheet,
+        title=f"Timesheet submitted",
+        body=f"{current_user.first_name} {current_user.last_name} submitted timesheet for {day.work_date}",
+        data={"timesheet_day_id": day.id, "user_id": current_user.id}
+    )
     day.submitted_at = datetime.now(timezone.utc)
     db.add(day)
     db.commit()
@@ -283,6 +294,16 @@ def approve_timesheet_day(
         raise HTTPException(status_code=409, detail=f"Only submitted days can be approved")
 
     day.status = TimesheetStatus.approved
+    notification_service = NotificationService(db)
+    submitter = db.query(User).filter(User.id == day.user_id).first()
+    if submitter:
+        notification_service.notify_user(
+            user=submitter,
+            notification_type=NotificationType.timesheet,
+            title="Timesheet approved",
+            body=f"Your timesheet for {day.work_date} was approved",
+            data={"timesheet_day_id": day.id}
+        )
     day.approved_by = current_user.id
     day.approved_at = datetime.now(timezone.utc)
     db.add(day)
@@ -315,9 +336,18 @@ def reject_timesheet_day(
             day.notes = f"[Rejected: {reason}]"
 
     day.status = TimesheetStatus.rejected
+    notification_service = NotificationService(db)
+    submitter = db.query(User).filter(User.id == day.user_id).first()
+    if submitter:
+        notification_service.notify_user(
+            user=submitter,
+            notification_type=NotificationType.timesheet,
+            title="Timesheet rejected",
+            body=f"Your timesheet for {day.work_date} was rejected",
+            data={"timesheet_day_id": day.id}
+        )
     day.approved_by = None
     day.approved_at = None
-
     db.add(day)
     db.commit()
     db.refresh(day)

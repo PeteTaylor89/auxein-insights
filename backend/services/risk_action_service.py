@@ -6,6 +6,9 @@ from db.models.site_risk import SiteRisk
 from db.models.task import Task
 from db.models.user import User
 from utils.risk_permissions import RiskPermissions
+from services.notification_service import NotificationService
+from db.models.notification import NotificationType
+
 
 class RiskActionService:
     """Service class for managing risk actions and their lifecycle"""
@@ -49,7 +52,21 @@ class RiskActionService:
             if task:
                 risk_action.task_id = task.id
         """
+
         self.db.commit()
+        if risk_action.assigned_to:
+            notification_service = NotificationService(self.db)
+            assignee = self.db.query(User).filter(User.id == risk_action.assigned_to).first()
+            if assignee:
+                notification_service.notify_user(
+                    user=assignee,
+                    notification_type=NotificationType.action,
+                    title=f"Action assigned: {risk_action.title}",
+                    body=f"Due: {risk_action.due_date}" if risk_action.due_date else None,
+                    data={"action_id": risk_action.id, "risk_id": risk_action.risk_id}
+                )
+                self.db.commit()
+
         self.db.refresh(risk_action)
         
         return risk_action

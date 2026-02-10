@@ -40,6 +40,8 @@ from services.integrated_risk_service import IntegratedRiskService
 from utils.risk_permissions import RiskPermissions
 from utils.geometry import point_to_wkt, polygon_to_wkt
 from utils.geometry_helpers import geojson_to_geometry
+from services.notification_service import NotificationService
+from db.models.notification import NotificationType
 
 # Create the main router
 router = APIRouter()
@@ -775,7 +777,29 @@ def create_incident(
         
         # Save to database (no need for flush/refresh since incident_number is already set)
         db.add(incident)
+        notification_service = NotificationService(db)
+
+        # Notify all managers
+        notification_service.notify_managers(
+            company_id=current_user.company_id,
+            notification_type=NotificationType.incident,
+            title=f"New incident: {incident.incident_number}",
+            body=incident.incident_title,
+            data={"incident_id": incident.id, "severity": incident.severity}
+        )
+
+        # If high severity, also notify admins
+        if incident.severity in ["serious", "critical", "fatal"]:
+            notification_service.notify_admins(
+                company_id=current_user.company_id,
+                notification_type=NotificationType.incident,
+                title=f"Critical incident: {incident.incident_number}",
+                body=incident.incident_title,
+                data={"incident_id": incident.id, "severity": incident.severity}
+            )
+
         db.commit()
+
         db.refresh(incident)
         
         return incident

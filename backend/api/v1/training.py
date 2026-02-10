@@ -29,7 +29,8 @@ from schemas.training import (
     StartTrainingRequest, CompleteSlideRequest, SubmitAnswerRequest, CompleteTrainingRequest,
     TrainingProgress, TrainingStats, BulkAssignTrainingRequest, TrainingModulePublishRequest
 )
-
+from services.notification_service import NotificationService
+from db.models.notification import NotificationType
 router = APIRouter()
 
 # ===== TRAINING MODULE ENDPOINTS =====
@@ -614,7 +615,16 @@ def assign_training(
     
     db_record = TrainingRecord(**record_data)
     db.add(db_record)
+    notification_service = NotificationService(db)
+    notification_service.notify_user(
+        user=target_user,
+        notification_type=NotificationType.training,
+        title=f"Training assigned: {module.name}",
+        body=f"Complete by {due_date}" if due_date else "No due date",
+        data={"training_record_id": record.id, "module_id": module.id}
+    )
     db.commit()
+
     db.refresh(db_record)
     
     return db_record

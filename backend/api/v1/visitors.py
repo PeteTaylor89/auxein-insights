@@ -15,6 +15,8 @@ from schemas.visitor import (
     VisitorStats, VisitorReport, VisitorVisitSummary
 )
 from permissions.visitor_permissions import VisitorPermissions
+from services.notification_service import NotificationService
+from db.models.notification import NotificationType
 
 
 router = APIRouter()
@@ -500,15 +502,48 @@ def get_visitor_dashboard(
             for visit in recent_visitors[:10]
         ],
         "stats": stats,
-        "alerts": [
-            {
+        "alerts": self._build_overdue_alerts(db, active_visits, current_user.company_id)
+    }
+
+def _build_overdue_alerts(db: Session, active_visits, company_id: int):
+    """Build overdue alerts and notify hosts (once per visit)"""
+    alerts = []
+    notification_service = NotificationService(db)
+
+    for visit in active_visits:
+        if visit.is_overdue:
+            alerts.append({
                 "type": "overdue",
                 "message": f"Visitor {visit.visitor.full_name} is overdue (expected {visit.expected_duration_hours}h)",
                 "visit_id": visit.id
-            }
-            for visit in active_visits if visit.is_overdue
-        ]
-    }
+            })
+
+            # Check if we've already notified for this visit (use visit metadata or a flag)
+            # For now, we'll rely on the notification service's dedup logic
+            # or you could add an `overstay_notified` column to VisitorVisit
+            if visit.host_user_id:
+                host = db.query(User).filter(User.id == visit.host_user_id).first()
+                if host:
+                    # Check if notification already exists for this visit
+                    from db.models.notification import Notification
+                    existing = db.query(Notification).filter(
+                        Notification.user_id == host.id,
+                        Notification.type == NotificationType.visitor,
+                        Notification.data["visit_id"].astext == str(visit.id)
+                    ).first()
+
+                    if not existing:
+                        notification_service.notify_user(
+                            user=host,
+                            notification_type=NotificationType.visitor,
+                            title=f"Visitor overstay: {visit.visitor.full_name}",
+                            body=f"Expected duration was {visit.expected_duration_hours}h",
+                            data={"visit_id": visit.id, "visitor_id": visit.visitor_id}
+                        )
+
+    db.commit()
+    return alerts
+
 
 # ===== UTILITY ENDPOINTS =====
 

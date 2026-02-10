@@ -49,6 +49,8 @@ from schemas.task_gps_track import (
     TaskGPSTrackPauseRequest, TaskGPSTrackResumeRequest, TaskGPSTrackStopRequest,
     TaskGPSTrackSummaryStats, TaskGPSTrackGeometry
 )
+from services.notification_service import NotificationService
+from db.models.notification import NotificationType
 
 from api.deps import get_current_user
 
@@ -689,8 +691,23 @@ def complete_task(
     
     db.commit()
     db.refresh(task)
-    
+
+    # Notify task creator (if different from completer)
+    if task.created_by and task.created_by != current_user.id:
+        notification_service = NotificationService(db)
+        creator = db.query(User).filter(User.id == task.created_by).first()
+        if creator:
+            notification_service.notify_user(
+                user=creator,
+                notification_type=NotificationType.task,
+                title=f"Task completed: {task.task_number}",
+                body=task.title,
+                data={"task_id": task.id, "task_number": task.task_number}
+            )
+            db.commit()
+
     logger.info(f"Task {task_id} completed by user {current_user.id}")
+
     return task
 
 
@@ -788,8 +805,22 @@ def create_task_assignment(
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
-    
+
+    # Notify assignee
+    notification_service = NotificationService(db)
+    assignee = db.query(User).filter(User.id == assignment_data.user_id).first()
+    if assignee:
+        notification_service.notify_user(
+            user=assignee,
+            notification_type=NotificationType.task,
+            title=f"Task assigned: {task.task_number}",
+            body=task.title,
+            data={"task_id": task.id, "task_number": task.task_number}
+        )
+        db.commit()
+
     logger.info(f"User {assignment_data.user_id} assigned to task {task_id}")
+
     return assignment
 
 
