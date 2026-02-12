@@ -39,6 +39,7 @@ import {
 import './PublicClimate.css';
 import './RealtimeClimate.css';
 import './climate-mobile-responsive.css';
+import { getZone } from '../../services/publicClimateService';
 
 const VIEW_CONFIG = {
   currentseason: {
@@ -90,9 +91,11 @@ const VIEW_CONFIG = {
 
 const VIEW_ORDER = ['currentseason', 'phenology', 'disease', 'seasons', 'projections'];
 
-const PublicClimateContainer = ({ 
+const PublicClimateContainer = ({
   initialView = 'currentseason',
-  onClose 
+  onClose,
+  demoMode = false,
+  onAuthRequired,
 }) => {
   const [selectedZone, setSelectedZone] = useState(null);
   const [comparisonZones, setComparisonZones] = useState([]);
@@ -122,18 +125,46 @@ const PublicClimateContainer = ({
     }
   }, [initialView]);
 
+  // Auto-select Waipara in demo mode
+  useEffect(() => {
+    if (demoMode && !selectedZone) {
+      const loadDemoZone = async () => {
+        try {
+          const zone = await getZone('waipara');
+          setSelectedZone({
+            id: zone.id,
+            name: zone.name,
+            slug: zone.slug,
+            region_name: zone.region_name || 'North Canterbury',
+          });
+        } catch (err) {
+          console.error('Failed to load demo zone:', err);
+          // Fallback - set minimal zone so UI isn't broken
+          setSelectedZone({ name: 'Waipara', slug: 'waipara', region_name: 'North Canterbury' });
+        }
+      };
+      loadDemoZone();
+    }
+  }, [demoMode]);
+
   const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.currentseason;
   const ContentComponent = currentViewConfig.component;
 
   const handleZoneChange = (zone) => {
+    // In demo mode, only allow Waipara - redirect others to auth
+    if (demoMode && zone?.slug !== 'waipara') {
+      if (onAuthRequired) onAuthRequired();
+      return;
+    }
+
     setSelectedZone(zone);
     setComparisonZones([]);
-    
-    // Track zone selection with current view context
+
     if (zone) {
       trackClimateZoneSelected(zone.name || zone.slug, activeView);
     }
   };
+
 
   const handleComparisonZonesChange = (zones) => {
     const filtered = zones.filter(z => z.slug !== selectedZone?.slug);
@@ -174,14 +205,16 @@ const PublicClimateContainer = ({
         />
       );
     }
-    
+
     return (
       <ZoneSelector
         selectedZone={selectedZone}
         onZoneChange={handleZoneChange}
         comparisonZones={comparisonZones}
         onComparisonZonesChange={handleComparisonZonesChange}
-        allowComparison={currentViewConfig.allowComparison}
+        allowComparison={currentViewConfig.allowComparison && !demoMode}
+        demoMode={demoMode}
+        onAuthRequired={onAuthRequired}
       />
     );
   };
@@ -246,6 +279,17 @@ const PublicClimateContainer = ({
       <div className="zone-selector-container">
         {renderZoneSelector()}
       </div>
+
+
+      {/* Demo Mode CTA */}
+      {demoMode && (
+        <div className="demo-cta-banner">
+          <span>Viewing Waipara demo data</span>
+          <button className="demo-cta-btn" onClick={onAuthRequired}>
+            Sign up free to explore all wine regions and climate zones &rarr;
+          </button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="climate-content">

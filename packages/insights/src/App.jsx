@@ -10,7 +10,7 @@ import UserManagement from './pages/UserManagement';
 import UserDetail from './pages/UserDetail';
 import WeatherStatus from './pages/WeatherStatus';
 import StationDetail from './pages/StationDetail';
-
+import BannerManagement from './pages/BannerManagement';
 
 // Auth
 import { PublicAuthProvider } from './contexts/PublicAuthContext';
@@ -32,7 +32,7 @@ function App() {
           <Route path="/admin/users/:id" element={<AdminRoute><UserDetail /></AdminRoute>} />
           <Route path="/admin/weather" element={<AdminRoute><WeatherStatus /></AdminRoute>} />
           <Route path="/admin/weather/:id" element={<AdminRoute><StationDetail /></AdminRoute>} />
-          
+          <Route path="/admin/banners" element={<AdminRoute><BannerManagement /></AdminRoute>} />
           {/* Catch all route - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

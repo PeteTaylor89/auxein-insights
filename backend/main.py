@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, admin_users, admin_weather, admin_data, realtime_climate, notifications  
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners  
 from core.config import settings
 import logging
 import traceback
@@ -312,6 +312,17 @@ app.include_router(
     tags=["notifications"]
 )
 
+app.include_router(
+    public_banners.router,
+    prefix="/api/v1/public/banners",
+    tags=["public_banners"]
+)
+
+app.include_router(
+    admin_banners.router,
+    prefix="/api/v1/admin",
+    tags=["Admin - Banners"]
+)
 
 
 # API endpoints

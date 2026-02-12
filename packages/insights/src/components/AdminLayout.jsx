@@ -5,7 +5,8 @@ import {
   Users, 
   Cloud, 
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Megaphone
 } from 'lucide-react';
 import '../pages/admin.css';
 
@@ -16,6 +17,7 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/users', icon: Users, label: 'Users' },
     { path: '/admin/weather', icon: Cloud, label: 'Weather' },
+    { path: '/admin/banners', icon: Megaphone, label: 'Banners' },
   ];
 
   const isActive = (path) => {

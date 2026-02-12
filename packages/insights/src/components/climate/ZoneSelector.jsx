@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, ChevronDown, Plus, X } from 'lucide-react';
+import { MapPin, ChevronDown, Plus, X, Lock} from 'lucide-react';
 import { getRegions } from '../../services/publicClimateService';
 
 const ZoneSelector = ({
@@ -19,7 +19,10 @@ const ZoneSelector = ({
   maxComparison = 4,
   loading = false,
   disabled = false,
+  demoMode = false,
+  onAuthRequired,
 }) => {
+
   const [regions, setRegions] = useState([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
   const [error, setError] = useState(null);
@@ -50,6 +53,11 @@ const ZoneSelector = ({
 
   // Handle main zone selection
   const handleZoneSelect = (zone) => {
+    if (demoMode && zone.slug !== 'waipara') {
+      if (onAuthRequired) onAuthRequired();
+      setIsOpen(false);
+      return;
+    }
     onZoneChange(zone);
     setIsOpen(false);
   };
@@ -124,15 +132,19 @@ const ZoneSelector = ({
                       {region.name}
                     </div>
                     <div className="zone-region-zones">
-                      {region.zones.map((zone) => (
-                        <button
-                          key={zone.id}
-                          className={`zone-option ${selectedZone?.slug === zone.slug ? 'selected' : ''}`}
-                          onClick={() => handleZoneSelect(zone)}
-                        >
-                          <span className="zone-option-name">{zone.name}</span>
-                        </button>
-                      ))}
+                      {region.zones.map((zone) => {
+                        const isLocked = demoMode && zone.slug !== 'waipara';
+                        return (
+                          <button
+                            key={zone.id}
+                            className={`zone-option ${selectedZone?.slug === zone.slug ? 'selected' : ''} ${isLocked ? 'demo-locked-zone' : ''}`}
+                            onClick={() => handleZoneSelect(zone)}
+                          >
+                            <span className="zone-option-name">{zone.name}</span>
+                            {isLocked && <Lock size={14} className="zone-lock-icon" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}

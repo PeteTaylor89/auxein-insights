@@ -17,6 +17,8 @@ import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
 import { PublicClimateContainer } from '../components/climate';
 import PasswordResetModal from '../components/auth/PasswordResetModal';
+import SiteBanner from '../components/SiteBanner';
+
 
 const ADMIN_DOMAIN = 'auxein.co.nz';
 const isAdminEmail = (email) => {
@@ -82,7 +84,7 @@ function LandingPage() {
   const [isMobile, setIsMobile] = useState(false);
   
   const isAdmin = isAuthenticated && isAdminEmail(user?.email);
-  
+  const isDemoMode = !isAuthenticated;
   const [searchParams, setSearchParams] = useSearchParams();
   const verificationToken = searchParams.get('token');
   const resetToken = searchParams.get('reset_token');
@@ -161,11 +163,6 @@ function LandingPage() {
   ];
 
   const handleInsightClick = (insightId) => {
-    if (!isAuthenticated) {
-      setAuthContext('insights');
-      setAuthModalOpen(true);
-      return;
-    }
     setActiveInsight(activeInsight === insightId ? null : insightId);
     if (activeInsight !== insightId) {
       setTimeout(() => {
@@ -212,9 +209,11 @@ function LandingPage() {
     if (insight.hasComponent) {
       return (
         <div className="insight-content-wrapper">
-          <PublicClimateContainer 
+          <PublicClimateContainer
             initialView={insight.initialView}
             onClose={() => setActiveInsight(null)}
+            demoMode={isDemoMode}
+            onAuthRequired={() => { setAuthContext('demo_upgrade'); setAuthModalOpen(true); }}
           />
         </div>
       );
@@ -380,14 +379,18 @@ function LandingPage() {
           </nav>
         </>
       )}
-
+      <SiteBanner />
       {/* Insights Section */}
       <section id="insights-section" className="insights-section">
         <div className="section-header">
           <h2>Vine - Sights</h2>
           {!isAuthenticated && (
-            <span className="auth-hint">
-              <Lock size={14} /> Sign in to access insights
+            <span className="auth-hint demo-hint">
+              Viewing Waipara demo &middot;{' '}
+              <button className="demo-hint-btn" onClick={() => { setAuthContext('insights'); setAuthModalOpen(true); }}>
+                Sign in free
+              </button>{' '}
+              to explore all regions
             </span>
           )}
         </div>
@@ -395,21 +398,19 @@ function LandingPage() {
           {insightOptions.map(insight => (
             <button
               key={insight.id}
-              className={`insight-card ${activeInsight === insight.id ? 'active' : ''} ${!isAuthenticated ? 'locked' : ''}`}
+              className={`insight-card ${activeInsight === insight.id ? 'active' : ''} ${isDemoMode ? 'demo' : ''}`}
               onClick={() => handleInsightClick(insight.id)}
             >
               <div className="insight-icon">{insight.icon}</div>
               <div className="insight-label">{insight.label}</div>
-              {!isAuthenticated && (
-                <div className="card-lock-overlay">
-                  <Lock size={20} />
-                </div>
+              {isDemoMode && (
+                <div className="card-demo-badge">Demo</div>
               )}
             </button>
           ))}
         </div>
 
-        {activeInsight && isAuthenticated && (
+        {activeInsight && (
           <div className="active-insight-container">
             {renderActiveInsight()}
           </div>

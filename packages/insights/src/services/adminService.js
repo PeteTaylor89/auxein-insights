@@ -193,6 +193,32 @@ export const adminDataService = {
 };
 
 // ============================================
+// BANNER MANAGEMENT
+// ============================================
+
+export const adminBannerService = {
+  listBanners: async () => {
+    const response = await publicApi.get(`${ADMIN_BASE}/banners`);
+    return response.data;
+  },
+
+  createBanner: async (data) => {
+    const response = await publicApi.post(`${ADMIN_BASE}/banners`, data);
+    return response.data;
+  },
+
+  updateBanner: async (id, data) => {
+    const response = await publicApi.patch(`${ADMIN_BASE}/banners/${id}`, data);
+    return response.data;
+  },
+
+  deleteBanner: async (id) => {
+    const response = await publicApi.delete(`${ADMIN_BASE}/banners/${id}`);
+    return response.data;
+  },
+};
+
+// ============================================
 // COMBINED ADMIN SERVICE
 // ============================================
 
@@ -200,6 +226,7 @@ const adminService = {
   users: adminUserService,
   weather: adminWeatherService,
   data: adminDataService,
+  banners: adminBannerService,
 };
 
 export default adminService;

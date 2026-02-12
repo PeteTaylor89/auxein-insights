@@ -1518,3 +1518,47 @@
     background: #f0f0f0;
   }
 }
+
+/* ============================================
+     DEMO MODE INSIGHT CARDS
+     ============================================ */
+
+  .insight-card.demo {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .card-demo-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 3px 10px;
+    background: rgba(91, 104, 48, 0.85);
+    color: white;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .demo-hint {
+    background: rgba(91, 104, 48, 0.1) !important;
+    color: #5B6830 !important;
+  }
+
+  .demo-hint-btn {
+    background: none;
+    border: none;
+    color: #D1583B;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    font-size: inherit;
+    text-decoration: underline;
+    transition: color 0.2s;
+  }
+
+  .demo-hint-btn:hover {
+    color: #B84A2E;
+  }

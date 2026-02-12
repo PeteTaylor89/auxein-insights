@@ -136,15 +136,18 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  max-width: 400px;
-  padding: 12px 16px;
+  min-width: 250px;
+  padding: 0 1rem;
   background: white;
   border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s;
+  height: 44px;
+  box-sizing: border-box;
 }
+
 
 .zone-dropdown-trigger:hover {
   border-color: #0066cc;
@@ -2626,3 +2629,88 @@
 .datasets-hero-btn:active {
   transform: translateY(0);
 }
+
+/* =============================================================================
+     DEMO MODE
+     ============================================================================= */
+
+  .demo-cta-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #f0f5e8 0%, #e8f0dd 100%);
+    border: 1px solid rgba(91, 104, 48, 0.2);
+    border-radius: 10px;
+    font-size: 14px;
+    color: #3d4a1e;
+  }
+
+  .demo-cta-banner span {
+    font-weight: 500;
+  }
+
+  .demo-cta-btn {
+    background: #D1583B;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .demo-cta-btn:hover {
+    background: #B84A2E;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(209, 88, 59, 0.3);
+  }
+
+  .zone-dropdown-trigger.demo-locked {
+    background: #f8faf5;
+    border-color: rgba(91, 104, 48, 0.3);
+    cursor: pointer;
+  }
+
+  .zone-dropdown-trigger.demo-locked:hover {
+    border-color: #5B6830;
+  }
+
+  .demo-lock-icon {
+    color: #5B6830;
+    opacity: 0.6;
+  }
+
+  @media (max-width: 768px) {
+    .demo-cta-banner {
+      flex-direction: column;
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 13px;
+    }
+
+    .demo-cta-btn {
+      width: 100%;
+    }
+  }
+
+    /* Demo mode locked zones in ZoneSelector */
+  .zone-option.demo-locked-zone {
+    opacity: 0.6;
+    justify-content: space-between;
+  }
+
+  .zone-option.demo-locked-zone:hover {
+    background: rgba(209, 88, 59, 0.08);
+  }
+
+  .zone-lock-icon {
+    color: #999;
+    flex-shrink: 0;
+  }

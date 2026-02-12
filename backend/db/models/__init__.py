@@ -1,4 +1,3 @@
-
 # app/db/models/__init__.py
 from db.models.subscription import Subscription
 from db.models.company import Company
@@ -48,5 +47,5 @@ from db.models.weather import WeatherStation, WeatherData, IngestionLog
 from db.models.public_user import PublicUser
 from db.models.climate import ClimateZone, ClimateHistoryMonthly, ClimateBaselineMonthly, ClimateProjection
 from db.models.realtime_climate import WeatherDataDaily, ClimateZoneDaily, ClimateZoneDailyBaseline, PhenologyThreshold, PhenologyEstimate, DiseasePressure, ClimateZoneHourly
-
+from db.models.site_banner import SiteBanner
 from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived

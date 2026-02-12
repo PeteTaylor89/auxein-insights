@@ -1,0 +1,148 @@
+/* SiteBanner.css - Corporate-styled announcement banners */
+
+.site-banners {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px 24px 0;
+}
+
+.site-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #FDF6E3;
+  border: 1px solid rgba(91, 104, 48, 0.2);
+  color: #2F2F2F;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.site-banner-update .banner-icon {
+  color: #5B6830;
+}
+
+.site-banner-coming_soon .banner-icon {
+  color: #D1583B;
+}
+
+.banner-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.08);
+}
+
+.site-banner-coming_soon .banner-icon {
+  background: rgba(209, 88, 59, 0.08);
+}
+
+.banner-content {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.banner-content strong {
+  font-weight: 700;
+  color: #5B6830;
+  white-space: nowrap;
+}
+
+.site-banner-coming_soon .banner-content strong {
+  color: #D1583B;
+}
+
+.banner-content span {
+  color: #505050;
+  line-height: 1.5;
+}
+
+.banner-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: #2F2F2F;
+}
+
+.banner-dismiss:hover {
+  opacity: 0.8;
+}
+
+/* Carousel dots */
+.banner-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 0;
+}
+
+.banner-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(91, 104, 48, 0.2);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.banner-dot.active {
+  background: #5B6830;
+  width: 18px;
+  border-radius: 3px;
+}
+
+/* Slide transitions */
+.banner-slide-enter {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.banner-slide-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.banner-slide-exit {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (max-width: 768px) {
+  .site-banners {
+    padding: 8px 16px 0;
+  }
+
+  .site-banner {
+    font-size: 13px;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .banner-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .banner-content {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
