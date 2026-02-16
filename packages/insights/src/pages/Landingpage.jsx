@@ -328,7 +328,7 @@ function LandingPage() {
               <X size={24} />
             </button>
 
-            <Link to="/about" onClick={closeMobileMenu}>About</Link>
+            <Link to="https://auxein.co.nz/about/" onClick={closeMobileMenu}>About</Link>
             <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
               Insights-Pro
             </a>
