@@ -25,6 +25,9 @@ vineyard_schema.sql
 node_modules/
 frontend/node_modules/
 
+# Next.js build output
+.next/
+
 # IDE / editor
 .vscode/
 .idea/

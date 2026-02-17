@@ -13,6 +13,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8080,
         'elevation': 74.02,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BLACK ESTATE'
         }
@@ -26,6 +27,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8097,
         'elevation': 77.97,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BLACK ESTATE'
         }
@@ -39,6 +41,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8109,
         'elevation': 92.22,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BLACK ESTATE'
         }
@@ -52,6 +55,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8094,
         'elevation': 82.21,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BLACK ESTATE'
         }
@@ -65,6 +69,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8117,
         'elevation': 82.37,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BLACK ESTATE'
         }
@@ -78,6 +83,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7985,
         'elevation': 70.83,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -91,6 +97,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8007,
         'elevation': 80.24,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -104,6 +111,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7959,
         'elevation': 69.24,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -117,6 +125,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7895,
         'elevation': 60.42,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -130,6 +139,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7872,
         'elevation': 60.03,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -143,6 +153,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7859,
         'elevation': 82.38,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -156,6 +167,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7960,
         'elevation': 120.42,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -169,6 +181,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7960,
         'elevation': 120.42,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -182,6 +195,7 @@ HARVEST_STATIONS = [
         'longitude': 172.7960,
         'elevation': 120.42,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'GREYSTONE'
         }
@@ -195,6 +209,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8687,
         'elevation': 142.36,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -208,6 +223,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8687,
         'elevation': 142.36,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -221,6 +237,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8687,
         'elevation': 142.36,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -234,6 +251,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8683,
         'elevation': 138.10,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -247,6 +265,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8694,
         'elevation': 154.35,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -260,6 +279,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8677,
         'elevation': 137.72,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -273,6 +293,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8697,
         'elevation': 140.62,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'NETHERWOOD'
         }
@@ -286,6 +307,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8049,
         'elevation': 74.97,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BARBOUR'
         }
@@ -299,6 +321,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8049,
         'elevation': 74.97,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BARBOUR'
         }
@@ -312,6 +335,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8049,
         'elevation': 74.97,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BARBOUR'
         }
@@ -325,6 +349,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8049,
         'elevation': 74.97,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BARBOUR'
         }
@@ -338,6 +363,7 @@ HARVEST_STATIONS = [
         'longitude': 172.8072,
         'elevation': 73.46,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BARBOUR'
         }
@@ -351,10 +377,79 @@ HARVEST_STATIONS = [
         'longitude': 172.8056,
         'elevation': 73.35,
         'region': 'Waipara',
+        'zone_id': 15,
         'notes': {
             'company': 'BARBOUR'
         }
+    },
+    {
+        'station_code': 'HARV_MAORI_PT_01_TEMP',
+        'station_name': 'MAORI POINT BASE - Temperature',
+        'data_source': 'HARVEST',
+        'source_id': '34350',
+        'latitude': -44.8377,
+        'longitude': 169.3569,
+        'elevation': 241,
+        'region': 'Central Otago',
+        'zone_id': 19,
+        'notes': {
+            'company': 'Maori Point'
+        }
+    },
+    {
+        'station_code': 'HARV_MAORI_PT_02_TEMP',
+        'station_name': 'MAORI POINT CHARDONNAY - Temperature',
+        'data_source': 'HARVEST',
+        'source_id': '316381',
+        'latitude': -44.8353,
+        'longitude': 169.3525,
+        'elevation': 240,
+        'region': 'Central Otago',
+        'zone_id': 19,
+        'notes': {
+            'company': 'Maori Point'
+        }
+    },
+    {
+        'station_code': 'HARV_MAORI_PT_01_HUMIDITY',
+        'station_name': 'MAORI POINT BASE - Humidity',
+        'data_source': 'HARVEST',
+        'source_id': '34354',
+        'latitude': -44.8377,
+        'longitude': 169.3569,
+        'elevation': 241,
+        'region': 'Central Otago',
+        'zone_id': 19,
+        'notes': {
+            'company': 'Maori Point'
+        }
+    },
+    {
+        'station_code': 'HARV_MAORI_PT_01_PRESSURE',
+        'station_name': 'MAORI POINT BASE - Barometric Pressure',
+        'data_source': 'HARVEST',
+        'source_id': '316388',
+        'latitude': -44.8377,
+        'longitude': 169.3569,
+        'elevation': 241,
+        'region': 'Central Otago',
+        'zone_id': 19,
+        'notes': {
+            'company': 'Maori Point'
+        }
+    },
+    {
+        'station_code': 'HARV_MAORI_PT_01_PRECIP',
+        'station_name': 'MAORI POINT BASE - Precipitation',
+        'data_source': 'HARVEST',
+        'source_id': '34355',
+        'latitude': -44.8377,
+        'longitude': 169.3569,
+        'elevation': 241,
+        'region': 'Central Otago',
+        'zone_id': 19,
+        'notes': {
+            'company': 'Maori Point'
+        }
     }
-
-
 ]

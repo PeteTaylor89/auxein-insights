@@ -13,7 +13,10 @@ import { Button } from '@/components/ui/Button';
 export const metadata: Metadata = {
   title: 'About',
   description:
-    'Learn about Auxein, our mission to support sustainable viticulture in New Zealand, and the expertise behind our climate intelligence solutions.',
+    'Pete Taylor — CMS-Certified Sommelier, Master of Wine & Viticulture. Building climate intelligence tools for the wine industry.',
+  alternates: {
+    canonical: 'https://auxein.co.nz/about',
+  },
 };
 
 const timeline = [

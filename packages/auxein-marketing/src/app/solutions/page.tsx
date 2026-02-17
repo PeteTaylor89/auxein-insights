@@ -6,6 +6,7 @@ import { Container } from '@/components/layout/Container';
 import { SolutionCard } from '@/components/solutions/SolutionCard';
 import { SolutionModal } from '@/components/solutions/SolutionModal';
 import { solutions, type Solution } from '@/components/solutions/solutionsData';
+import StructuredData from '@/components/StructuredData';
 
 export default function SolutionsPage() {
   const [selectedSolution, setSelectedSolution] = useState<Solution | null>(null);
@@ -28,6 +29,27 @@ export default function SolutionsPage() {
 
   return (
     <>
+      <StructuredData
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'SoftwareApplication',
+          name: 'Auxein Regional Insights',
+          applicationCategory: 'BusinessApplication',
+          operatingSystem: 'Web',
+          url: 'https://insights.auxein.co.nz',
+          description:
+            'Free regional climate intelligence platform for New Zealand wine regions with over 1 billion data points.',
+          offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'NZD',
+          },
+          creator: {
+            '@type': 'Organization',
+            name: 'Auxein Limited',
+          },
+        }}
+      />
       {/* Hero */}
       <section className="pt-32 pb-16 bg-sand relative overflow-hidden">
         <div className="texture-overlay" />
