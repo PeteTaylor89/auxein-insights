@@ -96,21 +96,25 @@ async def log_errors(request: Request, call_next):
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 # Set up CORS
-origins = [
+allowed_origins = [
+    "https://www.auxein.co.nz",
+    "https://auxein.co.nz",
+    "https://app.auxein.co.nz",
+    "https://insights.auxein.co.nz",
     "http://localhost",
     "http://localhost:3000",
-    "https://www.auxein.co.nz",
-    "https://vineyardappdemo-production.up.railway.app",  # Add your actual Railway URL
-    "https://app.auxein.co.nz",  # Add your future custom domain
+    "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Include API routers first
 app.include_router(

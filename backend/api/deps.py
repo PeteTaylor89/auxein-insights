@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from db.models.contractor_relationship import ContractorRelationship
 
 from core.config import settings
 from core.security.auth import decode_token
@@ -253,3 +254,37 @@ def validate_client_type(
         )
     
     return True
+
+def validate_contractor_relationship(
+    contractor: Contractor, company_id: int, db: Session
+) -> ContractorRelationship:
+    """
+    Validate contractor has an active, current relationship with the given company.
+    Returns the ContractorRelationship or raises 403.
+    """
+    relationship = db.query(ContractorRelationship).filter(
+        ContractorRelationship.contractor_id == contractor.id,
+        ContractorRelationship.company_id == company_id,
+        ContractorRelationship.status == "active"
+    ).first()
+
+    if not relationship:
+        logger.warning(
+            f"Contractor {contractor.id} has no active relationship with company {company_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No active relationship with this company"
+        )
+
+    if not relationship.can_work_today:
+        logger.warning(
+            f"Contractor {contractor.id} relationship with company {company_id} "
+            f"is not current: {relationship.contract_status}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Contractor relationship is not current: {relationship.contract_status}"
+        )
+
+    return relationship

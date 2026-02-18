@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from db.session import get_db
+from api.deps import get_current_user
+from db.models.user import User
 from db.models.vineyard_row import VineyardRow
 from db.models.block import VineyardBlock
 from schemas.vineyard_row import (
@@ -22,6 +24,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+def _verify_block_access(db: Session, block_id: int, user: User) -> VineyardBlock:
+    """Verify block exists and belongs to user's company. Returns block or raises."""
+    block = db.query(VineyardBlock).filter(
+        VineyardBlock.id == block_id,
+        VineyardBlock.company_id == user.company_id
+    ).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    return block
+
+
+def _verify_row_access(db: Session, row_id: int, user: User) -> VineyardRow:
+    """Verify row exists and its block belongs to user's company. Returns row or raises."""
+    row = db.query(VineyardRow).join(VineyardBlock).filter(
+        VineyardRow.id == row_id,
+        VineyardBlock.company_id == user.company_id
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Row not found")
+    return row
 
 def generate_row_numbers(start: str, end: str, count: int) -> List[str]:
     """Generate row numbers between start and end"""
@@ -45,14 +68,16 @@ def generate_row_numbers(start: str, end: str, count: int) -> List[str]:
 @router.post("/bulk-create", response_model=BulkRowCreationResponse)
 def bulk_create_rows(
     request: BulkRowCreationRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
+
     """
     Bulk create rows with variety and clone information.
     This endpoint creates multiple rows at once based on the provided range.
     """
     # Verify block exists
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == request.block_id).first()
+    block = _verify_block_access(db, request.block_id, user)
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     
@@ -120,13 +145,15 @@ def bulk_create_rows(
 def update_row_clonal_sections(
     row_id: int,
     sections: List[ClonalSection],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
+
     """
     Update a row with multiple clonal sections.
     This allows specifying different clones/rootstocks for different parts of the row.
     """
-    db_row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    db_row = _verify_row_access(db, row_id, user)
     if not db_row:
         raise HTTPException(status_code=404, detail="Row not found")
     
@@ -156,11 +183,15 @@ def get_all_rows(
     rootstock: Optional[str] = None,
     block_id: Optional[int] = None,
     has_geometry: Optional[bool] = None,
-    has_multiple_clones: Optional[bool] = None,  # NEW
-    db: Session = Depends(get_db)
+    has_multiple_clones: Optional[bool] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
+
     """Get all vineyard rows with optional filtering"""
-    query = db.query(VineyardRow)
+    query = db.query(VineyardRow).join(VineyardBlock).filter(
+        VineyardBlock.company_id == user.company_id
+    )
     
     if variety:
         query = query.filter(VineyardRow.variety == variety)
@@ -191,10 +222,12 @@ def get_all_rows(
 def get_clone_at_vine_position(
     row_id: int,
     vine_number: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
+
     """Get the clone/rootstock information at a specific vine position in a row"""
-    row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    row = _verify_row_access(db, row_id, user)
     if not row:
         raise HTTPException(status_code=404, detail="Row not found")
     
@@ -216,9 +249,9 @@ def get_clone_at_vine_position(
 
 # Enhanced statistics endpoint
 @router.get("/stats/by-block/{block_id}")
-def get_row_stats_by_block(block_id: int, db: Session = Depends(get_db)):
+def get_row_stats_by_block(block_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Get enhanced statistics for rows in a block"""
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    block = _verify_block_access(db, block_id, user)
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     
@@ -268,10 +301,12 @@ def get_row_stats_by_block(block_id: int, db: Session = Depends(get_db)):
 @router.post("/create-row-set/{block_id}", response_model=List[VineyardRowSchema])
 def create_row_set(
     block_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
+
     """Create a complete set of rows for a block based on block's row_start, row_end, and row_count."""
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    block = _verify_block_access(db, block_id, user)
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     
@@ -317,9 +352,9 @@ def create_row_set(
 
 # Keep all other existing endpoints as they are...
 @router.get("/by-block/{block_id}", response_model=List[VineyardRowSchema])
-def get_rows_by_block(block_id: int, db: Session = Depends(get_db)):
+def get_rows_by_block(block_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Get all rows for a specific block"""
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    block = _verify_block_access(db, block_id, user)
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     
@@ -327,9 +362,9 @@ def get_rows_by_block(block_id: int, db: Session = Depends(get_db)):
     return rows
 
 @router.get("/{row_id}", response_model=VineyardRowWithBlock)
-def get_row(row_id: int, db: Session = Depends(get_db)):
+def get_row(row_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Get a specific row with block details"""
-    row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    row = _verify_row_access(db, row_id, user)
     if not row:
         raise HTTPException(status_code=404, detail="Row not found")
     return row
@@ -337,10 +372,11 @@ def get_row(row_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=VineyardRowSchema)
 def create_row(
     row: VineyardRowCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """Create a single vineyard row"""
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == row.block_id).first()
+    block = _verify_block_access(db, row.block_id, user)
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     
@@ -371,10 +407,11 @@ def create_row(
 def update_row(
     row_id: int,
     row_update: VineyardRowUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """Update a vineyard row"""
-    db_row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    db_row = _verify_row_access(db, row_id, user)
     if not db_row:
         raise HTTPException(status_code=404, detail="Row not found")
     
@@ -404,9 +441,9 @@ def update_row(
     return db_row
 
 @router.delete("/{row_id}")
-def delete_row(row_id: int, db: Session = Depends(get_db)):
+def delete_row(row_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Delete a vineyard row"""
-    db_row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    db_row = _verify_row_access(db, row_id, user)
     if not db_row:
         raise HTTPException(status_code=404, detail="Row not found")
     
@@ -415,9 +452,9 @@ def delete_row(row_id: int, db: Session = Depends(get_db)):
     return {"message": "Row deleted successfully"}
 
 @router.delete("/by-block/{block_id}")
-def delete_all_rows_by_block(block_id: int, db: Session = Depends(get_db)):
+def delete_all_rows_by_block(block_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Delete all rows for a specific block"""
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    block = _verify_block_access(db, block_id, user)
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
     
@@ -430,10 +467,11 @@ def delete_all_rows_by_block(block_id: int, db: Session = Depends(get_db)):
 def update_row_geometry(
     row_id: int,
     geometry: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """Update only the geometry of a specific row"""
-    db_row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    db_row = _verify_row_access(db, row_id, user)
     if not db_row:
         raise HTTPException(status_code=404, detail="Row not found")
     
@@ -446,10 +484,12 @@ def update_row_geometry(
 @router.delete("/{row_id}/geometry") 
 def remove_row_geometry(
     row_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
+
     """Remove geometry from a specific row"""
-    db_row = db.query(VineyardRow).filter(VineyardRow.id == row_id).first()
+    db_row = _verify_row_access(db, row_id, user)
     if not db_row:
         raise HTTPException(status_code=404, detail="Row not found")
     

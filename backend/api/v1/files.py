@@ -272,18 +272,27 @@ def download_file(
             detail="File not found"
         )
     
-    # For photos, allow public access within company (skip permission check)
-    if file.file_category == "photo" and file.mime_type and file.mime_type.startswith("image/"):
-        pass  # Skip all permission checks for photos
+    if isinstance(current_user_or_contractor, User):
+        user = current_user_or_contractor
+        if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
     else:
-        # Keep existing permission checks for other file types
-        if isinstance(current_user_or_contractor, User):
-            user = current_user_or_contractor
-            if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not enough permissions"
-                )
+        # Contractor — check file belongs to a company they have a relationship with
+        from db.models.contractor_relationship import ContractorRelationship
+        relationship = db.query(ContractorRelationship).filter(
+            ContractorRelationship.contractor_id == current_user_or_contractor.id,
+            ContractorRelationship.company_id == file.company_id,
+            ContractorRelationship.status == "active"
+        ).first()
+        if not relationship and not file.is_public:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
+
 
     # Check if file exists on disk
     file_path = Path(file.file_path)
@@ -402,9 +411,15 @@ def get_entity_files(
         user = current_user_or_contractor
         if user.role != "admin":
             query = query.filter((File.company_id == user.company_id) | (File.is_public == True))
-    
-    if file_category:
-        query = query.filter(File.file_category == file_category.value)
-    
+    else:
+        # Contractor — only files from companies they have active relationships with
+        from db.models.contractor_relationship import ContractorRelationship
+        active_rels = db.query(ContractorRelationship.company_id).filter(
+            ContractorRelationship.contractor_id == current_user_or_contractor.id,
+            ContractorRelationship.status == "active"
+        ).all()
+        active_company_ids = [r.company_id for r in active_rels]
+        query = query.filter((File.company_id.in_(active_company_ids)) | (File.is_public == True))
+
     files = query.order_by(File.uploaded_at.desc()).all()
     return files

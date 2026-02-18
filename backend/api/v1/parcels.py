@@ -248,19 +248,16 @@ def get_parcels_geojson(
                         "has_assignment": False
                     }
                 }
-                
-                # Add company assignment info to properties
+
                 ownership = db.query(CompanyLandOwnership).filter(
                     CompanyLandOwnership.land_parcel_id == parcel.id,
                     CompanyLandOwnership.verified == True
                 ).first()
-                
-                if ownership:
-                    company = db.query(Company).filter(Company.id == ownership.company_id).first()
-                    feature["properties"]["assigned_company_id"] = ownership.company_id
-                    feature["properties"]["assigned_company_name"] = company.name if company else None
+
+                if is_owned:
+                    feature["properties"]["assigned_company_id"] = current_user.company_id
                     feature["properties"]["has_assignment"] = True
-                
+
                 features.append(feature)
 
             except Exception as e:
@@ -289,11 +286,14 @@ def get_company_parcels_geojson(
     """
     Get parcels assigned to a specific company as GeoJSON
     """
+
     # Verify company exists
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    
+    if company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     # Build query for company's parcels
     query = db.query(PrimaryParcel).join(CompanyLandOwnership).filter(
         CompanyLandOwnership.company_id == company_id,
@@ -674,7 +674,9 @@ def get_parcels_by_company(
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    
+    if company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     # Build query for company's parcels
     query = db.query(PrimaryParcel).join(CompanyLandOwnership).filter(
         CompanyLandOwnership.company_id == company_id,

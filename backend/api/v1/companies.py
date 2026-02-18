@@ -16,6 +16,7 @@ from db.models.contractor import Contractor
 from db.models.block import VineyardBlock
 from db.models.observation_run import ObservationRun
 from db.models.task import Task, TaskStatus
+from db.models.contractor_relationship import ContractorRelationship
 
 import logging
 logger = logging.getLogger(__name__)
@@ -138,8 +139,8 @@ def create_company_public(
 
 @router.get("/", response_model=List[CompanyWithSubscription])
 def read_companies(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user_or_contractor: Union[User, Contractor] = Depends(get_current_user_or_contractor)
 ):
@@ -147,10 +148,22 @@ def read_companies(
     Retrieve companies with subscription details.
     Available to both company users and contractors.
     """
-    companies = db.query(Company).options(
-        joinedload(Company.subscription)
-    ).offset(skip).limit(limit).all()
+    if isinstance(current_user_or_contractor, User):
+        companies = db.query(Company).options(
+            joinedload(Company.subscription)
+        ).filter(Company.id == current_user_or_contractor.company_id).all()
+    else:
+        # Contractor — only companies with active relationships
+        active_rels = db.query(ContractorRelationship.company_id).filter(
+            ContractorRelationship.contractor_id == current_user_or_contractor.id,
+            ContractorRelationship.status == "active"
+        ).all()
+        active_company_ids = [r.company_id for r in active_rels]
+        companies = db.query(Company).options(
+            joinedload(Company.subscription)
+        ).filter(Company.id.in_(active_company_ids)).offset(skip).limit(limit).all()
     return companies
+
 
 @router.get("/current", response_model=CompanySchema)
 def get_current_company(
@@ -196,12 +209,9 @@ def read_company(
                 detail="Not enough permissions"
             )
     else:
-        # Contractor logic - contractors might have different access rules
         contractor = current_user_or_contractor
-        # TODO: Define contractor access rules for companies
-        # For now, allow all contractors to view companies
-        # You might want to restrict this based on business logic
-        pass
+        from api.deps import validate_contractor_relationship
+        validate_contractor_relationship(contractor, company_id, db)
     
     company = db.query(Company).options(
         joinedload(Company.subscription)

@@ -144,21 +144,24 @@ def detach_reference_item_image(item_id: int, link_id: int, db: Session = Depend
 @router.get("/observation-templates", response_model=List[ObservationTemplateOut])
 def list_templates(
     db: Session = Depends(get_db),
+    user=Depends(get_current_user),
     include_system: bool = Query(True, description="Include system templates (company_id NULL)"),
-    company_id: Optional[int] = None,
 ):
     q = select(ObservationTemplate).where(ObservationTemplate.is_active == True)
-    if not include_system:
-        q = q.where(ObservationTemplate.company_id.isnot(None))
-    if company_id is not None:
-        q = q.where(ObservationTemplate.company_id == company_id)
+    if include_system:
+        q = q.where(
+            (ObservationTemplate.company_id == user.company_id) | (ObservationTemplate.company_id.is_(None))
+        )
+    else:
+        q = q.where(ObservationTemplate.company_id == user.company_id)
     q = q.order_by(ObservationTemplate.name.asc())
     return db.execute(q).scalars().all()
+
 
 @router.post("/observation-templates", response_model=ObservationTemplateOut, status_code=status.HTTP_201_CREATED)
 def create_template(payload: ObservationTemplateCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     row = ObservationTemplate(
-        company_id=payload.company_id,
+        company_id=user.company_id,
         name=payload.name,
         type=payload.observation_type,
         version=1,
@@ -174,17 +177,21 @@ def create_template(payload: ObservationTemplateCreate, db: Session = Depends(ge
     return row
 
 @router.get("/observation-templates/{template_id}", response_model=ObservationTemplateOut)
-def get_template(template_id: int, db: Session = Depends(get_db)):
+def get_template(template_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     row = db.get(ObservationTemplate, template_id)
     if not row:
         raise HTTPException(status_code=404, detail="Template not found")
+    if row.company_id is not None and row.company_id != user.company_id:
+          raise HTTPException(status_code=403, detail="Access denied")
     return row
 
 @router.patch("/observation-templates/{template_id}", response_model=ObservationTemplateOut)
-def update_template(template_id: int, payload: ObservationTemplateUpdate, db: Session = Depends(get_db)):
+def update_template(template_id: int, payload: ObservationTemplateUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     row = db.get(ObservationTemplate, template_id)
     if not row:
         raise HTTPException(status_code=404, detail="Template not found")
+    if row.company_id is None or row.company_id != user.company_id:
+          raise HTTPException(status_code=403, detail="Access denied")
     if payload.name is not None:
         row.name = payload.name
     if payload.observation_type is not None:
@@ -200,10 +207,12 @@ def update_template(template_id: int, payload: ObservationTemplateUpdate, db: Se
     return row
 
 @router.delete("/observation-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-def deactivate_template(template_id: int, db: Session = Depends(get_db)):
+def deactivate_template(template_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     row = db.get(ObservationTemplate, template_id)
     if not row:
         return
+    if row.company_id is None or row.company_id != user.company_id:
+          raise HTTPException(status_code=403, detail="Access denied")
     row.is_active = False
     db.add(row)
     db.commit()
@@ -211,27 +220,27 @@ def deactivate_template(template_id: int, db: Session = Depends(get_db)):
 
 @router.get("/observation-templates/{template_id}/usage", response_model=Dict[str, Any])
 def check_template_usage(
-    template_id: int, 
-    company_id: Optional[int] = Query(None),
-    db: Session = Depends(get_db)
+    template_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
 ):
     """Check existing plans using this template to help users make informed decisions"""
-    
+
     template = db.get(ObservationTemplate, template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
-    
+    if template.company_id is not None and template.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     # Find existing active plans using this template
     q = select(ObservationPlan).where(
         ObservationPlan.template_id == template_id,
-        ObservationPlan.status.in_(["scheduled", "in_progress"])  # Only active plans
+        ObservationPlan.company_id == user.company_id,
+        ObservationPlan.status.in_(["scheduled", "in_progress"])
     )
-    
-    if company_id:
-        q = q.where(ObservationPlan.company_id == company_id)
-    
-    q = q.order_by(ObservationPlan.created_at.desc()).limit(5)  # Limit to recent ones
-    
+
+    q = q.order_by(ObservationPlan.created_at.desc()).limit(5)
+
     existing_plans = db.execute(q).scalars().all()
     
     # Get run statistics for these plans
@@ -287,7 +296,7 @@ def check_template_usage(
 @router.post("/observation-plans", response_model=ObservationPlanOut, status_code=status.HTTP_201_CREATED)
 def create_plan(payload: ObservationPlanCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     plan = ObservationPlan(
-        company_id=payload.company_id,
+        company_id=user.company_id,
         template_id=payload.template_id,
         template_version=1,  # you can resolve the current version here
         name=payload.name,
@@ -324,14 +333,12 @@ def create_plan(payload: ObservationPlanCreate, db: Session = Depends(get_db), u
 @router.get("/observation-plans", response_model=List[ObservationPlanOut])
 def list_plans(
     db: Session = Depends(get_db),
-    company_id: Optional[int] = None,
+    user=Depends(get_current_user),
     status_in: Optional[List[str]] = Query(None),
     template_id: Optional[int] = None,
 ):
-    # Load plans + their template in one go
     base = select(ObservationPlan).options(selectinload(ObservationPlan.template))
-    if company_id:
-        base = base.where(ObservationPlan.company_id == company_id)
+    base = base.where(ObservationPlan.company_id == user.company_id)
     if template_id:
         base = base.where(ObservationPlan.template_id == template_id)
     if status_in:
@@ -371,7 +378,8 @@ def list_plans(
     return plans
 
 @router.get("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
-def get_plan(plan_id: int, db: Session = Depends(get_db)):
+def get_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+
     plan = db.execute(
         select(ObservationPlan)
         .options(selectinload(ObservationPlan.template))
@@ -382,16 +390,19 @@ def get_plan(plan_id: int, db: Session = Depends(get_db)):
     
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
-    
+    if plan.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     # Add template name for frontend
     plan.template_name = plan.template.name if plan.template else None
     return plan
 
 @router.patch("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
-def update_plan(plan_id: int, payload: ObservationPlanUpdate, db: Session = Depends(get_db)):
+def update_plan(plan_id: int, payload: ObservationPlanUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     plan = db.get(ObservationPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+    if plan.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     if payload.name is not None: plan.name = payload.name
     if payload.instructions is not None: plan.instructions = payload.instructions
@@ -429,6 +440,9 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
     plan = db.get(ObservationPlan, plan_id)
     if not plan:
         return
+    if plan.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     db.delete(plan)
     db.commit()
     return
@@ -438,7 +452,7 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
 # Runs
 # -----------------------------
 @router.post("/observation-runs", response_model=ObservationRunOut, status_code=status.HTTP_201_CREATED)
-def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # Resolve block_id (your existing logic)
     block_id = payload.block_id
 
@@ -567,15 +581,14 @@ def check_run_conflicts(
     plan_id: int,
     block_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    company_id: Optional[int] = Query(None)
+    user=Depends(get_current_user),
 ):
     """Check for active runs that would conflict with starting a new run"""
     q = select(ObservationRun).where(
         ObservationRun.observed_at_end.is_(None),  # Only active runs
     )
     
-    if company_id:
-        q = q.where(ObservationRun.company_id == company_id)
+    q = q.where(ObservationRun.company_id == user.company_id)
     
     if plan_id:
         q = q.where(ObservationRun.plan_id == plan_id)
@@ -597,16 +610,17 @@ def check_run_conflicts(
 @router.get("/observation-runs", response_model=List[ObservationRunOut])
 def list_runs(
     db: Session = Depends(get_db),
-    company_id: Optional[int] = None,
+    user=Depends(get_current_user),
     template_id: Optional[int] = None,
     plan_id: Optional[int] = None,
-    ):
+):
+
     q = (select(ObservationRun)
          .options(selectinload(ObservationRun.plan))
          .options(selectinload(ObservationRun.creator))
          .options(selectinload(ObservationRun.block))
          )
-    if company_id: q = q.where(ObservationRun.company_id == company_id)
+    q = q.where(ObservationRun.company_id == user.company_id)
     if template_id: q = q.where(ObservationRun.template_id == template_id)
     if plan_id: q = q.where(ObservationRun.plan_id == plan_id)
     q = q.order_by(ObservationRun.created_at.desc())
@@ -624,18 +638,21 @@ def list_runs(
     return rows
 
 @router.get("/observation-runs/{run_id}", response_model=ObservationRunOut)
-def get_run(run_id: int, db: Session = Depends(get_db)):
+def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     run = db.get(ObservationRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     return run
 
 @router.patch("/observation-runs/{run_id}", response_model=ObservationRunOut)
-def update_run(run_id: int, payload: ObservationRunUpdate, db: Session = Depends(get_db)):
+def update_run(run_id: int, payload: ObservationRunUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     run = db.get(ObservationRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     if payload.status is not None:
         # basic state handling; extend as needed
         if payload.status == "completed":
@@ -652,7 +669,7 @@ def update_run(run_id: int, payload: ObservationRunUpdate, db: Session = Depends
     return run
 
 @router.post("/observation-runs/{run_id}/complete", response_model=ObservationRunOut)
-def complete_run_endpoint(run_id: int, db: Session = Depends(get_db)):
+def complete_run_endpoint(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """
     Complete an observation run and generate summary statistics
     """
@@ -662,7 +679,8 @@ def complete_run_endpoint(run_id: int, db: Session = Depends(get_db)):
     run = db.get(ObservationRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     # Check if already completed
     if run.observed_at_end:
         raise HTTPException(
@@ -699,12 +717,13 @@ def complete_run_endpoint(run_id: int, db: Session = Depends(get_db)):
     return run
 
 @router.patch("/observation-runs/{run_id}/cancel", response_model=ObservationRunOut)
-def cancel_run(run_id: int, db: Session = Depends(get_db)):
+def cancel_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     """Cancel an active run"""
     run = db.get(ObservationRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     if run.observed_at_end:
         raise HTTPException(status_code=400, detail="Run is already completed")
     
@@ -722,7 +741,10 @@ def cancel_run(run_id: int, db: Session = Depends(get_db)):
 # Spots
 # -----------------------------
 @router.get("/observation-runs/{run_id}/spots", response_model=List[ObservationSpotOut])
-def list_spots(run_id: int, db: Session = Depends(get_db)):
+def list_spots(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    run = db.get(ObservationRun, run_id)
+    if not run or run.company_id != user.company_id:
+        raise HTTPException(status_code=404, detail="Run not found")
     rows = db.execute(select(ObservationSpot).where(ObservationSpot.run_id == run_id).order_by(ObservationSpot.created_at.asc())).scalars().all()
     return rows
 
@@ -731,7 +753,8 @@ def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(
     run = db.get(ObservationRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     gps_geom = None
     if payload.latitude is not None and payload.longitude is not None:
         # Note: lon, lat order for WGS84
@@ -760,10 +783,12 @@ def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(
 
 
 @router.patch("/observation-spots/{spot_id}", response_model=ObservationSpotOut)
-def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depends(get_db)):
+def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     spot = db.get(ObservationSpot, spot_id)
     if not spot:
         raise HTTPException(status_code=404, detail="Spot not found")
+    if spot.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # scalar fields
     if payload.block_id is not None:
@@ -801,10 +826,13 @@ def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depe
 
 
 @router.delete("/observation-spots/{spot_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_spot(spot_id: int, db: Session = Depends(get_db)):
+def delete_spot(spot_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     spot = db.get(ObservationSpot, spot_id)
     if not spot:
         return
+    if spot.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     db.delete(spot)
     db.commit()
     return
@@ -814,11 +842,11 @@ def delete_spot(spot_id: int, db: Session = Depends(get_db)):
 # Observation ↔ Task links
 # -----------------------------
 @router.post("/observation-task-links", response_model=ObservationTaskLinkOut, status_code=status.HTTP_201_CREATED)
-def create_obs_task_link(payload: ObservationTaskLinkCreate, db: Session = Depends(get_db)):
+def create_obs_task_link(payload: ObservationTaskLinkCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     if not payload.run_id and not payload.spot_id:
         raise HTTPException(status_code=400, detail="Provide run_id or spot_id")
     link = ObservationTaskLink(
-        company_id=None,  # optional: set from related run/spot if you require tenancy here
+        company_id=user.company_id,  # optional: set from related run/spot if you require tenancy here
         observation_run_id=payload.run_id,
         observation_spot_id=payload.spot_id,
         task_id=payload.task_id,
@@ -832,11 +860,12 @@ def create_obs_task_link(payload: ObservationTaskLinkCreate, db: Session = Depen
 @router.get("/observation-task-links", response_model=List[ObservationTaskLinkOut])
 def list_obs_task_links(
     db: Session = Depends(get_db),
+    user=Depends(get_current_user),
     task_id: Optional[int] = None,
     run_id: Optional[int] = None,
     spot_id: Optional[int] = None,
 ):
-    q = select(ObservationTaskLink)
+    q = select(ObservationTaskLink).where(ObservationTaskLink.company_id == user.company_id)
     if task_id: q = q.where(ObservationTaskLink.task_id == task_id)
     if run_id: q = q.where(ObservationTaskLink.observation_run_id == run_id)
     if spot_id: q = q.where(ObservationTaskLink.observation_spot_id == spot_id)
@@ -844,10 +873,13 @@ def list_obs_task_links(
     return db.execute(q).scalars().all()
 
 @router.delete("/observation-task-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_obs_task_link(link_id: int, db: Session = Depends(get_db)):
+def delete_obs_task_link(link_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     link = db.get(ObservationTaskLink, link_id)
     if not link:
         return
+    if link.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     db.delete(link)
     db.commit()
     return
