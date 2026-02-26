@@ -1,12 +1,14 @@
 // src/components/AdminLayout.jsx - Admin Layout Wrapper
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Cloud, 
+import {
+  LayoutDashboard,
+  Users,
+  Cloud,
   ChevronRight,
   ArrowLeft,
-  Megaphone
+  Megaphone,
+  FileText,
+  BookOpen
 } from 'lucide-react';
 import '../pages/admin.css';
 
@@ -16,6 +18,8 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/users', icon: Users, label: 'Users' },
+    { path: '/admin/articles', icon: FileText, label: 'Articles' },
+    { path: '/admin/research', icon: BookOpen, label: 'Research' },
     { path: '/admin/weather', icon: Cloud, label: 'Weather' },
     { path: '/admin/banners', icon: Megaphone, label: 'Banners' },
   ];

@@ -1,0 +1,244 @@
+/* TiptapEditor.css */
+.tiptap-editor-wrapper {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  background: white;
+}
+
+.tiptap-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.tiptap-toolbar-group {
+  display: flex;
+  gap: 2px;
+  padding-right: 8px;
+  margin-right: 6px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.tiptap-toolbar-group:last-child {
+  border-right: none;
+  margin-right: 0;
+  padding-right: 0;
+}
+
+.tiptap-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.tiptap-toolbar button:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.tiptap-toolbar button.is-active {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.tiptap-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tiptap-content {
+  padding: 1rem;
+  min-height: 400px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Tiptap ProseMirror content styles */
+.tiptap-content .ProseMirror {
+  outline: none;
+  min-height: 380px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #1f2937;
+}
+
+.tiptap-content .ProseMirror p {
+  margin: 0.5em 0;
+}
+
+.tiptap-content .ProseMirror h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 1.2em 0 0.6em;
+  color: #111827;
+}
+
+.tiptap-content .ProseMirror h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+  color: #1f2937;
+}
+
+.tiptap-content .ProseMirror h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0.8em 0 0.4em;
+  color: #374151;
+}
+
+.tiptap-content .ProseMirror ul,
+.tiptap-content .ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 0.5em 0;
+}
+
+.tiptap-content .ProseMirror li {
+  margin: 0.25em 0;
+}
+
+.tiptap-content .ProseMirror blockquote {
+  border-left: 3px solid #d1d5db;
+  margin: 0.75em 0;
+  padding: 0.5em 0 0.5em 1em;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.tiptap-content .ProseMirror pre {
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+
+.tiptap-content .ProseMirror code {
+  background: #f3f4f6;
+  padding: 0.15em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
+.tiptap-content .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
+.tiptap-content .ProseMirror a {
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Resizable image node view */
+.resizable-image-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0.75em 0;
+  border-radius: 6px;
+  transition: outline 0.15s;
+  cursor: default;
+}
+
+.resizable-image-wrapper.selected {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.resizable-image-controls {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 6px;
+  z-index: 10;
+}
+
+.resizable-image-controls button {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  width: auto;
+  height: auto;
+}
+
+.resizable-image-controls button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.resizable-image-controls button.active {
+  background: #2563eb;
+  color: white;
+}
+
+.tiptap-content .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.tiptap-content .ProseMirror hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1.5em 0;
+}
+
+.tiptap-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Image uploading state */
+.tiptap-image-uploading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.tiptap-image-uploading svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

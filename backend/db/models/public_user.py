@@ -1,5 +1,5 @@
 # db/models/public_user.py - Public User Model with Marketing & User Segmentation
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ARRAY
 from sqlalchemy.sql import func
 from db.base_class import Base
 from datetime import datetime, timezone
@@ -40,7 +40,25 @@ class PublicUser(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
-    
+
+    # Admin flag
+    is_admin = Column(Boolean, default=False, nullable=False)
+
+    # Pro subscription
+    subscription_tier = Column(String(10), default='free', nullable=False)
+    pro_started_at = Column(DateTime(timezone=True), nullable=True)
+    pro_expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Extended email preferences
+    frequency_preference = Column(String(20), default='weekly', nullable=False)
+    preferred_regions = Column(ARRAY(String), nullable=True)
+
+    # Progressive profiling
+    role_description = Column(String(50), nullable=True)
+    key_concerns = Column(ARRAY(String), nullable=True)
+    vineyard_size = Column(String(50), nullable=True)
+    profiling_completed_at = Column(DateTime(timezone=True), nullable=True)
+
     def __repr__(self):
         return f"<PublicUser(id={self.id}, email='{self.email}', type='{self.user_type}', verified={self.is_verified})>"
     

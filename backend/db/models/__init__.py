@@ -49,3 +49,9 @@ from db.models.climate import ClimateZone, ClimateHistoryMonthly, ClimateBaselin
 from db.models.realtime_climate import WeatherDataDaily, ClimateZoneDaily, ClimateZoneDailyBaseline, PhenologyThreshold, PhenologyEstimate, DiseasePressure, ClimateZoneHourly
 from db.models.site_banner import SiteBanner
 from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived
+from db.models.article import Article
+from db.models.article_engagement import ArticleComment, ArticleLike
+from db.models.research import ResearchReport, ResearchSection
+from db.models.research_engagement import ResearchFile, ResearchComment, ResearchLike
+from db.models.email_campaign import EmailTemplate, EmailCampaign, EmailSend
+from db.models.user_enrichment import UserEvent, UserProfile

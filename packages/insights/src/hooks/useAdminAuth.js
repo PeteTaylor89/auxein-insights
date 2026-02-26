@@ -3,16 +3,6 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext'; // Your existing auth context
 
-const ADMIN_DOMAIN = 'auxein.co.nz';
-
-/**
- * Check if an email belongs to admin domain
- */
-export const isAdminEmail = (email) => {
-  if (!email) return false;
-  return email.toLowerCase().endsWith(`@${ADMIN_DOMAIN}`);
-};
-
 /**
  * Hook to check admin status and provide admin utilities
  */
@@ -21,9 +11,9 @@ export const useAdminAuth = () => {
   const navigate = useNavigate();
 
   const isAdmin = useMemo(() => {
-    if (!isAuthenticated || !user?.email) return false;
-    return isAdminEmail(user.email);
-  }, [isAuthenticated, user?.email]);
+    if (!isAuthenticated || !user) return false;
+    return !!user.is_admin;
+  }, [isAuthenticated, user?.is_admin]);
 
   /**
    * Redirect to login if not authenticated,

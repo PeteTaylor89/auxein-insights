@@ -3,19 +3,9 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import { RefreshCw } from 'lucide-react';
 
-const ADMIN_DOMAIN = 'auxein.co.nz';
-
-/**
- * Check if an email belongs to admin domain
- */
-export const isAdminEmail = (email) => {
-  if (!email) return false;
-  return email.toLowerCase().endsWith(`@${ADMIN_DOMAIN}`);
-};
-
 /**
  * Protected route wrapper for admin pages
- * Only allows access to users with @auxein.co.nz email addresses
+ * Only allows access to users with is_admin flag set to true
  */
 const AdminRoute = ({ children }) => {
   const { user, isAuthenticated, loading } = usePublicAuth();
@@ -39,7 +29,7 @@ const AdminRoute = ({ children }) => {
   }
 
   // Redirect to home if authenticated but not admin
-  if (!isAdminEmail(user?.email)) {
+  if (!user?.is_admin) {
     return <Navigate to="/" replace />;
   }
 

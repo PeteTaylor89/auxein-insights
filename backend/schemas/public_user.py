@@ -136,6 +136,8 @@ class PublicUserResponse(BaseModel):
     
     # Account status
     is_verified: bool
+    is_admin: bool = False
+    subscription_tier: str = "free"
     
     # Timestamps
     created_at: datetime

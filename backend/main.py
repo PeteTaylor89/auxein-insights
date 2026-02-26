@@ -3,13 +3,15 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners  
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, articles, research, email_campaigns, enrichment, seo, article_images
 from core.config import settings
 import logging
 import traceback
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 import os
+import re
+from html import escape as html_escape
 
 try:
     from api.v1 import blockchain
@@ -328,6 +330,47 @@ app.include_router(
     tags=["Admin - Banners"]
 )
 
+app.include_router(
+    articles.router,
+    prefix="/api/v1",
+    tags=["Articles"]
+)
+
+app.include_router(
+    research.router,
+    prefix="/api/v1",
+    tags=["Research"]
+)
+
+app.include_router(
+    email_campaigns.router,
+    prefix="/api/v1",
+    tags=["Email Campaigns"]
+)
+
+app.include_router(
+    enrichment.router,
+    prefix="/api/v1",
+    tags=["Enrichment"]
+)
+
+# SEO routes (sitemap, rss) must be registered BEFORE the catch-all static handler
+app.include_router(
+    seo.router,
+    tags=["SEO"]
+)
+
+app.include_router(
+    article_images.router,
+    prefix="/api/v1",
+    tags=["Article Images"]
+)
+
+# Mount uploads directory for serving uploaded images
+uploads_dir = "uploads"
+if not os.path.exists(uploads_dir):
+    os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 # API endpoints
 @app.get("/api", tags=["root"])
@@ -383,27 +426,99 @@ def list_all_routes():
 
 # Mount static files (React app) - this should be AFTER API routes
 static_dir = "static"
+
+def _get_seo_meta(content_type: str, slug: str) -> dict | None:
+    """Look up title/description/image for an article or research report by slug."""
+    from db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        if content_type == "articles":
+            from db.models.article import Article
+            row = db.query(
+                Article.title, Article.meta_description, Article.og_image_url, Article.seo_title
+            ).filter(Article.slug == slug, Article.status == "published").first()
+        elif content_type == "research":
+            from db.models.research import ResearchReport
+            row = db.query(
+                ResearchReport.title, ResearchReport.meta_description,
+                ResearchReport.og_image_url, ResearchReport.seo_title
+            ).filter(ResearchReport.slug == slug, ResearchReport.status == "published").first()
+        else:
+            return None
+
+        if not row:
+            return None
+
+        title, meta_desc, og_image, seo_title = row
+        return {
+            "title": seo_title or title,
+            "description": meta_desc or "",
+            "image": og_image or "",
+        }
+    except Exception:
+        logger.exception("SEO meta lookup failed for %s/%s", content_type, slug)
+        return None
+    finally:
+        db.close()
+
+
+def _inject_meta_tags(html: str, meta: dict) -> str:
+    """Insert OG / description meta tags just before <title> in the HTML."""
+    safe_title = html_escape(meta["title"], quote=True)
+    safe_desc = html_escape(meta["description"], quote=True)
+    tags = (
+        f'<meta property="og:title" content="{safe_title}" />\n'
+        f'<meta property="og:description" content="{safe_desc}" />\n'
+        f'<meta property="og:type" content="article" />\n'
+    )
+    if meta.get("image"):
+        safe_image = html_escape(meta["image"], quote=True)
+        tags += f'<meta property="og:image" content="{safe_image}" />\n'
+    tags += f'<meta name="description" content="{safe_desc}" />\n'
+    return html.replace("<title>", tags + "<title>", 1)
+
+
+_SEO_PATH_RE = re.compile(r"^(articles|research)/([a-z0-9][a-z0-9-]*)$")
+
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
-    
-    # Catch-all route for React app (client-side routing)
-    @app.get("/{full_path:path}")
-    async def serve_react_app(full_path: str):
-        # Skip API, docs, and OpenAPI schema
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="Not Found")
-        
-        # Check if file exists in static directory
-        file_path = os.path.join(static_dir, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        
-        # Serve index.html for client-side routing
-        index_path = os.path.join(static_dir, "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path)
-        else:
-            return {"message": "React app not built yet"}
+
+    # Read index.html once at startup for SEO injection
+    _index_html_path = os.path.join(static_dir, "index.html")
+    _index_html = ""
+    if os.path.exists(_index_html_path):
+        with open(_index_html_path, "r", encoding="utf-8") as f:
+            _index_html = f.read()
+
+    # SPA middleware: serve React app for non-API routes that don't match any endpoint.
+    # Unlike a catch-all @app.get("/{path:path}"), this cannot produce 405 errors
+    # on API POST/PUT/DELETE requests because it only runs AFTER route matching.
+    @app.middleware("http")
+    async def spa_middleware(request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+
+        # Only intercept non-API 404/405 responses to serve SPA
+        if response.status_code in (404, 405) and not path.startswith("/api"):
+            # Drain the original response body to avoid resource leaks
+            async for _ in response.body_iterator:
+                pass
+
+            # Check if it's a static file
+            file_path = os.path.join(static_dir, path.lstrip("/"))
+            if os.path.isfile(file_path):
+                return FileResponse(file_path)
+
+            if _index_html:
+                # SEO injection for content pages
+                slug_match = _SEO_PATH_RE.match(path.lstrip("/"))
+                if slug_match:
+                    meta = _get_seo_meta(slug_match.group(1), slug_match.group(2))
+                    if meta:
+                        return HTMLResponse(content=_inject_meta_tags(_index_html, meta))
+                return HTMLResponse(content=_index_html)
+
+        return response
 else:
     # If no static files, serve a simple root
     @app.get("/")

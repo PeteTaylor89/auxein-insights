@@ -142,7 +142,11 @@ class Settings(BaseSettings):
     SEND_EMAILS: bool = os.getenv("SEND_EMAILS", "false").lower() == "true"
     
     UPLOAD_DIR: str = get_upload_dir()
-    
+
+    # S3 Image Storage
+    ARTICLE_IMAGES_S3_BUCKET: Optional[str] = os.getenv("ARTICLE_IMAGES_S3_BUCKET")
+    ARTICLE_IMAGES_CDN_URL: Optional[str] = os.getenv("ARTICLE_IMAGES_CDN_URL")
+
     # VITE API
     VITE_API_URL: str = Field(None, description="Frontend API URL, not used by backend")
 

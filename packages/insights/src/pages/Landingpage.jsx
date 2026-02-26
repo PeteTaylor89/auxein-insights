@@ -1,89 +1,34 @@
 // pages/LandingPage.jsx - With scroll-aware header for mobile
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { 
-  MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline, 
-  CloudSunRain, Grape, ShieldCheck, Bug, X, User, LogOut, Settings, 
-  Lock, History, Shield, Menu 
+import {
+  MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline,
+  CloudSunRain, Grape, ShieldCheck, Bug, X,
+  Lock, History
 } from 'lucide-react';
 
 import RegionalMap from '../components/RegionalMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
-import MainLogo from '../assets/Logo_September 2025.png';
 import './LandingPage.css';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import AuthModal from '../components/auth/AuthModal';
-import UserPreferencesModal from '../components/auth/UserPreferencesModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
 import { PublicClimateContainer } from '../components/climate';
 import PasswordResetModal from '../components/auth/PasswordResetModal';
 import SiteBanner from '../components/SiteBanner';
-
-
-const ADMIN_DOMAIN = 'auxein.co.nz';
-const isAdminEmail = (email) => {
-  if (!email) return false;
-  return email.toLowerCase().endsWith(`@${ADMIN_DOMAIN}`);
-};
-
-// Custom hook for scroll-aware header
-function useScrollDirection() {
-  const [scrollDirection, setScrollDirection] = useState('up');
-  const [isAtTop, setIsAtTop] = useState(true);
-  const lastScrollY = useRef(0);
-  const ticking = useRef(false);
-
-  useEffect(() => {
-    const threshold = 10; // Minimum scroll amount to trigger direction change
-    const topThreshold = 50; // Consider "at top" within this range
-
-    const updateScrollDirection = () => {
-      const scrollY = window.scrollY;
-      
-      // Check if at top of page
-      setIsAtTop(scrollY < topThreshold);
-      
-      // Only update direction if we've scrolled more than threshold
-      if (Math.abs(scrollY - lastScrollY.current) < threshold) {
-        ticking.current = false;
-        return;
-      }
-
-      setScrollDirection(scrollY > lastScrollY.current ? 'down' : 'up');
-      lastScrollY.current = scrollY > 0 ? scrollY : 0;
-      ticking.current = false;
-    };
-
-    const onScroll = () => {
-      if (!ticking.current) {
-        window.requestAnimationFrame(updateScrollDirection);
-        ticking.current = true;
-      }
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  return { scrollDirection, isAtTop };
-}
+import SiteHeader from '../components/SiteHeader';
+import articleService from '../services/articleService';
 
 function LandingPage() {
   const [activeInsight, setActiveInsight] = useState(null);
-  const { isAuthenticated, user, logout } = usePublicAuth();
+  const { isAuthenticated } = usePublicAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authContext, setAuthContext] = useState('');
-  const [preferencesModalOpen, setPreferencesModalOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [passwordResetModalOpen, setPasswordResetModalOpen] = useState(false);
-  
-  // Scroll-aware header state
-  const { scrollDirection, isAtTop } = useScrollDirection();
-  const [isMobile, setIsMobile] = useState(false);
-  
-  const isAdmin = isAuthenticated && isAdminEmail(user?.email);
+
+  const [latestArticles, setLatestArticles] = useState([]);
+
   const isDemoMode = !isAuthenticated;
   const [searchParams, setSearchParams] = useSearchParams();
   const verificationToken = searchParams.get('token');
@@ -94,40 +39,16 @@ function LandingPage() {
       setVerificationModalOpen(true);
     }
     if (resetToken) {
-      setPasswordResetModalOpen(true); // NEW: Open reset modal if token present
+      setPasswordResetModalOpen(true);
     }
   }, [verificationToken, resetToken]);
 
-  // Detect mobile viewport
+  // Fetch latest articles for carousel
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    articleService.list({ page: 1, page_size: 6 })
+      .then(data => setLatestArticles(data.items || []))
+      .catch(() => {});
   }, []);
-
-  // Close mobile menu on resize to desktop
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth > 768) {
-        setMobileMenuOpen(false);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Prevent body scroll when mobile menu is open
-  useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [mobileMenuOpen]);
 
   const handleVerificationClose = () => {
     setVerificationModalOpen(false);
@@ -180,26 +101,9 @@ function LandingPage() {
     return true;
   };
 
-  const handleLogout = () => {
-    logout();
-    setUserMenuOpen(false);
-    setMobileMenuOpen(false);
-    setActiveInsight(null);
-  };
-
-  const handlePreferences = () => {
-    setUserMenuOpen(false);
-    setMobileMenuOpen(false);
-    setPreferencesModalOpen(true);
-  };
-
   const handleAuthModalClose = () => {
     setAuthModalOpen(false);
     setAuthContext('');
-  };
-
-  const closeMobileMenu = () => {
-    setMobileMenuOpen(false);
   };
 
   const renderActiveInsight = () => {
@@ -234,151 +138,13 @@ function LandingPage() {
     );
   };
 
-  // Determine header visibility class for mobile
-  // Header is hidden when: mobile + scrolling down + not at top + mobile menu closed
-  const headerHidden = isMobile && scrollDirection === 'down' && !isAtTop && !mobileMenuOpen;
-
   return (
     <div className="landing-page">
-      {/* Scroll-Aware Sticky Header */}
-      <header className={`landing-header ${headerHidden ? 'header-hidden' : ''}`}>
-        <div className="header-container">
-          <div className="header-brand">
-            <img src={MainLogo} alt="Auxein Logo" className="header-logo" />
-            <div className="header-title-block">
-              <h1>Auxein Insights</h1>
-              <p>Regional Intelligence</p>
-            </div>
-          </div>
-          
-          {/* Desktop Navigation */}
-          <nav className="header-nav desktop-nav">
-            <a href="https://auxein.co.nz/about/" target="_blank" rel="noopener noreferrer">About</a>
-            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer">Insights-Pro</a>
-            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
-
-            {isAdmin && (
-              <Link to="/admin" className="admin-header-link">
-                <Shield size={16} />
-                Admin
-              </Link>
-            )}
-
-            {!isAuthenticated ? (
-              <button className="auth-header-btn" onClick={() => { setAuthContext('header'); setAuthModalOpen(true); }}>
-                Sign In
-              </button>
-            ) : (
-              <div className="user-menu-container">
-                <button className="user-menu-trigger" onClick={() => setUserMenuOpen(!userMenuOpen)}>
-                  <User size={18} />
-                  <span>{user?.first_name || 'Account'}</span>
-                </button>
-
-                {userMenuOpen && (
-                  <div className="user-dropdown">
-                    <div className="user-dropdown-header">
-                      <strong>{user?.full_name || user?.email}</strong>
-                      {user?.user_type && <small>{user.user_type.replace('_', ' ')}</small>}
-                    </div>
-                    
-                    {isAdmin && (
-                      <Link to="/admin" className="user-dropdown-item" onClick={() => setUserMenuOpen(false)}>
-                        <Shield size={16} />
-                        Admin Dashboard
-                      </Link>
-                    )}
-                    
-                    <button className="user-dropdown-item" onClick={handlePreferences}>
-                      <Settings size={16} />
-                      Preferences
-                    </button>
-                    <button className="user-dropdown-item" onClick={handleLogout}>
-                      <LogOut size={16} />
-                      Sign Out
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </nav>
-
-          {/* Mobile Hamburger Button */}
-          <button 
-            className="mobile-menu-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-            aria-expanded={mobileMenuOpen}
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-      </header>
-
-      {/* ============================================
-          MOBILE NAVIGATION - RENDERED OUTSIDE HEADER
-          This is critical for proper full-screen overlay
-          ============================================ */}
-      {mobileMenuOpen && (
-        <>
-          <div className="mobile-menu-overlay" onClick={closeMobileMenu} />
-          <nav className="mobile-nav">
-            {/* Close button at top */}
-            <button className="mobile-nav-close" onClick={closeMobileMenu} aria-label="Close menu">
-              <X size={24} />
-            </button>
-
-            <Link to="https://auxein.co.nz/about/" onClick={closeMobileMenu}>About</Link>
-            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
-              Insights-Pro
-            </a>
-            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
-              Auxein
-            </a>
-
-            {isAdmin && (
-              <Link to="/admin" className="mobile-admin-link" onClick={closeMobileMenu}>
-                <Shield size={18} />
-                Admin Dashboard
-              </Link>
-            )}
-
-            <div className="mobile-nav-divider" />
-
-            {!isAuthenticated ? (
-              <button 
-                className="mobile-auth-btn"
-                onClick={() => {
-                  closeMobileMenu();
-                  setAuthContext('header');
-                  setAuthModalOpen(true);
-                }}
-              >
-                <User size={18} />
-                Sign In
-              </button>
-            ) : (
-              <>
-                <div className="mobile-user-info">
-                  <User size={20} />
-                  <div>
-                    <strong>{user?.full_name || user?.first_name || 'Account'}</strong>
-                    {user?.email && <small>{user.email}</small>}
-                  </div>
-                </div>
-                <button className="mobile-nav-item" onClick={() => { closeMobileMenu(); handlePreferences(); }}>
-                  <Settings size={18} />
-                  Preferences
-                </button>
-                <button className="mobile-nav-item mobile-logout" onClick={() => { closeMobileMenu(); handleLogout(); }}>
-                  <LogOut size={18} />
-                  Sign Out
-                </button>
-              </>
-            )}
-          </nav>
-        </>
-      )}
+      {/* Shared Sticky Header */}
+      <SiteHeader
+        subtitle="Regional Intelligence"
+        onSignInClick={() => { setAuthContext('header'); setAuthModalOpen(true); }}
+      />
       <SiteBanner />
       {/* Insights Section */}
       <section id="insights-section" className="insights-section">
@@ -445,6 +211,61 @@ function LandingPage() {
         </div>
       </section>
 
+      {/* Latest Articles Carousel */}
+      {latestArticles.length > 0 && (
+        <section className="latest-articles-section">
+          <div className="section-header">
+            <h2>Latest Articles</h2>
+          </div>
+          <div className="articles-carousel">
+            <div className="articles-carousel-track">
+              {latestArticles.map((article) => (
+                <Link
+                  key={article.id}
+                  to={`/articles/${article.slug}`}
+                  className="carousel-article-card"
+                >
+                  {(article.thumbnail_url || article.featured_image_url) && (
+                    <div className="carousel-card-image">
+                      <img
+                        src={article.thumbnail_url || article.featured_image_url}
+                        alt={article.featured_image_alt || article.title}
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div className="carousel-card-body">
+                    {article.tags && article.tags.length > 0 && (
+                      <div className="carousel-card-tags">
+                        {article.tags.slice(0, 2).map((t) => (
+                          <span key={t} className="carousel-tag">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    <h3 className="carousel-card-title">{article.title}</h3>
+                    {article.excerpt && (
+                      <p className="carousel-card-excerpt">{article.excerpt}</p>
+                    )}
+                    <span className="carousel-card-date">
+                      {article.published_at
+                        ? new Date(article.published_at).toLocaleDateString('en-NZ', {
+                            day: 'numeric', month: 'short', year: 'numeric'
+                          })
+                        : ''}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="articles-carousel-footer">
+            <Link to="/articles" className="view-all-articles-btn">
+              View all articles
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* About/CTA Section */}
       <section className="about-cta-section">
         <div className="about-content">
@@ -483,11 +304,8 @@ function LandingPage() {
 
       {/* Modals */}
       <AuthModal isOpen={authModalOpen} onClose={handleAuthModalClose} context={authContext} />
-      <UserPreferencesModal isOpen={preferencesModalOpen} onClose={() => setPreferencesModalOpen(false)} />
       <EmailVerificationModal isOpen={verificationModalOpen} onClose={handleVerificationClose} token={verificationToken} />
       <PasswordResetModal isOpen={passwordResetModalOpen} onClose={handlePasswordResetClose} token={resetToken} />
-      {/* User menu overlay (desktop) */}
-      {userMenuOpen && <div className="user-menu-overlay" onClick={() => setUserMenuOpen(false)} />}
     </div>
   );
 }
