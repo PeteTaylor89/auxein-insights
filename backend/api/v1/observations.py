@@ -100,10 +100,13 @@ def list_el_groups(db: Session = Depends(get_db)):
 # Reference Images
 # -----------------------------
 @router.post("/reference/items/{item_id}/images", response_model=ReferenceItemImageOut)
-def attach_reference_item_image(item_id: int, payload: ReferenceItemImageCreate, db: Session = Depends(get_db)):
+def attach_reference_item_image(item_id: int, payload: ReferenceItemImageCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     item = db.get(ReferenceItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Reference item not found")
+    # Only allow modification of company-owned items, not system items
+    if item.company_id is not None and item.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     file = db.get(File, payload.file_id)
     if not file:
@@ -130,7 +133,12 @@ def attach_reference_item_image(item_id: int, payload: ReferenceItemImageCreate,
     return link
 
 @router.delete("/reference/items/{item_id}/images/{link_id}", status_code=204)
-def detach_reference_item_image(item_id: int, link_id: int, db: Session = Depends(get_db)):
+def detach_reference_item_image(item_id: int, link_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    item = db.get(ReferenceItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Reference item not found")
+    if item.company_id is not None and item.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     link = db.get(ReferenceItemFile, link_id)
     if not link or link.reference_item_id != item_id:
         raise HTTPException(status_code=404, detail="Image link not found")
@@ -436,7 +444,7 @@ def update_plan(plan_id: int, payload: ObservationPlanUpdate, db: Session = Depe
     return plan
 
 @router.delete("/observation-plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_plan(plan_id: int, db: Session = Depends(get_db)):
+def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     plan = db.get(ObservationPlan, plan_id)
     if not plan:
         return
@@ -452,7 +460,7 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
 # Runs
 # -----------------------------
 @router.post("/observation-runs", response_model=ObservationRunOut, status_code=status.HTTP_201_CREATED)
-def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_run(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     # Resolve block_id (your existing logic)
     block_id = payload.block_id
 
@@ -515,7 +523,7 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_cu
     if payload.plan_id:
         exists_plan_block = db.execute(
             select(ObservationRun.id).where(
-                ObservationRun.company_id == payload.company_id,
+                ObservationRun.company_id == user.company_id,
                 ObservationRun.plan_id == payload.plan_id,
                 ObservationRun.block_id == block_id,
                 ObservationRun.observed_at_end.is_(None),  # Still active
@@ -531,7 +539,7 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_cu
     # FALLBACK: Also check general block conflicts (your existing logic)
     exists_general = db.execute(
         select(ObservationRun.id).where(
-            ObservationRun.company_id == payload.company_id,
+            ObservationRun.company_id == user.company_id,
             ObservationRun.block_id == block_id,
             ObservationRun.observed_at_end.is_(None),
         ).limit(1)
@@ -557,7 +565,7 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_cu
 
     # Continue with your existing run creation logic...
     run = ObservationRun(
-        company_id=payload.company_id,
+        company_id=user.company_id,
         plan_id=payload.plan_id,
         template_id=template_id,
         template_version=1,
@@ -761,7 +769,7 @@ def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(
         gps_geom = from_shape(Point(payload.longitude, payload.latitude), srid=4326)
 
     spot = ObservationSpot(
-        company_id=payload.company_id,
+        company_id=user.company_id,
         run_id=run_id,
         observed_at=payload.observed_at,
         block_id=payload.block_id,

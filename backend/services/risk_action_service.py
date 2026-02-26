@@ -61,8 +61,8 @@ class RiskActionService:
                 notification_service.notify_user(
                     user=assignee,
                     notification_type=NotificationType.action,
-                    title=f"Action assigned: {risk_action.title}",
-                    body=f"Due: {risk_action.due_date}" if risk_action.due_date else None,
+                    title=f"Action assigned: {risk_action.action_title}",
+                    body=f"Due: {risk_action.target_completion_date.strftime('%d %b %Y')}" if risk_action.target_completion_date else None,
                     data={"action_id": risk_action.id, "risk_id": risk_action.risk_id}
                 )
                 self.db.commit()
@@ -196,20 +196,45 @@ class RiskActionService:
         return action
     
     def check_overdue_actions(self, company_id: int) -> List[RiskAction]:
-        """Get all overdue actions for a company"""
-        
+        """Get all overdue actions for a company and notify owners"""
+
         now = datetime.now(timezone.utc)
         overdue_actions = self.db.query(RiskAction).filter(
             RiskAction.company_id == company_id,
             RiskAction.target_completion_date < now,
-            RiskAction.status.notin_(["completed", "cancelled"])
+            RiskAction.status.notin_(["completed", "cancelled", "overdue"])
         ).all()
-        
-        # Update status to overdue
+
+        if not overdue_actions:
+            return []
+
+        notification_service = NotificationService(self.db)
+
         for action in overdue_actions:
-            if action.status != "overdue":
-                action.status = "overdue"
-        
+            action.status = "overdue"
+
+            # Notify the assignee that their action is overdue
+            if action.assigned_to:
+                assignee = self.db.query(User).filter(User.id == action.assigned_to).first()
+                if assignee:
+                    days_overdue = (now - action.target_completion_date).days
+                    notification_service.notify_user(
+                        user=assignee,
+                        notification_type=NotificationType.action,
+                        title=f"Action overdue: {action.action_title}",
+                        body=f"{days_overdue} day(s) overdue. Priority: {action.priority}",
+                        data={"action_id": action.id, "risk_id": action.risk_id}
+                    )
+
+            # Also notify managers about overdue actions
+            notification_service.notify_managers(
+                company_id=company_id,
+                notification_type=NotificationType.action,
+                title=f"Action overdue: {action.action_title}",
+                body=f"Assigned to: {assignee.full_name if action.assigned_to and assignee else 'Unassigned'}",
+                data={"action_id": action.id, "risk_id": action.risk_id}
+            )
+
         self.db.commit()
         return overdue_actions
     

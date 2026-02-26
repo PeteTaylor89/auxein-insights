@@ -38,7 +38,7 @@ router = APIRouter(prefix="/timesheets", tags=["timesheets"])
 
 # --------- Helpers ---------
 def _ensure_company_scope(current_user: User, company_id: int) -> None:
-    if current_user.role != "admin" and current_user.company_id != company_id:
+    if current_user.company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission for this company",
@@ -178,13 +178,12 @@ def list_timesheet_days(
         selectinload(TimesheetDay.user)  # Add this line to load user data
     )
 
-    # Rest of your existing code remains the same...
-    if current_user.role != "admin":
-        q = q.filter(TimesheetDay.company_id == current_user.company_id)
+    # Always scope to user's company
+    q = q.filter(TimesheetDay.company_id == current_user.company_id)
 
     if user_id is not None:
-        if current_user.role != "admin" and user_id != current_user.id:
-            if current_user.role not in ("manager",):
+        if user_id != current_user.id:
+            if current_user.role not in ("admin", "manager"):
                 raise HTTPException(status_code=403, detail="Not allowed to view other users' timesheets")
         q = q.filter(TimesheetDay.user_id == user_id)
 

@@ -615,18 +615,24 @@ def assign_training(
     
     db_record = TrainingRecord(**record_data)
     db.add(db_record)
-    notification_service = NotificationService(db)
-    notification_service.notify_user(
-        user=target_user,
-        notification_type=NotificationType.training,
-        title=f"Training assigned: {module.name}",
-        body=f"Complete by {due_date}" if due_date else "No due date",
-        data={"training_record_id": record.id, "module_id": module.id}
-    )
-    db.commit()
+    db.flush()
 
+    # Notify the assignee if it's a user
+    if assignment.entity_type == "user":
+        assignee = db.query(User).filter(User.id == assignment.entity_id).first()
+        if assignee:
+            notification_service = NotificationService(db)
+            notification_service.notify_user(
+                user=assignee,
+                notification_type=NotificationType.training,
+                title=f"Training assigned: {module.title}",
+                body=f"Complete by {db_record.expires_at.strftime('%d %b %Y')}" if db_record.expires_at else "No due date",
+                data={"training_record_id": db_record.id, "module_id": module.id}
+            )
+
+    db.commit()
     db.refresh(db_record)
-    
+
     return db_record
 
 @router.get("/assignments", response_model=List[TrainingRecordWithDetails])
@@ -733,19 +739,20 @@ def get_training_progress(
     db: Session = Depends(get_db)
 ):
     """Get training progress for a specific record"""
-    record = db.query(TrainingRecord).options(
+    record = db.query(TrainingRecord).join(TrainingModule).options(
         joinedload(TrainingRecord.module).joinedload(TrainingModule.slides),
         joinedload(TrainingRecord.module).joinedload(TrainingModule.questions)
     ).filter(
-        TrainingRecord.id == training_record_id
+        TrainingRecord.id == training_record_id,
+        TrainingModule.company_id == current_user.company_id
     ).first()
-    
+
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Training record not found"
         )
-    
+
     # Check if user has access to this record
     if record.entity_type == "user" and record.entity_id != current_user.id:
         # Only allow if user is admin/manager or the assigned user
@@ -772,16 +779,17 @@ def start_training_session(
     db: Session = Depends(get_db)
 ):
     """Start a training session"""
-    record = db.query(TrainingRecord).filter(
-        TrainingRecord.id == request.training_record_id
+    record = db.query(TrainingRecord).join(TrainingModule).filter(
+        TrainingRecord.id == request.training_record_id,
+        TrainingModule.company_id == current_user.company_id
     ).first()
-    
+
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Training record not found"
         )
-    
+
     # Update status to in_progress
     from datetime import datetime, timezone
     record.status = "in_progress"
@@ -817,10 +825,11 @@ def complete_training_session(
     db: Session = Depends(get_db)
 ):
     """Complete a training session"""
-    record = db.query(TrainingRecord).filter(
-        TrainingRecord.id == request.training_record_id
+    record = db.query(TrainingRecord).join(TrainingModule).filter(
+        TrainingRecord.id == request.training_record_id,
+        TrainingModule.company_id == current_user.company_id
     ).first()
-    
+
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

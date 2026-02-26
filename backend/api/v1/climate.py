@@ -239,10 +239,21 @@ def bulk_import_climate_data(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
+    # Pre-verify all referenced blocks belong to user's company
+    block_ids = {r.vineyard_block_id for r in bulk_data.records}
+    owned_blocks = db.query(VineyardBlock.id).filter(
+        VineyardBlock.id.in_(block_ids),
+        VineyardBlock.company_id == current_user.company_id
+    ).all()
+    owned_block_ids = {b.id for b in owned_blocks}
+    unauthorized = block_ids - owned_block_ids
+    if unauthorized:
+        raise HTTPException(status_code=403, detail=f"Access denied to block(s): {unauthorized}")
+
     imported_count = 0
     skipped_count = 0
     errors = []
-    
+
     try:
         for record_data in bulk_data.records:
             # Check if record already exists
@@ -291,11 +302,14 @@ async def import_csv_climate_data(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    # Verify block exists
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    # Verify block exists and belongs to user's company
+    block = db.query(VineyardBlock).filter(
+        VineyardBlock.id == block_id,
+        VineyardBlock.company_id == current_user.company_id
+    ).first()
     if not block:
         raise HTTPException(status_code=404, detail="Vineyard block not found")
-    
+
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="File must be a CSV")
     
@@ -395,14 +409,22 @@ def delete_climate_record(
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     record = db.query(ClimateHistoricalData).filter(ClimateHistoricalData.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Climate record not found")
-    
+
+    # Verify the block belongs to user's company
+    block = db.query(VineyardBlock).filter(
+        VineyardBlock.id == record.vineyard_block_id,
+        VineyardBlock.company_id == current_user.company_id
+    ).first()
+    if not block:
+        raise HTTPException(status_code=403, detail="Access denied to this climate record")
+
     db.delete(record)
     db.commit()
-    
+
     return {"message": "Climate record deleted successfully"}
 
 @router.get("/seasons/{block_id}/comparison", response_model=Dict[str, Any])
@@ -682,7 +704,14 @@ def debug_climate_data(
     current_user: User = Depends(get_current_user)
 ):
     """Debug endpoint to check what climate data exists for a block"""
-    
+    # Verify block belongs to user's company
+    block = db.query(VineyardBlock).filter(
+        VineyardBlock.id == block_id,
+        VineyardBlock.company_id == current_user.company_id
+    ).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Vineyard block not found")
+
     # Get basic data info
     total_records = db.query(func.count(ClimateHistoricalData.id)).filter(
         ClimateHistoricalData.vineyard_block_id == block_id

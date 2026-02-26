@@ -201,9 +201,13 @@ class IntegratedRiskService:
     
     def get_overdue_items(self, company_id: int) -> dict:
         """Get all overdue items requiring attention"""
-        
+
+        # Mark newly-overdue actions and send notifications
+        action_service = RiskActionService(self.db)
+        action_service.check_overdue_actions(company_id)
+
         now = datetime.now(timezone.utc)
-        
+
         # Overdue risk reviews
         overdue_reviews = self.db.query(SiteRisk).filter(
             SiteRisk.company_id == company_id,
