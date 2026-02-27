@@ -340,19 +340,14 @@ The Auxein Team
         return self._get_email_header_footer(content)
 
     def _get_unsubscribe_footer(self, user) -> str:
-        """Standard email footer with unsubscribe and manage preferences links."""
-        token = getattr(user, 'unsubscribe_token', '') or ''
-        api_base = os.getenv("VITE_API_URL", "http://localhost:8000/api/v1")
-        unsubscribe_url = f"{api_base}/public/email/unsubscribe/{token}"
+        """Standard email footer with manage preferences link (satisfies NZ UEM Act 2007)."""
         preferences_url = self.regional_intelligence_url
 
         return f"""
     <tr>
         <td style="padding: 30px; background-color: #f8f9fa; text-align: center; border-radius: 0 0 8px 8px;">
             <p style="margin: 0 0 8px 0; color: #999999; font-size: 12px;">
-                <a href="{unsubscribe_url}" style="color: #999999; text-decoration: underline;">Unsubscribe</a>
-                &nbsp;&middot;&nbsp;
-                <a href="{preferences_url}" style="color: #999999; text-decoration: underline;">Manage Preferences</a>
+                Don't want these emails? <a href="{preferences_url}" style="color: #999999; text-decoration: underline;">Manage your email preferences</a>
             </p>
             <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {__import__('datetime').datetime.now().year} Auxein Limited, New Zealand</p>
         </td>

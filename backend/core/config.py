@@ -148,10 +148,22 @@ class Settings(BaseSettings):
     ARTICLE_IMAGES_CDN_URL: Optional[str] = os.getenv("ARTICLE_IMAGES_CDN_URL")
 
     # VITE API
-    VITE_API_URL: str = Field(None, description="Frontend API URL, not used by backend")
+    VITE_API_URL: Optional[str] = Field(None, description="Frontend API URL")
+
+    # Public-facing API base URL (for email links, unsubscribe, etc.)
+    # Falls back to VITE_API_URL if not set separately
+    API_BASE_URL: Optional[str] = None
 
     # Frontend URL for email links
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+    @property
+    def api_base_url(self) -> str:
+        """Public-facing API base URL, always includes /api/v1 prefix."""
+        base = (self.API_BASE_URL or self.VITE_API_URL or "http://localhost:8000").rstrip("/")
+        if not base.endswith("/api/v1"):
+            base = f"{base}/api/v1"
+        return base
 
     class Config:
         env_file = ".env"

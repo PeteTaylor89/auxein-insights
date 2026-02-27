@@ -540,6 +540,47 @@ def _inject_meta_tags(html: str, meta: dict) -> str:
     return html.replace("<title>", tags + "<title>", 1)
 
 
+# ─── Top-level unsubscribe route ───
+# Registered directly on the app (not behind /api/v1 prefix) so it works
+# regardless of how VITE_API_URL is configured. Handles both:
+#   /unsubscribe/{token}
+#   /public/email/unsubscribe/{token}
+# The /api/v1/public/email/unsubscribe/{token} route in email_campaigns.py still works too.
+
+@app.get("/unsubscribe/{token}")
+@app.get("/public/email/unsubscribe/{token}")
+async def unsubscribe_toplevel(token: str):
+    from fastapi.responses import HTMLResponse
+    from db.session import SessionLocal
+    from db.models.public_user import PublicUser
+
+    db = SessionLocal()
+    try:
+        user = db.query(PublicUser).filter(PublicUser.unsubscribe_token == token).first()
+        if not user:
+            return HTMLResponse(status_code=404, content="""<!DOCTYPE html><html><head><title>Unsubscribe</title>
+            <style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f9fafb;}
+            .card{background:white;border-radius:12px;padding:3rem;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:400px;}
+            h2{color:#374151;margin:0 0 0.5rem;} p{color:#6b7280;}</style></head>
+            <body><div class="card"><h2>Invalid Link</h2><p>This unsubscribe link is invalid or has expired.</p></div></body></html>""")
+
+        user.newsletter_opt_in = False
+        user.marketing_opt_in = False
+        db.commit()
+
+        regional_url = os.getenv("REGIONAL_INTELLIGENCE_URL", "https://insights.auxein.co.nz")
+        return HTMLResponse(content=f"""<!DOCTYPE html><html><head><title>Unsubscribed</title>
+        <style>body{{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f9fafb;}}
+        .card{{background:white;border-radius:12px;padding:3rem;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:400px;}}
+        h2{{color:#446145;margin:0 0 0.5rem;}} p{{color:#6b7280;}} .check{{font-size:3rem;margin-bottom:1rem;}}</style></head>
+        <body><div class="card"><div class="check">&#10003;</div><h2>Unsubscribed</h2>
+        <p>You've been successfully unsubscribed from Auxein Insights emails.</p>
+        <p style="margin-top:1.5rem;font-size:0.85rem;">Changed your mind? Log in at <a href="{regional_url}" style="color:#446145;">Auxein Insights</a> to manage your preferences.</p>
+        </div></body></html>""")
+    finally:
+        db.close()
+
+
 _SEO_PATH_RE = re.compile(r"^(articles|research)/([a-z0-9][a-z0-9-]*)$")
 
 if os.path.exists(static_dir):

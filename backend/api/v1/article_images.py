@@ -67,6 +67,9 @@ def _save_to_webp(img: Image.Image, quality: int = 85) -> BytesIO:
 
 def _upload_to_s3(buf: BytesIO, s3_key: str) -> str:
     """Upload buffer to S3 and return the CDN URL."""
+    cdn_url = (settings.ARTICLE_IMAGES_CDN_URL or "").rstrip("/")
+    if not cdn_url:
+        raise HTTPException(500, "ARTICLE_IMAGES_CDN_URL is not configured")
     s3 = _get_s3_client()
     s3.put_object(
         Bucket=settings.ARTICLE_IMAGES_S3_BUCKET,
@@ -75,7 +78,7 @@ def _upload_to_s3(buf: BytesIO, s3_key: str) -> str:
         ContentType="image/webp",
         CacheControl="public, max-age=31536000",
     )
-    return f"{settings.ARTICLE_IMAGES_CDN_URL}/{s3_key}"
+    return f"{cdn_url}/{s3_key}"
 
 
 def _save_local(buf: BytesIO, rel_path: str) -> str:
