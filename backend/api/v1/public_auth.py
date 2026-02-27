@@ -312,7 +312,8 @@ async def verify_email(
     # Mark as verified
     user.is_verified = True
     user.verified_at = datetime.now(timezone.utc)
-    user.verification_token = None  # Clear token after use
+    # Keep verification_token so repeat requests still find the user
+    # and hit the "already verified" check above
     
     db.commit()
     

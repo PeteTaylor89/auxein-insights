@@ -473,7 +473,7 @@ The Auxein Team
                 <p style="margin: 0; color: #505050; font-size: 14px;">
                     Check out Auxein Insights Pro for vineyard management tools.
                 </p>
-                <a href="{self.insights_pro_url}" style="color: #D1583B; font-weight: 600;">Learn More →</a>
+                <a href="https://www.auxein.co.nz/insights-pro" style="color: #D1583B; font-weight: 600;">Learn More →</a>
             </div>
         </td>
     </tr>
