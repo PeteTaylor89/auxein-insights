@@ -8,6 +8,7 @@ const articleService = {
   // Public
   list: (params = {}) => publicApi.get(PUBLIC, { params }).then(r => r.data),
   getBySlug: (slug) => publicApi.get(`${PUBLIC}/${slug}`).then(r => r.data),
+  getRelated: (slug, limit = 4) => publicApi.get(`${PUBLIC}/${slug}/related`, { params: { limit } }).then(r => r.data),
   recordView: (id) => publicApi.post(`${PUBLIC}/${id}/view`).catch(() => {}),
   like: (id) => publicApi.post(`${PUBLIC}/${id}/like`).then(r => r.data),
   unlike: (id) => publicApi.delete(`${PUBLIC}/${id}/like`).then(r => r.data),
@@ -22,6 +23,10 @@ const articleService = {
   create: (data) => publicApi.post(ADMIN, data).then(r => r.data),
   update: (id, data) => publicApi.put(`${ADMIN}/${id}`, data).then(r => r.data),
   archive: (id) => publicApi.delete(`${ADMIN}/${id}`).then(r => r.data),
+
+  // SEO
+  validateSeo: (contentType, contentId) =>
+    publicApi.get(`/admin/seo/validate/${contentType}/${contentId}`).then(r => r.data),
 };
 
 export default articleService;

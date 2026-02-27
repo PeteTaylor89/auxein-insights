@@ -1,5 +1,5 @@
 // src/pages/ResearchDetail.jsx - Public research report detail
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft, Calendar, Eye, Heart, MessageCircle, Users, FileText,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import researchService from '../services/researchService';
+import useArticleTracking from '../hooks/useArticleTracking';
 import './ResearchDetail.css';
 
 function ResearchDetail() {
@@ -23,6 +24,9 @@ function ResearchDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [citationText, setCitationText] = useState('');
   const [citationCopied, setCitationCopied] = useState(false);
+  const contentRef = useRef(null);
+
+  useArticleTracking(report?.id, contentRef, 'research');
 
   useEffect(() => {
     const fetchReport = async () => {
@@ -36,6 +40,7 @@ function ResearchDetail() {
         setComments(cmts);
         const cit = await researchService.getCitation(slug, 'apa');
         setCitationText(cit.citation);
+        document.title = `${data.seo_title || data.title} | Auxein Regional Insights`;
       } catch (err) {
         setError(err.message || 'Report not found');
       } finally {
@@ -43,6 +48,7 @@ function ResearchDetail() {
       }
     };
     fetchReport();
+    return () => { document.title = 'Auxein Regional Insights | Free Climate Intelligence for NZ Wine'; };
   }, [slug]);
 
   const handleLike = async () => {
@@ -171,7 +177,7 @@ function ResearchDetail() {
         </div>
       </header>
 
-      <div className="research-detail-content">
+      <div className="research-detail-content" ref={contentRef}>
         {/* Abstract */}
         <div className="research-detail-abstract">
           <h2>Abstract</h2>

@@ -22,16 +22,18 @@ import AdminArticleList from './pages/admin/AdminArticleList';
 import AdminArticleEditor from './pages/admin/AdminArticleEditor';
 import AdminResearchList from './pages/admin/AdminResearchList';
 import AdminResearchEditor from './pages/admin/AdminResearchEditor';
+import AdminEmailCampaignList from './pages/admin/AdminEmailCampaignList';
+import AdminEmailCampaignEditor from './pages/admin/AdminEmailCampaignEditor';
 
 // Auth
 import { PublicAuthProvider } from './contexts/PublicAuthContext';
 import AdminRoute from './components/AdminRoute';
+import usePageTracking from './hooks/usePageTracking';
 
-function App() {
+function AppRoutes() {
+  usePageTracking();
   return (
-    <PublicAuthProvider>
-      <BrowserRouter>
-        <Routes>
+    <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<About />} />
@@ -54,10 +56,21 @@ function App() {
           <Route path="/admin/weather" element={<AdminRoute><WeatherStatus /></AdminRoute>} />
           <Route path="/admin/weather/:id" element={<AdminRoute><StationDetail /></AdminRoute>} />
           <Route path="/admin/banners" element={<AdminRoute><BannerManagement /></AdminRoute>} />
+          <Route path="/admin/email" element={<AdminRoute><AdminEmailCampaignList /></AdminRoute>} />
+          <Route path="/admin/email/new" element={<AdminRoute><AdminEmailCampaignEditor /></AdminRoute>} />
+          <Route path="/admin/email/:id/edit" element={<AdminRoute><AdminEmailCampaignEditor /></AdminRoute>} />
 
           {/* Catch all route - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+  );
+}
+
+function App() {
+  return (
+    <PublicAuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
       </BrowserRouter>
     </PublicAuthProvider>
   );

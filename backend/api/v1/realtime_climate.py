@@ -312,8 +312,9 @@ def get_current_season_climate(
     
     # Latest date with data
     latest_date = season_data[0].date
-    season_start = get_season_start(vintage_year)
-    days_into_season = (latest_date - season_start).days + 1
+    season_start = get_season_start(vintage_year)  # July 1
+    growing_season_start = date(vintage_year - 1, 10, 1)  # Oct 1
+    days_into_season = max(0, (latest_date - growing_season_start).days + 1)
     doy = date_to_day_of_vintage(latest_date)
     
     # Get September 30 offset from ACTUAL current season data (for adjusting actual GDD)
@@ -328,34 +329,39 @@ def get_current_season_climate(
     # Calculate season totals (GDD adjusted to October 1 start using ACTUAL offset)
     gdd_raw = Decimal(str(season_data[0].gdd_cumulative)) if season_data[0].gdd_cumulative else Decimal('0')
     gdd_total = to_decimal(max(Decimal('0'), gdd_raw - actual_sept30_offset)) if doy >= 93 else to_decimal(Decimal('0'))
-    rainfall_total = to_decimal(sum(float(d.rainfall_mm or 0) for d in season_data))
-    
-    # Calculate averages
-    temps = [float(d.temp_mean) for d in season_data if d.temp_mean]
+
+    # Filter to growing season data only (Oct 1 onwards, day_of_vintage >= 93)
+    growing_data = [d for d in season_data if d.date >= growing_season_start]
+
+    rainfall_total = to_decimal(sum(float(d.rainfall_mm or 0) for d in growing_data))
+
+    # Calculate averages from Oct 1 onwards
+    temps = [float(d.temp_mean) for d in growing_data if d.temp_mean]
     temp_mean_avg = to_decimal(sum(temps) / len(temps)) if temps else None
-    
-    temps_max = [float(d.temp_max) for d in season_data if d.temp_max]
+
+    temps_max = [float(d.temp_max) for d in growing_data if d.temp_max]
     temp_max_avg = to_decimal(sum(temps_max) / len(temps_max)) if temps_max else None
-    
-    temps_min = [float(d.temp_min) for d in season_data if d.temp_min]
+
+    temps_min = [float(d.temp_min) for d in growing_data if d.temp_min]
     temp_min_avg = to_decimal(sum(temps_min) / len(temps_min)) if temps_min else None
     
     # Get baseline for comparison (already adjusted to October 1 in helper function)
     baseline_gdd = get_baseline_gdd_for_day(db, zone.id, doy)
     
-    # Calculate baseline rainfall total
+    # Calculate baseline rainfall total (from Oct 1 = day 93)
     baseline_rain = db.query(
         func.sum(ClimateZoneDailyBaseline.rain_avg)
     ).filter(
         ClimateZoneDailyBaseline.zone_id == zone.id,
+        ClimateZoneDailyBaseline.day_of_vintage >= 93,
         ClimateZoneDailyBaseline.day_of_vintage <= doy
     ).scalar()
     
-    # Build season summary
+    # Build season summary (season_start = Oct 1 growing season start)
     season_summary = SeasonSummary(
         vintage_year=vintage_year,
         label=get_season_label(vintage_year),
-        season_start=season_start,
+        season_start=growing_season_start,
         latest_data_date=latest_date,
         days_into_season=days_into_season,
         gdd_total=gdd_total,

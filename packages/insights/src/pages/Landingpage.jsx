@@ -266,21 +266,6 @@ function LandingPage() {
         </section>
       )}
 
-      {/* About/CTA Section */}
-      <section className="about-cta-section">
-        <div className="about-content">
-          <div className="premium-cta">
-            <h3>Auxein Insights Pro</h3>
-            <p>
-              The complete vineyard management platform. Climate intelligence, phenology tracking, disease pressure modeling, and blockchain traceability - all in one mobile-first solution.
-            </p>
-            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer" className="premium-btn">
-              Learn More →
-            </a>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="landing-footer">
         <div className="footer-content">

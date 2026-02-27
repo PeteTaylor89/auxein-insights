@@ -10,6 +10,10 @@ class EventCreate(BaseModel):
     session_id: Optional[str] = Field(None, max_length=100)
 
 
+class EventBatchCreate(BaseModel):
+    events: List[EventCreate] = Field(..., max_length=50)
+
+
 class UserProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     user_id: int

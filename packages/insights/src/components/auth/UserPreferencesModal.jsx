@@ -19,7 +19,9 @@ function UserPreferencesModal({ isOpen, onClose }) {
     region_of_interest: '',
     newsletter_opt_in: false,
     marketing_opt_in: false,
-    research_opt_in: false
+    research_opt_in: false,
+    frequency_preference: 'weekly',
+    preferred_regions: []
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -37,7 +39,9 @@ function UserPreferencesModal({ isOpen, onClose }) {
         region_of_interest: user.region_of_interest || '',
         newsletter_opt_in: user.newsletter_opt_in || false,
         marketing_opt_in: user.marketing_opt_in || false,
-        research_opt_in: user.research_opt_in || false
+        research_opt_in: user.research_opt_in || false,
+        frequency_preference: user.frequency_preference || 'weekly',
+        preferred_regions: user.preferred_regions || []
       });
 
       const loadOptions = async () => {
@@ -90,6 +94,18 @@ function UserPreferencesModal({ isOpen, onClose }) {
     }
   };
 
+  const handleRegionToggle = (regionValue) => {
+    setFormData(prev => {
+      const current = prev.preferred_regions || [];
+      const updated = current.includes(regionValue)
+        ? current.filter(r => r !== regionValue)
+        : [...current, regionValue];
+      return { ...prev, preferred_regions: updated };
+    });
+    setError('');
+    setSuccess('');
+  };
+
   const handleSaveMarketing = async () => {
     setError('');
     setSuccess('');
@@ -99,7 +115,9 @@ function UserPreferencesModal({ isOpen, onClose }) {
       await updateMarketingPreferences({
         newsletter_opt_in: formData.newsletter_opt_in,
         marketing_opt_in: formData.marketing_opt_in,
-        research_opt_in: formData.research_opt_in
+        research_opt_in: formData.research_opt_in,
+        frequency_preference: formData.frequency_preference,
+        preferred_regions: formData.preferred_regions
       });
       setSuccess('Preferences updated successfully!');
     } catch (err) {
@@ -291,7 +309,49 @@ function UserPreferencesModal({ isOpen, onClose }) {
                 </label>
               </div>
 
-              <button 
+              {/* Email Frequency */}
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                <label style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Email Frequency</label>
+                <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 0.75rem' }}>How often would you like to receive emails?</p>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  {[
+                    { value: 'weekly', label: 'Weekly' },
+                    { value: 'fortnightly', label: 'Fortnightly' },
+                    { value: 'monthly', label: 'Monthly' },
+                  ].map(opt => (
+                    <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input
+                        type="radio"
+                        name="frequency_preference"
+                        value={opt.value}
+                        checked={formData.frequency_preference === opt.value}
+                        onChange={handleChange}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preferred Regions */}
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                <label style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Preferred Regions</label>
+                <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 0.75rem' }}>Select the regions you're interested in hearing about</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  {regions.map(region => (
+                    <label key={region.value} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={(formData.preferred_regions || []).includes(region.value)}
+                        onChange={() => handleRegionToggle(region.value)}
+                      />
+                      {region.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button
                 onClick={handleSaveMarketing}
                 className="auth-submit-btn"
                 disabled={loading}

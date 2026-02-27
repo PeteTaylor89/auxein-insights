@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(alembic heads:*)"
+      "Bash(alembic heads:*)",
+      "Bash(ls:*)"
     ]
   }
 }

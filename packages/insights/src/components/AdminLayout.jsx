@@ -8,7 +8,8 @@ import {
   ArrowLeft,
   Megaphone,
   FileText,
-  BookOpen
+  BookOpen,
+  Mail
 } from 'lucide-react';
 import '../pages/admin.css';
 
@@ -22,6 +23,7 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
     { path: '/admin/research', icon: BookOpen, label: 'Research' },
     { path: '/admin/weather', icon: Cloud, label: 'Weather' },
     { path: '/admin/banners', icon: Megaphone, label: 'Banners' },
+    { path: '/admin/email', icon: Mail, label: 'Email' },
   ];
 
   const isActive = (path) => {

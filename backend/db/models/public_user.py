@@ -28,6 +28,7 @@ class PublicUser(Base):
     verification_token = Column(String(255), nullable=True)
     verification_sent_at = Column(DateTime(timezone=True), nullable=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
+    unsubscribe_token = Column(String(255), nullable=True, unique=True)
 
     reset_token = Column(String(255), nullable=True)
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)

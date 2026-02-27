@@ -149,6 +149,50 @@ async def get_article(
     )
 
 
+# ---------- Related ----------
+
+@router.get("/public/articles/{slug}/related")
+async def get_related_articles(
+    slug: str,
+    limit: int = Query(4, ge=1, le=8),
+    db: Session = Depends(get_db),
+):
+    """Get related articles based on tag overlap."""
+    article = db.query(Article).filter(
+        Article.slug == slug, Article.status == "published"
+    ).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    if not article.tags:
+        return []
+
+    related = (
+        db.query(Article)
+        .filter(
+            Article.status == "published",
+            Article.id != article.id,
+            Article.tags.overlap(article.tags),
+        )
+        .order_by(desc(Article.published_at))
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "id": a.id,
+            "title": a.title,
+            "slug": a.slug,
+            "excerpt": a.excerpt,
+            "thumbnail_url": a.thumbnail_url or a.featured_image_url,
+            "published_at": a.published_at,
+            "tags": a.tags,
+        }
+        for a in related
+    ]
+
+
 # ---------- Views ----------
 
 @router.post("/public/articles/{article_id}/view", status_code=204)

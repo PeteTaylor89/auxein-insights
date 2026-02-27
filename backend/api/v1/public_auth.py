@@ -65,28 +65,30 @@ async def signup(
     
     # Create new user with all marketing and segmentation data
     verification_token = generate_verification_token()
-    
+    unsubscribe_token = generate_verification_token()
+
     new_user = PublicUser(
         # Basic info
         email=user_data.email.lower(),
         hashed_password=hash_password(user_data.password),
         first_name=user_data.first_name,
         last_name=user_data.last_name,
-        
+
         # User segmentation
         user_type=user_data.user_type,
         company_name=user_data.company_name,
         job_title=user_data.job_title,
         region_of_interest=user_data.region_of_interest,
-        
+
         # Marketing opt-ins
         newsletter_opt_in=user_data.newsletter_opt_in,
         marketing_opt_in=user_data.marketing_opt_in,
         research_opt_in=user_data.research_opt_in,
-        
+
         # Verification
         is_verified=False,
         verification_token=verification_token,
+        unsubscribe_token=unsubscribe_token,
         verification_sent_at=datetime.now(timezone.utc)
     )
     
@@ -265,9 +267,15 @@ async def update_marketing_preferences(
     
     if preferences.research_opt_in is not None:
         current_user.research_opt_in = preferences.research_opt_in
-    
+
+    if preferences.frequency_preference is not None:
+        current_user.frequency_preference = preferences.frequency_preference
+
+    if preferences.preferred_regions is not None:
+        current_user.preferred_regions = preferences.preferred_regions
+
     db.commit()
-    
+
     return MessageResponse(message="Marketing preferences updated successfully")
 
 # ============================================

@@ -1,5 +1,5 @@
 # backend/schemas/public_user.py - Pydantic Schemas with Marketing & User Segmentation
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, validator, Field, ConfigDict
 
@@ -200,6 +200,8 @@ class MarketingPreferencesUpdate(BaseModel):
     newsletter_opt_in: Optional[bool] = None
     marketing_opt_in: Optional[bool] = None
     research_opt_in: Optional[bool] = None
+    frequency_preference: Optional[str] = None
+    preferred_regions: Optional[List[str]] = None
 
 class PasswordResetRequest(BaseModel):
     """Schema for requesting password reset"""

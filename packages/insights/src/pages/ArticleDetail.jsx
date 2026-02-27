@@ -1,5 +1,5 @@
 // src/pages/ArticleDetail.jsx - Public article detail with comments and likes
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Calendar, Eye, Heart, MessageCircle, Share2,
@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import articleService from '../services/articleService';
+import useArticleTracking from '../hooks/useArticleTracking';
+const ClimateWidgetRenderer = lazy(() => import('../components/climate/ClimateWidgetRenderer'));
 import './ArticleDetail.css';
 
 function ArticleDetail() {
@@ -23,7 +25,11 @@ function ArticleDetail() {
   const [replyTo, setReplyTo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [relatedArticles, setRelatedArticles] = useState([]);
   const viewRecorded = useRef(false);
+  const contentRef = useRef(null);
+
+  useArticleTracking(article?.id, contentRef, 'article');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -43,6 +49,8 @@ function ArticleDetail() {
           viewRecorded.current = true;
           articleService.recordView(data.id);
         }
+        document.title = `${data.seo_title || data.title} | Auxein Regional Insights`;
+        articleService.getRelated(slug).then(setRelatedArticles).catch(() => {});
       } catch (err) {
         setError(err.message || 'Article not found');
       } finally {
@@ -50,6 +58,7 @@ function ArticleDetail() {
       }
     };
     fetchArticle();
+    return () => { document.title = 'Auxein Regional Insights | Free Climate Intelligence for NZ Wine'; };
   }, [slug, isAuthenticated]);
 
   const handleLike = async () => {
@@ -162,6 +171,20 @@ function ArticleDetail() {
           : { maxWidth: '100%', height: 'auto' };
         return <img key={key} src={node.attrs?.src} alt={node.attrs?.alt || ''} style={imgStyle} loading="lazy" />;
       }
+      case 'climateWidget':
+        return (
+          <Suspense key={key} fallback={<div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>Loading chart...</div>}>
+            <ClimateWidgetRenderer
+              widgetType={node.attrs?.widgetType}
+              zoneSlug={node.attrs?.zoneSlug}
+              zoneName={node.attrs?.zoneName}
+              metric={node.attrs?.metric}
+              displayMode={node.attrs?.displayMode || 'chart'}
+              title={node.attrs?.title}
+              snapshotData={node.attrs?.snapshotData || null}
+            />
+          </Suspense>
+        );
       case 'hardBreak':
         return <br key={key} />;
       default:
@@ -274,7 +297,7 @@ function ArticleDetail() {
 
       {/* Body */}
       <article className="article-detail-body">
-        <div className="article-detail-body-content">
+        <div className="article-detail-body-content" ref={contentRef}>
           {renderBody(article.body)}
         </div>
 
@@ -299,6 +322,31 @@ function ArticleDetail() {
           </button>
         </div>
       </article>
+
+      {/* Related Articles */}
+      {relatedArticles.length > 0 && (
+        <section className="related-articles-section">
+          <div className="related-articles-inner">
+            <h3>Related Articles</h3>
+            <div className="related-articles-grid">
+              {relatedArticles.map((ra) => (
+                <Link key={ra.id} to={`/articles/${ra.slug}`} className="related-article-card">
+                  {ra.thumbnail_url && (
+                    <div className="related-article-thumb">
+                      <img src={ra.thumbnail_url} alt={ra.title} loading="lazy" />
+                    </div>
+                  )}
+                  <div className="related-article-info">
+                    <h4>{ra.title}</h4>
+                    {ra.excerpt && <p>{ra.excerpt.length > 100 ? ra.excerpt.slice(0, 100) + '...' : ra.excerpt}</p>}
+                    <span className="related-article-date">{formatDate(ra.published_at)}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Comments Section */}
       <section id="comments-section" className="article-comments-section">

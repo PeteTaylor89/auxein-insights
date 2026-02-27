@@ -16,10 +16,15 @@ class EmailTemplateResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
+class EstimateRecipientsRequest(BaseModel):
+    target_regions: Optional[List[str]] = None
+    target_tiers: Optional[List[str]] = None
+
+
 class CampaignCreate(BaseModel):
     template_id: int
     subject: str = Field(..., max_length=255)
-    body_html: str
+    body_html: Optional[str] = ""
     body_preview_text: Optional[str] = Field(None, max_length=200)
     intro_text: Optional[str] = None
     outro_text: Optional[str] = None
@@ -87,6 +92,10 @@ class CampaignStatsResponse(BaseModel):
 
 class CampaignSendRequest(BaseModel):
     scheduled_at: Optional[datetime] = None  # None = send now
+
+
+class CampaignTestSendRequest(BaseModel):
+    email: str = Field(..., description="Email address to send test to")
 
 
 class EmailPreferencesUpdate(BaseModel):

@@ -1,6 +1,7 @@
 // src/contexts/PublicAuthContext.jsx - Auth Context using consistent service pattern
 import { createContext, useContext, useState, useEffect } from 'react';
 import publicAuthService from '../services/publicAuthService';
+import { startEventTracking, stopEventTracking } from '../utils/eventTracker';
 
 const PublicAuthContext = createContext(null);
 
@@ -21,6 +22,7 @@ export const PublicAuthProvider = ({ children }) => {
           const currentUser = await publicAuthService.getCurrentUser();
           setUser(currentUser);
           setIsAuthenticated(true);
+          startEventTracking();
         } catch (error) {
           // Token invalid, clear storage
           logout();
@@ -36,6 +38,7 @@ export const PublicAuthProvider = ({ children }) => {
     const response = await publicAuthService.login(email, password);
     setUser(response.user);
     setIsAuthenticated(true);
+    startEventTracking();
     return response;
   };
 
@@ -45,6 +48,7 @@ export const PublicAuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    stopEventTracking();
     publicAuthService.logout();
     setUser(null);
     setIsAuthenticated(false);

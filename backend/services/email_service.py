@@ -191,6 +191,174 @@ The Auxein Team
         return self._send_email(email, subject, html_content, text_content)
     
     # ============================================
+    # CAMPAIGN EMAIL TEMPLATES
+    # ============================================
+
+    def render_article_spotlight(self, campaign, article: dict, user) -> str:
+        """Render a single-article spotlight email.
+        article dict: title, excerpt, slug, featured_image_url (optional)
+        """
+        article_url = f"{self.regional_intelligence_url}/articles/{article.get('slug', '')}"
+        user_name = getattr(user, 'first_name', None) or 'there'
+        intro = campaign.intro_text or ''
+        outro = campaign.outro_text or ''
+
+        image_block = ''
+        if article.get('featured_image_url'):
+            image_block = f'''
+            <tr>
+                <td style="padding: 0;">
+                    <img src="{article['featured_image_url']}" alt="{article.get('title', '')}" style="width: 100%; max-width: 600px; height: auto; display: block; border-radius: 0;" />
+                </td>
+            </tr>'''
+
+        content = f"""
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+    <tr>
+        <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 24px;">Featured Article</h1>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Auxein Regional Intelligence</p>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 30px 40px 10px 40px;">
+            <p style="margin: 0; color: #505050; font-size: 16px; line-height: 1.6;">Hi {user_name},</p>
+            {f'<p style="margin: 12px 0 0 0; color: #505050; font-size: 16px; line-height: 1.6;">{intro}</p>' if intro else ''}
+        </td>
+    </tr>
+    {image_block}
+    <tr>
+        <td style="padding: 20px 40px;">
+            <h2 style="margin: 0 0 12px 0; color: #2F2F2F; font-size: 22px;">{article.get('title', '')}</h2>
+            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">{article.get('excerpt', '')}</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td align="center" style="padding: 10px 0 20px 0;">
+                        <a href="{article_url}" style="display: inline-block; padding: 16px 40px; background-color: #D1583B; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Read Article</a>
+                    </td>
+                </tr>
+            </table>
+            {f'<p style="margin: 10px 0 0 0; color: #505050; font-size: 14px; line-height: 1.5;">{outro}</p>' if outro else ''}
+        </td>
+    </tr>
+    {self._get_unsubscribe_footer(user)}
+</table>
+        """
+        return self._get_email_header_footer(content)
+
+    def render_weekly_roundup(self, campaign, article: dict, user) -> str:
+        """Render a weekly roundup email pointing to a roundup article.
+        Uses the same layout as spotlight but with roundup branding.
+        """
+        article_url = f"{self.regional_intelligence_url}/articles/{article.get('slug', '')}"
+        user_name = getattr(user, 'first_name', None) or 'there'
+        intro = campaign.intro_text or ''
+        outro = campaign.outro_text or ''
+
+        image_block = ''
+        if article.get('featured_image_url'):
+            image_block = f'''
+            <tr>
+                <td style="padding: 0;">
+                    <img src="{article['featured_image_url']}" alt="{article.get('title', '')}" style="width: 100%; max-width: 600px; height: auto; display: block;" />
+                </td>
+            </tr>'''
+
+        content = f"""
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+    <tr>
+        <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 24px;">Weekly Roundup</h1>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Auxein Regional Intelligence</p>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 30px 40px 10px 40px;">
+            <p style="margin: 0; color: #505050; font-size: 16px; line-height: 1.6;">Hi {user_name},</p>
+            <p style="margin: 12px 0 0 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                {intro if intro else "Here's your weekly roundup of the latest from Auxein Regional Intelligence."}
+            </p>
+        </td>
+    </tr>
+    {image_block}
+    <tr>
+        <td style="padding: 20px 40px;">
+            <h2 style="margin: 0 0 12px 0; color: #2F2F2F; font-size: 22px;">{article.get('title', '')}</h2>
+            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">{article.get('excerpt', '')}</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td align="center" style="padding: 10px 0 20px 0;">
+                        <a href="{article_url}" style="display: inline-block; padding: 16px 40px; background-color: #D1583B; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Read the Roundup</a>
+                    </td>
+                </tr>
+            </table>
+            {f'<p style="margin: 10px 0 0 0; color: #505050; font-size: 14px; line-height: 1.5;">{outro}</p>' if outro else ''}
+        </td>
+    </tr>
+    {self._get_unsubscribe_footer(user)}
+</table>
+        """
+        return self._get_email_header_footer(content)
+
+    def render_data_alert(self, campaign, alert_data: dict, user) -> str:
+        """Render a climate data alert email.
+        alert_data dict: alert_type, region, metric_name, current_value,
+                         threshold_value, description
+        """
+        dashboard_url = self.regional_intelligence_url
+        user_name = getattr(user, 'first_name', None) or 'there'
+
+        content = f"""
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+    <tr>
+        <td style="padding: 40px; background: linear-gradient(135deg, #D1583B 0%, #B84A2E 100%); border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 24px;">{alert_data.get('alert_type', 'Climate Alert')}</h1>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">{alert_data.get('region', '')}</p>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 30px 40px;">
+            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">Hi {user_name},</p>
+            <div style="padding: 24px; background-color: #FDF6E3; border: 2px solid #D1583B; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+                <p style="margin: 0 0 4px 0; color: #505050; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">{alert_data.get('metric_name', 'Metric')}</p>
+                <p style="margin: 0; color: #D1583B; font-size: 36px; font-weight: 700;">{alert_data.get('current_value', '')}</p>
+                {f'<p style="margin: 4px 0 0 0; color: #999; font-size: 13px;">Threshold: {alert_data["threshold_value"]}</p>' if alert_data.get('threshold_value') else ''}
+            </div>
+            <p style="margin: 0 0 24px 0; color: #505050; font-size: 16px; line-height: 1.6;">{alert_data.get('description', '')}</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td align="center" style="padding: 10px 0;">
+                        <a href="{dashboard_url}" style="display: inline-block; padding: 16px 40px; background-color: #5B6830; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">View Dashboard</a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    {self._get_unsubscribe_footer(user)}
+</table>
+        """
+        return self._get_email_header_footer(content)
+
+    def _get_unsubscribe_footer(self, user) -> str:
+        """Standard email footer with unsubscribe and manage preferences links."""
+        token = getattr(user, 'unsubscribe_token', '') or ''
+        api_base = os.getenv("VITE_API_URL", "http://localhost:8000/api/v1")
+        unsubscribe_url = f"{api_base}/public/email/unsubscribe/{token}"
+        preferences_url = self.regional_intelligence_url
+
+        return f"""
+    <tr>
+        <td style="padding: 30px; background-color: #f8f9fa; text-align: center; border-radius: 0 0 8px 8px;">
+            <p style="margin: 0 0 8px 0; color: #999999; font-size: 12px;">
+                <a href="{unsubscribe_url}" style="color: #999999; text-decoration: underline;">Unsubscribe</a>
+                &nbsp;&middot;&nbsp;
+                <a href="{preferences_url}" style="color: #999999; text-decoration: underline;">Manage Preferences</a>
+            </p>
+            <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {__import__('datetime').datetime.now().year} Auxein Limited, New Zealand</p>
+        </td>
+    </tr>"""
+
+    # ============================================
     # COMMON TEMPLATES
     # ============================================
     

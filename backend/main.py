@@ -428,20 +428,24 @@ def list_all_routes():
 static_dir = "static"
 
 def _get_seo_meta(content_type: str, slug: str) -> dict | None:
-    """Look up title/description/image for an article or research report by slug."""
+    """Look up title/description/image/structured data for an article or research report."""
     from db.session import SessionLocal
     db = SessionLocal()
     try:
         if content_type == "articles":
             from db.models.article import Article
             row = db.query(
-                Article.title, Article.meta_description, Article.og_image_url, Article.seo_title
+                Article.title, Article.meta_description, Article.og_image_url,
+                Article.seo_title, Article.structured_data, Article.tags,
+                Article.published_at, Article.slug,
             ).filter(Article.slug == slug, Article.status == "published").first()
         elif content_type == "research":
             from db.models.research import ResearchReport
             row = db.query(
                 ResearchReport.title, ResearchReport.meta_description,
-                ResearchReport.og_image_url, ResearchReport.seo_title
+                ResearchReport.og_image_url, ResearchReport.seo_title,
+                ResearchReport.structured_data, ResearchReport.tags,
+                ResearchReport.published_at, ResearchReport.slug,
             ).filter(ResearchReport.slug == slug, ResearchReport.status == "published").first()
         else:
             return None
@@ -449,11 +453,16 @@ def _get_seo_meta(content_type: str, slug: str) -> dict | None:
         if not row:
             return None
 
-        title, meta_desc, og_image, seo_title = row
+        title, meta_desc, og_image, seo_title, structured_data, tags, published_at, slug_val = row
         return {
             "title": seo_title or title,
             "description": meta_desc or "",
             "image": og_image or "",
+            "structured_data": structured_data,
+            "tags": tags or [],
+            "published_at": published_at.isoformat() if published_at else "",
+            "slug": slug_val,
+            "content_type": content_type,
         }
     except Exception:
         logger.exception("SEO meta lookup failed for %s/%s", content_type, slug)
@@ -462,8 +471,58 @@ def _get_seo_meta(content_type: str, slug: str) -> dict | None:
         db.close()
 
 
+_SITE_URL = "https://insights.auxein.co.nz"
+
+
+def _build_json_ld(meta: dict) -> str:
+    """Build JSON-LD structured data for a content page."""
+    import json as jsonlib
+
+    # Use stored structured_data if the author has provided custom JSON-LD
+    if meta.get("structured_data"):
+        return jsonlib.dumps(meta["structured_data"])
+
+    content_type = meta.get("content_type", "articles")
+    schema_type = "ScholarlyArticle" if content_type == "research" else "Article"
+
+    ld = {
+        "@context": "https://schema.org",
+        "@type": schema_type,
+        "headline": meta["title"],
+        "description": meta.get("description", ""),
+        "datePublished": meta.get("published_at", ""),
+        "author": {"@type": "Organization", "name": "Auxein Limited", "url": "https://auxein.co.nz"},
+        "publisher": {"@type": "Organization", "name": "Auxein Limited", "url": "https://auxein.co.nz"},
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": f"{_SITE_URL}/{content_type}/{meta.get('slug', '')}",
+        },
+    }
+    if meta.get("image"):
+        ld["image"] = meta["image"]
+    if meta.get("tags"):
+        ld["keywords"] = ", ".join(meta["tags"])
+    return jsonlib.dumps(ld)
+
+
+def _build_breadcrumb_ld(meta: dict) -> str:
+    """Build BreadcrumbList JSON-LD."""
+    import json as jsonlib
+    content_type = meta.get("content_type", "articles")
+    section_name = "Articles" if content_type == "articles" else "Research"
+    return jsonlib.dumps({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Home", "item": _SITE_URL},
+            {"@type": "ListItem", "position": 2, "name": section_name, "item": f"{_SITE_URL}/{content_type}"},
+            {"@type": "ListItem", "position": 3, "name": meta["title"]},
+        ],
+    })
+
+
 def _inject_meta_tags(html: str, meta: dict) -> str:
-    """Insert OG / description meta tags just before <title> in the HTML."""
+    """Insert OG / description meta tags + JSON-LD just before <title> in the HTML."""
     safe_title = html_escape(meta["title"], quote=True)
     safe_desc = html_escape(meta["description"], quote=True)
     tags = (
@@ -475,6 +534,9 @@ def _inject_meta_tags(html: str, meta: dict) -> str:
         safe_image = html_escape(meta["image"], quote=True)
         tags += f'<meta property="og:image" content="{safe_image}" />\n'
     tags += f'<meta name="description" content="{safe_desc}" />\n'
+    # JSON-LD structured data
+    tags += f'<script type="application/ld+json">{_build_json_ld(meta)}</script>\n'
+    tags += f'<script type="application/ld+json">{_build_breadcrumb_ld(meta)}</script>\n'
     return html.replace("<title>", tags + "<title>", 1)
 
 
