@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -398,6 +398,7 @@ async def admin_list_articles(
 @router.post("/admin/articles", response_model=ArticleDetail, status_code=201)
 async def create_article(
     data: ArticleCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin),
 ):
@@ -436,6 +437,11 @@ async def create_article(
     db.add(article)
     db.commit()
     db.refresh(article)
+
+    if article.status == "published":
+        from utils.seo_prerender import prerender_article, regenerate_sitemap
+        background_tasks.add_task(prerender_article, article)
+        background_tasks.add_task(regenerate_sitemap)
 
     return ArticleDetail(
         **{k: v for k, v in _article_to_list_item(article).__dict__.items()},
@@ -480,6 +486,7 @@ async def admin_get_article(
 async def update_article(
     article_id: int,
     data: ArticleUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin),
 ):
@@ -488,6 +495,7 @@ async def update_article(
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
 
+    old_slug = article.slug
     update_fields = data.model_dump(exclude_unset=True)
 
     if "slug" in update_fields and update_fields["slug"] != article.slug:
@@ -508,6 +516,13 @@ async def update_article(
     db.commit()
     db.refresh(article)
 
+    # Pre-render SEO page (or delete if unpublished) + refresh sitemap
+    from utils.seo_prerender import prerender_article, delete_prerendered, regenerate_sitemap
+    background_tasks.add_task(prerender_article, article)
+    background_tasks.add_task(regenerate_sitemap)
+    if old_slug != article.slug:
+        background_tasks.add_task(delete_prerendered, "articles", old_slug)
+
     return ArticleDetail(
         **{k: v for k, v in _article_to_list_item(article).__dict__.items()},
         body=article.body,
@@ -525,6 +540,7 @@ async def update_article(
 @router.delete("/admin/articles/{article_id}")
 async def archive_article(
     article_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin),
 ):
@@ -533,6 +549,27 @@ async def archive_article(
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
 
+    slug = article.slug
     article.status = "archived"
     db.commit()
+
+    from utils.seo_prerender import delete_prerendered, regenerate_sitemap
+    background_tasks.add_task(delete_prerendered, "articles", slug)
+    background_tasks.add_task(regenerate_sitemap)
+
     return {"detail": "Article archived"}
+
+
+@router.post("/admin/articles/prerender-all")
+async def prerender_all_articles(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: PublicUser = Depends(require_admin),
+):
+    """Pre-render SEO pages for all published articles. Run once to backfill."""
+    from utils.seo_prerender import prerender_article, regenerate_sitemap
+    articles = db.query(Article).filter(Article.status == "published").all()
+    for article in articles:
+        background_tasks.add_task(prerender_article, article)
+    background_tasks.add_task(regenerate_sitemap)
+    return {"detail": f"Queued {len(articles)} articles for pre-rendering"}

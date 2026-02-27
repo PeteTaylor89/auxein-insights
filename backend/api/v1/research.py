@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
@@ -290,7 +290,8 @@ async def admin_list_reports(
 
 
 @router.post("/admin/research", response_model=ResearchDetail, status_code=201)
-async def create_report(data: ResearchCreate, db: Session = Depends(get_db),
+async def create_report(data: ResearchCreate, background_tasks: BackgroundTasks,
+                        db: Session = Depends(get_db),
                         admin: PublicUser = Depends(require_admin)):
     """Create a new research report (admin only)."""
     slug = data.slug or _slugify(data.title)
@@ -315,6 +316,11 @@ async def create_report(data: ResearchCreate, db: Session = Depends(get_db),
     db.add(report)
     db.commit()
     db.refresh(report)
+
+    if report.status == "published":
+        from utils.seo_prerender import prerender_research, regenerate_sitemap
+        background_tasks.add_task(prerender_research, report)
+        background_tasks.add_task(regenerate_sitemap)
 
     return ResearchDetail(
         **_report_to_list_item(report).__dict__,
@@ -349,12 +355,14 @@ async def admin_get_report(report_id: int, db: Session = Depends(get_db),
 
 @router.put("/admin/research/{report_id}", response_model=ResearchDetail)
 async def update_report(report_id: int, data: ResearchUpdate,
+                        background_tasks: BackgroundTasks,
                         db: Session = Depends(get_db),
                         admin: PublicUser = Depends(require_admin)):
     """Update an existing research report (admin only)."""
     report = db.query(ResearchReport).filter(ResearchReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    old_slug = report.slug
     update_fields = data.model_dump(exclude_unset=True)
     if "slug" in update_fields and update_fields["slug"] != report.slug:
         if db.query(ResearchReport).filter(
@@ -368,6 +376,12 @@ async def update_report(report_id: int, data: ResearchUpdate,
         setattr(report, key, value)
     db.commit()
     db.refresh(report)
+
+    from utils.seo_prerender import prerender_research, delete_prerendered, regenerate_sitemap
+    background_tasks.add_task(prerender_research, report)
+    background_tasks.add_task(regenerate_sitemap)
+    if old_slug != report.slug:
+        background_tasks.add_task(delete_prerendered, "research", old_slug)
     sections = [ResearchSectionResponse.model_validate(s) for s in report.sections]
     files = [ResearchFileResponse.model_validate(f) for f in report.files]
     return ResearchDetail(
@@ -382,15 +396,36 @@ async def update_report(report_id: int, data: ResearchUpdate,
 
 
 @router.delete("/admin/research/{report_id}")
-async def archive_report(report_id: int, db: Session = Depends(get_db),
+async def archive_report(report_id: int, background_tasks: BackgroundTasks,
+                         db: Session = Depends(get_db),
                          admin: PublicUser = Depends(require_admin)):
     """Archive a research report (soft delete, admin only)."""
     report = db.query(ResearchReport).filter(ResearchReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    slug = report.slug
     report.status = "archived"
     db.commit()
+
+    from utils.seo_prerender import delete_prerendered, regenerate_sitemap
+    background_tasks.add_task(delete_prerendered, "research", slug)
+    background_tasks.add_task(regenerate_sitemap)
+
     return {"detail": "Report archived"}
+
+
+@router.post("/admin/research/prerender-all")
+async def prerender_all_research(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: PublicUser = Depends(require_admin),
+):
+    """Pre-render SEO pages for all published research. Run once to backfill."""
+    from utils.seo_prerender import prerender_research
+    reports = db.query(ResearchReport).filter(ResearchReport.status == "published").all()
+    for report in reports:
+        background_tasks.add_task(prerender_research, report)
+    return {"detail": f"Queued {len(reports)} research reports for pre-rendering"}
 
 
 # ---------- Sections ----------
