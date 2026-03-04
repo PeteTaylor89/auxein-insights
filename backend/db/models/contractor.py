@@ -153,7 +153,17 @@ class Contractor(Base):
         if self.is_account_locked:
             return False
         return True
-    
+
+    @property
+    def user_type(self) -> str:
+        """Contractor user_type for permission matrix compatibility."""
+        return "contractor"
+
+    def has_permission(self, module: str, action: str) -> bool:
+        """Check if contractor has permission for module.action using the centralized matrix."""
+        from core.permissions import has_permission as check_permission
+        return check_permission("contractor", module, action)
+
     @property
     def insurance_status(self):
         """Get overall insurance compliance status"""

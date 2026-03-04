@@ -25,9 +25,14 @@ router = APIRouter()
 def create_asset(
     asset_in: AssetCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)  # Only company users can create assets
+    current_user: User = Depends(get_current_user)
 ):
     """Create a new asset"""
+    if not current_user.has_permission("assets", "create"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to create assets"
+        )
     logger.info(f"Creating asset: {asset_in.name} for company {current_user.company_id}")
     
     # Check if asset number already exists for this company
@@ -62,7 +67,7 @@ def create_asset(
 def list_assets(
     category: Optional[str] = None,
     asset_type: Optional[str] = None,
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     location: Optional[str] = None,
     requires_maintenance: Optional[bool] = None,
     requires_calibration: Optional[bool] = None,
@@ -95,8 +100,8 @@ def list_assets(
         query = query.filter(Asset.category == category)
     if asset_type:
         query = query.filter(Asset.asset_type == asset_type)
-    if status:
-        query = query.filter(Asset.status == status)
+    if status_filter:
+        query = query.filter(Asset.status == status_filter)
     if location:
         query = query.filter(Asset.location.ilike(f"%{location}%"))
     if requires_maintenance is not None:
@@ -368,7 +373,7 @@ def get_asset(
 
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and asset.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and asset.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -470,7 +475,7 @@ def update_asset(
         )
     
     # Check permissions
-    if current_user.role != "admin" and asset.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -502,7 +507,7 @@ def delete_asset(
         )
     
     # Check permissions
-    if current_user.role != "admin" and asset.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -581,7 +586,7 @@ def associate_file_with_asset(
         )
     
     # Check permissions
-    if current_user.role != "admin" and asset.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -625,7 +630,7 @@ def remove_file_from_asset(
         )
     
     # Check permissions
-    if current_user.role != "admin" and asset.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"

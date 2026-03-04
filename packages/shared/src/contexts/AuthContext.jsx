@@ -1,7 +1,8 @@
-//packages//shared// src/contexts/AuthContext.js - Minimal Update for Phase 1.1
-import { createContext, useContext, useState, useEffect } from 'react';
+//packages//shared// src/contexts/AuthContext.js - Updated for Phase 2.5 permissions
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../api/authService';
+import { hasPermission as checkPermission, isAdminType, isManagerOrAbove } from '../utils/permissions';
 
 const AuthContext = createContext();
 
@@ -20,8 +21,9 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   
-  // NEW: Add userType state
+  // NEW: Add userType state (routing key) and userTypeRole (5-tier permission key)
   const [userType, setUserType] = useState(null);
+  const [userTypeRole, setUserTypeRole] = useState(null);
   
   const navigate = useNavigate();
 
@@ -30,17 +32,20 @@ export const AuthProvider = ({ children }) => {
     const checkAuthStatus = async () => {
       const token = localStorage.getItem('accessToken');
       const storedUserType = authService.getCurrentUserType();
-      
+      const storedUserTypeRole = authService.getUserTypeRole();
+
       if (token && storedUserType) {
         try {
           const userData = await authService.getProfile();
           setUser(userData);
           setUserType(storedUserType);
+          setUserTypeRole(storedUserTypeRole || storedUserType);
           setIsAuthenticated(true);
         } catch (error) {
           console.log('Token invalid, clearing storage');
           authService.logout();
           setUserType(null);
+          setUserTypeRole(null);
         }
       }
       setInitialLoading(false);
@@ -61,6 +66,7 @@ export const AuthProvider = ({ children }) => {
       
       // Set user type state
       setUserType(response.user_type);
+      setUserTypeRole(response.user_type_role || response.user_type);
       
       // Try to get user profile, with fallback for contractors
       try {
@@ -94,6 +100,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Login error:', err);
       setUserType(null);
+      setUserTypeRole(null);
       
       if (err.response?.data?.detail) {
         setError(err.response.data.detail);
@@ -125,6 +132,7 @@ export const AuthProvider = ({ children }) => {
       // Store enhanced auth data
       authService.storeAuthData(loginResponse);
       setUserType(loginResponse.user_type);
+      setUserTypeRole(loginResponse.user_type_role || loginResponse.user_type);
       
       // Get user profile
       const userProfile = await authService.getProfile();
@@ -137,6 +145,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Registration error:', err);
       setUserType(null);
+      setUserTypeRole(null);
       throw err;
     } finally {
       setLoading(false);
@@ -147,6 +156,7 @@ export const AuthProvider = ({ children }) => {
     authService.logout();
     setUser(null);
     setUserType(null);
+    setUserTypeRole(null);
     setIsAuthenticated(false);
     setError('');
     navigate('/login');
@@ -196,6 +206,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Permission check helper - stable reference via useCallback
+  const hasPermission = useCallback((module, action) => {
+    return checkPermission(userTypeRole, module, action);
+  }, [userTypeRole]);
+
   const value = {
     user,
     loading,
@@ -208,12 +223,18 @@ export const AuthProvider = ({ children }) => {
     refreshAuthToken,
     updateUserProfile,
     clearError: () => setError(''),
-    
-    // NEW: Enhanced auth values
-    userType,
+
+    // Enhanced auth values
+    userType,         // routing key: "company_user" | "contractor"
+    userTypeRole,     // 5-tier: "auxein_admin" | "company_admin" | "company_manager" | "company_user" | "contractor"
     isCompanyUser: () => userType === 'company_user',
     isContractor: () => userType === 'contractor',
-    
+
+    // Permission system
+    hasPermission,
+    isAdmin: isAdminType(userTypeRole),
+    isManagerOrAbove: isManagerOrAbove(userTypeRole),
+
     // Expose auth service helpers
     getCompanyId: authService.getCompanyId,
     getCompanyIds: authService.getCompanyIds,

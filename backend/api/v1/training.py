@@ -43,7 +43,7 @@ def create_training_module(
 ):
     """Create a new training module"""
     # Check permissions
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create training modules"
@@ -73,7 +73,7 @@ def get_training_modules(
     db: Session = Depends(get_db)
 ):
     """Get list of training modules"""
-    if not current_user.has_permission("view_training"):
+    if not current_user.has_permission("training", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view training modules"
@@ -144,7 +144,7 @@ def get_training_module(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("view_training"):
+    if not current_user.has_permission("training", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view training modules"
@@ -196,7 +196,7 @@ def update_training_module(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to update training modules"
@@ -231,7 +231,7 @@ def publish_training_module(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to publish training modules"
@@ -323,7 +323,7 @@ def archive_training_module(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to archive training modules"
@@ -357,7 +357,7 @@ def create_training_slide(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create training slides"
@@ -397,7 +397,7 @@ def get_training_slides(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("view_training"):
+    if not current_user.has_permission("training", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view training slides"
@@ -429,7 +429,7 @@ def update_training_slide(
             detail="Training slide not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to update training slides"
@@ -467,7 +467,7 @@ def delete_training_slide(
             detail="Training slide not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to delete training slides"
@@ -500,7 +500,7 @@ def create_training_question(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create training questions"
@@ -545,7 +545,7 @@ def get_training_questions(
             detail="Training module not found"
         )
     
-    if not current_user.has_permission("view_training"):
+    if not current_user.has_permission("training", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view training questions"
@@ -569,7 +569,7 @@ def assign_training(
     db: Session = Depends(get_db)
 ):
     """Assign training to a user, visitor, or contractor"""
-    if not current_user.has_permission("manage_training"):
+    if not current_user.has_permission("training", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to assign training"
@@ -639,33 +639,33 @@ def assign_training(
 def get_training_assignments(
     entity_type: Optional[str] = Query(None, regex="^(user|visitor|contractor)$"),
     entity_id: Optional[int] = Query(None),
-    status: Optional[str] = Query(None, regex="^(assigned|in_progress|completed|failed|expired)$"),
+    status_filter: Optional[str] = Query(None, alias="status", regex="^(assigned|in_progress|completed|failed|expired)$"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get training assignments"""
-    if not current_user.has_permission("view_training"):
+    if not current_user.has_permission("training", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view training assignments"
         )
-    
+
     # Base query for company's training records
     query = db.query(TrainingRecord).join(TrainingModule).filter(
         TrainingModule.company_id == current_user.company_id
     )
-    
+
     # Apply filters
     if entity_type:
         query = query.filter(TrainingRecord.entity_type == entity_type)
-    
+
     if entity_id:
         query = query.filter(TrainingRecord.entity_id == entity_id)
-    
-    if status:
-        query = query.filter(TrainingRecord.status == status)
+
+    if status_filter:
+        query = query.filter(TrainingRecord.status == status_filter)
     
     records = query.offset(skip).limit(limit).all()
     
@@ -696,7 +696,7 @@ def get_training_stats(
     db: Session = Depends(get_db)
 ):
     """Get training statistics for the company"""
-    if not current_user.has_permission("view_training_reports"):
+    if not current_user.has_permission("training", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view training reports"
@@ -756,7 +756,7 @@ def get_training_progress(
     # Check if user has access to this record
     if record.entity_type == "user" and record.entity_id != current_user.id:
         # Only allow if user is admin/manager or the assigned user
-        if not current_user.has_permission("manage_training"):
+        if not current_user.has_permission("training", "update"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied"

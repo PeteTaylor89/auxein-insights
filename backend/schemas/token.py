@@ -16,6 +16,7 @@ class Token(BaseModel):
 class EnhancedToken(Token):
     """Enhanced token response with user type and metadata"""
     user_type: str  # "company_user" | "contractor"
+    user_type_role: str  # "auxein_admin" | "company_admin" | "company_manager" | "company_user" | "contractor"
     user_id: int
     username: str
     full_name: Optional[str] = None

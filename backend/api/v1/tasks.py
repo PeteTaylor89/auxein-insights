@@ -109,8 +109,8 @@ def check_template_access(db: Session, template_id: int, user: User) -> TaskTemp
 
 def can_modify_task(task: Task, user: User) -> bool:
     """Check if user can modify task"""
-    # Admin and manager can modify all tasks
-    if user.role in ["admin", "manager"]:
+    # Users with tasks.update permission can modify all tasks
+    if user.has_permission("tasks", "update"):
         return True
     
     # User can modify if they created it or are assigned to it
@@ -133,7 +133,7 @@ def create_task_template(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new task template (admin/manager only)"""
-    if current_user.role not in ["admin", "manager"]:
+    if not current_user.has_permission("tasks", "create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins and managers can create templates"
@@ -220,7 +220,7 @@ def update_task_template(
     current_user: User = Depends(get_current_user)
 ):
     """Update a task template (admin/manager only)"""
-    if current_user.role not in ["admin", "manager"]:
+    if not current_user.has_permission("tasks", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins and managers can update templates"
@@ -247,7 +247,7 @@ def delete_task_template(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a task template (admin only)"""
-    if current_user.role != "admin":
+    if not current_user.has_permission("tasks", "delete"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can delete templates"
@@ -525,8 +525,8 @@ def delete_task(
     """Delete a task (admin/manager or creator only)"""
     task = check_task_access(db, task_id, current_user)
     
-    # Only admin, manager, or creator can delete
-    if current_user.role not in ["admin", "manager"] and task.created_by != current_user.id:
+    # Only users with delete permission, or task creator can delete
+    if not current_user.has_permission("tasks", "delete") and task.created_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins, managers, or task creator can delete tasks"

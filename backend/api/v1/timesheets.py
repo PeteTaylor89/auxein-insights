@@ -46,7 +46,7 @@ def _ensure_company_scope(current_user: User, company_id: int) -> None:
 
 
 def _ensure_owner_or_admin(current_user: User, user_id: int, company_id: int) -> None:
-    if current_user.role == "admin":
+    if current_user.has_permission("timesheets", "read"):
         return
     if current_user.id == user_id and current_user.company_id == company_id:
         return
@@ -57,7 +57,7 @@ def _ensure_editable(day: TimesheetDay, current_user: User) -> None:
     # Owners (or admins) can edit while in draft or submitted.
     if day.status == TimesheetStatus.approved:
         raise HTTPException(status_code=409, detail="Day is approved, not editable (ask a manager/admin to release)")
-    if current_user.role != "admin" and day.user_id != current_user.id:
+    if not current_user.has_permission("timesheets", "update") and day.user_id != current_user.id:
         # Only allow owner edits in MVP
         raise HTTPException(status_code=403, detail="Only the owner can edit their day")
 
@@ -144,7 +144,7 @@ def release_timesheet_day(
     day = _get_day_or_404(db, day_id)
     _ensure_company_scope(current_user, day.company_id)
 
-    if current_user.role not in ("admin", "manager"):
+    if not current_user.has_permission("timesheets", "approve"):
         raise HTTPException(status_code=403, detail="Only admins or managers can release")
 
     if day.status != TimesheetStatus.approved:
@@ -183,7 +183,7 @@ def list_timesheet_days(
 
     if user_id is not None:
         if user_id != current_user.id:
-            if current_user.role not in ("admin", "manager"):
+            if not current_user.has_permission("timesheets", "read"):
                 raise HTTPException(status_code=403, detail="Not allowed to view other users' timesheets")
         q = q.filter(TimesheetDay.user_id == user_id)
 
@@ -211,7 +211,7 @@ def get_timesheet_day(
     day = _get_day_or_404(db, day_id)
     _ensure_company_scope(current_user, day.company_id)
     # Non-admins: allow viewing own or, if manager, same-company
-    if current_user.role not in ("admin", "manager") and day.user_id != current_user.id:
+    if not current_user.has_permission("timesheets", "read") and day.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only view your own timesheet day")
     return day
 
@@ -251,7 +251,7 @@ def submit_timesheet_day(
     day = _get_day_or_404(db, day_id)
     _ensure_company_scope(current_user, day.company_id)
 
-    if day.user_id != current_user.id and current_user.role != "admin":
+    if day.user_id != current_user.id and not current_user.has_permission("timesheets", "approve"):
         raise HTTPException(status_code=403, detail="Only the owner can submit this day")
 
     if day.status != TimesheetStatus.draft:
@@ -286,7 +286,7 @@ def approve_timesheet_day(
     day = _get_day_or_404(db, day_id)
     _ensure_company_scope(current_user, day.company_id)
 
-    if current_user.role not in ("admin", "manager"):
+    if not current_user.has_permission("timesheets", "approve"):
         raise HTTPException(status_code=403, detail="Only admins or managers can approve")
 
     if day.status != TimesheetStatus.submitted:
@@ -321,7 +321,7 @@ def reject_timesheet_day(
     day = _get_day_or_404(db, day_id)
     _ensure_company_scope(current_user, day.company_id)
 
-    if current_user.role not in ("admin", "manager"):
+    if not current_user.has_permission("timesheets", "approve"):
         raise HTTPException(status_code=403, detail="Only admins or managers can reject")
 
     if day.status != TimesheetStatus.submitted:

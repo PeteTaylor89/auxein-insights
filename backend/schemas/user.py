@@ -1,9 +1,12 @@
-# app/schemas/user.py - Simplified User Schemas (3 roles only)
+# app/schemas/user.py - User Schemas (5-tier user types)
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, validator
 from .company import Company
 from core.security.password import validate_password
+
+VALID_USER_TYPES = ["auxein_admin", "company_admin", "company_manager", "company_user", "contractor"]
+VALID_ROLES = ["admin", "manager", "user"]  # Backward-compat old roles
 
 class UserBase(BaseModel):
     email: Optional[EmailStr] = None
@@ -11,7 +14,8 @@ class UserBase(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     role: Optional[str] = "user"
-    
+    user_type: Optional[str] = "company_user"
+
     # Enhanced profile fields
     phone: Optional[str] = None
     bio: Optional[str] = None
@@ -24,12 +28,13 @@ class UserCreate(UserBase):
     username: str
     password: str
     company_id: int
-    
+
     # Optional fields for admin creation
     role: str = "user"
+    user_type: str = "company_user"
     is_verified: bool = False  # Will be set to True if created by admin
     send_invitation: bool = True  # Whether to send invitation email
-    
+
     @validator("password")
     def password_validation(cls, v):
         if not validate_password(v):
@@ -37,12 +42,18 @@ class UserCreate(UserBase):
                 "Password must be at least 8 characters, include a number and uppercase letter"
             )
         return v
-    
+
     @validator("role")
     def validate_role(cls, v):
-        allowed_roles = ["admin", "manager", "user"]
-        if v not in allowed_roles:
-            raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
+        allowed = VALID_ROLES + VALID_USER_TYPES
+        if v not in allowed:
+            raise ValueError(f"Role must be one of: {', '.join(allowed)}")
+        return v
+
+    @validator("user_type")
+    def validate_user_type(cls, v):
+        if v not in VALID_USER_TYPES:
+            raise ValueError(f"user_type must be one of: {', '.join(VALID_USER_TYPES)}")
         return v
 
 class UserUpdate(BaseModel):
@@ -54,19 +65,26 @@ class UserUpdate(BaseModel):
     language: Optional[str] = None
     avatar_url: Optional[str] = None
     preferences: Optional[Dict[str, Any]] = None
-    
+
     # Admin-only fields
     role: Optional[str] = None
+    user_type: Optional[str] = None
     is_active: Optional[bool] = None
     is_suspended: Optional[bool] = None
     company_id: Optional[int] = None
-    
+
     @validator("role")
     def validate_role(cls, v):
         if v is not None:
-            allowed_roles = ["admin", "manager", "user"]
-            if v not in allowed_roles:
-                raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
+            allowed = VALID_ROLES + VALID_USER_TYPES
+            if v not in allowed:
+                raise ValueError(f"Role must be one of: {', '.join(allowed)}")
+        return v
+
+    @validator("user_type")
+    def validate_user_type(cls, v):
+        if v is not None and v not in VALID_USER_TYPES:
+            raise ValueError(f"user_type must be one of: {', '.join(VALID_USER_TYPES)}")
         return v
 
 class UserProfileUpdate(BaseModel):
@@ -134,11 +152,12 @@ class UserSummary(BaseModel):
     last_name: Optional[str] = None
     full_name: str
     role: str
+    user_type: Optional[str] = None
     is_active: bool
     is_verified: bool
     avatar_url: Optional[str] = None
     last_login: Optional[datetime] = None
-    
+
     class Config:
         orm_mode = True
 
@@ -146,22 +165,32 @@ class UserInvitation(BaseModel):
     """Schema for inviting new users"""
     email: EmailStr
     role: str = "user"
+    user_type: Optional[str] = None  # If set, takes precedence over role
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     message: Optional[str] = None  # Custom invitation message
-    
+
     @validator("role")
     def validate_role(cls, v):
-        allowed_roles = ["admin", "manager", "user"]  # Simplified roles
-        if v not in allowed_roles:
-            raise ValueError(f"Can only invite users with roles: {', '.join(allowed_roles)}")
+        allowed = VALID_ROLES + VALID_USER_TYPES
+        if v not in allowed:
+            raise ValueError(f"Can only invite users with roles: {', '.join(allowed)}")
+        return v
+
+    @validator("user_type")
+    def validate_user_type(cls, v):
+        if v is not None:
+            invitable = ["company_admin", "company_manager", "company_user"]
+            if v not in invitable:
+                raise ValueError(f"Can only invite user_types: {', '.join(invitable)}")
         return v
 
 class UserPermissions(BaseModel):
     """Schema for user permissions"""
     user_id: int
-    permissions: List[str]
+    permissions: Dict[str, List[str]]  # module → actions
     role: str
+    user_type: str
     can_manage_users: bool
     can_manage_company: bool
     can_manage_billing: bool
@@ -197,10 +226,11 @@ class UserStats(BaseModel):
     login_count: int
     last_active: Optional[datetime] = None
 
-# Simplified role permissions configuration
+# Legacy role permissions - DEPRECATED: Use core.permissions module instead
+# Kept for backward compatibility during migration
 ROLE_PERMISSIONS = {
     "admin": [
-        "manage_company", "manage_users", "manage_billing", 
+        "manage_company", "manage_users", "manage_billing",
         "manage_blocks", "manage_observations", "manage_tasks", "manage_risks",
         "view_analytics", "export_data", "manage_settings", "view_training"
     ],
@@ -209,7 +239,7 @@ ROLE_PERMISSIONS = {
         "view_analytics", "export_data", "view_training"
     ],
     "user": [
-        "create_observations", "complete_tasks", "edit_own_tasks", 
+        "create_observations", "complete_tasks", "edit_own_tasks",
         "view_blocks", "export_own_data", "view_training"
     ]
 }

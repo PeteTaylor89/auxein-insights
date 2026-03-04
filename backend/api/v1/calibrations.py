@@ -47,7 +47,7 @@ def create_calibration_record(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and asset.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and asset.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -99,7 +99,7 @@ def create_calibration_record(
 def list_calibration_records(
     asset_id: Optional[int] = None,
     calibration_type: Optional[str] = None,
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     calibrated_from: Optional[date] = None,
     calibrated_to: Optional[date] = None,
     overdue_only: bool = False,
@@ -116,7 +116,7 @@ def list_calibration_records(
     # Filter by company for users
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin":
+        if not getattr(user, 'is_auxein_admin', False):
             query = query.filter(AssetCalibration.company_id == user.company_id)
     
     # Apply filters
@@ -124,8 +124,8 @@ def list_calibration_records(
         query = query.filter(AssetCalibration.asset_id == asset_id)
     if calibration_type:
         query = query.filter(AssetCalibration.calibration_type == calibration_type)
-    if status:
-        query = query.filter(AssetCalibration.status == status)
+    if status_filter:
+        query = query.filter(AssetCalibration.status == status_filter)
     if calibrated_from:
         query = query.filter(AssetCalibration.calibration_date >= calibrated_from)
     if calibrated_to:
@@ -241,7 +241,7 @@ def get_calibration_record(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and calibration.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and calibration.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -267,7 +267,7 @@ def update_calibration_record(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and calibration.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and calibration.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -313,7 +313,7 @@ def delete_calibration_record(
         )
     
     # Check permissions
-    if current_user.role != "admin" and calibration.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and calibration.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -344,7 +344,7 @@ def get_asset_calibration_history(
     
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and asset.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and asset.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"

@@ -203,7 +203,7 @@ def read_company(
     if isinstance(current_user_or_contractor, User):
         # Company user logic
         user = current_user_or_contractor
-        if user.role != "admin" and user.company_id != company_id:
+        if not user.is_auxein_admin and user.company_id != company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -244,14 +244,14 @@ def update_company(
         )
     
     # Only system admin or company owner can update
-    if current_user.role != "admin" and current_user.company_id != company_id:
+    if not current_user.has_permission("settings", "update") and current_user.company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
     
     # Only system admin can change subscription
-    if company_in.subscription_id and current_user.role != "admin":
+    if company_in.subscription_id and not current_user.has_permission("billing", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can change subscriptions"
@@ -301,7 +301,7 @@ def update_company_subscription(
     Update company subscription (admin only).
     Only available to company admin users.
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("billing", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can update subscriptions"

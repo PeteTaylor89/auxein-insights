@@ -6,6 +6,9 @@ export * from './api/index.js';
 // Contexts
 export { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 
+// Utils
+export { hasPermission, getPermissionsForUserType, isAdminType, isManagerOrAbove, UserType } from './utils/permissions.js';
+
 // Hooks
 export { default as usePullToRefresh } from './hooks/usePullToRefresh.js';
 export { 

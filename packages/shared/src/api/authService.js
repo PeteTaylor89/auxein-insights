@@ -58,6 +58,7 @@ const authService = {
     localStorage.removeItem('user');
     // NEW: Clear enhanced auth data
     localStorage.removeItem('userType');
+    localStorage.removeItem('userTypeRole');
     localStorage.removeItem('authMetadata');
   },
 
@@ -71,13 +72,15 @@ const authService = {
     // NEW: Store enhanced auth data from login response
     if (loginResponse.user_type) {
       localStorage.setItem('userType', loginResponse.user_type);
-      
+      localStorage.setItem('userTypeRole', loginResponse.user_type_role || loginResponse.user_type);
+
       // Store metadata for easy access
       const metadata = {
         userId: loginResponse.user_id,
         username: loginResponse.username,
         fullName: loginResponse.full_name,
         role: loginResponse.role,
+        userTypeRole: loginResponse.user_type_role || loginResponse.user_type,
         companyId: loginResponse.company_id,
         companyIds: loginResponse.company_ids,
         contractorId: loginResponse.contractor_id || null
@@ -148,6 +151,10 @@ const authService = {
 
   isContractor: () => {
     return localStorage.getItem('userType') === 'contractor';
+  },
+
+  getUserTypeRole: () => {
+    return localStorage.getItem('userTypeRole') || localStorage.getItem('userType');
   },
 
   getCompanyId: () => {

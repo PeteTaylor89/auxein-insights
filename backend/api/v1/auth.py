@@ -451,6 +451,7 @@ def login_access_token(
     # Create enhanced token payload
     token_data = {
         "user_type": user_type,
+        "user_type_role": authenticated_user.user_type if user_type == "company_user" else "contractor",
         "client_type": client_type,
         "role": authenticated_user.role if user_type == "company_user" else None,
         "company_id": authenticated_user.company_id if user_type == "company_user" else None,
@@ -477,6 +478,7 @@ def login_access_token(
         refresh_token=refresh_token,
         token_type="bearer",
         user_type=user_type,
+        user_type_role=authenticated_user.user_type if user_type == "company_user" else "contractor",
         user_id=authenticated_user.id,
         username=authenticated_user.username if user_type == "company_user" else authenticated_user.email,
         full_name=full_name,
@@ -631,13 +633,16 @@ def refresh_token(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     
+    new_access_token, _ = create_access_token(
+        user.id, expires_delta=access_token_expires
+    )
+    new_refresh_token, _ = create_refresh_token(
+        user.id, expires_delta=refresh_token_expires
+    )
+
     return {
-        "access_token": create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "refresh_token": create_refresh_token(
-            user.id, expires_delta=refresh_token_expires
-        ),
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
 

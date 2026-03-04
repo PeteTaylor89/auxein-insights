@@ -947,16 +947,22 @@ def get_user_permissions(
     current_user: User = Depends(get_current_user)
 ):
     """Get current user's risk management permissions"""
-    from utils.risk_permissions import RiskPermissions, RISK_PERMISSIONS
-    
-    user_permissions = {}
-    
-    for permission, allowed_roles in RISK_PERMISSIONS.items():
-        user_permissions[permission.lower()] = current_user.role in allowed_roles
-    
+    from utils.risk_permissions import RiskPermissions
+
     return {
+        "user_type": current_user.user_type,
         "user_role": current_user.role,
-        "permissions": user_permissions,
+        "permissions": {
+            "create_risk": current_user.has_permission("risks", "create"),
+            "modify_risk": current_user.has_permission("risks", "update"),
+            "delete_risk": current_user.has_permission("risks", "delete"),
+            "view_risk": current_user.has_permission("risks", "read"),
+            "create_action": current_user.has_permission("risks", "create"),
+            "modify_action": current_user.has_permission("risks", "update"),
+            "complete_action": True,
+            "assign_action": current_user.has_permission("risks", "assign"),
+            "manage_settings": current_user.has_permission("settings", "update"),
+        },
         "can_create_risk": RiskPermissions.can_create_risk(current_user),
         "can_create_actions": RiskPermissions.can_create_risk_action(current_user),
         "can_complete_actions": RiskPermissions.can_complete_risk_action(current_user, current_user.company_id),

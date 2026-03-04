@@ -232,7 +232,7 @@ class GWIngestion:
     
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
-            interval: str = None):
+            interval: str = None, station_code: str = None):
         """
         Main ingestion process
         
@@ -243,6 +243,7 @@ class GWIngestion:
             end_date: Explicit end date (DD/MM/YYYY) - defaults to today
             dry_run: If True, fetch and parse but don't insert to database
             interval: Data aggregation interval (e.g., '30 minutes', '1 hour')
+            station_code: Optional station code to filter to a single station
         """
         print(f"\n{'='*60}")
         print(f"Starting GW ingestion at {datetime.now()}")
@@ -251,6 +252,8 @@ class GWIngestion:
             print(f"Date range: {start_date} to {end_date or 'today'}")
         if interval:
             print(f"Interval: {interval}")
+        if station_code:
+            print(f"Station filter: {station_code}")
         if dry_run:
             print(f"*** DRY RUN - No data will be inserted ***")
         print(f"{'='*60}\n")
@@ -266,7 +269,19 @@ class GWIngestion:
             explicit_end = datetime.now(self.nz_tz)
         
         stations = self.get_active_stations()
-        print(f"Found {len(stations)} active GW stations\n")
+        
+        # Filter to single station if specified
+        if station_code:
+            stations = [s for s in stations if s[1] == station_code]
+            if not stations:
+                print(f"⚠ Station '{station_code}' not found in active GW stations")
+                print(f"  Available stations:")
+                all_stations = self.get_active_stations()
+                for s in all_stations:
+                    print(f"    - {s[1]}")
+                return
+        
+        print(f"Found {len(stations)} active GW station(s)\n")
         
         total_inserted = 0
         total_parsed = 0

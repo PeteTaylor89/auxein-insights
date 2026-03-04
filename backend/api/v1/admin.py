@@ -4,7 +4,7 @@ from typing import Any, Optional
 import secrets
 import re
 from sqlalchemy import or_
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, validator
 
@@ -120,8 +120,8 @@ def create_company_with_admin(
     Create a new company with an admin user.
     Only accessible by system administrators.
     """
-    # Check if current user is system admin
-    if current_user.role != "admin":
+    # Check if current user has permission to create companies
+    if not current_user.has_permission("users", "create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can create companies"
@@ -286,7 +286,7 @@ def list_all_companies(
     """
     List all companies (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("settings", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can list all companies"
@@ -315,7 +315,7 @@ def list_company_users(
     """
     List all users for a specific company (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("users", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can list company users"
@@ -343,7 +343,7 @@ def update_company_subscription(
     """
     Update company subscription (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("billing", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can update subscriptions"
@@ -395,7 +395,7 @@ def deactivate_company(
     """
     Deactivate a company (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("settings", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can deactivate companies"
@@ -427,7 +427,7 @@ def reactivate_company(
     """
     Reactivate a company (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("settings", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can reactivate companies"
@@ -460,21 +460,21 @@ def list_all_users(
     search: Optional[str] = None,
     company_id: Optional[int] = None,
     role: Optional[str] = None,
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     List all users across all companies (system admin only).
     """
-    if current_user.role not in ["admin", "manager"]:
+    if not current_user.has_permission("users", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can list all users"
         )
-    
+
     query = db.query(User)
-    
+
     # Apply filters
     if search:
         query = query.filter(
@@ -485,19 +485,19 @@ def list_all_users(
                 User.username.ilike(f"%{search}%")
             )
         )
-    
+
     if company_id:
         query = query.filter(User.company_id == company_id)
-    
+
     if role:
         query = query.filter(User.role == role)
-    
-    if status:
-        if status == "active":
+
+    if status_filter:
+        if status_filter == "active":
             query = query.filter(User.is_active == True, User.is_suspended == False)
-        elif status == "suspended":
+        elif status_filter == "suspended":
             query = query.filter(User.is_suspended == True)
-        elif status == "unverified":
+        elif status_filter == "unverified":
             query = query.filter(User.is_verified == False)
     
     users = query.offset(skip).limit(limit).all()
@@ -513,7 +513,7 @@ def update_user_role_admin(
     """
     Update user role (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("users", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can update user roles"
@@ -562,7 +562,7 @@ def suspend_user_admin(
     """
     Suspend a user (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("users", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can suspend users"
@@ -605,7 +605,7 @@ def unsuspend_user_admin(
     """
     Unsuspend a user (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("users", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can unsuspend users"
@@ -642,7 +642,7 @@ def update_user_status_admin(
     """
     Update user active status (system admin only).
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("users", "update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only system administrators can update user status"

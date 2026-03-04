@@ -122,7 +122,7 @@ def list_invitations(
 ):
     """List company invitations"""
     
-    if not current_user.has_permission("manage_users"):
+    if not current_user.has_permission("users", "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"

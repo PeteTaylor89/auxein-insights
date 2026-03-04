@@ -18,6 +18,9 @@ class User(Base):
     
     # Simplified role system - only 3 roles
     role = Column(String(20), nullable=False, default="user")  # admin, manager, user
+
+    # 5-tier user type system (Phase 2.5) — replaces role
+    user_type = Column(String(20), nullable=False, default="company_user", index=True)
     
     # Company relationship
     company_id = Column(Integer, ForeignKey("companies.id"))
@@ -135,7 +138,7 @@ class User(Base):
 
     
     def __repr__(self):
-        return f"<User(id={self.id}, email='{self.email}', role='{self.role}', company_id={self.company_id})>"
+        return f"<User(id={self.id}, email='{self.email}', user_type='{self.user_type}', role='{self.role}', company_id={self.company_id})>"
     
     @property
     def full_name(self):
@@ -167,58 +170,44 @@ class User(Base):
             return False
         return True
     
-    def has_permission(self, permission: str) -> bool:
-        """Check if user has a specific permission based on simplified role"""
-        role_permissions = {
-            "admin": [
-                "manage_company", "manage_users", "manage_billing", 
-                "manage_blocks", "manage_observations", "manage_tasks", "manage_risks",
-                "view_analytics", "export_data", "manage_settings", "manage_training",
-                "view_training", "view_training_reports", "view_training"
-            ],
-            "manager": [
-                "manage_blocks", "manage_observations", "manage_tasks", "manage_risks",
-                "view_analytics", "export_data", "manage_training", "view_training",
-                "view_training_reports", "view_training"
-            ],
-            "user": [
-                "create_observations", "complete_tasks", "edit_own_tasks", 
-                "view_blocks", "export_own_data", "view_training"
-            ]
-        }
-        
-        user_permissions = role_permissions.get(self.role, [])
-        return permission in user_permissions
+    def has_permission(self, module: str, action: str) -> bool:
+        """Check if user has permission for module.action using the centralized matrix."""
+        from core.permissions import has_permission as check_permission
+        return check_permission(self.user_type, module, action)
+
+    @property
+    def is_auxein_admin(self):
+        """Check if user is an Auxein platform super-admin."""
+        return self.user_type == "auxein_admin"
     
     def can_manage_user(self, target_user) -> bool:
         """Check if this user can manage another user"""
-        if not self.has_permission("manage_users"):
+        if not self.has_permission("users", "update"):
             return False
-        
-        # Only admin can manage users
-        if self.role == "admin":
-            return target_user.company_id == self.company_id
-        
-        return False
-    
+
+        # Auxein admin can manage any user
+        if self.is_auxein_admin:
+            return True
+        # Company admin can manage users in their own company
+        return target_user.company_id == self.company_id
+
     def can_invite_users(self) -> bool:
         """Check if user can invite other users"""
-        # Only admin and manager can invite users
-        return self.role in ["admin", "manager"]
-    
+        return self.has_permission("users", "create")
+
     def can_invite_role(self, target_role: str) -> bool:
         """Check if user can invite someone with the target role"""
         if not self.can_invite_users():
             return False
-        
-        # Admin can invite any role
-        if self.role == "admin":
-            return target_role in ["admin", "manager", "user"]
-        
-        # Manager can only invite users (not admin/manager)
-        if self.role == "manager":
-            return target_role == "user"
-        
+
+        # Auxein admin and company admin can invite any role
+        if self.user_type in ("auxein_admin", "company_admin"):
+            return target_role in ["admin", "manager", "user", "company_admin", "company_manager", "company_user"]
+
+        # Company manager can only invite company_user
+        if self.user_type == "company_manager":
+            return target_role in ("user", "company_user")
+
         return False
     
     def get_preference(self, key: str, default=None):

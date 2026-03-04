@@ -52,7 +52,7 @@ async def test_small_sync(
 ):
     """Test sync with a small number of parcels"""
     
-    if current_user.role not in ["admin", "owner"]:
+    if not current_user.has_permission("blocks", "update"):
         raise HTTPException(
             status_code=403,
             detail="Only administrators can trigger sync operations"
@@ -72,7 +72,7 @@ async def trigger_full_parcel_sync(
     """Trigger a full refresh of all parcel data"""
     
     # Check if user has permission (admin only)
-    if current_user.role not in ["admin", "owner"]:
+    if not current_user.has_permission("blocks", "update"):
         raise HTTPException(
             status_code=403,
             detail="Only administrators can trigger parcel synchronization"
@@ -144,7 +144,7 @@ def get_sync_history(
 ):
     """Get history of parcel synchronizations"""
     
-    if current_user.role not in ["admin", "owner"]:
+    if not current_user.has_permission("blocks", "update"):
         raise HTTPException(
             status_code=403,
             detail="Only administrators can view sync history"

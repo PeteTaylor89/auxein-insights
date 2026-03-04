@@ -40,7 +40,7 @@ def create_maintenance_record(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and asset.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and asset.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -93,7 +93,7 @@ def create_maintenance_record(
 def list_maintenance_records(
     asset_id: Optional[int] = None,
     maintenance_type: Optional[str] = None,
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     scheduled_from: Optional[date] = None,
     scheduled_to: Optional[date] = None,
     overdue_only: bool = False,
@@ -110,7 +110,7 @@ def list_maintenance_records(
     # Filter by company for users
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin":
+        if not getattr(user, 'is_auxein_admin', False):
             query = query.filter(AssetMaintenance.company_id == user.company_id)
     
     # Apply filters
@@ -118,8 +118,8 @@ def list_maintenance_records(
         query = query.filter(AssetMaintenance.asset_id == asset_id)
     if maintenance_type:
         query = query.filter(AssetMaintenance.maintenance_type == maintenance_type)
-    if status:
-        query = query.filter(AssetMaintenance.status == status)
+    if status_filter:
+        query = query.filter(AssetMaintenance.status == status_filter)
     if scheduled_from:
         query = query.filter(AssetMaintenance.scheduled_date >= scheduled_from)
     if scheduled_to:
@@ -223,7 +223,7 @@ def get_maintenance_record(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and maintenance.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and maintenance.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -249,7 +249,7 @@ def update_maintenance_record(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and maintenance.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and maintenance.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -302,7 +302,7 @@ def delete_maintenance_record(
         )
     
     # Check permissions
-    if current_user.role != "admin" and maintenance.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and maintenance.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -332,7 +332,7 @@ def get_asset_maintenance_history(
     
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and asset.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and asset.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"

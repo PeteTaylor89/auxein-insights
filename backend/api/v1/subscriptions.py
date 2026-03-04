@@ -29,7 +29,7 @@ def get_all_subscriptions(
     Get all subscriptions - simplified for single tier model
     """
     # System admins can see everything
-    if current_user.role == "admin":
+    if current_user.has_permission("subscriptions", "read"):
         query = db.query(Subscription)
         if not include_inactive:
             query = query.filter(Subscription.is_active == True)

@@ -236,9 +236,9 @@ def bulk_import_climate_data(
     Bulk import climate historical data (admin only)
     """
     # Check admin permissions
-    if current_user.role != "admin":
+    if not current_user.has_permission("climate", "import"):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Pre-verify all referenced blocks belong to user's company
     block_ids = {r.vineyard_block_id for r in bulk_data.records}
     owned_blocks = db.query(VineyardBlock.id).filter(
@@ -299,9 +299,9 @@ async def import_csv_climate_data(
     Expected CSV format: Date,ID,Tmean(C),Tmin(C),Tmax(C),Amount(mm),Amount(MJm2)
     """
     # Check admin permissions
-    if current_user.role != "admin":
+    if not current_user.has_permission("climate", "import"):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Verify block exists and belongs to user's company
     block = db.query(VineyardBlock).filter(
         VineyardBlock.id == block_id,
@@ -407,7 +407,7 @@ def delete_climate_record(
     """
     Delete a climate historical record (admin only)
     """
-    if current_user.role != "admin":
+    if not current_user.has_permission("climate", "delete"):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     record = db.query(ClimateHistoricalData).filter(ClimateHistoricalData.id == record_id).first()

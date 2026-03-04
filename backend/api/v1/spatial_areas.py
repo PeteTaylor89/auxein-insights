@@ -31,7 +31,7 @@ def get_all_spatial_areas_geojson(
     query = db.query(SpatialArea).filter(SpatialArea.is_active == True)
     
     # Filter by company
-    is_auxein_admin = (current_user.email or "").lower() == "pete.taylor@auxein.co.nz"
+    is_auxein_admin = current_user.is_auxein_admin
     wants_all = (scope or "").lower() == "all"
 
     if current_user.company_id and not (is_auxein_admin and wants_all):
@@ -130,7 +130,7 @@ def get_spatial_area_by_id(
         raise HTTPException(status_code=404, detail="Spatial area not found")
     
     # Check access permissions
-    if current_user.company_id != area.company_id and current_user.role != "admin":
+    if current_user.company_id != area.company_id and not current_user.is_auxein_admin:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # Build response with all area data
@@ -176,7 +176,7 @@ def update_spatial_area_data(
         raise HTTPException(status_code=404, detail="Spatial area not found")
     
     # Check access permissions
-    if current_user.company_id != area.company_id and current_user.role != "admin":
+    if current_user.company_id != area.company_id and not current_user.is_auxein_admin:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # Get update data, handling geometry separately
@@ -228,6 +228,8 @@ def create_spatial_area_with_polygon(
     """
     Create a new spatial area with polygon geometry
     """
+    if not current_user.has_permission("blocks", "create"):
+        raise HTTPException(status_code=403, detail="Not enough permissions to create spatial areas")
     try:
         # Extract geometry data
         geometry_data = spatialAreaData.dict().pop("geometry", None)
@@ -288,7 +290,7 @@ def delete_spatial_area(
         raise HTTPException(status_code=404, detail="Spatial area not found")
     
     # Check access permissions
-    if current_user.company_id != area.company_id and current_user.role != "admin":
+    if current_user.company_id != area.company_id and not current_user.is_auxein_admin:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # Soft delete by marking as inactive
@@ -319,7 +321,7 @@ def get_all_spatial_areas(
     query = db.query(SpatialArea)
     
     # Filter by company (non-admin users)
-    if current_user.role != "admin" and current_user.company_id:
+    if not current_user.is_auxein_admin and current_user.company_id:
         query = query.filter(SpatialArea.company_id == current_user.company_id)
     
     # Apply filters
@@ -349,7 +351,7 @@ def get_area_types_summary(
     ).filter(SpatialArea.is_active == True)
     
     # Filter by company for non-admin users
-    if current_user.role != "admin" and current_user.company_id:
+    if not current_user.is_auxein_admin and current_user.company_id:
         query = query.filter(SpatialArea.company_id == current_user.company_id)
     
     results = query.group_by(SpatialArea.area_type).all()
@@ -390,7 +392,7 @@ def get_nearby_spatial_areas(
     )
     
     # Filter by company for non-admin users
-    if current_user.role != "admin" and current_user.company_id:
+    if not current_user.is_auxein_admin and current_user.company_id:
         query = query.filter(SpatialArea.company_id == current_user.company_id)
     
     nearby_areas = query.limit(limit).all()

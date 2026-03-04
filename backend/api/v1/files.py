@@ -206,7 +206,7 @@ def list_files(
     # Filter by company for users
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin":
+        if not getattr(user, 'is_auxein_admin', False):
             query = query.filter((File.company_id == user.company_id) | (File.is_public == True))
     
     # Apply filters
@@ -245,7 +245,7 @@ def get_file(
     # Check permissions
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and (not file.is_public) and file.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -274,7 +274,7 @@ def download_file(
     
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin" and (not file.is_public) and file.company_id != user.company_id:
+        if not getattr(user, 'is_auxein_admin', False) and (not file.is_public) and file.company_id != user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -326,7 +326,7 @@ def update_file(
         )
     
     # Check permissions
-    if current_user.role != "admin" and file.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and file.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -362,7 +362,7 @@ def delete_file(
         )
     
     # Check permissions
-    if current_user.role != "admin" and file.company_id != current_user.company_id:
+    if not current_user.is_auxein_admin and file.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -409,7 +409,7 @@ def get_entity_files(
     # Filter by company for users
     if isinstance(current_user_or_contractor, User):
         user = current_user_or_contractor
-        if user.role != "admin":
+        if not getattr(user, 'is_auxein_admin', False):
             query = query.filter((File.company_id == user.company_id) | (File.is_public == True))
     else:
         # Contractor — only files from companies they have active relationships with

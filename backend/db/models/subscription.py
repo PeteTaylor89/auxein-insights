@@ -174,5 +174,7 @@ class Subscription(Base):
             "is_primary": self.is_primary,
             "minimum_hectares": float(self.minimum_hectares) if self.minimum_hectares else 0.0,
             "maximum_hectares": float(self.maximum_hectares) if self.maximum_hectares != -1 else -1,
-            "sort_order": self.sort_order
+            "sort_order": self.sort_order,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
         }

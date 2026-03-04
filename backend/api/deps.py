@@ -41,7 +41,8 @@ def get_current_user_or_contractor(
         
         token_type = payload.get("type")
         user_type = payload.get("user_type")  # NEW: Check user type from token
-        logger.info(f"Token type: {token_type}, User type: {user_type}")
+        user_type_role = payload.get("user_type_role", user_type)
+        logger.info(f"Token type: {token_type}, User type: {user_type}, Role: {user_type_role}")
         
         if token_type != "access":
             logger.warning(f"Invalid token type: {token_type}")
@@ -116,7 +117,8 @@ def get_current_user(
         
         token_type = payload.get("type")
         user_type = payload.get("user_type")  # NEW: Check user type
-        logger.info(f"Token type: {token_type}, User type: {user_type}")
+        user_type_role = payload.get("user_type_role", user_type)
+        logger.info(f"Token type: {token_type}, User type: {user_type}, Role: {user_type_role}")
         
         if token_type != "access":
             logger.warning(f"Invalid token type: {token_type}")
@@ -179,7 +181,8 @@ def get_current_contractor(
         
         token_type = payload.get("type")
         user_type = payload.get("user_type")
-        logger.info(f"Token type: {token_type}, User type: {user_type}")
+        user_type_role = payload.get("user_type_role", user_type)
+        logger.info(f"Token type: {token_type}, User type: {user_type}, Role: {user_type_role}")
         
         if token_type != "access":
             logger.warning(f"Invalid token type: {token_type}")
@@ -288,3 +291,55 @@ def validate_contractor_relationship(
         )
 
     return relationship
+
+
+def require_permission(module: str, action: str):
+    """
+    FastAPI dependency factory for permission checking.
+    Returns the authenticated user/contractor if they have the required permission.
+    Raises 403 if not.
+
+    Usage:
+        @router.post("/tasks")
+        def create_task(current_user = Depends(require_permission("tasks", "create"))):
+            ...
+    """
+    def _check(
+        current_entity: Union[User, Contractor] = Depends(get_current_user_or_contractor)
+    ) -> Union[User, Contractor]:
+        user_type = current_entity.user_type
+        if not current_entity.has_permission(module, action):
+            logger.warning(
+                f"Permission denied: {user_type} attempted {module}.{action}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {module}.{action} not allowed for {user_type}"
+            )
+        return current_entity
+    return _check
+
+
+def require_company_user_permission(module: str, action: str):
+    """
+    Same as require_permission but only allows company users (not contractors).
+    Use for endpoints that should never be accessible to contractors.
+
+    Usage:
+        @router.delete("/users/{id}")
+        def delete_user(current_user = Depends(require_company_user_permission("users", "delete"))):
+            ...
+    """
+    def _check(
+        current_user: User = Depends(get_current_user)
+    ) -> User:
+        if not current_user.has_permission(module, action):
+            logger.warning(
+                f"Permission denied: {current_user.user_type} attempted {module}.{action}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {module}.{action} not allowed for {current_user.user_type}"
+            )
+        return current_user
+    return _check
