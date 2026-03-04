@@ -15,13 +15,14 @@ from sources.harvest import HarvestIngestion
 from sources.ecan import ECANIngestion
 from sources.mdc import MDCIngestion
 from sources.gw import GWIngestion
+from sources.hbrc import HBRCIngestion
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'all'], 
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'all'], 
         default='all',
         help='Data source to ingest'
     )
@@ -55,10 +56,15 @@ def main():
         help='Fetch and parse but do not insert to database'
     )
     parser.add_argument(
+        '--station',
+        type=str,
+        help='Station code to backfill a single station (e.g., HBRC_BRIDGE_PA, MDC_BLENHEIM_OFFICE)'
+    )
+    parser.add_argument(
         '--interval',
         type=str,
         default='30 minutes',
-        help='MDC/GW data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
+        help='MDC/GW/HBRC data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
     )
     
     args = parser.parse_args()
@@ -72,6 +78,8 @@ def main():
         print(f"  Backfill days: {args.days}")
     if args.start:
         print(f"  Date range: {args.start} to {args.end or 'today'}")
+    if args.station:
+        print(f"  Station: {args.station}")
     if args.dry_run:
         print(f"  *** DRY RUN - No data will be inserted ***")
     print(f"{'='*70}\n")
@@ -112,7 +120,8 @@ def main():
                 start_date=args.start,
                 end_date=args.end,
                 dry_run=args.dry_run,
-                interval=args.interval
+                interval=args.interval,
+                station_code=args.station
             )
             print("✓ MDC ingestion complete\n")
         except Exception as e:
@@ -130,11 +139,31 @@ def main():
                 start_date=args.start,
                 end_date=args.end,
                 dry_run=args.dry_run,
-                interval=args.interval
+                interval=args.interval,
+                station_code=args.station
             )
             print("✓ GW ingestion complete\n")
         except Exception as e:
             print(f"✗ GW ingestion failed: {e}\n")
+            success = False
+    
+    # Run HBRC ingestion
+    if args.source in ['hbrc', 'all']:
+        try:
+            print("▶ Starting HBRC ingestion...\n")
+            ingester = HBRCIngestion()
+            ingester.run(
+                period=args.period, 
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ HBRC ingestion complete\n")
+        except Exception as e:
+            print(f"✗ HBRC ingestion failed: {e}\n")
             success = False
     
     print(f"{'='*70}")
