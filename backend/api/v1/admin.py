@@ -475,6 +475,10 @@ def list_all_users(
 
     query = db.query(User)
 
+    # Scope to own company unless auxein_admin
+    if current_user.user_type != "auxein_admin":
+        query = query.filter(User.company_id == current_user.company_id)
+
     # Apply filters
     if search:
         query = query.filter(

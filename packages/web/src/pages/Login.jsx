@@ -44,7 +44,7 @@ function Login() {
               color: '#2F2F2F' // Charcoal Black from style guide
             }}
           >
-            Auxein Insights
+            Auxein Grow
           </h1>
         </div>
 

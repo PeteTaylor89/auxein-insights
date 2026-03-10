@@ -633,11 +633,18 @@ def refresh_token(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     
+    # Include enhanced claims so refreshed tokens retain user_type info
+    token_data = {
+        "user_type": "company_user",
+        "user_type_role": user.user_type,
+        "role": user.role,
+        "company_id": user.company_id,
+    }
     new_access_token, _ = create_access_token(
-        user.id, expires_delta=access_token_expires
+        user.id, expires_delta=access_token_expires, extra_data=token_data
     )
     new_refresh_token, _ = create_refresh_token(
-        user.id, expires_delta=refresh_token_expires
+        user.id, expires_delta=refresh_token_expires, extra_data=token_data
     )
 
     return {
@@ -668,6 +675,7 @@ def read_current_profile(current_user: Union[User, Contractor] = Depends(get_cur
         # Return company user profile as dictionary (convert User object)
         return {
             "user_type": "company_user",
+            "user_type_role": current_user.user_type,
             "id": current_user.id,
             "username": current_user.username,
             "email": current_user.email,
