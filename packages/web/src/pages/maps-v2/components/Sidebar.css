@@ -1,0 +1,118 @@
+/* maps-v2/components/Sidebar.css */
+
+.v2-sidebar {
+  width: 320px;
+  min-width: 320px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  z-index: 10;
+}
+
+.v2-sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right: none;
+}
+
+.v2-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.v2-sidebar-tabs {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  background: #f3f4f6;
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.v2-sidebar-tab {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.v2-sidebar-tab.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.v2-sidebar-tab:hover:not(.active) {
+  color: var(--color-text);
+}
+
+.v2-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.v2-sidebar-toggle:hover {
+  background: #f3f4f6;
+  color: var(--color-text);
+}
+
+.v2-sidebar-toggle.collapsed {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 20;
+  box-shadow: var(--shadow-md);
+}
+
+.v2-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+}
+
+/* Responsive: overlay on mobile */
+@media (max-width: 768px) {
+  .v2-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 20;
+    box-shadow: var(--shadow-lg);
+    width: 300px;
+    min-width: 300px;
+  }
+
+  .v2-sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    box-shadow: none;
+  }
+}

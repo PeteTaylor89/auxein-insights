@@ -1,0 +1,65 @@
+/* SiteFooter.css — Pro app footer (matches Insights footer pattern) */
+
+.site-footer {
+  background: var(--color-charcoal);
+  color: white;
+  padding: 28px 24px 24px;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+}
+
+.footer-brand img {
+  height: 46px;
+  width: auto;
+}
+
+.footer-brand span {
+  font-size: 14pt;
+  font-weight: 600;
+  color: white;
+}
+
+.footer-links {
+  display: flex;
+  gap: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  font-size: 12pt;
+  transition: color var(--transition-base);
+}
+
+.footer-links a:hover {
+  color: white;
+  text-decoration: none;
+}
+
+.footer-copyright {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11pt;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 768px) {
+  .footer-links {
+    flex-direction: column;
+    gap: var(--space-base);
+  }
+}

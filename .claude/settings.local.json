@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(alembic heads:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(find \"A:/auxein-insights-V0.1/packages/insights/src\" -type f \\\\\\( -name \"*layout*\" -o -name \"*app*\" -o -name \"*header*\" -o -name \"*nav*\" -o -name \"*footer*\" \\\\\\) -iname \"*.jsx\" -o -iname \"*.tsx\" -o -iname \"*.js\" 2>/dev/null | head -20)",
+      "Bash(cd A:/auxein-insights-V0.1/packages/web && npx vite build 2>&1 | tail -25)",
+      "Read(//A:/auxein-insights-V0.1/packages/insights/src/**)",
+      "Read(//A:/auxein-insights-V0.1/packages/insights/**)",
+      "Read(//A:/auxein-insights-V0.1/packages/**)",
+      "Bash(find \"A:/auxein-insights-V0.1/packages/web/src/pages/maps-v2\" -type f -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" -o -name \"*.js\" 2>/dev/null | head -20)",
+      "Bash(find /a/auxein-insights-V0.1/backend -type f -name \"*region*\" -o -name \"*gi*\" 2>/dev/null | head -20)",
+      "Bash(find /a/auxein-insights-V0.1 -name \"*MAPS*\" -o -name \"*PLAN*\" 2>/dev/null | grep -v node_modules | grep -v venv)"
     ]
   }
 }

@@ -152,6 +152,66 @@ async def get_current_public_user(
     
     return user
 
+async def get_any_authenticated_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """
+    Flexible dependency that accepts EITHER a Pro app token (type: "access")
+    or a public token (type: "public_access").
+
+    Returns the user object (User or PublicUser) or raises 401.
+    Used for read-only data endpoints (regions/GIs GeoJSON) that should
+    be accessible from both the Pro app and the Insights app.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    from db.models.public_user import PublicUser
+    from db.models.user import User
+
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError as e:
+        logger.warning(f"[get_any_authenticated_user] JWT decode failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token_type = payload.get("type")
+    logger.info(f"[get_any_authenticated_user] token_type={token_type}, keys={list(payload.keys())}")
+
+    if token_type == "public_access":
+        # Public user token
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: no user_id")
+        user = db.query(PublicUser).filter(PublicUser.id == user_id).first()
+        if user is None or not user.can_login:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Public user not found or inactive")
+        return user
+
+    elif token_type == "access":
+        # Pro app token — subject is user ID
+        sub = payload.get("sub")
+        logger.info(f"[get_any_authenticated_user] Pro token sub={sub}")
+        if sub is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: no sub")
+        user = db.query(User).filter(User.id == int(sub)).first()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Pro user not found: {sub}")
+        return user
+
+    else:
+        logger.warning(f"[get_any_authenticated_user] Unknown token type: {token_type}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token type: {token_type}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 async def get_optional_public_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)

@@ -19,6 +19,7 @@ from db.session import get_db
 from db.models.geographical_indication import GeographicalIndication
 from db.models.wine_region import WineRegion
 from api.v1.public_auth import get_current_public_user, PublicUser
+from core.public_security import get_any_authenticated_user
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +127,12 @@ async def list_gis(
 async def get_gis_geojson(
     region_slug: Optional[str] = Query(None, description="Filter by parent region slug"),
     simplify: float = Query(
-        0.002, 
-        ge=0, 
-        le=0.1, 
+        0.002,
+        ge=0,
+        le=0.1,
         description="Geometry simplification tolerance in degrees. 0.002 ≈ ~200m. Use 0 for full detail."
     ),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user = Depends(get_any_authenticated_user),
     db: Session = Depends(get_db)
 ):
     """

@@ -1,12 +1,14 @@
 // src/App.jsx
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@vineyard/shared';
 import { api } from '@vineyard/shared';
+import AppLayout from './components/AppLayout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import { ForgotPasswordForm, ResetPasswordForm } from './components/PasswordReset';
-import ChangePasswordForm from './components/ChangePasswordForm'; 
-import AcceptInvitation from './components/AcceptInvitation'; 
+import ChangePasswordForm from './components/ChangePasswordForm';
+import AcceptInvitation from './components/AcceptInvitation';
 import Profile from './pages/Profile';
 import Maps from './pages/Maps';
 import RiskDashboard from './pages/RiskDashboard';
@@ -36,34 +38,36 @@ import ConsumableForm from './pages/ConsumableForm'
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
 import TaskCreationWizard from './pages/TaskCreationWizard';
 
+// Lazy-load Maps V2 so any module error won't crash the rest of the app
+const MapsPageV2 = lazy(() => import('./pages/maps-v2/MapsPage'));
 
 // Protected route component
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-  
-  if (loading) {
+  const { isAuthenticated, loading, initialLoading } = useAuth();
+
+  if (loading || initialLoading) {
     return <div className="loading-screen">Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return children;
 }
 
 // Auth route component - redirects to home if already authenticated
 function AuthRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-  
-  if (loading) {
+  const { isAuthenticated, loading, initialLoading } = useAuth();
+
+  if (loading || initialLoading) {
     return <div className="loading-screen">Loading...</div>;
   }
-  
+
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
-  
+
   return children;
 }
 
@@ -71,207 +75,215 @@ function AuthRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Protected routes that require authentication */}
-      <Route path="/" element={
-        <ProtectedRoute>
-          <Home />
-        </ProtectedRoute>
-      } />
-      
-      <Route path="/profile" element={
-        <ProtectedRoute>
-          <Profile />
-        </ProtectedRoute>
-      } />
+      {/* Routes with app layout (header + footer) */}
+      <Route element={<AppLayout />}>
+        {/* Protected routes that require authentication */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        } />
 
-      <Route path="/maps" element={
-        <ProtectedRoute>
-          <Maps />
-        </ProtectedRoute>
-      } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } />
 
-      {/* Change password - protected route for logged-in users */}
-      <Route path="/change-password" element={
-        <ProtectedRoute>
-          <ChangePasswordForm />
-        </ProtectedRoute>
-      } />
+        <Route path="/maps" element={
+          <ProtectedRoute>
+            <Maps />
+          </ProtectedRoute>
+        } />
 
-      {/* Auth routes - redirect to home if already authenticated */}
+        <Route path="/maps-v2" element={
+          <ProtectedRoute>
+            <Suspense fallback={<div className="loading-screen">Loading Maps...</div>}>
+              <MapsPageV2 />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+
+
+
+        <Route path="/change-password" element={
+          <ProtectedRoute>
+            <ChangePasswordForm />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/RiskDashboard" element={
+          <ProtectedRoute>
+            <RiskDashboard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/Insights" element={
+          <ProtectedRoute>
+            <Insights />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/risks/create" element={
+          <ProtectedRoute>
+            <CreateRisk />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/actions/create" element={
+          <ProtectedRoute>
+            <CreateAction />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/incidents/create" element={
+          <ProtectedRoute>
+            <CreateIncident />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/incidents/:incidentId/edit" element={
+          <ProtectedRoute>
+            <EditIncident />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/visitors" element={<VisitorRegistration />} />
+        <Route path="/admin/visitors" element={<VisitorManagement />} />
+
+        <Route path="/training" element={
+          <ProtectedRoute>
+            <TrainingModules />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/training/modules/:moduleId/edit" element={
+          <ProtectedRoute>
+            <ModuleEditor />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/timesheets" element={
+          <ProtectedRoute>
+            <TimesheetSystem />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/observations" element={
+          <ProtectedRoute>
+            <ObservationDashboard  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/planobservation" element={
+          <ProtectedRoute>
+            <PlanNew />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/plandetail/:id" element={
+          <ProtectedRoute>
+            <PlanDetail />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/planedit/:id" element={
+          <ProtectedRoute>
+            <PlanEdit />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/observations/runstart/:planId" element={
+          <ProtectedRoute>
+            <RunStart  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/observations/runcapture/:id" element={
+          <ProtectedRoute>
+            <RunCapture  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/observations/adhoc" element={
+          <ProtectedRoute>
+            <AdhocObservationCreate  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/assets" element={
+          <ProtectedRoute>
+            <AssetsDashboard  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/assets/equipment/new" element={
+          <ProtectedRoute>
+            <AssetForm  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/assets/equipment/:id/edit" element={
+          <ProtectedRoute>
+            <AssetForm  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/assets/consumables/new" element={
+          <ProtectedRoute>
+            <ConsumableForm  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/assets/consumables/:id/edit" element={
+          <ProtectedRoute>
+            <ConsumableForm  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks/templates/new" element={
+          <ProtectedRoute>
+            <TaskTemplateEditor  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks/templates/:id/edit" element={
+          <ProtectedRoute>
+            <TaskTemplateEditor  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks/new" element={
+          <ProtectedRoute>
+            <TaskCreationWizard  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks/create" element={
+          <ProtectedRoute>
+            <TaskCreationWizard  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/training/take/:recordId" element={<TakeTraining />} />
+
+        {/* Catch all route - redirect to login or home based on auth status */}
+        <Route path="*" element={
+          <ProtectedRoute>
+            <Navigate to="/" replace />
+          </ProtectedRoute>
+        } />
+      </Route>
+
+      {/* Routes WITHOUT app layout (no header/footer) */}
       <Route path="/login" element={
         <AuthRoute>
           <Login />
         </AuthRoute>
       } />
-
-      <Route path="/RiskDashboard" element={
-        <ProtectedRoute>
-          <RiskDashboard />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/Insights" element={
-        <ProtectedRoute>
-          <Insights />
-        </ProtectedRoute>
-      } />
-      
-      <Route path="/risks/create" element={
-        <ProtectedRoute>
-          <CreateRisk />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/actions/create" element={
-        <ProtectedRoute>
-          <CreateAction />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/incidents/create" element={
-        <ProtectedRoute>
-          <CreateIncident />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/incidents/:incidentId/edit" element={
-        <ProtectedRoute>
-          <EditIncident />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/visitors" element={<VisitorRegistration />} />
-      <Route path="/admin/visitors" element={<VisitorManagement />} />
-
-
-      <Route path="/training" element={
-        <ProtectedRoute>
-          <TrainingModules />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/training/modules/:moduleId/edit" element={
-        <ProtectedRoute>
-          <ModuleEditor />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/timesheets" element={
-        <ProtectedRoute>
-          <TimesheetSystem />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/observations" element={
-        <ProtectedRoute>
-          <ObservationDashboard  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/planobservation" element={
-        <ProtectedRoute>
-          <PlanNew />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/plandetail/:id" element={
-        <ProtectedRoute>
-          <PlanDetail />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/planedit/:id" element={
-        <ProtectedRoute>
-          <PlanEdit />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/observations/runstart/:planId" element={
-        <ProtectedRoute>
-          <RunStart  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/observations/runcapture/:id" element={
-        <ProtectedRoute>
-          <RunCapture  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/observations/adhoc" element={
-        <ProtectedRoute>
-          <AdhocObservationCreate  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/assets" element={
-        <ProtectedRoute>
-          <AssetsDashboard  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/assets/equipment/new" element={
-        <ProtectedRoute>
-          <AssetForm  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/assets/equipment/:id/edit" element={
-        <ProtectedRoute>
-          <AssetForm  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/assets/consumables/new" element={
-        <ProtectedRoute>
-          <ConsumableForm  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/assets/consumables/:id/edit" element={
-        <ProtectedRoute>
-          <ConsumableForm  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/tasks/templates/new" element={
-        <ProtectedRoute>
-          <TaskTemplateEditor  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/tasks/templates/:id/edit" element={
-        <ProtectedRoute>
-          <TaskTemplateEditor  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/tasks/new" element={
-        <ProtectedRoute>
-          <TaskCreationWizard  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/tasks/create" element={
-        <ProtectedRoute>
-          <TaskCreationWizard  />
-        </ProtectedRoute>
-      } />
-
-      <Route path="/training/take/:recordId" element={<TakeTraining />} />
-
-
-
-      {/* Password reset routes - available to everyone */}
       <Route path="/forgot-password" element={<ForgotPasswordForm />} />
       <Route path="/reset-password" element={<ResetPasswordForm />} />
       <Route path="/accept-invitation" element={<AcceptInvitation />} />
-      {/* Catch all route - redirect to login or home based on auth status */}
-      <Route path="*" element={
-        <ProtectedRoute>
-          <Navigate to="/" replace />
-        </ProtectedRoute>
-      } />
     </Routes>
   );
 }
@@ -285,7 +297,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
-
 
 export default App;

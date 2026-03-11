@@ -532,14 +532,66 @@ Adapt to use company-scoped climate data (private blocks) instead of public regi
 
 ---
 
-### W4.3 — Pro App Header/Footer
+### W4.3 — Pro App Header/Footer & Design System ✅ COMPLETED (2026-03-11)
 
-**Modified files:**
-- `packages/web/src/components/AppBar.jsx` — redesign with section links, branding
-- **New:** `packages/web/src/components/Footer.jsx` — consistent footer with links, version
-- `packages/web/src/App.jsx` — wrap routes with header/footer layout
+> Pulled forward from Phase 4 and delivered as part of the `grow-dev` branch.
 
-Straightforward UI/branding task. No backend changes.
+**Completed work:**
+
+1. **Design System / Theme Layer**
+   - **New:** `packages/web/src/styles/theme.css` — centralised CSS custom properties (brand palette, semantic aliases, typography, spacing, radii, shadows, transitions, layout tokens)
+   - **Modified:** `packages/web/src/index.css` — refactored to consume theme tokens via `var()` references; legacy `:root` vars aliased to theme tokens for backward compat
+
+2. **SiteHeader — sticky top navigation**
+   - **New:** `packages/web/src/components/SiteHeader.jsx` + `SiteHeader.css`
+   - Desktop: logo + "Auxein Grow — Vineyard Management" branding, horizontal nav links (Home, Map, Vineyard, Assets, Risks, Insights), user menu dropdown (profile, sign out)
+   - Mobile (<768px): hamburger button → slide-in drawer with icons, user info section, sign-in / sign-out actions
+   - Scroll-aware: auto-hides on scroll-down on mobile, reappears on scroll-up
+   - Responsive breakpoints: 768px, 480px, 360px, landscape
+
+3. **SiteFooter**
+   - **New:** `packages/web/src/components/SiteFooter.jsx` + `SiteFooter.css`
+   - Charcoal background, logo + "Auxein Pro" branding, About/Auxein/Contact links, dynamic copyright year
+
+4. **AppLayout wrapper**
+   - **New:** `packages/web/src/components/AppLayout.jsx` — uses `<Outlet />` to wrap all authenticated routes with SiteHeader + SiteFooter
+   - **Modified:** `packages/web/src/App.jsx` — all protected routes nested inside `<AppLayout />`; login/forgot-password/accept-invitation remain outside layout
+
+5. **MobileNavigation deprecated**
+   - **Modified:** `packages/web/src/components/MobileNavigation.jsx` — gutted, returns `null` for backward compat (pages that still import it won't break)
+
+6. **Home page redesign**
+   - **Modified:** `packages/web/src/pages/Home.jsx`
+   - Removed inline header (logo/title now in SiteHeader)
+   - Added "Welcome back" banner
+   - Added "Upcoming" placeholder section (tasks/calendar — ready for Phase 3 data)
+   - Added "Latest from Auxein Insights" articles carousel (fetches from `/v1/public/articles`)
+   - All CSS refactored to use theme tokens
+
+7. **Maps V2 route (scaffolded)**
+   - **New:** `packages/web/src/pages/maps-v2/` directory (MapsPage.jsx, MapsPage.css, components/, hooks/, utils/, MAPS_V2_PLAN.md)
+   - Lazy-loaded via `React.lazy()` + `<Suspense>` in App.jsx at `/maps-v2`
+
+8. **Backend: Dual-auth dependency for shared endpoints**
+   - **Modified:** `backend/core/public_security.py` — new `get_any_authenticated_user()` that accepts either a Pro app JWT (`type: "access"`) or an Insights public JWT (`type: "public_access"`) and returns the appropriate user model
+   - **Modified:** `backend/api/v1/gis.py` — GeoJSON endpoint switched to `get_any_authenticated_user` so it works for both Pro and Insights apps
+   - **Modified:** `backend/api/v1/regions.py` — same change for regions GeoJSON
+
+**Known bug (current):**
+- The `get_any_authenticated_user` dependency or the GIS/regions GeoJSON endpoints may still not be returning data correctly in the Pro app context — needs debugging (the map page loads but GeoJSON data may not render). The auth path for Pro tokens is confirmed to decode correctly (logging shows `token_type=access`), so the issue is likely downstream in the response or the frontend fetch.
+
+**Testing required:**
+- [ ] **SiteHeader**: Verify desktop nav links route correctly; verify mobile drawer opens/closes; verify scroll-hide/show behaviour on mobile; verify user dropdown shows name and logout works
+- [ ] **SiteFooter**: Verify renders on all pages; external links open in new tab
+- [ ] **AppLayout**: Verify header/footer appear on all protected routes; verify login/forgot-password pages do NOT show header/footer
+- [ ] **Home page**: Verify "Welcome back" shows first name; verify articles carousel loads and links to Insights; verify stat cards still load company data
+- [ ] **MobileNavigation**: Confirm old bottom nav no longer renders (no duplicate nav)
+- [ ] **Maps V2**: Navigate to `/maps-v2` — confirm lazy-load works, no crash if components are incomplete
+- [ ] **Dual-auth GeoJSON**: Test `/api/v1/gis/geojson` with a Pro app token — confirm it returns valid GeoJSON; test with Insights token — confirm same endpoint works; test with no token — confirm 401
+- [ ] **Regions GeoJSON**: Same tests for `/api/v1/regions/geojson`
+- [ ] **Regression**: Confirm existing `/maps` page still works; confirm Insights app GeoJSON endpoints still work with public tokens
+- [ ] **Responsive**: Test header/home at 768px, 480px, 360px breakpoints
+- [ ] **Theme tokens**: Spot-check that existing pages (RiskDashboard, Assets, Observations) haven't visually regressed from the CSS variable refactoring
 
 ---
 
