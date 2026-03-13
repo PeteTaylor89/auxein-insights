@@ -125,10 +125,16 @@ class Settings(BaseSettings):
     RDS_PASSWORD: Optional[str] = os.getenv("RDS_PASSWORD")  # Fallback if not using Secrets Manager
     
     # JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "180"))
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+
+    @validator("SECRET_KEY", always=True)
+    def secret_key_must_be_set(cls, v):
+        if not v:
+            raise ValueError("SECRET_KEY environment variable is required but not set")
+        return v
     
     # Email Settings
     SMTP_SERVER: Optional[str] = os.getenv("SMTP_SERVER")

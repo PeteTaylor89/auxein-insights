@@ -1,7 +1,7 @@
 // components/SiteHeader.jsx — Pro app sticky header with nav, auth, mobile menu
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, LogOut, Settings, Menu, X, Home, MapPin, Grape, Tractor, TriangleAlert, Lightbulb } from 'lucide-react';
+import { User, LogOut, Settings, Menu, X, Home, MapPin, Grape, Tractor, TriangleAlert, Lightbulb, Shield } from 'lucide-react';
 import { useAuth } from '@vineyard/shared';
 import Logo from '../assets/App_Logo_September 2025.jpg';
 import './SiteHeader.css';
@@ -43,7 +43,7 @@ function useScrollDirection() {
   return { scrollDirection, isAtTop };
 }
 
-const navItems = [
+const baseNavItems = [
   { path: '/', label: 'Home', icon: Home },
   { path: '/maps', label: 'Map', icon: MapPin },
   { path: '/observations', label: 'Vineyard', icon: Grape },
@@ -53,13 +53,18 @@ const navItems = [
 ];
 
 function SiteHeader() {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, userTypeRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { scrollDirection, isAtTop } = useScrollDirection();
   const [isMobile, setIsMobile] = useState(false);
+
+  // Build nav items dynamically — add Admin link for auxein_admin users
+  const navItems = userTypeRole === 'auxein_admin'
+    ? [...baseNavItems, { path: '/admin', label: 'Admin', icon: Shield }]
+    : baseNavItems;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -139,6 +144,12 @@ function SiteHeader() {
                       <Settings size={16} />
                       Profile & Settings
                     </Link>
+                    {userTypeRole === 'auxein_admin' && (
+                      <Link to="/admin" className="user-dropdown-item" onClick={() => setUserMenuOpen(false)}>
+                        <Shield size={16} />
+                        System Admin
+                      </Link>
+                    )}
                     <button className="user-dropdown-item" onClick={handleLogout}>
                       <LogOut size={16} />
                       Sign Out
@@ -205,6 +216,12 @@ function SiteHeader() {
                   <Settings size={18} />
                   Profile & Settings
                 </Link>
+                {userTypeRole === 'auxein_admin' && (
+                  <Link to="/admin" className="mobile-nav-item" onClick={closeMobileMenu}>
+                    <Shield size={18} />
+                    System Admin
+                  </Link>
+                )}
                 <button className="mobile-nav-item mobile-logout" onClick={() => { closeMobileMenu(); handleLogout(); }}>
                   <LogOut size={18} />
                   Sign Out

@@ -29,16 +29,18 @@ class BlockBase(BaseModel):
     row_count: Optional[int] = None
     training_system: Optional[str] = None
     company_id: Optional[int] = None
+    property_id: Optional[int] = None
 
     class Config:
         from_attributes = True
 
 class BlockCreate(BlockBase):
     company_id: int
+    property_id: Optional[int] = None
     geometry: Optional[dict] = None
 
 class BlockUpdate(BlockBase):
-    pass
+    property_id: Optional[int] = None
 
 class Block(BlockBase):
     id: int

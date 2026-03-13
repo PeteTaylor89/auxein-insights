@@ -95,6 +95,13 @@ PERMISSIONS: dict[str, dict[str, list[str]]] = {
         "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
         "export": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
     },
+    "properties": {
+        "create": [UserType.auxein_admin, UserType.company_admin],
+        "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager, UserType.company_user],
+        "update": [UserType.auxein_admin, UserType.company_admin],
+        "delete": [UserType.auxein_admin, UserType.company_admin],
+        "manage": [UserType.auxein_admin, UserType.company_admin],
+    },
     "blocks": {
         "create": [UserType.auxein_admin, UserType.company_admin],
         "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager, UserType.company_user, UserType.contractor],

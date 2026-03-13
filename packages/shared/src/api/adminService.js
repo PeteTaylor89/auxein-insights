@@ -164,6 +164,24 @@ const adminService = {
     return response.data;
   },
 
+  // ===== CONTRACTOR MANAGEMENT =====
+
+  async createContractor(data) {
+    const response = await api.post('/admin/create-contractor', data);
+    return response.data;
+  },
+
+  async getAllContractors(params = {}) {
+    const { skip = 0, limit = 100, search } = params;
+    const queryParams = new URLSearchParams({
+      skip: skip.toString(),
+      limit: limit.toString(),
+      ...(search && { search }),
+    });
+    const response = await api.get(`/admin/contractors?${queryParams}`);
+    return response.data;
+  },
+
   // ===== ANALYTICS & REPORTING =====
   
   // Get subscription analytics

@@ -13,6 +13,11 @@ from core.security.password import get_password_hash, generate_random_password
 from db.models.user import User
 from db.models.company import Company
 from db.models.subscription import Subscription
+from db.models.property import Property
+from db.models.management_relationship import ManagementRelationship
+from db.models.block import VineyardBlock
+from db.models.contractor import Contractor
+from db.models.contractor_relationship import ContractorRelationship
 from schemas.company import Company as CompanySchema
 from schemas.user import User as UserSchema
 from core.email_templates import send_welcome_email
@@ -678,3 +683,222 @@ def update_user_status_admin(
     db.commit()
     
     return {"message": f"User status updated to {new_status}"}
+
+
+# ==================== PROPERTY ADMIN ENDPOINTS ====================
+
+@router.get("/properties")
+def admin_list_all_properties(
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    company_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    List ALL properties system-wide with owner/manager names and block counts.
+    auxein_admin only.
+    """
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only system administrators can list all properties"
+        )
+
+    query = db.query(Property)
+
+    if search:
+        query = query.filter(
+            or_(
+                Property.name.ilike(f"%{search}%"),
+                Property.region.ilike(f"%{search}%"),
+                Property.address.ilike(f"%{search}%"),
+            )
+        )
+
+    if company_id:
+        query = query.filter(Property.owner_company_id == int(company_id))
+
+    properties = query.offset(skip).limit(limit).all()
+
+    result = []
+    for prop in properties:
+        # Get owner company name
+        owner_name = None
+        if prop.owner_company_id:
+            owner = db.query(Company.name).filter(Company.id == prop.owner_company_id).first()
+            owner_name = owner[0] if owner else None
+
+        # Get active managing company
+        active_rel = db.query(ManagementRelationship).filter(
+            ManagementRelationship.property_id == prop.id,
+            ManagementRelationship.is_active == True,
+        ).first()
+        managing_company_id = active_rel.managing_company_id if active_rel else None
+        managing_name = None
+        if managing_company_id:
+            mgr = db.query(Company.name).filter(Company.id == managing_company_id).first()
+            managing_name = mgr[0] if mgr else None
+
+        # Block count
+        block_count = db.query(VineyardBlock).filter(
+            VineyardBlock.property_id == prop.id
+        ).count()
+
+        result.append({
+            "id": prop.id,
+            "name": prop.name,
+            "owner_company_id": prop.owner_company_id,
+            "owner_company_name": owner_name,
+            "active_managing_company_id": managing_company_id,
+            "active_managing_company_name": managing_name,
+            "address": prop.address,
+            "region": prop.region,
+            "total_area_ha": float(prop.total_area_ha) if prop.total_area_ha else None,
+            "block_count": block_count,
+            "created_at": prop.created_at.isoformat() if prop.created_at else None,
+        })
+
+    return result
+
+
+# ==================== CONTRACTOR ADMIN ENDPOINTS ====================
+
+class ContractorAdminCreate(BaseModel):
+    business_name: str
+    contact_person: str
+    email: EmailStr
+    phone: str
+    contractor_type: str = "individual"
+    specializations: list = []
+    generate_password: bool = True
+    pre_verified: bool = True
+    company_id: Optional[int] = None
+
+
+@router.post("/create-contractor")
+def admin_create_contractor(
+    data: ContractorAdminCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Create a contractor from the admin panel.
+    auxein_admin only.
+    """
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only system administrators can create contractors"
+        )
+
+    # Check email uniqueness
+    existing = db.query(Contractor).filter(Contractor.email == data.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A contractor with this email already exists"
+        )
+
+    # Generate or require password
+    password = generate_random_password() if data.generate_password else None
+    if not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password generation is required for admin-created contractors"
+        )
+
+    contractor = Contractor(
+        business_name=data.business_name,
+        contact_person=data.contact_person,
+        email=data.email,
+        phone=data.phone,
+        contractor_type=data.contractor_type,
+        specializations=data.specializations,
+        hashed_password=get_password_hash(password),
+        is_active=True,
+        is_verified=data.pre_verified,
+        is_contractor_verified=data.pre_verified,
+        registration_source="admin_created",
+    )
+
+    db.add(contractor)
+    db.flush()
+
+    # Optionally create a relationship with a company
+    if data.company_id:
+        company = db.query(Company).filter(Company.id == data.company_id).first()
+        if company:
+            rel = ContractorRelationship(
+                contractor_id=contractor.id,
+                company_id=data.company_id,
+                status="active",
+                created_by=current_user.id,
+            )
+            db.add(rel)
+
+    db.commit()
+    db.refresh(contractor)
+
+    return {
+        "message": f"Contractor '{data.business_name}' created successfully",
+        "contractor_id": contractor.id,
+        "generated_password": password if data.generate_password else None,
+    }
+
+
+@router.get("/contractors")
+def admin_list_all_contractors(
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    List ALL contractors system-wide.
+    auxein_admin only.
+    """
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only system administrators can list all contractors"
+        )
+
+    query = db.query(Contractor)
+
+    if search:
+        query = query.filter(
+            or_(
+                Contractor.business_name.ilike(f"%{search}%"),
+                Contractor.contact_person.ilike(f"%{search}%"),
+                Contractor.email.ilike(f"%{search}%"),
+            )
+        )
+
+    contractors = query.offset(skip).limit(limit).all()
+
+    result = []
+    for c in contractors:
+        rel_count = db.query(ContractorRelationship).filter(
+            ContractorRelationship.contractor_id == c.id,
+            ContractorRelationship.status == "active",
+        ).count()
+
+        result.append({
+            "id": c.id,
+            "business_name": c.business_name,
+            "contact_person": c.contact_person,
+            "email": c.email,
+            "phone": c.phone,
+            "contractor_type": c.contractor_type,
+            "specializations": c.specializations or [],
+            "is_active": c.is_active,
+            "is_verified": c.is_verified,
+            "relationship_count": rel_count,
+            "registration_source": c.registration_source,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    return result

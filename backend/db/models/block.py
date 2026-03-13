@@ -36,12 +36,14 @@ class VineyardBlock(Base):
     row_count = Column(Integer, nullable=True)
     training_system = Column(String, nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"))
-    
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
+
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     company = relationship("Company", back_populates="blocks")
+    property = relationship("Property", back_populates="blocks")
     tasks = relationship(
         "Task", 
         back_populates="block", 

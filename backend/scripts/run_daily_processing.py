@@ -102,67 +102,73 @@ def main():
     # Step 1: Daily Aggregation (weather_data → weather_data_daily)
     # =========================================================================
     if not args.skip_daily:
-        logger.info("\n[1/5] DAILY AGGREGATION (weather_data → weather_data_daily)")
+        logger.info("\n[1/6] DAILY AGGREGATION (weather_data → weather_data_daily)")
         daily_args = ['--date', target_date]
         if args.dry_run:
             daily_args.append('--dry-run')
         results['daily_aggregation'] = run_script('daily_aggregation.py', daily_args)
     else:
-        logger.info("\n[1/5] DAILY AGGREGATION - SKIPPED")
+        logger.info("\n[1/6] DAILY AGGREGATION - SKIPPED")
         results['daily_aggregation'] = True
     
     # =========================================================================
     # Step 2: Hourly Aggregation (weather_data → climate_zone_hourly)
     # =========================================================================
     if not args.skip_hourly:
-        logger.info("\n[2/5] HOURLY AGGREGATION (weather_data → climate_zone_hourly)")
+        logger.info("\n[2/6] HOURLY AGGREGATION (weather_data → climate_zone_hourly)")
         hourly_args = ['--date', target_date]
         if args.dry_run:
             hourly_args.append('--dry-run')
         results['hourly_aggregation'] = run_script('hourly_aggregation.py', hourly_args)
     else:
-        logger.info("\n[2/5] HOURLY AGGREGATION - SKIPPED")
+        logger.info("\n[2/6] HOURLY AGGREGATION - SKIPPED")
         results['hourly_aggregation'] = True
     
     # =========================================================================
     # Step 3: Zone Aggregation (weather_data_daily → climate_zone_daily)
     # =========================================================================
     if not args.skip_zone:
-        logger.info("\n[3/5] ZONE AGGREGATION (weather_data_daily → climate_zone_daily)")
+        logger.info("\n[3/6] ZONE AGGREGATION (weather_data_daily → climate_zone_daily)")
         zone_args = ['--date', target_date]
         if args.dry_run:
             zone_args.append('--dry-run')
         results['zone_aggregation'] = run_script('zone_aggregation.py', zone_args)
     else:
-        logger.info("\n[3/5] ZONE AGGREGATION - SKIPPED")
+        logger.info("\n[3/6] ZONE AGGREGATION - SKIPPED")
         results['zone_aggregation'] = True
     
     # =========================================================================
     # Step 4: Phenology Estimation
     # =========================================================================
     if not args.skip_phenology:
-        logger.info("\n[4/5] PHENOLOGY ESTIMATION")
+        logger.info("\n[4/6] PHENOLOGY ESTIMATION")
         pheno_args = ['--date', target_date]
         if args.dry_run:
             pheno_args.append('--dry-run')
         results['phenology'] = run_script('phenology_service.py', pheno_args)
     else:
-        logger.info("\n[4/5] PHENOLOGY - SKIPPED")
+        logger.info("\n[4/6] PHENOLOGY - SKIPPED")
         results['phenology'] = True
     
     # =========================================================================
     # Step 5: Disease Pressure (v2 - uses hourly data)
     # =========================================================================
     if not args.skip_disease:
-        logger.info("\n[5/5] DISEASE PRESSURE (v2 - hourly data)")
+        logger.info("\n[5/6] DISEASE PRESSURE (v2 - hourly data)")
         disease_args = ['--date', target_date]
         if args.dry_run:
             disease_args.append('--dry-run')
         results['disease'] = run_script('disease_service_v2.py', disease_args)
     else:
-        logger.info("\n[5/5] DISEASE PRESSURE - SKIPPED")
+        logger.info("\n[5/6] DISEASE PRESSURE - SKIPPED")
         results['disease'] = True
     
+    # =========================================================================
+    # Step 6: Token Blacklist Cleanup
+    # =========================================================================
+    logger.info("\n[6/6] TOKEN BLACKLIST CLEANUP")
+    results['blacklist_cleanup'] = run_script('cleanup_blacklist.py', [])
+
     # =========================================================================
     # Summary
     # =========================================================================
@@ -175,7 +181,8 @@ def main():
         'hourly_aggregation': 'Hourly Aggregation',
         'zone_aggregation': 'Zone Aggregation',
         'phenology': 'Phenology',
-        'disease': 'Disease Pressure'
+        'disease': 'Disease Pressure',
+        'blacklist_cleanup': 'Token Blacklist Cleanup'
     }
     
     for step, success in results.items():

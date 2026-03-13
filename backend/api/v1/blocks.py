@@ -1,6 +1,6 @@
 # app/api/v1/blocks.py - Essential endpoints only
 from typing import List, Optional, Dict
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
 from shapely.geometry import mapping, shape, LineString, Polygon, MultiPolygon
@@ -9,11 +9,12 @@ from api.deps import get_db, get_current_user
 from db.models.user import User
 from db.models.block import VineyardBlock
 from schemas.block import Block, BlockCreate, BlockUpdate
+from services.property_service import get_visible_property_ids, is_owner_viewing
 import logging
 from datetime import datetime
 from services.blockchain_service import BlockchainService
 from pyproj import Geod
-from sqlalchemy import func, cast
+from sqlalchemy import func, cast, or_
 from sqlalchemy.types import UserDefinedType
 GEOD = Geod(ellps="WGS84")
 
@@ -38,13 +39,28 @@ def area_ha(geom) -> float:
 def get_all_blocks_geojson(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    property_id: Optional[int] = Query(None),
     limit: int = 1000
 ):
     """
-    Get all blocks as GeoJSON FeatureCollection for map display
+    Get all blocks as GeoJSON FeatureCollection for map display.
+    Scoped by visible properties, with company_id fallback for unassigned blocks.
     """
-    blocks = db.query(VineyardBlock).filter(VineyardBlock.company_id == current_user.company_id).all()
-    
+    is_admin = current_user.user_type == "auxein_admin"
+    if is_admin:
+        query = db.query(VineyardBlock)
+    else:
+        visible_ids = get_visible_property_ids(db, current_user)
+        query = db.query(VineyardBlock).filter(
+            or_(
+                VineyardBlock.property_id.in_(visible_ids) if visible_ids else False,
+                VineyardBlock.company_id == current_user.company_id
+            )
+        )
+    if property_id is not None:
+        query = query.filter(VineyardBlock.property_id == property_id)
+    blocks = query.limit(limit).all()
+
     features = []
     for block in blocks:
         if block.geometry:
@@ -63,6 +79,7 @@ def get_all_blocks_geojson(
                         "organic": block.organic,
                         "planted_date": str(block.planted_date) if block.planted_date else None,
                         "company_id": block.company_id,
+                        "property_id": block.property_id,
                         "centroid_longitude": block.centroid_longitude,
                         "centroid_latitude": block.centroid_latitude
                     }
@@ -80,17 +97,30 @@ def get_all_blocks_geojson(
 @router.get("/company")
 def get_company_blocks(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    property_id: Optional[int] = Query(None),
 ):
     """
-    Get blocks that match the current user's company_id
+    Get blocks visible to the current user.
+    Scoped by visible properties, with company_id fallback.
     """
-    if not current_user.company_id:
+    is_admin = current_user.user_type == "auxein_admin"
+    if not is_admin and not current_user.company_id:
         return {"blocks": [], "message": "User has no company association"}
-    
-    blocks = db.query(VineyardBlock).filter(
-        VineyardBlock.company_id == current_user.company_id
-    ).all()
+
+    if is_admin:
+        query = db.query(VineyardBlock)
+    else:
+        visible_ids = get_visible_property_ids(db, current_user)
+        query = db.query(VineyardBlock).filter(
+            or_(
+                VineyardBlock.property_id.in_(visible_ids) if visible_ids else False,
+                VineyardBlock.company_id == current_user.company_id
+            )
+        )
+    if property_id is not None:
+        query = query.filter(VineyardBlock.property_id == property_id)
+    blocks = query.all()
     
     # Convert SQLAlchemy objects to dictionaries
     block_list = []
@@ -113,7 +143,8 @@ def get_company_blocks(
             "elevation": block.elevation,
             "centroid_longitude": block.centroid_longitude,
             "centroid_latitude": block.centroid_latitude,
-            "company_id": block.company_id
+            "company_id": block.company_id,
+            "property_id": block.property_id
         }
         block_list.append(block_dict)
     
@@ -130,11 +161,13 @@ def get_block_by_id(
     """
     block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
 
-    if block.company_id != current_user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
+
+    # Access check: admin, same company, or visible property
+    is_admin = current_user.user_type == "auxein_admin"
+    if not is_admin and block.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     # Build response with all block data
     result = {
@@ -150,12 +183,15 @@ def get_block_by_id(
         "region": block.region,
         "swnz": block.swnz,
         "organic": block.organic,
+        "biodynamic": block.biodynamic,
+        "regenerative": block.regenerative,
         "winery": block.winery,
         "gi": block.gi,
         "elevation": block.elevation,
         "centroid_longitude": block.centroid_longitude,
         "centroid_latitude": block.centroid_latitude,
         "company_id": block.company_id,
+        "property_id": block.property_id,
         "geometry_geojson": None,
         "row_start": block.row_start,
         "row_end": block.row_end,
@@ -186,11 +222,23 @@ def update_block_data(
     """
     block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
 
-    if block.company_id != current_user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
+
+    # A11: Owner read-only check
+    if block.property_id and is_owner_viewing(db, current_user, block.property_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This property is under external management. Contact the managing company to make changes."
+        )
+
+    # Access check: visible properties or company match
+    visible_ids = get_visible_property_ids(db, current_user)
+    if block.property_id and block.property_id not in visible_ids:
+        if block.company_id != current_user.company_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif not block.property_id and block.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     # Get update data, excluding geometry
     update_data = block_update.dict(exclude_unset=True)
@@ -295,15 +343,29 @@ def create_block_with_polygon(
     current_user: User = Depends(get_current_user)
 ):
     try:
+        # A11: Owner read-only check
+        if hasattr(block_data, 'property_id') and block_data.property_id:
+            if is_owner_viewing(db, current_user, block_data.property_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="This property is under external management. Contact the managing company to make changes."
+                )
+
         # Extract geometry data before creating model instance
         geometry_data = block_data.dict().pop("geometry", None)
-        
+
         # Create new block with remaining data
         new_block = VineyardBlock(**block_data.dict(exclude={"geometry"}))
-        
+
         # Set company_id from current user if not provided
         if not new_block.company_id and current_user.company_id:
             new_block.company_id = current_user.company_id
+
+        # A10: Default property_id if user has exactly one visible property
+        if not new_block.property_id:
+            visible_ids = get_visible_property_ids(db, current_user)
+            if len(visible_ids) == 1:
+                new_block.property_id = visible_ids[0]
         
         # Process geometry if provided
         if geometry_data:
@@ -543,11 +605,20 @@ def split_block(
     original_block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
     if not original_block:
         raise HTTPException(status_code=404, detail="Block not found")
-    
-       # Check permissions (allow same-company; optionally allow admins)
-    is_admin = getattr(current_user, "is_admin", False) or \
-               ("admin" in (getattr(current_user, "roles", []) or []))
-    if not is_admin and original_block.company_id != current_user.company_id:
+
+    # A11: Owner read-only check
+    if original_block.property_id and is_owner_viewing(db, current_user, original_block.property_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This property is under external management. Contact the managing company to make changes."
+        )
+
+    # Check permissions (allow same-company, visible property, or admin)
+    is_admin = current_user.user_type == "auxein_admin"
+    visible_ids = get_visible_property_ids(db, current_user)
+    has_property_access = original_block.property_id and original_block.property_id in visible_ids
+    has_company_access = original_block.company_id == current_user.company_id
+    if not is_admin and not has_property_access and not has_company_access:
         raise HTTPException(
             status_code=403,
             detail="You can only split blocks owned by your company"
@@ -681,9 +752,19 @@ def update_block_geometry(
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
 
-    # Permissions: same-company or admin
-    is_admin = getattr(current_user, "is_admin", False) or ("admin" in (getattr(current_user, "roles", []) or []))
-    if not is_admin and block.company_id != current_user.company_id:
+    # A11: Owner read-only check
+    if block.property_id and is_owner_viewing(db, current_user, block.property_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This property is under external management. Contact the managing company to make changes."
+        )
+
+    # Permissions: visible property, same-company, or admin
+    is_admin = current_user.user_type == "auxein_admin"
+    visible_ids = get_visible_property_ids(db, current_user)
+    has_property_access = block.property_id and block.property_id in visible_ids
+    has_company_access = block.company_id == current_user.company_id
+    if not is_admin and not has_property_access and not has_company_access:
         raise HTTPException(status_code=403, detail="You can only edit blocks owned by your company")
 
     # --- Validate input

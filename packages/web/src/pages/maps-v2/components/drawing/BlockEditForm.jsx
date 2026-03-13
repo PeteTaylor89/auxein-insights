@@ -29,6 +29,7 @@ const TRAINING_SYSTEMS = [
  * @param {Function} props.onSubmit - called after successful metadata save
  * @param {Function} props.onDelete - called to delete the block
  * @param {Function} props.onCancel - close form
+ * @param {Array} props.properties - list of {id, name} for property assignment
  */
 export default function BlockEditForm({
   isOpen,
@@ -40,6 +41,7 @@ export default function BlockEditForm({
   onSubmit,
   onDelete,
   onCancel,
+  properties = [],
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -57,6 +59,7 @@ export default function BlockEditForm({
     organic: false,
     biodynamic: false,
     regenerative: false,
+    property_id: '',
   });
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export default function BlockEditForm({
         organic: !!blockData.organic,
         biodynamic: !!blockData.biodynamic,
         regenerative: !!blockData.regenerative,
+        property_id: blockData.property_id ?? '',
       });
       setError(null);
     }
@@ -112,6 +116,7 @@ export default function BlockEditForm({
         organic: form.organic,
         biodynamic: form.biodynamic,
         regenerative: form.regenerative,
+        property_id: form.property_id ? parseInt(form.property_id) : null,
       };
 
       await blocksService.updateBlock(blockData.id, updateData);
@@ -177,6 +182,29 @@ export default function BlockEditForm({
             </div>
           )}
         </div>
+
+        {/* Property assignment */}
+        {properties.length > 0 && (
+          <div className="v2-form-section">
+            <div className="v2-form-section-header">
+              <MapPin size={14} />
+              <span>Property Assignment</span>
+            </div>
+            <div className="v2-form-group">
+              <label className="v2-form-label">Property</label>
+              <select
+                className="v2-form-select"
+                value={form.property_id}
+                onChange={handleChange('property_id')}
+              >
+                <option value="">Unassigned</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Metadata form */}
         <form onSubmit={handleSubmit}>

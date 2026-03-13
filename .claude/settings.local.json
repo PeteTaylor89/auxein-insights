@@ -10,7 +10,17 @@
       "Read(//A:/auxein-insights-V0.1/packages/**)",
       "Bash(find \"A:/auxein-insights-V0.1/packages/web/src/pages/maps-v2\" -type f -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" -o -name \"*.js\" 2>/dev/null | head -20)",
       "Bash(find /a/auxein-insights-V0.1/backend -type f -name \"*region*\" -o -name \"*gi*\" 2>/dev/null | head -20)",
-      "Bash(find /a/auxein-insights-V0.1 -name \"*MAPS*\" -o -name \"*PLAN*\" 2>/dev/null | grep -v node_modules | grep -v venv)"
+      "Bash(find /a/auxein-insights-V0.1 -name \"*MAPS*\" -o -name \"*PLAN*\" 2>/dev/null | grep -v node_modules | grep -v venv)",
+      "Bash(find /A/auxein-insights-V0.1/backend/db/models -name \"*.py\" | xargs grep -l \"parcel\\\\|boundary\\\\|block\\\\|polygon\" -i)",
+      "Bash(find /A/auxein-insights-V0.1/packages/insights -name \"*.jsx\" -o -name \"*.js\" 2>/dev/null | head -30)",
+      "Bash(find /A/auxein-insights-V0.1/packages/insights/src -name \"*.jsx\" -o -name \"*.js\" 2>/dev/null | head -30)",
+      "Bash(find /A/auxein-insights-V0.1/packages/web/src -name \"*.jsx\" -o -name \"*.js\" | xargs grep -l \"CompanyManagement\\\\|UserManagement\\\\|AdminRoute\\\\|admin\" | head -20)",
+      "Bash(ls -la backend/api/v1/ | grep -E \"\\\\.py$\")",
+      "Bash(grep -r \"create.*contractor\\\\|Contractor\\(\" backend/api/v1/*.py | grep -v \"ContractorCreate\\\\|ContractorCheck\\\\|ContractorAssignment\\\\|ContractorMovement\\\\|ContractorTraining\\\\|ContractorRelationship\\\\|#\" | head -20)",
+      "Bash(cd A:/auxein-insights-V0.1 && grep -rn \"VineyardBlock\" backend/services/*.py | grep -E \"\\(company_id|\\\\.filter\\)\" | head -60)",
+      "Bash(cd A:/auxein-insights-V0.1 && grep -rn \"\\\\.block_id\" backend/api/v1/*.py | grep filter | head -30)",
+      "Bash(cd A:/auxein-insights-V0.1 && grep -n \"handle_company_reassignment\" backend/services/*.py backend/api/v1/*.py)",
+      "Bash(cd A:/auxein-insights-V0.1 && grep -n \"archive_chain\" backend/services/*.py backend/api/v1/*.py)"
     ]
   }
 }

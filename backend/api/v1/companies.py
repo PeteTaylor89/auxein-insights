@@ -467,3 +467,34 @@ def get_current_company_stats(
     
     logger.info(f"Final result: {result}")
     return result
+
+
+@router.get("/{company_id}/managed-properties")
+def get_managed_properties(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all properties actively managed by a company."""
+    if not current_user.has_permission("properties", "read"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+
+    from db.models.management_relationship import ManagementRelationship
+    from db.models.property import Property
+
+    property_ids = db.query(ManagementRelationship.property_id).filter(
+        ManagementRelationship.managing_company_id == company_id,
+        ManagementRelationship.is_active == True
+    ).all()
+
+    if not property_ids:
+        return []
+
+    properties = db.query(Property).filter(
+        Property.id.in_([p[0] for p in property_ids])
+    ).all()
+
+    return properties

@@ -1,11 +1,8 @@
 // src/pages/Profile.jsx - Updated with Company Admin Panel
 import { useState, useEffect } from 'react';
 import { useAuth } from '@vineyard/shared';
-import {companiesService, subscriptionService, adminService, invitationService, trainingService, api} from '@vineyard/shared';
+import {companiesService, subscriptionService, invitationService, trainingService, api} from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import CompanyCreationForm from '../components/admin/CompanyCreationForm';
-import CompanyManagement from '../components/admin/CompanyManagement';
-import UserManagement from '../components/admin/UserManagement';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import { useNavigate } from 'react-router-dom';
 import InvitationForm from '../components/admin/InvitationForm';
@@ -17,7 +14,7 @@ function Profile() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeAdminTab, setActiveAdminTab] = useState('create-company');
+  const [activeAdminTab, setActiveAdminTab] = useState('company-users');
   const navigate = useNavigate();
   const [invitations, setInvitations] = useState([]);
   const [showInvitationForm, setShowInvitationForm] = useState(false);
@@ -212,11 +209,6 @@ function Profile() {
       <div className="profile-container">
         <div className="profile-header">
           <h1>Profile</h1>
-          {isSystemAdmin && (
-            <div className="admin-badge">
-              System Administrator
-            </div>
-          )}
         </div>
 
         {error && (
@@ -226,46 +218,6 @@ function Profile() {
         )}
 
         <div className="profile-content">
-          {/* System Admin Panel */}
-          {isSystemAdmin && (
-            <div className="admin-panel">
-              <h2>System Administration</h2>
-              
-              <div className="admin-tabs">
-                <button 
-                  className={`tab-button ${activeAdminTab === 'create-company' ? 'active' : ''}`}
-                  onClick={() => setActiveAdminTab('create-company')}
-                >
-                  Create Company
-                </button>
-                <button 
-                  className={`tab-button ${activeAdminTab === 'manage-companies' ? 'active' : ''}`}
-                  onClick={() => setActiveAdminTab('manage-companies')}
-                >
-                  Manage Companies
-                </button>
-                <button 
-                  className={`tab-button ${activeAdminTab === 'user-management' ? 'active' : ''}`}
-                  onClick={() => setActiveAdminTab('user-management')}
-                >
-                  User Management
-                </button>
-                <button 
-                    className="tab-button subtle"
-                    onClick={() => navigate('/timesheets')}
-                  >
-                    Open TimeSheets
-                </button>
-              </div>
-
-              <div className="admin-content">
-                {activeAdminTab === 'create-company' && <CompanyCreationForm />}
-                {activeAdminTab === 'manage-companies' && <CompanyManagement />}
-                {activeAdminTab === 'user-management' && <UserManagement />}
-              </div>
-            </div>
-          )}
-
           {/* Company Admin Panel */}
           {isCompanyAdmin && (
             <div className="admin-panel">

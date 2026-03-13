@@ -1,7 +1,7 @@
 // maps-v2/MapsPage.jsx — Page shell: sidebar + map + mode toggle
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import * as turf from '@turf/turf';
-import { useAuth, blocksService, spatialAreasService } from '@vineyard/shared';
+import { useAuth, blocksService, spatialAreasService, propertyService } from '@vineyard/shared';
 import useMapbox from './hooks/useMapbox';
 import useBlocksLayer from './hooks/useBlocksLayer';
 import useRisksLayer from './hooks/useRisksLayer';
@@ -18,6 +18,7 @@ import RisksPanel from './components/management/RisksPanel';
 import SpatialAreasPanel from './components/management/SpatialAreasPanel';
 import TasksPanel from './components/management/TasksPanel';
 import ObservationsPanel from './components/management/ObservationsPanel';
+import PropertiesPanel from './components/management/PropertiesPanel';
 import MapBuilder from './components/builder/MapBuilder';
 import useBuilderState from './hooks/useBuilderState';
 import MapStyleSelector from './components/shared/MapStyleSelector';
@@ -74,11 +75,13 @@ class MapsErrorBoundary extends React.Component {
 }
 
 function MapsPageInner() {
-  const { user } = useAuth();
-  const { scope, isAuxeinAdmin, companyId } = useMemo(
+  const { user, userTypeRole } = useAuth();
+  const { scope, isAuxeinAdmin: isAuxeinAdminLegacy, companyId } = useMemo(
     () => resolveViewerRole(user),
     [user],
   );
+  // Use userTypeRole as the reliable admin check
+  const isAuxeinAdmin = userTypeRole === 'auxein_admin' || isAuxeinAdminLegacy;
 
   const [mode, setMode] = useState('management');
   const [status, setStatus] = useState(null);
@@ -89,6 +92,24 @@ function MapsPageInner() {
   const [showParcels, setShowParcels] = useState(false);
   const [showTasks, setShowTasks] = useState(true);
   const [showObservations, setShowObservations] = useState(true);
+
+  // Properties state (admin only)
+  const [properties, setProperties] = useState([]);
+
+  // Fetch properties for admin
+  const fetchProperties = useCallback(async () => {
+    if (!isAuxeinAdmin) return;
+    try {
+      const data = await propertyService.listProperties({ limit: 500 });
+      setProperties(data);
+    } catch (err) {
+      console.error('Failed to load properties:', err);
+    }
+  }, [isAuxeinAdmin]);
+
+  useEffect(() => {
+    fetchProperties();
+  }, [fetchProperties]);
 
   // Drawing state
   const [drawMode, setDrawMode] = useState('idle'); // idle | draw_polygon | draw_spatial | split | edit
@@ -325,7 +346,8 @@ function MapsPageInner() {
     setEditBlockData(null);
     setDrawMode('idle');
     refresh();
-  }, [refresh]);
+    fetchProperties();
+  }, [refresh, fetchProperties]);
 
   const handleBlockDelete = useCallback(async (blockId) => {
     try {
@@ -333,10 +355,11 @@ function MapsPageInner() {
       setShowBlockEdit(false);
       setEditBlockData(null);
       refresh();
+      fetchProperties();
     } catch (err) {
       console.error('Block delete failed:', err);
     }
-  }, [refresh]);
+  }, [refresh, fetchProperties]);
 
   // --- Spatial area edit handlers ---
   const handleOpenSpatialEdit = useCallback(async (areaId) => {
@@ -366,7 +389,8 @@ function MapsPageInner() {
     setDrawMode('idle');
     drawing.clearDraft();
     refresh();
-  }, [drawing, refresh]);
+    fetchProperties();
+  }, [drawing, refresh, fetchProperties]);
 
   // Spatial area creation success
   const handleSpatialCreateSuccess = useCallback(() => {
@@ -531,6 +555,18 @@ function MapsPageInner() {
               visible={showObservations}
               onToggle={() => setShowObservations((v) => !v)}
             />
+
+            {isAuxeinAdmin && properties.length > 0 && (
+              <PropertiesPanel
+                properties={properties}
+                blocksData={blocksData}
+                onFlyTo={(coords) => {
+                  if (map && coords) {
+                    map.flyTo({ center: coords, zoom: 14, duration: 1500 });
+                  }
+                }}
+              />
+            )}
           </>
         ) : (
           <MapBuilder
@@ -585,6 +621,7 @@ function MapsPageInner() {
         centroid={drawCentroid}
         onSubmit={handleBlockCreateSuccess}
         onCancel={handleCancelDraw}
+        properties={isAuxeinAdmin ? properties : []}
       />
 
       {/* Spatial area creation form */}
@@ -606,6 +643,7 @@ function MapsPageInner() {
         onCancelGeometryEdit={handleCancelGeometryEdit}
         onSubmit={handleBlockEditSubmit}
         onDelete={handleBlockDelete}
+        properties={isAuxeinAdmin ? properties : []}
         onCancel={() => {
           if (isEditingGeometry) handleCancelGeometryEdit();
           setShowBlockEdit(false);

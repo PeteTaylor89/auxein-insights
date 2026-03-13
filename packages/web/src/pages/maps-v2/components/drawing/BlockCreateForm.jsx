@@ -35,6 +35,7 @@ export default function BlockCreateForm({
   centroid,
   onSubmit,
   onCancel,
+  properties = [],
 }) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
@@ -49,6 +50,7 @@ export default function BlockCreateForm({
     planted_date: '',
     row_spacing: '',
     vine_spacing: '',
+    property_id: '',
   });
 
   const handleChange = (field) => (e) => {
@@ -81,6 +83,7 @@ export default function BlockCreateForm({
         centroid_longitude: centroid?.[0] || null,
         centroid_latitude: centroid?.[1] || null,
         company_id: user?.company_id,
+        property_id: form.property_id ? parseInt(form.property_id) : null,
         geometry: {
           type: geometry.type,
           coordinates: geometry.coordinates,
@@ -114,6 +117,22 @@ export default function BlockCreateForm({
         {area > 0 && (
           <div className="v2-form-info">
             Area: <strong>{area.toFixed(2)} ha</strong>
+          </div>
+        )}
+
+        {properties.length > 0 && (
+          <div className="v2-form-group">
+            <label className="v2-form-label">Property</label>
+            <select
+              className="v2-form-select"
+              value={form.property_id}
+              onChange={handleChange('property_id')}
+            >
+              <option value="">Unassigned</option>
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
           </div>
         )}
 

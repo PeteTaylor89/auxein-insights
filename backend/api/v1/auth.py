@@ -44,6 +44,7 @@ def make_timezone_aware(dt):
 
 class EnhancedToken(Token):
     user_type: str  # "company_user" | "contractor"
+    user_type_role: str  # "auxein_admin" | "company_admin" | "company_manager" | "company_user" | "contractor"
     user_id: int
     username: str
     full_name: Optional[str] = None

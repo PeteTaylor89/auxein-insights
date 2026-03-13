@@ -1,4 +1,5 @@
 # services/climate_calculations.py
+import logging
 from datetime import date, datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from sqlalchemy.orm import Session
@@ -6,6 +7,8 @@ from sqlalchemy import func, and_
 from db.models.climate_historical import ClimateHistoricalData
 from db.models.block import VineyardBlock
 import math
+
+logger = logging.getLogger(__name__)
 
 class ClimateCalculations:
     """Southern Hemisphere growing season climate calculations"""
@@ -29,10 +32,10 @@ class ClimateCalculations:
             func.max(ClimateHistoricalData.date).label('max_date')
         ).filter(ClimateHistoricalData.vineyard_block_id == block_id).first()
         
-        print(f"DEBUG: Block {block_id} date range: {date_range.min_date} to {date_range.max_date}")
+        logger.debug(f"Block {block_id} date range: {date_range.min_date} to {date_range.max_date}")
         
         if not date_range.min_date:
-            print(f"DEBUG: No climate data found for block {block_id}")
+            logger.debug(f"No climate data found for block {block_id}")
             return []
         
         seasons = []
@@ -43,7 +46,7 @@ class ClimateCalculations:
         for year in range(start_year, end_year + 1):
             season_start, season_end = ClimateCalculations.get_growing_season_dates(year)
             
-            print(f"DEBUG: Checking season {year}/{str(year + 1)[2:]} ({season_start} to {season_end})")
+            logger.debug(f"Checking season {year}/{str(year + 1)[2:]} ({season_start} to {season_end})")
             
             # Check if we have data for this season - be more lenient
             if (date_range.min_date <= season_end and 
@@ -56,14 +59,14 @@ class ClimateCalculations:
                     ClimateHistoricalData.date <= season_end
                 ).scalar()
                 
-                print(f"DEBUG: Season {year}/{str(year + 1)[2:]} has {data_count} data points")
+                logger.debug(f"Season {year}/{str(year + 1)[2:]} has {data_count} data points")
                 
                 # Include season if it has at least 30 data points (about 1 month worth)
                 if data_count >= 30:
                     seasons.append(f"{year}/{str(year + 1)[2:]}")
-                    print(f"DEBUG: Added season {year}/{str(year + 1)[2:]}")
+                    logger.debug(f"Added season {year}/{str(year + 1)[2:]}")
         
-        print(f"DEBUG: Final seasons list: {seasons}")
+        logger.debug(f"Final seasons list: {seasons}")
         return seasons
     
     @staticmethod

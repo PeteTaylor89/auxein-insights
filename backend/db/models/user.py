@@ -136,6 +136,13 @@ class User(Base):
         back_populates="completer"
     )
 
+    # Property scoping for VMC staff (Grow V1)
+    property_scopes = relationship(
+        "UserPropertyScope",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
     
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', user_type='{self.user_type}', role='{self.role}', company_id={self.company_id})>"

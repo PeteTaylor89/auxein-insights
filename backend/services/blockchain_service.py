@@ -331,6 +331,107 @@ class BlockchainService:
         return months_active > max_duration
     
     @staticmethod
+    def get_current_season() -> str:
+        """
+        Return the current season string based on Southern Hemisphere vine calendar.
+        Season runs Jul-Jun: Jul 2025 → Jun 2026 = season "2026".
+        """
+        today = date.today()
+        season_year = today.year + 1 if today.month >= 7 else today.year
+        return str(season_year)
+
+    @staticmethod
+    def archive_chain_for_season(
+        db: Session,
+        block_id: int,
+        season_id: str,
+        user_id: int,
+    ) -> None:
+        """
+        Archive (deactivate) the blockchain chain for a block in the given season.
+        Sets is_active=False, records archive metadata.  No-op if no matching chain.
+        """
+        chain = db.query(BlockchainChain).filter(
+            and_(
+                BlockchainChain.vineyard_block_id == block_id,
+                BlockchainChain.season_id == season_id,
+                BlockchainChain.is_active == True,
+            )
+        ).first()
+
+        if not chain:
+            return
+
+        chain.is_active = False
+        chain.archived_at = datetime.utcnow()
+        chain.archived_by_user_id = user_id
+        chain.archive_reason = f"Season {season_id} archived"
+
+    @staticmethod
+    def handle_company_reassignment(
+        db: Session,
+        block_id: int,
+        old_company_id: int,
+        new_company_id: int,
+        user_id: int,
+        season: str = None,
+    ) -> BlockchainChain:
+        """
+        Handle a block being reassigned from one company to another.
+
+        1. Adds a management_transfer event to the current chain (if one exists).
+        2. Archives the current chain.
+        3. Creates a new chain for the new company in the current season.
+        """
+        current_season = season or BlockchainService.get_current_season()
+
+        # Add transfer event to existing chain before archiving
+        existing_chain = BlockchainService.get_active_chain_for_block(db, block_id)
+        if existing_chain:
+            # Next sequence number
+            max_seq = db.query(BlockchainNode.sequence_number).filter(
+                BlockchainNode.chain_id == existing_chain.id
+            ).order_by(BlockchainNode.sequence_number.desc()).first()
+            next_seq = (max_seq[0] + 1) if max_seq else 1
+
+            event_data = {
+                "event": "management_transfer",
+                "block_id": block_id,
+                "previous_company_id": old_company_id,
+                "new_company_id": new_company_id,
+                "season_id": current_season,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            node_hash = BlockchainService._calculate_hash(event_data)
+
+            node = BlockchainNode(
+                chain_id=existing_chain.id,
+                node_type="management_transfer",
+                reference_type="management_transfer",
+                reference_id=block_id,
+                blockchain_data=event_data,
+                sequence_number=next_seq,
+                node_hash=node_hash,
+                confirmed_at=datetime.utcnow(),
+                confirmed_by_user_id=user_id,
+            )
+            db.add(node)
+
+            # Archive the old chain
+            existing_chain.is_active = False
+            existing_chain.archived_at = datetime.utcnow()
+            existing_chain.archived_by_user_id = user_id
+            existing_chain.archive_reason = (
+                f"Company reassignment: {old_company_id} -> {new_company_id}"
+            )
+
+        # Create new chain for the new company
+        new_chain = BlockchainService.auto_create_chain_on_assignment(
+            db, block_id, new_company_id, user_id, force_new_season=True
+        )
+        return new_chain
+
+    @staticmethod
     def _calculate_hash(data: Dict[str, Any]) -> str:
         """Calculate SHA-256 hash of data"""
         json_str = json.dumps(data, sort_keys=True, default=str)

@@ -57,6 +57,18 @@ class Company(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, nullable=True)
     
+    # Property & management relationships (Grow V1)
+    owned_properties = relationship(
+        "Property",
+        foreign_keys="Property.owner_company_id",
+        back_populates="owner_company"
+    )
+    managed_relationships = relationship(
+        "ManagementRelationship",
+        foreign_keys="ManagementRelationship.managing_company_id",
+        back_populates="managing_company"
+    )
+
     # Relationships - UPDATED with visitor relationships
     observation_runs = relationship("ObservationRun", cascade="all, delete-orphan")
     observation_spots = relationship("ObservationSpot", cascade="all, delete-orphan")

@@ -21,4 +21,6 @@ export { default as weatherCacheService } from './weatherCacheService.js';
 export { default as weatherService } from './weatherService.js';
 export { default as timesheetsService } from './timesheetsService.js';
 export { default as usersService } from './usersService.js';
+export { default as contractorManagementService } from './contractorManagementService.js';
+export { default as propertyService } from './propertyService.js';
 

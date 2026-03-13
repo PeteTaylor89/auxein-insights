@@ -228,7 +228,7 @@ def create_spatial_area_with_polygon(
     """
     Create a new spatial area with polygon geometry
     """
-    if not current_user.has_permission("blocks", "create"):
+    if not current_user.has_permission("spatial_areas", "create"):
         raise HTTPException(status_code=403, detail="Not enough permissions to create spatial areas")
     try:
         # Extract geometry data

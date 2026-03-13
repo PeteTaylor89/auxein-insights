@@ -33,13 +33,15 @@ import RunStart from './pages/RunStart';
 import AdhocObservationCreate from './pages/AdhocObservationCreate';
 import AssetsDashboard from './pages/AssetsDashboard';
 import AssetForm from './pages/AssetForm';
-import ConsumableForm from './pages/ConsumableForm'
+import ConsumableForm from './pages/ConsumableForm';
+import ContractorManagement from './pages/ContractorManagement';
 
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
 import TaskCreationWizard from './pages/TaskCreationWizard';
 
 // Lazy-load Maps V2 so any module error won't crash the rest of the app
 const MapsPageV2 = lazy(() => import('./pages/maps-v2/MapsPage'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -104,7 +106,13 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-
+        <Route path="/admin" element={
+          <ProtectedRoute>
+            <Suspense fallback={<div className="loading-screen">Loading...</div>}>
+              <Admin />
+            </Suspense>
+          </ProtectedRoute>
+        } />
 
         <Route path="/change-password" element={
           <ProtectedRoute>
@@ -150,6 +158,12 @@ function AppRoutes() {
 
         <Route path="/visitors" element={<VisitorRegistration />} />
         <Route path="/admin/visitors" element={<VisitorManagement />} />
+
+        <Route path="/admin/contractors" element={
+          <ProtectedRoute>
+            <ContractorManagement />
+          </ProtectedRoute>
+        } />
 
         <Route path="/training" element={
           <ProtectedRoute>

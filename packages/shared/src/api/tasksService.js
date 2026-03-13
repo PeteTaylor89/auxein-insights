@@ -46,6 +46,15 @@ const tasksService = {
     return res.data;
   },
 
+  getFilteredTasks: async (filters = {}) => {
+    const params = {};
+    if (filters.assignedTo) params.assigned_to_user_id = filters.assignedTo;
+    if (filters.status) params.status = filters.status;
+    if (filters.blockId) params.block_id = filters.blockId;
+    const res = await api.get('/tasks/tasks', { params });
+    return res.data;
+  },
+
   getTask: async (taskId) => {
     const res = await api.get(`/tasks/tasks/${taskId}`);
     return res.data;

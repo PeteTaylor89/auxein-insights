@@ -4,12 +4,12 @@ import { useAuth } from '@vineyard/shared';
 import { companiesService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget';
 import { Link } from 'react-router-dom';
-import { User, Users, ClipboardList, Calendar } from "lucide-react";
+import { User, Users, ClipboardList, Calendar, Shield, Map } from "lucide-react";
 
 const INSIGHTS_URL = import.meta.env.VITE_INSIGHTS_URL || '';
 
 function Home() {
-  const { user } = useAuth();
+  const { user, userTypeRole } = useAuth();
   const [stats, setStats] = useState(null);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -124,6 +124,16 @@ function Home() {
                 <div className="icon-wrapper"><User size={24} /></div>
                 <div className="actions-title">Register Visitor</div>
               </Link>
+              <Link to="/maps-v2" className="stat-card">
+                <div className="icon-wrapper"><Map size={24} /></div>
+                <div className="actions-title">Maps V2</div>
+              </Link>
+              {userTypeRole === 'auxein_admin' && (
+                <Link to="/admin" className="stat-card">
+                  <div className="icon-wrapper"><Shield size={24} /></div>
+                  <div className="actions-title">System Admin</div>
+                </Link>
+              )}
             </div>
           </div>
 
