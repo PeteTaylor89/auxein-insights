@@ -80,6 +80,17 @@ function UserManagement() {
     }
   };
 
+  const handleDeleteUser = async (user) => {
+    if (!window.confirm(`Delete user "${user.username}" (${user.email})? This will soft-delete the account.`)) return;
+    try {
+      await adminService.deleteUser(user.id);
+      fetchUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert(err.response?.data?.detail || 'Failed to delete user');
+    }
+  };
+
   const handleUpdateUserRole = async (userId, newRole) => {
     try {
       await adminService.updateUserRole(userId, newRole);
@@ -288,11 +299,11 @@ function UserManagement() {
                         {user.is_suspended ? '✅' : '❌'}
                       </button>
                       <button
-                        onClick={() => alert(`View activity for ${user.username}`)}
-                        className="view-button"
-                        title="View Activity"
+                        onClick={() => handleDeleteUser(user)}
+                        className="delete-button"
+                        title="Delete User"
                       >
-                        📊
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -541,13 +552,13 @@ function UserManagement() {
           color: #166534;
         }
 
-        .view-button {
-          background: #eff6ff;
-          color: #1d4ed8;
+        .delete-button {
+          background: #fef2f2;
+          color: #991b1b;
         }
 
-        .view-button:hover {
-          background: #dbeafe;
+        .delete-button:hover {
+          background: #fecaca;
         }
 
         .pagination {

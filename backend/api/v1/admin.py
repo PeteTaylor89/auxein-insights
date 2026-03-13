@@ -20,8 +20,7 @@ from db.models.contractor import Contractor
 from db.models.contractor_relationship import ContractorRelationship
 from schemas.company import Company as CompanySchema
 from schemas.user import User as UserSchema
-from core.email_templates import send_welcome_email
-from services.email_service import UnifiedEmailService
+from core.email_utils import send_admin_welcome_email
 
 router = APIRouter()
 
@@ -213,6 +212,7 @@ def create_company_with_admin(
         last_name=company_admin_data.admin_last_name,
         phone=company_admin_data.admin_phone,
         role="admin",  # Company admin, not system admin
+        user_type="company_admin",  # 5-tier permission system
         company_id=company.id,
         is_verified=True,  # Pre-verified
         is_active=True,
@@ -556,11 +556,18 @@ def update_user_role_admin(
             detail="Cannot change your own role"
         )
     
+    # Sync both role (legacy) and user_type (5-tier permissions)
+    role_to_user_type = {
+        "admin": "company_admin",
+        "manager": "company_manager",
+        "user": "company_user",
+    }
     user.role = new_role
+    user.user_type = role_to_user_type.get(new_role, "company_user")
     db.add(user)
     db.commit()
-    
-    return {"message": f"User role updated to {new_role}"}
+
+    return {"message": f"User role updated to {new_role}", "user_type": user.user_type}
 
 @router.post("/users/{user_id}/suspend")
 def suspend_user_admin(
@@ -685,6 +692,43 @@ def update_user_status_admin(
     return {"message": f"User status updated to {new_status}"}
 
 
+@router.delete("/users/{user_id}")
+def delete_user_admin(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    Soft-delete a user (system admin only).
+    Sets is_active=False and clears sensitive fields.
+    """
+    if not current_user.has_permission("users", "delete"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only system administrators can delete users"
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete yourself"
+        )
+
+    user.is_active = False
+    user.is_suspended = True
+    db.add(user)
+    db.commit()
+
+    return {"message": f"User {user.username} has been deleted (soft)"}
+
+
 # ==================== PROPERTY ADMIN ENDPOINTS ====================
 
 @router.get("/properties")
@@ -761,6 +805,42 @@ def admin_list_all_properties(
         })
 
     return result
+
+
+@router.delete("/properties/{property_id}")
+def admin_delete_property(
+    property_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Delete a property. Blocks must be unlinked first."""
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only system administrators can delete properties"
+        )
+
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    # Check for linked blocks
+    block_count = db.query(VineyardBlock).filter(VineyardBlock.property_id == property_id).count()
+    if block_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete property with {block_count} linked block(s). Unlink blocks first."
+        )
+
+    # Remove management relationships
+    db.query(ManagementRelationship).filter(
+        ManagementRelationship.property_id == property_id
+    ).delete()
+
+    db.delete(prop)
+    db.commit()
+
+    return {"message": f"Property '{prop.name}' deleted"}
 
 
 # ==================== CONTRACTOR ADMIN ENDPOINTS ====================
@@ -902,3 +982,88 @@ def admin_list_all_contractors(
         })
 
     return result
+
+
+class ContractorAdminUpdate(BaseModel):
+    business_name: Optional[str] = None
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    contractor_type: Optional[str] = None
+    specializations: Optional[list] = None
+
+
+@router.put("/contractors/{contractor_id}")
+def admin_update_contractor(
+    contractor_id: int,
+    data: ContractorAdminUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Update contractor details (system admin only)."""
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only system administrators can update contractors"
+        )
+
+    contractor = db.query(Contractor).filter(Contractor.id == contractor_id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+
+    update_data = data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(contractor, field, value)
+
+    db.add(contractor)
+    db.commit()
+    db.refresh(contractor)
+
+    return {"message": f"Contractor '{contractor.business_name}' updated"}
+
+
+@router.post("/contractors/{contractor_id}/toggle-active")
+def admin_toggle_contractor_active(
+    contractor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Toggle contractor active status (system admin only)."""
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    contractor = db.query(Contractor).filter(Contractor.id == contractor_id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+
+    contractor.is_active = not contractor.is_active
+    db.add(contractor)
+    db.commit()
+
+    action = "reactivated" if contractor.is_active else "suspended"
+    return {"message": f"Contractor '{contractor.business_name}' {action}", "is_active": contractor.is_active}
+
+
+@router.delete("/contractors/{contractor_id}")
+def admin_delete_contractor(
+    contractor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Delete a contractor and their relationships (system admin only)."""
+    if current_user.user_type != "auxein_admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+
+    contractor = db.query(Contractor).filter(Contractor.id == contractor_id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+
+    # Remove relationships
+    db.query(ContractorRelationship).filter(
+        ContractorRelationship.contractor_id == contractor_id
+    ).delete()
+
+    db.delete(contractor)
+    db.commit()
+
+    return {"message": f"Contractor '{contractor.business_name}' deleted"}

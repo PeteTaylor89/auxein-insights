@@ -26,7 +26,12 @@ from schemas.contractor import (
     ContractorCreate, ContractorUpdate, ContractorProfile, 
     Contractor as ContractorSchema
 )
-from services.email_service import UnifiedEmailService 
+from services.email_service import UnifiedEmailService
+from core.email_utils import (
+    send_verification_email,
+    send_contractor_verification_email,
+    send_password_reset_email
+)
 from jose import JWTError
 
 router = APIRouter()
@@ -369,7 +374,7 @@ def login_access_token(
             db.commit()
     else:
         # Neither exists - perform dummy password verification for timing consistency
-        dummy_hash = "$2b$12$dummy.hash.to.prevent.timing.attacks.dummy"
+        dummy_hash = "$2b$12$nY46vcFYtaoxtF51XBfe..A3gTYVLFM27Buj1OHNFOAiDbWYUXYQa"
         verify_password(form_data.password, dummy_hash)
     
     # STEP 3: Validate authentication

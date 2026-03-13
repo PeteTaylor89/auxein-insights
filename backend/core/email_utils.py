@@ -778,7 +778,6 @@ def send_invitation_email(
                     <div style="text-align: center; margin: 30px 0;">
                         <h3>Get Started</h3>
                         <a href="{invitation_link}" class="button">Complete Account Setup</a>
-                        {f'<a href="{login_link}" class="button accent-button">Login Directly</a>' if temporary_password else ''}
                     </div>
                     
                     {f'''<div class="warning-box">
@@ -826,7 +825,6 @@ def send_invitation_email(
     {f'- Temporary Password: {temporary_password}' if temporary_password else ''}
     
     Complete Account Setup: {invitation_link}
-    {f'Or Login Directly: {login_link}' if temporary_password else ''}
     
     {f'SECURITY: Please change your password after first login.' if temporary_password else ''}
     

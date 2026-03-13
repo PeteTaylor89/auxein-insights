@@ -1,6 +1,6 @@
 // components/admin/ContractorRegistry.jsx — Contractor creation + list for system admin
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, X, Save, Loader, UserPlus } from 'lucide-react';
+import { Search, Plus, X, Save, Loader, UserPlus, Edit2, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { adminService } from '@vineyard/shared';
 
 const CONTRACTOR_TYPES = ['individual', 'company', 'partnership'];
@@ -18,6 +18,9 @@ export default function ContractorRegistry() {
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState(null);
+
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const [form, setForm] = useState({
     business_name: '',
@@ -107,6 +110,46 @@ export default function ContractorRegistry() {
       setError(err.response?.data?.detail || 'Failed to create contractor');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (contractor) => {
+    try {
+      await adminService.toggleContractorActive(contractor.id);
+      fetchData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to update contractor');
+    }
+  };
+
+  const handleDelete = async (contractor) => {
+    if (!window.confirm(`Delete contractor "${contractor.business_name}"? This cannot be undone.`)) return;
+    try {
+      await adminService.deleteContractor(contractor.id);
+      setSuccessMsg(`Contractor "${contractor.business_name}" deleted.`);
+      fetchData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to delete contractor');
+    }
+  };
+
+  const startEdit = (c) => {
+    setEditingId(c.id);
+    setEditForm({
+      business_name: c.business_name,
+      contact_person: c.contact_person,
+      phone: c.phone,
+      contractor_type: c.contractor_type,
+    });
+  };
+
+  const saveEdit = async () => {
+    try {
+      await adminService.updateContractor(editingId, editForm);
+      setEditingId(null);
+      fetchData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to update contractor');
     }
   };
 
@@ -345,22 +388,37 @@ export default function ContractorRegistry() {
                 <th style={{ padding: '8px 10px', color: '#5B6830' }}>Specializations</th>
                 <th style={{ padding: '8px 10px', color: '#5B6830' }}>Status</th>
                 <th style={{ padding: '8px 10px', color: '#5B6830' }}>Relationships</th>
+                <th style={{ padding: '8px 10px', color: '#5B6830' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {contractors.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#999' }}>
+                  <td colSpan={8} style={{ padding: 24, textAlign: 'center', color: '#999' }}>
                     No contractors found
                   </td>
                 </tr>
               ) : (
                 contractors.map((c) => (
                   <tr key={c.id} style={{ borderBottom: '1px solid rgba(91,104,48,0.12)' }}>
-                    <td style={{ padding: '8px 10px', fontWeight: 500 }}>{c.business_name}</td>
-                    <td style={{ padding: '8px 10px' }}>{c.contact_person}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 500 }}>
+                      {editingId === c.id ? (
+                        <input value={editForm.business_name} onChange={(e) => setEditForm(f => ({ ...f, business_name: e.target.value }))} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #5B6830' }} />
+                      ) : c.business_name}
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      {editingId === c.id ? (
+                        <input value={editForm.contact_person} onChange={(e) => setEditForm(f => ({ ...f, contact_person: e.target.value }))} style={{ width: '100%', padding: 4, borderRadius: 4, border: '1px solid #5B6830' }} />
+                      ) : c.contact_person}
+                    </td>
                     <td style={{ padding: '8px 10px' }}>{c.email}</td>
-                    <td style={{ padding: '8px 10px' }}>{c.contractor_type}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      {editingId === c.id ? (
+                        <select value={editForm.contractor_type} onChange={(e) => setEditForm(f => ({ ...f, contractor_type: e.target.value }))} style={{ padding: 4, borderRadius: 4, border: '1px solid #5B6830' }}>
+                          {CONTRACTOR_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      ) : c.contractor_type}
+                    </td>
                     <td style={{ padding: '8px 10px' }}>
                       {(c.specializations || []).map((s) => (
                         <span key={s} style={{
@@ -390,6 +448,22 @@ export default function ContractorRegistry() {
                       </span>
                     </td>
                     <td style={{ padding: '8px 10px' }}>{c.relationship_count ?? '—'}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {editingId === c.id ? (
+                          <>
+                            <button onClick={saveEdit} title="Save" style={{ background: '#5B6830', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Save size={14} /></button>
+                            <button onClick={() => setEditingId(null)} title="Cancel" style={{ background: '#999', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => startEdit(c)} title="Edit" style={{ background: 'none', border: '1px solid #5B6830', borderRadius: 4, padding: '4px 6px', cursor: 'pointer', color: '#5B6830', display: 'flex', alignItems: 'center' }}><Edit2 size={14} /></button>
+                            <button onClick={() => handleToggleActive(c)} title={c.is_active ? 'Suspend' : 'Reactivate'} style={{ background: 'none', border: `1px solid ${c.is_active ? '#f59e0b' : '#5B6830'}`, borderRadius: 4, padding: '4px 6px', cursor: 'pointer', color: c.is_active ? '#f59e0b' : '#5B6830', display: 'flex', alignItems: 'center' }}>{c.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}</button>
+                            <button onClick={() => handleDelete(c)} title="Delete" style={{ background: 'none', border: '1px solid #D1583B', borderRadius: 4, padding: '4px 6px', cursor: 'pointer', color: '#D1583B', display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}

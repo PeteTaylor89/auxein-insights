@@ -133,6 +133,11 @@ const adminService = {
     return response.data;
   },
 
+  async deleteUser(userId) {
+    const response = await api.delete(`/admin/users/${userId}`);
+    return response.data;
+  },
+
   // ===== SUBSCRIPTION MANAGEMENT =====
   
   // Get available subscriptions for admin forms
@@ -168,6 +173,26 @@ const adminService = {
 
   async createContractor(data) {
     const response = await api.post('/admin/create-contractor', data);
+    return response.data;
+  },
+
+  async updateContractor(contractorId, data) {
+    const response = await api.put(`/admin/contractors/${contractorId}`, data);
+    return response.data;
+  },
+
+  async toggleContractorActive(contractorId) {
+    const response = await api.post(`/admin/contractors/${contractorId}/toggle-active`);
+    return response.data;
+  },
+
+  async deleteContractor(contractorId) {
+    const response = await api.delete(`/admin/contractors/${contractorId}`);
+    return response.data;
+  },
+
+  async deleteProperty(propertyId) {
+    const response = await api.delete(`/admin/properties/${propertyId}`);
     return response.data;
   },
 

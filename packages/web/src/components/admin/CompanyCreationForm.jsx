@@ -525,7 +525,20 @@ function CompanyCreationForm() {
                 <p><strong>Subscription:</strong> {result.data.company.subscription_display_name}</p>
                 <p><strong>Monthly Cost:</strong> {formatPrice(result.data.company.current_monthly_amount)}</p>
                 {result.data.generated_password && (
-                  <p><strong>Generated Password:</strong> <code>{result.data.generated_password}</code></p>
+                  <p>
+                    <strong>Generated Password:</strong>{' '}
+                    <code style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 4 }}>{result.data.generated_password}</code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(result.data.generated_password);
+                        const btn = document.getElementById('copy-pw-btn');
+                        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+                      }}
+                      id="copy-pw-btn"
+                      style={{ marginLeft: 8, padding: '2px 10px', fontSize: '0.8rem', borderRadius: 4, border: '1px solid #5B6830', background: '#E4F2DC', color: '#5B6830', cursor: 'pointer' }}
+                    >Copy</button>
+                  </p>
                 )}
                 {result.data.trial_end_date && (
                   <p><strong>Trial ends:</strong> {new Date(result.data.trial_end_date).toLocaleDateString()}</p>

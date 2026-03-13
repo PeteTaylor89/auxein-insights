@@ -1,5 +1,5 @@
 // src/pages/Login.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@vineyard/shared';
 import Logo from '../assets/App_Logo_September 2025.jpg';
 
@@ -8,8 +8,22 @@ function Login() {
     email: '',
     password: ''
   });
-  
+  const [successMessage, setSuccessMessage] = useState('');
+
   const { login, error, loading } = useAuth();
+
+  // Pre-fill email from query params (e.g. after invitation acceptance)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    const message = params.get('message');
+    if (email) {
+      setFormData(prev => ({ ...prev, email }));
+    }
+    if (message) {
+      setSuccessMessage(decodeURIComponent(message));
+    }
+  }, []);
   
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -75,6 +89,20 @@ function Login() {
             />
           </div>
           
+          {successMessage && (
+            <div style={{
+              padding: '12px 16px',
+              marginBottom: '16px',
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #86efac',
+              borderRadius: '8px',
+              color: '#166534',
+              fontSize: '14px'
+            }}>
+              {successMessage}
+            </div>
+          )}
+
           {error && (
             <div className="error-message">
               {error}

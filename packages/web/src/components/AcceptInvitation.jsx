@@ -27,9 +27,13 @@ function AcceptInvitation() {
   const loadInvitation = async () => {
     try {
       setLoading(true);
-      
+
       const response = await fetch(`/api/invitations/token/${token}`);
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Invalid or expired invitation');
+      }
 
       setInvitation(data);
       setFormData(prev => ({
@@ -39,7 +43,7 @@ function AcceptInvitation() {
         last_name: data.last_name || ''
       }));
     } catch (err) {
-      setError('Invalid or expired invitation');
+      setError(err.message || 'Invalid or expired invitation');
     } finally {
       setLoading(false);
     }
@@ -77,6 +81,13 @@ function AcceptInvitation() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        // Handle Pydantic 422 validation errors
+        if (response.status === 422 && errorData.detail) {
+          const messages = Array.isArray(errorData.detail)
+            ? errorData.detail.map(e => e.msg || e.message || JSON.stringify(e)).join('. ')
+            : errorData.detail;
+          throw new Error(messages);
+        }
         throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -304,13 +315,13 @@ function AcceptInvitation() {
           <div className="divider">
             <span>OR</span>
           </div>
-          <p>Already have the credentials from your invitation email?</p>
-          <button 
+          <p>Already have an account?</p>
+          <button
             onClick={handleLoginInstead}
             className="secondary-button"
             type="button"
           >
-            Login with Existing Credentials
+            Go to Login
           </button>
         </div>
 
