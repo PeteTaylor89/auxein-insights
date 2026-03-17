@@ -2,7 +2,7 @@
 
 // Block fill — own company vs others
 export const BLOCK_FILL_OWN = '#58e23c';
-export const BLOCK_FILL_OTHER = '#3b82f6';
+export const BLOCK_FILL_OTHER = '#ffffff28';
 export const BLOCK_OUTLINE = '#ffffff';
 
 // Risk level colours

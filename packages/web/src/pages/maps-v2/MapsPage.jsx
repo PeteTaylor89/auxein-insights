@@ -11,6 +11,8 @@ import useTasksLayer from './hooks/useTasksLayer';
 import useObservationsLayer from './hooks/useObservationsLayer';
 import useDrawingController from './hooks/useDrawingController';
 import useBlockSplit from './hooks/useBlockSplit';
+import useFlyoverAnimation from './hooks/useFlyoverAnimation';
+import FlyoverPanel from './components/flyover/FlyoverPanel';
 import MapContainer from './components/MapContainer';
 import Sidebar from './components/Sidebar';
 import BlocksPanel from './components/management/BlocksPanel';
@@ -136,6 +138,9 @@ function MapsPageInner() {
 
   // Builder state (persisted to localStorage)
   const builderState = useBuilderState(companyId);
+
+  // Flyover animation (admin only)
+  const flyover = useFlyoverAnimation(map, mapReady);
 
   // --- Layers ---
   // Blocks (always on)
@@ -565,6 +570,14 @@ function MapsPageInner() {
                     map.flyTo({ center: coords, zoom: 14, duration: 1500 });
                   }
                 }}
+              />
+            )}
+
+            {isAuxeinAdmin && (
+              <FlyoverPanel
+                flyover={flyover}
+                blocksData={blocksData}
+                properties={properties}
               />
             )}
           </>

@@ -30,4 +30,4 @@ export const SKY_LAYER = {
   },
 };
 
-export const DEFAULT_TERRAIN_EXAGGERATION = 1.5;
+export const DEFAULT_TERRAIN_EXAGGERATION = 1.0;

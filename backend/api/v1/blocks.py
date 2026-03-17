@@ -59,7 +59,7 @@ def get_all_blocks_geojson(
         )
     if property_id is not None:
         query = query.filter(VineyardBlock.property_id == property_id)
-    blocks = query.limit(limit).all()
+    blocks = query.all()
 
     features = []
     for block in blocks:
