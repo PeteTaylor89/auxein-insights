@@ -127,17 +127,29 @@ def get_zone_stations_with_data(db, zone_id: int, target_date: date) -> List[dic
 
 
 def get_previous_cumulative_gdd(db, zone_id: int, target_date: date) -> Decimal:
-    """Get cumulative GDD from previous day."""
+    """Get cumulative GDD from most recent previous day in the same vintage year."""
     if target_date.month == 7 and target_date.day == 1:
         return Decimal('0')
-    
-    previous_date = target_date - timedelta(days=1)
+
+    vintage_year = get_vintage_year(target_date)
+    season_start = date(vintage_year - 1, 7, 1)
+
     existing = db.query(ClimateZoneDaily).filter(
         ClimateZoneDaily.zone_id == zone_id,
-        ClimateZoneDaily.date == previous_date
-    ).first()
-    
-    return Decimal(str(existing.gdd_cumulative)) if existing and existing.gdd_cumulative else Decimal('0')
+        ClimateZoneDaily.date >= season_start,
+        ClimateZoneDaily.date < target_date,
+    ).order_by(ClimateZoneDaily.date.desc()).first()
+
+    if existing and existing.gdd_cumulative:
+        gap_days = (target_date - existing.date).days
+        if gap_days > 1:
+            logger.warning(
+                f"Zone {zone_id}: bridging {gap_days - 1}-day data gap "
+                f"(last record: {existing.date}, target: {target_date})"
+            )
+        return Decimal(str(existing.gdd_cumulative))
+
+    return Decimal('0')
 
 
 def aggregate_zone_day(db, zone: dict, target_date: date) -> Optional[dict]:

@@ -10,6 +10,7 @@ Key differences from MDC:
 """
 
 import requests
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -107,14 +108,21 @@ class HBRCIngestion:
         if interval:
             url += f"&Interval={quote(interval)}"
         
-        try:
-            print(f"      URL: {url}")
-            response = requests.get(url, timeout=60)
-            response.raise_for_status()
-            return response.text
-        except requests.exceptions.RequestException as e:
-            print(f"      API error: {e}")
-            return None
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"      URL: {url}")
+                response = requests.get(url, timeout=60)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries:
+                    wait = 5 * (3 ** (attempt - 1))  # 5s, 15s, 45s
+                    print(f"      Attempt {attempt}/{max_retries} failed ({e}), retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    print(f"      API error after {max_retries} attempts: {e}")
+                    return None
     
     def parse_response(self, station_id: int, xml_text: str, 
                        measurement: str) -> list:

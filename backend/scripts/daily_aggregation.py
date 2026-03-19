@@ -70,76 +70,70 @@ def aggregate_station_day(
     start_dt = NZ_TZ.localize(datetime.combine(target_date, datetime.min.time()))
     end_dt = NZ_TZ.localize(datetime.combine(target_date + timedelta(days=1), datetime.min.time()))
     
-    # Query raw data for this station and date
+    # Query raw data for this station and date, collapsing variable aliases
+    # consistent with hourly_aggregation.py approach
     result = db.execute(text("""
-        SELECT 
-            variable,
-            COUNT(*) as record_count,
-            MIN(value) as min_val,
-            MAX(value) as max_val,
-            AVG(value) as avg_val,
-            SUM(value) as sum_val
+        SELECT
+            -- Temperature
+            MIN(CASE WHEN variable IN ('temp', 'temperature', 'air_temperature') THEN value END) as temp_min,
+            MAX(CASE WHEN variable IN ('temp', 'temperature', 'air_temperature') THEN value END) as temp_max,
+            AVG(CASE WHEN variable IN ('temp', 'temperature', 'air_temperature') THEN value END) as temp_mean,
+            COUNT(CASE WHEN variable IN ('temp', 'temperature', 'air_temperature') THEN 1 END) as temp_count,
+            -- Humidity
+            MIN(CASE WHEN variable IN ('rh', 'humidity', 'relative_humidity') THEN value END) as humidity_min,
+            MAX(CASE WHEN variable IN ('rh', 'humidity', 'relative_humidity') THEN value END) as humidity_max,
+            AVG(CASE WHEN variable IN ('rh', 'humidity', 'relative_humidity') THEN value END) as humidity_mean,
+            COUNT(CASE WHEN variable IN ('rh', 'humidity', 'relative_humidity') THEN 1 END) as humidity_count,
+            -- Rainfall
+            SUM(CASE WHEN variable IN ('rainfall', 'precipitation', 'precip', 'rain') THEN value END) as rainfall_sum,
+            COUNT(CASE WHEN variable IN ('rainfall', 'precipitation', 'precip', 'rain') THEN 1 END) as rainfall_count,
+            -- Solar radiation
+            SUM(CASE WHEN variable IN ('solar_radiation', 'solar', 'radiation') THEN value END) as solar_sum,
+            -- Overall record count
+            COUNT(*) as total_count
         FROM weather_data
         WHERE station_id = :station_id
           AND timestamp >= :start_dt
           AND timestamp < :end_dt
           AND value IS NOT NULL
-        GROUP BY variable
     """), {
         'station_id': station_id,
         'start_dt': start_dt,
         'end_dt': end_dt,
     })
-    
-    # Build aggregated record
-    aggregates = {}
-    for row in result:
-        variable = row[0]
-        aggregates[variable] = {
-            'count': row[1],
-            'min': row[2],
-            'max': row[3],
-            'avg': row[4],
-            'sum': row[5],
-        }
-    
-    if not aggregates:
+
+    row = result.mappings().fetchone()
+    if not row or row['total_count'] == 0:
         return None
-    
-    # Extract values by variable type
-    temp_data = aggregates.get('temp', {})
-    humidity_data = aggregates.get('humidity', {})
-    rainfall_data = aggregates.get('rainfall', {})
-    solar_data = aggregates.get('solar_radiation', {})
-    
+
     # Calculate GDD values
-    temp_mean = temp_data.get('avg')
+    temp_mean = row['temp_mean']
     gdd_base0 = None
     gdd_base10 = None
-    
+
     if temp_mean is not None:
         temp_mean = Decimal(str(temp_mean))
         gdd_base0 = max(Decimal('0'), temp_mean)
         gdd_base10 = max(Decimal('0'), temp_mean - Decimal('10'))
-    
+
     record = {
         'station_id': station_id,
         'date': target_date,
-        'temp_min': temp_data.get('min'),
-        'temp_max': temp_data.get('max'),
+        'temp_min': row['temp_min'],
+        'temp_max': row['temp_max'],
         'temp_mean': temp_mean,
-        'humidity_min': humidity_data.get('min'),
-        'humidity_max': humidity_data.get('max'),
-        'humidity_mean': humidity_data.get('avg'),
-        'rainfall_mm': rainfall_data.get('sum', Decimal('0')),
-        'solar_radiation': solar_data.get('sum'),
+        'humidity_min': row['humidity_min'],
+        'humidity_max': row['humidity_max'],
+        'humidity_mean': row['humidity_mean'],
+        'rainfall_mm': row['rainfall_sum'] if row['rainfall_sum'] is not None else Decimal('0'),
+        'solar_radiation': row['solar_sum'],
         'gdd_base0': gdd_base0,
         'gdd_base10': gdd_base10,
-        'temp_record_count': temp_data.get('count', 0),
-        'humidity_record_count': humidity_data.get('count', 0),
-        'rainfall_record_count': rainfall_data.get('count', 0),
+        'temp_record_count': row['temp_count'] or 0,
+        'humidity_record_count': row['humidity_count'] or 0,
+        'rainfall_record_count': row['rainfall_count'] or 0,
     }
-    
+
     return record
 
 
