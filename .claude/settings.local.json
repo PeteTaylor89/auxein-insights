@@ -20,7 +20,10 @@
       "Bash(cd A:/auxein-insights-V0.1 && grep -rn \"VineyardBlock\" backend/services/*.py | grep -E \"\\(company_id|\\\\.filter\\)\" | head -60)",
       "Bash(cd A:/auxein-insights-V0.1 && grep -rn \"\\\\.block_id\" backend/api/v1/*.py | grep filter | head -30)",
       "Bash(cd A:/auxein-insights-V0.1 && grep -n \"handle_company_reassignment\" backend/services/*.py backend/api/v1/*.py)",
-      "Bash(cd A:/auxein-insights-V0.1 && grep -n \"archive_chain\" backend/services/*.py backend/api/v1/*.py)"
+      "Bash(cd A:/auxein-insights-V0.1 && grep -n \"archive_chain\" backend/services/*.py backend/api/v1/*.py)",
+      "Bash(find A:auxein-insights-V0.1/packages/mobile -type f -name *.jsx -o -name *.js -o -name *.ts -o -name *.tsx)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -A 30 class.*TaskAsset A:/auxein-insights-V0.1/backend/schemas/task_template.py)"
     ]
   }
 }

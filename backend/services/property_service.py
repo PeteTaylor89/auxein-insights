@@ -1,10 +1,18 @@
 # services/property_service.py - Property visibility & ownership helpers (Phase A, Grow V1)
 from typing import List
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 from db.models.property import Property
 from db.models.management_relationship import ManagementRelationship
 from db.models.user_property_scope import UserPropertyScope
+from db.models.block import VineyardBlock
 from db.models.user import User
+
+
+OWNER_READONLY_MSG = (
+    "This property is under external management. "
+    "Contact the managing company to make changes."
+)
 
 
 def get_visible_property_ids(db: Session, current_user: User) -> List[int]:
@@ -69,3 +77,40 @@ def is_owner_viewing(db: Session, current_user: User, property_id: int) -> bool:
         return False
 
     return active_manager.managing_company_id != current_user.company_id
+
+
+def verify_block_access(
+    db: Session, current_user: User, block_id: int, require_write: bool = False
+) -> VineyardBlock:
+    """
+    Unified block access check supporting both company_id and property_id paths.
+
+    Returns the block if access is granted.
+    Raises 404 if block doesn't exist, 403 if access denied or owner read-only.
+    """
+    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+
+    # auxein_admin bypasses all checks
+    if current_user.user_type == "auxein_admin":
+        return block
+
+    # Check access via property path or legacy company_id
+    has_access = False
+    if block.property_id:
+        visible_ids = get_visible_property_ids(db, current_user)
+        if block.property_id in visible_ids:
+            has_access = True
+    if not has_access and block.company_id == current_user.company_id:
+        has_access = True
+
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Owner read-only gate on write operations
+    if require_write and block.property_id:
+        if is_owner_viewing(db, current_user, block.property_id):
+            raise HTTPException(status_code=403, detail=OWNER_READONLY_MSG)
+
+    return block

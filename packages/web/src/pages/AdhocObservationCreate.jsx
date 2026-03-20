@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { 
-  ClipboardList, 
-  ArrowLeft, 
+import {
+  ClipboardList,
+  ArrowLeft,
   PlayCircle,
   FileText,
   Target,
   Edit3
 } from 'lucide-react';
 import { observationService, authService, blocksService } from '@vineyard/shared';
-import MobileNavigation from '../components/MobileNavigation';
+import './vineyard-pages.css';
 
 const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.results ?? v?.data ?? []);
 
@@ -20,7 +20,7 @@ export default function AdhocObservationCreate() {
 
   // Mode selection
   const [mode, setMode] = useState(''); // 'plan', 'template', 'freeform'
-  
+
   // Common data
   const [plans, setPlans] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -49,13 +49,13 @@ export default function AdhocObservationCreate() {
         ]);
 
         if (!mounted) return;
-        
+
         setPlans(asArray(plansRes));
         setTemplates(asArray(templatesRes));
         setBlocks(asArray(blocksRes));
 
-        console.log('Loaded data:', { 
-          plans: asArray(plansRes).length, 
+        console.log('Loaded data:', {
+          plans: asArray(plansRes).length,
           templates: asArray(templatesRes).length,
           blocks: asArray(blocksRes).length
         });
@@ -96,17 +96,17 @@ export default function AdhocObservationCreate() {
   const canSubmit = () => {
     if (!observationName.trim()) return false;
     if (!selectedBlockId) return false;
-    
+
     if (mode === 'plan' && !selectedPlanId) return false;
     if (mode === 'template' && !selectedTemplateId) return false;
     if (mode === 'freeform' && !freeformNotes.trim()) return false;
-    
+
     return true;
   };
 
   const handleSubmit = async () => {
     if (!canSubmit()) return;
-    
+
     try {
       setBusy(true);
       setError(null);
@@ -136,7 +136,7 @@ export default function AdhocObservationCreate() {
 
       const run = await observationService.createRun(payload);
       const runId = run?.id;
-      
+
       if (runId) {
         navigate(`/observations/runcapture/${runId}`, { replace: true });
       } else {
@@ -154,133 +154,66 @@ export default function AdhocObservationCreate() {
   const ModeCard = ({ modeKey, icon: Icon, title, description, isSelected, onClick }) => (
     <div
       onClick={onClick}
-      style={{
-        cursor: 'pointer',
-        border: isSelected ? '2px solid #2563eb' : '1px solid #e5e7eb',
-        background: isSelected ? '#f0f9ff' : '#fff',
-        padding: '1rem',
-        borderRadius: '8px',
-        transition: 'all 0.2s ease'
-      }}
-      onMouseEnter={(e) => !isSelected && (e.currentTarget.style.borderColor = '#bfdbfe')}
-      onMouseLeave={(e) => !isSelected && (e.currentTarget.style.borderColor = '#e5e7eb')}
+      className={`vp-mode-card${isSelected ? ' selected' : ''}`}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Icon size={24} color={isSelected ? '#2563eb' : '#6b7280'} />
-        <div>
-          <div style={{ fontWeight: 600, color: isSelected ? '#2563eb' : '#111827', fontSize: '0.938rem' }}>
-            {title}
-          </div>
-          <div style={{ fontSize: '0.813rem', color: '#6b7280', marginTop: 4 }}>
-            {description}
-          </div>
-        </div>
+      <div className="vp-mode-card-icon">
+        <Icon size={24} color={isSelected ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
       </div>
+      <div className="vp-mode-card-title">{title}</div>
+      <div className="vp-mode-card-desc">{description}</div>
     </div>
   );
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc',
-        paddingTop: '70px'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h2>Loading...</h2>
+      <div className="page-container">
+        <div className="vp-loading">
+          <div style={{ textAlign: 'center' }}>
+            <h2>Loading...</h2>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#f8fafc',
-      paddingTop: '70px',
-      paddingBottom: '80px'
-    }}>
-      <div style={{ 
-        maxWidth: '900px', 
-        margin: '0 auto', 
-        padding: '1rem' 
-      }}>
-        
+    <div className="page-container">
+      <div className="vp-container">
+
         {/* Back button */}
-        <div style={{ marginBottom: '1rem' }}>
-          <button
-            onClick={() => navigate('/observations')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              background: '#f3f4f6',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}
-          >
-            <ArrowLeft size={16} /> Back to Observations
-          </button>
-        </div>
+        <button
+          className="vp-back"
+          onClick={() => navigate('/observations')}
+        >
+          <ArrowLeft size={16} /> Back to Observations
+        </button>
 
         {/* Header */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h1 style={{ 
-            margin: 0, 
-            fontSize: '1.5rem', 
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <ClipboardList size={24} /> Create New Observation
-          </h1>
+        <div className="vp-card">
+          <div className="vp-card-header">
+            <h1>
+              <ClipboardList size={24} /> Create New Observation
+            </h1>
+          </div>
         </div>
 
         {error && (
-          <div style={{ 
-            background: '#fef2f2',
-            border: '1px solid #fca5a5',
-            borderRadius: '12px',
-            padding: '1rem',
-            marginBottom: '1.5rem',
-            color: '#dc2626',
-            fontSize: '0.875rem'
-          }}>
+          <div className="vp-error-alert">
             {error}
           </div>
         )}
 
         {/* Mode Selection */}
         {!mode && (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+          <div className="vp-card">
+            <h3 className="vp-section-title">
               Choose Observation Type
             </h3>
-            <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '0.875rem' }}>
+            <p className="vp-mode-card-desc" style={{ marginBottom: 'var(--space-base)' }}>
               How would you like to create your observation?
             </p>
-            
-            <div style={{ display: 'grid', gap: 12 }}>
+
+            <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
               <ModeCard
                 modeKey="plan"
                 icon={Target}
@@ -289,7 +222,7 @@ export default function AdhocObservationCreate() {
                 isSelected={false}
                 onClick={() => handleModeSelect('plan')}
               />
-              
+
               <ModeCard
                 modeKey="freeform"
                 icon={Edit3}
@@ -305,67 +238,38 @@ export default function AdhocObservationCreate() {
         {/* Form based on selected mode */}
         {mode && (
           <>
-            <div style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '1.25rem',
-              marginBottom: '1.5rem',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
-                  Observation Details
-                </h3>
-                <button 
+            <div className="vp-card">
+              <div className="vp-card-header">
+                <h2>Observation Details</h2>
+                <button
+                  className="btn-ghost"
                   onClick={() => setMode('')}
-                  style={{ 
-                    background: '#f3f4f6', 
-                    border: 'none',
-                    fontSize: '0.75rem', 
-                    padding: '0.375rem 0.75rem',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: '500'
-                  }}
                 >
                   Change Type
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                <label>
-                  <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+              <div style={{ display: 'grid', gap: 'var(--space-base)' }}>
+                <div className="vp-form-group">
+                  <label className="vp-label">
                     Observation Name
-                  </div>
+                  </label>
                   <input
+                    className="vp-input"
                     placeholder="Enter observation name..."
                     value={observationName}
                     onChange={(e) => setObservationName(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem'
-                    }}
                   />
-                </label>
+                </div>
 
-                <label>
-                  <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                <div className="vp-form-group">
+                  <label className="vp-label">
                     Block
-                  </div>
+                  </label>
                   <select
+                    className="vp-select"
                     value={selectedBlockId}
                     onChange={(e) => setSelectedBlockId(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      background: 'white'
-                    }}
                   >
                     <option value="">— Select a block —</option>
                     {blocks.map(b => (
@@ -375,24 +279,17 @@ export default function AdhocObservationCreate() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
                 {mode === 'plan' && (
-                  <label>
-                    <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                  <div className="vp-form-group">
+                    <label className="vp-label">
                       Plan
-                    </div>
+                    </label>
                     <select
+                      className="vp-select"
                       value={selectedPlanId}
                       onChange={(e) => setSelectedPlanId(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem',
-                        background: 'white'
-                      }}
                     >
                       <option value="">— Select a plan —</option>
                       {plans.filter(p => p.status !== 'completed' && p.status !== 'cancelled').map(p => (
@@ -402,46 +299,32 @@ export default function AdhocObservationCreate() {
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                 )}
 
                 {mode === 'freeform' && (
-                  <label>
-                    <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+                  <div className="vp-form-group">
+                    <label className="vp-label">
                       Notes
-                    </div>
-                    <textarea 
-                      rows={6} 
-                      value={freeformNotes} 
+                    </label>
+                    <textarea
+                      className="vp-textarea"
+                      rows={6}
+                      value={freeformNotes}
                       onChange={(e) => setFreeformNotes(e.target.value)}
                       placeholder="Enter your observation notes here..."
-                      style={{
-                        width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem',
-                        fontFamily: 'inherit'
-                      }}
                     />
-                  </label>
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Summary */}
-            <div style={{
-              background: 'white',
-              borderRadius: '12px',
-              padding: '1.25rem',
-              marginBottom: '1.5rem',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.938rem', fontWeight: '600' }}>
+            <div className="vp-card">
+              <h4 className="vp-section-title">
                 Summary
               </h4>
-              <div style={{ fontSize: '0.875rem', color: '#374151', display: 'grid', gap: '0.5rem' }}>
+              <div className="vp-info-row" style={{ flexDirection: 'column' }}>
                 <div>
                   <strong>Type:</strong> {mode === 'plan' ? 'Plan-based' : mode === 'template' ? 'Template-based' : 'Free-form'}
                 </div>
@@ -462,43 +345,17 @@ export default function AdhocObservationCreate() {
             </div>
 
             {/* Actions */}
-            <div style={{ 
-              display: 'flex', 
-              gap: '0.75rem', 
-              justifyContent: 'flex-end',
-              marginBottom: '1.5rem'
-            }}>
-              <button 
+            <div className="vp-actions">
+              <button
+                className="btn-ghost"
                 onClick={() => navigate('/observations')}
-                style={{ 
-                  padding: '0.5rem 1rem', 
-                  borderRadius: '6px', 
-                  background: '#f3f4f6',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  color: '#374151'
-                }}
               >
                 Cancel
               </button>
-              <button 
-                disabled={!canSubmit() || busy} 
-                onClick={handleSubmit} 
-                style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '0.5rem', 
-                  padding: '0.5rem 1rem', 
-                  borderRadius: '6px', 
-                  background: canSubmit() && !busy ? '#3b82f6' : '#9ca3af', 
-                  color: '#fff',
-                  border: 'none',
-                  cursor: canSubmit() && !busy ? 'pointer' : 'not-allowed',
-                  fontSize: '0.875rem',
-                  fontWeight: '500'
-                }}
+              <button
+                className="btn-primary"
+                disabled={!canSubmit() || busy}
+                onClick={handleSubmit}
               >
                 <PlayCircle size={16}/> {busy ? 'Creating...' : 'Create & Start Observation'}
               </button>
@@ -506,7 +363,6 @@ export default function AdhocObservationCreate() {
           </>
         )}
 
-        <MobileNavigation />
       </div>
     </div>
   );

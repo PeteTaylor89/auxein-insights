@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  ClipboardList, 
-  ArrowLeft, 
-  MapPin, 
-  Target, 
+import {
+  ClipboardList,
+  ArrowLeft,
+  MapPin,
+  Target,
   Save
 } from 'lucide-react';
 import { observationService, authService, blocksService } from '@vineyard/shared';
-import MobileNavigation from '../components/MobileNavigation';
+import './vineyard-pages.css';
 
 const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.results ?? v?.data ?? []);
 
@@ -53,7 +53,7 @@ export default function PlanEdit() {
         ]);
 
         if (!mounted) return;
-        
+
         const plan = planRes;
         setOriginalPlan(plan);
         setTemplates(asArray(tplRes));
@@ -102,17 +102,17 @@ export default function PlanEdit() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!templateId) { 
-        setTemplate(null); 
-        return; 
+      if (!templateId) {
+        setTemplate(null);
+        return;
       }
-      
+
       const known = templates.find(t => String(t.id) === String(templateId));
       if (known?.schema || known?.fields_json) {
         setTemplate(known);
         return;
       }
-      
+
       try {
         const full = await observationService.getTemplate?.(templateId);
         if (!mounted) return;
@@ -163,29 +163,29 @@ export default function PlanEdit() {
 
   const hasChanges = () => {
     if (!originalPlan) return false;
-    
+
     if (name !== (originalPlan.name || '')) return true;
     if (instructions !== (originalPlan.instructions || '')) return true;
-    
+
     const currentTargets = getSelectedTargets();
     const originalTargets = originalPlan.targets || [];
-    
+
     if (currentTargets.length !== originalTargets.length) return true;
-    
+
     for (let i = 0; i < currentTargets.length; i++) {
       const current = currentTargets[i];
       const original = originalTargets.find(t => t.block_id === current.block_id);
       if (!original) return true;
-      
+
       const origRowLabels = original.row_labels || [];
       const origRowStart = origRowLabels[0] || null;
       const origRowEnd = origRowLabels[1] || (origRowLabels.length > 1 ? origRowLabels[origRowLabels.length - 1] : null);
-      
+
       if (current.row_start !== origRowStart) return true;
       if (current.row_end !== origRowEnd) return true;
       if (current.required_spots !== original.sample_size) return true;
     }
-    
+
     return false;
   };
 
@@ -193,7 +193,7 @@ export default function PlanEdit() {
 
   const submit = async () => {
     if (!canSubmit) return;
-    
+
     try {
       setBusy(true);
       setError(null);
@@ -219,251 +219,140 @@ export default function PlanEdit() {
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc',
-        paddingTop: '70px'
-      }}>
-        <div style={{ textAlign: 'center' }}>
+      <div className="vp-page page-container">
+        <div className="vp-loading">
           <h2>Loading Plan Data...</h2>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !originalPlan) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc',
-        paddingTop: '70px'
-      }}>
-        <div style={{ textAlign: 'center', maxWidth: '500px', padding: '2rem' }}>
-          <h2 style={{ color: '#dc2626' }}>❌ Error Loading Plan</h2>
-          <p style={{ marginBottom: '1rem' }}>{error}</p>
-          <button 
-            onClick={() => navigate('/observations')} 
-            style={{
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Back to Observations
-          </button>
+      <div className="vp-page page-container">
+        <div className="vp-loading">
+          <div style={{ textAlign: 'center', maxWidth: '500px' }}>
+            <h2 style={{ color: 'var(--color-danger)' }}>Error Loading Plan</h2>
+            <p style={{ marginBottom: 'var(--space-base)' }}>{error}</p>
+            <button
+              onClick={() => navigate('/observations')}
+              className="btn-primary"
+            >
+              Back to Observations
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#f8fafc',
-      paddingTop: '70px',
-      paddingBottom: '80px'
-    }}>
-      <div style={{ 
-        maxWidth: '1400px', 
-        margin: '0 auto', 
-        padding: '1rem' 
-      }}>
-        
+    <div className="vp-page">
+      <div className="page-container">
+
         {/* Back button */}
-        <div style={{ marginBottom: '1rem' }}>
-          <button
-            onClick={() => navigate(`/plandetail/${id}`)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              background: '#f3f4f6',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}
-          >
-            <ArrowLeft size={16} /> Back to Plan
-          </button>
-        </div>
+        <button
+          onClick={() => navigate(`/plandetail/${id}`)}
+          className="vp-back"
+        >
+          <ArrowLeft size={16} /> Back to Plan
+        </button>
 
         {/* Header */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h1 style={{ 
-            margin: 0, 
-            fontSize: '1.5rem', 
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <ClipboardList size={24} /> Edit Observation Plan
-          </h1>
+        <div className="vp-card">
+          <div className="vp-card-header">
+            <h1>
+              <ClipboardList size={24} style={{ verticalAlign: 'middle', marginRight: 'var(--space-sm)' }} />
+              Edit Observation Plan
+            </h1>
+          </div>
         </div>
 
         {error && (
-          <div style={{ 
-            background: '#fef2f2',
-            border: '1px solid #fca5a5',
-            borderRadius: '12px',
-            padding: '1rem',
-            marginBottom: '1.5rem',
-            color: '#dc2626'
-          }}>
+          <div className="vp-error-alert">
             {error}
+            <button className="vp-error-close" onClick={() => setError(null)}>&times;</button>
           </div>
         )}
 
         {/* Plan Details */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 1rem 0', 
-            fontSize: '1rem', 
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <Target size={18} /> Plan Details
+        <div className="vp-card">
+          <h3 className="vp-section-title">
+            <Target size={18} style={{ verticalAlign: 'middle', marginRight: 'var(--space-sm)' }} />
+            Plan Details
           </h3>
-          
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            <label>
-              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
-                Plan Name
-              </div>
-              <input
-                placeholder="e.g. Phenology tracking – Block A"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem'
-                }}
-              />
-            </label>
 
-            <label>
-              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
-                Instructions / Description
-              </div>
-              <textarea 
-                rows={3} 
-                value={instructions} 
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Any special instructions for this observation plan..."
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  fontFamily: 'inherit'
-                }}
-              />
+          <div className="vp-form-group">
+            <label className="vp-label">
+              Plan Name
             </label>
+            <input
+              className="vp-input"
+              placeholder="e.g. Phenology tracking – Block A"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
 
-            <label>
-              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
-                Template (cannot be changed)
-              </div>
-              <div style={{ 
-                padding: '0.75rem', 
-                border: '1px solid #d1d5db', 
-                borderRadius: '6px', 
-                background: '#f9fafb',
-                color: '#6b7280',
-                fontSize: '0.875rem'
-              }}>
-                {template?.name || templates.find(t => String(t.id) === templateId)?.name || `Template #${templateId}`}
-              </div>
-              <small style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                Template cannot be changed after plan creation to preserve data integrity
-              </small>
+          <div className="vp-form-group">
+            <label className="vp-label">
+              Instructions / Description
             </label>
+            <textarea
+              className="vp-textarea"
+              rows={3}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Any special instructions for this observation plan..."
+            />
+          </div>
+
+          <div className="vp-form-group">
+            <label className="vp-label">
+              Template (cannot be changed)
+            </label>
+            <div className="vp-input" style={{
+              background: 'var(--color-surface-warm)',
+              color: 'var(--color-text-muted)'
+            }}>
+              {template?.name || templates.find(t => String(t.id) === templateId)?.name || `Template #${templateId}`}
+            </div>
+            <span className="vp-hint">
+              Template cannot be changed after plan creation to preserve data integrity
+            </span>
           </div>
         </div>
 
         {/* Targets */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: '1rem', 
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              <MapPin size={18} /> Targets (Blocks)
-            </h3>
-            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+        <div className="vp-card">
+          <div className="vp-card-header">
+            <h2>
+              <MapPin size={18} style={{ verticalAlign: 'middle', marginRight: 'var(--space-sm)' }} />
+              Targets (Blocks)
+            </h2>
+            <span className="vp-hint">
               Select blocks and configure observation details
-            </div>
+            </span>
           </div>
 
           {blocks.length === 0 && (
-            <div style={{ 
-              padding: '2rem', 
-              color: '#6b7280', 
-              background: '#f8fafc', 
-              borderRadius: '8px',
-              textAlign: 'center',
-              fontStyle: 'italic'
-            }}>
+            <div className="vp-empty">
               No blocks found for your company.
             </div>
           )}
 
           {blocks.length > 0 && (
             <>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ 
-                  width: '100%', 
-                  borderCollapse: 'collapse',
-                  fontSize: '0.875rem'
-                }}>
+              <div className="vp-table-wrap">
+                <table className="vp-table">
                   <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Select</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block Name</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Variety</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Row Start</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Row End</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Spots</th>
+                    <tr>
+                      <th>Select</th>
+                      <th>Block Name</th>
+                      <th>Variety</th>
+                      <th style={{ width: 100 }}>Row Start</th>
+                      <th style={{ width: 100 }}>Row End</th>
+                      <th style={{ width: 100 }}>Spots</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -474,81 +363,54 @@ export default function PlanEdit() {
                       const displayVariety = b.variety ?? b.variety_name ?? b.cultivar ?? b.clone ?? '';
 
                       return (
-                        <tr 
-                          key={bid} 
-                          style={{ 
-                            borderBottom: '1px solid #f3f4f6',
-                            background: target.selected ? '#f0f9ff' : 'transparent'
-                          }}
-                          onMouseEnter={(e) => !target.selected && (e.target.closest('tr').style.background = '#f8fafc')}
-                          onMouseLeave={(e) => !target.selected && (e.target.closest('tr').style.background = 'transparent')}
+                        <tr
+                          key={bid}
+                          style={target.selected ? { background: 'var(--color-olive-light)' } : undefined}
                         >
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
                               type="checkbox"
                               checked={target.selected}
                               onChange={() => toggleBlock(bid)}
-                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                             />
                           </td>
-                          <td style={{ padding: 12, fontWeight: target.selected ? '600' : '400' }}>
+                          <td className={target.selected ? 'bold' : ''}>
                             {displayName}
                           </td>
-                          <td style={{ padding: 12, color: '#6b7280' }}>
-                            {displayVariety || '—'}
+                          <td style={{ color: 'var(--color-text-muted)' }}>
+                            {displayVariety || '\u2014'}
                           </td>
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
+                              className="vp-input"
                               type="text"
                               placeholder="1"
                               value={target.rowStart}
                               onChange={(e) => updateBlockTarget(bid, 'rowStart', e.target.value)}
                               disabled={!target.selected}
-                              style={{
-                                width: 80,
-                                padding: '0.375rem 0.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: target.selected ? '#fff' : '#f9fafb',
-                                opacity: target.selected ? 1 : 0.6,
-                                fontSize: '0.813rem'
-                              }}
+                              style={{ opacity: target.selected ? 1 : 0.6 }}
                             />
                           </td>
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
+                              className="vp-input"
                               type="text"
                               placeholder="10"
                               value={target.rowEnd}
                               onChange={(e) => updateBlockTarget(bid, 'rowEnd', e.target.value)}
                               disabled={!target.selected}
-                              style={{
-                                width: 80,
-                                padding: '0.375rem 0.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: target.selected ? '#fff' : '#f9fafb',
-                                opacity: target.selected ? 1 : 0.6,
-                                fontSize: '0.813rem'
-                              }}
+                              style={{ opacity: target.selected ? 1 : 0.6 }}
                             />
                           </td>
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
+                              className="vp-input"
                               type="number"
                               min="1"
                               value={target.spots}
                               onChange={(e) => updateBlockTarget(bid, 'spots', e.target.value)}
                               disabled={!target.selected}
-                              style={{
-                                width: 80,
-                                padding: '0.375rem 0.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: target.selected ? '#fff' : '#f9fafb',
-                                opacity: target.selected ? 1 : 0.6,
-                                fontSize: '0.813rem'
-                              }}
+                              style={{ opacity: target.selected ? 1 : 0.6 }}
                             />
                           </td>
                         </tr>
@@ -559,17 +421,11 @@ export default function PlanEdit() {
               </div>
 
               {getSelectedTargets().length > 0 && (
-                <div style={{ 
-                  marginTop: '1rem', 
-                  padding: '0.75rem', 
-                  background: '#f0f9ff', 
-                  borderRadius: '8px', 
-                  border: '1px solid #bfdbfe' 
-                }}>
-                  <div style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: '#1e40af' }}>
+                <div className="vp-info-banner" style={{ marginTop: 'var(--space-base)' }}>
+                  <div style={{ fontWeight: '600', marginBottom: 'var(--space-xs)' }}>
                     Summary:
                   </div>
-                  <div style={{ fontSize: '0.813rem', color: '#374151' }}>
+                  <div>
                     {getSelectedTargets().length} block{getSelectedTargets().length === 1 ? '' : 's'} selected, {' '}
                     {getSelectedTargets().reduce((sum, t) => sum + t.required_spots, 0)} total observation spots per run
                   </div>
@@ -581,48 +437,36 @@ export default function PlanEdit() {
 
         {/* Template Fields Preview */}
         {template && (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
-                {template.name} : Template Fields
-              </h3>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          <div className="vp-card">
+            <div className="vp-card-header">
+              <h2>{template.name} : Template Fields</h2>
+              <span className="vp-badge vp-badge--neutral">
                 {fields.length} field{fields.length === 1 ? '' : 's'}
-              </div>
+              </span>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse',
-                fontSize: '0.875rem'
-              }}>
+            <div className="vp-table-wrap">
+              <table className="vp-table">
                 <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Label</th>
-                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Name</th>
-                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Required</th>
+                  <tr>
+                    <th>Label</th>
+                    <th>Name</th>
+                    <th>Required</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fields.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: 20, color: '#6b7280', textAlign: 'center', fontStyle: 'italic' }}>
+                      <td colSpan={3} className="vp-empty">
                         No fields defined.
                       </td>
                     </tr>
                   )}
                   {fields.map((f, i) => (
-                    <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: 10, fontWeight: '500' }}>{f.label || '—'}</td>
-                      <td style={{ padding: 10 }}>{f.name || '—'}</td>
-                      <td style={{ padding: 10 }}>{f.required ? 'Yes' : 'No'}</td>
+                    <tr key={f.name ?? i}>
+                      <td className="bold">{f.label || '\u2014'}</td>
+                      <td>{f.name || '\u2014'}</td>
+                      <td>{f.required ? 'Yes' : 'No'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -633,63 +477,29 @@ export default function PlanEdit() {
 
         {/* Changes indicator */}
         {hasChanges() && (
-          <div style={{ 
-            padding: '0.75rem', 
-            background: '#fef3c7', 
-            border: '1px solid #f59e0b', 
-            borderRadius: '8px', 
-            color: '#92400e',
-            marginBottom: '1.5rem',
-            fontSize: '0.875rem'
-          }}>
+          <div className="vp-warning-banner">
             <strong>Unsaved changes detected.</strong> Click "Update Plan" to save your changes.
           </div>
         )}
 
         {/* Actions */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '0.75rem', 
-          justifyContent: 'space-between',
-          marginBottom: '1.5rem'
-        }}>
-          <button 
+        <div className="vp-actions vp-actions--spread">
+          <button
             onClick={() => navigate(`/plandetail/${id}`)}
-            style={{ 
-              padding: '0.5rem 1rem', 
-              borderRadius: '6px', 
-              background: '#f3f4f6',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              color: '#374151'
-            }}
+            className="btn-ghost"
           >
             Cancel
           </button>
-          <button 
+          <button
             disabled={!canSubmit || busy || !hasChanges()}
             onClick={submit}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              padding: '0.5rem 1rem', 
-              borderRadius: '6px', 
-              background: canSubmit && hasChanges() && !busy ? '#059669' : '#9ca3af', 
-              color: '#fff',
-              border: 'none',
-              cursor: canSubmit && hasChanges() && !busy ? 'pointer' : 'not-allowed',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}
+            className="btn-primary"
+            style={(!canSubmit || !hasChanges() || busy) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
           >
             <Save size={16} /> {busy ? 'Updating...' : 'Update Plan'}
           </button>
         </div>
 
-        <MobileNavigation />
       </div>
     </div>
   );

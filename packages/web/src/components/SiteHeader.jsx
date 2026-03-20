@@ -1,8 +1,9 @@
 // components/SiteHeader.jsx — Pro app sticky header with nav, auth, mobile menu
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, LogOut, Settings, Menu, X, Home, MapPin, Grape, Tractor, TriangleAlert, Lightbulb, Shield } from 'lucide-react';
+import { User, LogOut, Settings, Menu, X, Home, MapPin, Grape, Tractor, TriangleAlert, Lightbulb, Shield, Calendar } from 'lucide-react';
 import { useAuth } from '@vineyard/shared';
+import NotificationBell from './NotificationBell';
 import Logo from '../assets/App_Logo_September 2025.jpg';
 import './SiteHeader.css';
 
@@ -48,6 +49,7 @@ const baseNavItems = [
   { path: '/maps', label: 'Map', icon: MapPin },
   { path: '/observations', label: 'Vineyard', icon: Grape },
   { path: '/assets', label: 'Assets', icon: Tractor },
+  { path: '/calendar', label: 'Calendar', icon: Calendar },
   { path: '/RiskDashboard', label: 'Risks', icon: TriangleAlert },
   { path: '/Insights', label: 'Insights', icon: Lightbulb },
 ];
@@ -128,6 +130,8 @@ function SiteHeader() {
                 Sign In
               </Link>
             ) : (
+              <>
+              <NotificationBell />
               <div className="user-menu-container">
                 <button className="user-menu-trigger" onClick={() => setUserMenuOpen(!userMenuOpen)}>
                   <User size={18} />
@@ -157,6 +161,7 @@ function SiteHeader() {
                   </div>
                 )}
               </div>
+              </>
             )}
           </nav>
 

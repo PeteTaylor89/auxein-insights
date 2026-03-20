@@ -50,6 +50,7 @@ from schemas.task_gps_track import (
     TaskGPSTrackSummaryStats, TaskGPSTrackGeometry
 )
 from services.notification_service import NotificationService
+from services.property_service import is_owner_viewing, OWNER_READONLY_MSG
 from db.models.notification import NotificationType
 
 from api.deps import get_current_user
@@ -75,19 +76,31 @@ def generate_task_number(db: Session, company_id: int) -> str:
     return f"TASK-{year}-{count + 1:03d}"
 
 
+def check_owner_readonly(db: Session, user: User, block_id: int):
+    """A11: Raise 403 if user is an owner viewing a property under external management."""
+    if not block_id or user.user_type == "auxein_admin":
+        return
+    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
+    if block and block.property_id and is_owner_viewing(db, user, block.property_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=OWNER_READONLY_MSG
+        )
+
+
 def check_task_access(db: Session, task_id: int, user: User) -> Task:
     """Check if user has access to task and return it"""
     task = db.query(Task).filter(
         Task.id == task_id,
         Task.company_id == user.company_id
     ).first()
-    
+
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
-    
+
     return task
 
 
@@ -299,6 +312,9 @@ def create_task(
         if key not in task_dict or task_dict[key] is None:
             task_dict[key] = value
     
+    # A11: Owner read-only check
+    check_owner_readonly(db, current_user, task_dict.get('block_id'))
+
     # Create task
     task = Task(
         company_id=current_user.company_id,
@@ -307,11 +323,11 @@ def create_task(
         status=TaskStatus.draft,
         **task_dict
     )
-    
+
     db.add(task)
     db.commit()
     db.refresh(task)
-    
+
     logger.info(f"Task {task.task_number} created by user {current_user.id}")
     return task
 
@@ -497,15 +513,18 @@ def update_task(
             detail="You don't have permission to modify this task"
         )
     
+    # A11: Owner read-only check
+    update_data = task_update.model_dump(exclude_unset=True)
+    check_owner_readonly(db, current_user, update_data.get('block_id', task.block_id))
+
     # Don't allow updates to completed/cancelled tasks
     if task.status in [TaskStatus.completed, TaskStatus.cancelled]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot update {task.status} tasks"
         )
-    
+
     # Update fields
-    update_data = task_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(task, field, value)
     
@@ -532,13 +551,16 @@ def delete_task(
             detail="Only admins, managers, or task creator can delete tasks"
         )
     
+    # A11: Owner read-only check
+    check_owner_readonly(db, current_user, task.block_id)
+
     # Don't allow deletion of completed tasks (soft delete via cancel instead)
     if task.status == TaskStatus.completed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete completed tasks. Use cancel instead."
         )
-    
+
     db.delete(task)
     db.commit()
     

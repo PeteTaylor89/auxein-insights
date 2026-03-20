@@ -1,10 +1,10 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from 'react';
 import { useAuth } from '@vineyard/shared';
-import { companiesService, api } from '@vineyard/shared';
+import { companiesService, tasksService, notificationService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget';
 import { Link } from 'react-router-dom';
-import { User, Users, ClipboardList, Calendar, Shield, Map } from "lucide-react";
+import { User, Users, ClipboardList, Calendar, Shield, Map, Zap, Eye, BarChart3, Bell } from "lucide-react";
 
 const INSIGHTS_URL = import.meta.env.VITE_INSIGHTS_URL || '';
 
@@ -15,6 +15,8 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [weatherLocation, setWeatherLocation] = useState(null);
   const [latestArticles, setLatestArticles] = useState([]);
+  const [upcomingTasks, setUpcomingTasks] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -74,6 +76,20 @@ function Home() {
       .catch(() => {});
   }, []);
 
+  // Fetch upcoming tasks and notification count
+  useEffect(() => {
+    if (!user) return;
+    tasksService.getMyTasks?.({ status: 'scheduled', limit: 3 })
+      .then((data) => {
+        const tasks = Array.isArray(data) ? data : data?.items || data?.tasks || [];
+        setUpcomingTasks(tasks.slice(0, 3));
+      })
+      .catch(() => {});
+    notificationService.getUnreadCount()
+      .then((data) => setUnreadCount(data.count ?? 0))
+      .catch(() => {});
+  }, [user]);
+
   return (
     <div className="home-page">
       {/* Welcome banner */}
@@ -98,7 +114,7 @@ function Home() {
               <div className="stat-value">{stats?.observation_count || '0'}</div>
               <div className="stat-label">Observations</div>
             </Link>
-            <Link to="/observations" className="stat-card">
+            <Link to="/observations" className="stat-card" onClick={() => { /* switches to tasks tab */ }}>
               <div className="stat-value">{stats?.task_count || '0'}</div>
               <div className="stat-label">Tasks</div>
             </Link>
@@ -116,13 +132,21 @@ function Home() {
               <span>Quick Actions</span>
             </div>
             <div className="stats-grid">
-              <Link to="/admin/visitors" className="stat-card">
-                <div className="icon-wrapper"><Users size={24} /></div>
-                <div className="actions-title">Visitor Log</div>
+              <Link to="/tasks/new" className="stat-card">
+                <div className="icon-wrapper"><Zap size={24} /></div>
+                <div className="actions-title">New Task</div>
               </Link>
-              <Link to="/visitors" className="stat-card">
-                <div className="icon-wrapper"><User size={24} /></div>
-                <div className="actions-title">Register Visitor</div>
+              <Link to="/observations/quick" className="stat-card">
+                <div className="icon-wrapper"><Eye size={24} /></div>
+                <div className="actions-title">Quick Observation</div>
+              </Link>
+              <Link to="/calendar" className="stat-card">
+                <div className="icon-wrapper"><Calendar size={24} /></div>
+                <div className="actions-title">Calendar</div>
+              </Link>
+              <Link to="/reports" className="stat-card">
+                <div className="icon-wrapper"><BarChart3 size={24} /></div>
+                <div className="actions-title">Reports</div>
               </Link>
               <Link to="/maps-v2" className="stat-card">
                 <div className="icon-wrapper"><Map size={24} /></div>
@@ -143,25 +167,50 @@ function Home() {
 
         </div>
 
-        {/* Upcoming — placeholder for Phase 3 data */}
+        {/* Upcoming */}
         <div className="stats-container upcoming-section">
           <div className="container-title">
             <span>Upcoming</span>
+            {unreadCount > 0 && (
+              <Link to="/notifications" className="badge badge--accent" style={{ textDecoration: 'none' }}>
+                <Bell size={12} /> {unreadCount} notification{unreadCount !== 1 ? 's' : ''}
+              </Link>
+            )}
           </div>
           <ul className="upcoming-list">
+            {upcomingTasks.length > 0 ? (
+              upcomingTasks.map((task) => (
+                <li key={task.id} className="upcoming-item">
+                  <div className="upcoming-icon"><ClipboardList size={18} /></div>
+                  <div className="upcoming-details">
+                    <div className="upcoming-title">{task.title || task.task_number}</div>
+                    <div className="upcoming-meta">
+                      {task.scheduled_start_date
+                        ? new Date(task.scheduled_start_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+                        : 'No date'
+                      }
+                      {task.status && ` — ${task.status.replace('_', ' ')}`}
+                    </div>
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li className="upcoming-item">
+                <div className="upcoming-icon"><ClipboardList size={18} /></div>
+                <div className="upcoming-details">
+                  <div className="upcoming-title">No upcoming tasks</div>
+                  <div className="upcoming-meta">Scheduled tasks will appear here</div>
+                </div>
+              </li>
+            )}
             <li className="upcoming-item">
-              <div className="upcoming-icon"><ClipboardList size={18} /></div>
-              <div className="upcoming-details">
-                <div className="upcoming-title">No upcoming tasks</div>
-                <div className="upcoming-meta">Tasks and observations will appear here</div>
-              </div>
-            </li>
-            <li className="upcoming-item">
-              <div className="upcoming-icon"><Calendar size={18} /></div>
-              <div className="upcoming-details">
-                <div className="upcoming-title">No scheduled events</div>
-                <div className="upcoming-meta">Spray schedules and deadlines will appear here</div>
-              </div>
+              <Link to="/calendar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
+                <div className="upcoming-icon"><Calendar size={18} /></div>
+                <div className="upcoming-details">
+                  <div className="upcoming-title" style={{ color: 'var(--color-primary)' }}>View full calendar</div>
+                  <div className="upcoming-meta">Tasks, observations, maintenance & more</div>
+                </div>
+              </Link>
             </li>
           </ul>
         </div>

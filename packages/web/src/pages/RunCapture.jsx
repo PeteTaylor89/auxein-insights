@@ -19,10 +19,10 @@ import {
   Save
 } from 'lucide-react';
 import { observationService, authService, api, blocksService } from '@vineyard/shared';
-import MobileNavigation from '../components/MobileNavigation';
 import SpotLocationMap from '../components/SpotLocationMap';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import './vineyard-pages.css';
 
 mapboxgl.accessToken = 'pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q';
 
@@ -128,7 +128,7 @@ export default function RunCapture() {
       if (r?.metadata_json?.lab_config) {
         setRunLabConfig(r.metadata_json.lab_config);
       }
-      
+
       const normalized = await Promise.all(
         asArray(sp).map(async (spot) => {
           const n = normalizeSpot(spot);
@@ -183,11 +183,11 @@ export default function RunCapture() {
   const saveRunLabConfig = async (config) => {
     try {
       setBusy(true);
-      await observationService.updateRun(id, { 
-        metadata_json: { 
-          ...(run.metadata_json || {}), 
-          lab_config: config 
-        } 
+      await observationService.updateRun(id, {
+        metadata_json: {
+          ...(run.metadata_json || {}),
+          lab_config: config
+        }
       });
       setRunLabConfig(config);
       // Reload to get updated run
@@ -344,7 +344,7 @@ export default function RunCapture() {
     if (!allSaved) return;
     try {
       setBusy(true);
-      await observationService.completeRun(id);  
+      await observationService.completeRun(id);
       await load();
       alert('Run completed (server summary updated).');
     } catch (e) {
@@ -468,14 +468,14 @@ export default function RunCapture() {
   const handleRunLabReportUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Upload to first spot
     const firstSpot = spots[0];
     if (!firstSpot || firstSpot._isNew) {
       alert('Please save at least one sample before uploading the lab report');
       return;
     }
-    
+
     try {
       setBusy(true);
       await filesApi.uploadToSpot(firstSpot.id, file, 'document');
@@ -510,56 +510,56 @@ export default function RunCapture() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button className="btn" onClick={() => { if (run?.plan_id) navigate(`/plandetail/${run.plan_id}`); else navigate('/observations'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <div className="vp-container" style={{ maxWidth: 1100, paddingTop: '5rem' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+        <button className="vp-back" onClick={() => { if (run?.plan_id) navigate(`/plandetail/${run.plan_id}`); else navigate('/observations'); }}>
           <ArrowLeft size={16} /> {run?.plan_id ? 'Back to Plan' : 'Back'}
         </button>
       </div>
 
-      <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ClipboardList /> <span>Run Capture</span>
-        {run?.block_id && <span style={{ fontSize: 14, color: '#666' }}>- {blockMap.get(String(run.block_id)) || `Block ${run.block_id}`}</span>}
+      <div className="vp-card-header">
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+          <ClipboardList /> <span>Run Capture</span>
+          {run?.block_id && <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>- {blockMap.get(String(run.block_id)) || `Block ${run.block_id}`}</span>}
+        </h1>
       </div>
 
-      {loading && <div className="stat-card">Loading…</div>}
-      {error && <div className="stat-card" style={{ borderColor: 'red' }}>{error}</div>}
+      {loading && <div className="vp-loading">Loading…</div>}
+      {error && <div className="vp-error-alert">{error}</div>}
 
       {!loading && !error && run && (
-        <div className="grid" style={{ display: 'grid', gap: 16 }}>
+        <div style={{ display: 'grid', gap: 'var(--space-base)' }}>
           {hasUnsavedSpots && !isRunCompleted && (
-            <section className="stat-card" style={{ background: '#fef3c7', border: '1px solid #fbbf24' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={16} color="#f59e0b" />
-                <div style={{ color: '#92400e' }}>
-                  You have {spots.filter((s) => s._hasUnsavedChanges || s._isNew).length} unsaved spot(s). Save them individually or they'll be auto-saved when you complete the run.
-                </div>
+            <section className="vp-warning-banner" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <AlertCircle size={16} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
+              <div>
+                You have {spots.filter((s) => s._hasUnsavedChanges || s._isNew).length} unsaved spot(s). Save them individually or they'll be auto-saved when you complete the run.
               </div>
             </section>
           )}
 
-          <section className="stat-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <section className="vp-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-md)' }}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{run.name || `Run #${run.id}`}</div>
-              <div style={{ color: '#666', marginTop: 4 }}>Template: {template?.name || template?.type || template?.observation_type || `#${run.template_id}`}</div>
-              <div style={{ color: '#666', fontSize: 14, marginTop: 2 }}>
+              <div className="vp-card-title">{run.name || `Run #${run.id}`}</div>
+              <div style={{ color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)' }}>Template: {template?.name || template?.type || template?.observation_type || `#${run.template_id}`}</div>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', marginTop: 2 }}>
                 Started: {run.observed_at_start ? dayjs(run.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}
                 {isRunCompleted && <> • Completed: {dayjs(run.observed_at_end).format('YYYY-MM-DD HH:mm')}</>}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div className="vp-actions" style={{ flexWrap: 'wrap' }}>
               {!isRunCompleted && (
                 <>
-                  <button className="btn" onClick={completeRun} disabled={busy} style={{ background: '#e0f2fe', color: '#075985', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <button className="btn-ghost" onClick={completeRun} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)', background: 'var(--color-info-bg)', color: 'var(--color-info)' }}>
                     <CheckCircle size={16} /> Complete
                   </button>
-                  <button className="btn" onClick={submitRun} disabled={busy} style={{ background: '#2563eb', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <button className="btn-primary" onClick={submitRun} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
                     <Send size={16} /> Submit
                   </button>
                 </>
               )}
               {run?.plan_id && (
-                <button className="btn" onClick={completeAndStartNext} disabled={busy} style={{ background: '#059669', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Complete this run and start another block">
+                <button className="btn-accent" onClick={completeAndStartNext} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)' }} title="Complete this run and start another block">
                   <PlayCircle size={16} /> {isRunCompleted ? 'Start Next Block' : 'Complete & Start Next'}
                 </button>
               )}
@@ -569,7 +569,7 @@ export default function RunCapture() {
           <Summary run={run} />
 
           {/* NEW: Add these three sections */}
-          <LabConfigSection 
+          <LabConfigSection
             template={template}
             runLabConfig={runLabConfig}
             onSave={saveRunLabConfig}
@@ -578,9 +578,9 @@ export default function RunCapture() {
 
           <LabSamplingSummary spots={spots} template={template} />
 
-          <LabReportUploadSection 
+          <LabReportUploadSection
             spots={spots}
-            isLabTemplate={template?.observation_type === 'lab_sampling_pre_winery' || 
+            isLabTemplate={template?.observation_type === 'lab_sampling_pre_winery' ||
                           template?.type === 'lab_sampling_pre_winery' ||
                           template?.name?.toLowerCase().includes('lab sampling')}
             runLabReportRef={runLabReportRef}
@@ -589,17 +589,17 @@ export default function RunCapture() {
           />
 
           <section>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MapPin /> 
-                {(template?.observation_type === 'lab_sampling_pre_winery' || 
+            <div className="vp-card-header">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                <MapPin />
+                {(template?.observation_type === 'lab_sampling_pre_winery' ||
                   template?.type === 'lab_sampling_pre_winery' ||
                   template?.name?.toLowerCase().includes('lab sampling')) ? 'Samples' : 'Spots'} ({spots.length})
-              </h3>
+              </h2>
               {!isRunCompleted && (
-                <button className="btn" onClick={addSpot} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff' }}>
-                  <Plus size={16} /> 
-                  {(template?.observation_type === 'lab_sampling_pre_winery' || 
+                <button className="btn-primary" onClick={addSpot} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                  <Plus size={16} />
+                  {(template?.observation_type === 'lab_sampling_pre_winery' ||
                     template?.type === 'lab_sampling_pre_winery' ||
                     template?.name?.toLowerCase().includes('lab sampling')) ? 'Add Sample' : 'Add Spot'}
                 </button>
@@ -607,10 +607,10 @@ export default function RunCapture() {
             </div>
 
             {spots.length === 0 && (
-              <div className="stat-card" style={{ color: '#777' }}>{isRunCompleted ? 'No spots recorded in this run.' : 'No spots yet—click "Add Spot" to begin.'}</div>
+              <div className="vp-empty">{isRunCompleted ? 'No spots recorded in this run.' : 'No spots yet—click "Add Spot" to begin.'}</div>
             )}
 
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
               {spots.map((s, i) => (
                 <SpotEditor
                   key={s.id ?? `tmp-${i}`}
@@ -639,7 +639,6 @@ export default function RunCapture() {
             </div>
           </section>
 
-          <MobileNavigation />
         </div>
       )}
     </div>
@@ -647,10 +646,10 @@ export default function RunCapture() {
 }
 
 function LabConfigSection({ template, runLabConfig, onSave, disabled }) {
-  const isLabTemplate = template?.observation_type === 'lab_sampling_pre_winery' || 
+  const isLabTemplate = template?.observation_type === 'lab_sampling_pre_winery' ||
                         template?.type === 'lab_sampling_pre_winery' ||
                         template?.name?.toLowerCase().includes('lab sampling');
-  
+
   if (!isLabTemplate) return null;
 
   const [localConfig, setLocalConfig] = useState(runLabConfig);
@@ -678,14 +677,13 @@ function LabConfigSection({ template, runLabConfig, onSave, disabled }) {
   };
 
   return (
-    <section className="stat-card" style={{ background: '#eff6ff', border: '1px solid #3b82f6' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>Lab Submission Configuration</h3>
+    <section className="vp-card" style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info)' }}>
+      <div className="vp-card-header" style={{ borderBottom: 'none' }}>
+        <h2>Lab Submission Configuration</h2>
         {!disabled && (
-          <button 
-            className="btn" 
+          <button
+            className="btn-primary"
             onClick={() => editing ? handleSave() : setEditing(true)}
-            style={{ background: '#3b82f6', color: '#fff' }}
           >
             {editing ? 'Save Configuration' : 'Edit Configuration'}
           </button>
@@ -693,66 +691,70 @@ function LabConfigSection({ template, runLabConfig, onSave, disabled }) {
       </div>
 
       {editing ? (
-        <div style={{ display: 'grid', gap: 12 }}>
-          <label>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Analyses Requested (for all samples)</div>
-            <select 
-              multiple 
+        <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
+          <div className="vp-form-group">
+            <label className="vp-label">Analyses Requested (for all samples)</label>
+            <select
+              className="vp-select"
+              multiple
               value={localConfig.analyses_requested || []}
               onChange={(e) => {
                 const selected = Array.from(e.target.selectedOptions, opt => opt.value);
                 setLocalConfig({ ...localConfig, analyses_requested: selected });
               }}
-              style={{ minHeight: '120px', width: '100%' }}
+              style={{ minHeight: 120 }}
             >
               {analysesOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+            <div className="vp-hint">
               Hold Ctrl/Cmd to select multiple
             </div>
-          </label>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <label>
-              <div>Harvest Date (planned/actual)</div>
-              <input 
+          <div className="vp-grid-2">
+            <div className="vp-form-group">
+              <label className="vp-label">Harvest Date (planned/actual)</label>
+              <input
+                className="vp-input"
                 type="date"
                 value={localConfig.harvest_date || ''}
                 onChange={(e) => setLocalConfig({ ...localConfig, harvest_date: e.target.value })}
               />
-            </label>
-            <label>
-              <div>Collected By</div>
-              <input 
+            </div>
+            <div className="vp-form-group">
+              <label className="vp-label">Collected By</label>
+              <input
+                className="vp-input"
                 type="text"
                 value={localConfig.collected_by || ''}
                 onChange={(e) => setLocalConfig({ ...localConfig, collected_by: e.target.value })}
                 placeholder="Name or initials"
               />
-            </label>
+            </div>
           </div>
 
-          <label>
-            <div>Lab Reference</div>
-            <input 
+          <div className="vp-form-group">
+            <label className="vp-label">Lab Reference</label>
+            <input
+              className="vp-input"
               type="text"
               value={localConfig.lab_ref || ''}
               onChange={(e) => setLocalConfig({ ...localConfig, lab_ref: e.target.value })}
               placeholder="Lab job number or reference"
             />
-          </label>
+          </div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
           <div>
             <span style={{ fontWeight: 600 }}>Analyses Requested:</span>{' '}
-            {localConfig.analyses_requested?.length > 0 
-              ? localConfig.analyses_requested.map(a => 
+            {localConfig.analyses_requested?.length > 0
+              ? localConfig.analyses_requested.map(a =>
                   analysesOptions.find(opt => opt.value === a)?.label || a
                 ).join(', ')
-              : <span style={{ color: '#999', fontStyle: 'italic' }}>Not configured</span>
+              : <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Not configured</span>
             }
           </div>
           {localConfig.harvest_date && (
@@ -771,58 +773,58 @@ function LabConfigSection({ template, runLabConfig, onSave, disabled }) {
 }
 
 function LabSamplingSummary({ spots, template }) {
-  const isLabTemplate = template?.observation_type === 'lab_sampling_pre_winery' || 
+  const isLabTemplate = template?.observation_type === 'lab_sampling_pre_winery' ||
                         template?.type === 'lab_sampling_pre_winery' ||
                         template?.name?.toLowerCase().includes('lab sampling');
-  
+
   if (!isLabTemplate || spots.length === 0) return null;
 
   const spotsWithReports = spots.filter(s => s.documents?.length > 0);
   const spotsWithoutReports = spots.filter(s => !s.documents || s.documents.length === 0);
-  
+
   return (
-    <section className="stat-card" style={{ background: '#f0f9ff', border: '1px solid #0284c7' }}>
-      <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <section className="vp-card" style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info)' }}>
+      <div className="vp-section-header">
         <FileText size={18} />
-        Lab Sampling Status
-      </h3>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <h3>Lab Sampling Status</h3>
+      </div>
+
+      <div className="vp-grid-auto">
         <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#0284c7' }}>
+          <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--color-info)' }}>
             {spots.length}
           </div>
-          <div style={{ fontSize: 14, color: '#6b7280' }}>Total Samples</div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Total Samples</div>
         </div>
-        
+
         <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>
+          <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--color-success)' }}>
             {spotsWithReports.length}
           </div>
-          <div style={{ fontSize: 14, color: '#6b7280' }}>Reports Uploaded</div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Reports Uploaded</div>
         </div>
-        
+
         <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#dc2626' }}>
+          <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--color-danger)' }}>
             {spotsWithoutReports.length}
           </div>
-          <div style={{ fontSize: 14, color: '#6b7280' }}>Awaiting Reports</div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Awaiting Reports</div>
         </div>
-        
+
         <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#0284c7' }}>
+          <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--color-info)' }}>
             {spots.length > 0 ? Math.round((spotsWithReports.length / spots.length) * 100) : 0}%
           </div>
-          <div style={{ fontSize: 14, color: '#6b7280' }}>Complete</div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Complete</div>
         </div>
       </div>
 
       {spotsWithoutReports.length > 0 && (
-        <div style={{ marginTop: 16, padding: 12, background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: '#92400e' }}>
+        <div className="vp-warning-banner" style={{ marginTop: 'var(--space-base)' }}>
+          <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: 'var(--space-xs)' }}>
             Samples awaiting lab reports:
           </div>
-          <div style={{ fontSize: 12, color: '#92400e' }}>
+          <div style={{ fontSize: 'var(--font-size-xs)' }}>
             {spotsWithoutReports.map(s => s.values?.sample_id || `Spot #${s.id}`).join(', ')}
           </div>
         </div>
@@ -838,34 +840,33 @@ function LabReportUploadSection({ spots, isLabTemplate, runLabReportRef, onUploa
   const hasLabReport = firstSpot?.documents?.length > 0;
 
   return (
-    <section className="stat-card">
-      <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <section className="vp-card">
+      <div className="vp-section-header">
         <FileText size={18} />
-        Lab Report Upload
-      </h3>
-      <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 12 }}>
+        <h3>Lab Report Upload</h3>
+      </div>
+      <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
         Upload the lab report PDF for this entire submission. It will be attached to all samples.
       </p>
-      <input 
-        ref={runLabReportRef} 
-        type="file" 
-        accept=".pdf,.xlsx,.xls,.csv" 
-        style={{ display: 'none' }} 
-        onChange={onUpload} 
+      <input
+        ref={runLabReportRef}
+        type="file"
+        accept=".pdf,.xlsx,.xls,.csv"
+        style={{ display: 'none' }}
+        onChange={onUpload}
       />
-      <button 
-        type="button" 
-        className="btn" 
+      <button
+        type="button"
+        className="btn-accent"
         onClick={() => runLabReportRef.current?.click()}
         disabled={busy || spots.length === 0 || firstSpot?._isNew}
-        style={{ background: '#059669', color: '#fff' }}
       >
-        📄 Upload Lab Report
+        Upload Lab Report
       </button>
-      
+
       {hasLabReport && (
-        <div style={{ marginTop: 12, padding: 12, background: '#dcfce7', border: '1px solid #22c55e', borderRadius: 8 }}>
-          ✅ Lab report uploaded ({firstSpot.documents.length} document{firstSpot.documents.length > 1 ? 's' : ''})
+        <div style={{ marginTop: 'var(--space-md)', padding: 'var(--space-md)', background: 'var(--color-success-bg)', border: '1px solid var(--color-success)', borderRadius: 'var(--radius-md)' }}>
+          Lab report uploaded ({firstSpot.documents.length} document{firstSpot.documents.length > 1 ? 's' : ''})
         </div>
       )}
     </section>
@@ -878,9 +879,9 @@ function Summary({ run }) {
   const js = run?.summary_json || run?.summary || null;
   if (!js || (typeof js === 'object' && Object.keys(js).length === 0)) return null;
   return (
-    <section className="stat-card">
-      <h3 style={{ marginTop: 0 }}>Summary</h3>
-      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, background: '#f9fafb', padding: 12, borderRadius: 8 }}>
+    <section className="vp-card">
+      <h3 className="vp-section-title">Summary</h3>
+      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 'var(--font-size-xs)', background: 'var(--color-surface-warm)', padding: 'var(--space-md)', borderRadius: 'var(--radius-md)' }}>
         {typeof js === 'string' ? js : JSON.stringify(js, null, 2)}
       </pre>
     </section>
@@ -901,7 +902,7 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, runL
   const hasUnsavedChanges = spot._hasUnsavedChanges || spot._isNew;
   const isLocked = runBlockId != null;
 
-  const isLabSamplingSpot = template?.observation_type === 'lab_sampling_pre_winery' || 
+  const isLabSamplingSpot = template?.observation_type === 'lab_sampling_pre_winery' ||
                             template?.type === 'lab_sampling_pre_winery' ||
                             template?.name?.toLowerCase().includes('lab sampling');
   const hasLabReport = isLabSamplingSpot && (spot.documents?.length > 0);
@@ -945,57 +946,39 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, runL
   };
 
   return (
-    <div className="stat-card" style={{ padding: 16, border: hasUnsavedChanges ? '2px solid #f59e0b' : '1px solid #eee', borderRadius: 12, background: '#fff', opacity: isRunCompleted ? 0.9 : 1 }}>
-      <div style={{ display: 'grid', gap: 12 }}>
+    <div className="vp-section" style={{ border: hasUnsavedChanges ? '2px solid var(--color-warning)' : undefined, opacity: isRunCompleted ? 0.9 : 1 }}>
+      <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
         {/* Header */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700 }}>
               {isLabSamplingSpot ? 'Sample' : 'Spot'} {spot.id?.toString().startsWith('tmp-') ? '(unsaved)' : `#${spot.id}`}
             </span>
             {sampleId && (
-              <span style={{ fontSize: 13, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+              <span className="vp-badge vp-badge--info">
                 ID: {sampleId}
               </span>
             )}
-            {isLocked && <span title="Block locked" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#6b7280' }}><Lock size={14} /></span>}
+            {isLocked && <span title="Block locked" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)', color: 'var(--color-text-muted)' }}><Lock size={14} /></span>}
             {isLabSamplingSpot && (
               hasLabReport ? (
-                <span style={{ 
-                  fontSize: 12, 
-                  color: '#166534', 
-                  background: '#dcfce7', 
-                  padding: '2px 8px', 
-                  borderRadius: 4,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}>
-                  ✅ Lab report uploaded
+                <span className="vp-badge vp-badge--success">
+                  Lab report uploaded
                 </span>
               ) : (
-                <span style={{ 
-                  fontSize: 12, 
-                  color: '#991b1b', 
-                  background: '#fee2e2', 
-                  padding: '2px 8px', 
-                  borderRadius: 4,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}>
-                  ⏳ Awaiting lab report
+                <span className="vp-badge vp-badge--danger">
+                  Awaiting lab report
                 </span>
               )
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="vp-actions">
             {!isRunCompleted && (
               <>
-                <button className="btn" onClick={() => onSave(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <button className="btn-ghost" onClick={() => onSave(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
                   <Save size={16} /> Save
                 </button>
-                <button className="btn" onClick={() => onRemove(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#991b1b' }}>
+                <button className="btn-ghost" onClick={() => onRemove(idx)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)', background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
                   <Trash2 size={16} /> Remove
                 </button>
               </>
@@ -1004,135 +987,106 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, runL
         </div>
 
         {/* GPS Coordinates Section */}
-        <div style={{ 
-          padding: 12, 
-          background: '#f0f9ff', 
-          border: '1px solid #bae6fd', 
-          borderRadius: 8 
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+        <div className="vp-info-banner">
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: 8
+            marginBottom: 'var(--space-sm)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <MapPin size={16} color="#0284c7" />
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <MapPin size={16} style={{ color: 'var(--color-info)' }} />
+              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-info)' }}>
                 Location
               </span>
             </div>
             {!isRunCompleted && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button 
+              <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                <button
                   type="button"
-                  className="btn"
+                  className="btn-primary"
                   onClick={getCurrentLocation}
                   disabled={gettingLocation || busy}
-                  style={{ 
-                    fontSize: 12,
-                    padding: '4px 8px',
-                    background: '#0284c7',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: gettingLocation || busy ? 'not-allowed' : 'pointer'
+                  style={{
+                    fontSize: 'var(--font-size-xs)',
+                    padding: 'var(--space-xs) var(--space-sm)'
                   }}
                 >
-                  {gettingLocation ? 'Getting...' : '📍 Current'}
+                  {gettingLocation ? 'Getting...' : 'Current'}
                 </button>
-                <button 
+                <button
                   type="button"
-                  className="btn"
+                  className="btn-accent"
                   onClick={() => setShowLocationMap(true)}
                   disabled={busy}
-                  style={{ 
-                    fontSize: 12,
-                    padding: '4px 8px',
-                    background: '#059669',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: busy ? 'not-allowed' : 'pointer'
+                  style={{
+                    fontSize: 'var(--font-size-xs)',
+                    padding: 'var(--space-xs) var(--space-sm)'
                   }}
                 >
-                  🗺️ Map
+                  Map
                 </button>
               </div>
             )}
           </div>
-          
+
           {/* Show location status or coordinates */}
           {spot.latitude && spot.longitude ? (
             <div style={{
-              background: '#dcfce7',
-              border: '1px solid #22c55e',
-              borderRadius: '6px',
-              padding: '8px 12px',
-              marginBottom: 8
+              background: 'var(--color-success-bg)',
+              border: '1px solid var(--color-success)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 'var(--space-sm) var(--space-md)',
+              marginBottom: 'var(--space-sm)'
             }}>
-              <div style={{ fontWeight: 500, color: '#166534', fontSize: 13, marginBottom: 2 }}>
-                ✅ Location Set
+              <div style={{ fontWeight: 500, color: 'var(--color-success)', fontSize: 'var(--font-size-sm)', marginBottom: 2 }}>
+                Location Set
               </div>
-              <div style={{ fontSize: 12, color: '#166534' }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-success)' }}>
                 Coordinates: {spot.latitude.toFixed(6)}, {spot.longitude.toFixed(6)}
               </div>
             </div>
           ) : (
             <div style={{
-              fontSize: 12,
-              color: '#6b7280',
-              marginBottom: 8,
-              padding: '8px 12px',
-              background: 'white',
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--color-text-muted)',
+              marginBottom: 'var(--space-sm)',
+              padding: 'var(--space-sm) var(--space-md)',
+              background: 'var(--color-surface)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)'
             }}>
               No location set. Click "Current" or "Map" to add a location.
             </div>
           )}
-          
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: 8 
-          }}>
-            <label>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Latitude</div>
-              <input 
-                type="number" 
+
+          <div className="vp-grid-2">
+            <div className="vp-form-group">
+              <label className="vp-label">Latitude</label>
+              <input
+                className="vp-input"
+                type="number"
                 step="any"
-                value={spot.latitude ?? ''} 
+                value={spot.latitude ?? ''}
                 onChange={(e) => onChange(idx, { latitude: e.target.value ? Number(e.target.value) : null })}
                 disabled={isRunCompleted}
                 placeholder="-41.2865"
-                style={{ 
-                  width: '100%',
-                  padding: '6px 8px',
-                  fontSize: 12,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px'
-                }}
+                style={{ fontSize: 'var(--font-size-xs)' }}
               />
-            </label>
-            <label>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Longitude</div>
-              <input 
-                type="number" 
+            </div>
+            <div className="vp-form-group">
+              <label className="vp-label">Longitude</label>
+              <input
+                className="vp-input"
+                type="number"
                 step="any"
-                value={spot.longitude ?? ''} 
+                value={spot.longitude ?? ''}
                 onChange={(e) => onChange(idx, { longitude: e.target.value ? Number(e.target.value) : null })}
                 disabled={isRunCompleted}
                 placeholder="174.7762"
-                style={{ 
-                  width: '100%',
-                  padding: '6px 8px',
-                  fontSize: 12,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px'
-                }}
+                style={{ fontSize: 'var(--font-size-xs)' }}
               />
-            </label>
+            </div>
           </div>
         </div>
 
@@ -1147,14 +1101,14 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, runL
         )}
 
         {/* Dynamic fields */}
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <div className="vp-grid-auto">
           {fields.map((f) => (
-            <FieldRenderer 
-            key={String(f.key || f.name)} 
-            field={f} value={values?.[f.key || f.name]} 
-            onChange={(v) => setValue(f.key || f.name, v)} 
-            disabled={isRunCompleted} 
-            template={template} 
+            <FieldRenderer
+            key={String(f.key || f.name)}
+            field={f} value={values?.[f.key || f.name]}
+            onChange={(v) => setValue(f.key || f.name, v)}
+            disabled={isRunCompleted}
+            template={template}
             runLabConfig={runLabConfig} />
           ))}
         </div>
@@ -1174,19 +1128,19 @@ function SpotEditor({ idx, spot, fields, blocks = [], runBlockId, template, runL
 
 function MediaSection({ title, icon, disabled, accept, inputRef, onPick, uploading, content }) {
   return (
-    <div className="spot-section">
-      <div className="spot-section__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>{icon} {title}</h4>
+    <div className="vp-section" style={{ padding: 'var(--space-md)' }}>
+      <div className="vp-section-header">
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>{icon} {title}</h3>
         {!disabled && (
           <>
             <input ref={inputRef} type="file" accept={accept} multiple style={{ display: 'none' }} onChange={(e) => onPick(Array.from(e.target.files || []))} />
-            <button type="button" className="btn btn-secondary" onClick={() => inputRef.current?.click()} disabled={uploading}>
+            <button type="button" className="btn-ghost" onClick={() => inputRef.current?.click()} disabled={uploading}>
               {uploading ? 'Uploading…' : `Add ${title}`}
             </button>
           </>
         )}
       </div>
-      <div style={{ marginTop: 8 }}>{content}</div>
+      <div style={{ marginTop: 'var(--space-sm)' }}>{content}</div>
     </div>
   );
 }
@@ -1206,83 +1160,83 @@ function PhotoGallery({ photos, onDelete, disabled }) {
     };
   }, [enlargedPhoto]);
 
-  if (!photos?.length) return <div className="spot-empty">No photos uploaded</div>;
+  if (!photos?.length) return <div className="vp-empty" style={{ padding: 'var(--space-md)' }}>No photos uploaded</div>;
 
   const modalContent = enlargedPhoto ? (
-    <div 
-      role="dialog" 
-      aria-modal="true" 
-      style={{ 
-        position: 'fixed', 
-        inset: 0, 
-        background: 'rgba(0,0,0,0.9)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        padding: 20, 
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.9)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
         zIndex: 9999,
         overflow: 'auto'
-      }} 
+      }}
       onClick={(e) => e.target === e.currentTarget && setEnlargedPhoto(null)}
     >
-      <div 
-        style={{ 
-          position: 'relative', 
-          maxWidth: '90vw', 
+      <div
+        style={{
+          position: 'relative',
+          maxWidth: '90vw',
           maxHeight: '90vh',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
-        }} 
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <img 
-          src={enlargedPhoto.blob_url} 
-          alt={enlargedPhoto.description || 'Observation photo'} 
-          style={{ 
-            maxWidth: '90vw', 
-            maxHeight: '90vh', 
+        <img
+          src={enlargedPhoto.blob_url}
+          alt={enlargedPhoto.description || 'Observation photo'}
+          style={{
+            maxWidth: '90vw',
+            maxHeight: '90vh',
             width: 'auto',
             height: 'auto',
-            objectFit: 'contain', 
-            borderRadius: 8,
+            objectFit: 'contain',
+            borderRadius: 'var(--radius-md)',
             display: 'block'
-          }} 
+          }}
         />
-        <button 
-          onClick={() => setEnlargedPhoto(null)} 
-          style={{ 
-            position: 'absolute', 
-            top: -15, 
-            right: -15, 
-            width: 40, 
-            height: 40, 
-            backgroundColor: '#dc2626', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '50%', 
-            fontSize: 20, 
-            cursor: 'pointer', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+        <button
+          onClick={() => setEnlargedPhoto(null)}
+          style={{
+            position: 'absolute',
+            top: -15,
+            right: -15,
+            width: 40,
+            height: 40,
+            backgroundColor: 'var(--color-danger)',
+            color: 'var(--color-white)',
+            border: 'none',
+            borderRadius: '50%',
+            fontSize: 20,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-lg)',
             zIndex: 10000
           }}
         >
           ×
         </button>
-        <div 
-          style={{ 
-            position: 'absolute', 
-            bottom: -50, 
-            left: '50%', 
-            transform: 'translateX(-50%)', 
-            background: 'rgba(0,0,0,0.8)', 
-            color: 'white', 
-            padding: '8px 16px', 
-            borderRadius: 6, 
-            fontSize: 14, 
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -50,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.8)',
+            color: 'var(--color-white)',
+            padding: 'var(--space-sm) var(--space-base)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 'var(--font-size-sm)',
             whiteSpace: 'nowrap',
             maxWidth: '90vw',
             overflow: 'hidden',
@@ -1297,18 +1251,18 @@ function PhotoGallery({ photos, onDelete, disabled }) {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)', flexWrap: 'wrap' }}>
         {photos.map((photo) => (
-          <div key={photo.id} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+          <div key={photo.id} style={{ position: 'relative', width: 80, height: 80, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
             {photo.blob_url ? (
               <img src={photo.blob_url} alt={photo.description || 'Observation photo'} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} onClick={() => setEnlargedPhoto(photo)} title="Click to enlarge" />
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f3f4f6', color: '#6b7280', fontSize: 12 }}>Failed to load</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'var(--color-surface-warm)', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>Failed to load</div>
             )}
             {!disabled && (
-              <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete this photo?`)) onDelete(photo.id); }} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: 'white', border: 'none', borderRadius: '50%', width: 20, height: 20, fontSize: 12, cursor: 'pointer' }} title="Delete photo">×</button>
+              <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete this photo?`)) onDelete(photo.id); }} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: 'var(--color-white)', border: 'none', borderRadius: '50%', width: 20, height: 20, fontSize: 12, cursor: 'pointer' }} title="Delete photo">×</button>
             )}
-            <div style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 10, color: 'white', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 2 }}>
+            <div style={{ position: 'absolute', bottom: 2, left: 2, fontSize: 'var(--font-size-xs)', color: 'var(--color-white)', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 2 }}>
               {Math.round((photo.file_size || 0) / 1024)}KB
             </div>
           </div>
@@ -1320,23 +1274,23 @@ function PhotoGallery({ photos, onDelete, disabled }) {
 }
 
 function VideoList({ items, onDownload, onDelete, disabled }) {
-  if (!items?.length) return <div className="spot-empty">No videos uploaded</div>;
+  if (!items?.length) return <div className="vp-empty" style={{ padding: 'var(--space-md)' }}>No videos uploaded</div>;
   return (
-    <div className="spot-videos-grid" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
       {items.map((v) => (
-        <div key={v.id} className="spot-video-item" style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
-          <div className="spot-video-thumb" style={{ width: 240, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: 6, overflow: 'hidden' }}>
+        <div key={v.id} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-sm)' }}>
+          <div style={{ width: 240, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
             {v.blob_url ? (
               <video src={v.blob_url} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6b7280' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', color: 'var(--color-text-muted)' }}>
                 <VideoIcon size={16} /> {v.original_filename || 'Video'}
               </div>
             )}
           </div>
-          <div className="spot-file-actions" style={{ marginTop: 6, display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => onDownload(v.id, v.original_filename)}>Download</button>
-            {!disabled && <button type="button" className="danger" onClick={() => onDelete(v.id)}>Delete</button>}
+          <div className="vp-actions" style={{ marginTop: 'var(--space-sm)', justifyContent: 'flex-start' }}>
+            <button type="button" className="btn-ghost" onClick={() => onDownload(v.id, v.original_filename)}>Download</button>
+            {!disabled && <button type="button" className="btn-ghost" style={{ color: 'var(--color-danger)' }} onClick={() => onDelete(v.id)}>Delete</button>}
           </div>
         </div>
       ))}
@@ -1345,23 +1299,23 @@ function VideoList({ items, onDownload, onDelete, disabled }) {
 }
 
 function DocumentList({ items, onDownload, onDelete, disabled }) {
-  if (!items?.length) return <div className="spot-empty">No documents uploaded</div>;
+  if (!items?.length) return <div className="vp-empty" style={{ padding: 'var(--space-md)' }}>No documents uploaded</div>;
   return (
-    <div className="spot-docs-list" style={{ display: 'grid', gap: 6 }}>
+    <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
       {items.map((d) => (
-        <div key={d.id} className="spot-doc-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
-          <div className="spot-doc-meta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <FileText size={16} />
             <div>
-              <div className="spot-doc-name" style={{ fontWeight: 600 }}>{d.original_filename || 'Document'}</div>
-              <div className="spot-doc-sub" style={{ color: '#6b7280', fontSize: 12 }}>
+              <div style={{ fontWeight: 600 }}>{d.original_filename || 'Document'}</div>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>
                 {d.mime_type || 'unknown'}{d.file_size ? ` • ${(d.file_size / 1024).toFixed(0)} KB` : ''}
               </div>
             </div>
           </div>
-          <div className="spot-file-actions" style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => onDownload(d.id, d.original_filename)}>Download</button>
-            {!disabled && <button type="button" className="danger" onClick={() => onDelete(d.id)}>Delete</button>}
+          <div className="vp-actions">
+            <button type="button" className="btn-ghost" onClick={() => onDownload(d.id, d.original_filename)}>Download</button>
+            {!disabled && <button type="button" className="btn-ghost" style={{ color: 'var(--color-danger)' }} onClick={() => onDelete(d.id)}>Delete</button>}
           </div>
         </div>
       ))}
@@ -1375,7 +1329,7 @@ function DocumentList({ items, onDownload, onDelete, disabled }) {
 function FieldRenderer({ field, value, onChange, disabled = false, template, runLabConfig }) {
   const fieldName = field?.key || field?.name;
   const runLevelFields = ['analyses_requested', 'harvest_date', 'collected_by', 'lab_ref'];
-    
+
   if (runLevelFields.includes(fieldName) && runLabConfig?.analyses_requested?.length > 0) {
     return null; // Field is configured at run level, don't show on individual spots
   }
@@ -1425,36 +1379,34 @@ function FieldRenderer({ field, value, onChange, disabled = false, template, run
     const helperFiles = Array.isArray(selectedStage?.files_assoc) ? selectedStage.files_assoc : (Array.isArray(selectedStage?.images) ? selectedStage.images : []);
 
     return (
-      <div>
-        <label>
-          <div>{field?.label || 'E–L Stage'}</div>
-          <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled || loadingStages}>
-            <option value="">— Select EL stage —</option>
-            {options.map(opt => {
-              const v = opt?.value ?? opt?.key ?? opt;
-              const text = opt?.label ?? String(v);
-              return <option key={String(v)} value={String(v)}>{text}</option>;
-            })}
-          </select>
-        </label>
+      <div className="vp-form-group">
+        <label className="vp-label">{field?.label || 'E–L Stage'}</label>
+        <select className="vp-select" value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled || loadingStages}>
+          <option value="">— Select EL stage —</option>
+          {options.map(opt => {
+            const v = opt?.value ?? opt?.key ?? opt;
+            const text = opt?.label ?? String(v);
+            return <option key={String(v)} value={String(v)}>{text}</option>;
+          })}
+        </select>
 
         {showPhenologyGuides && selectedStage?.description && (
-          <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, padding: 8, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+          <div className="vp-hint" style={{ padding: 'var(--space-sm)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', marginTop: 'var(--space-xs)' }}>
             {selectedStage.description}
           </div>
         )}
 
         {showPhenologyGuides && helperFiles.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' }}>Reference Files:</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 'var(--space-sm)' }}>
+            <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 500, marginBottom: 'var(--space-xs)', color: 'var(--color-text)' }}>Reference Files:</div>
+            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
               {helperFiles.map(link => <HelperFile key={link.id} fileLink={link} />)}
             </div>
           </div>
         )}
 
         {showPhenologyGuides && selectedStage && helperFiles.length === 0 && (
-          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8, padding: 8, background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb', fontStyle: 'italic' }}>
+          <div className="vp-hint" style={{ padding: 'var(--space-sm)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontStyle: 'italic', marginTop: 'var(--space-sm)' }}>
             No reference files available for this stage.
           </div>
         )}
@@ -1464,10 +1416,10 @@ function FieldRenderer({ field, value, onChange, disabled = false, template, run
 
   if (type === 'number') {
     return (
-      <label>
-        <div>{label}</div>
-        <input type="number" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))} disabled={disabled} />
-      </label>
+      <div className="vp-form-group">
+        <label className="vp-label">{label}</label>
+        <input className="vp-input" type="number" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))} disabled={disabled} />
+      </div>
     );
   }
 
@@ -1479,17 +1431,18 @@ if (type === 'select' || type === 'single-select') {
       // Multi-select handling
       const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
       return (
-        <label>
-          <div>{label}</div>
-          <select 
-            multiple 
-            value={selectedValues} 
+        <div className="vp-form-group">
+          <label className="vp-label">{label}</label>
+          <select
+            className="vp-select"
+            multiple
+            value={selectedValues}
             onChange={(e) => {
               const selected = Array.from(e.target.selectedOptions, opt => opt.value);
               onChange(selected);
-            }} 
+            }}
             disabled={disabled}
-            style={{ minHeight: '80px' }}
+            style={{ minHeight: 80 }}
           >
             {options.map((opt) => {
               const val = opt?.value ?? opt?.key ?? opt;
@@ -1497,18 +1450,18 @@ if (type === 'select' || type === 'single-select') {
               return <option key={String(val)} value={String(val)}>{text}</option>;
             })}
           </select>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+          <div className="vp-hint">
             Hold Ctrl/Cmd to select multiple
           </div>
-        </label>
+        </div>
       );
     }
 
     // Single-select handling
     return (
-      <label>
-        <div>{label}</div>
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      <div className="vp-form-group">
+        <label className="vp-label">{label}</label>
+        <select className="vp-select" value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
           <option value="">— Select —</option>
           {options.map((opt) => {
             const val = opt?.value ?? opt?.key ?? opt;
@@ -1516,13 +1469,13 @@ if (type === 'select' || type === 'single-select') {
             return <option key={String(val)} value={String(val)}>{text}</option>;
           })}
         </select>
-      </label>
+      </div>
     );
   }
 
   if (type === 'boolean' || type === 'checkbox') {
     return (
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <label className="vp-checkbox">
         <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
         <span>{label}</span>
       </label>
@@ -1530,10 +1483,10 @@ if (type === 'select' || type === 'single-select') {
   }
 
   return (
-    <label>
-      <div>{label}</div>
-      <input value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
-    </label>
+    <div className="vp-form-group">
+      <label className="vp-label">{label}</label>
+      <input className="vp-input" value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+    </div>
   );
 }
 
@@ -1571,7 +1524,7 @@ function HelperFile({ fileLink }) {
 
   if (loading) {
     return (
-      <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#6b7280' }}>
+      <div style={{ width: 84, height: 84, borderRadius: 'var(--radius-md)', background: 'var(--color-surface-warm)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
         Loading…
       </div>
     );
@@ -1581,24 +1534,24 @@ function HelperFile({ fileLink }) {
   const caption = fileLink.caption || 'Reference file';
 
   return (
-    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <button type="button" onClick={() => isImage ? setOpen(true) : window.open(blobUrl, '_blank')} title={caption} style={{ width: 84, height: 84, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', padding: 2, cursor: 'pointer', overflow: 'hidden' }}>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-sm)' }}>
+      <button type="button" onClick={() => isImage ? setOpen(true) : window.open(blobUrl, '_blank')} title={caption} style={{ width: 84, height: 84, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', padding: 2, cursor: 'pointer', overflow: 'hidden' }}>
         {isImage ? (
-          <img src={blobUrl} alt={caption} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+          <img src={blobUrl} alt={caption} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: 12, color: '#6b7280' }}>View file</div>
+          <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>View file</div>
         )}
       </button>
 
       {blobUrl && (
-        <a href={blobUrl} download={caption.replace(/\s+/g, '_')} style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
+        <a href={blobUrl} download={caption.replace(/\s+/g, '_')} style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-info)', textDecoration: 'none' }}>
           Download
         </a>
       )}
 
       {open && isImage && (
-        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', zIndex: 9999, padding: 16 }}>
-          <img src={blobUrl} alt={caption} style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 8, background: '#fff' }} />
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', zIndex: 9999, padding: 'var(--space-base)' }}>
+          <img src={blobUrl} alt={caption} style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)' }} />
         </div>
       )}
     </div>

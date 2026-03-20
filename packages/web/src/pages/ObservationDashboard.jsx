@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks } from 'lucide-react';
 import { observationService, usersService, authService, tasksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import './ObservationDashboard.css';
 import BlockSelectionModal from '../components/BlockSelectionModal';
 import { TaskTemplateCard, TaskTemplatePreviewModal  } from '@/components/TaskManagement';
 
@@ -19,26 +20,21 @@ export default function ObservationDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('plans');
 
-  const StatusBadge = ({ status, type = 'default' }) => {
+  const StatusBadge = ({ status }) => {
     const colors = {
-      "in progress": { bg: '#dbeafe', color: '#1e40af' },
-      "complete": { bg: '#dcfce7', color: '#166534' },
-      "not started": { bg: '#fef3c7', color: '#92400e' },
-      "scheduled": { bg: '#e0f2fe', color: '#0369a1' },
-      "cancelled": { bg: '#fee2e2', color: '#dc2626' },
-      "active": { bg: '#d1fae5', color: '#065f46' }
+      "in progress": { bg: 'var(--color-info-bg)', color: 'var(--color-info)' },
+      "complete": { bg: 'var(--color-success-bg)', color: 'var(--color-success)' },
+      "not started": { bg: 'var(--color-warning-bg)', color: 'var(--color-warning)' },
+      "scheduled": { bg: 'var(--color-info-bg)', color: 'var(--color-info)' },
+      "cancelled": { bg: 'var(--color-danger-bg)', color: 'var(--color-danger)' },
+      "active": { bg: 'var(--color-success-bg)', color: 'var(--color-success)' },
     };
-    
-    const style = colors[status] || colors.active || { bg: '#f3f4f6', color: '#374151' };
-    
+    const s = colors[status] || { bg: 'var(--color-olive-light)', color: 'var(--color-primary)' };
     return (
       <span style={{
-        background: style.bg,
-        color: style.color,
-        padding: '0.25rem 0.5rem',
-        borderRadius: '999px',
-        fontSize: '0.75rem',
-        fontWeight: '500'
+        background: s.bg, color: s.color,
+        padding: '2px 10px', borderRadius: 'var(--radius-pill)',
+        fontSize: 'var(--font-size-xs)', fontWeight: '600',
       }}>
         {status?.replace('_', ' ')}
       </span>
@@ -54,146 +50,67 @@ export default function ObservationDashboard() {
   }, []);
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#f8fafc',
-      paddingTop: '70px',
-      paddingBottom: '80px'
-    }}>
-      <div style={{ 
-        maxWidth: '1400px', 
-        margin: '0 auto', 
-        padding: '1rem' 
-      }}>
-        
-        {/* Dashboard Overview Stats */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1rem',
-            paddingBottom: '0.5rem',
-            borderBottom: '1px solid #f3f4f6'
-          }}>
-            <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
-              Vineyard Management Dashboard
-            </h1>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                onClick={() => navigate('/planobservation')}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.875rem'
-                }}
-              >
-                <Plus size={16} /> Create Observaiton Plan
-              </button>
+    <div className="page-container" style={{ paddingTop: 'var(--space-base)' }}>
 
-              <button
-                onClick={() => navigate('/tasks/new')}
-                style={{
-                  background: '#1a7403ff',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.875rem'
-                }}
-              >
-                <Plus size={16} /> Create New Task
-              </button>
-
-              <button
-                onClick={() => navigate('/observations/adhoc')}
-                style={{
-                  background: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.875rem'
-                }}
-                title="Start a one-off run without a plan"
-              >
-                <Rocket size={16} /> Ad-hoc Observation
-              </button>
+      {/* Dashboard Overview Stats */}
+      <div className="stats-container">
+        <div className="container-title">
+          <span>Vineyard Management</span>
+        </div>
+        <div className="stats-grid">
+          {['Active Plans', 'Runs In Progress', 'Submitted Today', 'Overdue Plans'].map(label => (
+            <div key={label} className="stat-card" style={{ textAlign: 'center' }}>
+              <div className="stat-value">—</div>
+              <div className="stat-label">{label}</div>
             </div>
-          </div>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '1rem'
-          }}>
-            {['Active Plans', 'Runs In Progress', 'Submitted Today', 'Overdue Plans'].map(label => (
-              <div key={label} style={{
-                textAlign: 'center',
-                padding: '0.75rem',
-                background: '#f8fafc',
-                borderRadius: '8px'
-              }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#3b82f6' }}>
-                  —
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{label}</div>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
-
-        {/* Tab Navigation */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '0',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-          overflow: 'hidden'
-        }}>
-          <div style={{
-            display: 'flex',
-            borderBottom: '1px solid #f3f4f6'
-          }}>
-            <TabButton label="Task Management" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
-            <TabButton label="Observation Plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
-            <TabButton label="Observation Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
-            <TabButton label="Observation Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
-            <TabButton label="Task Templates" active={tab === 'task-templates'} onClick={() => setTab('task-templates')} />
-          </div>
-
-          <div style={{ padding: '1.25rem' }}>
-            {tab === 'tasks' && <TasksTab StatusBadge={StatusBadge} />}
-            {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
-            {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
-            {tab === 'templates' && <TemplatesTab />}
-            {tab === 'task-templates' && <TaskTemplatesTab />}
-          </div>
-        </div>
-
       </div>
+
+      {/* Quick Actions */}
+      <div className="stats-container">
+        <div className="container-title">
+          <span>Quick Actions</span>
+        </div>
+        <div className="stats-grid">
+          <Link to="/observations/quick" className="stat-card">
+            <div className="icon-wrapper"><Eye size={24} /></div>
+            <div className="actions-title">Quick Observation</div>
+          </Link>
+          <Link to="/tasks/new" className="stat-card">
+            <div className="icon-wrapper"><Zap size={24} /></div>
+            <div className="actions-title">Create / Assign Task</div>
+          </Link>
+          <Link to="/planobservation" className="stat-card">
+            <div className="icon-wrapper"><ClipboardList size={24} /></div>
+            <div className="actions-title">Schedule Observation</div>
+          </Link>
+          <div className="stat-card" style={{ opacity: 0.45, cursor: 'default' }}>
+            <div className="icon-wrapper"><ListChecks size={24} /></div>
+            <div className="actions-title">Assign Observation (coming soon)</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation — grouped: Obs tabs then Task tabs */}
+      <div className="stats-container" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="obs-tab-bar">
+          <TabButton label="Scheduled" active={tab === 'plans'} onClick={() => setTab('plans')} />
+          <TabButton label="Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
+          <TabButton label="Obs Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
+          <TabButton label="Task Management" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
+          <TabButton label="Task Templates" active={tab === 'task-templates'} onClick={() => setTab('task-templates')} />
+        </div>
+
+        <div style={{ padding: 'var(--space-lg)' }}>
+          {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
+          {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
+          {tab === 'templates' && <TemplatesTab />}
+          {tab === 'tasks' && <TasksTab StatusBadge={StatusBadge} />}
+          {tab === 'task-templates' && <TaskTemplatesTab />}
+        </div>
+      </div>
+
       <MobileNavigation />
     </div>
   );
@@ -203,18 +120,7 @@ function TabButton({ label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      style={{
-        flex: 1,
-        padding: '1rem',
-        border: 'none',
-        background: active ? '#f8fafc' : 'white',
-        borderBottom: active ? '2px solid #3b82f6' : '2px solid transparent',
-        cursor: 'pointer',
-        fontSize: '0.875rem',
-        fontWeight: '500',
-        color: active ? '#3b82f6' : '#6b7280',
-        transition: 'all 0.2s ease'
-      }}
+      className={`obs-tab-btn ${active ? 'obs-tab-btn--active' : ''}`}
     >
       {label}
     </button>
@@ -252,79 +158,41 @@ function TemplatePreviewModal({ open, template, onClose }) {
   };
 
   const modalContent = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed', 
-        inset: 0, 
-        background: 'rgba(0,0,0,0.35)',
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        padding: 16, 
-        zIndex: 9999
-      }}
-      onClick={handleBackdropClick}
-    >
-      <div
-        style={{ 
-          background: '#fff', 
-          borderRadius: 12, 
-          width: 'min(860px, 95vw)', 
-          maxHeight: '85vh', 
-          overflow: 'auto', 
-          padding: 24,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>{template.name} Template</h3>
-          <button 
-            onClick={onClose} 
-            style={{ 
-              padding: '0.5rem 1rem', 
-              borderRadius: 6, 
-              background: '#f3f4f6',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
-            }}
-          >
-            Close
-          </button>
+    <div role="dialog" aria-modal="true" className="od-modal-overlay" onClick={handleBackdropClick}>
+      <div className="od-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="od-modal-header">
+          <h3>{template.name} Template</h3>
+          <button className="btn-ghost" onClick={onClose}>Close</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-          <div style={{ padding: 16, borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb' }}>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: 8, fontWeight: '500' }}>Scope</div>
-            <div style={{ fontSize: '0.875rem', marginBottom: 4 }}><strong>Template:</strong> {template.type}</div>
-            <div style={{ fontSize: '0.875rem' }}><strong>Owner:</strong> {template.company_id ? 'Company' : 'Global Template'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+          <div className="card--warm" style={{ padding: 'var(--space-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-sm)', fontWeight: 600 }}>Scope</div>
+            <div style={{ fontSize: 'var(--font-size-sm)' }}><strong>Template:</strong> {template.type || template.observation_type}</div>
+            <div style={{ fontSize: 'var(--font-size-sm)' }}><strong>Owner:</strong> {template.company_id ? 'Company' : 'Global'}</div>
           </div>
-
-          <div style={{ padding: 16, borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: '0.875rem' }}><strong>Note:</strong> All observation runs will also include automatically captured data related to GPS location, date and time, and user. GPS locations can relate back to the block observed.</div>
+          <div className="card--warm" style={{ padding: 'var(--space-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+            <div style={{ fontSize: 'var(--font-size-sm)' }}><strong>Note:</strong> GPS location, date/time, and user are captured automatically for all runs.</div>
           </div>
         </div>
 
-        <h4 style={{ marginTop: 16, marginBottom: 12, fontSize: '1rem', fontWeight: '600' }}>Fields</h4>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+        <h4 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-md)', fontWeight: 700 }}>Fields</h4>
+        <div className="od-table-wrap">
+          <table className="od-table">
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Field</th>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Required</th>
+              <tr>
+                <th>Field</th>
+                <th>Required</th>
               </tr>
             </thead>
             <tbody>
               {fields.length === 0 && (
-                <tr><td colSpan={2} style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>No fields defined.</td></tr>
+                <tr><td colSpan={2} className="od-loading">No fields defined.</td></tr>
               )}
               {fields.map((f, i) => (
-                <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: 12, fontWeight: '500' }}>{f.label || '—'}</td>
-                  <td style={{ padding: 12 }}>{f.required ? 'Yes' : 'No'}</td>
+                <tr key={f.name ?? i}>
+                  <td className="bold">{f.label || '—'}</td>
+                  <td>{f.required ? 'Yes' : 'No'}</td>
                 </tr>
               ))}
             </tbody>
@@ -430,129 +298,46 @@ function PlansTab({ StatusBadge }) {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-        <div>Loading plans…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem', 
-        color: '#dc2626',
-        background: '#fef2f2',
-        borderRadius: '8px'
-      }}>
-        {error}
-      </div>
-    );
-  }
+  if (loading) return <div className="od-loading">Loading scheduled observations...</div>;
+  if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        paddingBottom: '0.5rem',
-        borderBottom: '1px solid #f3f4f6'
-      }}>
-        <h2 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: '600', 
-          margin: 0
-        }}>
-          Observation Plans ({filtered.length})
-        </h2>
+      <div className="od-tab-header">
+        <h2>Scheduled Observations ({filtered.length})</h2>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input 
-          placeholder="Search by plan name…" 
-          value={q} 
-          onChange={e => setQ(e.target.value)} 
-          style={{ 
-            padding: '0.5rem', 
-            borderRadius: 6, 
-            border: '1px solid #d1d5db',
-            flex: 1, 
-            minWidth: 200,
-            fontSize: '0.875rem'
-          }} 
-        />
+      <div className="od-search">
+        <input placeholder="Search by name..." value={q} onChange={e => setQ(e.target.value)} />
       </div>
 
       {filtered.length > 0 ? (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'collapse',
-            fontSize: '0.875rem'
-          }}>
+        <div className="od-table-wrap">
+          <table className="od-table">
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Plan Name</th>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Observation Template</th>
-                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Runs Captured</th>
-                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Latest Run</th>
-                <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Actions</th>
+              <tr>
+                <th>Plan Name</th>
+                <th>Template</th>
+                <th className="center">Runs</th>
+                <th className="center">Latest Run</th>
+                <th className="right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(p => (
-                <tr 
-                  key={p.id} 
-                  style={{ borderBottom: '1px solid #f3f4f6' }}
-                  onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
-                >
-                  <td style={{ padding: 12, fontWeight: '500' }}>{p.name || `Plan #${p.id}`}</td>
-                  <td style={{ padding: 12 }}>{p.template_name || p.template_id || '—'}</td>
-                  <td style={{ padding: 12, textAlign: 'center' }}>{typeof p.runs_count === 'number' ? p.runs_count : '—'}</td>
-                  <td style={{ padding: 12, textAlign: 'center' }}>
+                <tr key={p.id}>
+                  <td className="bold">{p.name || `Plan #${p.id}`}</td>
+                  <td>{p.template_name || p.template_id || '—'}</td>
+                  <td className="center">{typeof p.runs_count === 'number' ? p.runs_count : '—'}</td>
+                  <td className="center">
                     {p.latest_run_started_at ? dayjs(p.latest_run_started_at).format('YYYY-MM-DD HH:mm') : '—'}
                   </td>
-                  <td style={{ padding: 12 }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => navigate(`/plandetail/${p.id}`)}
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: 6, 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: 4, 
-                          background: '#6b7280', 
-                          color: '#fff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
-                      >
+                  <td className="right">
+                    <div className="od-actions">
+                      <button className="od-btn od-btn--ghost" onClick={() => navigate(`/plandetail/${p.id}`)}>
                         Open <ArrowRight size={14} />
                       </button>
-                      <button
-                        onClick={() => openBlockModal(p)}
-                        disabled={startingRun}
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: 6, 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: 4, 
-                          background: '#3b82f6', 
-                          color: '#fff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
-                        title="Start a run for this plan"
-                      >
+                      <button className="od-btn od-btn--primary" onClick={() => openBlockModal(p)} disabled={startingRun} title="Start a run for this plan">
                         <PlayCircle size={14} /> {startingRun ? 'Starting...' : 'Start Run'}
                       </button>
                     </div>
@@ -563,30 +348,11 @@ function PlansTab({ StatusBadge }) {
           </table>
         </div>
       ) : (
-        <div style={{ 
-          textAlign: 'center',
-          padding: '2rem',
-          color: '#6b7280',
-          fontStyle: 'italic'
-        }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
-          <div>No plans found</div>
-          <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            <button
-              onClick={() => navigate('/planobservation')}
-              style={{
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.875rem'
-              }}
-            >
-              Create Your First Plan
-            </button>
-          </div>
+        <div className="od-empty">
+          <div className="od-empty-text">No scheduled observations found</div>
+          <button className="btn-primary" onClick={() => navigate('/planobservation')}>
+            Schedule Your First Observation
+          </button>
         </div>
       )}
 
@@ -673,122 +439,44 @@ function RunsTab({ StatusBadge }) {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-        <div>Loading runs…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem', 
-        color: '#dc2626',
-        background: '#fef2f2',
-        borderRadius: '8px'
-      }}>
-        {error}
-      </div>
-    );
-  }
+  if (loading) return <div className="od-loading">Loading runs...</div>;
+  if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        paddingBottom: '0.5rem',
-        borderBottom: '1px solid #f3f4f6'
-      }}>
-        <h2 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: '600', 
-          margin: 0
-        }}>
-          Observation Runs ({runs.length})
-        </h2>
+      <div className="od-tab-header">
+        <h2>Observation Runs ({runs.length})</h2>
       </div>
 
       {runs.length > 0 ? (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'collapse',
-            fontSize: '0.875rem'
-          }}>
+        <div className="od-table-wrap">
+          <table className="od-table">
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Run Number</th>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Plan Name</th>
-                <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block</th>
-                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Status</th>
-                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Started</th>
-                <th style={{ padding: 12, textAlign: 'center', fontWeight: '600', color: '#374151' }}>Completed</th>
-                <th style={{ padding: 12, textAlign: 'right', fontWeight: '600', color: '#374151' }}>Actions</th>
+              <tr>
+                <th>Run</th>
+                <th>Plan</th>
+                <th>Block</th>
+                <th className="center">Status</th>
+                <th className="center">Started</th>
+                <th className="center">Completed</th>
+                <th className="right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {runs.map(r => (
-                <tr 
-                  key={r.id} 
-                  style={{ borderBottom: '1px solid #f3f4f6' }}
-                  onMouseEnter={(e) => e.target.closest('tr').style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
-                >
-                  <td style={{ padding: 12, fontWeight: '500' }}>{r.name || `Run #${r.id}`}</td>
-                  <td style={{ padding: 12 }}>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
-                  <td style={{ padding: 12 }}>{r.block_name ? `${r.block_name}` : '—'}</td>
-                  <td style={{ padding: 12, textAlign: 'center' }}>
-                    <StatusBadge status={r.status || 'active'} />
-                  </td>
-                  <td style={{ padding: 12, textAlign: 'center' }}>
-                    {r.observed_at_start ? dayjs(r.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}
-                  </td>
-                  <td style={{ padding: 12, textAlign: 'center' }}>
-                    {r.observed_at_end ? dayjs(r.observed_at_end).format('YYYY-MM-DD HH:mm') : '—'}
-                  </td>
-                  <td style={{ padding: 12 }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => navigate(`/observations/runcapture/${r.id}`)}
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: 6, 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: 4, 
-                          background: '#065f46',
-                          color: '#fff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
-                      >
+                <tr key={r.id}>
+                  <td className="bold">{r.name || `Run #${r.id}`}</td>
+                  <td>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
+                  <td>{r.block_name || '—'}</td>
+                  <td className="center"><StatusBadge status={r.status || 'active'} /></td>
+                  <td className="center">{r.observed_at_start ? dayjs(r.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}</td>
+                  <td className="center">{r.observed_at_end ? dayjs(r.observed_at_end).format('YYYY-MM-DD HH:mm') : '—'}</td>
+                  <td className="right">
+                    <div className="od-actions">
+                      <button className="od-btn od-btn--primary" onClick={() => navigate(`/observations/runcapture/${r.id}`)}>
                         Open <ArrowRight size={14} />
                       </button>
-
-                      <button
-                        onClick={() => completeRun(r.id)}
-                        disabled={busyId === r.id}
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: 6, 
-                          padding: '0.25rem 0.5rem', 
-                          borderRadius: 4, 
-                          background: '#3b82f6',
-                          color: '#fff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem'
-                        }}
-                        title="Compute server-side summary for this run"
-                      >
+                      <button className="od-btn od-btn--accent" onClick={() => completeRun(r.id)} disabled={busyId === r.id} title="Complete this run">
                         <CheckCircle size={14} /> Complete
                       </button>
                     </div>
@@ -799,17 +487,8 @@ function RunsTab({ StatusBadge }) {
           </table>
         </div>
       ) : (
-        <div style={{ 
-          textAlign: 'center',
-          padding: '2rem',
-          color: '#6b7280',
-          fontStyle: 'italic'
-        }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
-          <div>No runs found</div>
-          <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            Start a run from a plan to begin observations
-          </div>
+        <div className="od-empty">
+          <div className="od-empty-text">No runs found — start a run from a scheduled observation</div>
         </div>
       )}
     </div>
@@ -844,126 +523,31 @@ function TemplatesTab() {
   }, []);
 
   const labelFor = (t) => (t?.company_id ? 'Company Template' : 'Global Template');
+  const onViewTemplate = (tpl) => { setPreviewTemplate(tpl); setPreviewOpen(true); };
 
-  const onViewTemplate = (tpl) => {
-    setPreviewTemplate(tpl);
-    setPreviewOpen(true);
-  };
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-        <div>Loading templates…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem', 
-        color: '#dc2626',
-        background: '#fef2f2',
-        borderRadius: '8px'
-      }}>
-        {error}
-      </div>
-    );
-  }
+  if (loading) return <div className="od-loading">Loading templates...</div>;
+  if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        paddingBottom: '0.5rem',
-        borderBottom: '1px solid #f3f4f6'
-      }}>
-        <h2 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: '600', 
-          margin: 0
-        }}>
-          Observation Templates ({templates.length})
-        </h2>
+      <div className="od-tab-header">
+        <h2>Observation Templates ({templates.length})</h2>
       </div>
 
       {templates.length > 0 ? (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-          gap: 16 
-        }}>
+        <div className="od-card-grid">
           {templates.map(t => (
-            <div 
-              key={t.id ?? t.name} 
-              style={{ 
-                padding: 16, 
-                border: '1px solid #e5e7eb', 
-                borderRadius: 12, 
-                background: '#fff',
-                transition: 'box-shadow 0.2s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}
-              onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <FileText size={18} color="#3b82f6" /> 
-                <span style={{ fontWeight: 600, fontSize: '0.938rem' }}>{t.name || `Template #${t.id}`}</span>
+            <div key={t.id ?? t.name} className="od-card">
+              <div className="od-card-header">
+                <FileText size={18} />
+                <span className="od-card-title">{t.name || `Template #${t.id}`}</span>
               </div>
-              <div style={{ 
-                fontSize: '0.75rem', 
-                color: '#6b7280', 
-                marginBottom: 16,
-                padding: '0.25rem 0.5rem',
-                background: '#f8fafc',
-                borderRadius: '4px',
-                display: 'inline-block'
-              }}>
-                {labelFor(t)}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => navigate('/planobservation', { state: { template: t } })}
-                  style={{ 
-                    flex: 1,
-                    padding: '0.5rem 0.75rem', 
-                    borderRadius: 6, 
-                    background: '#3b82f6', 
-                    color: '#fff', 
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    gap: 6,
-                    fontSize: '0.813rem',
-                    fontWeight: '500'
-                  }}
-                  title="Create an observation plan using this template"
-                >
+              <div className="od-card-badge">{labelFor(t)}</div>
+              <div className="od-card-actions">
+                <button className="od-btn od-btn--primary" onClick={() => navigate('/planobservation', { state: { template: t } })} title="Use this template">
                   <Plus size={14} /> Use Template
                 </button>
-                <button
-                  onClick={() => onViewTemplate(t)}
-                  style={{ 
-                    padding: '0.5rem 0.75rem', 
-                    borderRadius: 6, 
-                    background: '#f3f4f6', 
-                    color: '#374151',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: 6,
-                    fontSize: '0.813rem',
-                    fontWeight: '500'
-                  }}
-                  title="View this template"
-                >
+                <button className="od-btn od-btn--ghost" onClick={() => onViewTemplate(t)} title="View fields">
                   View
                 </button>
               </div>
@@ -971,14 +555,8 @@ function TemplatesTab() {
           ))}
         </div>
       ) : (
-        <div style={{ 
-          textAlign: 'center',
-          padding: '2rem',
-          color: '#6b7280',
-          fontStyle: 'italic'
-        }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
-          <div>No templates available</div>
+        <div className="od-empty">
+          <div className="od-empty-text">No templates available</div>
         </div>
       )}
 
@@ -1048,161 +626,45 @@ function TaskTemplatesTab() {
     );
   });
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-        <div>Loading templates…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '2rem', 
-        color: '#dc2626',
-        background: '#fef2f2',
-        borderRadius: '8px'
-      }}>
-        {error}
-      </div>
-    );
-  }
+  if (loading) return <div className="od-loading">Loading templates...</div>;
+  if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        paddingBottom: '0.5rem',
-        borderBottom: '1px solid #f3f4f6'
-      }}>
-        <h2 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: '600', 
-          margin: 0
-        }}>
-          Task Templates ({filteredTemplates.length})
-        </h2>
-        <button
-          onClick={() => navigate('/tasks/templates/new')}
-          style={{
-            background: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            padding: '0.5rem 0.75rem',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.375rem',
-            fontSize: '0.813rem',
-            fontWeight: '500'
-          }}
-        >
+      <div className="od-tab-header">
+        <h2>Task Templates ({filteredTemplates.length})</h2>
+        <button className="btn-primary" onClick={() => navigate('/tasks/templates/new')}>
           <Plus size={14} /> New Template
         </button>
       </div>
 
-      {/* Filters - Collapsible */}
-      <div style={{ marginBottom: '1rem' }}>
-        <details style={{ marginBottom: '1rem' }}>
-          <summary style={{ 
-            cursor: 'pointer', 
-            padding: '0.5rem',
-            fontSize: '0.875rem',
-            fontWeight: '500',
-            color: '#6b7280',
-            userSelect: 'none'
-          }}>
-            <Filter size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
-            Filters
-          </summary>
-          <div style={{
-            display: 'flex',
-            gap: '0.75rem',
-            marginTop: '0.75rem',
-            flexWrap: 'wrap',
-            padding: '0.75rem',
-            background: '#f9fafb',
-            borderRadius: '6px'
-          }}>
-            {/* Search */}
-            <input
-              type="text"
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                flex: '1',
-                minWidth: '200px',
-                padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.813rem'
-              }}
-            />
-
-            {/* Category Filter */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={{
-                padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.813rem',
-                cursor: 'pointer',
-                background: 'white'
-              }}
-            >
+      <div className="od-filters">
+        <details>
+          <summary><Filter size={14} /> Filters</summary>
+          <div className="od-filter-row">
+            <input className="od-filter-input" type="text" placeholder="Search templates..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <select className="od-filter-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               <option value="all">All Categories</option>
-              <option value="vineyard">🍇 Vineyard</option>
-              <option value="land_management">🌱 Land Management</option>
-              <option value="asset_management">🔧 Asset Management</option>
-              <option value="compliance">📋 Compliance</option>
-              <option value="general">📌 General</option>
+              <option value="vineyard">Vineyard</option>
+              <option value="land_management">Land Management</option>
+              <option value="asset_management">Asset Management</option>
+              <option value="compliance">Compliance</option>
+              <option value="general">General</option>
             </select>
-
-            {/* Active Only Toggle */}
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              fontSize: '0.813rem',
-              padding: '0.5rem 0.75rem',
-              background: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px'
-            }}>
-              <input
-                type="checkbox"
-                checked={activeOnly}
-                onChange={(e) => setActiveOnly(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
+            <label className="od-filter-checkbox">
+              <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
               Active only
             </label>
           </div>
         </details>
       </div>
 
-      {/* Templates Grid */}
       {filteredTemplates.length > 0 ? (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-          gap: 16 
-        }}>
+        <div className="od-card-grid">
           {filteredTemplates.map(t => (
-            <TemplateCard 
-              key={t.id} 
-              template={t} 
+            <TemplateCard
+              key={t.id}
+              template={t}
               onView={onViewTemplate}
               onEdit={(tpl) => navigate(`/tasks/templates/${tpl.id}/edit`)}
               onUse={(tpl) => navigate(`/tasks/new?template=${tpl.id}`)}
@@ -1210,19 +672,8 @@ function TaskTemplatesTab() {
           ))}
         </div>
       ) : (
-        <div style={{ 
-          textAlign: 'center',
-          padding: '2rem',
-          color: '#6b7280',
-          fontStyle: 'italic'
-        }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
-          <div>
-            {searchQuery 
-              ? 'No templates match your search'
-              : 'No templates available'
-            }
-          </div>
+        <div className="od-empty">
+          <div className="od-empty-text">{searchQuery ? 'No templates match your search' : 'No templates available'}</div>
         </div>
       )}
 
@@ -1240,192 +691,31 @@ function TaskTemplatesTab() {
 
 // Template Card Component - Matches observation card styling
 function TemplateCard({ template, onView, onEdit, onUse }) {
-  const categoryIcons = {
-    vineyard: '🍇',
-    land_management: '🌱',
-    asset_management: '🔧',
-    compliance: '📋',
-    general: '📌'
-  };
-
-  const categoryLabels = {
-    vineyard: 'Vineyard',
-    land_management: 'Land Management',
-    asset_management: 'Asset Management',
-    compliance: 'Compliance',
-    general: 'General'
-  };
-
-  const priorityEmojis = {
-    low: '⬇️',
-    medium: '➡️',
-    high: '⬆️',
-    urgent: '🚨'
-  };
-
-  const icon = template.icon || categoryIcons[template.task_category] || '📌';
+  const categoryLabels = { vineyard: 'Vineyard', land_management: 'Land Management', asset_management: 'Asset Management', compliance: 'Compliance', general: 'General' };
   const categoryLabel = categoryLabels[template.task_category] || template.task_category;
-  const taskCount = template.task_count || 0;
 
   return (
-    <div 
-      style={{ 
-        padding: 16, 
-        border: '1px solid #e5e7eb', 
-        borderRadius: 12, 
-        background: '#fff',
-        transition: 'box-shadow 0.2s ease'
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}
-      onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
-    >
-      {/* Header with icon and name */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: '1.25rem' }}>{icon}</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: '0.938rem', marginBottom: '0.25rem' }}>
-            {template.name}
-          </div>
-          {/* Status badges */}
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {!template.is_active && (
-              <span style={{
-                fontSize: '0.75rem',
-                color: '#6b7280',
-                padding: '0.125rem 0.375rem',
-                background: '#f3f4f6',
-                borderRadius: '4px',
-                display: 'inline-block'
-              }}>
-                Inactive
-              </span>
-            )}
-            {template.quick_create_enabled && template.is_active && (
-              <span style={{
-                fontSize: '0.75rem',
-                color: '#059669',
-                padding: '0.125rem 0.375rem',
-                background: '#d1fae5',
-                borderRadius: '4px',
-                display: 'inline-block'
-              }}>
-                Quick
-              </span>
-            )}
-          </div>
-        </div>
+    <div className="od-card">
+      <div className="od-card-header">
+        <span className="od-card-title">{template.name}</span>
+        {!template.is_active && <span className="badge">Inactive</span>}
+        {template.quick_create_enabled && template.is_active && <span className="badge" style={{ background: 'var(--color-success-bg)', color: 'var(--color-success)' }}>Quick</span>}
       </div>
-
-      {/* Category */}
-      <div style={{ 
-        fontSize: '0.75rem', 
-        color: '#6b7280', 
-        marginBottom: 12,
-        padding: '0.25rem 0.5rem',
-        background: '#f8fafc',
-        borderRadius: '4px',
-        display: 'inline-block'
-      }}>
-        {categoryLabel}
-        {template.task_subcategory && ` • ${template.task_subcategory}`}
+      <div className="od-card-badge">
+        {categoryLabel}{template.task_subcategory && ` · ${template.task_subcategory}`}
       </div>
-
-      {/* Description */}
-      {template.description && (
-        <div style={{
-          fontSize: '0.813rem',
-          color: '#6b7280',
-          marginBottom: 12,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden'
-        }}>
-          {template.description}
-        </div>
-      )}
-
-      {/* Template info */}
-      <div style={{ 
-        display: 'flex', 
-        gap: 12, 
-        marginBottom: 12,
-        fontSize: '0.75rem',
-        color: '#6b7280'
-      }}>
-        {/* Priority */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>{priorityEmojis[template.default_priority]}</span>
-          <span style={{ textTransform: 'capitalize' }}>{template.default_priority}</span>
-        </div>
-
-        {/* GPS */}
-        {template.requires_gps_tracking && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>📍</span>
-            <span>GPS</span>
-          </div>
-        )}
-
-        {/* Equipment */}
-        {template.required_equipment_ids?.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>🔧</span>
-            <span>{template.required_equipment_ids.length}</span>
-          </div>
-        )}
-
-        {/* Usage count */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
-          <span>📊</span>
-          <span>{taskCount}×</span>
-        </div>
+      {template.description && <div className="od-task-card-desc">{template.description}</div>}
+      <div className="od-task-card-meta">
+        <span style={{ textTransform: 'capitalize' }}>{template.default_priority}</span>
+        {template.requires_gps_tracking && <span><MapPin size={12} /> GPS</span>}
+        {template.required_equipment_ids?.length > 0 && <span>Equipment: {template.required_equipment_ids.length}</span>}
+        <span style={{ marginLeft: 'auto' }}>Used: {template.task_count || 0}×</span>
       </div>
-
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          onClick={() => onUse(template)}
-          disabled={!template.is_active}
-          style={{ 
-            flex: 1,
-            padding: '0.5rem 0.75rem', 
-            borderRadius: 6, 
-            background: template.is_active ? '#3b82f6' : '#d1d5db', 
-            color: '#fff', 
-            border: 'none',
-            cursor: template.is_active ? 'pointer' : 'not-allowed',
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            gap: 6,
-            fontSize: '0.813rem',
-            fontWeight: '500',
-            opacity: template.is_active ? 1 : 0.6
-          }}
-          title={template.is_active ? "Create task using this template" : "Template is inactive"}
-        >
+      <div className="od-card-actions">
+        <button className="od-btn od-btn--primary" onClick={() => onUse(template)} disabled={!template.is_active} style={{ opacity: template.is_active ? 1 : 0.5 }}>
           <Plus size={14} /> Use Template
         </button>
-        <button
-          onClick={() => onView(template)}
-          style={{ 
-            padding: '0.5rem 0.75rem', 
-            borderRadius: 6, 
-            background: '#f3f4f6', 
-            color: '#374151',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            gap: 6,
-            fontSize: '0.813rem',
-            fontWeight: '500'
-          }}
-          title="View this template"
-        >
-          View
-        </button>
+        <button className="od-btn od-btn--ghost" onClick={() => onView(template)}>View</button>
       </div>
     </div>
   );
@@ -1506,27 +796,30 @@ function TasksTab() {
   const badge = (s) => {
     const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
     const map = {
-      pending:   { bg:'#f3f4f6', fg:'#374151', text:'Pending' },
-      not_started:{ bg:'#f3f4f6', fg:'#374151', text:'Pending' },
-      scheduled: { bg:'#e0f2fe', fg:'#0369a1', text:'Scheduled' },
-      in_progress:{ bg:'#fef9c3', fg:'#854d0e', text:'In Progress' },
-      completed: { bg:'#dcfce7', fg:'#166534', text:'Completed' },
-      cancelled: { bg:'#fee2e2', fg:'#991b1b', text:'Cancelled' },
+      pending:     { bg:'var(--color-surface-warm)', fg:'var(--color-text-muted)', text:'Pending' },
+      not_started: { bg:'var(--color-surface-warm)', fg:'var(--color-text-muted)', text:'Pending' },
+      draft:       { bg:'var(--color-surface-warm)', fg:'var(--color-text-muted)', text:'Draft' },
+      scheduled:   { bg:'var(--color-info-bg)', fg:'var(--color-info)', text:'Scheduled' },
+      ready:       { bg:'var(--color-info-bg)', fg:'var(--color-info)', text:'Ready' },
+      in_progress: { bg:'var(--color-warning-bg)', fg:'var(--color-warning)', text:'In Progress' },
+      paused:      { bg:'var(--color-warning-bg)', fg:'var(--color-warning)', text:'Paused' },
+      completed:   { bg:'var(--color-success-bg)', fg:'var(--color-success)', text:'Completed' },
+      cancelled:   { bg:'var(--color-danger-bg)', fg:'var(--color-danger)', text:'Cancelled' },
     };
-    const m = map[k] || { bg:'#eee', fg:'#444', text:(s || 'Other') };
+    const m = map[k] || { bg:'var(--color-olive-light)', fg:'var(--color-primary)', text:(s || 'Other') };
     return (
       <span style={{
-        background: m.bg, color: m.fg, padding: '2px 8px', borderRadius: 999,
-        fontSize: 12, fontWeight: 600
+        background: m.bg, color: m.fg, padding: '2px 10px', borderRadius: 'var(--radius-pill)',
+        fontSize: 'var(--font-size-xs)', fontWeight: 600
       }}>{m.text}</span>
     );
   };
 
   const fmtPriority = (p) => {
     const v = String(p || '').toLowerCase();
-    const color = v === 'high' || v === 'urgent' ? '#dc2626'
-                : v === 'medium' ? '#f59e0b'
-                : '#6b7280';
+    const color = v === 'high' || v === 'urgent' ? 'var(--color-danger)'
+                : v === 'medium' ? 'var(--color-warning)'
+                : 'var(--color-text-muted)';
     const label = v ? v.charAt(0).toUpperCase() + v.slice(1) : '—';
     return <span style={{ color, fontWeight: 600 }}>{label}</span>;
   };
@@ -1573,168 +866,87 @@ function TasksTab() {
     }
   };
 
-  if (loading) {
-    return <div style={{ textAlign:'center', padding:'2rem', color:'#6b7280' }}>Loading tasks…</div>;
-  }
-  if (error) {
-    return (
-      <div style={{ textAlign:'center', padding:'2rem', color:'#dc2626', background:'#fef2f2', borderRadius:8 }}>
-        {error}
-      </div>
-    );
-  }
+  // Style constants removed — now using od-table, od-btn CSS classes
+
+  if (loading) return <div className="od-loading">Loading tasks...</div>;
+  if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
-      {/* Header */}
-      <div style={{
-        display:'flex', justifyContent:'space-between', alignItems:'center',
-        marginBottom:'1rem', paddingBottom:'0.5rem', borderBottom:'1px solid #f3f4f6'
-      }}>
-        <h2 style={{ fontSize:'1.1rem', fontWeight:600, margin:0 }}>
-          Tasks ({filteredTasks.length})
-        </h2>
-        <button
-          onClick={() => navigate('/tasks/new')}
-          style={{
-            background:'#3b82f6', color:'#fff', border:'none', padding:'0.5rem 0.75rem',
-            borderRadius:6, cursor:'pointer', display:'inline-flex', alignItems:'center',
-            gap:'0.375rem', fontSize:'0.813rem', fontWeight:500
-          }}
-        >
+      <div className="od-tab-header">
+        <h2>Tasks ({filteredTasks.length})</h2>
+        <button className="btn-primary" onClick={() => navigate('/tasks/new')}>
           <Plus size={14} /> New Task
         </button>
       </div>
 
-      {/* Filters (collapsible), client-side only */}
-      <div style={{ marginBottom:'1rem' }}>
+      <div className="od-filters">
         <details>
-          <summary style={{
-            cursor:'pointer', padding:'0.5rem', fontSize:'0.875rem',
-            fontWeight:500, color:'#6b7280', userSelect:'none'
-          }}>
-            <Filter size={14} style={{ display:'inline', marginRight:4 }}/>
-            Filters
-          </summary>
-          <div style={{
-            display:'flex', gap:'0.75rem', marginTop:'0.75rem', flexWrap:'wrap',
-            padding:'0.75rem', background:'#f9fafb', borderRadius:6
-          }}>
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                flex:'1', minWidth:200, padding:'0.5rem 0.75rem',
-                border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem'
-              }}
-            />
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ padding:'0.5rem 0.75rem', border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem', background:'white' }}
-            >
+          <summary><Filter size={14} /> Filters</summary>
+          <div className="od-filter-row">
+            <input className="od-filter-input" type="text" placeholder="Search tasks..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <select className="od-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All Statuses</option>
-              <option value="pending">⏳ Pending</option>
-              <option value="scheduled">📅 Scheduled</option>
-              <option value="in_progress">🔄 In Progress</option>
-              <option value="completed">✅ Completed</option>
-              <option value="cancelled">❌ Cancelled</option>
+              <option value="pending">Pending</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
-
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={{ padding:'0.5rem 0.75rem', border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem', background:'white' }}
-            >
+            <select className="od-filter-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               <option value="all">All Categories</option>
-              <option value="vineyard">🍇 Vineyard</option>
-              <option value="land_management">🌱 Land Management</option>
-              <option value="asset_management">🔧 Asset Management</option>
-              <option value="compliance">📋 Compliance</option>
-              <option value="general">📌 General</option>
+              <option value="vineyard">Vineyard</option>
+              <option value="land_management">Land Management</option>
+              <option value="asset_management">Asset Management</option>
+              <option value="compliance">Compliance</option>
+              <option value="general">General</option>
             </select>
-
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              style={{ padding:'0.5rem 0.75rem', border:'1px solid #d1d5db', borderRadius:6, fontSize:'0.813rem', background:'white' }}
-            >
+            <select className="od-filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
               <option value="all">All Priorities</option>
-              <option value="low">⬇️ Low</option>
-              <option value="medium">➡️ Medium</option>
-              <option value="high">⬆️ High</option>
-              <option value="urgent">🚨 Urgent</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
             </select>
           </div>
         </details>
       </div>
 
-      {/* Table (Observation-style) */}
       {filteredTasks.length > 0 ? (
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.875rem' }}>
+        <div className="od-table-wrap">
+          <table className="od-table">
             <thead>
-              <tr style={{ background:'#f8fafc' }}>
-                <th style={th}>Task</th>
-                <th style={th}>Category</th>
-                <th style={th}>Location</th>
-                <th style={thCenter}>Start</th>
-                <th style={thCenter}>End</th>
-                <th style={thCenter}>Priority</th>
-                <th style={th}>Assignees</th>
-                <th style={thRight}>Status</th>
-                <th style={thRight}>Actions</th>
+              <tr>
+                <th>Task</th>
+                <th>Category</th>
+                <th>Location</th>
+                <th className="center">Start</th>
+                <th className="center">End</th>
+                <th className="center">Priority</th>
+                <th>Assignees</th>
+                <th className="right">Status</th>
+                <th className="right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredTasks.map(t => (
-                <tr
-                  key={t.id}
-                  style={{ borderBottom:'1px solid #f3f4f6' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <td style={{ ...td, fontWeight:500 }}>
+                <tr key={t.id}>
+                  <td className="bold">
                     {t.title || `Task #${t.id}`}
-                    {t.description && (
-                      <div style={{ fontSize:'0.75rem', color:'#6b7280', marginTop:2, maxWidth:520, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {t.description}
-                      </div>
-                    )}
+                    {t.description && <div className="od-desc">{t.description}</div>}
                   </td>
-                  <td style={td}>{(t.task_category || '').replace(/_/g,' ') || '—'}</td>
-                  <td style={td}>{fmtLocation(t)}</td>
-                  <td style={{ ...td, textAlign:'center' }}>{fmtDate(t.scheduled_start_date || t.scheduled_date)}</td>
-                  <td style={{ ...td, textAlign:'center' }}>{fmtDate(t.scheduled_end_date)}</td>
-                  <td style={{ ...td, textAlign:'center' }}>{fmtPriority(t.priority)}</td>
-                  <td style={td}>{fmtAssignees(t)}</td>
-                  <td style={{ ...td, justifyContent:'flex-end' }}>{badge(t.status)}</td>
-                  <td style={{ ...td, justifyContent:'flex-end' }}>
-                    <div style={{ display:'flex', gap:6 }}>
-                      <button
-                        onClick={() => navigate(`/tasks/${t.id}`)}
-                        style={btnPrimary}
-                        title="View"
-                      >
-                        <Eye size={12}/> View
-                      </button>
-                      <button
-                        onClick={() => navigate(`/tasks/${t.id}/edit`)}
-                        style={btnGhost}
-                        title="Edit"
-                      >
-                        <Edit size={12}/>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTask(t.id)}
-                        style={btnDanger}
-                        title="Delete"
-                      >
-                        <Trash2 size={12}/>
-                      </button>
+                  <td><span className="od-category-tag">{(t.task_category || '').replace(/_/g,' ') || '—'}</span></td>
+                  <td>{fmtLocation(t)}</td>
+                  <td className="center">{fmtDate(t.scheduled_start_date || t.scheduled_date)}</td>
+                  <td className="center">{fmtDate(t.scheduled_end_date)}</td>
+                  <td className="center">{fmtPriority(t.priority)}</td>
+                  <td>{fmtAssignees(t)}</td>
+                  <td className="right">{badge(t.status)}</td>
+                  <td className="right">
+                    <div className="od-actions">
+                      <button className="od-btn od-btn--primary" onClick={() => navigate(`/tasks/${t.id}`)} title="View"><Eye size={12}/> View</button>
+                      <button className="od-btn od-btn--ghost" onClick={() => navigate(`/tasks/${t.id}/edit`)} title="Edit"><Edit size={12}/></button>
+                      <button className="od-btn od-btn--danger" onClick={() => handleDeleteTask(t.id)} title="Delete"><Trash2 size={12}/></button>
                     </div>
                   </td>
                 </tr>
@@ -1743,222 +955,43 @@ function TasksTab() {
           </table>
         </div>
       ) : (
-        <div style={{ textAlign:'center', padding:'2rem', color:'#6b7280', fontStyle:'italic' }}>
-          <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>📋</div>
-          <div>{searchQuery ? 'No tasks match your search' : 'No tasks found'}</div>
+        <div className="od-empty">
+          <div className="od-empty-text">{searchQuery ? 'No tasks match your search' : 'No tasks found'}</div>
         </div>
       )}
     </div>
   );
 
-  // table cell styles (reuse like Plans/Runs)
-  function thBase(align='left') {
-    return { padding:12, textAlign:align, fontWeight:600, color:'#374151' };
-  }
-  const th = thBase('left');
-  const thCenter = thBase('center');
-  const thRight = thBase('right');
-  const td = { padding:12, fontSize:'0.875rem', color:'#374151' };
 
-  const btnPrimary = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'0.25rem 0.5rem', borderRadius:4,
-    background:'#3b82f6', color:'#fff', border:'none',
-    cursor:'pointer', fontSize:'0.75rem', fontWeight:500
-  };
-  const btnGhost = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'0.25rem 0.5rem', borderRadius:4,
-    background:'#f3f4f6', color:'#374151', border:'none',
-    cursor:'pointer', fontSize:'0.75rem', fontWeight:500
-  };
-  const btnDanger = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'0.25rem 0.5rem', borderRadius:4,
-    background:'#fee2e2', color:'#dc2626', border:'none',
-    cursor:'pointer', fontSize:'0.75rem', fontWeight:500
-  };
 }
 
 
 // Task Card Component
 function TaskCard({ task, onView, onEdit, onDelete }) {
-  const categoryIcons = {
-    vineyard: '🍇',
-    land_management: '🌱',
-    asset_management: '🔧',
-    compliance: '📋',
-    general: '📌'
-  };
-
-  const priorityEmojis = {
-    low: '⬇️',
-    medium: '➡️',
-    high: '⬆️',
-    urgent: '🚨'
-  };
-
-  const statusColors = {
-    pending: '#fbbf24',
-    in_progress: '#3b82f6',
-    completed: '#10b981',
-    cancelled: '#6b7280'
-  };
-
-  const icon = categoryIcons[task.task_category] || '📌';
+  const statusColors = { pending: 'var(--color-warning)', in_progress: 'var(--color-info)', completed: 'var(--color-success)', cancelled: 'var(--color-text-muted)' };
 
   return (
-    <div 
-      style={{ 
-        padding: 14, 
-        border: '1px solid #e5e7eb', 
-        borderRadius: 10, 
-        background: '#fff',
-        transition: 'box-shadow 0.2s ease',
-        borderLeft: `3px solid ${statusColors[task.status]}`
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}
-      onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: '1.125rem' }}>{icon}</span>
+    <div className="od-task-card" style={{ '--card-status-color': statusColors[task.status] || 'var(--color-border)' }}>
+      <div className="od-task-card-header">
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-            {task.title}
-          </div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{
-              fontSize: '0.75rem',
-              color: '#6b7280',
-              padding: '0.125rem 0.375rem',
-              background: '#f3f4f6',
-              borderRadius: '4px'
-            }}>
-              {task.task_category}
-            </span>
-            <span style={{ fontSize: '0.75rem' }}>
-              {priorityEmojis[task.priority]}
-            </span>
-          </div>
+          <div className="od-task-card-title">{task.title}</div>
+          <span className="od-category-tag">{(task.task_category || '').replace(/_/g, ' ')}</span>
         </div>
       </div>
-
-      {/* Description */}
-      {task.description && (
-        <div style={{
-          fontSize: '0.75rem',
-          color: '#6b7280',
-          marginBottom: 10,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden'
-        }}>
-          {task.description}
-        </div>
-      )}
-
-      {/* Metadata */}
-      <div style={{ 
-        display: 'flex', 
-        flexWrap: 'wrap',
-        gap: 10, 
-        marginBottom: 10,
-        fontSize: '0.75rem',
-        color: '#6b7280'
-      }}>
-        {/* Scheduled Date */}
-        { (task.scheduled_date || task.scheduled_start_date) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Calendar size={12} />
-            <span>{new Date(task.scheduled_date || task.scheduled_start_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })}</span>
-          </div>
+      {task.description && <div className="od-task-card-desc">{task.description}</div>}
+      <div className="od-task-card-meta">
+        {(task.scheduled_date || task.scheduled_start_date) && (
+          <span><Calendar size={12} /> {new Date(task.scheduled_date || task.scheduled_start_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })}</span>
         )}
-
-        {/* Duration */}
         {(task.estimated_duration_hours || task.estimated_hours) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Clock size={12} />
-            <span>{(task.estimated_duration_hours ?? task.estimated_hours)}h</span>
-          </div>
+          <span><Clock size={12} /> {(task.estimated_duration_hours ?? task.estimated_hours)}h</span>
         )}
-
-        {/* GPS */}
-        {task.requires_gps_tracking && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <MapPin size={12} />
-            <span>GPS</span>
-          </div>
-        )}
-
-        {/* Equipment Count */}
-        {task.required_equipment_ids?.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>🔧</span>
-            <span>{task.required_equipment_ids.length}</span>
-          </div>
-        )}
+        {task.requires_gps_tracking && <span><MapPin size={12} /> GPS</span>}
       </div>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button
-          onClick={() => onView(task)}
-          style={{ 
-            flex: 1,
-            padding: '0.375rem 0.5rem', 
-            borderRadius: 5, 
-            background: '#3b82f6', 
-            color: '#fff', 
-            border: 'none',
-            cursor: 'pointer',
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            gap: 4,
-            fontSize: '0.75rem',
-            fontWeight: '500'
-          }}
-        >
-          <Eye size={12} /> View
-        </button>
-        <button
-          onClick={() => onEdit(task)}
-          style={{ 
-            padding: '0.375rem 0.5rem', 
-            borderRadius: 5, 
-            background: '#f3f4f6', 
-            color: '#374151',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'inline-flex', 
-            alignItems: 'center',
-            gap: 4,
-            fontSize: '0.75rem',
-            fontWeight: '500'
-          }}
-        >
-          <Edit size={12} />
-        </button>
-        <button
-          onClick={() => onDelete(task.id)}
-          style={{ 
-            padding: '0.375rem 0.5rem', 
-            borderRadius: 5, 
-            background: '#fee2e2', 
-            color: '#dc2626',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'inline-flex', 
-            alignItems: 'center',
-            gap: 4,
-            fontSize: '0.75rem',
-            fontWeight: '500'
-          }}
-        >
-          <Trash2 size={12} />
-        </button>
+      <div className="od-card-actions">
+        <button className="od-btn od-btn--primary" onClick={() => onView(task)}><Eye size={12} /> View</button>
+        <button className="od-btn od-btn--ghost" onClick={() => onEdit(task)}><Edit size={12} /></button>
+        <button className="od-btn od-btn--danger" onClick={() => onDelete(task.id)}><Trash2 size={12} /></button>
       </div>
     </div>
   );

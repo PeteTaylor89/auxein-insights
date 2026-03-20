@@ -4,12 +4,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@vineyard/shared';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { 
+import {
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
   Wrench, Package, FileText, AlertCircle, Plus, Settings
 } from 'lucide-react';
 import { tasksService, assetService, blocksService, adminService, spatialAreasService } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
+import './vineyard-pages.css';
 
 function TaskCreationWizard() {
   const navigate = useNavigate();
@@ -48,27 +49,27 @@ function TaskCreationWizard() {
     task_subcategory: '',
     description: '',
     priority: 'medium',
-    
+
     // Location - API uses singular block_id and spatial_area_id
     block_id: null,
     spatial_area_id: null,
     location_type: null,
     location_id: null,
     location_notes: '',
-    
+
     // Scheduling - API uses different field names
     scheduled_start_date: '',
     scheduled_end_date: '',
     scheduled_start_time: null,
     estimated_hours: '',
-    
+
     // Area tracking
     rows_total: '',
     area_total_hectares: '',
-    
+
     // Options
     requires_gps_tracking: false,
-    
+
     // Relations
     template_id: null,
     related_observation_run_id: null,
@@ -112,7 +113,7 @@ function TaskCreationWizard() {
     (async () => {
       try {
         if (formData.task_category === 'vineyard') {
-          const res = await blocksService.getCompanyBlocks?.() 
+          const res = await blocksService.getCompanyBlocks?.()
             ?? await blocksService.getAllBlocks?.();
           setBlocks(Array.isArray(res) ? res : (res.blocks || res.items || []));
           setSpatialAreas([]);
@@ -165,7 +166,7 @@ function TaskCreationWizard() {
         assetService.listAssets({ asset_type: 'physical', status: 'active', limit: 500 }),
         assetService.listAssets({ asset_type: 'consumable', status: 'active', limit: 500 })
       ]);
-      
+
       setEquipmentAssets(Array.isArray(equipment) ? equipment : equipment?.items || []);
       setConsumableAssets(Array.isArray(consumables) ? consumables : consumables?.items || []);
     } catch (err) {
@@ -366,7 +367,7 @@ function TaskCreationWizard() {
   };
 
   const getAvailableEquipment = () => {
-    return equipmentAssets.filter(asset => 
+    return equipmentAssets.filter(asset =>
       !taskAssets.required_equipment.includes(asset.id)
     );
   };
@@ -375,7 +376,7 @@ function TaskCreationWizard() {
     const usedIds = taskAssets.required_consumables
       .map(c => c.asset_id)
       .filter(id => id !== null && id !== currentAssetId);
-    return consumableAssets.filter(asset => 
+    return consumableAssets.filter(asset =>
       !usedIds.includes(asset.id)
     );
   };
@@ -554,74 +555,48 @@ function TaskCreationWizard() {
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc'
-      }}>
-        <div style={{ textAlign: 'center', color: '#6b7280' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
-          <div>Loading...</div>
+      <div className="vp-page">
+        <div className="vp-loading">
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-base)' }}>⏳</div>
+            <div>Loading...</div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: '2rem' }}>
+    <div className="vp-page">
       {/* Header */}
-      <div style={{ 
-        background: 'white', 
-        borderBottom: '1px solid #e5e7eb',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
-      }}>
-        <div style={{ 
-          maxWidth: '1200px', 
-          margin: '0 auto', 
-          padding: '1rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button
-              onClick={handleCancel}
-              style={backButtonStyle}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
+      <div className="vp-header-bar">
+        <div className="vp-header-bar-inner">
+          <div className="vp-header-bar-left">
+            <button onClick={handleCancel} className="vp-back-icon">
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '600' }}>
-                Create New Task
-              </h1>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
-                {templateFromState || templateIdFromQuery 
+              <h1>Create New Task</h1>
+              <p>
+                {templateFromState || templateIdFromQuery
                   ? `Creating from template: ${formData.title || 'Template'}`
                   : 'Create a new task from scratch'}
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="vp-actions">
             <button
               onClick={handleCancel}
               disabled={saving}
-              style={cancelButtonStyle(saving)}
-              onMouseEnter={(e) => !saving && (e.currentTarget.style.background = '#f9fafb')}
-              onMouseLeave={(e) => !saving && (e.currentTarget.style.background = 'white')}
+              className="vp-btn-cancel"
             >
               <X size={16} /> Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              style={saveButtonStyle(saving)}
+              className="vp-btn-save"
             >
               <Save size={16} /> {saving ? 'Creating...' : 'Create Task'}
             </button>
@@ -631,13 +606,13 @@ function TaskCreationWizard() {
 
       {/* Error Alert */}
       {error && (
-        <div style={{ maxWidth: '1200px', margin: '1rem auto', padding: '0 1.5rem' }}>
-          <div style={errorAlertStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="vp-container">
+          <div className="vp-error-alert">
+            <div className="vp-flex-row" style={{ alignItems: 'center' }}>
               <AlertCircle size={20} />
               <span>{error}</span>
             </div>
-            <button onClick={() => setError(null)} style={errorCloseStyle}>
+            <button onClick={() => setError(null)} className="vp-error-close">
               <X size={16} />
             </button>
           </div>
@@ -645,10 +620,10 @@ function TaskCreationWizard() {
       )}
 
       {/* Form Content */}
-      <div style={formContainerStyle}>
+      <div className="vp-form-grid">
         {/* Left Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
+        <div className="vp-col">
+
           {/* Basic Information */}
           <FormSection title="Basic Information" icon={<FileText size={18} />}>
             <FormField label="Task Title" required>
@@ -657,7 +632,7 @@ function TaskCreationWizard() {
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="e.g., Winter Pruning - Block A"
-                style={inputStyle}
+                className="vp-input"
               />
             </FormField>
 
@@ -665,7 +640,7 @@ function TaskCreationWizard() {
               <select
                 value={formData.task_category}
                 onChange={(e) => handleInputChange('task_category', e.target.value)}
-                style={inputStyle}
+                className="vp-select"
               >
                 <option value="vineyard">🍇 Vineyard</option>
                 <option value="land_management">🌱 Land Management</option>
@@ -677,8 +652,8 @@ function TaskCreationWizard() {
 
             {formData.task_category === 'vineyard' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                  <label style={{ ...checkboxLabelStyle, margin: 0 }}>
+                <div className="vp-flex-row" style={{ alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+                  <label className="vp-checkbox" style={{ margin: 0 }}>
                     <input
                       type="checkbox"
                       checked={multiMode}
@@ -688,12 +663,11 @@ function TaskCreationWizard() {
                   </label>
                 </div>
 
-                <label style={checkboxLabelStyle}>
+                <label className="vp-checkbox" style={{ marginBottom: 'var(--space-sm)' }}>
                   <input
                     type="checkbox"
                     checked={formData.requires_gps_tracking}
                     onChange={(e) => handleInputChange('requires_gps_tracking', e.target.checked)}
-                    style={{ cursor: 'pointer' }}
                   />
                   <span>📍 Require GPS tracking</span>
                 </label>
@@ -706,7 +680,7 @@ function TaskCreationWizard() {
                 value={formData.task_subcategory}
                 onChange={(e) => handleInputChange('task_subcategory', e.target.value)}
                 placeholder="e.g., Pruning, Spraying"
-                style={inputStyle}
+                className="vp-input"
               />
             </FormField>
 
@@ -714,7 +688,7 @@ function TaskCreationWizard() {
               <select
                 value={formData.priority}
                 onChange={(e) => handleInputChange('priority', e.target.value)}
-                style={inputStyle}
+                className="vp-select"
               >
                 <option value="low">⬇️ Low</option>
                 <option value="medium">➡️ Medium</option>
@@ -729,7 +703,7 @@ function TaskCreationWizard() {
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 placeholder="Describe this task..."
                 rows={4}
-                style={{ ...inputStyle, resize: 'vertical' }}
+                className="vp-textarea"
               />
             </FormField>
           </FormSection>
@@ -746,7 +720,7 @@ function TaskCreationWizard() {
                   <select
                     value={formData.block_id || ''}
                     onChange={(e) => handleInputChange('block_id', e.target.value ? parseInt(e.target.value) : null)}
-                    style={inputStyle}
+                    className="vp-select"
                   >
                     <option value="">Select block...</option>
                     {blocks.map(block => (
@@ -765,7 +739,7 @@ function TaskCreationWizard() {
                   <select
                     value={formData.spatial_area_id || ''}
                     onChange={(e) => handleInputChange('spatial_area_id', e.target.value ? parseInt(e.target.value) : null)}
-                    style={inputStyle}
+                    className="vp-select"
                   >
                     <option value="">Select spatial area...</option>
                     {spatialAreas.map(area => (
@@ -781,11 +755,11 @@ function TaskCreationWizard() {
               {/* General → Drop a pin */}
               {formData.task_category === 'general' && (
                 <FormField label="Map Pin">
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button type="button" onClick={() => setShowMap(true)} style={buttonStyle}>
+                  <div className="vp-flex-row" style={{ alignItems: 'center' }}>
+                    <button type="button" onClick={() => setShowMap(true)} className="vp-btn-pin">
                       <MapPin size={16} /> Drop a pin
                     </button>
-                    {mapGeometry && <span style={{ fontSize: '0.875rem', color: '#16a34a' }}>Pin set ✓</span>}
+                    {mapGeometry && <span className="vp-pin-status">Pin set ✓</span>}
                   </div>
 
                   {showMap && (
@@ -805,7 +779,7 @@ function TaskCreationWizard() {
                   onChange={(e) => handleInputChange('location_notes', e.target.value)}
                   placeholder="Additional location details..."
                   rows={2}
-                  style={{ ...inputStyle, resize: 'vertical' }}
+                  className="vp-textarea"
                 />
               </FormField>
             </FormSection>
@@ -814,18 +788,19 @@ function TaskCreationWizard() {
         </div>
 
         {/* Right Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
+        <div className="vp-col">
+
           {/* Assignments */}
           {!multiMode && (
             <FormSection title="Assign To" icon={<Users size={18} />}>
               {/* Users */}
               <FormField label="Assign Users">
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <div className="vp-flex-row" style={{ marginBottom: 'var(--space-md)' }}>
                   <select
                     value={selectedUser}
                     onChange={(e) => setSelectedUser(e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
+                    className="vp-select"
+                    style={{ flex: 1 }}
                     disabled={companyUsers.length === 0}
                   >
                     <option value="">
@@ -842,28 +817,20 @@ function TaskCreationWizard() {
                   <button
                     onClick={handleAddUser}
                     disabled={!selectedUser}
-                    style={{
-                      ...buttonStyle,
-                      background: selectedUser ? '#3b82f6' : '#d1d5db',
-                      color: 'white',
-                      border: 'none',
-                      cursor: selectedUser ? 'pointer' : 'not-allowed'
-                    }}
+                    className="vp-btn-add-inline"
                   >
                     <Plus size={16} />
                   </button>
                 </div>
 
                 {taskAssignments.assigned_users.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div className="vp-flex-col">
                     {taskAssignments.assigned_users.map((userId) => (
-                      <div key={userId} style={selectedItemStyle}>
-                        <span style={{ fontSize: '0.875rem' }}>{getUserName(userId)}</span>
+                      <div key={userId} className="vp-selected-item">
+                        <span>{getUserName(userId)}</span>
                         <button
                           onClick={() => handleRemoveUser(userId)}
-                          style={removeButtonStyle}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          className="vp-btn-remove"
                         >
                           <X size={14} />
                         </button>
@@ -871,7 +838,7 @@ function TaskCreationWizard() {
                     ))}
                   </div>
                 ) : (
-                  <p style={emptyStateStyle}>No users assigned</p>
+                  <p className="vp-empty-state">No users assigned</p>
                 )}
               </FormField>
 
@@ -879,16 +846,17 @@ function TaskCreationWizard() {
           )}
           {/* Required Equipment */}
           <FormSection title="Required Equipment" icon={<Wrench size={18} />}>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <div className="vp-flex-row" style={{ marginBottom: 'var(--space-md)' }}>
               <select
                 value={selectedEquipment}
                 onChange={(e) => setSelectedEquipment(e.target.value)}
-                style={{ ...inputStyle, flex: 1 }}
+                className="vp-select"
+                style={{ flex: 1 }}
                 disabled={loadingAssets || getAvailableEquipment().length === 0}
               >
                 <option value="">
-                  {loadingAssets 
-                    ? 'Loading equipment...' 
+                  {loadingAssets
+                    ? 'Loading equipment...'
                     : getAvailableEquipment().length === 0
                     ? 'No equipment available'
                     : 'Select equipment...'}
@@ -902,28 +870,20 @@ function TaskCreationWizard() {
               <button
                 onClick={handleAddEquipment}
                 disabled={!selectedEquipment}
-                style={{
-                  ...buttonStyle,
-                  background: selectedEquipment ? '#3b82f6' : '#d1d5db',
-                  color: 'white',
-                  border: 'none',
-                  cursor: selectedEquipment ? 'pointer' : 'not-allowed'
-                }}
+                className="vp-btn-add-inline"
               >
                 <Plus size={16} />
               </button>
             </div>
 
             {taskAssets.required_equipment.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div className="vp-flex-col">
                 {taskAssets.required_equipment.map((equipId) => (
-                  <div key={equipId} style={selectedItemStyle}>
-                    <span style={{ fontSize: '0.875rem' }}>{getAssetName(equipId)}</span>
+                  <div key={equipId} className="vp-selected-item">
+                    <span>{getAssetName(equipId)}</span>
                     <button
                       onClick={() => handleRemoveEquipment(equipId)}
-                      style={removeButtonStyle}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      className="vp-btn-remove"
                     >
                       <X size={14} />
                     </button>
@@ -931,7 +891,7 @@ function TaskCreationWizard() {
                 ))}
               </div>
             ) : (
-              <p style={emptyStateStyle}>No required equipment</p>
+              <p className="vp-empty-state">No required equipment</p>
             )}
           </FormSection>
 
@@ -939,20 +899,21 @@ function TaskCreationWizard() {
           <FormSection title="Required Consumables" icon={<Package size={18} />}>
             <button
               onClick={handleAddConsumable}
-              style={addButtonStyle}
+              className="vp-btn-add"
             >
               <Plus size={16} /> Add Consumable
             </button>
 
             {taskAssets.required_consumables.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
+              <div className="vp-flex-col" style={{ marginTop: 'var(--space-md)' }}>
                 {taskAssets.required_consumables.map((consumable, index) => (
-                  <div key={index} style={consumableCardStyle}>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div key={index} className="vp-consumable-card">
+                    <div className="vp-flex-row" style={{ marginBottom: 'var(--space-sm)' }}>
                       <select
                         value={consumable.asset_id || ''}
                         onChange={(e) => handleUpdateConsumable(index, 'asset_id', e.target.value ? parseInt(e.target.value) : null)}
-                        style={{ ...inputStyle, flex: 1, fontSize: '0.875rem' }}
+                        className="vp-select"
+                        style={{ flex: 1 }}
                         disabled={loadingAssets}
                       >
                         <option value="">
@@ -966,27 +927,27 @@ function TaskCreationWizard() {
                       </select>
                       <button
                         onClick={() => handleRemoveConsumable(index)}
-                        style={removeButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        className="vp-btn-remove"
                       >
                         <X size={14} />
                       </button>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div className="vp-flex-row">
                       <input
                         type="number"
                         value={consumable.quantity}
                         onChange={(e) => handleUpdateConsumable(index, 'quantity', e.target.value)}
                         placeholder="Quantity"
                         step="0.1"
-                        style={{ ...inputStyle, flex: 1, fontSize: '0.875rem' }}
+                        className="vp-input"
+                        style={{ flex: 1 }}
                       />
                       <select
                         value={consumable.unit}
                         onChange={(e) => handleUpdateConsumable(index, 'unit', e.target.value)}
-                        style={{ ...inputStyle, flex: 1, fontSize: '0.875rem' }}
+                        className="vp-select"
+                        style={{ flex: 1 }}
                       >
                         <option value="L">L (Liters)</option>
                         <option value="kg">kg (Kilograms)</option>
@@ -999,7 +960,7 @@ function TaskCreationWizard() {
                 ))}
               </div>
             ) : (
-              <p style={{ ...emptyStateStyle, marginTop: '0.75rem' }}>No consumables required</p>
+              <p className="vp-empty-state" style={{ marginTop: 'var(--space-md)' }}>No consumables required</p>
             )}
           </FormSection>
 
@@ -1011,7 +972,7 @@ function TaskCreationWizard() {
                 type="date"
                 value={formData.scheduled_start_date}
                 onChange={(e) => handleInputChange('scheduled_start_date', e.target.value)}
-                style={inputStyle}
+                className="vp-input"
               />
             </FormField>
 
@@ -1020,7 +981,7 @@ function TaskCreationWizard() {
                 type="date"
                 value={formData.scheduled_end_date}
                 onChange={(e) => handleInputChange('scheduled_end_date', e.target.value)}
-                style={inputStyle}
+                className="vp-input"
               />
             </FormField>
 
@@ -1029,7 +990,7 @@ function TaskCreationWizard() {
                 type="time"
                 value={formData.scheduled_start_time || ''}
                 onChange={(e) => handleInputChange('scheduled_start_time', e.target.value)}
-                style={inputStyle}
+                className="vp-input"
               />
             </FormField>
 
@@ -1041,7 +1002,7 @@ function TaskCreationWizard() {
                 placeholder="8"
                 min="0"
                 step="0.5"
-                style={inputStyle}
+                className="vp-input"
               />
             </FormField>
           </FormSection>
@@ -1049,72 +1010,51 @@ function TaskCreationWizard() {
         </div>
 
         {formData.task_category === 'vineyard' && multiMode && (
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div className="vp-col-span-full">
             <FormSection title="Apply to Multiple Blocks" icon={<MapPin size={18} />}>
               <div style={{ width: '100%' }}>
-                <div style={{
-                  width: '100%',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  background: 'white'
-                }}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '56px 2fr 1.5fr 1.5fr 2fr',
-                    gap: 0,
-                    background: '#f9fafb',
-                    borderBottom: '1px solid #e5e7eb',
-                    width: '100%'
-                  }}>
-                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>✓</div>
-                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>Block</div>
-                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>Start Date</div>
-                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>End Date</div>
-                    <div style={{ padding: '0.625rem', fontWeight: 600 }}>Assignees</div>
+                <div className="vp-multi-block-table">
+                  <div className="vp-multi-block-head">
+                    <div>✓</div>
+                    <div>Block</div>
+                    <div>Start Date</div>
+                    <div>End Date</div>
+                    <div>Assignees</div>
                   </div>
 
                   {blockRows.length === 0 ? (
-                    <div style={{ padding: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>
+                    <div style={{ padding: 'var(--space-md)', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
                       No blocks to show.
                     </div>
                   ) : blockRows.map(row => (
-                    <div
-                      key={row.block_id}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '56px 2fr 1.5fr 1.5fr 2fr',
-                        borderBottom: '1px solid #f3f4f6',
-                        width: '100%'
-                      }}
-                    >
-                      <div style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div key={row.block_id} className="vp-multi-block-row">
+                      <div>
                         <input
                           type="checkbox"
                           checked={row.selected}
                           onChange={() => toggleRow(row.block_id)}
                         />
                       </div>
-                      <div style={{ padding: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                      <div>
                         {getBlockName(row.block_id)}
                       </div>
-                      <div style={{ padding: '0.5rem' }}>
+                      <div>
                         <input
                           type="date"
                           value={row.start_date}
                           onChange={(e) => setRowDate(row.block_id, 'start_date', e.target.value)}
-                          style={inputStyle}
+                          className="vp-input"
                         />
                       </div>
-                      <div style={{ padding: '0.5rem' }}>
+                      <div>
                         <input
                           type="date"
                           value={row.end_date}
                           onChange={(e) => setRowDate(row.block_id, 'end_date', e.target.value)}
-                          style={inputStyle}
+                          className="vp-input"
                         />
                       </div>
-                      <div style={{ padding: '0.5rem' }}>
+                      <div>
                         <select
                           multiple
                           value={row.user_ids.map(String)}
@@ -1124,7 +1064,8 @@ function TaskCreationWizard() {
                               .map(o => parseInt(o.value));
                             setRowUsers(row.block_id, ids);
                           }}
-                          style={{ ...inputStyle, height: 96 }}
+                          className="vp-select"
+                          style={{ height: 96 }}
                           disabled={companyUsers.length === 0}
                         >
                           {companyUsers.map(u => (
@@ -1138,7 +1079,7 @@ function TaskCreationWizard() {
                   ))}
                 </div>
 
-                <p style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>
+                <p className="vp-hint" style={{ marginTop: 'var(--space-sm)' }}>
                   Selected rows will create one task per block with its own assignees and schedule.
                 </p>
               </div>
@@ -1154,24 +1095,10 @@ function TaskCreationWizard() {
 // Reusable Components
 function FormSection({ title, icon, children }) {
   return (
-    <div style={{
-      background: 'white',
-      border: '1px solid #e5e7eb',
-      borderRadius: '12px',
-      padding: '1.25rem'
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        marginBottom: '1rem',
-        paddingBottom: '0.75rem',
-        borderBottom: '1px solid #f3f4f6'
-      }}>
-        <span style={{ color: '#6b7280' }}>{icon}</span>
-        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
-          {title}
-        </h3>
+    <div className="vp-section">
+      <div className="vp-section-header">
+        {icon}
+        <h3>{title}</h3>
       </div>
       {children}
     </div>
@@ -1180,174 +1107,16 @@ function FormSection({ title, icon, children }) {
 
 function FormField({ label, required, children }) {
   return (
-    <div style={{ marginBottom: '1rem' }}>
+    <div className="vp-form-group">
       {label && (
-        <label style={{
-          display: 'block',
-          fontSize: '0.875rem',
-          fontWeight: '500',
-          color: '#374151',
-          marginBottom: '0.5rem'
-        }}>
+        <label className="vp-label">
           {label}
-          {required && <span style={{ color: '#dc2626', marginLeft: '0.25rem' }}>*</span>}
+          {required && <span className="vp-required">*</span>}
         </label>
       )}
       {children}
     </div>
   );
 }
-
-// Styles
-const inputStyle = {
-  width: '100%',
-  padding: '0.5rem 0.75rem',
-  border: '1px solid #d1d5db',
-  borderRadius: '6px',
-  fontSize: '0.875rem',
-  background: 'white',
-  boxSizing: 'border-box'
-};
-
-const buttonStyle = {
-  padding: '0.5rem 0.75rem',
-  borderRadius: '6px',
-  border: '1px solid #d1d5db',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  fontSize: '0.875rem',
-  fontWeight: '500'
-};
-
-const backButtonStyle = {
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-  padding: '0.5rem',
-  borderRadius: '6px',
-  display: 'flex',
-  alignItems: 'center',
-  color: '#6b7280'
-};
-
-const cancelButtonStyle = (saving) => ({
-  padding: '0.625rem 1.25rem',
-  borderRadius: '6px',
-  border: '1px solid #d1d5db',
-  background: 'white',
-  color: '#374151',
-  fontSize: '0.875rem',
-  fontWeight: '500',
-  cursor: saving ? 'not-allowed' : 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  opacity: saving ? 0.6 : 1
-});
-
-const saveButtonStyle = (saving) => ({
-  padding: '0.625rem 1.25rem',
-  borderRadius: '6px',
-  border: 'none',
-  background: saving ? '#93c5fd' : '#3b82f6',
-  color: 'white',
-  fontSize: '0.875rem',
-  fontWeight: '500',
-  cursor: saving ? 'not-allowed' : 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem'
-});
-
-const errorAlertStyle = {
-  background: '#fee2e2',
-  border: '1px solid #fca5a5',
-  borderRadius: '6px',
-  padding: '1rem',
-  color: '#dc2626',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center'
-};
-
-const errorCloseStyle = {
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-  padding: '0.25rem'
-};
-
-const formContainerStyle = {
-  maxWidth: '1200px',
-  margin: '2rem auto',
-  padding: '0 1.5rem',
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '1.5rem'
-};
-
-const checkboxLabelStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  marginBottom: '0.5rem',
-  fontSize: '0.875rem',
-  cursor: 'pointer',
-  userSelect: 'none'
-};
-
-const selectedItemStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '0.5rem 0.75rem',
-  background: '#f9fafb',
-  border: '1px solid #e5e7eb',
-  borderRadius: '6px'
-};
-
-const removeButtonStyle = {
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-  padding: '0.25rem',
-  borderRadius: '4px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#dc2626'
-};
-
-const emptyStateStyle = {
-  fontSize: '0.875rem',
-  color: '#6b7280',
-  fontStyle: 'italic',
-  margin: 0
-};
-
-const addButtonStyle = {
-  width: '100%',
-  padding: '0.5rem 0.75rem',
-  borderRadius: '6px',
-  background: '#f3f4f6',
-  color: '#374151',
-  border: 'none',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.5rem',
-  fontSize: '0.875rem',
-  fontWeight: '500'
-};
-
-const consumableCardStyle = {
-  padding: '0.75rem',
-  background: '#f9fafb',
-  border: '1px solid #e5e7eb',
-  borderRadius: '6px'
-};
 
 export default TaskCreationWizard;

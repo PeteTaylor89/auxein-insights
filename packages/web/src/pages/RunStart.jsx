@@ -1,17 +1,17 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { 
-  ClipboardList, 
-  ArrowLeft, 
-  PlayCircle, 
-  MapPin, 
+import {
+  ClipboardList,
+  ArrowLeft,
+  PlayCircle,
+  MapPin,
   AlertTriangle,
   CheckCircle,
   X,
   ExternalLink
 } from 'lucide-react';
 import { observationService, authService, blocksService } from '@vineyard/shared';
-import MobileNavigation from '../components/MobileNavigation';
+import './vineyard-pages.css';
 
 const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.results ?? v?.data ?? []);
 
@@ -43,7 +43,7 @@ export default function RunStart() {
         ]);
 
         if (!mounted) return;
-        
+
         setPlan(planRes);
         setBlocks(asArray(blocksRes));
 
@@ -76,11 +76,11 @@ export default function RunStart() {
     (async () => {
       try {
         const conflictResults = await observationService.checkRunConflicts(
-          parseInt(planId), 
-          parseInt(selectedBlockId), 
+          parseInt(planId),
+          parseInt(selectedBlockId),
           companyId
         );
-        
+
         if (!mounted) return;
         setConflicts(asArray(conflictResults));
       } catch (e) {
@@ -111,7 +111,7 @@ export default function RunStart() {
         notes: target.notes
       }));
     }
-    
+
     // Otherwise show all company blocks
     return blocks.map(b => ({
       id: b.id,
@@ -129,11 +129,11 @@ export default function RunStart() {
     try {
       setBusy(true);
       await observationService.cancelRun(runId);
-      
+
       // Refresh conflicts after cancellation
       const updated = await observationService.checkRunConflicts(
-        parseInt(planId), 
-        parseInt(selectedBlockId), 
+        parseInt(planId),
+        parseInt(selectedBlockId),
         companyId
       );
       setConflicts(asArray(updated));
@@ -170,10 +170,10 @@ export default function RunStart() {
       };
 
       console.log('Starting run with payload:', payload);
-      
+
       // Call createRun directly instead of startRun
       const run = await observationService.createRun(payload);
-      
+
       if (run?.id) {
         navigate(`/observations/runcapture/${run.id}`, { replace: true });
       } else {
@@ -189,59 +189,54 @@ export default function RunStart() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: 1100, margin: '0 auto', padding: '5rem 1rem' }}>
+    <div className="page-container">
       {/* Back button */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button
-          className="btn"
-          onClick={() => navigate(`/plandetail/${planId}`)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <ArrowLeft size={16} /> Back to Plan
-        </button>
-      </div>
+      <button
+        className="vp-back"
+        onClick={() => navigate(`/plandetail/${planId}`)}
+      >
+        <ArrowLeft size={16} /> Back to Plan
+      </button>
 
       {/* Header */}
-      <div className="container-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ClipboardList /> <span>Start Observation Run</span>
+      <div className="vp-card">
+        <div className="vp-card-header">
+          <h2><ClipboardList style={{ verticalAlign: 'middle', marginRight: 8 }} /> Start Observation Run</h2>
+        </div>
       </div>
 
-      {loading && <div className="stat-card" style={{ marginTop: 12 }}>Loading plan details…</div>}
-      {error && <div className="stat-card" style={{ marginTop: 12, borderColor: 'red' }}>{error}</div>}
+      {loading && <div className="vp-loading">Loading plan details…</div>}
+      {error && <div className="vp-error-alert">{error}</div>}
 
       {!loading && plan && (
-        <div className="grid" style={{ display: 'grid', gap: 16 }}>
+        <>
           {/* Plan Info */}
-          <section className="stat-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{plan.name}</div>
-                <div style={{ color: '#666', marginTop: 4 }}>
-                  Template: {plan.template_name || `#${plan.template_id}`}
-                </div>
-                {plan.instructions && (
-                  <div style={{ marginTop: 8, fontSize: 14, color: '#374151' }}>
-                    {plan.instructions}
-                  </div>
-                )}
-              </div>
+          <section className="vp-card">
+            <div className="vp-select-card-title" style={{ fontSize: 'var(--font-size-lg)' }}>{plan.name}</div>
+            <div className="vp-select-card-sub" style={{ marginTop: 'var(--space-xs)' }}>
+              Template: {plan.template_name || `#${plan.template_id}`}
             </div>
+            {plan.instructions && (
+              <div className="vp-info-banner" style={{ marginTop: 'var(--space-md)', marginBottom: 0 }}>
+                {plan.instructions}
+              </div>
+            )}
           </section>
 
           {/* Block Selection */}
-          <section className="stat-card">
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <MapPin /> Select Block for Observation
+          <section className="vp-card">
+            <h3 className="vp-section-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <MapPin size={18} /> Select Block for Observation
             </h3>
 
             {availableBlocks.length === 0 && (
-              <div style={{ padding: 16, color: '#777', background: '#f9fafb', borderRadius: 8 }}>
+              <div className="vp-info-banner">
                 No blocks available. Check that the plan has configured targets or your company has blocks.
               </div>
             )}
 
             {availableBlocks.length > 0 && (
-              <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+              <div className="vp-grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                 {availableBlocks.map(block => {
                   const isSelected = String(block.id) === selectedBlockId;
                   const blockConflicts = conflicts.filter(c => c.block_id === block.id);
@@ -252,51 +247,38 @@ export default function RunStart() {
                       key={block.id}
                       type="button"
                       onClick={() => setSelectedBlockId(String(block.id))}
-                      className="btn"
-                      style={{
-                        textAlign: 'left',
-                        padding: 16,
-                        border: isSelected 
-                          ? '2px solid #2563eb' 
-                          : hasBlockConflicts 
-                            ? '2px solid #f59e0b' 
-                            : '1px solid #e5e7eb',
-                        borderRadius: 12,
-                        background: isSelected 
-                          ? '#eff6ff' 
-                          : hasBlockConflicts 
-                            ? '#fffbeb' 
-                            : '#fff',
-                        cursor: 'pointer',
-                        position: 'relative'
-                      }}
+                      className={`vp-select-card${isSelected ? ' selected' : ''}${hasBlockConflicts && !isSelected ? ' vp-select-card--warning' : ''}`}
+                      style={hasBlockConflicts && !isSelected ? {
+                        borderColor: 'var(--color-warning)',
+                        background: 'var(--color-warning-bg)'
+                      } : undefined}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, marginBottom: 4 }}>{block.name}</div>
+                        <div style={{ flex: 1, textAlign: 'left' }}>
+                          <div className="vp-select-card-title">{block.name}</div>
                           {block.variety && (
-                            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+                            <div className="vp-select-card-sub">
                               Variety: {block.variety}
                             </div>
                           )}
                           {block.rowLabels?.length > 0 && (
-                            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+                            <div className="vp-select-card-sub">
                               Rows: {block.rowLabels.join(' - ')}
                             </div>
                           )}
                           {block.sampleSize > 1 && (
-                            <div style={{ fontSize: 13, color: '#6b7280' }}>
+                            <div className="vp-select-card-sub">
                               Target spots: {block.sampleSize}
                             </div>
                           )}
                         </div>
-                        
-                        {isSelected && <CheckCircle size={20} color="#2563eb" />}
-                        {hasBlockConflicts && !isSelected && <AlertTriangle size={20} color="#f59e0b" />}
+
+                        {isSelected && <CheckCircle size={20} style={{ color: 'var(--color-primary)' }} />}
+                        {hasBlockConflicts && !isSelected && <AlertTriangle size={20} style={{ color: 'var(--color-warning)' }} />}
                       </div>
 
                       {hasBlockConflicts && (
-                        <div style={{ marginTop: 8, fontSize: 12, color: '#92400e' }}>
+                        <div className="vp-badge--warning" style={{ marginTop: 'var(--space-sm)', fontSize: 'var(--font-size-xs)' }}>
                           {blockConflicts.length} active run{blockConflicts.length === 1 ? '' : 's'} on this block
                         </div>
                       )}
@@ -309,72 +291,63 @@ export default function RunStart() {
 
           {/* Conflicts Warning */}
           {hasConflicts && selectedBlockId && (
-            <section className="stat-card" style={{ border: '1px solid #f59e0b', background: '#fffbeb' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <AlertTriangle size={20} color="#f59e0b" style={{ marginTop: 2 }} />
+            <section className="vp-card" style={{ border: '1px solid var(--color-warning)', background: 'var(--color-warning-bg)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-md)' }}>
+                <AlertTriangle size={20} style={{ color: 'var(--color-warning)', marginTop: 2 }} />
                 <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 8px 0', color: '#92400e' }}>
+                  <h4 className="vp-section-title" style={{ color: 'var(--color-warning)' }}>
                     Active Run Conflicts ({conflicts.length})
                   </h4>
-                  <div style={{ fontSize: 14, color: '#92400e', marginBottom: 12 }}>
+                  <div className="vp-warning-banner" style={{ marginBottom: 'var(--space-md)' }}>
                     The following runs are active on the selected block and may conflict:
                   </div>
-                  
-                  <div style={{ display: 'grid', gap: 8 }}>
+
+                  <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
                     {conflicts.map(run => (
-                      <div 
-                        key={run.id} 
-                        style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
+                      <div
+                        key={run.id}
+                        className="vp-info-row"
+                        style={{
+                          justifyContent: 'space-between',
                           alignItems: 'center',
-                          padding: 12,
-                          background: '#fff',
-                          border: '1px solid #fed7aa',
-                          borderRadius: 8
+                          padding: 'var(--space-md)',
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-warning-bg)',
+                          borderRadius: 'var(--radius-md)'
                         }}
                       >
                         <div>
-                          <div style={{ fontWeight: 500 }}>Run #{run.id}</div>
-                          <div style={{ fontSize: 13, color: '#6b7280' }}>
+                          <div className="vp-select-card-title" style={{ fontSize: 'var(--font-size-base)' }}>Run #{run.id}</div>
+                          <div className="vp-select-card-sub">
                             {run.plan_name && `Plan: ${run.plan_name} • `}
                             {run.creator_name && `By: ${run.creator_name} • `}
                             Started: {new Date(run.created_at).toLocaleDateString()}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
                           <button
-                            className="btn"
+                            className="btn-ghost"
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate(`/observations/runcapture/${run.id}`);
                             }}
-                            style={{ 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: 4,
-                              padding: '4px 8px',
-                              fontSize: 12,
-                              background: '#e0f2fe'
-                            }}
+                            style={{ padding: 'var(--space-xs) var(--space-sm)', fontSize: 'var(--font-size-xs)' }}
                           >
                             <ExternalLink size={12} /> View
                           </button>
                           <button
-                            className="btn"
+                            className="btn-ghost"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleCancelConflictRun(run.id);
                             }}
                             disabled={busy}
-                            style={{ 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: 4,
-                              padding: '4px 8px',
-                              fontSize: 12,
-                              background: '#fee2e2',
-                              color: '#7f1d1d'
+                            style={{
+                              padding: 'var(--space-xs) var(--space-sm)',
+                              fontSize: 'var(--font-size-xs)',
+                              background: 'var(--color-danger-bg)',
+                              color: 'var(--color-danger)',
+                              borderColor: 'var(--color-danger)'
                             }}
                           >
                             <X size={12} /> Cancel
@@ -389,8 +362,8 @@ export default function RunStart() {
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 14, color: '#6b7280' }}>
+          <div className="vp-actions vp-actions--spread" style={{ alignItems: 'center' }}>
+            <div className="vp-select-card-sub">
               {selectedBlockId ? (
                 hasConflicts ? (
                   `Selected: ${blockMap.get(selectedBlockId)} (${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'})`
@@ -401,36 +374,26 @@ export default function RunStart() {
                 'Select a block to continue'
               )}
             </div>
-            
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button 
-                className="btn" 
+
+            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+              <button
+                className="btn-ghost"
                 onClick={() => navigate(`/plandetail/${planId}`)}
-                style={{ padding: '8px 16px', background: '#f3f4f6' }}
               >
                 Cancel
               </button>
-              <button 
-                className="btn" 
+              <button
+                className="btn-primary"
                 disabled={!canStart}
                 onClick={() => startRun()}
-                style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: 6,
-                  padding: '8px 16px',
-                  background: canStart ? '#2563eb' : '#9ca3af', 
-                  color: '#fff' 
-                }}
+                style={!canStart ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                <PlayCircle size={16} /> 
+                <PlayCircle size={16} />
                 {busy ? 'Starting...' : 'Start Run'}
               </button>
             </div>
           </div>
-
-          <MobileNavigation />
-        </div>
+        </>
       )}
     </div>
   );

@@ -1109,23 +1109,23 @@ This should be introduced incrementally — start with block CRUD endpoints, the
 
 ---
 
-## NEXT KEY STEPS (Updated 2026-03-13)
+## NEXT KEY STEPS (Updated 2026-03-20)
 
 ### Immediate (Before next feature work)
 
-1. **Stub the 3 missing blockchain methods** — Prevents `AttributeError` crash when `transfer_management()` is called. Even placeholder implementations (log + no-op) are safer than missing methods. **Estimate: S (< 1 day)**
+1. ~~**Stub the 3 missing blockchain methods**~~ — **DONE.** All three (`get_current_season`, `archive_chain_for_season`, `handle_company_reassignment`) are fully implemented in `blockchain_service.py`.
 
-2. **Run backfill migration (004)** — Create default properties from existing company/block groupings, backfill `property_id` on all existing blocks. Required before property-based access works in production. **Estimate: S**
+2. **Run backfill migration (004)** — Create default properties from existing company/block groupings, backfill `property_id` on all existing blocks. Deferred — no real users yet, only test data. **Estimate: S**
 
 3. **Company creation UX fixes** — Email not sending on user creation, password not working. Investigate email service integration and password hash flow in admin create endpoints. **Estimate: M (1-2 days)**
 
-### Short-term (Phase A completion)
+### Short-term (Phase B-C entry)
 
-4. **Create `verify_block_access()` helper** — Unified block access check supporting both `company_id` and `property_id` paths. Wire into block CRUD endpoints first. **Estimate: M (1-3 days)**
+4. ~~**Create `verify_block_access()` helper**~~ — **DONE (2026-03-20).** Unified access helper in `property_service.py` supporting `company_id` and `property_id` paths with admin bypass and owner read-only guard.
 
 5. **Maps V2 admin tab** — Third tab (auxein_admin only) showing ALL blocks and land parcels within map bounds. Enables bulk assignment of blocks to properties and parcels to companies without navigating away from the map. **Estimate: L (3-5 days)**
 
-6. **Wire owner read-only enforcement** — `is_owner_viewing()` exists but isn't enforced on write endpoints. Add 403 responses on POST/PATCH/DELETE for owner-viewing users across block, task, observation routes. **Estimate: M (2-3 days)**
+6. ~~**Wire owner read-only enforcement**~~ — **DONE (2026-03-20).** A11 enforced on blocks (all writes), tasks (create/update/delete), and observations (plan create/update, run create) via `check_owner_readonly` helpers.
 
 ### Medium-term (Phase B-C)
 
@@ -1139,19 +1139,24 @@ This should be introduced incrementally — start with block CRUD endpoints, the
 
 | Item | Status |
 |------|--------|
-| A1. Fix Phase 2.5 bugs | 2 of 5 FIXED (company_manager 403, userTypeRole persistence) |
+| A1. Fix Phase 2.5 bugs | **5 of 5 RESOLVED** — Bugs 1,3 fixed (commits), Bug 2 verified fixed (permissions gated), Bug 4 verified fixed (method exists), Bug 5 non-issue (frontend uses useAuth context) |
 | A2. Migration 001: properties table | DONE (combined migration) |
 | A3. Migration 002: management_relationships table | DONE (combined migration) |
 | A4. Migration 003: property_id on vineyard_blocks | DONE (combined migration) |
-| A5. Migration 004: backfill properties | NOT YET RUN |
+| A5. Migration 004: backfill properties | DEFERRED — no real users, test data only |
 | A6. Migration 005: user_property_scopes table | DONE (combined migration) |
-| A7. Migration 006: GrapeLink fields on properties | NOT STARTED |
+| A7. Migration 006: GrapeLink fields on properties | DONE — fields on Property model (grapelink_grower_id, grapelink_property_code) |
 | A8. Property model + schema + CRUD endpoints | DONE |
-| A9. ManagementRelationship model + schema + endpoints | DONE (model+service), endpoints partial |
-| A10. UserPropertyScope model + schema + endpoints | DONE (model+service), no frontend UI |
-| A11. Owner read-only access logic | PARTIAL — `is_owner_viewing()` implemented, not enforced on routes |
-| A12. company_id sync on management transfer + blockchain event | PARTIAL — sync implemented in `management_service.py`, blockchain methods missing |
+| A9. ManagementRelationship model + schema + endpoints | DONE |
+| A10. UserPropertyScope model + schema + endpoints | DONE (model+service+endpoints), no frontend UI |
+| A11. Owner read-only access logic | **DONE (2026-03-20)** — enforced on blocks, tasks, observations write endpoints |
+| A12. company_id sync on management transfer + blockchain event | **DONE** — `transfer_management()` + all 3 blockchain methods fully implemented |
 | A13. Update block endpoints to accept/filter property_id | DONE — create/update accept property_id, responses include it |
-| **NEW: Admin UX Redesign** | DONE — standalone /admin page, property management, contractor registry |
-| **NEW: Maps V2 property integration** | DONE — property dropdown in block forms, PropertiesPanel sidebar |
-| **NEW: auxein_admin global block visibility** | DONE — admin sees all blocks across companies |
+| A14. `verify_block_access()` unified helper | **DONE (2026-03-20)** — `property_service.py`, supports company_id + property_id + admin bypass + owner read-only |
+| Admin UX Redesign | DONE — standalone /admin page, property management, contractor registry |
+| Maps V2 property integration | DONE — property dropdown in block forms, PropertiesPanel sidebar, flyover scaffolding |
+| auxein_admin global block visibility | DONE — admin sees all blocks across companies |
+
+### Phase A Gate Status
+
+Phase A is **functionally complete**. Remaining items (backfill migration, company creation UX, Maps V2 admin tab) are deferred or non-blocking for Phase B/C entry. The Phase A test gate can be run once test data is populated.

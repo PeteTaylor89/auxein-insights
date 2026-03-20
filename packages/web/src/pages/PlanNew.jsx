@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { 
-  ClipboardList, 
-  ArrowLeft, 
-  MapPin, 
-  Target, 
+import {
+  ClipboardList,
+  ArrowLeft,
+  MapPin,
+  Target,
   PlayCircle
 } from 'lucide-react';
 import { observationService, authService, blocksService } from '@vineyard/shared';
-import MobileNavigation from '../components/MobileNavigation';
 import TemplateUsageWarning from '../components/TemplateUsageWarning';
+import './vineyard-pages.css';
 
 const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.results ?? v?.data ?? []);
 
@@ -58,12 +58,12 @@ export default function PlanNew() {
         ]);
 
         if (!mounted) return;
-        
+
         setTemplates(asArray(tplRes));
         setBlocks(asArray(blkRes));
 
-        console.log('Loaded data:', { 
-          templates: asArray(tplRes).length, 
+        console.log('Loaded data:', {
+          templates: asArray(tplRes).length,
           blocks: asArray(blkRes).length
         });
 
@@ -90,13 +90,13 @@ export default function PlanNew() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!templateId) { 
-        setTemplate(null); 
+      if (!templateId) {
+        setTemplate(null);
         setTemplateUsage(null);
         setShowUsageWarning(false);
-        return; 
+        return;
       }
-      
+
       const known = templates.find(t => String(t.id) === String(templateId));
       if (known?.schema || known?.fields_json) {
         setTemplate(known);
@@ -117,7 +117,7 @@ export default function PlanNew() {
           setCheckingUsage(true);
           const usage = await observationService.checkTemplateUsage(templateId, companyId);
           if (!mounted) return;
-          
+
           setTemplateUsage(usage);
           setShowUsageWarning(usage?.suggestion?.show_warning || false);
         } catch (e) {
@@ -170,7 +170,7 @@ export default function PlanNew() {
 
   const submit = async (startNow = false) => {
     if (!canSubmit) return;
-    
+
     try {
       setBusy(true);
       setError(null);
@@ -188,7 +188,7 @@ export default function PlanNew() {
 
       const res = await observationService.createPlan(payload);
       const planId = res?.id || res?.plan_id;
-      
+
       if (planId) {
         navigate(`/plandetail/${planId}`, { replace: true });
       } else {
@@ -217,15 +217,8 @@ export default function PlanNew() {
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc',
-        paddingTop: '70px'
-      }}>
-        <div style={{ textAlign: 'center' }}>
+      <div className="vp-page">
+        <div className="vp-loading">
           <h2>Loading...</h2>
         </div>
       </div>
@@ -233,154 +226,79 @@ export default function PlanNew() {
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#f8fafc',
-      paddingTop: '70px',
-      paddingBottom: '80px'
-    }}>
-      <div style={{ 
-        maxWidth: '1400px', 
-        margin: '0 auto', 
-        padding: '1rem' 
-      }}>
-        
+    <div className="vp-page">
+      <div className="page-container">
+
         {/* Back button */}
-        <div style={{ marginBottom: '1rem' }}>
-          <button
-            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              background: '#f3f4f6',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}
-          >
-            <ArrowLeft size={16} /> Back
-          </button>
-        </div>
+        <button
+          className="vp-back"
+          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/observations'))}
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
 
         {/* Header */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h1 style={{ 
-            margin: 0, 
-            fontSize: '1.5rem', 
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <ClipboardList size={24} /> New Observation Plan
-          </h1>
+        <div className="vp-card">
+          <div className="vp-card-header">
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <ClipboardList size={24} /> New Observation Plan
+            </h1>
+          </div>
         </div>
 
         {error && (
-          <div style={{ 
-            background: '#fef2f2',
-            border: '1px solid #fca5a5',
-            borderRadius: '12px',
-            padding: '1rem',
-            marginBottom: '1.5rem',
-            color: '#dc2626'
-          }}>
+          <div className="vp-error-alert">
             {error}
           </div>
         )}
 
         {/* Plan Details */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 1rem 0', 
-            fontSize: '1rem', 
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+        <div className="vp-card">
+          <h3 className="vp-section-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <Target size={18} /> Plan Details
           </h3>
-          
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            <label>
-              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
-                Plan Name
-              </div>
-              <input
-                placeholder="e.g. Phenology tracking — Block A"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem'
-                }}
-              />
-            </label>
 
-            <label>
-              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
-                Instructions / Description
-              </div>
-              <textarea 
-                rows={3} 
-                value={instructions} 
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Any special instructions for this observation plan..."
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  fontFamily: 'inherit'
-                }}
-              />
+          <div className="vp-form-group">
+            <label className="vp-label">
+              Plan Name
             </label>
+            <input
+              className="vp-input"
+              placeholder="e.g. Phenology tracking — Block A"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
 
-            <label>
-              <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
-                Template {checkingUsage && <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>(checking for existing plans...)</span>}
-              </div>
-              <select
-                value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  background: 'white'
-                }}
-              >
-                <option value="">— Select a template —</option>
-                {templates.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t?.name || t?.observation_type || `Template #${t.id}`}
-                  </option>
-                ))}
-              </select>
+          <div className="vp-form-group">
+            <label className="vp-label">
+              Instructions / Description
             </label>
+            <textarea
+              className="vp-textarea"
+              rows={3}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Any special instructions for this observation plan..."
+            />
+          </div>
+
+          <div className="vp-form-group">
+            <label className="vp-label">
+              Template {checkingUsage && <span className="vp-hint">(checking for existing plans...)</span>}
+            </label>
+            <select
+              className="vp-select"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+            >
+              <option value="">— Select a template —</option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t?.name || t?.observation_type || `Template #${t.id}`}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Template usage warning */}
@@ -395,58 +313,34 @@ export default function PlanNew() {
         </div>
 
         {/* Targets (Blocks) */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: '1rem', 
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
+        <div className="vp-card">
+          <div className="vp-card-header">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
               <MapPin size={18} /> Targets (Blocks)
-            </h3>
-            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+            </h2>
+            <span className="vp-hint">
               Select blocks and configure observation details
-            </div>
+            </span>
           </div>
 
           {blocks.length === 0 && (
-            <div style={{ 
-              padding: '2rem', 
-              color: '#6b7280', 
-              background: '#f8fafc', 
-              borderRadius: '8px',
-              textAlign: 'center',
-              fontStyle: 'italic'
-            }}>
+            <div className="vp-empty">
               No blocks found for your company. Check that blocks are properly configured.
             </div>
           )}
 
           {blocks.length > 0 && (
             <>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ 
-                  width: '100%', 
-                  borderCollapse: 'collapse',
-                  fontSize: '0.875rem'
-                }}>
+              <div className="vp-table-wrap">
+                <table className="vp-table">
                   <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Select</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Block Name</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Variety</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Row Start</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Row End</th>
-                      <th style={{ padding: 12, textAlign: 'left', fontWeight: '600', color: '#374151', width: 100 }}>Spots</th>
+                    <tr>
+                      <th>Select</th>
+                      <th>Block Name</th>
+                      <th>Variety</th>
+                      <th style={{ width: 100 }}>Row Start</th>
+                      <th style={{ width: 100 }}>Row End</th>
+                      <th style={{ width: 100 }}>Spots</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -457,81 +351,55 @@ export default function PlanNew() {
                       const displayVariety = b.variety ?? b.variety_name ?? b.cultivar ?? b.clone ?? '';
 
                       return (
-                        <tr 
-                          key={bid} 
-                          style={{ 
-                            borderBottom: '1px solid #f3f4f6',
-                            background: target.selected ? '#f0f9ff' : 'transparent'
-                          }}
-                          onMouseEnter={(e) => !target.selected && (e.target.closest('tr').style.background = '#f8fafc')}
-                          onMouseLeave={(e) => !target.selected && (e.target.closest('tr').style.background = 'transparent')}
+                        <tr
+                          key={bid}
+                          className={target.selected ? 'selected' : ''}
+                          style={target.selected ? { background: 'var(--color-olive-light)' } : undefined}
                         >
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
                               type="checkbox"
                               checked={target.selected}
                               onChange={() => toggleBlock(bid)}
-                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                             />
                           </td>
-                          <td style={{ padding: 12, fontWeight: target.selected ? '600' : '400' }}>
+                          <td className={target.selected ? 'bold' : ''}>
                             {displayName}
                           </td>
-                          <td style={{ padding: 12, color: '#6b7280' }}>
+                          <td style={{ color: 'var(--color-text-muted)' }}>
                             {displayVariety || '—'}
                           </td>
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
+                              className="vp-input"
                               type="text"
                               placeholder="1"
                               value={target.rowStart}
                               onChange={(e) => updateBlockTarget(bid, 'rowStart', e.target.value)}
                               disabled={!target.selected}
-                              style={{
-                                width: 80,
-                                padding: '0.375rem 0.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: target.selected ? '#fff' : '#f9fafb',
-                                opacity: target.selected ? 1 : 0.6,
-                                fontSize: '0.813rem'
-                              }}
+                              style={{ opacity: target.selected ? 1 : 0.6 }}
                             />
                           </td>
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
+                              className="vp-input"
                               type="text"
                               placeholder="10"
                               value={target.rowEnd}
                               onChange={(e) => updateBlockTarget(bid, 'rowEnd', e.target.value)}
                               disabled={!target.selected}
-                              style={{
-                                width: 80,
-                                padding: '0.375rem 0.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: target.selected ? '#fff' : '#f9fafb',
-                                opacity: target.selected ? 1 : 0.6,
-                                fontSize: '0.813rem'
-                              }}
+                              style={{ opacity: target.selected ? 1 : 0.6 }}
                             />
                           </td>
-                          <td style={{ padding: 12 }}>
+                          <td>
                             <input
+                              className="vp-input"
                               type="number"
                               min="1"
                               value={target.spots}
                               onChange={(e) => updateBlockTarget(bid, 'spots', e.target.value)}
                               disabled={!target.selected}
-                              style={{
-                                width: 80,
-                                padding: '0.375rem 0.5rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: target.selected ? '#fff' : '#f9fafb',
-                                opacity: target.selected ? 1 : 0.6,
-                                fontSize: '0.813rem'
-                              }}
+                              style={{ opacity: target.selected ? 1 : 0.6 }}
                             />
                           </td>
                         </tr>
@@ -542,17 +410,11 @@ export default function PlanNew() {
               </div>
 
               {getSelectedTargets().length > 0 && (
-                <div style={{ 
-                  marginTop: '1rem', 
-                  padding: '0.75rem', 
-                  background: '#f0f9ff', 
-                  borderRadius: '8px', 
-                  border: '1px solid #bfdbfe' 
-                }}>
-                  <div style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: '#1e40af' }}>
+                <div className="vp-info-banner" style={{ marginTop: 'var(--space-base)' }}>
+                  <div style={{ fontWeight: '600', marginBottom: 'var(--space-xs)', color: 'var(--color-info)' }}>
                     Summary:
                   </div>
-                  <div style={{ fontSize: '0.813rem', color: '#374151' }}>
+                  <div>
                     {getSelectedTargets().length} block{getSelectedTargets().length === 1 ? '' : 's'} selected, {' '}
                     {getSelectedTargets().reduce((sum, t) => sum + t.required_spots, 0)} total observation spots per run
                   </div>
@@ -564,48 +426,36 @@ export default function PlanNew() {
 
         {/* Template Fields Preview */}
         {template && (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
-                {template.name} : Template Fields
-              </h3>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          <div className="vp-card">
+            <div className="vp-card-header">
+              <h2>{template.name} : Template Fields</h2>
+              <span className="vp-hint">
                 {fields.length} field{fields.length === 1 ? '' : 's'}
-              </div>
+              </span>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse',
-                fontSize: '0.875rem'
-              }}>
+            <div className="vp-table-wrap">
+              <table className="vp-table">
                 <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Label</th>
-                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Name</th>
-                    <th style={{ padding: 10, textAlign: 'left', fontWeight: '600', color: '#374151' }}>Required</th>
+                  <tr>
+                    <th>Label</th>
+                    <th>Name</th>
+                    <th>Required</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fields.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: 20, color: '#6b7280', textAlign: 'center', fontStyle: 'italic' }}>
+                      <td colSpan={3} className="vp-empty">
                         No fields defined.
                       </td>
                     </tr>
                   )}
                   {fields.map((f, i) => (
-                    <tr key={f.name ?? i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: 10, fontWeight: '500' }}>{f.label || '—'}</td>
-                      <td style={{ padding: 10 }}>{f.name || '—'}</td>
-                      <td style={{ padding: 10 }}>{f.required ? 'Yes' : 'No'}</td>
+                    <tr key={f.name ?? i}>
+                      <td className="bold">{f.label || '—'}</td>
+                      <td>{f.name || '—'}</td>
+                      <td>{f.required ? 'Yes' : 'No'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -615,50 +465,23 @@ export default function PlanNew() {
         )}
 
         {/* Actions */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '0.75rem', 
-          justifyContent: 'flex-end',
-          marginBottom: '1.5rem'
-        }}>
-          <button 
-            disabled={!canSubmit || busy} 
-            onClick={() => submit(false)} 
-            style={{ 
-              padding: '0.5rem 1rem', 
-              borderRadius: '6px', 
-              background: canSubmit && !busy ? '#6b7280' : '#9ca3af', 
-              color: '#fff',
-              border: 'none',
-              cursor: canSubmit && !busy ? 'pointer' : 'not-allowed',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}
+        <div className="vp-actions">
+          <button
+            className="btn-ghost"
+            disabled={!canSubmit || busy}
+            onClick={() => submit(false)}
           >
             Create Plan
           </button>
-          <button 
-            disabled={!canSubmit || busy} 
-            onClick={() => submit(true)} 
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              padding: '0.5rem 1rem', 
-              borderRadius: '6px', 
-              background: canSubmit && !busy ? '#3b82f6' : '#9ca3af', 
-              color: '#fff',
-              border: 'none',
-              cursor: canSubmit && !busy ? 'pointer' : 'not-allowed',
-              fontSize: '0.875rem',
-              fontWeight: '500'
-            }}
+          <button
+            className="btn-primary"
+            disabled={!canSubmit || busy}
+            onClick={() => submit(true)}
           >
             <PlayCircle size={16}/> Create & Start Now
           </button>
         </div>
 
-        <MobileNavigation />
       </div>
     </div>
   );

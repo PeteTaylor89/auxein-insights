@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports
 from core.config import settings
 import logging
 import traceback
@@ -376,6 +376,18 @@ app.include_router(
     contractor_management.router,
     prefix="/api/v1/contractor-management",
     tags=["contractor-management"]
+)
+
+app.include_router(
+    calendar.router,
+    prefix="/api/v1/calendar",
+    tags=["calendar"]
+)
+
+app.include_router(
+    reports.router,
+    prefix="/api/v1/reports",
+    tags=["reports"]
 )
 
 # Mount uploads directory for serving uploaded images

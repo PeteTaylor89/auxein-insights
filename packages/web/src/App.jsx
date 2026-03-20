@@ -35,9 +35,14 @@ import AssetsDashboard from './pages/AssetsDashboard';
 import AssetForm from './pages/AssetForm';
 import ConsumableForm from './pages/ConsumableForm';
 import ContractorManagement from './pages/ContractorManagement';
+import Notifications from './pages/Notifications';
+import Calendar from './pages/Calendar';
+import Reports from './pages/Reports';
+import QuickObservation from './pages/QuickObservation';
 
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
 import TaskCreationWizard from './pages/TaskCreationWizard';
+import TaskQuickCreate from './pages/TaskQuickCreate';
 
 // Lazy-load Maps V2 so any module error won't crash the rest of the app
 const MapsPageV2 = lazy(() => import('./pages/maps-v2/MapsPage'));
@@ -89,6 +94,24 @@ function AppRoutes() {
         <Route path="/profile" element={
           <ProtectedRoute>
             <Profile />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <Notifications />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/calendar" element={
+          <ProtectedRoute>
+            <Calendar />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/reports" element={
+          <ProtectedRoute>
+            <Reports />
           </ProtectedRoute>
         } />
 
@@ -219,6 +242,12 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        <Route path="/observations/quick" element={
+          <ProtectedRoute>
+            <QuickObservation />
+          </ProtectedRoute>
+        } />
+
         <Route path="/observations/adhoc" element={
           <ProtectedRoute>
             <AdhocObservationCreate  />
@@ -269,13 +298,19 @@ function AppRoutes() {
 
         <Route path="/tasks/new" element={
           <ProtectedRoute>
-            <TaskCreationWizard  />
+            <TaskQuickCreate />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks/new/advanced" element={
+          <ProtectedRoute>
+            <TaskCreationWizard />
           </ProtectedRoute>
         } />
 
         <Route path="/tasks/create" element={
           <ProtectedRoute>
-            <TaskCreationWizard  />
+            <TaskCreationWizard />
           </ProtectedRoute>
         } />
 
