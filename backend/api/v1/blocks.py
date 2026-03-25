@@ -9,7 +9,7 @@ from api.deps import get_db, get_current_user
 from db.models.user import User
 from db.models.block import VineyardBlock
 from schemas.block import Block, BlockCreate, BlockUpdate
-from services.property_service import get_visible_property_ids, is_owner_viewing
+from services.property_service import get_visible_property_ids
 import logging
 from datetime import datetime
 from services.blockchain_service import BlockchainService
@@ -225,13 +225,6 @@ def update_block_data(
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
 
-    # A11: Owner read-only check
-    if block.property_id and is_owner_viewing(db, current_user, block.property_id):
-        raise HTTPException(
-            status_code=403,
-            detail="This property is under external management. Contact the managing company to make changes."
-        )
-
     # Access check: visible properties or company match
     visible_ids = get_visible_property_ids(db, current_user)
     if block.property_id and block.property_id not in visible_ids:
@@ -343,14 +336,6 @@ def create_block_with_polygon(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # A11: Owner read-only check
-        if hasattr(block_data, 'property_id') and block_data.property_id:
-            if is_owner_viewing(db, current_user, block_data.property_id):
-                raise HTTPException(
-                    status_code=403,
-                    detail="This property is under external management. Contact the managing company to make changes."
-                )
-
         # Extract geometry data before creating model instance
         geometry_data = block_data.dict().pop("geometry", None)
 
@@ -606,13 +591,6 @@ def split_block(
     if not original_block:
         raise HTTPException(status_code=404, detail="Block not found")
 
-    # A11: Owner read-only check
-    if original_block.property_id and is_owner_viewing(db, current_user, original_block.property_id):
-        raise HTTPException(
-            status_code=403,
-            detail="This property is under external management. Contact the managing company to make changes."
-        )
-
     # Check permissions (allow same-company, visible property, or admin)
     is_admin = current_user.user_type == "auxein_admin"
     visible_ids = get_visible_property_ids(db, current_user)
@@ -751,13 +729,6 @@ def update_block_geometry(
     block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")
-
-    # A11: Owner read-only check
-    if block.property_id and is_owner_viewing(db, current_user, block.property_id):
-        raise HTTPException(
-            status_code=403,
-            detail="This property is under external management. Contact the managing company to make changes."
-        )
 
     # Permissions: visible property, same-company, or admin
     is_admin = current_user.user_type == "auxein_admin"

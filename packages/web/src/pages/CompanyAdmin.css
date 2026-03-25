@@ -1,0 +1,728 @@
+/* CompanyAdmin.css — Company admin management page */
+
+.ca-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+  overflow-x: hidden;
+}
+
+.ca-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ca-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.ca-title-row svg {
+  color: var(--color-primary);
+}
+
+/* Tabs */
+.ca-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ca-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-olive-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.ca-tab:hover {
+  color: var(--color-text);
+  background: var(--color-surface-warm);
+  border-color: var(--color-primary);
+}
+
+.ca-tab.active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* Content area */
+.ca-content {
+  min-height: 300px;
+}
+
+.ca-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.ca-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.ca-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.ca-section-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.ca-hint {
+  font-style: italic;
+}
+
+.ca-loading {
+  color: var(--color-text-muted);
+  padding: var(--space-lg);
+  text-align: center;
+}
+
+.ca-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: var(--space-md);
+}
+
+/* Stats grid — reuses stat-card from design system */
+.ca-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-md);
+}
+
+/* Tables */
+.ca-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.ca-table th {
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ca-table td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border-light, var(--color-border));
+}
+
+.ca-table tbody tr:hover {
+  background: var(--color-surface-hover, rgba(0, 0, 0, 0.02));
+}
+
+.ca-mono {
+  font-family: monospace;
+  font-size: var(--font-size-xs);
+}
+
+.ca-muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Scope table (users x properties matrix) */
+.ca-scope-table-wrap {
+  overflow-x: auto;
+}
+
+.ca-scope-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.ca-scope-table th,
+.ca-scope-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.ca-scope-table th:first-child,
+.ca-scope-table td:first-child,
+.ca-scope-table th:nth-child(2),
+.ca-scope-table td:nth-child(2) {
+  text-align: left;
+}
+
+.ca-scope-prop-header {
+  font-size: var(--font-size-xs);
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  height: 80px;
+  vertical-align: bottom;
+}
+
+.ca-scope-user {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ca-scope-role {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: capitalize;
+}
+
+.ca-scope-cell {
+  width: 40px;
+}
+
+.ca-scope-check {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ca-scope-check:hover {
+  border-color: var(--color-primary);
+}
+
+.ca-scope-check.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.ca-scope-check.default-all {
+  background: var(--color-surface);
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+.ca-scope-all {
+  color: var(--color-text-muted);
+}
+
+/* Buttons */
+.ca-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ca-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.ca-btn-icon {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.ca-btn-icon:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.ca-link-row {
+  display: flex;
+  gap: var(--space-md);
+  padding-top: var(--space-sm);
+}
+
+.ca-link-btn {
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.ca-link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Alias form */
+.ca-alias-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.ca-alias-form select,
+.ca-alias-form input {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  min-width: 120px;
+}
+
+.ca-alias-form select:focus,
+.ca-alias-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Calendar feed */
+.ca-feed-url-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.ca-feed-url {
+  flex: 1;
+  font-size: var(--font-size-xs);
+  word-break: break-all;
+  color: var(--color-text);
+}
+
+.ca-instructions {
+  padding-top: var(--space-md);
+}
+
+.ca-instructions h3 {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  margin: 0 0 var(--space-sm);
+}
+
+.ca-instructions ul {
+  list-style: disc;
+  padding-left: var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.ca-instructions li {
+  margin-bottom: var(--space-xs);
+}
+
+/* ============================================================================
+   Override CompanyUserManagement & InvitationForm inline styles
+   to align with Auxein corporate design system (olive/terracotta/sand/charcoal)
+   ============================================================================ */
+
+/* --- CompanyUserManagement overrides --- */
+
+.ca-content .company-user-management h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0 0 var(--space-xs);
+}
+
+.ca-content .company-user-management p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-md);
+}
+
+.ca-content .company-user-management .filters {
+  background: var(--color-surface-warm) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-base) !important;
+  gap: var(--space-md) !important;
+  border: 1px solid var(--color-olive-border);
+}
+
+.ca-content .company-user-management .filter-group label {
+  color: var(--color-text) !important;
+  font-size: var(--font-size-sm) !important;
+  font-weight: 500 !important;
+}
+
+.ca-content .company-user-management .filter-group input,
+.ca-content .company-user-management .filter-group select {
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size-sm) !important;
+  padding: var(--space-xs) var(--space-sm) !important;
+}
+
+.ca-content .company-user-management .filter-group input:focus,
+.ca-content .company-user-management .filter-group select:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: none !important;
+}
+
+.ca-content .company-user-management .refresh-button {
+  background: var(--color-primary) !important;
+  border-radius: var(--radius-sm) !important;
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+.ca-content .company-user-management .refresh-button:hover {
+  background: var(--color-primary-hover) !important;
+}
+
+.ca-content .company-user-management .users-table-container {
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--color-border);
+}
+
+.ca-content .company-user-management .users-table th {
+  background: var(--color-surface-warm) !important;
+  color: var(--color-text-muted) !important;
+  font-size: var(--font-size-sm) !important;
+  font-weight: 500 !important;
+  border-bottom: 2px solid var(--color-border) !important;
+}
+
+.ca-content .company-user-management .users-table td {
+  border-bottom: 1px solid var(--color-border) !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+.ca-content .company-user-management .users-table tr:hover {
+  background: var(--color-olive-light) !important;
+}
+
+.ca-content .company-user-management .user-info .user-name {
+  color: var(--color-text) !important;
+  font-weight: 600;
+}
+
+.ca-content .company-user-management .user-info .user-details {
+  color: var(--color-text-muted) !important;
+  font-size: var(--font-size-xs) !important;
+}
+
+/* Role badges — design system colours */
+.ca-content .company-user-management .role-badge.admin,
+.ca-content .company-user-management .role-badge.owner {
+  background: var(--color-olive-light) !important;
+  color: var(--color-primary) !important;
+}
+
+.ca-content .company-user-management .role-badge.manager {
+  background: rgba(209, 88, 59, 0.1) !important;
+  color: var(--color-accent) !important;
+}
+
+.ca-content .company-user-management .role-badge.user {
+  background: var(--color-surface-warm) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-olive-border) !important;
+}
+
+.ca-content .company-user-management .role-badge.viewer {
+  background: var(--color-surface-warm) !important;
+  color: var(--color-text-muted) !important;
+}
+
+/* Status badges */
+.ca-content .company-user-management .status-badge.active {
+  background: var(--color-success-bg) !important;
+  color: var(--color-success) !important;
+}
+
+.ca-content .company-user-management .status-badge.suspended,
+.ca-content .company-user-management .status-badge.inactive {
+  background: var(--color-danger-bg) !important;
+  color: var(--color-danger) !important;
+}
+
+.ca-content .company-user-management .status-badge.unverified {
+  background: var(--color-warning-bg) !important;
+  color: var(--color-warning) !important;
+}
+
+/* Action buttons */
+.ca-content .company-user-management .edit-button {
+  background: var(--color-surface-warm) !important;
+  color: var(--color-text) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.ca-content .company-user-management .edit-button:hover {
+  background: var(--color-olive-light) !important;
+}
+
+.ca-content .company-user-management .toggle-button.suspend {
+  background: rgba(209, 88, 59, 0.1) !important;
+  color: var(--color-accent) !important;
+}
+
+.ca-content .company-user-management .toggle-button.unsuspend {
+  background: var(--color-success-bg) !important;
+  color: var(--color-success) !important;
+}
+
+.ca-content .company-user-management .no-users {
+  background: var(--color-surface-warm) !important;
+  color: var(--color-text-muted) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+/* Edit modal overrides */
+.ca-content .modal-overlay .modal-content {
+  border-radius: var(--radius-lg) !important;
+}
+
+.ca-content .modal-overlay .modal-header {
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.ca-content .modal-overlay .modal-header h3 {
+  color: var(--color-primary) !important;
+}
+
+.ca-content .modal-overlay .user-summary {
+  background: var(--color-surface-warm) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.ca-content .modal-overlay .form-group label {
+  color: var(--color-text) !important;
+}
+
+.ca-content .modal-overlay .form-group select {
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.ca-content .modal-overlay .form-group select:focus {
+  border-color: var(--color-primary) !important;
+}
+
+.ca-content .modal-overlay .cancel-button {
+  background: var(--color-surface-warm) !important;
+  color: var(--color-text) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.ca-content .modal-overlay .update-button {
+  background: var(--color-primary) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.ca-content .modal-overlay .update-button:hover:not(:disabled) {
+  background: var(--color-primary-hover) !important;
+}
+
+.ca-content .modal-overlay .update-button:disabled {
+  background: var(--color-text-muted) !important;
+}
+
+/* --- InvitationForm overrides --- */
+
+.ca-content .invitation-form {
+  background: var(--color-surface) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  border: 1px solid var(--color-border);
+  padding: var(--space-lg) !important;
+}
+
+.ca-content .invitation-form h3 {
+  font-size: var(--font-size-lg) !important;
+  font-weight: 600 !important;
+  color: var(--color-primary) !important;
+  margin: 0 0 var(--space-md) !important;
+}
+
+.ca-content .invitation-form .user-limit-info {
+  background: var(--color-surface-warm) !important;
+  border: 1px solid var(--color-olive-border) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.ca-content .invitation-form .user-limit-info p {
+  color: var(--color-text) !important;
+  font-weight: 500;
+}
+
+.ca-content .invitation-form .form-group label {
+  color: var(--color-text) !important;
+  font-size: var(--font-size-sm) !important;
+  font-weight: 500 !important;
+}
+
+.ca-content .invitation-form .form-group input,
+.ca-content .invitation-form .form-group select,
+.ca-content .invitation-form .form-group textarea {
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-sm) !important;
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size-sm) !important;
+  padding: var(--space-xs) var(--space-sm) !important;
+}
+
+.ca-content .invitation-form .form-group input:focus,
+.ca-content .invitation-form .form-group select:focus,
+.ca-content .invitation-form .form-group textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px var(--color-olive-light) !important;
+}
+
+.ca-content .invitation-form .form-group small {
+  color: var(--color-text-muted) !important;
+  font-size: var(--font-size-xs) !important;
+}
+
+.ca-content .invitation-form .send-invitation-button {
+  background: var(--color-primary) !important;
+  border-radius: var(--radius-md) !important;
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size-base) !important;
+  font-weight: 600 !important;
+  padding: var(--space-sm) var(--space-lg) !important;
+}
+
+.ca-content .invitation-form .send-invitation-button:hover:not(:disabled) {
+  background: var(--color-primary-hover) !important;
+  transform: none !important;
+  box-shadow: var(--shadow-hover) !important;
+}
+
+.ca-content .invitation-form .send-invitation-button:disabled {
+  background: var(--color-text-muted) !important;
+}
+
+.ca-content .invitation-form .error-message {
+  background: var(--color-danger-bg) !important;
+  color: var(--color-danger) !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.ca-content .invitation-form .success-message {
+  background: var(--color-success-bg) !important;
+  color: var(--color-success) !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+/* Inline editable inputs in tables */
+.ca-inline-input {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  color: var(--color-text);
+  width: 100%;
+  min-width: 100px;
+  background: var(--color-surface);
+}
+
+.ca-inline-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.ca-inline-input--narrow {
+  width: 100px;
+  min-width: 80px;
+}
+
+.ca-inline-input::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Invitation status badges */
+.ca-invitations-list {
+  margin-top: var(--space-lg);
+}
+
+.ca-inv-status {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.ca-inv-pending {
+  background: var(--color-sand, #FDF6E3);
+  color: var(--color-terracotta, #D1583B);
+}
+
+.ca-inv-accepted {
+  background: #E4F2DC;
+  color: var(--color-olive, #5B6830);
+}
+
+.ca-inv-expired {
+  background: #FBE4DE;
+  color: var(--color-terracotta, #D1583B);
+  opacity: 0.7;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ca-tab span {
+    display: none;
+  }
+
+  .ca-tab {
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .ca-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ca-scope-prop-header {
+    height: 60px;
+  }
+}

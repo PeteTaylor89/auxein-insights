@@ -16,7 +16,7 @@ from schemas.property import (
     ManagementRelationshipCreate, ManagementRelationshipOut,
     UserPropertyScopeCreate, UserPropertyScopeOut,
 )
-from services.property_service import get_visible_property_ids, is_owner_viewing
+from services.property_service import get_visible_property_ids
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -106,15 +106,9 @@ def update_property(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a property. company_admin+ only. 403 if owner viewing."""
+    """Update a property. company_admin+ only."""
     if not current_user.has_permission("properties", "update"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
-
-    if is_owner_viewing(db, current_user, property_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This property is under external management. Contact the managing company to make changes."
-        )
 
     visible_ids = get_visible_property_ids(db, current_user)
     if property_id not in visible_ids:

@@ -8,7 +8,8 @@
     "./api": "./src/api/index.js",
     "./api/*": "./src/api/*",
     "./types": "./src/types/index.js",
-    "./utils": "./src/utils/index.js"
+    "./utils": "./src/utils/index.js",
+    "./utils/*": "./src/utils/*"
   },
   "scripts": {
     "build": "echo 'No build needed for shared package'",

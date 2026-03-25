@@ -43,10 +43,12 @@ import QuickObservation from './pages/QuickObservation';
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
 import TaskCreationWizard from './pages/TaskCreationWizard';
 import TaskQuickCreate from './pages/TaskQuickCreate';
+import TaskDetail from './pages/TaskDetail';
 
 // Lazy-load Maps V2 so any module error won't crash the rest of the app
 const MapsPageV2 = lazy(() => import('./pages/maps-v2/MapsPage'));
 const Admin = lazy(() => import('./pages/Admin'));
+const CompanyAdmin = lazy(() => import('./pages/CompanyAdmin'));
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -133,6 +135,14 @@ function AppRoutes() {
           <ProtectedRoute>
             <Suspense fallback={<div className="loading-screen">Loading...</div>}>
               <Admin />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/company-admin" element={
+          <ProtectedRoute>
+            <Suspense fallback={<div className="loading-screen">Loading...</div>}>
+              <CompanyAdmin />
             </Suspense>
           </ProtectedRoute>
         } />
@@ -311,6 +321,12 @@ function AppRoutes() {
         <Route path="/tasks/create" element={
           <ProtectedRoute>
             <TaskCreationWizard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks/:taskId" element={
+          <ProtectedRoute>
+            <TaskDetail />
           </ProtectedRoute>
         } />
 

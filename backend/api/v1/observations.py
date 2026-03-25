@@ -36,19 +36,6 @@ from db.models.file import File
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 
-from db.models.block import VineyardBlock
-from services.property_service import is_owner_viewing, OWNER_READONLY_MSG
-
-
-def check_owner_readonly_block(db: Session, user, block_id: int):
-    """A11: Raise 403 if user is an owner viewing a property under external management."""
-    if not block_id or getattr(user, 'user_type', None) == "auxein_admin":
-        return
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
-    if block and block.property_id and is_owner_viewing(db, user, block.property_id):
-        raise HTTPException(status_code=403, detail=OWNER_READONLY_MSG)
-
-
 router = APIRouter(prefix="/api", tags=["observations"])
 
 
@@ -315,10 +302,6 @@ def check_template_usage(
 # -----------------------------
 @router.post("/observation-plans", response_model=ObservationPlanOut, status_code=status.HTTP_201_CREATED)
 def create_plan(payload: ObservationPlanCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # A11: Owner read-only check on target blocks
-    for t in payload.targets:
-        check_owner_readonly_block(db, user, t.block_id)
-
     plan = ObservationPlan(
         company_id=user.company_id,
         template_id=payload.template_id,
@@ -428,11 +411,6 @@ def update_plan(plan_id: int, payload: ObservationPlanUpdate, db: Session = Depe
     if plan.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # A11: Owner read-only check on replacement targets
-    if payload.targets is not None:
-        for t in payload.targets:
-            check_owner_readonly_block(db, user, t.block_id)
-
     if payload.name is not None: plan.name = payload.name
     if payload.instructions is not None: plan.instructions = payload.instructions
     if payload.is_active is not None:
@@ -501,9 +479,6 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
 
     if not block_id:
         raise HTTPException(status_code=400, detail="block_id is required for a run")
-
-    # A11: Owner read-only check
-    check_owner_readonly_block(db, user, block_id)
 
     # Handle free-form observations
     template_id = payload.template_id

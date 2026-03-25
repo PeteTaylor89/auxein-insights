@@ -58,3 +58,4 @@ from db.models.research import ResearchReport, ResearchSection
 from db.models.research_engagement import ResearchFile, ResearchComment, ResearchLike
 from db.models.email_campaign import EmailTemplate, EmailCampaign, EmailSend
 from db.models.user_enrichment import UserEvent, UserProfile
+from db.models.external_alias import ExternalAlias

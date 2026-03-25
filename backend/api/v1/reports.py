@@ -1,10 +1,11 @@
 # backend/api/v1/reports.py — reporting endpoints (summary + CSV export)
+# Revision 2: added property_id filter to all endpoints
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, List
 import csv
 import io
 
@@ -14,8 +15,9 @@ from db.models.user import User
 from db.models.task import Task
 from db.models.observation_plan import ObservationPlan
 from db.models.observation_run import ObservationRun
-from db.models.timesheet import TimesheetDay
+from db.models.timesheet import TimesheetDay, TimeEntry
 from db.models.asset import Asset
+from db.models.block import VineyardBlock
 from schemas.report import (
     TaskReportSummary, ObservationReportSummary,
     TimesheetReportSummary, AssetReportSummary,
@@ -33,6 +35,19 @@ def _date_filter(query, model, date_field, start: Optional[date], end: Optional[
     if end:
         query = query.filter(col <= end)
     return query
+
+
+def _property_filter_tasks(query, db: Session, property_id: Optional[int]):
+    """Filter tasks by property_id via block → property chain."""
+    if property_id is None:
+        return query
+    block_ids = [
+        row[0] for row in
+        db.query(VineyardBlock.id).filter(VineyardBlock.property_id == property_id).all()
+    ]
+    if not block_ids:
+        return query.filter(Task.id == -1)  # no matches
+    return query.filter(Task.block_id.in_(block_ids))
 
 
 def _csv_response(rows, headers, filename):
@@ -53,11 +68,13 @@ def _csv_response(rows, headers, filename):
 def task_report_summary(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None, description="Filter by property"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     q = db.query(Task).filter(Task.company_id == current_user.company_id)
     q = _date_filter(q, Task, "created_at", start_date, end_date)
+    q = _property_filter_tasks(q, db, property_id)
     tasks = q.all()
 
     total = len(tasks)
@@ -101,11 +118,13 @@ def task_report_summary(
 def task_report_export(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     q = db.query(Task).filter(Task.company_id == current_user.company_id)
     q = _date_filter(q, Task, "created_at", start_date, end_date)
+    q = _property_filter_tasks(q, db, property_id)
     tasks = q.order_by(Task.created_at.desc()).all()
 
     headers = ["ID", "Title", "Status", "Priority", "Category", "Hours", "Scheduled Start", "Completed At", "Created"]
@@ -130,6 +149,7 @@ def task_report_export(
 def observation_report_summary(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -141,13 +161,23 @@ def observation_report_summary(
         .join(ObservationPlan, ObservationRun.plan_id == ObservationPlan.id)
         .filter(ObservationPlan.company_id == current_user.company_id)
     )
+    # Property filter for observation runs: via run.block_id -> block.property_id
+    if property_id is not None:
+        block_ids = [
+            row[0] for row in
+            db.query(VineyardBlock.id).filter(VineyardBlock.property_id == property_id).all()
+        ]
+        if block_ids:
+            run_q = run_q.filter(ObservationRun.block_id.in_(block_ids))
+        else:
+            run_q = run_q.filter(ObservationRun.id == -1)
+
     run_q = _date_filter(run_q, ObservationRun, "created_at", start_date, end_date)
     runs = run_q.all()
 
     total_runs = len(runs)
     completed_runs = sum(1 for r in runs if r.observed_at_end is not None)
 
-    # Spots per run
     total_spots = 0
     runs_by_month = {}
     for r in runs:
@@ -169,6 +199,7 @@ def observation_report_summary(
 def observation_report_export(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -177,6 +208,16 @@ def observation_report_export(
         .join(ObservationPlan, ObservationRun.plan_id == ObservationPlan.id)
         .filter(ObservationPlan.company_id == current_user.company_id)
     )
+    if property_id is not None:
+        block_ids = [
+            row[0] for row in
+            db.query(VineyardBlock.id).filter(VineyardBlock.property_id == property_id).all()
+        ]
+        if block_ids:
+            run_q = run_q.filter(ObservationRun.block_id.in_(block_ids))
+        else:
+            run_q = run_q.filter(ObservationRun.id == -1)
+
     run_q = _date_filter(run_q, ObservationRun, "created_at", start_date, end_date)
     runs = run_q.order_by(ObservationRun.created_at.desc()).all()
 
@@ -201,11 +242,35 @@ def observation_report_export(
 def timesheet_report_summary(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     q = db.query(TimesheetDay).filter(TimesheetDay.company_id == current_user.company_id)
     q = _date_filter(q, TimesheetDay, "work_date", start_date, end_date)
+
+    # Property filter for timesheets: via time_entry → task → block → property
+    if property_id is not None:
+        block_ids = [
+            row[0] for row in
+            db.query(VineyardBlock.id).filter(VineyardBlock.property_id == property_id).all()
+        ]
+        if block_ids:
+            day_ids_with_property = (
+                db.query(TimeEntry.timesheet_day_id)
+                .join(Task, TimeEntry.task_id == Task.id)
+                .filter(Task.block_id.in_(block_ids))
+                .distinct()
+                .all()
+            )
+            day_id_set = [row[0] for row in day_ids_with_property]
+            if day_id_set:
+                q = q.filter(TimesheetDay.id.in_(day_id_set))
+            else:
+                q = q.filter(TimesheetDay.id == -1)
+        else:
+            q = q.filter(TimesheetDay.id == -1)
+
     days = q.all()
 
     total_days = len(days)
@@ -234,11 +299,34 @@ def timesheet_report_summary(
 def timesheet_report_export(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     q = db.query(TimesheetDay).filter(TimesheetDay.company_id == current_user.company_id)
     q = _date_filter(q, TimesheetDay, "work_date", start_date, end_date)
+
+    if property_id is not None:
+        block_ids = [
+            row[0] for row in
+            db.query(VineyardBlock.id).filter(VineyardBlock.property_id == property_id).all()
+        ]
+        if block_ids:
+            day_ids = [
+                row[0] for row in
+                db.query(TimeEntry.timesheet_day_id)
+                .join(Task, TimeEntry.task_id == Task.id)
+                .filter(Task.block_id.in_(block_ids))
+                .distinct()
+                .all()
+            ]
+            if day_ids:
+                q = q.filter(TimesheetDay.id.in_(day_ids))
+            else:
+                q = q.filter(TimesheetDay.id == -1)
+        else:
+            q = q.filter(TimesheetDay.id == -1)
+
     days = q.order_by(TimesheetDay.work_date.desc()).all()
 
     headers = ["ID", "User ID", "Date", "Status", "Day Hours", "Entry Hours", "Uncoded Hours"]

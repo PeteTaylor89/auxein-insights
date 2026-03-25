@@ -1,5 +1,5 @@
-// components/calendar/CalendarView.jsx — month/week grid with multi-day task bars
-import { useMemo, useState } from 'react';
+// components/calendar/CalendarView.jsx — month/week grid with multi-day bars, quick add, drag-drop
+import { useMemo, useState, useCallback } from 'react';
 import EventCard from './EventCard';
 import './CalendarView.css';
 
@@ -50,7 +50,6 @@ function isToday(d) {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 
-// Check if an event spans multiple days
 function isMultiDay(ev) {
   if (!ev.end) return false;
   const s = stripTime(new Date(ev.start));
@@ -58,7 +57,6 @@ function isMultiDay(ev) {
   return e.getTime() > s.getTime();
 }
 
-// Compute spanning bar placements for a single week row
 function computeSpanningBars(weekDays, multiDayEvents) {
   const weekStart = stripTime(weekDays[0].date);
   const weekEnd = stripTime(weekDays[6].date);
@@ -67,31 +65,21 @@ function computeSpanningBars(weekDays, multiDayEvents) {
   for (const ev of multiDayEvents) {
     const evStart = stripTime(new Date(ev.start));
     const evEnd = stripTime(new Date(ev.end));
-
-    // Skip if event doesn't overlap this week
     if (evEnd < weekStart || evStart > weekEnd) continue;
 
-    // Clamp to week boundaries
     const barStart = evStart < weekStart ? weekStart : evStart;
     const barEnd = evEnd > weekEnd ? weekEnd : evEnd;
-
-    // Column indices (0-based)
     const startCol = Math.round((barStart - weekStart) / 86400000);
     const endCol = Math.round((barEnd - weekStart) / 86400000);
-    const span = endCol - startCol + 1;
-
-    const continuesLeft = evStart < weekStart;
-    const continuesRight = evEnd > weekEnd;
 
     bars.push({
       event: ev,
-      startCol,      // 0-based
-      span,
-      continuesLeft,
-      continuesRight,
+      startCol,
+      span: endCol - startCol + 1,
+      continuesLeft: evStart < weekStart,
+      continuesRight: evEnd > weekEnd,
     });
   }
-
   return bars;
 }
 
@@ -99,8 +87,10 @@ function eventUid(ev) {
   return `${ev.event_type}-${ev.id}`;
 }
 
-function CalendarView({ year, month, selectedDate, view, events, onEventClick }) {
+function CalendarView({ year, month, selectedDate, view, events, onEventClick, onAddTask, onReschedule, canEdit }) {
   const [hoveredEvent, setHoveredEvent] = useState(null);
+  const [dragData, setDragData] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
 
   const days = useMemo(() => {
     if (view === 'week') {
@@ -109,7 +99,6 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick })
     return getMonthDays(year, month);
   }, [year, month, selectedDate, view]);
 
-  // Split into multi-day and single-day
   const { multiDayEvents, singleDayByDate } = useMemo(() => {
     const multi = [];
     const single = {};
@@ -125,7 +114,6 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick })
     return { multiDayEvents: multi, singleDayByDate: single };
   }, [events]);
 
-  // Split days into week rows
   const weeks = useMemo(() => {
     const rows = [];
     for (let i = 0; i < days.length; i += 7) {
@@ -133,6 +121,62 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick })
     }
     return rows;
   }, [days]);
+
+  // Drag handlers — no useCallback to avoid stale closure issues with dragData
+  const handleDragStart = (e, ev) => {
+    if (!canEdit) return;
+    if (ev.event_type !== 'task') { e.preventDefault(); return; }
+    if (ev.status === 'completed' || ev.status === 'cancelled') { e.preventDefault(); return; }
+    setDragData(ev);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ev.id.toString());
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e, dayDate) => {
+    e.preventDefault();
+    setDropTarget(dateKey(dayDate));
+  };
+
+  const handleDragLeave = (e) => {
+    // Only clear if leaving the cell entirely (not entering a child)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDropTarget(null);
+    }
+  };
+
+  const handleDrop = (e, dayDate) => {
+    e.preventDefault();
+    setDropTarget(null);
+    if (!dragData || !onReschedule) { setDragData(null); return; }
+
+    const newStartDate = dateKey(dayDate);
+    const origStart = dateKey(new Date(dragData.start));
+    if (newStartDate === origStart) { setDragData(null); return; }
+
+    const origDate = stripTime(new Date(dragData.start));
+    const newDate = stripTime(dayDate);
+    const deltaDays = Math.round((newDate - origDate) / 86400000);
+
+    const dates = { scheduled_start_date: newStartDate };
+    if (dragData.end) {
+      const newEnd = new Date(stripTime(new Date(dragData.end)));
+      newEnd.setDate(newEnd.getDate() + deltaDays);
+      dates.scheduled_end_date = dateKey(newEnd);
+    }
+
+    onReschedule(dragData.id, dates);
+    setDragData(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragData(null);
+    setDropTarget(null);
+  };
 
   return (
     <div className={`calendar-view ${view === 'week' ? 'calendar-view--week' : ''}`}>
@@ -176,15 +220,39 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick })
               {weekDays.map(({ date: d, currentMonth }) => {
                 const key = dateKey(d);
                 const dayEvents = singleDayByDate[key] || [];
+                const isDropHere = dropTarget === key;
+
                 return (
                   <div
                     key={key}
-                    className={`calendar-cell ${!currentMonth ? 'other-month' : ''} ${isToday(d) ? 'today' : ''}`}
+                    className={`calendar-cell ${!currentMonth ? 'other-month' : ''} ${isToday(d) ? 'today' : ''} ${isDropHere ? 'drop-target' : ''}`}
+                    onDragOver={handleDragOver}
+                    onDragEnter={(e) => handleDragEnter(e, d)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, d)}
                   >
-                    <div className="calendar-cell-date">{d.getDate()}</div>
+                    <div className="calendar-cell-header">
+                      <span className="calendar-cell-date">{d.getDate()}</span>
+                      {canEdit && onAddTask && (
+                        <button
+                          className="calendar-add-btn"
+                          onClick={() => onAddTask(dateKey(d))}
+                          title="Create task"
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
                     <div className="calendar-cell-events">
                       {dayEvents.slice(0, 3).map((ev) => (
-                        <EventCard key={`${ev.event_type}-${ev.id}`} event={ev} onClick={onEventClick} />
+                        <EventCard
+                          key={`${ev.event_type}-${ev.id}`}
+                          event={ev}
+                          onClick={onEventClick}
+                          draggable={canEdit && ev.event_type === 'task' && ev.status !== 'completed' && ev.status !== 'cancelled'}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        />
                       ))}
                       {dayEvents.length > 3 && (
                         <div className="calendar-more">+{dayEvents.length - 3} more</div>

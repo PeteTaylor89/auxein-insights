@@ -1,4 +1,4 @@
-// components/calendar/EventCard.jsx — colour-coded event pill
+// components/calendar/EventCard.jsx — colour-coded event pill with drag support
 import './CalendarView.css';
 
 const TYPE_LABELS = {
@@ -9,17 +9,22 @@ const TYPE_LABELS = {
   maintenance: 'Maint',
 };
 
-function EventCard({ event, onClick }) {
+function EventCard({ event, onClick, draggable, onDragStart, onDragEnd }) {
   return (
-    <button
-      className="calendar-event"
+    <div
+      className={`calendar-event ${draggable ? 'draggable' : ''}`}
       style={{ '--event-color': event.color || '#5B6830' }}
       onClick={() => onClick?.(event)}
       title={`${TYPE_LABELS[event.event_type] || event.event_type}: ${event.title}`}
+      role="button"
+      tabIndex={0}
+      draggable={draggable || false}
+      onDragStart={draggable ? (e) => onDragStart?.(e, event) : undefined}
+      onDragEnd={draggable ? onDragEnd : undefined}
     >
       <span className="calendar-event-dot" />
       <span className="calendar-event-title">{event.title}</span>
-    </button>
+    </div>
   );
 }
 

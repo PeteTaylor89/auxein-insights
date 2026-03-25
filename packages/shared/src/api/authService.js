@@ -3,8 +3,9 @@ import api from './api';
 
 // Detect if we're running in web vs mobile environment
 const getClientType = () => {
-  // Vite exposes env vars with VITE_ prefix on import.meta.env
-  return import.meta.env.VITE_CLIENT_TYPE || 'web';
+  try {
+    return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CLIENT_TYPE) || 'web';
+  } catch { return 'web'; }
 };
 
 const authService = {

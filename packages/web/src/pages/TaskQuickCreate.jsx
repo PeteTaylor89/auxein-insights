@@ -1,6 +1,6 @@
 // pages/TaskQuickCreate.jsx — 3-step quick task creation flow
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Zap, Settings2 } from 'lucide-react';
 import { tasksService, blocksService, usersService } from '@vineyard/shared';
 import TemplateSelector from '../components/tasks/TemplateSelector';
@@ -11,6 +11,7 @@ const STEPS = ['Pick Template', 'Pick Block', 'Review & Create'];
 
 function TaskQuickCreate() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
 
   // Data
@@ -23,7 +24,7 @@ function TaskQuickCreate() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [assignedUserId, setAssignedUserId] = useState('');
-  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledDate, setScheduledDate] = useState(searchParams.get('date') || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 

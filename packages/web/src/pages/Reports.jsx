@@ -1,6 +1,7 @@
-// pages/Reports.jsx — tabbed reporting dashboard
-import { useState } from 'react';
+// pages/Reports.jsx — tabbed reporting dashboard with property filter
+import { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
+import { propertyService } from '@vineyard/shared';
 import TaskReport from '../components/reports/TaskReport';
 import ObservationReport from '../components/reports/ObservationReport';
 import TimesheetReport from '../components/reports/TimesheetReport';
@@ -18,6 +19,16 @@ function Reports() {
   const [activeTab, setActiveTab] = useState('tasks');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [propertyId, setPropertyId] = useState('');
+  const [properties, setProperties] = useState([]);
+
+  useEffect(() => {
+    propertyService.listProperties()
+      .then(data => setProperties(Array.isArray(data) ? data : []))
+      .catch(() => setProperties([]));
+  }, []);
+
+  const propFilter = propertyId || undefined;
 
   return (
     <div className="page-container">
@@ -29,7 +40,22 @@ function Reports() {
             <h1 className="section-title">Reports</h1>
           </div>
 
-          <div className="reports-date-filters">
+          <div className="reports-filters">
+            {properties.length > 0 && (
+              <label>
+                Property
+                <select
+                  value={propertyId}
+                  onChange={(e) => setPropertyId(e.target.value)}
+                  className="reports-date-input"
+                >
+                  <option value="">All Properties</option>
+                  {properties.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               From
               <input
@@ -66,9 +92,9 @@ function Reports() {
 
         {/* Tab content */}
         <div className="reports-content">
-          {activeTab === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} />}
-          {activeTab === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} />}
-          {activeTab === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} />}
+          {activeTab === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
+          {activeTab === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
+          {activeTab === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
           {activeTab === 'assets' && <AssetReport />}
         </div>
       </div>

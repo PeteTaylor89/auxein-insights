@@ -16,6 +16,9 @@ class PropertyBase(BaseModel):
     region: Optional[str] = None
     grapelink_grower_id: Optional[str] = None
     grapelink_property_code: Optional[str] = None
+    climate_zone_id: Optional[int] = None
+    forecast_latitude: Optional[Decimal] = None
+    forecast_longitude: Optional[Decimal] = None
 
 
 class PropertyCreate(PropertyBase):
@@ -30,6 +33,9 @@ class PropertyUpdate(BaseModel):
     region: Optional[str] = None
     grapelink_grower_id: Optional[str] = None
     grapelink_property_code: Optional[str] = None
+    climate_zone_id: Optional[int] = None
+    forecast_latitude: Optional[Decimal] = None
+    forecast_longitude: Optional[Decimal] = None
 
 
 class PropertyOut(PropertyBase):

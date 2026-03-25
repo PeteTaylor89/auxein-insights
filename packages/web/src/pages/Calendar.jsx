@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { calendarService } from '@vineyard/shared';
+import { calendarService, propertyService, tasksService } from '@vineyard/shared';
+import { useAuth } from '@vineyard/shared';
 import CalendarView from '../components/calendar/CalendarView';
 import './Calendar.css';
 
@@ -21,6 +22,7 @@ const MONTH_NAMES = [
 
 function Calendar() {
   const navigate = useNavigate();
+  const { userTypeRole } = useAuth();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -28,6 +30,16 @@ function Calendar() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTypes, setActiveTypes] = useState(EVENT_TYPES.map((t) => t.value));
+  const [propertyId, setPropertyId] = useState('');
+  const [properties, setProperties] = useState([]);
+
+  const canEdit = userTypeRole === 'company_admin' || userTypeRole === 'company_manager' || userTypeRole === 'auxein_admin';
+
+  useEffect(() => {
+    propertyService.listProperties()
+      .then(data => setProperties(Array.isArray(data) ? data : []))
+      .catch(() => setProperties([]));
+  }, []);
 
   // Date range for API query
   const { startDate, endDate } = useMemo(() => {
@@ -44,14 +56,14 @@ function Calendar() {
   const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await calendarService.getEvents(startDate, endDate, activeTypes);
+      const data = await calendarService.getEvents(startDate, endDate, activeTypes, propertyId || null);
       setEvents(data || []);
     } catch {
       setEvents([]);
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, activeTypes]);
+  }, [startDate, endDate, activeTypes, propertyId]);
 
   useEffect(() => {
     fetchEvents();
@@ -80,6 +92,16 @@ function Calendar() {
 
   const handleEventClick = (event) => {
     if (event.url) navigate(event.url);
+  };
+
+  const handleReschedule = async (taskId, dates) => {
+    try {
+      await tasksService.rescheduleTask(taskId, dates);
+      fetchEvents(); // refresh
+    } catch (err) {
+      console.error('Failed to reschedule task', err);
+      alert(err.response?.data?.detail || 'Failed to reschedule task');
+    }
   };
 
   return (
@@ -126,6 +148,22 @@ function Calendar() {
           </div>
         </div>
 
+        {/* Property filter */}
+        {properties.length > 0 && (
+          <div className="calendar-property-filter">
+            <select
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+              className="calendar-property-select"
+            >
+              <option value="">All Properties</option>
+              {properties.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Type filters / legend */}
         <div className="calendar-legend">
           {EVENT_TYPES.map((t) => (
@@ -151,6 +189,9 @@ function Calendar() {
             view={view}
             events={events}
             onEventClick={handleEventClick}
+            onAddTask={canEdit ? (date) => navigate(`/tasks/new?date=${date}`) : undefined}
+            onReschedule={canEdit ? handleReschedule : undefined}
+            canEdit={canEdit}
           />
         )}
       </div>

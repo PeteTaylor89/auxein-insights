@@ -6,6 +6,26 @@
   gap: var(--space-base);
 }
 
+.calendar-property-filter {
+  display: flex;
+  align-items: center;
+}
+
+.calendar-property-select {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  color: var(--color-text);
+  min-width: 160px;
+}
+
+.calendar-property-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
 .calendar-header {
   display: flex;
   align-items: center;

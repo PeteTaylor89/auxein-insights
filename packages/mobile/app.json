@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Auxein Grow",
+    "slug": "auxein-grow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FDF6E3"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "co.nz.auxein.grow"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FDF6E3"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "co.nz.auxein.grow"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "apiUrl": "https://api.auxein.co.nz/api"
+    }
+  }
+}

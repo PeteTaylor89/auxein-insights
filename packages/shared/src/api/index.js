@@ -26,3 +26,5 @@ export { default as propertyService } from './propertyService.js';
 export { default as notificationService } from './notificationService.js';
 export { default as calendarService } from './calendarService.js';
 export { default as reportService } from './reportService.js';
+export { default as companyAdminService } from './companyAdminService.js';
+export { default as taskRowService } from './taskRowService.js';

@@ -70,6 +70,11 @@ const tasksService = {
     return res.data;
   },
 
+  rescheduleTask: async (taskId, dates) => {
+    const res = await api.patch(`/tasks/tasks/${taskId}/reschedule`, dates);
+    return res.data;
+  },
+
   updateTask: async (taskId, payload) => {
     const res = await api.patch(`/tasks/tasks/${taskId}`, payload);
     return res.data;
@@ -88,6 +93,16 @@ const tasksService = {
   // ============================================================================
   // TASKS - ACTIONS
   // ============================================================================
+
+  getEquipmentCheck: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/equipment-check`);
+    return res.data;
+  },
+
+  getConsumables: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/consumables`);
+    return res.data;
+  },
 
   startTask: async (taskId, payload = {}) => {
     const res = await api.post(`/tasks/tasks/${taskId}/start`, payload);

@@ -3,24 +3,24 @@ import { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
 import { reportService } from '@vineyard/shared';
 
-function ObservationReport({ startDate, endDate }) {
+function ObservationReport({ startDate, endDate, propertyId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    reportService.getObservationSummary(startDate, endDate)
+    reportService.getObservationSummary(startDate, endDate, propertyId)
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [startDate, endDate]);
+  }, [startDate, endDate, propertyId]);
 
   if (loading) return <div className="report-loading">Loading observation report...</div>;
   if (!data) return <div className="report-empty">Unable to load observation report</div>;
 
   const handleExport = () => {
     const token = localStorage.getItem('accessToken');
-    const url = reportService.exportObservations(startDate, endDate);
+    const url = reportService.exportObservations(startDate, endDate, propertyId);
     window.open(`${url}&token=${token}`, '_blank');
   };
 

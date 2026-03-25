@@ -1,11 +1,9 @@
 // src/pages/Profile.jsx - Updated with Company Admin Panel
 import { useState, useEffect } from 'react';
 import { useAuth } from '@vineyard/shared';
-import {companiesService, subscriptionService, invitationService, trainingService, api} from '@vineyard/shared';
+import {companiesService, subscriptionService, trainingService, api} from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
-import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import { useNavigate } from 'react-router-dom';
-import InvitationForm from '../components/admin/InvitationForm';
 
 function Profile() {
   const { user, logout } = useAuth();
@@ -14,28 +12,8 @@ function Profile() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeAdminTab, setActiveAdminTab] = useState('company-users');
   const navigate = useNavigate();
-  const [invitations, setInvitations] = useState([]);
-  const [showInvitationForm, setShowInvitationForm] = useState(false);
   const [trainingAssignments, setTrainingAssignments] = useState([]);
-
-  // Check if user is system admin (Pete from Auxein)
-  const isSystemAdmin = user?.email === 'pete.taylor@auxein.co.nz' || 
-                       (company?.name === 'Auxein' && user?.role === 'admin');
-  
-  // Check if user is company admin (admin/manager but not from Auxein)
-  const isCompanyAdmin = (user?.role === 'admin' || user?.role === 'manager') && 
-                        company?.name !== 'Auxein' && !isSystemAdmin;
-
-  const fetchInvitations = async () => {
-    try {
-      const invitationsData = await invitationService.getInvitations();
-      setInvitations(invitationsData);
-    } catch (err) {
-      console.error('Error fetching invitations:', err);
-    }
-  };
 
   const fetchTrainingAssignments = async () => {
     try {
@@ -154,10 +132,6 @@ function Profile() {
         setLoading(false);
       }
       
-      if (user?.role === 'admin' || user?.role === 'manager') {
-        await fetchInvitations();
-      }
-      
       // Fetch training assignments for all users
       await fetchTrainingAssignments();
     };
@@ -218,97 +192,6 @@ function Profile() {
         )}
 
         <div className="profile-content">
-          {/* Company Admin Panel */}
-          {isCompanyAdmin && (
-            <div className="admin-panel">
-              <h2>Company Administration</h2>
-              
-              <div className="admin-tabs">
-                <button 
-                  className={`tab-button ${activeAdminTab === 'company-users' ? 'active' : ''}`}
-                  onClick={() => setActiveAdminTab('company-users')}
-                >
-                  👥 Manage Team
-                </button>
-                <button 
-                  className={`tab-button ${activeAdminTab === 'invite-users' ? 'active' : ''}`}
-                  onClick={() => setActiveAdminTab('invite-users')}
-                >
-                  ✉️ Invite Members
-                </button>
-                <button 
-                    className="tab-button subtle"
-                    onClick={() => navigate('/timesheets')}
-                  >
-                    Open TimeSheets
-                </button>
-                <button 
-                    className="tab-button subtle"
-                    onClick={() => navigate('/training')}
-                  >
-                    Manage Training
-                </button>
-              </div>
-
-              <div className="admin-content">
-                {activeAdminTab === 'company-users' && <CompanyUserManagement companyId={user?.company_id} />}
-                {activeAdminTab === 'invite-users' && (
-                  <InvitationForm 
-                    onInvitationSent={() => {
-                      fetchInvitations();
-                    }}
-                    companyStats={stats}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Team Management Section - Only for non-admin users who can manage */}
-          {!isSystemAdmin && !isCompanyAdmin && (user?.role === 'admin' || user?.role === 'manager') && (
-            <div className="profile-section">
-              <div className="section-header">
-                <h2>Team Management</h2>
-                <button 
-                  className={`toggle-form-button ${showInvitationForm ? 'active' : ''}`}
-                  onClick={() => setShowInvitationForm(!showInvitationForm)}
-                >
-                  {showInvitationForm ? '✕ Cancel' : '+ Invite Member'}
-                </button>
-              </div>
-              
-              {showInvitationForm && (
-                <InvitationForm 
-                  onInvitationSent={() => {
-                    setShowInvitationForm(false);
-                    fetchInvitations();
-                  }}
-                  companyStats={stats}
-                />
-              )}
-              
-              {invitations.length > 0 && (
-                <div className="invitations-list">
-                  <h3>Recent Invitations</h3>
-                  {invitations.slice(0, 5).map(invitation => (
-                    <div key={invitation.id} className="invitation-item">
-                      <div className="invitation-info">
-                        <strong>{invitation.email}</strong>
-                        <span className="invitation-role">{invitation.role}</span>
-                        <span className={`invitation-status ${invitation.status}`}>
-                          {invitation.status}
-                        </span>
-                      </div>
-                      <div className="invitation-date">
-                        {new Date(invitation.sent_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* User Information */}
           <div className="profile-section">
             <h2>User Information</h2>

@@ -1,7 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from 'react';
 import { useAuth } from '@vineyard/shared';
-import { companiesService, tasksService, notificationService, api } from '@vineyard/shared';
+import { companiesService, tasksService, notificationService, propertyService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget';
 import { Link } from 'react-router-dom';
 import { User, Users, ClipboardList, Calendar, Shield, Map, Zap, Eye, BarChart3, Bell } from "lucide-react";
@@ -40,21 +40,49 @@ function Home() {
         const statsData = await companiesService.getCurrentCompanyStats();
         setStats(statsData);
 
+        // Weather location: prefer property forecast point, fall back to block centroid
         try {
-          const blocksResponse = await api.get('/blocks/company');
-          const blocks = blocksResponse.data.blocks || [];
-
           let location = null;
-          if (blocks.length > 0 && blocks[0].centroid_latitude && blocks[0].centroid_longitude) {
-            location = {
-              lat: blocks[0].centroid_latitude,
-              lon: blocks[0].centroid_longitude,
-              name: `${blocks[0].block_name} Vineyard`
-            };
+
+          // Try properties first — use first property with forecast coords
+          try {
+            const props = await propertyService.listProperties();
+            const propList = Array.isArray(props) ? props : [];
+            const propWithForecast = propList.find(p => p.forecast_latitude && p.forecast_longitude);
+            if (propWithForecast) {
+              location = {
+                lat: parseFloat(propWithForecast.forecast_latitude),
+                lon: parseFloat(propWithForecast.forecast_longitude),
+                name: propWithForecast.name
+              };
+            } else if (propList.length > 0) {
+              // No forecast point set — fall back to first block centroid but use property name
+              const blocksResponse = await api.get('/blocks/company');
+              const blocks = blocksResponse.data.blocks || [];
+              if (blocks.length > 0 && blocks[0].centroid_latitude && blocks[0].centroid_longitude) {
+                location = {
+                  lat: blocks[0].centroid_latitude,
+                  lon: blocks[0].centroid_longitude,
+                  name: propList[0].name
+                };
+              }
+            }
+          } catch {
+            // Properties not available — fall back to blocks
+            const blocksResponse = await api.get('/blocks/company');
+            const blocks = blocksResponse.data.blocks || [];
+            if (blocks.length > 0 && blocks[0].centroid_latitude && blocks[0].centroid_longitude) {
+              location = {
+                lat: blocks[0].centroid_latitude,
+                lon: blocks[0].centroid_longitude,
+                name: `${blocks[0].block_name} Vineyard`
+              };
+            }
           }
+
           setWeatherLocation(location);
         } catch (error) {
-          console.error('Error fetching blocks for weather location:', error);
+          console.error('Error fetching weather location:', error);
         }
 
       } catch (error) {

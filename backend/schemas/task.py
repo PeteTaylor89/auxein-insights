@@ -291,6 +291,7 @@ class TaskActionRequest(BaseModel):
 class TaskStartRequest(TaskActionRequest):
     """Schema for starting a task"""
     start_gps_tracking: bool = False
+    skip_equipment_check: bool = False  # Allow override of calibration warnings
 
 
 class TaskPauseRequest(TaskActionRequest):
@@ -303,11 +304,19 @@ class TaskResumeRequest(TaskActionRequest):
     resume_gps_tracking: bool = True
 
 
+class ConsumableActual(BaseModel):
+    """Actual usage for a consumable TaskAsset at completion."""
+    task_asset_id: int
+    actual_quantity: float
+    batch_number: Optional[str] = None
+
+
 class TaskCompleteRequest(TaskActionRequest):
     """Schema for completing a task"""
     completion_notes: Optional[str] = None
     completion_photo_ids: Optional[List[str]] = Field(default_factory=list)
     weather_conditions: Optional[Dict[str, Any]] = None
+    consumable_actuals: Optional[List[ConsumableActual]] = None  # P0: stock deduction
 
 
 class TaskCancelRequest(TaskActionRequest):

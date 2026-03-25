@@ -19,7 +19,7 @@ from db.models.company import Company
 from db.models.block import VineyardBlock
 from db.models.spatial_area import SpatialArea
 from db.models.vineyard_row import VineyardRow
-from db.models.asset import Asset, TaskAsset
+from db.models.asset import Asset, TaskAsset, StockMovement, AssetCalibration
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -50,7 +50,6 @@ from schemas.task_gps_track import (
     TaskGPSTrackSummaryStats, TaskGPSTrackGeometry
 )
 from services.notification_service import NotificationService
-from services.property_service import is_owner_viewing, OWNER_READONLY_MSG
 from db.models.notification import NotificationType
 
 from api.deps import get_current_user
@@ -74,18 +73,6 @@ def generate_task_number(db: Session, company_id: int) -> str:
     ).scalar() or 0
     
     return f"TASK-{year}-{count + 1:03d}"
-
-
-def check_owner_readonly(db: Session, user: User, block_id: int):
-    """A11: Raise 403 if user is an owner viewing a property under external management."""
-    if not block_id or user.user_type == "auxein_admin":
-        return
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
-    if block and block.property_id and is_owner_viewing(db, user, block.property_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=OWNER_READONLY_MSG
-        )
 
 
 def check_task_access(db: Session, task_id: int, user: User) -> Task:
@@ -313,8 +300,6 @@ def create_task(
             task_dict[key] = value
     
     # A11: Owner read-only check
-    check_owner_readonly(db, current_user, task_dict.get('block_id'))
-
     # Create task
     task = Task(
         company_id=current_user.company_id,
@@ -513,9 +498,7 @@ def update_task(
             detail="You don't have permission to modify this task"
         )
     
-    # A11: Owner read-only check
     update_data = task_update.model_dump(exclude_unset=True)
-    check_owner_readonly(db, current_user, update_data.get('block_id', task.block_id))
 
     # Don't allow updates to completed/cancelled tasks
     if task.status in [TaskStatus.completed, TaskStatus.cancelled]:
@@ -551,9 +534,6 @@ def delete_task(
             detail="Only admins, managers, or task creator can delete tasks"
         )
     
-    # A11: Owner read-only check
-    check_owner_readonly(db, current_user, task.block_id)
-
     # Don't allow deletion of completed tasks (soft delete via cancel instead)
     if task.status == TaskStatus.completed:
         raise HTTPException(
@@ -572,6 +552,87 @@ def delete_task(
 # TASKS - ACTIONS
 # ============================================================================
 
+@router.patch("/tasks/{task_id}/reschedule", response_model=TaskResponse)
+def reschedule_task(
+    task_id: int,
+    dates: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reschedule a task (date-only update). Used by calendar drag-and-drop."""
+    task = check_task_access(db, task_id, current_user)
+
+    if not can_modify_task(task, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify this task"
+        )
+
+    if task.status in [TaskStatus.completed, TaskStatus.cancelled]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot reschedule {task.status.value} tasks"
+        )
+
+    from datetime import date as date_type
+    if "scheduled_start_date" in dates:
+        task.scheduled_start_date = date_type.fromisoformat(dates["scheduled_start_date"])
+    if "scheduled_end_date" in dates:
+        task.scheduled_end_date = date_type.fromisoformat(dates["scheduled_end_date"])
+
+    db.commit()
+    db.refresh(task)
+    logger.info(f"Task {task_id} rescheduled by user {current_user.id}")
+    return task
+
+
+@router.get("/tasks/{task_id}/equipment-check")
+def get_equipment_check(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """P1: Get pre-task equipment check status for a task's assets."""
+    task = check_task_access(db, task_id, current_user)
+    checks = []
+    for ta in task.task_assets:
+        asset = ta.asset
+        if not asset:
+            continue
+        check = {
+            "task_asset_id": ta.id,
+            "asset_id": asset.id,
+            "asset_name": asset.name,
+            "role": ta.role,
+            "is_required": ta.is_required,
+            "is_consumable": asset.asset_type == "consumable",
+            "pre_task_check_completed": ta.pre_task_check_completed or False,
+            "requires_calibration": ta.requires_calibration or False,
+            "calibration_overdue": False,
+            "last_calibration_date": None,
+            "planned_quantity": float(ta.planned_quantity) if ta.planned_quantity else None,
+            "unit": asset.unit_of_measure,
+            "current_stock": float(asset.current_stock) if asset.current_stock else None,
+        }
+        # Check calibration status
+        if ta.requires_calibration or asset.requires_calibration:
+            check["requires_calibration"] = True
+            last_cal = (
+                db.query(AssetCalibration)
+                .filter(AssetCalibration.asset_id == asset.id)
+                .order_by(AssetCalibration.calibration_date.desc())
+                .first()
+            )
+            if last_cal:
+                check["last_calibration_date"] = str(last_cal.calibration_date)
+                if last_cal.due_date and last_cal.due_date < datetime.now().date():
+                    check["calibration_overdue"] = True
+            else:
+                check["calibration_overdue"] = True
+        checks.append(check)
+    return {"task_id": task_id, "equipment_checks": checks}
+
+
 @router.post("/tasks/{task_id}/start", response_model=TaskResponse)
 def start_task(
     task_id: int,
@@ -579,29 +640,95 @@ def start_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Start a task"""
+    """Start a task. P1: checks equipment calibration status before starting."""
     task = check_task_access(db, task_id, current_user)
-    
+
     # Check if task can be started
     if not task.can_start:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot start task with status: {task.status}"
         )
-    
+
+    # P1: Pre-task equipment checks
+    if not start_request.skip_equipment_check:
+        overdue_assets = []
+        for ta in task.task_assets:
+            asset = ta.asset
+            if not asset:
+                continue
+            needs_cal = ta.requires_calibration or asset.requires_calibration
+            if not needs_cal:
+                continue
+            last_cal = (
+                db.query(AssetCalibration)
+                .filter(AssetCalibration.asset_id == asset.id)
+                .order_by(AssetCalibration.calibration_date.desc())
+                .first()
+            )
+            is_overdue = False
+            if not last_cal:
+                is_overdue = True
+            elif last_cal.due_date and last_cal.due_date < datetime.now().date():
+                is_overdue = True
+            if is_overdue:
+                overdue_assets.append(asset.name)
+
+        if overdue_assets:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Equipment calibration overdue. Set skip_equipment_check=true to override.",
+                    "overdue_assets": overdue_assets
+                }
+            )
+
+    # Mark pre-task checks as completed
+    now = datetime.now()
+    for ta in task.task_assets:
+        if ta.is_required and not ta.pre_task_check_completed:
+            ta.pre_task_check_completed = True
+            ta.pre_task_check_at = now
+
     # Update task
     task.status = TaskStatus.in_progress
-    task.actual_start_time = datetime.now()
-    
+    task.actual_start_time = now
+
     # Start GPS tracking if requested
     if start_request.start_gps_tracking and task.requires_gps_tracking:
         task.gps_tracking_active = True
-    
+
     db.commit()
     db.refresh(task)
-    
+
     logger.info(f"Task {task_id} started by user {current_user.id}")
     return task
+
+
+@router.get("/tasks/{task_id}/consumables")
+def get_task_consumables(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """P0: Get consumable TaskAssets for the completion UI (pre-fill actual quantities)."""
+    task = check_task_access(db, task_id, current_user)
+    consumables = []
+    for ta in task.task_assets:
+        asset = ta.asset
+        if not asset or asset.asset_type != "consumable":
+            continue
+        consumables.append({
+            "task_asset_id": ta.id,
+            "asset_id": asset.id,
+            "asset_name": asset.name,
+            "unit": asset.unit_of_measure,
+            "planned_quantity": float(ta.planned_quantity) if ta.planned_quantity else 0,
+            "actual_quantity": float(ta.actual_quantity) if ta.actual_quantity else None,
+            "current_stock": float(asset.current_stock) if asset.current_stock else 0,
+            "batch_number": ta.batch_number,
+        })
+    return {"task_id": task_id, "consumables": consumables}
 
 
 @router.post("/tasks/{task_id}/pause", response_model=TaskResponse)
@@ -705,12 +832,59 @@ def complete_task(
     
     # Stop GPS tracking
     task.gps_tracking_active = False
-    
+
+    # P0: Process consumable actuals → create StockMovements
+    if complete_request.consumable_actuals:
+        for ca in complete_request.consumable_actuals:
+            ta = db.query(TaskAsset).filter(
+                TaskAsset.id == ca.task_asset_id,
+                TaskAsset.task_id == task.id,
+            ).first()
+            if not ta or not ta.asset:
+                continue
+
+            asset = ta.asset
+            actual_qty = Decimal(str(ca.actual_quantity))
+
+            # Update TaskAsset with actuals
+            ta.actual_quantity = actual_qty
+            if ca.batch_number:
+                ta.batch_number = ca.batch_number
+            if ta.planned_quantity and task.area_total_hectares:
+                ta.actual_rate = actual_qty / task.area_total_hectares
+
+            # Create StockMovement (negative = usage)
+            stock_before = asset.current_stock or Decimal("0")
+            stock_after = stock_before - actual_qty
+
+            movement = StockMovement(
+                asset_id=asset.id,
+                company_id=task.company_id,
+                movement_type="usage",
+                movement_date=datetime.now(),
+                quantity=-actual_qty,
+                task_id=task.id,
+                block_id=task.block_id,
+                batch_number=ca.batch_number,
+                usage_rate=float(ta.actual_rate) if ta.actual_rate else None,
+                area_treated=float(task.area_total_hectares) if task.area_total_hectares else None,
+                stock_before=stock_before,
+                stock_after=stock_after,
+                notes=f"Auto-deducted on task {task.task_number} completion",
+                created_by=current_user.id,
+            )
+            db.add(movement)
+
+            # Update asset stock level
+            asset.current_stock = stock_after
+            if stock_after <= 0:
+                asset.status = "out_of_stock"
+
     # Update all assignments to completed
     for assignment in task.assignments:
         if assignment.status in ["assigned", "accepted"]:
             assignment.status = "completed"
-    
+
     db.commit()
     db.refresh(task)
 

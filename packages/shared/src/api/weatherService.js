@@ -5,7 +5,7 @@ const METOCEAN_BASE_URL = 'https://forecast-v2.metoceanapi.com';
 
 // You'll need to store your API key securely
 // For development, you can use environment variables
-const API_KEY = import.meta.env.VITE_METOCEAN_API_KEY || 'SqGhyt9BnVs3MdZeur3vcx';
+const API_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_METOCEAN_API_KEY) || 'SqGhyt9BnVs3MdZeur3vcx';
 
 // Weather variables we want to fetch
 const WEATHER_VARIABLES = [

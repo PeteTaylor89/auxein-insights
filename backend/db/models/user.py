@@ -60,6 +60,9 @@ class User(Base):
     invited_at = Column(DateTime(timezone=True), nullable=True)
     accepted_invite_at = Column(DateTime(timezone=True), nullable=True)
 
+    # iCal feed token (Revision 2) — per-user calendar subscription auth
+    calendar_feed_token = Column(String(64), nullable=True, unique=True, index=True)
+
     # Timestamps
     deleted_at = Column(DateTime(timezone=True), nullable=True)  # Soft delete
 

@@ -14,6 +14,7 @@ from db.models.risk_action import RiskAction
 from db.models.training_record import TrainingRecord
 from db.models.training_module import TrainingModule
 from db.models.asset import AssetMaintenance
+from db.models.block import VineyardBlock
 from schemas.calendar import CalendarEvent, CalendarEventType, EVENT_TYPE_COLORS
 
 router = APIRouter()
@@ -26,6 +27,7 @@ def get_calendar_events(
     event_types: Optional[List[CalendarEventType]] = Query(
         None, description="Filter by event type(s)"
     ),
+    property_id: Optional[int] = Query(None, description="Filter by property"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -35,11 +37,19 @@ def get_calendar_events(
     range_end = datetime.combine(end_date, time.max)
     show_all = event_types is None or len(event_types) == 0
 
+    # Pre-compute block IDs for property filter
+    property_block_ids = None
+    if property_id is not None:
+        property_block_ids = [
+            row[0] for row in
+            db.query(VineyardBlock.id).filter(VineyardBlock.property_id == property_id).all()
+        ]
+
     events: List[CalendarEvent] = []
 
     # ── Tasks ──────────────────────────────────────────────────────────
     if show_all or CalendarEventType.task in event_types:
-        tasks = (
+        task_q = (
             db.query(Task)
             .filter(
                 Task.company_id == company_id,
@@ -47,8 +57,10 @@ def get_calendar_events(
                 Task.scheduled_start_date >= start_date,
                 Task.scheduled_start_date <= end_date,
             )
-            .all()
         )
+        if property_block_ids is not None:
+            task_q = task_q.filter(Task.block_id.in_(property_block_ids)) if property_block_ids else task_q.filter(Task.id == -1)
+        tasks = task_q.all()
         for t in tasks:
             if t.scheduled_start_time:
                 start = t.scheduled_start_time

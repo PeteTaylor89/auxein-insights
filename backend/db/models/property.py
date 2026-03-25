@@ -1,4 +1,4 @@
-# db/models/property.py - Property entity (Phase A, Grow V1)
+# db/models/property.py - Property entity (Grow V1, Revision 2)
 from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -17,6 +17,12 @@ class Property(Base):
     region = Column(String(100), nullable=True)
     grapelink_grower_id = Column(String(100), nullable=True)
     grapelink_property_code = Column(String(100), nullable=True)
+
+    # Climate & weather (Revision 2)
+    climate_zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=True, index=True)
+    forecast_latitude = Column(Numeric(10, 7), nullable=True)
+    forecast_longitude = Column(Numeric(10, 7), nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -26,6 +32,7 @@ class Property(Base):
         foreign_keys=[owner_company_id],
         back_populates="owned_properties"
     )
+    climate_zone = relationship("ClimateZone", foreign_keys=[climate_zone_id])
     management_relationships = relationship(
         "ManagementRelationship",
         back_populates="property",

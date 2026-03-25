@@ -3,51 +3,57 @@ import api from './api';
 
 const reportService = {
   // Task reports
-  getTaskSummary: async (startDate, endDate) => {
+  getTaskSummary: async (startDate, endDate, propertyId) => {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (propertyId) params.property_id = propertyId;
     const res = await api.get('/v1/reports/tasks/summary', { params });
     return res.data;
   },
-  exportTasks: (startDate, endDate) => {
+  exportTasks: (startDate, endDate, propertyId) => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (propertyId) params.append('property_id', propertyId);
     return `${api.defaults.baseURL}/reports/tasks/export?${params.toString()}`;
   },
 
   // Observation reports
-  getObservationSummary: async (startDate, endDate) => {
+  getObservationSummary: async (startDate, endDate, propertyId) => {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (propertyId) params.property_id = propertyId;
     const res = await api.get('/v1/reports/observations/summary', { params });
     return res.data;
   },
-  exportObservations: (startDate, endDate) => {
+  exportObservations: (startDate, endDate, propertyId) => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (propertyId) params.append('property_id', propertyId);
     return `${api.defaults.baseURL}/reports/observations/export?${params.toString()}`;
   },
 
   // Timesheet reports
-  getTimesheetSummary: async (startDate, endDate) => {
+  getTimesheetSummary: async (startDate, endDate, propertyId) => {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (propertyId) params.property_id = propertyId;
     const res = await api.get('/v1/reports/timesheets/summary', { params });
     return res.data;
   },
-  exportTimesheets: (startDate, endDate) => {
+  exportTimesheets: (startDate, endDate, propertyId) => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (propertyId) params.append('property_id', propertyId);
     return `${api.defaults.baseURL}/reports/timesheets/export?${params.toString()}`;
   },
 
-  // Asset reports
+  // Asset reports (no property filter — assets are company-level)
   getAssetSummary: async () => {
     const res = await api.get('/v1/reports/assets/summary');
     return res.data;

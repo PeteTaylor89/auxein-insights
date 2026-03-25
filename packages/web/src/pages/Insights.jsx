@@ -2,10 +2,10 @@
 import { useEffect, useState } from 'react';
 import MobileNavigation from '../components/MobileNavigation';
 import { useAuth } from '@vineyard/shared';
-import {companiesService} from '@vineyard/shared';
+import {companiesService, propertyService} from '@vineyard/shared';
 import ClimateContainer from '../components/climate/ClimateContainer';
 import { Link } from 'react-router'
-import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline} from "lucide-react"
+import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned} from "lucide-react"
 
 
 function Insights() {
@@ -13,7 +13,18 @@ function Insights() {
   const [stats, setStats] = useState(null);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeInsight, setActiveInsight] = useState(null); // NEW STATE
+  const [activeInsight, setActiveInsight] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
+
+  // Load properties
+  useEffect(() => {
+    propertyService.listProperties()
+      .then(data => setProperties(Array.isArray(data) ? data : []))
+      .catch(() => setProperties([]));
+  }, []);
+
+  const selectedProperty = properties.find(p => String(p.id) === selectedPropertyId) || null;
  
   // Fetch company data and stats
   useEffect(() => {
@@ -120,8 +131,8 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Current Season Climate</span>
-              <button 
+              <span>Current Season Climate{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span>
+              <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
                 aria-label="Close Climate Analysis"
@@ -130,8 +141,20 @@ function Insights() {
               </button>
             </div>
             <div className="insight-placeholder">
-              <p>Current Season Climate Analysis coming soon...</p>
-              <p>This will show various climate data insights based on modelled and Harvest API data.</p>
+              {selectedProperty ? (
+                <>
+                  <p>Current season data for <strong>{selectedProperty.name}</strong></p>
+                  <p>Property-level climate intelligence will show: weather station data (if available), GDD accumulation vs baseline, disease pressure, and phenology estimates specific to this property's blocks.</p>
+                  {!selectedProperty.climate_zone_id && (
+                    <p style={{ color: 'var(--color-warning)' }}>Set a climate zone for this property in Manage → Weather to enable regional fallback data.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p>Current Season Climate Analysis coming soon...</p>
+                  <p>Select a property above for property-level insights, or view company-wide data here. This will show climate data based on modelled and Harvest API data.</p>
+                </>
+              )}
             </div>
           </div>
         );
@@ -229,9 +252,42 @@ function Insights() {
       <div className="home-content">
 
         {/* Updated Insights Section with Click Handlers */}
+        {/* Property selector */}
+        {properties.length > 0 && (
+          <div className="stats-container" style={{ padding: 'var(--space-sm) var(--space-base)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+              <MapPinned size={18} style={{ color: 'var(--color-primary)' }} />
+              <select
+                value={selectedPropertyId}
+                onChange={(e) => setSelectedPropertyId(e.target.value)}
+                style={{
+                  padding: 'var(--space-xs) var(--space-sm)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  fontFamily: 'var(--font-family)',
+                  minWidth: '200px',
+                }}
+              >
+                <option value="">All Properties (Company Level)</option>
+                {properties.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.region ? ` — ${p.region}` : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedProperty && selectedProperty.climate_zone_id && (
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                  Climate zone assigned
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="stats-container">
           <div className="container-title">
-            <span>{company?.name || 'Your Company'} - Insights</span>
+            <span>{selectedProperty ? selectedProperty.name : (company?.name || 'Your Company')} — Insights</span>
           </div>
           <div className="stats-grid">
             <button 

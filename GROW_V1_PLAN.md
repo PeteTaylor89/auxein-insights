@@ -1111,29 +1111,46 @@ This should be introduced incrementally — start with block CRUD endpoints, the
 
 ## NEXT KEY STEPS (Updated 2026-03-20)
 
-### Immediate (Before next feature work)
+### Phase B2 — Web Frontend (SUBSTANTIALLY COMPLETE as of 2026-03-20)
 
-1. ~~**Stub the 3 missing blockchain methods**~~ — **DONE.** All three (`get_current_season`, `archive_chain_for_season`, `handle_company_reassignment`) are fully implemented in `blockchain_service.py`.
+| Item | Status |
+|------|--------|
+| B2.1 Notifications (bell, dropdown, page) | **DONE** — backend wired, frontend polling, mark-read, type filters |
+| B2.2 Calendar (unified events) | **DONE** — backend endpoint (tasks/obs/risk/training/maintenance), multi-day bars, month/week toggle |
+| B2.3 Reports (summary + CSV) | **DONE** — 4 tabs (tasks/obs/timesheets/assets), 8 backend endpoints, CSV export |
+| B2.4 GPS Track Visualization | **DONE** — TrackMap + TrackStats components (ready to embed in task detail) |
+| B2.5 Task Quick Create | **DONE** — 3-step flow, template selector with Create Template card, route wiring |
+| B2.6 Quick Observation | **DONE** — 2-step flow bypassing plans, grouped template picker (5 categories) |
+| B2.7 Home Dashboard Wire-Up | **DONE** — real upcoming tasks, notification count, quick actions (New Task, Quick Obs, Calendar, Reports) |
+| Design System Migration | **DONE** — 20+ files, all inline styles replaced with CSS classes/custom properties |
+| Streamlining Report | **DONE** — `Tasks-Observations-Streamlining-Report.md` with priority-ranked recommendations |
 
-2. **Run backfill migration (004)** — Create default properties from existing company/block groupings, backfill `property_id` on all existing blocks. Deferred — no real users yet, only test data. **Estimate: S**
+### Deferred / Remaining
 
-3. **Company creation UX fixes** — Email not sending on user creation, password not working. Investigate email service integration and password hash flow in admin create endpoints. **Estimate: M (1-2 days)**
+1. **Run backfill migration (004)** — Deferred, no real users yet. **Estimate: S**
+2. **Company creation UX fixes** — Email not sending, password not working. **Estimate: M (1-2 days)**
+3. **Maps V2 admin tab** — Bulk block/parcel assignment. **Estimate: L (3-5 days)**
+4. **Fix climate endpoint access patterns** — 9 endpoints need property-aware filtering. **Estimate: M (2-3 days)**
 
-### Short-term (Phase B-C entry)
+### Next Build Phase — Streamlining Implementation (from report)
 
-4. ~~**Create `verify_block_access()` helper**~~ — **DONE (2026-03-20).** Unified access helper in `property_service.py` supporting `company_id` and `property_id` paths with admin bypass and owner read-only guard.
+5. **Task completion → stock deduction (P0)** — Wire TaskAsset actual quantities + auto StockMovement creation on task complete. Backend change. **Estimate: M (3-4 days)**
+6. **Pre-task equipment check flow (P1)** — Surface calibration/readiness checks in task start UI. **Estimate: S (2 days)**
+7. **Observation template on task completion (P2)** — TaskTemplate references ObservationTemplate, capture conditions inline at completion. **Estimate: M (4-5 days)**
+8. **Observation-to-task auto-linking (P2)** — Disease threshold triggers task suggestion with consumable pre-fill. **Estimate: M (4-5 days)**
+9. **User-defined observation templates (P2)** — Clone and customise system templates. **Estimate: M (4-5 days)**
 
-5. **Maps V2 admin tab** — Third tab (auxein_admin only) showing ALL blocks and land parcels within map bounds. Enables bulk assignment of blocks to properties and parcels to companies without navigating away from the map. **Estimate: L (3-5 days)**
+### Phase B3 — Mobile App Build
 
-6. ~~**Wire owner read-only enforcement**~~ — **DONE (2026-03-20).** A11 enforced on blocks (all writes), tasks (create/update/delete), and observations (plan create/update, run create) via `check_owner_readonly` helpers.
+10. **Mobile scaffolding** — React Native/Expo, auth, navigation. **Estimate: L (5-7 days)**
+11. **Mobile task + observation capture** — Touch-optimized, GPS auto-fill, camera-first. **Estimate: L (7-10 days)**
 
-### Medium-term (Phase B-C)
+### Phase C-F (Original Plan)
 
-7. **Fix climate endpoint access patterns** — 9 endpoints in `climate_calculations.py` use post-fetch company checks. Refactor to query-level filtering with property awareness. **Estimate: M (2-3 days)**
-
-8. **Contractor API wiring** — Wire existing ContractorAssignment, ContractorMovement models to API endpoints. Frontend contractor management within company context (not just admin). **Estimate: L (5-7 days)**
-
-9. **Map layers** — Disease pressure, phenology stage, weather station conditions layers. Backend data exists, needs GeoJSON exposure + Mapbox rendering. **Estimate: L per layer (3-5 days each)**
+12. **Phase C:** Map intelligence layers (disease pressure, phenology, weather, spray coverage)
+13. **Phase D:** Intelligence & automation (calendar events, spray intervals, auto-tasks, yield estimation)
+14. **Phase E:** Integrations & compliance (GrapeLink, ACVM, frost risk, CSV reports)
+15. **Phase F:** Polish (offline support, push notifications, external calendar sync)
 
 ### Updated Phase A Status
 

@@ -24,12 +24,15 @@
   color: var(--color-primary);
 }
 
+.reports-filters,
 .reports-date-filters {
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
+.reports-filters label,
 .reports-date-filters label {
   display: flex;
   align-items: center;
