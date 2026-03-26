@@ -63,7 +63,15 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       return userData;
     } catch (err) {
-      const message = err.response?.data?.detail || 'Login failed';
+      const detail = err.response?.data?.detail;
+      let message = 'Login failed';
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        message = detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+      } else if (detail?.msg) {
+        message = detail.msg;
+      }
       setError(message);
       throw err;
     } finally {

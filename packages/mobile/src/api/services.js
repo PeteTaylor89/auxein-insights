@@ -85,14 +85,15 @@ export const propertyService = {
 
 export const authApi = {
   getProfile: async () => {
-    const res = await api.get('/auth/profile');
+    const res = await api.get('/auth/me');
     return res.data;
   },
   login: async (identifier, password) => {
-    const res = await api.post('/auth/login', {
-      username: identifier,
-      password,
-      user_type: 'company',
+    const formData = new URLSearchParams();
+    formData.append('username', identifier);
+    formData.append('password', password);
+    const res = await api.post('/auth/login', formData.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'x-client-type': 'mobile' },
     });
     return res.data;
   },

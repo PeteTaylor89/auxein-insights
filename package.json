@@ -14,7 +14,9 @@
     "dev:regional": "concurrently --kill-others --names \"API,INSIGHTS\" --prefix-colors \"blue,magenta\" \"npm run dev:backend\" \"npm run dev:insights\"",
     "dev:pro-app": "concurrently --kill-others --names \"API,PRO\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:pro\"",
     "dev:marketing": "cd packages/auxein-marketing && npm run dev",
-    "dev:all": "concurrently --kill-others --names \"API,INSIGHTS,PRO\" --prefix-colors \"blue,magenta,green\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\"",
+    "dev:mobile": "cd packages/mobile && npx expo start",
+    "dev:web": "concurrently --kill-others --names \"API,INSIGHTS,PRO\" --prefix-colors \"blue,magenta,green\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\"",
+    "dev:all": "concurrently --kill-others --names \"API,INSIGHTS,PRO,MOBILE\" --prefix-colors \"blue,magenta,green,yellow\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\" \"npm run dev:mobile\"",
     "kill:node": "powershell \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Node processes",
     "kill:python": "powershell \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Python processes",
     "kill:all": "npm run kill:node && npm run kill:python",
@@ -40,6 +42,12 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.19",
     "prop-types": "^15.8.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "recharts": "^3.6.0"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   }
 }
