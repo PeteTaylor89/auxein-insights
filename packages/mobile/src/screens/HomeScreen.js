@@ -13,8 +13,8 @@ export default function HomeScreen({ navigation }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await tasksService.getMyTasks({ status: 'scheduled,ready,in_progress', limit: 5 });
-      setUpcomingTasks(Array.isArray(data) ? data : []);
+      const data = await tasksService.getUnifiedFeed({ days_ahead: 7 });
+      setUpcomingTasks(Array.isArray(data) ? data.slice(0, 5) : []);
     } catch (err) {
       console.log('Failed to load tasks:', err.message);
       setUpcomingTasks([]);
@@ -65,28 +65,34 @@ export default function HomeScreen({ navigation }) {
         {upcomingTasks.length === 0 ? (
           <Text style={styles.emptyText}>No upcoming tasks</Text>
         ) : (
-          upcomingTasks.map(t => (
-            <TouchableOpacity
-              key={t.id}
-              style={styles.taskCard}
-              onPress={() => navigation.navigate('Tasks', { screen: 'TaskDetail', params: { taskId: t.id } })}
-            >
-              <View style={styles.taskHeader}>
-                <Text style={styles.taskTitle} numberOfLines={1}>{t.title || `Task #${t.id}`}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor(t.status) + '20' }]}>
-                  <Text style={[styles.statusText, { color: statusColor(t.status) }]}>
-                    {(t.status || 'draft').replace(/_/g, ' ')}
+          upcomingTasks.map(t => {
+            const icons = { task: '📋', maintenance: '🔧', calibration: '⚙️', risk_action: '⚠️' };
+            return (
+              <TouchableOpacity
+                key={`${t.source}-${t.id}`}
+                style={styles.taskCard}
+                onPress={() => t.source === 'task' && navigation.navigate('Tasks', { screen: 'TaskDetail', params: { taskId: t.id } })}
+              >
+                <View style={styles.taskHeader}>
+                  <Text style={styles.taskTitle} numberOfLines={1}>
+                    {icons[t.source] || '📋'} {t.title || `Task #${t.id}`}
                   </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColor(t.status) + '20' }]}>
+                    <Text style={[styles.statusText, { color: statusColor(t.status) }]}>
+                      {(t.status || 'draft').replace(/_/g, ' ')}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              {t.scheduled_start_date && (
                 <Text style={styles.taskMeta}>
-                  {new Date(t.scheduled_start_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })}
+                  {t.scheduled_date
+                    ? new Date(t.scheduled_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })
+                    : ''}
+                  {t.asset_name ? ` · ${t.asset_name}` : ''}
                   {t.block_name ? ` · ${t.block_name}` : ''}
                 </Text>
-              )}
-            </TouchableOpacity>
-          ))
+              </TouchableOpacity>
+            );
+          })
         )}
       </View>
 

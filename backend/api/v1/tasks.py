@@ -19,7 +19,8 @@ from db.models.company import Company
 from db.models.block import VineyardBlock
 from db.models.spatial_area import SpatialArea
 from db.models.vineyard_row import VineyardRow
-from db.models.asset import Asset, TaskAsset, StockMovement, AssetCalibration
+from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration
+from db.models.risk_action import RiskAction
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -299,13 +300,15 @@ def create_task(
         if key not in task_dict or task_dict[key] is None:
             task_dict[key] = value
     
-    # A11: Owner read-only check
+    # Auto-schedule if a start date is provided
+    initial_status = TaskStatus.scheduled if task_dict.get('scheduled_start_date') else TaskStatus.draft
+
     # Create task
     task = Task(
         company_id=current_user.company_id,
         task_number=task_number,
         created_by=current_user.id,
-        status=TaskStatus.draft,
+        status=initial_status,
         **task_dict
     )
 
@@ -375,6 +378,165 @@ def quick_create_task(
     
     logger.info(f"Quick task {task.task_number} created by user {current_user.id}")
     return task
+
+
+# ---------------------------------------------------------------------------
+# Unified Feed — merges tasks, maintenance, calibrations, risk actions
+# Must be defined BEFORE /tasks/{task_id} to avoid route conflict
+# ---------------------------------------------------------------------------
+
+@router.get("/tasks/unified-feed")
+def get_unified_feed(
+    days_ahead: int = 30,
+    include_completed: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns a single sorted list combining:
+    - Tasks assigned to the current user
+    - Maintenance items due/overdue for the company
+    - Calibrations due/overdue for the company
+    - Risk actions assigned to the current user
+    Each item has a `source` field for visual distinction on the client.
+    """
+    try:
+        return _build_unified_feed(db, current_user, days_ahead, include_completed)
+    except Exception as e:
+        logger.exception(f"Unified feed error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _build_unified_feed(db, current_user, days_ahead, include_completed):
+    today = date.today()
+    future_date = today + timedelta(days=days_ahead)
+    company_id = current_user.company_id
+    feed = []
+
+    # --- 1. Tasks assigned to user ---
+    task_query = db.query(Task).join(TaskAssignment).filter(
+        TaskAssignment.user_id == current_user.id,
+        Task.company_id == company_id,
+    )
+    if not include_completed:
+        task_query = task_query.filter(Task.status.notin_([TaskStatus.completed, TaskStatus.cancelled]))
+
+    for t in task_query.all():
+        feed.append({
+            "id": t.id,
+            "source": "task",
+            "title": t.title,
+            "description": t.description,
+            "status": t.status.value if hasattr(t.status, 'value') else str(t.status),
+            "priority": t.priority.value if hasattr(t.priority, 'value') else str(t.priority or 'medium'),
+            "scheduled_date": str(t.scheduled_start_date) if t.scheduled_start_date else None,
+            "category": t.task_category.value if hasattr(t.task_category, 'value') else str(t.task_category or ''),
+            "asset_name": None,
+            "block_name": t.block.block_name if t.block else None,
+            "progress_percentage": t.progress_percentage,
+            "is_overdue": bool(t.scheduled_start_date and t.scheduled_start_date < today and t.status not in [TaskStatus.completed, TaskStatus.cancelled]),
+            "task_number": t.task_number,
+        })
+
+    # --- 2. Maintenance due/overdue ---
+    maint_query = db.query(AssetMaintenance).options(
+        joinedload(AssetMaintenance.asset)
+    ).filter(
+        AssetMaintenance.company_id == company_id,
+        AssetMaintenance.status.in_(["scheduled", "in_progress"]),
+    )
+    if not include_completed:
+        maint_query = maint_query.filter(AssetMaintenance.scheduled_date <= future_date)
+
+    for m in maint_query.all():
+        is_overdue = bool(m.scheduled_date and m.scheduled_date < today)
+        feed.append({
+            "id": m.id,
+            "source": "maintenance",
+            "title": m.title,
+            "description": m.description,
+            "status": m.status or "scheduled",
+            "priority": "high" if is_overdue else "medium",
+            "scheduled_date": str(m.scheduled_date) if m.scheduled_date else None,
+            "category": m.maintenance_category or m.maintenance_type or "",
+            "asset_name": m.asset.name if m.asset else None,
+            "block_name": None,
+            "progress_percentage": 0,
+            "is_overdue": is_overdue,
+            "task_number": None,
+        })
+
+    # --- 3. Calibrations due/overdue ---
+    cal_query = db.query(AssetCalibration).options(
+        joinedload(AssetCalibration.asset)
+    ).filter(
+        AssetCalibration.company_id == company_id,
+    )
+    cal_query = cal_query.filter(
+        or_(
+            and_(AssetCalibration.due_date != None, AssetCalibration.due_date <= future_date),
+            and_(AssetCalibration.next_due_date != None, AssetCalibration.next_due_date <= future_date),
+        )
+    )
+    for c in cal_query.all():
+        due = c.next_due_date or c.due_date
+        if not due:
+            continue
+        is_overdue = due < today
+        if not is_overdue and c.status == "pass":
+            continue
+        feed.append({
+            "id": c.id,
+            "source": "calibration",
+            "title": f"Calibrate: {c.parameter_name}",
+            "description": c.adjustment_details,
+            "status": "overdue" if is_overdue else "due",
+            "priority": "high" if is_overdue else "medium",
+            "scheduled_date": str(due) if due else None,
+            "category": c.calibration_type or "",
+            "asset_name": c.asset.name if c.asset else None,
+            "block_name": None,
+            "progress_percentage": 0,
+            "is_overdue": is_overdue,
+            "task_number": None,
+        })
+
+    # --- 4. Risk actions assigned to user ---
+    risk_query = db.query(RiskAction).filter(
+        RiskAction.company_id == company_id,
+        RiskAction.assigned_to == current_user.id,
+    )
+    if not include_completed:
+        risk_query = risk_query.filter(RiskAction.status.in_(["planned", "in_progress", "overdue"]))
+
+    for r in risk_query.all():
+        # target_completion_date is DateTime — extract date for comparison
+        due_dt = r.target_completion_date
+        due_date = due_dt.date() if due_dt else None
+        is_overdue = bool(due_date and due_date < today and r.status != "completed")
+        feed.append({
+            "id": r.id,
+            "source": "risk_action",
+            "title": r.action_title,
+            "description": r.action_description or "",
+            "status": r.status or "planned",
+            "priority": r.priority or "medium",
+            "scheduled_date": str(due_date) if due_date else None,
+            "category": r.action_type or "",
+            "asset_name": None,
+            "block_name": None,
+            "progress_percentage": r.progress_percentage or 0,
+            "is_overdue": is_overdue,
+            "task_number": None,
+        })
+
+    # --- Sort: overdue first, then by scheduled date ---
+    feed.sort(key=lambda x: (
+        not x["is_overdue"],
+        x["scheduled_date"] or "9999-99-99",
+    ))
+
+    return feed
 
 
 @router.get("/tasks", response_model=List[TaskResponse])
@@ -510,10 +672,14 @@ def update_task(
     # Update fields
     for field, value in update_data.items():
         setattr(task, field, value)
-    
+
+    # Auto-schedule: if task is still draft and now has a start date, bump to scheduled
+    if task.status == TaskStatus.draft and task.scheduled_start_date:
+        task.status = TaskStatus.scheduled
+
     db.commit()
     db.refresh(task)
-    
+
     logger.info(f"Task {task_id} updated by user {current_user.id}")
     return task
 
@@ -1890,15 +2056,24 @@ def get_my_tasks(
     current_user: User = Depends(get_current_user)
 ):
     """Get tasks assigned to current user"""
-    query = db.query(Task).join(TaskAssignment).filter(
+    query = db.query(Task).options(
+        joinedload(Task.block),
+        joinedload(Task.creator),
+        joinedload(Task.completer),
+        joinedload(Task.assignments).joinedload(TaskAssignment.user)
+    ).join(TaskAssignment).filter(
         TaskAssignment.user_id == current_user.id,
         Task.company_id == current_user.company_id
     )
     
-    # Filter by status
+    # Filter by status (supports comma-separated values)
     if status:
-        query = query.filter(TaskAssignment.status == status)
-    
+        statuses = [s.strip() for s in status.split(',') if s.strip()]
+        if len(statuses) == 1:
+            query = query.filter(Task.status == statuses[0])
+        else:
+            query = query.filter(Task.status.in_(statuses))
+
     if not include_completed:
         query = query.filter(Task.status != TaskStatus.completed)
     

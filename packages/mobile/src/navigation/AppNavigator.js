@@ -1,4 +1,4 @@
-// navigation/AppNavigator.js — Main app navigation (bottom tabs + stack)
+// navigation/AppNavigator.js — Main app navigation (bottom tabs + stacks)
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text } from 'react-native';
@@ -8,26 +8,36 @@ import HomeScreen from '../screens/HomeScreen';
 import TasksScreen from '../screens/TasksScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen';
 import ObservationsScreen from '../screens/ObservationsScreen';
+import SpotCaptureScreen from '../screens/SpotCaptureScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const TaskStack = createNativeStackNavigator();
+const ObsStack = createNativeStackNavigator();
 
-// Tab icons as simple text (replace with lucide-react-native or expo-vector-icons later)
-const TAB_ICONS = { Home: '🏠', Tasks: '📋', Observations: '🔍', Profile: '👤' };
+const TAB_ICONS = { Home: '🏠', Tasks: '📋', Observe: '🔍', Profile: '👤' };
+
+const stackScreenOptions = {
+  headerStyle: { backgroundColor: colors.surface },
+  headerTintColor: colors.primary,
+  headerTitleStyle: { fontWeight: '600', fontSize: fontSize.md },
+};
 
 function TasksStackNavigator() {
   return (
-    <TaskStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.primary,
-        headerTitleStyle: { fontWeight: '600', fontSize: fontSize.md },
-      }}
-    >
+    <TaskStack.Navigator screenOptions={stackScreenOptions}>
       <TaskStack.Screen name="TaskList" component={TasksScreen} options={{ title: 'My Tasks' }} />
       <TaskStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task Detail' }} />
     </TaskStack.Navigator>
+  );
+}
+
+function ObservationsStackNavigator() {
+  return (
+    <ObsStack.Navigator screenOptions={stackScreenOptions}>
+      <ObsStack.Screen name="ObsList" component={ObservationsScreen} options={{ title: 'Observations' }} />
+      <ObsStack.Screen name="SpotCapture" component={SpotCaptureScreen} options={{ title: 'Capture Spot' }} />
+    </ObsStack.Navigator>
   );
 }
 
@@ -55,7 +65,7 @@ export default function AppNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Tasks" component={TasksStackNavigator} options={{ headerShown: false }} />
-      <Tab.Screen name="Observations" component={ObservationsScreen} />
+      <Tab.Screen name="Observe" component={ObservationsStackNavigator} options={{ headerShown: false }} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

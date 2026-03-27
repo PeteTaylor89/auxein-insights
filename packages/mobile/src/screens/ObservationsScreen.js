@@ -1,71 +1,297 @@
-// screens/ObservationsScreen.js — Observation entry point (placeholder for M3)
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+// screens/ObservationsScreen.js — Observation hub: quick obs + planned obs
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  RefreshControl, ActivityIndicator, Modal, FlatList, Alert,
+} from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
+import { observationService, blocksService } from '../api/services';
 
-const OBS_CATEGORIES = [
-  { key: 'quick', icon: '⚡', label: 'Quick Check', desc: 'Free-form, Pests & Diseases, Vine Health' },
-  { key: 'phenology', icon: '🍇', label: 'Phenology & Growth', desc: 'EL Stages, Bud Count, Growth/Canopy' },
-  { key: 'yield', icon: '📊', label: 'Yield', desc: 'Flower Count, Bunch Count, Estimation' },
-  { key: 'lab', icon: '🧪', label: 'Lab & Sampling', desc: 'On-Site Lab, External Lab' },
-  { key: 'environment', icon: '🌿', label: 'Environment', desc: 'Land Management, Frost, Biosecurity' },
+// Template categories for quick observation
+const TEMPLATE_CATEGORIES = [
+  { key: 'phenology', icon: '🍇', label: 'Phenology & Growth', types: ['phenology', 'growth', 'bud_count'] },
+  { key: 'disease', icon: '🦠', label: 'Pests & Disease', types: ['pest_disease', 'disease', 'pest', 'beneficials', 'nutrient_health'] },
+  { key: 'yield', icon: '📊', label: 'Yield & Sampling', types: ['flower_set', 'bunch_count', 'pre_veraison_yield', 'post_veraison_yield', 'maturity_sampling', 'lab_sampling_pre_winery'] },
+  { key: 'environment', icon: '🌿', label: 'Environment', types: ['soil_groundcover', 'land_management', 'frost_event', 'weather', 'irrigation_check', 'biosecurity'] },
+  { key: 'other', icon: '📝', label: 'Other', types: ['other', 'compliance', 'hazard', 'maintenance'] },
 ];
 
-export default function ObservationsScreen() {
+export default function ObservationsScreen({ navigation }) {
+  const { user } = useAuth();
+  const [templates, setTemplates] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [blocks, setBlocks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Quick obs flow state
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showBlockPicker, setShowBlockPicker] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tpl, pln, blk] = await Promise.all([
+        observationService.getTemplates().catch(() => []),
+        observationService.getPlans({ status_in: 'scheduled,in_progress' }).catch(() => []),
+        blocksService.getCompanyBlocks().catch(() => []),
+      ]);
+      setTemplates(Array.isArray(tpl) ? tpl : []);
+      setPlans(Array.isArray(pln) ? pln : []);
+      setBlocks(Array.isArray(blk) ? blk : []);
+    } catch (err) {
+      console.log('Failed to load observation data:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // --- Quick Observation Flow ---
+
+  const handleCategoryPress = (cat) => {
+    setSelectedCategory(cat);
+    setShowTemplatePicker(true);
+  };
+
+  // Template type comes as "type" or "observation_type" depending on serialization
+  const getType = (t) => t.type || t.observation_type || '';
+
+  const categoryTemplates = selectedCategory
+    ? templates.filter(t => selectedCategory.types.includes(getType(t)))
+    : [];
+
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template);
+    setShowTemplatePicker(false);
+    setShowBlockPicker(true);
+  };
+
+  const handleBlockSelect = async (block) => {
+    setShowBlockPicker(false);
+    try {
+      // Create a quick observation run
+      const run = await observationService.createRun({
+        company_id: user?.company_id,
+        template_id: selectedTemplate.id,
+        block_id: block.id,
+        summary_stats: { type: 'freeform' },
+      });
+      // Navigate to spot capture
+      navigation.navigate('SpotCapture', {
+        runId: run.id,
+        templateId: selectedTemplate.id,
+        blockId: block.id,
+        blockName: block.block_name || block.name,
+        templateName: selectedTemplate.name,
+      });
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      Alert.alert('Error', typeof detail === 'string' ? detail : 'Failed to create observation run');
+    }
+  };
+
+  // --- Planned Observation Flow ---
+
+  const handleStartPlan = async (plan) => {
+    try {
+      const blockId = plan.targets?.length === 1 ? plan.targets[0].block_id : null;
+      const run = await observationService.createRun({
+        company_id: user?.company_id,
+        template_id: plan.template_id,
+        plan_id: plan.id,
+        block_id: blockId,
+      });
+      navigation.navigate('SpotCapture', {
+        runId: run.id,
+        templateId: plan.template_id,
+        blockId: blockId,
+        blockName: plan.targets?.[0]?.block_name,
+        templateName: plan.template_name || plan.name,
+        planName: plan.name,
+      });
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      Alert.alert('Error', typeof detail === 'string' ? detail : 'Failed to start observation run');
+    }
+  };
+
+  const priorityColor = (p) => {
+    if (p === 'high') return colors.danger;
+    if (p === 'normal') return colors.warning;
+    return colors.textMuted;
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Observations</Text>
-        <Text style={styles.subtitle}>Capture vineyard data in the field</Text>
-      </View>
-
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} tintColor={colors.primary} />}
+    >
+      {/* Quick Observation */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Start an Observation</Text>
-        {OBS_CATEGORIES.map(cat => (
-          <TouchableOpacity key={cat.key} style={styles.card}>
-            <Text style={styles.cardIcon}>{cat.icon}</Text>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{cat.label}</Text>
-              <Text style={styles.cardDesc}>{cat.desc}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        <Text style={styles.sectionTitle}>Quick Observation</Text>
+        <Text style={styles.sectionSub}>Pick a category, select a template, choose a block</Text>
+        <View style={styles.categoryGrid}>
+          {TEMPLATE_CATEGORIES.map(cat => {
+            const count = templates.filter(t => cat.types.includes(getType(t))).length;
+            return (
+              <TouchableOpacity
+                key={cat.key}
+                style={styles.categoryCard}
+                onPress={() => handleCategoryPress(cat)}
+              >
+                <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                <Text style={styles.categoryLabel}>{cat.label}</Text>
+                <Text style={styles.categoryCount}>{count} templates</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderTitle}>Full Observation Capture</Text>
-        <Text style={styles.placeholderText}>
-          Template selection, block picker, spot capture with GPS + camera, and offline queue will be built in Phase M3.
-        </Text>
+      {/* Planned Observations */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Planned Observations</Text>
+        {plans.length === 0 ? (
+          <Text style={styles.emptyText}>No observation plans scheduled</Text>
+        ) : (
+          plans.map(plan => (
+            <TouchableOpacity key={plan.id} style={styles.planCard} onPress={() => handleStartPlan(plan)}>
+              <View style={styles.planHeader}>
+                <Text style={styles.planName} numberOfLines={1}>{plan.name}</Text>
+                {plan.priority && (
+                  <Text style={[styles.planPriority, { color: priorityColor(plan.priority) }]}>
+                    {plan.priority}
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.planMeta}>
+                {plan.template_name || 'Template'}
+                {plan.targets?.length ? ` · ${plan.targets.length} target${plan.targets.length > 1 ? 's' : ''}` : ''}
+                {plan.runs_count ? ` · ${plan.runs_count} run${plan.runs_count > 1 ? 's' : ''}` : ''}
+              </Text>
+              {plan.instructions && <Text style={styles.planInstructions} numberOfLines={2}>{plan.instructions}</Text>}
+              <View style={[styles.statusBadge, { backgroundColor: plan.status === 'in_progress' ? colors.warning + '20' : colors.info + '20' }]}>
+                <Text style={[styles.statusText, { color: plan.status === 'in_progress' ? colors.warning : colors.info }]}>
+                  {plan.status?.replace(/_/g, ' ')}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
       </View>
 
       <View style={{ height: spacing.xxl }} />
+
+      {/* Template Picker Modal */}
+      <Modal visible={showTemplatePicker} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{selectedCategory?.icon} {selectedCategory?.label}</Text>
+            <Text style={styles.modalSub}>Select a template</Text>
+            {categoryTemplates.length === 0 ? (
+              <Text style={styles.emptyText}>No templates in this category</Text>
+            ) : (
+              <FlatList
+                data={categoryTemplates}
+                keyExtractor={t => String(t.id)}
+                renderItem={({ item: t }) => (
+                  <TouchableOpacity style={styles.templateItem} onPress={() => handleTemplateSelect(t)}>
+                    <Text style={styles.templateName}>{t.name}</Text>
+                    <Text style={styles.templateType}>{(t.observation_type || t.type || '').replace(/_/g, ' ')}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowTemplatePicker(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Block Picker Modal */}
+      <Modal visible={showBlockPicker} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Block</Text>
+            <Text style={styles.modalSub}>{selectedTemplate?.name}</Text>
+            {blocks.length === 0 ? (
+              <Text style={styles.emptyText}>No blocks found</Text>
+            ) : (
+              <FlatList
+                data={blocks}
+                keyExtractor={b => String(b.id)}
+                renderItem={({ item: b }) => (
+                  <TouchableOpacity style={styles.templateItem} onPress={() => handleBlockSelect(b)}>
+                    <Text style={styles.templateName}>{b.block_name || b.name}</Text>
+                    <Text style={styles.templateType}>{b.variety || ''}{b.area_hectares ? ` · ${b.area_hectares} ha` : ''}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowBlockPicker(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceWarm },
-  header: { padding: spacing.lg, paddingTop: spacing.xl, backgroundColor: colors.primary },
-  title: { fontSize: fontSize.xl, fontWeight: '700', color: colors.white },
-  subtitle: { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.8)', marginTop: spacing.xs },
+
+  // Sections
   section: { padding: spacing.base },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.md },
-  card: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+  sectionTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
+  sectionSub: { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.md },
+  emptyText: { color: colors.textMuted, fontSize: fontSize.sm, fontStyle: 'italic', padding: spacing.md },
+
+  // Category grid
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  categoryCard: {
+    width: '48%', backgroundColor: colors.surface, borderRadius: radius.md,
+    padding: spacing.base, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', gap: spacing.xs,
+  },
+  categoryIcon: { fontSize: 28 },
+  categoryLabel: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text, textAlign: 'center' },
+  categoryCount: { fontSize: fontSize.xs, color: colors.textMuted },
+
+  // Plan cards
+  planCard: {
     backgroundColor: colors.surface, borderRadius: radius.md,
     padding: spacing.md, marginBottom: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
-  cardIcon: { fontSize: 28 },
-  cardContent: { flex: 1 },
-  cardTitle: { fontSize: fontSize.base, fontWeight: '500', color: colors.text },
-  cardDesc: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  placeholder: {
-    margin: spacing.base, backgroundColor: colors.surfaceWarm,
-    borderRadius: radius.lg, padding: spacing.lg,
-    borderWidth: 1, borderColor: colors.oliveBorder, borderStyle: 'dashed',
-    alignItems: 'center',
+  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  planName: { fontSize: fontSize.base, fontWeight: '500', color: colors.text, flex: 1 },
+  planPriority: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize' },
+  planMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xs },
+  planInstructions: { fontSize: fontSize.xs, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xs },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill, marginTop: spacing.sm },
+  statusText: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize' },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    padding: spacing.lg, maxHeight: '70%',
   },
-  placeholderTitle: { fontSize: fontSize.base, fontWeight: '600', color: colors.primary, marginBottom: spacing.xs },
-  placeholderText: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center' },
+  modalTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text },
+  modalSub: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.md },
+  modalCancel: { marginTop: spacing.md, padding: spacing.md, alignItems: 'center' },
+  modalCancelText: { color: colors.textMuted, fontSize: fontSize.base, fontWeight: '500' },
+
+  // Template/block list items
+  templateItem: {
+    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  templateName: { fontSize: fontSize.base, fontWeight: '500', color: colors.text },
+  templateType: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
 });

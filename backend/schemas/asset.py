@@ -327,6 +327,9 @@ class CalibrationCreate(CalibrationBase):
         return v or date.today()
 
 class CalibrationUpdate(BaseModel):
+    calibration_date: Optional[date] = None
+    status: Optional[str] = None  # pass, fail, out_of_tolerance
+    within_tolerance: Optional[bool] = None
     measured_value: Optional[Decimal] = None
     adjustment_made: Optional[bool] = None
     adjustment_details: Optional[str] = None
