@@ -106,6 +106,10 @@ export const observationService = {
     return res.data;
   },
   // Runs
+  listRuns: async (params = {}) => {
+    const res = await api.get('/observations/api/observation-runs', { params });
+    return res.data;
+  },
   createRun: async (payload) => {
     const res = await api.post('/observations/api/observation-runs', payload);
     return res.data;
@@ -116,6 +120,10 @@ export const observationService = {
   },
   completeRun: async (runId) => {
     const res = await api.post(`/observations/api/observation-runs/${runId}/complete`);
+    return res.data;
+  },
+  cancelRun: async (runId) => {
+    const res = await api.patch(`/observations/api/observation-runs/${runId}/cancel`);
     return res.data;
   },
   // Spots

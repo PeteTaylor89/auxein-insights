@@ -3,8 +3,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, Switch, KeyboardAvoidingView, Platform,
-  TouchableWithoutFeedback, Keyboard,
+  TouchableWithoutFeedback, Keyboard, Modal, FlatList,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { observationService } from '../api/services';
@@ -12,7 +13,8 @@ import useImageCapture from '../hooks/useImageCapture';
 import PhotoStrip from '../components/PhotoStrip';
 
 export default function SpotCaptureScreen({ route, navigation }) {
-  const { runId, templateId, blockId, blockName, templateName, planName } = route.params;
+  const { templateId, blockId, blockName, templateName, planName, companyId, planId,
+          runId: existingRunId } = route.params;
 
   const [template, setTemplate] = useState(null);
   const [fields, setFields] = useState([]);
@@ -23,17 +25,23 @@ export default function SpotCaptureScreen({ route, navigation }) {
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [runId, setRunId] = useState(existingRunId || null);
+  const [referenceData, setReferenceData] = useState({});
+
+  // Picker modal state (shared for options_source and date/time fields)
+  const [pickerField, setPickerField] = useState(null);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(null); // { fieldName, mode: 'date'|'time'|'datetime', step: 'date'|'time' }
 
   const imageCapture = useImageCapture('observation_spot', null);
 
-  // Load template and existing spots
+  // Load template, reference data, and existing spots (if resuming a run)
   useEffect(() => {
     (async () => {
       try {
-        const [tpl, existingSpots] = await Promise.all([
-          observationService.getTemplate(templateId),
-          observationService.getSpots(runId).catch(() => []),
-        ]);
+        const promises = [observationService.getTemplate(templateId)];
+        if (runId) promises.push(observationService.getSpots(runId).catch(() => []));
+        const [tpl, existingSpots] = await Promise.all(promises);
         setTemplate(tpl);
         const templateFields = tpl?.schema?.fields || tpl?.fields_json?.fields || [];
         setFields(templateFields);
@@ -43,7 +51,24 @@ export default function SpotCaptureScreen({ route, navigation }) {
           if (f.default !== undefined && f.default !== null) defaults[f.name] = f.default;
         });
         setValues(defaults);
-        setSpots(Array.isArray(existingSpots) ? existingSpots : []);
+        if (existingSpots) setSpots(Array.isArray(existingSpots) ? existingSpots : []);
+
+        // Load reference data for fields with options_source
+        const sourcesNeeded = templateFields
+          .filter(f => f.options_source?.catalog)
+          .map(f => f.options_source.catalog);
+        const uniqueSources = [...new Set(sourcesNeeded)];
+        if (uniqueSources.length > 0) {
+          const refResults = await Promise.all(
+            uniqueSources.map(src =>
+              (src === 'el_stage' ? observationService.getElStages() : observationService.getCatalog(src))
+                .catch(() => [])
+            )
+          );
+          const refMap = {};
+          uniqueSources.forEach((src, i) => { refMap[src] = refResults[i]; });
+          setReferenceData(refMap);
+        }
       } catch (err) {
         console.log('Failed to load template:', err.message);
       } finally {
@@ -89,8 +114,21 @@ export default function SpotCaptureScreen({ route, navigation }) {
   const handleSaveSpot = async () => {
     setSaving(true);
     try {
-      const spot = await observationService.createSpot(runId, {
-        company_id: template?.company_id || undefined,
+      // Create run on first spot save (deferred creation — avoids orphan empty runs)
+      let activeRunId = runId;
+      if (!activeRunId) {
+        const run = await observationService.createRun({
+          company_id: companyId || template?.company_id,
+          template_id: templateId,
+          block_id: blockId || undefined,
+          plan_id: planId || undefined,
+        });
+        activeRunId = run.id;
+        setRunId(activeRunId);
+      }
+
+      const spot = await observationService.createSpot(activeRunId, {
+        company_id: companyId || template?.company_id || undefined,
         block_id: blockId || undefined,
         latitude: gps?.latitude || undefined,
         longitude: gps?.longitude || undefined,
@@ -140,22 +178,95 @@ export default function SpotCaptureScreen({ route, navigation }) {
     }
   };
 
+  // --- Helpers ---
+
+  const formatDate = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const formatTime = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return '';
+    return `${formatDate(iso)}, ${formatTime(iso)}`;
+  };
+
+  // Get resolved options for a field (static options or from reference data)
+  const getFieldOptions = (field) => {
+    if (field.options_source?.catalog) {
+      const items = referenceData[field.options_source.catalog] || [];
+      return items.map(item => ({
+        value: item.key || String(item.id),
+        label: item.label || item.key || String(item.id),
+        description: item.description || null,
+      }));
+    }
+    return (field.options || []).map(opt =>
+      typeof opt === 'string' ? { value: opt, label: opt } : opt
+    );
+  };
+
   // --- Dynamic field renderers ---
 
   const renderField = (field) => {
+    // Skip scope fields handled elsewhere
+    if (field.type === 'entity_ref') return null; // block/asset — already selected
+    if (field.type === 'photo_multi') return null; // handled by PhotoStrip
+    if (field.computed) return null;
+
     // Check visibility rules
     if (field.visible_if) {
-      const depField = field.visible_if.field;
-      const depValue = field.visible_if.value;
-      if (values[depField] !== depValue) return null;
+      const entries = Object.entries(field.visible_if);
+      for (const [depField, depValue] of entries) {
+        if (depField === 'field' && field.visible_if.value !== undefined) {
+          // legacy format: { field: 'x', value: 'y' }
+          if (values[field.visible_if.field] !== field.visible_if.value) return null;
+          break;
+        }
+        // object format: { scale: 'EL' }
+        if (values[depField] !== depValue) return null;
+      }
     }
 
     const val = values[field.name];
+    const hasOptionsSource = !!field.options_source?.catalog;
+    const isMulti = field.multiselect || field.type === 'multiselect';
 
     switch (field.type) {
       case 'number':
       case 'integer':
-      case 'decimal':
+      case 'decimal': {
+        // Small integer ranges (e.g. severity 0-5) render as tap-to-select buttons
+        const hasRange = field.min != null && field.max != null;
+        const rangeSize = hasRange ? (field.max - field.min) : Infinity;
+        if (hasRange && rangeSize <= 10 && Number.isInteger(field.min) && Number.isInteger(field.max)) {
+          const options = [];
+          for (let i = field.min; i <= field.max; i++) options.push(i);
+          return (
+            <FieldWrapper key={field.name} field={field}>
+              <View style={styles.selectGrid}>
+                {options.map(n => {
+                  const selected = val === n;
+                  return (
+                    <TouchableOpacity
+                      key={n}
+                      style={[styles.scaleBtn, selected && styles.scaleBtnActive]}
+                      onPress={() => updateValue(field.name, selected ? null : n)}
+                    >
+                      <Text style={[styles.scaleBtnText, selected && styles.scaleBtnTextActive]}>{n}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </FieldWrapper>
+          );
+        }
         return (
           <FieldWrapper key={field.name} field={field}>
             <TextInput
@@ -168,6 +279,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
             />
           </FieldWrapper>
         );
+      }
 
       case 'text':
         return (
@@ -209,22 +321,91 @@ export default function SpotCaptureScreen({ route, navigation }) {
           </FieldWrapper>
         );
 
-      case 'select':
+      case 'select': {
+        // Route select fields with multiselect flag to the multiselect renderer
+        if (isMulti) {
+          // Fall through to multiselect case by re-rendering
+          const options = hasOptionsSource ? getFieldOptions(field) : getFieldOptions(field);
+          if (hasOptionsSource) {
+            const selected = Array.isArray(val) ? val : [];
+            const selectedLabels = selected.map(v => {
+              const o = options.find(opt => opt.value === v);
+              return o ? o.label : v;
+            });
+            return (
+              <FieldWrapper key={field.name} field={field}>
+                <TouchableOpacity
+                  style={styles.pickerTrigger}
+                  onPress={() => { setPickerField({ ...field, _isMulti: true }); setPickerSearch(''); }}
+                >
+                  <Text style={selected.length > 0 ? styles.pickerValue : styles.pickerPlaceholder} numberOfLines={2}>
+                    {selected.length > 0 ? selectedLabels.join(', ') : `Select ${field.label}...`}
+                  </Text>
+                  <Text style={styles.pickerChevron}>▼</Text>
+                </TouchableOpacity>
+              </FieldWrapper>
+            );
+          }
+          return (
+            <FieldWrapper key={field.name} field={field}>
+              <View style={styles.selectGrid}>
+                {options.map(opt => {
+                  const selected = Array.isArray(val) && val.includes(opt.value);
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.selectBtn, selected && styles.selectBtnActive]}
+                      onPress={() => {
+                        const current = Array.isArray(val) ? val : [];
+                        updateValue(field.name, selected ? current.filter(v => v !== opt.value) : [...current, opt.value]);
+                      }}
+                    >
+                      <Text style={[styles.selectBtnText, selected && styles.selectBtnTextActive]} numberOfLines={1}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </FieldWrapper>
+          );
+        }
+        // If options come from a catalog, use the picker modal (list may be long)
+        if (hasOptionsSource) {
+          const options = getFieldOptions(field);
+          const selectedOpt = options.find(o => o.value === val);
+          return (
+            <FieldWrapper key={field.name} field={field}>
+              <TouchableOpacity
+                style={styles.pickerTrigger}
+                onPress={() => { setPickerField(field); setPickerSearch(''); }}
+              >
+                <Text style={selectedOpt ? styles.pickerValue : styles.pickerPlaceholder} numberOfLines={1}>
+                  {selectedOpt ? selectedOpt.label : `Select ${field.label}...`}
+                </Text>
+                <Text style={styles.pickerChevron}>▼</Text>
+              </TouchableOpacity>
+              {selectedOpt?.description && field.show_guide && (
+                <Text style={styles.refDescription}>{selectedOpt.description}</Text>
+              )}
+            </FieldWrapper>
+          );
+        }
+        // Static options — render as button grid (short lists)
+        const options = getFieldOptions(field);
         return (
           <FieldWrapper key={field.name} field={field}>
             <View style={styles.selectGrid}>
-              {(field.options || []).map(opt => {
-                const optVal = typeof opt === 'string' ? opt : opt.value;
-                const optLabel = typeof opt === 'string' ? opt : opt.label;
-                const selected = val === optVal;
+              {options.map(opt => {
+                const selected = val === opt.value;
                 return (
                   <TouchableOpacity
-                    key={optVal}
+                    key={opt.value}
                     style={[styles.selectBtn, selected && styles.selectBtnActive]}
-                    onPress={() => updateValue(field.name, selected ? null : optVal)}
+                    onPress={() => updateValue(field.name, selected ? null : opt.value)}
                   >
                     <Text style={[styles.selectBtnText, selected && styles.selectBtnTextActive]} numberOfLines={1}>
-                      {optLabel}
+                      {opt.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -232,26 +413,48 @@ export default function SpotCaptureScreen({ route, navigation }) {
             </View>
           </FieldWrapper>
         );
+      }
 
-      case 'multiselect':
+      case 'multiselect': {
+        const options = hasOptionsSource ? getFieldOptions(field) : getFieldOptions(field);
+        if (hasOptionsSource) {
+          // Catalog-backed multiselect — picker modal
+          const selected = Array.isArray(val) ? val : [];
+          const selectedLabels = selected.map(v => {
+            const o = options.find(opt => opt.value === v);
+            return o ? o.label : v;
+          });
+          return (
+            <FieldWrapper key={field.name} field={field}>
+              <TouchableOpacity
+                style={styles.pickerTrigger}
+                onPress={() => { setPickerField({ ...field, _isMulti: true }); setPickerSearch(''); }}
+              >
+                <Text style={selected.length > 0 ? styles.pickerValue : styles.pickerPlaceholder} numberOfLines={2}>
+                  {selected.length > 0 ? selectedLabels.join(', ') : `Select ${field.label}...`}
+                </Text>
+                <Text style={styles.pickerChevron}>▼</Text>
+              </TouchableOpacity>
+            </FieldWrapper>
+          );
+        }
+        // Static multiselect — chip grid
         return (
           <FieldWrapper key={field.name} field={field}>
             <View style={styles.selectGrid}>
-              {(field.options || []).map(opt => {
-                const optVal = typeof opt === 'string' ? opt : opt.value;
-                const optLabel = typeof opt === 'string' ? opt : opt.label;
-                const selected = Array.isArray(val) && val.includes(optVal);
+              {options.map(opt => {
+                const selected = Array.isArray(val) && val.includes(opt.value);
                 return (
                   <TouchableOpacity
-                    key={optVal}
+                    key={opt.value}
                     style={[styles.selectBtn, selected && styles.selectBtnActive]}
                     onPress={() => {
                       const current = Array.isArray(val) ? val : [];
-                      updateValue(field.name, selected ? current.filter(v => v !== optVal) : [...current, optVal]);
+                      updateValue(field.name, selected ? current.filter(v => v !== opt.value) : [...current, opt.value]);
                     }}
                   >
                     <Text style={[styles.selectBtnText, selected && styles.selectBtnTextActive]} numberOfLines={1}>
-                      {optLabel}
+                      {opt.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -259,10 +462,59 @@ export default function SpotCaptureScreen({ route, navigation }) {
             </View>
           </FieldWrapper>
         );
+      }
+
+      case 'date':
+        return (
+          <FieldWrapper key={field.name} field={field}>
+            <TouchableOpacity
+              style={styles.pickerTrigger}
+              onPress={() => setShowDatePicker({ fieldName: field.name, mode: 'date', step: 'date' })}
+            >
+              <Text style={val ? styles.pickerValue : styles.pickerPlaceholder}>
+                {val ? formatDate(val) : 'Tap to select date'}
+              </Text>
+              <Text style={styles.pickerChevron}>📅</Text>
+            </TouchableOpacity>
+          </FieldWrapper>
+        );
+
+      case 'time':
+        return (
+          <FieldWrapper key={field.name} field={field}>
+            <TouchableOpacity
+              style={styles.pickerTrigger}
+              onPress={() => setShowDatePicker({ fieldName: field.name, mode: 'time', step: 'time' })}
+            >
+              <Text style={val ? styles.pickerValue : styles.pickerPlaceholder}>
+                {val ? formatTime(val) : 'Tap to select time'}
+              </Text>
+              <Text style={styles.pickerChevron}>🕐</Text>
+            </TouchableOpacity>
+          </FieldWrapper>
+        );
+
+      case 'datetime':
+        return (
+          <FieldWrapper key={field.name} field={field}>
+            <TouchableOpacity
+              style={styles.pickerTrigger}
+              onPress={() => setShowDatePicker({ fieldName: field.name, mode: 'datetime', step: 'date' })}
+            >
+              <Text style={val ? styles.pickerValue : styles.pickerPlaceholder}>
+                {val ? formatDateTime(val) : 'Tap to select date & time'}
+              </Text>
+              <Text style={styles.pickerChevron}>📅</Text>
+            </TouchableOpacity>
+          </FieldWrapper>
+        );
+
+      case 'json':
+        // JSON fields are power-user/web — hide on mobile
+        return null;
 
       default:
         // Fallback: render as text input
-        if (field.computed) return null; // skip computed fields
         return (
           <FieldWrapper key={field.name} field={field}>
             <TextInput
@@ -274,6 +526,156 @@ export default function SpotCaptureScreen({ route, navigation }) {
             />
           </FieldWrapper>
         );
+    }
+  };
+
+  // --- Reference data picker modal ---
+
+  const renderPickerModal = () => {
+    if (!pickerField) return null;
+    const options = getFieldOptions(pickerField);
+    const isMulti = pickerField._isMulti || pickerField.multiselect || pickerField.type === 'multiselect';
+    const currentVal = values[pickerField.name];
+    const selectedValues = isMulti ? (Array.isArray(currentVal) ? currentVal : []) : [];
+
+    const query = pickerSearch.toLowerCase().trim();
+    const filtered = query
+      ? options.filter(o =>
+          o.label.toLowerCase().includes(query) ||
+          o.value.toLowerCase().includes(query) ||
+          (o.description && o.description.toLowerCase().includes(query))
+        )
+      : options;
+
+    return (
+      <Modal visible={true} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{pickerField.label}</Text>
+
+            {/* Search bar */}
+            <TextInput
+              style={[styles.input, { marginBottom: spacing.sm }]}
+              value={pickerSearch}
+              onChangeText={setPickerSearch}
+              placeholder="Search..."
+              placeholderTextColor={colors.textMuted}
+              autoFocus
+            />
+
+            <FlatList
+              data={filtered}
+              keyExtractor={o => o.value}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item: opt }) => {
+                const selected = isMulti
+                  ? selectedValues.includes(opt.value)
+                  : currentVal === opt.value;
+                return (
+                  <TouchableOpacity
+                    style={[styles.pickerItem, selected && styles.pickerItemActive]}
+                    onPress={() => {
+                      if (isMulti) {
+                        const next = selected
+                          ? selectedValues.filter(v => v !== opt.value)
+                          : [...selectedValues, opt.value];
+                        updateValue(pickerField.name, next);
+                      } else {
+                        updateValue(pickerField.name, selected ? null : opt.value);
+                        setPickerField(null);
+                      }
+                    }}
+                  >
+                    {isMulti && (
+                      <Text style={styles.pickerCheck}>{selected ? '☑' : '☐'}</Text>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.pickerItemLabel, selected && styles.pickerItemLabelActive]}>
+                        {opt.label}
+                      </Text>
+                      {opt.description && pickerField.show_guide && (
+                        <Text style={styles.pickerItemDesc} numberOfLines={2}>{opt.description}</Text>
+                      )}
+                    </View>
+                    {!isMulti && selected && (
+                      <Text style={styles.pickerCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No matches</Text>
+              }
+            />
+
+            {/* Allow free-text entry for allow_free fields */}
+            {pickerField.allow_free && pickerSearch.trim() && !filtered.some(o => o.value === pickerSearch.trim()) && (
+              <TouchableOpacity
+                style={[styles.pickerItem, { borderTopWidth: 1, borderTopColor: colors.border }]}
+                onPress={() => {
+                  const custom = pickerSearch.trim();
+                  if (isMulti) {
+                    updateValue(pickerField.name, [...selectedValues, custom]);
+                  } else {
+                    updateValue(pickerField.name, custom);
+                  }
+                  setPickerField(null);
+                }}
+              >
+                <Text style={styles.pickerItemLabel}>+ Add "{pickerSearch.trim()}"</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Done / Cancel buttons */}
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+              {isMulti && (
+                <TouchableOpacity
+                  style={[styles.modalBtn, { flex: 1, backgroundColor: colors.primary }]}
+                  onPress={() => setPickerField(null)}
+                >
+                  <Text style={styles.modalBtnText}>Done ({selectedValues.length})</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.modalBtn, { flex: 1, backgroundColor: colors.border }]}
+                onPress={() => setPickerField(null)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  // --- Date/time picker handling ---
+
+  const handleDateTimeChange = (event, selectedDate) => {
+    if (!showDatePicker || event.type === 'dismissed') {
+      setShowDatePicker(null);
+      return;
+    }
+    const { fieldName, mode, step } = showDatePicker;
+
+    if (mode === 'date') {
+      updateValue(fieldName, selectedDate.toISOString());
+      setShowDatePicker(null);
+    } else if (mode === 'time') {
+      updateValue(fieldName, selectedDate.toISOString());
+      setShowDatePicker(null);
+    } else if (mode === 'datetime') {
+      if (step === 'date') {
+        // Store interim date, then show time picker
+        updateValue(fieldName, selectedDate.toISOString());
+        setShowDatePicker({ fieldName, mode: 'datetime', step: 'time' });
+      } else {
+        // Merge the time into the existing date
+        const existing = values[fieldName] ? new Date(values[fieldName]) : new Date();
+        existing.setHours(selectedDate.getHours(), selectedDate.getMinutes());
+        updateValue(fieldName, existing.toISOString());
+        setShowDatePicker(null);
+      }
     }
   };
 
@@ -309,7 +711,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
 
           {/* Dynamic template fields */}
           <View style={styles.fieldsSection}>
-            {fields.filter(f => !f.computed).map(renderField)}
+            {fields.map(renderField)}
           </View>
 
           {/* Notes */}
@@ -350,15 +752,45 @@ export default function SpotCaptureScreen({ route, navigation }) {
               )}
             </TouchableOpacity>
             {spots.length > 0 && (
-              <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleCompleteRun}>
-                <Text style={styles.actionBtnText}>Finish Run ({spots.length})</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleCompleteRun}>
+                  <Text style={styles.actionBtnText}>Finish Run ({spots.length})</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnOutline]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Continue Later?',
+                      'Your spots are saved. You can resume this run from the Observe tab.',
+                      [
+                        { text: 'Stay', style: 'cancel' },
+                        { text: 'Save & Leave', onPress: () => navigation.goBack() },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={styles.actionBtnOutlineText}>Continue Later</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
       </TouchableWithoutFeedback>
+
+      {/* Reference data picker modal */}
+      {renderPickerModal()}
+
+      {/* Date/time picker */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={values[showDatePicker.fieldName] ? new Date(values[showDatePicker.fieldName]) : new Date()}
+          mode={showDatePicker.step === 'time' ? 'time' : 'date'}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleDateTimeChange}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -426,6 +858,27 @@ const styles = StyleSheet.create({
   selectBtnText: { fontSize: fontSize.xs, color: colors.textMuted },
   selectBtnTextActive: { color: colors.white, fontWeight: '500' },
 
+  // Scale buttons (severity 0-5, etc.)
+  scaleBtn: {
+    width: 44, height: 44, borderRadius: radius.sm,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  scaleBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  scaleBtnText: { fontSize: fontSize.base, fontWeight: '600', color: colors.textMuted },
+  scaleBtnTextActive: { color: colors.white },
+
+  // Picker trigger (for options_source and date/time fields)
+  pickerTrigger: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
+    padding: spacing.sm, backgroundColor: colors.white, minHeight: 44,
+  },
+  pickerValue: { fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  pickerPlaceholder: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
+  pickerChevron: { fontSize: fontSize.xs, color: colors.textMuted, marginLeft: spacing.xs },
+  refDescription: { fontSize: fontSize.xs, color: colors.info, marginTop: 2, fontStyle: 'italic' },
+
   // Notes & photos
   notesSection: { paddingHorizontal: spacing.base },
   photoSection: { paddingHorizontal: spacing.base, marginTop: spacing.sm },
@@ -437,5 +890,29 @@ const styles = StyleSheet.create({
   actionBtn: { paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
   actionBtnPrimary: { backgroundColor: colors.primary },
   actionBtnSuccess: { backgroundColor: colors.success },
+  actionBtnOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   actionBtnText: { color: colors.white, fontSize: fontSize.base, fontWeight: '600' },
+  actionBtnOutlineText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: '500' },
+
+  // Picker modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    padding: spacing.lg, maxHeight: '75%',
+  },
+  modalTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
+  modalBtn: { paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: 'center' },
+  modalBtnText: { color: colors.white, fontSize: fontSize.sm, fontWeight: '600' },
+  emptyText: { color: colors.textMuted, fontSize: fontSize.sm, fontStyle: 'italic', padding: spacing.md, textAlign: 'center' },
+
+  // Picker list items
+  pickerItem: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  pickerItemActive: { backgroundColor: colors.primary + '10' },
+  pickerItemLabel: { fontSize: fontSize.sm, color: colors.text, fontWeight: '400' },
+  pickerItemLabelActive: { fontWeight: '600', color: colors.primary },
+  pickerItemDesc: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  pickerCheck: { fontSize: fontSize.base, color: colors.primary },
 });

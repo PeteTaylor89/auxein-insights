@@ -260,8 +260,8 @@ FIELDS_LAND_MGMT = scope_fields(include_row=True) + [
 # 18) Irrigation check
 FIELDS_IRRIGATION = scope_fields(include_row=True) + [
     {"name": "valve_or_zone", "label": "Valve/Zone", "type": "text"},
-    {"name": "start_time", "label": "Start time (UTC)", "type": "datetime"},
-    {"name": "stop_time", "label": "Stop time (UTC)", "type": "datetime"},
+    {"name": "start_time", "label": "Start time", "type": "datetime"},
+    {"name": "stop_time", "label": "Stop time", "type": "datetime"},
     {"name": "run_minutes", "label": "Run minutes", "type": "number", "min": 0},
     {"name": "pressure_start_kpa", "label": "Pressure start (kPa)", "type": "number", "min": 0},
     {"name": "pressure_end_kpa", "label": "Pressure end (kPa)", "type": "number", "min": 0},
@@ -273,8 +273,8 @@ FIELDS_IRRIGATION = scope_fields(include_row=True) + [
 # 19) Frost event
 FIELDS_FROST = scope_fields(include_row=True) + [
     {"name": "min_temp_c", "label": "Min temperature (°C)", "type": "number"},
-    {"name": "fan_on", "label": "Fan ON time (UTC)", "type": "datetime"},
-    {"name": "fan_off", "label": "Fan OFF time (UTC)", "type": "datetime"},
+    {"name": "fan_on", "label": "Fan ON time", "type": "datetime"},
+    {"name": "fan_off", "label": "Fan OFF time", "type": "datetime"},
     {"name": "fuel_level_percent", "label": "Fuel level (%)", "type": "number", "min": 0, "max": 100},
     {"name": "affected_area_notes", "label": "Affected area (notes)", "type": "textarea"},
     {"name": "notes", "label": "Notes", "type": "textarea"},

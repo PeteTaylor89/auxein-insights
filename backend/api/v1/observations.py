@@ -535,23 +535,21 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
                 detail=f"Active run #{exists_plan_block} exists for this plan and block combination. Complete it first or select a different block."
             )
     
-    # FALLBACK: Also check general block conflicts (your existing logic)
-    exists_general = db.execute(
+    # Check same template+block conflicts (allows different observation types concurrently)
+    exists_template_block = db.execute(
         select(ObservationRun.id).where(
             ObservationRun.company_id == user.company_id,
+            ObservationRun.template_id == template_id,
             ObservationRun.block_id == block_id,
             ObservationRun.observed_at_end.is_(None),
         ).limit(1)
     ).scalar()
-    
-    if exists_general:
-        # If it's a different plan, allow with warning context
-        existing_run = db.get(ObservationRun, exists_general)
-        if existing_run.plan_id != payload.plan_id:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Active run #{exists_general} from different plan exists on this block. Complete it first."
-            )
+
+    if exists_template_block:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Active run #{exists_template_block} for this template on this block. Complete or cancel it first."
+        )
 
     # Generate appropriate name
     run_name = f"Run — template {template_id}"
@@ -620,37 +618,67 @@ def list_runs(
     user=Depends(get_current_user),
     template_id: Optional[int] = None,
     plan_id: Optional[int] = None,
+    active_only: bool = False,
 ):
 
     q = (select(ObservationRun)
          .options(selectinload(ObservationRun.plan))
          .options(selectinload(ObservationRun.creator))
          .options(selectinload(ObservationRun.block))
+         .options(selectinload(ObservationRun.template))
          )
     q = q.where(ObservationRun.company_id == user.company_id)
     if template_id: q = q.where(ObservationRun.template_id == template_id)
     if plan_id: q = q.where(ObservationRun.plan_id == plan_id)
+    if active_only: q = q.where(ObservationRun.observed_at_end.is_(None))
     q = q.order_by(ObservationRun.created_at.desc())
     rows = db.execute(q).scalars().all()
 
-    # annotate plan_name, creator_name, and block_name for the Pydantic Out
+    # annotate plan_name, creator_name, block_name, and spots_count for the Pydantic Out
+    # Batch-load spot counts
+    run_ids = [r.id for r in rows]
+    spot_counts = {}
+    if run_ids:
+        from sqlalchemy import func as sa_func
+        count_rows = db.execute(
+            select(ObservationSpot.run_id, sa_func.count(ObservationSpot.id))
+            .where(ObservationSpot.run_id.in_(run_ids))
+            .group_by(ObservationSpot.run_id)
+        ).all()
+        spot_counts = {row[0]: row[1] for row in count_rows}
+
     for r in rows:
         r.plan_name = r.plan.name if r.plan else None
-        # Join first_name and last_name for creator_name
+        r.template_name = r.template.name if r.template else None
         if r.creator:
             r.creator_name = f"{r.creator.first_name} {r.creator.last_name}".strip()
         else:
             r.creator_name = None
         r.block_name = r.block.block_name if r.block else None
+        r.spots_count = spot_counts.get(r.id, 0)
     return rows
 
 @router.get("/observation-runs/{run_id}", response_model=ObservationRunOut)
 def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    run = db.get(ObservationRun, run_id)
+    run = db.execute(
+        select(ObservationRun)
+        .options(selectinload(ObservationRun.plan))
+        .options(selectinload(ObservationRun.creator))
+        .options(selectinload(ObservationRun.block))
+        .options(selectinload(ObservationRun.template))
+        .where(ObservationRun.id == run_id)
+    ).scalar_one_or_none()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    run.plan_name = run.plan.name if run.plan else None
+    run.template_name = run.template.name if run.template else None
+    if run.creator:
+        run.creator_name = f"{run.creator.first_name} {run.creator.last_name}".strip()
+    else:
+        run.creator_name = None
+    run.block_name = run.block.block_name if run.block else None
     return run
 
 @router.patch("/observation-runs/{run_id}", response_model=ObservationRunOut)

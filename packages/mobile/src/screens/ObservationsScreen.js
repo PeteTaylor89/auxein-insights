@@ -1,9 +1,10 @@
-// screens/ObservationsScreen.js — Observation hub: quick obs + planned obs
+// screens/ObservationsScreen.js — Observation hub: quick obs, active runs, planned obs
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, Modal, FlatList, Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { observationService, blocksService } from '../api/services';
@@ -21,6 +22,7 @@ export default function ObservationsScreen({ navigation }) {
   const { user } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [activeRuns, setActiveRuns] = useState([]);
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,13 +35,15 @@ export default function ObservationsScreen({ navigation }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tpl, pln, blk] = await Promise.all([
+      const [tpl, pln, runs, blk] = await Promise.all([
         observationService.getTemplates().catch(() => []),
         observationService.getPlans({ status_in: 'scheduled,in_progress' }).catch(() => []),
+        observationService.listRuns({ active_only: true }).catch(() => []),
         blocksService.getCompanyBlocks().catch(() => []),
       ]);
       setTemplates(Array.isArray(tpl) ? tpl : []);
       setPlans(Array.isArray(pln) ? pln : []);
+      setActiveRuns(Array.isArray(runs) ? runs : []);
       setBlocks(Array.isArray(blk) ? blk : []);
     } catch (err) {
       console.log('Failed to load observation data:', err.message);
@@ -48,7 +52,8 @@ export default function ObservationsScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Reload on screen focus (so resuming from SpotCapture refreshes the list)
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   // --- Quick Observation Flow ---
 
@@ -70,53 +75,45 @@ export default function ObservationsScreen({ navigation }) {
     setShowBlockPicker(true);
   };
 
-  const handleBlockSelect = async (block) => {
+  const handleBlockSelect = (block) => {
     setShowBlockPicker(false);
-    try {
-      // Create a quick observation run
-      const run = await observationService.createRun({
-        company_id: user?.company_id,
-        template_id: selectedTemplate.id,
-        block_id: block.id,
-        summary_stats: { type: 'freeform' },
-      });
-      // Navigate to spot capture
-      navigation.navigate('SpotCapture', {
-        runId: run.id,
-        templateId: selectedTemplate.id,
-        blockId: block.id,
-        blockName: block.block_name || block.name,
-        templateName: selectedTemplate.name,
-      });
-    } catch (err) {
-      const detail = err.response?.data?.detail;
-      Alert.alert('Error', typeof detail === 'string' ? detail : 'Failed to create observation run');
-    }
+    // Navigate to spot capture — run creation is deferred until first spot save
+    navigation.navigate('SpotCapture', {
+      templateId: selectedTemplate.id,
+      blockId: block.id,
+      blockName: block.block_name || block.name,
+      templateName: selectedTemplate.name,
+      companyId: user?.company_id,
+    });
+  };
+
+  // --- Resume active run ---
+
+  const handleResumeRun = (run) => {
+    navigation.navigate('SpotCapture', {
+      runId: run.id,
+      templateId: run.template_id,
+      blockId: run.block_id,
+      blockName: run.block_name || '',
+      templateName: run.template_name || run.name || 'Observation',
+      companyId: user?.company_id,
+    });
   };
 
   // --- Planned Observation Flow ---
 
-  const handleStartPlan = async (plan) => {
-    try {
-      const blockId = plan.targets?.length === 1 ? plan.targets[0].block_id : null;
-      const run = await observationService.createRun({
-        company_id: user?.company_id,
-        template_id: plan.template_id,
-        plan_id: plan.id,
-        block_id: blockId,
-      });
-      navigation.navigate('SpotCapture', {
-        runId: run.id,
-        templateId: plan.template_id,
-        blockId: blockId,
-        blockName: plan.targets?.[0]?.block_name,
-        templateName: plan.template_name || plan.name,
-        planName: plan.name,
-      });
-    } catch (err) {
-      const detail = err.response?.data?.detail;
-      Alert.alert('Error', typeof detail === 'string' ? detail : 'Failed to start observation run');
-    }
+  const handleStartPlan = (plan) => {
+    const blockId = plan.targets?.length === 1 ? plan.targets[0].block_id : null;
+    // Navigate to spot capture — run creation is deferred until first spot save
+    navigation.navigate('SpotCapture', {
+      templateId: plan.template_id,
+      planId: plan.id,
+      blockId: blockId,
+      blockName: plan.targets?.[0]?.block_name,
+      templateName: plan.template_name || plan.name,
+      planName: plan.name,
+      companyId: user?.company_id,
+    });
   };
 
   const priorityColor = (p) => {
@@ -125,11 +122,42 @@ export default function ObservationsScreen({ navigation }) {
     return colors.textMuted;
   };
 
+  const timeAgo = (isoDate) => {
+    if (!isoDate) return '';
+    const mins = Math.floor((Date.now() - new Date(isoDate).getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
   return (
     <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} tintColor={colors.primary} />}
     >
+      {/* Active Runs — shown first so they're immediately visible */}
+      {activeRuns.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>In Progress</Text>
+          <Text style={styles.sectionSub}>Tap to resume capturing spots</Text>
+          {activeRuns.map(run => (
+            <TouchableOpacity key={run.id} style={styles.activeRunCard} onPress={() => handleResumeRun(run)}>
+              <View style={styles.activeRunHeader}>
+                <View style={styles.activeRunDot} />
+                <Text style={styles.activeRunName} numberOfLines={1}>{run.template_name || run.name}</Text>
+              </View>
+              <Text style={styles.activeRunMeta}>
+                {run.block_name || 'No block'}
+                {run.spots_count != null ? ` · ${run.spots_count} spot${run.spots_count !== 1 ? 's' : ''}` : ''}
+                {run.observed_at_start ? ` · ${timeAgo(run.observed_at_start)}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Quick Observation */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Observation</Text>
@@ -262,6 +290,21 @@ const styles = StyleSheet.create({
   categoryIcon: { fontSize: 28 },
   categoryLabel: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text, textAlign: 'center' },
   categoryCount: { fontSize: fontSize.xs, color: colors.textMuted },
+
+  // Active run cards
+  activeRunCard: {
+    backgroundColor: colors.surface, borderRadius: radius.md,
+    padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.warning,
+    borderLeftWidth: 3,
+  },
+  activeRunHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  activeRunDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: colors.warning,
+  },
+  activeRunName: { fontSize: fontSize.base, fontWeight: '500', color: colors.text, flex: 1 },
+  activeRunMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xs, marginLeft: 20 },
 
   // Plan cards
   planCard: {

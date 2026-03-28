@@ -163,6 +163,7 @@ class ObservationRunOut(ObservationRunBase):
     updated_at: Optional[datetime]
     created_by: Optional[int] = None  # Keep as user ID
     plan_name: Optional[str] = None
+    template_name: Optional[str] = None
     creator_name: Optional[str] = None  # This will contain "FirstName LastName"
     
     # Pass through the observation dates
@@ -171,7 +172,10 @@ class ObservationRunOut(ObservationRunBase):
     
     # Block name from vineyard_blocks
     block_name: Optional[str] = None
-    
+
+    # Spot count for display
+    spots_count: Optional[int] = None
+
     # Computed status field
     @computed_field
     @property
