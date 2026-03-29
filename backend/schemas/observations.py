@@ -205,7 +205,20 @@ class ObservationSpotBase(BaseModel):
     video_file_ids: List[str] = Field(default_factory=list)
     document_file_ids: List[str] = Field(default_factory=list)
 
-class ObservationSpotCreate(ObservationSpotBase):
+class ObservationSpotCreate(BaseModel):
+    """Body schema for POST /observation-runs/{run_id}/spots.
+    run_id and company_id come from the URL path and auth respectively."""
+    block_id: Optional[int] = None
+    row_id: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    observed_at: datetime
+    values: Dict[str, Any] = Field(default_factory=dict)
+    notes: Optional[str] = None
+    status: SpotStatus = "recorded"
+    photo_file_ids: List[str] = Field(default_factory=list)
+    video_file_ids: List[str] = Field(default_factory=list)
+    document_file_ids: List[str] = Field(default_factory=list)
     created_by: Optional[int] = None
 
 class ObservationSpotUpdate(BaseModel):

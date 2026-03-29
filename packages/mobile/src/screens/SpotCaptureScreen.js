@@ -43,7 +43,9 @@ export default function SpotCaptureScreen({ route, navigation }) {
         if (runId) promises.push(observationService.getSpots(runId).catch(() => []));
         const [tpl, existingSpots] = await Promise.all(promises);
         setTemplate(tpl);
-        const templateFields = tpl?.schema?.fields || tpl?.fields_json?.fields || [];
+        const rawSchema = tpl?.schema || tpl?.fields_json;
+        const templateFields = Array.isArray(rawSchema) ? rawSchema
+          : rawSchema?.fields || [];
         setFields(templateFields);
         // Set defaults
         const defaults = {};
