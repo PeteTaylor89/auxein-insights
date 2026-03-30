@@ -18,7 +18,7 @@ export default function SolutionsPage() {
   };
 
   const platforms = solutions.filter((s) =>
-    ['insights-pro', 'regional-insights'].includes(s.id)
+    ['grow', 'regional-insights'].includes(s.id)
   );
   const datasets = solutions.filter((s) =>
     ['vineyard-dataset', 'climate-dataset', 'coastal-risk'].includes(s.id)

@@ -6,6 +6,7 @@ import {
   TrendingUp,
   BookOpen,
   Target,
+  Lightbulb,
 } from 'lucide-react';
 import { Container } from '@/components/layout/Container';
 import { Button } from '@/components/ui/Button';
@@ -21,64 +22,91 @@ export const metadata: Metadata = {
 
 const timeline = [
   {
-    year: '2023-2024',
-    title: 'Research Foundation',
+    year: '2009–2023',
+    title: 'Industry Foundation',
     description:
-      'Completed Masters of Wine and Viticulture at Lincoln University, conducted research on high-resolution climate modeling and its impacts on Pinot Noir quality in New Zealand.',
+      'Fourteen years across the wine industry - vineyard management, harvest work across New Zealand, sommelier roles, and sales and marketing. The hands-on foundation that shapes how Auxein thinks about what viticulturists actually need.',
+  },
+  {
+    year: '2023–2024',
+    title: 'The Research',
+    description:
+      'Masters of Wine & Viticulture at Lincoln University - research focused on high-resolution climate modelling and its measurable impact on Pinot Noir quality at single-vineyard resolution across New Zealand.',
   },
   {
     year: '2024',
     title: 'Auxein Founded',
     description:
-      'Established Auxein Limited - To lead the global wine industry toward a sustainable and resilient future, creating a legacy for generations.',
+      'Established Auxein Limited in Christchurch, New Zealand. Mission: To lead the global wine industry toward a sustainable and resilient future, creating a legacy for generations.',
   },
   {
-    year: '2024 - 2026',
-    title: 'Auxein Insights Development',
+    year: '2024–2026',
+    title: 'Platform Development',
     description:
-      'Development of the Auxein Platform including climate and spatial modelling, Regional Insights, and our Auxein Insights Pro - comprehensive vineyard management app.',
+      'Built a proprietary virtual climate network covering 8,750+ vineyard polygons with over 1 billion data points from 1986 to present - the foundation for block-level climate intelligence across all 21 New Zealand wine regions.',
   },
   {
     year: 'January 2026',
-    title: 'Auxein Insights Launch',
+    title: 'Regional Insights Launched',
     description:
-      'Released free regional intelligence climate and spatial platform for New Zealand wine regions.',
+      'Released free regional climate intelligence to New Zealand winegrowers - live current-season tracking, historical analysis, disease pressure, and projections to 2100, publicly available at insights.auxein.co.nz.',
   },
-
   {
     year: 'May 2026',
-    title: 'Auxein Insights Pro Launch',
+    title: 'Auxein Grow Launches',
     description:
-      'Planned release of Auxein Insights Pro - your complete vineyard management solution.',
+      'Full commercial release of Auxein Grow - a complete vineyard management platform combining climate intelligence, peer-reviewed disease models, blockchain traceability, and mobile-first field tools.',
   },
 ];
 
 const values = [
   {
     icon: BookOpen,
-    title: 'Solutions',
+    title: 'Science-First',
     description:
-      'We craft science-driven tools and strategies that tackle climate challenges, empowering wine businesses to mitigate risks and drive sustainable growth.',
+      'Every model, every projection, every insight is grounded in peer-reviewed methodology. We do not guess - we build from evidence and publish our reasoning.',
   },
   {
     icon: Target,
-    title: 'Insights',
+    title: 'Decision-Useful',
     description:
-      'Our actionable data and deep expertise help the wine industry predict challenges and build resilience at every stage of operations.',
+      'Data only matters when it changes decisions. We build tools that translate complex climate signals into clear, timely actions for the people managing vines.',
   },
+  {
+    icon: Lightbulb,
+    title: 'Built for the Industry',
+    description:
+      'Auxein is built by someone who grows grapes, studies wine, and has worked in climate risk - not by a software team guessing what viticulturists need.',
+  },
+];
 
+const credentials = [
+  {
+    icon: GraduationCap,
+    title: 'Master of Wine & Viticulture',
+    sub: 'Lincoln University',
+  },
+  {
+    icon: Award,
+    title: 'CMS Certified Sommelier',
+    sub: 'Court of Master Sommeliers',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Climate Risk Modelling',
+    sub: 'Finance sector background',
+  },
   {
     icon: Grape,
-    title: 'Collaboration',
-    description:
-      'Build partnerships across the wine value chain to drive collective action toward sustainability and resilience.',
+    title: 'Waipara Winegrowing connections',
+    sub: 'North Canterbury',
   },
 ];
 
 export default function AboutPage() {
   return (
     <>
-      {/* Hero Section */}
+      {/* Hero */}
       <section className="pt-32 pb-24 bg-sand relative overflow-hidden">
         <div className="texture-overlay" />
         <div className="absolute top-40 right-10 w-72 h-72 bg-olive/10 rounded-full blur-3xl" />
@@ -88,29 +116,25 @@ export default function AboutPage() {
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6">
               The Resilient Vineyard
             </h1>
-            <p className="text-xl text-charcoal-600 leading-relaxed">
-              Auxein was founded to lead the global wine industry toward a sustainable and
-              resilient future, creating a legacy for generations.
+            <p className="text-xl text-charcoal-600 leading-relaxed mb-6">
+              The wine industry faces its most significant challenge in centuries.
+              Shifting climates, tightening export requirements, increasing
+              operational complexity, and changing consumer behaviours demand better tools - tools built on science,
+              not spreadsheets.
             </p>
-            <br/>
-            <span className="text-olive font-semibold text-sm uppercase tracking-wider">
-              Mission Statement
-            </span>
             <p className="text-xl text-charcoal-600 leading-relaxed">
-              We empower the global wine industry with cutting-edge
-              tools, actionable insights, and transformative knowledge.
-              We challenge boundaries and inspire sustainable
-              practices, creating a resilient and thriving wine industry
-              for generations.
+              Auxein was founded to provide exactly that: climate intelligence and
+              vineyard management tools that turn complexity into competitive advantage,
+              and data into decisions that last generations.
             </p>
           </div>
         </Container>
       </section>
 
-      {/* Founder Section */}
+      {/* Founder */}
       <section className="py-24 bg-white">
         <Container>
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
             <div>
               <span className="text-olive font-semibold text-sm uppercase tracking-wider">
                 The Founder
@@ -120,79 +144,57 @@ export default function AboutPage() {
               </h2>
               <div className="space-y-4 text-charcoal-600 leading-relaxed">
                 <p>
-                  Pete brings a unique combination of academic rigour and
-                  hands-on experience to Auxein. With a Master of Wine &
-                  Viticulture from Lincoln University, a Master of Water Resource Management from Canterbury University, 
-                  and Certified Sommelier from the Court of Master Sommeliers, he understands wine from vine to glass.
+                  Pete brings a rare combination of academic rigour and practical
+                  experience to Auxein. His Masters research at Lincoln University
+                  used thin-plate spline interpolation and multiple regression to
+                  model ecoclimatic indices and Pinot Noir wine quality at
+                  single-vineyard resolution - the same methodology that underpins
+                  Auxein&apos;s climate network.
                 </p>
                 <p>
-                  His research on climate impacts on Pinot Noir wine quality
-                  used high-resolution vineyard-specific climate modeling - the
-                  same methodology that underpins Auxein&apos;s Insights
-                  platform.
+                  While founding Auxein, Pete worked in climate risk modelling for
+                  the banking sector, translating complex environmental data into
+                  decision-useful outputs. That background
+                  shapes how Auxein builds: rigorous inputs, clear outputs, and
+                  always grounded in what actually changes decisions.
                 </p>
                 <p>
-                  Before founding Auxein, Pete worked in climate risk modeling
-                  for the finance sector, giving him deep expertise in
-                  translating complex data into decision-useful insights. Today,
-                  he runs Auxein, developing tools to help the broader industry 
-                  and dabbles in vineyard operations in Canterbury&apos;s Waipara region.
+                  Today he runs Auxein from Christchurch and helps vineyard operations
+                  in Waipara - meaning Auxein is built by someone who is still in the
+                  field, still accountable to the same conditions its users face.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-6">
-                <div className="stat-card">
-                  <GraduationCap className="w-8 h-8 text-olive mb-4" />
-                  <h3 className="font-bold text-charcoal mb-1">
-                    Master of Wine & Viticulture
-                  </h3>
-                  <p className="text-sm text-charcoal-500">Lincoln University</p>
-                </div>
-                <div className="stat-card">
-                  <Award className="w-8 h-8 text-olive mb-4" />
-                  <h3 className="font-bold text-charcoal mb-1">
-                    CMS Certified Sommelier
-                  </h3>
-                  <p className="text-sm text-charcoal-500">
-                    Court of Master Sommeliers
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-6 mt-12">
-                <div className="stat-card">
-                  <Grape className="w-8 h-8 text-olive mb-4" />
-                  <h3 className="font-bold text-charcoal mb-1">
-                    Pending Published Research
-                  </h3>
-                  <p className="text-sm text-charcoal-500">
-                    Climate impacts on wine quality
-                  </p>
-                </div>
-                <div className="stat-card">
-                  <TrendingUp className="w-8 h-8 text-olive mb-4" />
-                  <h3 className="font-bold text-charcoal mb-1">
-                    Climate Risk Background
-                  </h3>
-                  <p className="text-sm text-charcoal-500">
-                    Financial sector modeling
-                  </p>
-                </div>
-              </div>
+            {/* Credential cards — uniform 2×2 grid, no offset */}
+            <div className="grid grid-cols-2 gap-4">
+              {credentials.map((cred) => {
+                const Icon = cred.icon;
+                return (
+                  <div key={cred.title} className="stat-card flex flex-col">
+                    <Icon className="w-8 h-8 text-olive mb-4 shrink-0" />
+                    <h3 className="font-bold text-charcoal text-sm leading-snug mb-1">
+                      {cred.title}
+                    </h3>
+                    <p className="text-sm text-charcoal-500">{cred.sub}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Container>
       </section>
 
-      {/* Values Section */}
+      {/* Values */}
       <section className="py-24 bg-sand">
         <Container>
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-charcoal mb-4">
-              Our approach
+              How we work
             </h2>
-
+            <p className="text-charcoal-600 text-lg">
+              Three principles that shape every tool we build and every decision we make.
+            </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -219,7 +221,7 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      {/* Timeline Section */}
+      {/* Timeline */}
       <section className="py-24 bg-white">
         <Container>
           <div className="max-w-3xl mx-auto">
@@ -261,7 +263,7 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      {/* CTA Section */}
+      {/* CTA */}
       <section className="py-24 bg-sand">
         <Container>
           <div className="text-center max-w-2xl mx-auto">
@@ -270,8 +272,8 @@ export default function AboutPage() {
             </h2>
             <p className="text-charcoal-600 text-lg mb-8">
               Whether you&apos;re a vineyard owner, wine industry body, or
-              agricultural technology company—I&apos;d love to discuss how Auxein
-              can support your goals.
+              research institution - get in touch to discuss how Auxein can
+              support your goals.
             </p>
             <Button href="/contact" size="lg">
               Get in Touch

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Leaf } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const navLinks = [
@@ -73,8 +73,9 @@ export function Navbar() {
             >
               Regional Insights
             </Link>
-            <Link href="/insights-pro" className="btn-primary text-sm ml-2">
-              Insights Pro
+            <Link href="/grow" className="btn-primary text-sm ml-2 flex items-center gap-1.5">
+              <Leaf className="w-4 h-4" />
+              Auxein Grow
             </Link>
           </div>
 
@@ -128,11 +129,11 @@ export function Navbar() {
                   Regional Insights →
                 </Link>
                 <Link
-                  href="/insights-pro"
+                  href="/grow"
                   onClick={() => setIsOpen(false)}
                   className="block py-3 px-4 mt-2 bg-olive text-white text-center rounded-lg hover:bg-olive-600 transition-colors"
                 >
-                  Insights Pro
+                  Auxein Grow
                 </Link>
               </div>
             </div>

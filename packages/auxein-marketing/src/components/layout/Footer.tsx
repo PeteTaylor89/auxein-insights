@@ -14,7 +14,7 @@ const footerLinks: {
   legal: FooterLink[];
 } = {
   solutions: [
-    { label: 'Auxein Insights Pro', href: '/insights-pro' },
+    { label: 'Auxein Grow', href: '/grow' },
     { label: 'Regional Intelligence', href: 'https://insights.auxein.co.nz', external: true },
     { label: 'Data Products', href: '/solutions#datasets' },
     { label: 'Consulting Services', href: '/solutions#consulting' },

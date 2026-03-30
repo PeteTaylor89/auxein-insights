@@ -111,7 +111,7 @@ export default function HomePage() {
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               Auxein combines climate intelligence, precision agriculture, and
-              deep wine industry expertise to help New Zealand vineyards thrive
+              deep wine industry expertise to help winegrowers thrive
               in a changing world.
             </motion.p>
 
@@ -185,7 +185,7 @@ export default function HomePage() {
       </section>
 
       {/* Solutions Preview */}
-      <section className="py-24 bg-sand">
+      <section className="py-14 bg-sand">
         <Container>
           <motion.div
             className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12"
@@ -221,58 +221,8 @@ export default function HomePage() {
         </Container>
       </section>
 
-      {/* Credentials Section */}
-      <section className="py-24 bg-white">
-        <Container>
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl md:text-4xl font-bold text-charcoal mb-6">
-                Built on deep expertise
-              </h2>
-              <p className="text-charcoal-600 text-lg leading-relaxed mb-8">
-                Auxein is founded by Pete Taylor, combining academic rigour in
-                viticulture and climate science with hands-on experience in
-                vineyard operations and wine production.
-              </p>
-              <Button href="/about">
-                Learn More About Auxein
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </motion.div>
-
-            <div className="grid grid-cols-2 gap-6">
-              {credentials.map((credential, i) => {
-                const Icon = credential.icon;
-                return (
-                  <motion.div
-                    key={credential.title}
-                    className="stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.1 }}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-olive/10 flex items-center justify-center mb-4">
-                      <Icon className="w-5 h-5 text-olive" />
-                    </div>
-                    <h3 className="font-bold text-charcoal mb-1">
-                      {credential.title}
-                    </h3>
-                    <p className="text-sm text-charcoal-500">{credential.subtitle}</p>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        </Container>
-      </section>
-
       {/* Our Name Section */}
-      <section className="py-24 bg-sand">
+      <section className="py-14 bg-sand">
         <Container>
           <motion.div
             className="max-w-3xl mx-auto text-center"

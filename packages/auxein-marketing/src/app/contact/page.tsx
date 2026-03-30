@@ -9,7 +9,7 @@ import { ContactForm } from '@/components/forms/ContactForm';
 
 function ContactContent() {
   const searchParams = useSearchParams();
-  const defaultInquiry = searchParams.get('inquiry') || '';
+  const defaultInquiry = searchParams?.get('inquiry') || '';
 
   return (
     <div className="grid lg:grid-cols-5 gap-12 lg:gap-16">

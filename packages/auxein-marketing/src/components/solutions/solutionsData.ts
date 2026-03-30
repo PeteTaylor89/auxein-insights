@@ -27,25 +27,25 @@ export interface Solution {
 
 export const solutions: Solution[] = [
   {
-    id: 'insights-pro',
-    title: 'Auxein Insights Pro',
+    id: 'grow',
+    title: 'Auxein Grow',
     image: '/images/solutions/insights-pro.jpg',
     tagline: 'Complete vineyard management platform',
     description:
-      'A comprehensive SaaS platform combining climate intelligence, blockchain-powered traceability, and precision vineyard management. From tracking phenology, disease pressures, and yield estimates, to managing your entire operation, Insights Pro gives you the data-driven edge your vineyard needs.',
+      'A precision vineyard management platform built by a viticulturist for viticulturists. Grow combines 40 years of block-level climate intelligence, peer-reviewed disease models, and blockchain-verified traceability into one mobile-first platform - turning your daily vineyard work into a compliance engine, a data asset, and a competitive advantage.',
     features: [
-      'Real-time climate monitoring and alerts',
-      'Disease pressure modeling (downy mildew, powdery mildew, botrytis)',
-      'Phenology, Health and Safety, and general observation tracking',
-      'Spray diary automation with GPS tracking and automated compliance filing',
-      'Harvest planning and yield forecasting',
-      'Blockchain-verified traceability',
-      'Mobile-first design for field use',
+      'Property-level climate history from 1986 and CMIP6 projections to 2100',
+      'Peer-reviewed disease models for downy mildew, powdery mildew, and botrytis',
+      'Phenology tracking with EL-scale observations and harvest timing estimates',
+      'GPS-tracked spray tasks with automated GrapeLink-compliant diary generation',
+      'Blockchain provenance chain across every spray, observation, and harvest record',
+      'Full H&S compliance - risk register, incident reporting, and WorkSafe-aligned workflows',
+      'Mobile-first field tools for observations, tasks, alerts, and spray tracking',
     ],
     icon: BarChart3,
     cta: {
-      label: 'Explore in Detail',
-      href: '/insights-pro',
+      label: 'Explore Auxein Grow',
+      href: '/grow',
     },
     badge: 'Coming May 2026',
     comingSoon: true,

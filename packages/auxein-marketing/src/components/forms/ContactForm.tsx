@@ -25,11 +25,12 @@ type ContactFormData = z.infer<typeof contactSchema>;
 
 const productOptions = [
   { value: '', label: 'Select an option...' },
-  { value: 'insights-pro', label: 'Insights Pro - Waitlist' },
+  { value: 'auxein-grow', label: 'Auxein Grow - Waitlist' },
   { value: 'regional-intelligence', label: 'Regional Intelligence' },
   { value: 'data-licensing', label: 'Data Products' },
   { value: 'climate-consulting', label: 'Climate Risk Consulting' },
   { value: 'partnership', label: 'Partnership Opportunity' },
+  { value: 'wine', label: 'Sharing a Glass of Wine' },
   { value: 'general', label: 'General Inquiry' },
 ];
 
