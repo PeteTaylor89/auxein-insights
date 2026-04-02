@@ -23,6 +23,7 @@ function TaskQuickCreate() {
   // Selections
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(null);
+  const [selectedBlocks, setSelectedBlocks] = useState([]);
   const [assignedUserId, setAssignedUserId] = useState('');
   const [scheduledDate, setScheduledDate] = useState(searchParams.get('date') || '');
   const [saving, setSaving] = useState(false);
@@ -56,7 +57,22 @@ function TaskQuickCreate() {
 
   const handleBlockSelect = (block) => {
     setSelectedBlock(block);
+    setSelectedBlocks(block ? [block] : []);
     setStep(2);
+  };
+
+  const handleBlockToggle = (block) => {
+    setSelectedBlocks(prev => {
+      const exists = prev.some(b => b.id === block.id);
+      return exists ? prev.filter(b => b.id !== block.id) : [...prev, block];
+    });
+  };
+
+  const handleBlocksConfirm = () => {
+    if (selectedBlocks.length > 0) {
+      setSelectedBlock(selectedBlocks[0]); // primary for display
+      setStep(2);
+    }
   };
 
   const handleCreate = async () => {
@@ -65,14 +81,19 @@ function TaskQuickCreate() {
       setSaving(true);
       setError(null);
 
-      const payload = {
-        template_id: selectedTemplate.id,
-      };
-      if (selectedBlock) payload.block_id = selectedBlock.id;
-      if (scheduledDate) payload.scheduled_start_date = scheduledDate;
-      if (assignedUserId) payload.assigned_user_ids = [parseInt(assignedUserId)];
+      const blocksToCreate = selectedBlocks.length > 0 ? selectedBlocks : [selectedBlock];
 
-      await tasksService.quickCreateTask(payload);
+      for (const block of blocksToCreate) {
+        const payload = {
+          template_id: selectedTemplate.id,
+        };
+        if (block) payload.block_id = block.id;
+        if (scheduledDate) payload.scheduled_start_date = scheduledDate;
+        if (assignedUserId) payload.assigned_user_ids = [parseInt(assignedUserId)];
+
+        await tasksService.quickCreateTask(payload);
+      }
+
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create task');
@@ -129,14 +150,30 @@ function TaskQuickCreate() {
             <>
               <h2 className="quick-create-subtitle">Where?</h2>
               <p className="quick-create-hint">
-                Creating: <strong>{selectedTemplate?.name}</strong>
+                Creating: <strong>{selectedTemplate?.name}</strong> — select one or more blocks
               </p>
               <BlockSelector
                 blocks={blocks}
-                onSelect={handleBlockSelect}
                 loading={loadingBlocks}
+                multiSelect
+                selectedIds={selectedBlocks.map(b => b.id)}
+                onToggle={handleBlockToggle}
+                onSelect={handleBlockSelect}
                 selectedId={selectedBlock?.id ?? null}
               />
+              <button
+                className="btn-primary quick-create-submit"
+                onClick={handleBlocksConfirm}
+                disabled={selectedBlocks.length === 0}
+                style={{ marginTop: '1rem' }}
+              >
+                {selectedBlocks.length > 1
+                  ? `Next — ${selectedBlocks.length} blocks`
+                  : selectedBlocks.length === 1
+                  ? 'Next'
+                  : 'Select at least one block'}
+                <ArrowRight size={18} />
+              </button>
             </>
           )}
 
@@ -149,8 +186,12 @@ function TaskQuickCreate() {
                   <span>{selectedTemplate?.name}</span>
                 </div>
                 <div className="quick-create-summary-row">
-                  <span className="quick-create-summary-label">Block</span>
-                  <span>{selectedBlock?.block_name || 'None'}</span>
+                  <span className="quick-create-summary-label">{selectedBlocks.length > 1 ? 'Blocks' : 'Block'}</span>
+                  <span>
+                    {selectedBlocks.length > 1
+                      ? `${selectedBlocks.map(b => b.block_name).join(', ')} (${selectedBlocks.length} tasks)`
+                      : selectedBlocks[0]?.block_name || selectedBlock?.block_name || 'None'}
+                  </span>
                 </div>
 
                 <div className="quick-create-field">
@@ -187,7 +228,7 @@ function TaskQuickCreate() {
                 onClick={handleCreate}
                 disabled={saving}
               >
-                {saving ? 'Creating...' : 'Create Task'}
+                {saving ? 'Creating...' : selectedBlocks.length > 1 ? `Create ${selectedBlocks.length} Tasks` : 'Create Task'}
                 {!saving && <ArrowRight size={18} />}
               </button>
             </>

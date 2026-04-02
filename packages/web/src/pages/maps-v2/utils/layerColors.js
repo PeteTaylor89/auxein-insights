@@ -16,3 +16,12 @@ export const RISK_COLORS = {
 // Spatial area fill
 export const SPATIAL_AREA_FILL = 'rgba(91, 104, 48, 0.15)';
 export const SPATIAL_AREA_OUTLINE = '#5B6830';
+
+// Asset category colours
+export const ASSET_COLORS = {
+  equipment: '#3b82f6',      // blue
+  vehicle: '#6b7280',        // grey
+  tool: '#8b5cf6',           // purple
+  infrastructure: '#92400e', // brown
+  consumable: '#059669',     // green
+};

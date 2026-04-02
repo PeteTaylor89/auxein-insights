@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
+from geoalchemy2 import Geometry
 
 from db.base_class import Base
 
@@ -64,7 +65,9 @@ class Asset(Base):
     
     # Operational details
     status = Column(String(20), default="active")  # active, maintenance, retired, disposed, out_of_stock
-    location = Column(String(100))  # Current storage/operation location
+    location_label = Column(String(100))  # Human-readable location name (e.g. "Building A")
+    location_point = Column(Geometry('POINT', srid=4326), nullable=True)  # GPS coordinates
+    location_geometry = Column(Geometry('GEOMETRY', srid=4326), nullable=True)  # Lines/polygons (irrigation, fences)
     requires_calibration = Column(Boolean, default=False)
     calibration_interval_days = Column(Integer)
     

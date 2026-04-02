@@ -652,17 +652,6 @@ function TaskCreationWizard() {
 
             {formData.task_category === 'vineyard' && (
               <div>
-                <div className="vp-flex-row" style={{ alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                  <label className="vp-checkbox" style={{ margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={multiMode}
-                      onChange={(e) => setMultiMode(e.target.checked)}
-                    />
-                    <span>Apply to multiple blocks</span>
-                  </label>
-                </div>
-
                 <label className="vp-checkbox" style={{ marginBottom: 'var(--space-sm)' }}>
                   <input
                     type="checkbox"
@@ -711,25 +700,75 @@ function TaskCreationWizard() {
 
 
           {/* Location */}
-          {!multiMode && (
+          {(
             <FormSection title="Location" icon={<MapPin size={18} />}>
 
-              {/* Vineyard → Blocks */}
+              {/* Vineyard → Blocks (multi-select checkboxes) */}
               {formData.task_category === 'vineyard' && (
-                <FormField label="Block">
-                  <select
-                    value={formData.block_id || ''}
-                    onChange={(e) => handleInputChange('block_id', e.target.value ? parseInt(e.target.value) : null)}
-                    className="vp-select"
-                  >
-                    <option value="">Select block...</option>
-                    {blocks.map(block => (
-                      <option key={block.id} value={block.id}>
-                        {block.name || block.block_name || `Block #${block.id}`}
-                        {block.area_hectares && ` (${block.area_hectares} ha)`}
-                      </option>
-                    ))}
-                  </select>
+                <FormField label="Blocks">
+                  <div style={{
+                    maxHeight: '200px', overflowY: 'auto',
+                    border: '1px solid var(--color-border)', borderRadius: '6px',
+                    padding: 'var(--space-xs)',
+                  }}>
+                    {blocks.length === 0 ? (
+                      <div style={{ padding: 'var(--space-sm)', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No blocks available</div>
+                    ) : blocks.map(block => {
+                      const checked = blockRows.some(r => r.block_id === block.id && r.selected)
+                        || formData.block_id === block.id;
+                      return (
+                        <label key={block.id} className="vp-checkbox" style={{ display: 'flex', padding: '4px 8px', margin: 0, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              if (!multiMode) {
+                                // First selection — set single block_id
+                                if (formData.block_id === block.id) {
+                                  handleInputChange('block_id', null);
+                                } else if (formData.block_id && formData.block_id !== block.id) {
+                                  // Second block selected — switch to multi-mode
+                                  setMultiMode(true);
+                                  // blockRows will be populated by the useEffect, then we toggle both
+                                  setTimeout(() => {
+                                    setBlockRows(prev => prev.map(r => ({
+                                      ...r,
+                                      selected: r.block_id === formData.block_id || r.block_id === block.id,
+                                    })));
+                                    handleInputChange('block_id', null);
+                                  }, 50);
+                                } else {
+                                  handleInputChange('block_id', block.id);
+                                }
+                              } else {
+                                // In multi-mode — toggle this row
+                                const wasSelected = blockRows.find(r => r.block_id === block.id)?.selected;
+                                toggleRow(block.id);
+                                // If unchecking leaves ≤1 selected, revert to single mode
+                                const remaining = blockRows.filter(r => r.selected && r.block_id !== block.id).length
+                                  + (wasSelected ? 0 : 1);
+                                if (remaining <= 1) {
+                                  const singleId = blockRows.find(r => r.selected && r.block_id !== block.id)?.block_id
+                                    || (!wasSelected ? block.id : null);
+                                  setMultiMode(false);
+                                  handleInputChange('block_id', singleId);
+                                }
+                              }
+                            }}
+                          />
+                          <span style={{ fontSize: '0.875rem' }}>
+                            {block.name || block.block_name || `Block #${block.id}`}
+                            {block.area_hectares && ` (${block.area_hectares} ha)`}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {multiMode && (
+                    <div style={{ marginTop: 'var(--space-xs)', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                      {blockRows.filter(r => r.selected).length} block{blockRows.filter(r => r.selected).length !== 1 ? 's' : ''} selected — one task will be created per block
+                    </div>
+                  )}
                 </FormField>
               )}
 

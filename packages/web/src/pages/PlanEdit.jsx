@@ -14,7 +14,7 @@ const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.resul
 
 function readTemplateFields(tpl) {
   if (!tpl) return [];
-  const s = tpl.schema?.fields ?? tpl.schema ?? tpl.fields_json ?? [];
+  const s = tpl.field_schema ?? tpl.fields_json ?? tpl.schema?.fields ?? tpl.schema ?? [];
   return Array.isArray(s) ? s : Array.isArray(s.fields) ? s.fields : [];
 }
 

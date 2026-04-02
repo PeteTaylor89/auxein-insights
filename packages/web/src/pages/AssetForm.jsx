@@ -17,6 +17,7 @@ import MobileNavigation from '../components/MobileNavigation';
 import CalibrationInlineManager from '../components/CalibrationInlineManager';
 import MaintenanceTable from '../components/MaintenanceTable';
 import MaintenanceInlineManager from '../components/MaintenanceInlineManager';
+import RiskLocationMap from '../components/RiskLocationMap';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50MB
 
@@ -43,7 +44,10 @@ export default function AssetForm() {
     purchase_price: '',
     current_value: '',
     status: 'active',
-    location: '',
+    location_label: '',
+    latitude: '',
+    longitude: '',
+    location_geojson: null,
     requires_calibration: false,
     calibration_interval_days: '',
     requires_maintenance: false,
@@ -75,6 +79,9 @@ export default function AssetForm() {
 
   // Calibration modal
   const [showCalibrationManager, setShowCalibrationManager] = useState(false);
+
+  // Location map modal
+  const [showLocationMap, setShowLocationMap] = useState(false);
 
   // Set body background
   useEffect(() => {
@@ -115,7 +122,10 @@ export default function AssetForm() {
         purchase_price: asset.purchase_price || '',
         current_value: asset.current_value || '',
         status: asset.status || 'active',
-        location: asset.location || '',
+        location_label: asset.location_label || '',
+        latitude: asset.latitude || '',
+        longitude: asset.longitude || '',
+        location_geojson: asset.location_geojson || null,
         requires_calibration: asset.requires_calibration || false,
         calibration_interval_days: asset.calibration_interval_days || '',
         requires_maintenance: asset.requires_maintenance || false,
@@ -181,7 +191,9 @@ export default function AssetForm() {
         maintenance_interval_hours: formData.maintenance_interval_hours ? Number(formData.maintenance_interval_hours) : null,
         current_hours: formData.current_hours ? Number(formData.current_hours) : null,
         current_kilometers: formData.current_kilometers ? Number(formData.current_kilometers) : null,
-        fuel_efficiency_standard: formData.fuel_efficiency_standard ? Number(formData.fuel_efficiency_standard) : null
+        fuel_efficiency_standard: formData.fuel_efficiency_standard ? Number(formData.fuel_efficiency_standard) : null,
+        latitude: formData.latitude ? Number(formData.latitude) : null,
+        longitude: formData.longitude ? Number(formData.longitude) : null,
       });
 
       let savedAsset;
@@ -667,8 +679,8 @@ export default function AssetForm() {
                 <FormField label="Location">
                   <input
                     type="text"
-                    value={formData.location}
-                    onChange={(e) => handleChange('location', e.target.value)}
+                    value={formData.location_label}
+                    onChange={(e) => handleChange('location_label', e.target.value)}
                     placeholder="e.g., Main Shed"
                     style={{
                       width: '100%',
@@ -679,6 +691,44 @@ export default function AssetForm() {
                     }}
                   />
                 </FormField>
+              </div>
+
+              <div style={{ marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationMap(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    background: 'var(--color-primary, #2563eb)', color: '#fff',
+                    border: 'none', borderRadius: '6px', cursor: 'pointer',
+                    fontSize: '0.875rem', fontWeight: 500,
+                  }}
+                >
+                  {formData.latitude ? 'Change Location on Map' : 'Set Location on Map'}
+                </button>
+                {formData.latitude && formData.longitude && (
+                  <span style={{ marginLeft: '1rem', fontSize: '0.8rem', color: '#6b7280' }}>
+                    {formData.location_geojson?.type === 'LineString'
+                      ? `Line (${formData.location_geojson.coordinates.length} pts)`
+                      : formData.location_geojson?.type === 'Polygon'
+                      ? 'Area polygon'
+                      : `${Number(formData.latitude).toFixed(5)}, ${Number(formData.longitude).toFixed(5)}`}
+                  </span>
+                )}
+                {formData.latitude && (
+                  <button
+                    type="button"
+                    onClick={() => { handleChange('latitude', ''); handleChange('longitude', ''); handleChange('location_geojson', null); }}
+                    style={{
+                      marginLeft: '0.5rem', padding: '0.25rem 0.5rem',
+                      background: 'none', border: '1px solid #d1d5db', borderRadius: '4px',
+                      fontSize: '0.75rem', color: '#6b7280', cursor: 'pointer',
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </FormSection>
 
@@ -1066,6 +1116,37 @@ export default function AssetForm() {
           <CalibrationInlineManager
             assetId={id}
             onClose={() => setShowCalibrationManager(false)}
+          />
+        )}
+
+        {showLocationMap && (
+          <RiskLocationMap
+            isOpen={showLocationMap}
+            onClose={() => setShowLocationMap(false)}
+            onLocationSet={(location) => {
+              const geom = location?.geometry || location; // handle Feature or bare geometry
+              if (geom?.type === 'Point' && geom.coordinates) {
+                handleChange('longitude', geom.coordinates[0]);
+                handleChange('latitude', geom.coordinates[1]);
+                handleChange('location_geojson', null);
+              } else if (geom?.type === 'LineString' || geom?.type === 'Polygon') {
+                // Store as GeoJSON for line/polygon infrastructure
+                handleChange('location_geojson', geom);
+                // Also set lat/lng to the first coordinate for map centering
+                const first = geom.coordinates?.[0];
+                if (Array.isArray(first)) {
+                  const coord = Array.isArray(first[0]) ? first[0] : first; // Polygon has nested array
+                  handleChange('longitude', coord[0]);
+                  handleChange('latitude', coord[1]);
+                }
+              }
+              setShowLocationMap(false);
+            }}
+            initialLocation={
+              formData.latitude && formData.longitude
+                ? formData.location_geojson || { type: 'Point', coordinates: [Number(formData.longitude), Number(formData.latitude)] }
+                : null
+            }
           />
         )}
 

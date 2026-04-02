@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, validator, Field, computed_field
+from pydantic import BaseModel, validator, Field, computed_field, model_validator
 from enum import Enum
 
 # Enums for validation
@@ -96,7 +96,7 @@ class AssetBase(BaseModel):
     
     # Operational
     status: AssetStatus = AssetStatus.active
-    location: Optional[str] = None
+    location_label: Optional[str] = None
     requires_calibration: bool = False
     calibration_interval_days: Optional[int] = None
     requires_maintenance: bool = False
@@ -105,7 +105,10 @@ class AssetBase(BaseModel):
 
 class AssetCreate(AssetBase):
     asset_number: str
-    
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_geojson: Optional[Dict[str, Any]] = None  # GeoJSON for lines/polygons
+
     @validator("asset_number")
     def validate_asset_number(cls, v):
         if not v or len(v.strip()) == 0:
@@ -127,7 +130,10 @@ class AssetUpdate(BaseModel):
     maximum_stock: Optional[Decimal] = None
     cost_per_unit: Optional[Decimal] = None
     status: Optional[AssetStatus] = None
-    location: Optional[str] = None
+    location_label: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_geojson: Optional[Dict[str, Any]] = None
     current_value: Optional[Decimal] = None
     requires_calibration: Optional[bool] = None
     calibration_interval_days: Optional[int] = None
@@ -171,11 +177,16 @@ class AssetResponse(AssetBase):
     updated_at: Optional[datetime] = None
     created_by: Optional[int] = None
     is_active: bool
-    
+
+    # Spatial — serialized from PostGIS
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_geojson: Optional[Dict[str, Any]] = None
+
     # Computed properties
     stock_status: Optional[str] = None
     needs_reorder: Optional[bool] = None
-    
+
     is_organic_certified: Optional[bool] = None
     is_regenerative_certified: Optional[bool] = None
     is_biodynamic_certified: Optional[bool] = None
@@ -189,6 +200,48 @@ class AssetResponse(AssetBase):
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode='before')
+    @classmethod
+    def convert_spatial_fields(cls, data):
+        """Convert PostGIS location_point/location_geometry to lat/lng and GeoJSON."""
+        if hasattr(data, '__table__'):
+            data_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
+            # Copy computed properties from ORM
+            for attr in ('stock_status', 'needs_reorder', 'is_organic_certified',
+                         'is_regenerative_certified', 'is_biodynamic_certified',
+                         'is_swnz_certified', 'certification_summary',
+                         'photo_file_ids', 'document_file_ids', 'manual_file_ids'):
+                if hasattr(data, attr):
+                    data_dict[attr] = getattr(data, attr)
+        elif isinstance(data, dict):
+            data_dict = data
+        else:
+            return data
+
+        # Convert POINT → lat/lng
+        if data_dict.get('location_point') is not None:
+            try:
+                from geoalchemy2.shape import to_shape
+                pt = to_shape(data_dict['location_point'])
+                data_dict['longitude'] = pt.x
+                data_dict['latitude'] = pt.y
+            except Exception:
+                pass
+        data_dict.pop('location_point', None)
+
+        # Convert GEOMETRY → GeoJSON
+        if data_dict.get('location_geometry') is not None:
+            try:
+                from geoalchemy2.shape import to_shape
+                from shapely.geometry import mapping
+                geom = to_shape(data_dict['location_geometry'])
+                data_dict['location_geojson'] = mapping(geom)
+            except Exception:
+                pass
+        data_dict.pop('location_geometry', None)
+
+        return data_dict
 
 class CertificationFilter(BaseModel):
     """Filter consumables by certification"""

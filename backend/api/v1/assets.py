@@ -47,14 +47,25 @@ def create_asset(
             detail="Asset number already exists for this company"
         )
     
-    # Create asset
-    asset_data = asset_in.dict()
+    # Create asset — extract spatial fields before passing to ORM
+    asset_data = asset_in.dict(exclude={'latitude', 'longitude', 'location_geojson'})
     asset = Asset(
         **asset_data,
         company_id=current_user.company_id,
         created_by=current_user.id
     )
-    
+
+    # Convert GeoJSON → PostGIS GEOMETRY (for lines/polygons) — takes priority
+    if asset_in.location_geojson and isinstance(asset_in.location_geojson, dict):
+        from shapely.geometry import shape
+        from geoalchemy2.shape import from_shape
+        geom = shape(asset_in.location_geojson)
+        asset.location_geometry = from_shape(geom, srid=4326)
+        asset.location_point = None  # line/polygon is the primary geometry
+    elif asset_in.latitude is not None and asset_in.longitude is not None:
+        # Convert lat/lng → PostGIS POINT (only when no line/polygon)
+        asset.location_point = f"SRID=4326;POINT({asset_in.longitude} {asset_in.latitude})"
+
     db.add(asset)
     db.commit()
     db.refresh(asset)
@@ -103,7 +114,7 @@ def list_assets(
     if status_filter:
         query = query.filter(Asset.status == status_filter)
     if location:
-        query = query.filter(Asset.location.ilike(f"%{location}%"))
+        query = query.filter(Asset.location_label.ilike(f"%{location}%"))
     if requires_maintenance is not None:
         query = query.filter(Asset.requires_maintenance == requires_maintenance)
     if requires_calibration is not None:
@@ -132,6 +143,54 @@ def list_assets(
 
     logger.info(f"Retrieved {len(assets)} assets")
     return assets
+
+@router.get("/geojson", response_model=dict)
+def get_assets_geojson(
+    category: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return company assets as GeoJSON FeatureCollection for map display."""
+    from geoalchemy2.shape import to_shape
+    from shapely.geometry import mapping
+
+    query = db.query(Asset).filter(
+        Asset.company_id == current_user.company_id,
+        Asset.is_active == True,
+        or_(Asset.location_point.isnot(None), Asset.location_geometry.isnot(None))
+    )
+    if category:
+        query = query.filter(Asset.category == category)
+
+    features = []
+    for asset in query.all():
+        try:
+            # Prefer line/polygon geometry over point (point is just for centering)
+            if asset.location_geometry is not None:
+                geom = mapping(to_shape(asset.location_geometry))
+            elif asset.location_point is not None:
+                geom = mapping(to_shape(asset.location_point))
+            else:
+                continue
+            features.append({
+                "type": "Feature",
+                "geometry": geom,
+                "properties": {
+                    "id": asset.id,
+                    "name": asset.name,
+                    "asset_number": asset.asset_number,
+                    "category": asset.category,
+                    "subcategory": asset.subcategory,
+                    "status": asset.status,
+                    "location_label": asset.location_label,
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error serializing asset {asset.id} geometry: {e}")
+            continue
+
+    return {"type": "FeatureCollection", "features": features}
+
 
 @router.get("/summary", response_model=List[AssetSummary])
 def get_assets_summary(
@@ -481,14 +540,29 @@ def update_asset(
             detail="Not enough permissions"
         )
     
-    # Update asset attributes
+    # Update asset attributes — handle spatial fields separately
     update_data = asset_update.dict(exclude_unset=True)
+    lat = update_data.pop('latitude', None)
+    lng = update_data.pop('longitude', None)
+    geojson = update_data.pop('location_geojson', None)
+
+    # Line/polygon geometry takes priority over point
+    if geojson and isinstance(geojson, dict):
+        from shapely.geometry import shape
+        from geoalchemy2.shape import from_shape
+        geom = shape(geojson)
+        asset.location_geometry = from_shape(geom, srid=4326)
+        asset.location_point = None  # line/polygon is the primary geometry
+    elif lat is not None and lng is not None:
+        asset.location_point = f"SRID=4326;POINT({lng} {lat})"
+        asset.location_geometry = None  # clear any previous line/polygon
+
     for key, value in update_data.items():
         setattr(asset, key, value)
-    
+
     db.commit()
     db.refresh(asset)
-    
+
     logger.info(f"Asset {asset_id} updated by user {current_user.id}")
     return asset
 

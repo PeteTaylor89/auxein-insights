@@ -15,10 +15,11 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
   const mapContainer = useRef(null);
   const map = useRef(null);
   const drawControl = useRef(null);
+  const clickHandlerRef = useRef(null);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [locationType, setLocationType] = useState('point'); // 'point' or 'area'
+  const [locationType, setLocationType] = useState('point'); // 'point', 'line', or 'area'
   const [currentLocation, setCurrentLocation] = useState(initialLocation);
   const [status, setStatus] = useState('Click on the map to place a location marker');
 
@@ -245,15 +246,17 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
   };
 
   // Setup drawing controls
-  const setupDrawControls = () => {
+  const setupDrawControls = (activeType) => {
     if (!map.current) return;
+    const mode = activeType || locationType;
 
     // Create draw control
     drawControl.current = new MapboxDraw({
       displayControlsDefault: false,
       controls: {
-        point: locationType === 'point',
-        polygon: locationType === 'area'
+        point: mode === 'point',
+        line_string: mode === 'line',
+        polygon: mode === 'area',
       },
       styles: [
         // Point styles
@@ -301,27 +304,27 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
         {
           id: 'gl-draw-line-active',
           type: 'line',
-          filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+          filter: ['all', ['==', 'active', 'true'], ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'LineString']]],
           layout: {
             'line-cap': 'round',
             'line-join': 'round'
           },
           paint: {
             'line-color': '#ef4444',
-            'line-width': 2
+            'line-width': 2.5
           }
         },
         {
           id: 'gl-draw-line-inactive',
           type: 'line',
-          filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+          filter: ['all', ['==', 'active', 'false'], ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'LineString']]],
           layout: {
             'line-cap': 'round',
             'line-join': 'round'
           },
           paint: {
             'line-color': '#ef4444',
-            'line-width': 2
+            'line-width': 2.5
           }
         },
         // Vertex styles
@@ -346,33 +349,21 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
     map.current.on('draw.update', handleDrawUpdate);
     map.current.on('draw.delete', handleDrawDelete);
 
-    // Handle direct map clicks for point placement
-    if (locationType === 'point') {
-      map.current.on('click', handleMapClick);
+    // Handle direct map clicks for point placement only
+    if (mode === 'point') {
+      const pointClickHandler = (e) => {
+        if (drawControl.current) drawControl.current.deleteAll();
+        const point = {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [e.lngLat.lng, e.lngLat.lat] }
+        };
+        drawControl.current.add(point);
+        setCurrentLocation(point.geometry);
+        setStatus(`Point placed at ${e.lngLat.lat.toFixed(6)}, ${e.lngLat.lng.toFixed(6)}`);
+      };
+      clickHandlerRef.current = pointClickHandler;
+      map.current.on('click', pointClickHandler);
     }
-  };
-
-  // Handle map click for point placement
-  const handleMapClick = (e) => {
-    if (locationType !== 'point') return;
-
-    // Clear existing drawings
-    if (drawControl.current) {
-      drawControl.current.deleteAll();
-    }
-
-    // Create point at click location
-    const point = {
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [e.lngLat.lng, e.lngLat.lat]
-      }
-    };
-
-    drawControl.current.add(point);
-    setCurrentLocation(point.geometry);
-    setStatus(`Point placed at ${e.lngLat.lat.toFixed(6)}, ${e.lngLat.lng.toFixed(6)}`);
   };
 
   // Handle draw events
@@ -384,6 +375,8 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
       if (feature.geometry.type === 'Point') {
         const [lng, lat] = feature.geometry.coordinates;
         setStatus(`Point placed at ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      } else if (feature.geometry.type === 'LineString') {
+        setStatus(`Line drawn with ${feature.geometry.coordinates.length} points`);
       } else if (feature.geometry.type === 'Polygon') {
         setStatus('Area drawn successfully');
       }
@@ -451,12 +444,17 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
       map.current.removeControl(drawControl.current);
       
       // Remove map click handler
-      map.current.off('click', handleMapClick);
+      if (clickHandlerRef.current) {
+        map.current.off('click', clickHandlerRef.current);
+        clickHandlerRef.current = null;
+      }
       
       setTimeout(() => {
-        setupDrawControls();
+        setupDrawControls(newType);
         if (newType === 'point') {
           setStatus('Click on the map to place a location marker');
+        } else if (newType === 'line') {
+          setStatus('Click the line tool and draw a line on the map (double-click to finish)');
         } else {
           setStatus('Click the polygon tool and draw an area on the map');
         }
@@ -557,22 +555,24 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               Location Type:
             </label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                onClick={() => handleLocationTypeChange('point')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: '1px solid #d1d5db',
-                  background: locationType === 'point' ? '#3b82f6' : 'white',
-                  color: locationType === 'point' ? 'white' : '#374151',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500'
-                }}
-              >
-                📍 Point Location
-              </button>
-
+              {['point', 'line', 'area'].map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => handleLocationTypeChange(mode)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    border: '1px solid #d1d5db',
+                    background: locationType === mode ? '#3b82f6' : 'white',
+                    color: locationType === mode ? 'white' : '#374151',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500'
+                  }}
+                >
+                  {mode === 'point' ? '📍 Point' : mode === 'line' ? '〰️ Line' : '⬡ Area'}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -655,11 +655,12 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
           <div style={{ flex: 1 }}>
             {currentLocation && (
               <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                {currentLocation.type === 'Point' ? (
-                  `Point: ${currentLocation.coordinates[1].toFixed(6)}, ${currentLocation.coordinates[0].toFixed(6)}`
-                ) : (
-                  'Area polygon drawn'
-                )}
+                {currentLocation.type === 'Point'
+                  ? `Point: ${currentLocation.coordinates[1].toFixed(6)}, ${currentLocation.coordinates[0].toFixed(6)}`
+                  : currentLocation.type === 'LineString'
+                  ? `Line: ${currentLocation.coordinates.length} points`
+                  : 'Area polygon drawn'
+                }
               </div>
             )}
           </div>

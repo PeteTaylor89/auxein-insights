@@ -27,12 +27,13 @@ class NotificationResponse(BaseModel):
     title: str
     body: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
-    read: bool
+    read: bool = Field(alias="is_read")
     read_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class NotificationListResponse(BaseModel):

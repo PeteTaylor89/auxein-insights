@@ -15,7 +15,7 @@ const TEMPLATE_CATEGORIES = [
   { key: 'disease', icon: '🦠', label: 'Pests & Disease', types: ['pest_disease', 'disease', 'pest', 'beneficials', 'nutrient_health'] },
   { key: 'yield', icon: '📊', label: 'Yield & Sampling', types: ['flower_set', 'bunch_count', 'pre_veraison_yield', 'post_veraison_yield', 'maturity_sampling', 'lab_sampling_pre_winery'] },
   { key: 'environment', icon: '🌿', label: 'Environment', types: ['soil_groundcover', 'land_management', 'frost_event', 'weather', 'irrigation_check', 'biosecurity'] },
-  { key: 'other', icon: '📝', label: 'Other', types: ['other', 'compliance', 'hazard', 'maintenance'] },
+  { key: 'other', icon: '📝', label: 'Field Note & Other', types: ['other', 'compliance', 'hazard', 'maintenance'] },
 ];
 
 export default function ObservationsScreen({ navigation }) {
@@ -54,6 +54,21 @@ export default function ObservationsScreen({ navigation }) {
 
   // Reload on screen focus (so resuming from SpotCapture refreshes the list)
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  // --- Quick Field Note (ad-hoc, no template selection) ---
+
+  const handleQuickFieldNote = () => {
+    const freeForm = templates.find(t => getType(t) === 'other' && /free.?form/i.test(t.name));
+    if (freeForm) {
+      // Skip template picker — go straight to block picker
+      setSelectedTemplate(freeForm);
+      setShowBlockPicker(true);
+    } else {
+      // Fallback: open the Other category
+      const otherCat = TEMPLATE_CATEGORIES.find(c => c.key === 'other');
+      if (otherCat) handleCategoryPress(otherCat);
+    }
+  };
 
   // --- Quick Observation Flow ---
 
@@ -157,6 +172,16 @@ export default function ObservationsScreen({ navigation }) {
           ))}
         </View>
       )}
+
+      {/* Quick Field Note */}
+      <TouchableOpacity style={styles.fieldNoteBtn} onPress={handleQuickFieldNote}>
+        <Text style={styles.fieldNoteIcon}>📋</Text>
+        <View style={styles.fieldNoteLabelWrap}>
+          <Text style={styles.fieldNoteLabel}>Quick Field Note</Text>
+          <Text style={styles.fieldNoteSub}>Photo, notes & GPS — no template needed</Text>
+        </View>
+        <Text style={styles.fieldNoteChevron}>›</Text>
+      </TouchableOpacity>
 
       {/* Quick Observation */}
       <View style={styles.section}>
@@ -279,6 +304,19 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   sectionSub: { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.md },
   emptyText: { color: colors.textMuted, fontSize: fontSize.sm, fontStyle: 'italic', padding: spacing.md },
+
+  // Quick field note button
+  fieldNoteBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    marginHorizontal: spacing.base, marginTop: spacing.base,
+    backgroundColor: colors.primary, borderRadius: radius.md,
+    padding: spacing.md, paddingHorizontal: spacing.base,
+  },
+  fieldNoteIcon: { fontSize: 24 },
+  fieldNoteLabelWrap: { flex: 1 },
+  fieldNoteLabel: { fontSize: fontSize.base, fontWeight: '600', color: colors.white },
+  fieldNoteSub: { fontSize: fontSize.xs, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  fieldNoteChevron: { fontSize: 24, color: 'rgba(255,255,255,0.6)', fontWeight: '300' },
 
   // Category grid
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

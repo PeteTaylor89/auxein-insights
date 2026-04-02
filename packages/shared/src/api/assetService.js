@@ -26,6 +26,11 @@ const assetOperations = {
     return res.data;
   },
 
+  getAssetsGeoJSON: async (params = {}) => {
+    const res = await api.get('/assets/geojson', { params });
+    return res.data;
+  },
+
   /**
    * Get lightweight asset summary for dropdowns
    * @param {string} category - Optional category filter

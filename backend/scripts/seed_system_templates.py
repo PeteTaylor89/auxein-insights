@@ -17,9 +17,9 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parents[1].parent
 load_dotenv(ROOT_DIR / ".env")
 
-DB_URL = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL")
+DB_URL = os.getenv("LOCAL_DATABASE_URL") or os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL")
 if not DB_URL:
-    raise SystemExit("No DB URL. Set DATABASE_URL/SQLALCHEMY_DATABASE_URL in .env")
+    raise SystemExit("No DB URL. Set LOCAL_DATABASE_URL/DATABASE_URL in .env")
 
 engine = create_engine(DB_URL, future=True)
 
@@ -292,7 +292,7 @@ FIELDS_WEATHER = scope_fields(include_row=False) + [
 ]
 
 TEMPLATES: List[Dict[str, Any]] = [
-    {"name": "Phenology (E–L / BBCH)", "type": "phenology", "fields": FIELDS_PHENOLOGY},
+    {"name": "Phenology (E–L)", "type": "phenology", "fields": FIELDS_PHENOLOGY},
     {"name": "Bud Count (Post-pruning QC)", "type": "bud_count", "fields": FIELDS_BUD_COUNT},
     {"name": "Flower Count / Fruit Set", "type": "flower_set", "fields": FIELDS_FLOWER_SET},
     {"name": "Yield Estimation (Pre-veraison)", "type": "pre_veraison_yield", "fields": FIELDS_YIELD_PRE},

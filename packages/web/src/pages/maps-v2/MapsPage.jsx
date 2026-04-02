@@ -9,6 +9,7 @@ import useSpatialAreasLayer from './hooks/useSpatialAreasLayer';
 import useParcelsLayer from './hooks/useParcelsLayer';
 import useTasksLayer from './hooks/useTasksLayer';
 import useObservationsLayer from './hooks/useObservationsLayer';
+import useAssetsLayer from './hooks/useAssetsLayer';
 import useDrawingController from './hooks/useDrawingController';
 import useBlockSplit from './hooks/useBlockSplit';
 import useFlyoverAnimation from './hooks/useFlyoverAnimation';
@@ -94,6 +95,7 @@ function MapsPageInner() {
   const [showParcels, setShowParcels] = useState(false);
   const [showTasks, setShowTasks] = useState(true);
   const [showObservations, setShowObservations] = useState(true);
+  const [showAssets, setShowAssets] = useState(false);
 
   // Properties state (admin only)
   const [properties, setProperties] = useState([]);
@@ -168,6 +170,10 @@ function MapsPageInner() {
   // Observations
   const { observations, obsCount, loading: obsLoading, error: obsError } =
     useObservationsLayer(map, mapReady, showObservations, blocksData);
+
+  // Assets
+  const { assetCount, loading: assetsLoading, error: assetsError } =
+    useAssetsLayer(map, mapReady, showAssets);
 
   // Block split state machine
   const {
@@ -415,6 +421,7 @@ function MapsPageInner() {
 
     // Priority order: point layers first (risks, observations, tasks), then fill (blocks)
     const INTERACTIVE_LAYERS = [
+      'v2-assets-points',
       'v2-risks-circles',
       'v2-observations-symbol',
       'v2-tasks-symbol',
@@ -437,7 +444,25 @@ function MapsPageInner() {
       const layerId = feature.layer?.id;
       const p = feature.properties || {};
 
-      if (layerId === 'v2-risks-circles') {
+      if (layerId === 'v2-assets-points') {
+        const coords = feature.geometry.coordinates;
+        showReactPopup(map, {
+          lngLat: coords,
+          content: (
+            <div style={{ minWidth: 160 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name || 'Asset'}</div>
+              <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                {p.category}{p.subcategory ? ` / ${p.subcategory}` : ''}
+              </div>
+              {p.asset_number && <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>#{p.asset_number}</div>}
+              {p.location_label && <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{p.location_label}</div>}
+              <div style={{ fontSize: '0.75rem', marginTop: 4, color: p.status === 'active' ? '#059669' : '#dc2626' }}>
+                {p.status}
+              </div>
+            </div>
+          ),
+        });
+      } else if (layerId === 'v2-risks-circles') {
         const coords = feature.geometry.coordinates;
         showReactPopup(map, {
           lngLat: coords,
@@ -560,6 +585,23 @@ function MapsPageInner() {
               visible={showObservations}
               onToggle={() => setShowObservations((v) => !v)}
             />
+
+            <div className="v2-panel">
+              <div className="v2-panel-header">
+                <h3 className="v2-panel-title">
+                  Assets
+                  <span className="v2-panel-count">{assetCount}</span>
+                  <button
+                    className="v2-layer-toggle-btn"
+                    onClick={() => setShowAssets((v) => !v)}
+                  >
+                    {showAssets ? 'On' : 'Off'}
+                  </button>
+                </h3>
+              </div>
+              {assetsLoading && <div className="v2-panel-loading">Loading assets...</div>}
+              {assetsError && <div className="v2-panel-error">{assetsError}</div>}
+            </div>
 
             {isAuxeinAdmin && properties.length > 0 && (
               <PropertiesPanel

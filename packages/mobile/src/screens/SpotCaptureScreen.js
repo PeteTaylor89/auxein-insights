@@ -43,15 +43,18 @@ export default function SpotCaptureScreen({ route, navigation }) {
         if (runId) promises.push(observationService.getSpots(runId).catch(() => []));
         const [tpl, existingSpots] = await Promise.all(promises);
         setTemplate(tpl);
-        const rawSchema = tpl?.schema || tpl?.fields_json;
+        const rawSchema = tpl?.field_schema ?? tpl?.fields_json ?? tpl?.schema;
         const templateFields = Array.isArray(rawSchema) ? rawSchema
           : rawSchema?.fields || [];
+        console.log('[SpotCapture] Template response keys:', Object.keys(tpl || {}));
+        console.log('[SpotCapture] Fields extracted:', templateFields.length, templateFields.map(f => f.name));
         setFields(templateFields);
         // Set defaults
         const defaults = {};
         templateFields.forEach(f => {
           if (f.default !== undefined && f.default !== null) defaults[f.name] = f.default;
         });
+        console.log('[SpotCapture] Defaults:', JSON.stringify(defaults));
         setValues(defaults);
         if (existingSpots) setSpots(Array.isArray(existingSpots) ? existingSpots : []);
 
@@ -64,11 +67,15 @@ export default function SpotCaptureScreen({ route, navigation }) {
           const refResults = await Promise.all(
             uniqueSources.map(src =>
               (src === 'el_stage' ? observationService.getElStages() : observationService.getCatalog(src))
-                .catch(() => [])
+                .catch(e => { console.log('[SpotCapture] Catalog fetch failed:', src, e.message); return []; })
             )
           );
           const refMap = {};
-          uniqueSources.forEach((src, i) => { refMap[src] = refResults[i]; });
+          uniqueSources.forEach((src, i) => {
+            const items = Array.isArray(refResults[i]) ? refResults[i] : [];
+            console.log(`[SpotCapture] Catalog '${src}': ${items.length} items`);
+            refMap[src] = items;
+          });
           setReferenceData(refMap);
         }
       } catch (err) {

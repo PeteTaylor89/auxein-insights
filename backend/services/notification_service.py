@@ -210,7 +210,7 @@ class NotificationService:
             raise ValueError("Either user_id or contractor_id must be provided")
 
         if unread_only:
-            query = query.filter(Notification.read == False)
+            query = query.filter(Notification.is_read == False)
 
         return query.order_by(desc(Notification.created_at)).limit(limit).all()
 
@@ -223,7 +223,7 @@ class NotificationService:
         """Get count of unread notifications for a user or contractor"""
         query = self.db.query(Notification).filter(
             Notification.company_id == company_id,
-            Notification.read == False,
+            Notification.is_read == False,
         )
 
         if user_id:
@@ -279,8 +279,8 @@ class NotificationService:
 
         notification = query.first()
 
-        if notification and not notification.read:
-            notification.read = True
+        if notification and not notification.is_read:
+            notification.is_read = True
             notification.read_at = datetime.now(timezone.utc)
             self.db.flush()
 
@@ -298,7 +298,7 @@ class NotificationService:
         """
         query = self.db.query(Notification).filter(
             Notification.company_id == company_id,
-            Notification.read == False,
+            Notification.is_read == False,
         )
 
         if user_id:
@@ -310,7 +310,7 @@ class NotificationService:
 
         now = datetime.now(timezone.utc)
         count = query.update(
-            {"read": True, "read_at": now},
+            {"is_read": True, "read_at": now},
             synchronize_session=False
         )
 

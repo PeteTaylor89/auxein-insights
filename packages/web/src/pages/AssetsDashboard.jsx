@@ -506,7 +506,7 @@ function EquipmentTab({ StatusBadge }) {
                     <StatusBadge status={item.status} />
                   </td>
                   <td style={{ padding: 12, textAlign: 'center' }}>
-                    {item.location || '—'}
+                    {item.location_label || '—'}
                   </td>
                   <td style={{ padding: 12 }}>
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>

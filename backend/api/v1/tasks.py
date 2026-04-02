@@ -343,11 +343,15 @@ def quick_create_task(
     template_defaults = template.to_task_defaults()
     
     # Override with provided data
-    task_dict = task_data.model_dump(exclude_unset=True, exclude={'assigned_user_ids'})
+    task_dict = task_data.model_dump(exclude_unset=True, exclude={'assigned_user_ids', 'template_id'})
     for key, value in task_dict.items():
         if value is not None:
             template_defaults[key] = value
-    
+
+    # Remove keys set explicitly below to avoid duplicate keyword args
+    for k in ('company_id', 'template_id', 'task_number', 'created_by', 'status'):
+        template_defaults.pop(k, None)
+
     # Create task
     task = Task(
         company_id=current_user.company_id,

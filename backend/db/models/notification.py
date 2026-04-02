@@ -68,7 +68,7 @@ class Notification(Base):
     data: Mapped[Optional[dict]] = mapped_column(JSON, default=dict, nullable=True)
 
     # Read status
-    read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Timestamps

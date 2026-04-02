@@ -259,4 +259,20 @@ export const notificationService = {
     const res = await api.patch(`/v1/notifications/${notificationId}/read`);
     return res.data;
   },
+  markAllRead: async () => {
+    const res = await api.post('/v1/notifications/read-all');
+    return res.data;
+  },
+};
+
+// --- Assets (prefix: /assets) ---
+export const assetService = {
+  listAssets: async (params = {}) => {
+    const res = await api.get('/assets', { params });
+    return res.data;
+  },
+  getAsset: async (id) => {
+    const res = await api.get(`/assets/${id}`);
+    return res.data;
+  },
 };
