@@ -203,6 +203,68 @@
   text-decoration: underline;
 }
 
+/* Legal notice — make the terms link prominent and tappable */
+.legal-notice {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+  text-align: center;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.legal-notice .link-button {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5B6830;
+  background: white;
+  border: 1.5px solid #5B6830;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.legal-notice .link-button:hover {
+  background: #5B6830;
+  color: white;
+  text-decoration: none;
+}
+
+.legal-accepted-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #166534;
+  flex-wrap: wrap;
+}
+
+.legal-accepted-notice .link-button {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #5B6830;
+  background: white;
+  border: 1px solid #5B6830;
+  border-radius: 4px;
+  margin-left: auto;
+  text-decoration: none;
+}
+
+.legal-accepted-notice .link-button:hover {
+  background: #5B6830;
+  color: white;
+  text-decoration: none;
+}
+
 .form-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -390,12 +452,27 @@
     max-height: 100vh;
   }
 
+  .auth-modal-overlay {
+    padding: 0;
+  }
+
   .auth-modal-header {
     padding: 32px 24px 20px;
   }
 
   .auth-modal-body {
     padding: 24px;
+    overflow-x: hidden;
+  }
+
+  .auth-form {
+    max-width: 100%;
+  }
+
+  .form-group input,
+  .form-group select {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .form-row {
@@ -412,6 +489,15 @@
 
   .form-actions {
     grid-template-columns: 1fr;
+  }
+
+  .auth-submit-btn,
+  .auth-back-btn {
+    min-height: 48px;
+  }
+
+  .checkbox-label {
+    padding: 14px;
   }
 }
 

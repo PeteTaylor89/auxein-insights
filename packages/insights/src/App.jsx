@@ -1,4 +1,5 @@
 // src/App.jsx - Auxein Regional Intelligence (Public)
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import About from './pages/About';
@@ -10,6 +11,10 @@ import ArticlesPage from './pages/ArticlesPage';
 import ArticleDetail from './pages/ArticleDetail';
 import ResearchPage from './pages/ResearchPage';
 import ResearchDetail from './pages/ResearchDetail';
+
+// Lazy-loaded pages
+const MapExplorer = lazy(() => import('./pages/MapExplorer'));
+const WidgetEmbed = lazy(() => import('./pages/WidgetEmbed'));
 
 // Admin pages
 import AdminDashboard from './pages/AdminDashboard';
@@ -36,6 +41,8 @@ function AppRoutes() {
     <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/map" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: '#5B6830' }}>Loading map...</div>}><MapExplorer /></Suspense>} />
+          <Route path="/widget/seasonal" element={<Suspense fallback={<div style={{ padding: '20px', color: '#999', fontSize: '13px' }}>Loading...</div>}><WidgetEmbed /></Suspense>} />
           <Route path="/about" element={<About />} />
           <Route path="/legal" element={<LegalPage />} />
           <Route path="/articles" element={<ArticlesPage />} />

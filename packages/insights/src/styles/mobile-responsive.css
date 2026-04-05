@@ -51,21 +51,36 @@
     font-size: 0.9rem;
   }
   
-  /* Insights grid - force single column */
+  /* Insights grid - single column on small screens */
   .insights-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .insight-card {
+    padding: 12px 14px 12px 16px;
     gap: 12px;
   }
-  
-  .insight-card {
-    padding: 16px;
+
+  .insight-icon {
+    width: 34px;
+    height: 34px;
   }
-  
+
+  .insight-label {
+    font-size: var(--font-sm);
+  }
+
+  .insight-chevron {
+    display: none;
+  }
+
   /* Active insight container */
   .active-insight-container {
     padding: 16px;
-    margin: 0 -16px;
-    border-radius: 0;
+    margin-top: 16px;
+    border-radius: 12px;
+    overflow-x: hidden;
   }
   
   /* ---------------------------------------------------------------------------
@@ -234,22 +249,22 @@
   
   /* Summary grid */
   .summary-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
   }
-  
+
   /* Variables grid */
   .variables-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
   }
-  
+
   /* Stages grid */
   .stages-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
   }
-  
+
   /* Seasons grid */
   .seasons-grid {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   
@@ -349,7 +364,7 @@
   
   /* Summary cards - single column */
   .summary-cards {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
     gap: 12px;
   }
   
@@ -474,7 +489,7 @@
   
   /* Harvest grid */
   .harvest-grid {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   
@@ -523,7 +538,7 @@
   
   /* Factors grid */
   .factors-grid {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   
@@ -581,7 +596,7 @@
   }
   
   .selector-trigger {
-    min-width: 100% !important;
+    min-width: 100%;
     width: 100%;
   }
   
@@ -625,7 +640,7 @@
   }
   
   .stats-summary-grid {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   
@@ -916,6 +931,39 @@
    TOUCH DEVICE ENHANCEMENTS
    ============================================================================= */
 
+/* Enforce 44px touch targets at tablet breakpoint (not just hover:none) */
+@media (max-width: 768px) {
+  .view-toggle-btn,
+  .chart-type-btn,
+  .chart-tab,
+  .variety-chip,
+  .season-pill,
+  .zone-option,
+  .rt-zone-option,
+  .insight-card,
+  .banner-dot,
+  .cta-btn,
+  .auth-submit-btn,
+  .auth-back-btn {
+    min-height: 44px;
+  }
+
+  /* Scroll snap for horizontal scrollable controls */
+  .view-toggle,
+  .chart-controls,
+  .variety-chips {
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .view-toggle-btn,
+  .chart-type-btn,
+  .chart-tab,
+  .variety-chip {
+    scroll-snap-align: start;
+  }
+}
+
 @media (hover: none) and (pointer: coarse) {
   /* Increase touch targets */
   .view-toggle-btn,
@@ -930,23 +978,24 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   /* Remove hover states that cause sticky on touch */
   .view-toggle-btn:hover,
   .chart-type-btn:hover,
   .zone-option:hover,
-  .season-card:hover {
+  .season-card:hover,
+  .insight-card:hover {
     transform: none;
     box-shadow: none;
   }
-  
+
   /* Make scrollable areas more obvious */
   .chart-controls,
   .variety-chips,
   .view-toggle {
     position: relative;
   }
-  
+
   .chart-controls::after,
   .variety-chips::after,
   .view-toggle::after {

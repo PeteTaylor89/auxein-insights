@@ -40,43 +40,51 @@ const REGION_OUTLINE_COLOR = '#1d4ed8';
 const GI_FILL_COLOR = '#8a5cf600';
 const GI_OUTLINE_COLOR = '#961111';
 
+const ZONE_FILL_COLOR = '#f59e0b';
+const ZONE_OUTLINE_COLOR = '#d97706';
+
 function RegionalMap() {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const hoveredBlockId = useRef(null);
   const hoveredRegionId = useRef(null);
   const hoveredGIId = useRef(null);
+  const hoveredZoneId = useRef(null);
   const { isAuthenticated } = usePublicAuth();
-  
+
   // Map state
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapStyle, setMapStyle] = useState('satellite-streets-v12');
-  
+
   // Data state
   const [blocksData, setBlocksData] = useState(null);
   const [regionsData, setRegionsData] = useState(null);
   const [gisData, setGisData] = useState(null);
-  
+  const [climateZonesData, setClimateZonesData] = useState(null);
+
   // Loading state
   const [blocksLoading, setBlocksLoading] = useState(false);
   const [queryLoading, setQueryLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Layer visibility
+
+  // Layer visibility — only blocks on by default; others load on first toggle
   const [showBlocks, setShowBlocks] = useState(true);
-  const [showRegions, setShowRegions] = useState(true);
-  const [showGIs, setShowGIs] = useState(true);
-  
+  const [showRegions, setShowRegions] = useState(false);
+  const [showGIs, setShowGIs] = useState(false);
+  const [showClimateZones, setShowClimateZones] = useState(false);
+
   // Layer opacity (0-1)
   const [blockOpacity, setBlockOpacity] = useState(0.7);
   const [regionOpacity, setRegionOpacity] = useState(0.3);
   const [giOpacity, setGIOpacity] = useState(0.0);
-  
+  const [climateZoneOpacity, setClimateZoneOpacity] = useState(0.35);
+
   // Selection state
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [selectedGI, setSelectedGI] = useState(null);
   const [statsModalRegion, setStatsModalRegion] = useState(null);
+  const [selectedClimateZone, setSelectedClimateZone] = useState(null);
 
   // =========================================================================
   // MAP INITIALIZATION
@@ -125,11 +133,30 @@ function RegionalMap() {
   useEffect(() => {
     if (!mapLoaded || !isAuthenticated) return;
 
-    // Load all layers
+    // Only load blocks initially — other layers load on first toggle
     loadBlocks();
-    loadRegions();
-    loadGIs();
   }, [mapLoaded, isAuthenticated]);
+
+  // Lazy-load regions when first toggled on
+  useEffect(() => {
+    if (showRegions && !regionsData && mapLoaded && isAuthenticated) {
+      loadRegions();
+    }
+  }, [showRegions]);
+
+  // Lazy-load GIs when first toggled on
+  useEffect(() => {
+    if (showGIs && !gisData && mapLoaded && isAuthenticated) {
+      loadGIs();
+    }
+  }, [showGIs]);
+
+  // Lazy-load climate zones when first toggled on
+  useEffect(() => {
+    if (showClimateZones && !climateZonesData && mapLoaded && isAuthenticated) {
+      loadClimateZones();
+    }
+  }, [showClimateZones]);
 
   // =========================================================================
   // LOAD BLOCKS
@@ -188,6 +215,22 @@ function RegionalMap() {
   };
 
   // =========================================================================
+  // LOAD CLIMATE ZONES
+  // =========================================================================
+  const loadClimateZones = async () => {
+    if (climateZonesData) return;
+
+    try {
+      console.log('📡 Fetching climate zones GeoJSON...');
+      const response = await publicApi.get('/public/climate-zones/geojson');
+      console.log(`✅ Loaded ${response.data.features.length} climate zones`);
+      setClimateZonesData(response.data);
+    } catch (err) {
+      console.error('❌ Error loading climate zones:', err);
+    }
+  };
+
+  // =========================================================================
   // ADD LAYERS TO MAP
   // =========================================================================
   useEffect(() => {
@@ -196,6 +239,11 @@ function RegionalMap() {
     // Add regions layer (bottom)
     if (regionsData && showRegions) {
       addRegionsLayer();
+    }
+
+    // Add climate zones layer
+    if (climateZonesData && showClimateZones) {
+      addClimateZonesLayer();
     }
 
     // Add GIs layer (middle)
@@ -207,7 +255,7 @@ function RegionalMap() {
     if (blocksData && showBlocks) {
       addBlocksLayer();
     }
-  }, [mapLoaded, blocksData, regionsData, gisData]);
+  }, [mapLoaded, blocksData, regionsData, gisData, climateZonesData]);
 
   // =========================================================================
   // ADD BLOCKS LAYER
@@ -399,6 +447,64 @@ function RegionalMap() {
   };
 
   // =========================================================================
+  // ADD CLIMATE ZONES LAYER
+  // =========================================================================
+  const addClimateZonesLayer = () => {
+    if (!map.current || !climateZonesData) return;
+
+    try {
+      removeLayer('climate-zones-fill');
+      removeLayer('climate-zones-outline');
+      removeSource('climate-zones');
+
+      map.current.addSource('climate-zones', {
+        type: 'geojson',
+        data: climateZonesData,
+        generateId: true
+      });
+
+      // Insert below blocks but above regions
+      const beforeLayer = map.current.getLayer('blocks-fill') ? 'blocks-fill' : undefined;
+
+      map.current.addLayer({
+        id: 'climate-zones-fill',
+        type: 'fill',
+        source: 'climate-zones',
+        paint: {
+          'fill-color': ZONE_FILL_COLOR,
+          'fill-opacity': climateZoneOpacity
+        }
+      }, beforeLayer);
+
+      map.current.addLayer({
+        id: 'climate-zones-outline',
+        type: 'line',
+        source: 'climate-zones',
+        paint: {
+          'line-color': ZONE_OUTLINE_COLOR,
+          'line-width': 2,
+          'line-dasharray': [3, 2]
+        }
+      }, beforeLayer);
+
+      // Click — open climate data for the zone
+      map.current.on('click', 'climate-zones-fill', handleClimateZoneClick);
+
+      // Hover
+      map.current.on('mouseenter', 'climate-zones-fill', () => {
+        map.current.getCanvas().style.cursor = 'pointer';
+      });
+      map.current.on('mouseleave', 'climate-zones-fill', () => {
+        map.current.getCanvas().style.cursor = '';
+      });
+
+      console.log('✅ Climate zones layer added');
+    } catch (err) {
+      console.error('Error adding climate zones layer:', err);
+    }
+  };
+
+  // =========================================================================
   // HELPER: Remove layer/source safely
   // =========================================================================
   const removeLayer = (layerId) => {
@@ -508,6 +614,30 @@ function RegionalMap() {
     };
 
   // =========================================================================
+  // CLIMATE ZONE CLICK HANDLER
+  // =========================================================================
+  const handleClimateZoneClick = (e) => {
+    if (!e.features || e.features.length === 0) return;
+    e.originalEvent.stopPropagation();
+
+    const feature = e.features[0];
+    const zone = {
+      slug: feature.properties.slug,
+      name: feature.properties.name,
+      coordinates: [e.lngLat.lng, e.lngLat.lat]
+    };
+
+    setSelectedBlock(null);
+    setSelectedRegion(null);
+    setSelectedGI(null);
+    setSelectedClimateZone(zone);
+    console.log(`🌡️ Climate zone clicked: ${zone.name}`);
+
+    // TODO: highlight blocks within this zone via spatial intersection
+    // and open climate history/projections panel
+  };
+
+  // =========================================================================
   // LAYER VISIBILITY TOGGLES
   // =========================================================================
   useEffect(() => {
@@ -540,6 +670,16 @@ function RegionalMap() {
     }
   }, [showGIs, mapLoaded]);
 
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const zonesVisible = showClimateZones ? 'visible' : 'none';
+    if (map.current.getLayer('climate-zones-fill')) {
+      map.current.setLayoutProperty('climate-zones-fill', 'visibility', zonesVisible);
+      map.current.setLayoutProperty('climate-zones-outline', 'visibility', zonesVisible);
+    }
+  }, [showClimateZones, mapLoaded]);
+
   // =========================================================================
   // OPACITY UPDATES
   // =========================================================================
@@ -564,6 +704,13 @@ function RegionalMap() {
     }
   }, [giOpacity, mapLoaded]);
 
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    if (map.current.getLayer('climate-zones-fill')) {
+      map.current.setPaintProperty('climate-zones-fill', 'fill-opacity', climateZoneOpacity);
+    }
+  }, [climateZoneOpacity, mapLoaded]);
+
   // =========================================================================
   // STYLE CHANGE
   // =========================================================================
@@ -576,6 +723,7 @@ function RegionalMap() {
     // Re-add all layers after style loads
     map.current.once('style.load', () => {
       if (regionsData) addRegionsLayer();
+      if (climateZonesData) addClimateZonesLayer();
       if (gisData) addGIsLayer();
       if (blocksData) addBlocksLayer();
     });
@@ -638,6 +786,11 @@ function RegionalMap() {
           onOpacityChange={setBlockOpacity}
           showBlocks={showBlocks}
           onToggleBlocks={() => setShowBlocks(!showBlocks)}
+          // Climate Zones
+          showClimateZones={showClimateZones}
+          onToggleClimateZones={() => setShowClimateZones(!showClimateZones)}
+          climateZoneOpacity={climateZoneOpacity}
+          onClimateZoneOpacityChange={setClimateZoneOpacity}
           // Regions
           showRegions={showRegions}
           onToggleRegions={() => setShowRegions(!showRegions)}
@@ -648,7 +801,7 @@ function RegionalMap() {
           onToggleGIs={() => setShowGIs(!showGIs)}
           giOpacity={giOpacity}
           onGIOpacityChange={setGIOpacity}
-          // Region navigation
+          // Navigation
           onRegionClick={flyToRegion}
         />
       )}

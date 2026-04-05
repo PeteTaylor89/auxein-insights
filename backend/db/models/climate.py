@@ -10,36 +10,40 @@ Tables:
 """
 
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Text, Boolean, 
+    Column, Integer, BigInteger, String, Text, Boolean,
     DateTime, Date, Numeric, ForeignKey, UniqueConstraint, Index, func
 )
 from sqlalchemy.orm import relationship
+from geoalchemy2 import Geometry
 from db.base_class import Base
 
 
 class ClimateZone(Base):
     """
     Climate zones for NZ wine regions.
-    
+
     20 zones total, each linked to a parent wine_region.
     Zone names match CSV filenames for data import (e.g., 'Auckland.csv').
     """
     __tablename__ = "climate_zones"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     region_id = Column(Integer, ForeignKey("wine_regions.id"), nullable=True)
-    
+
     # Zone identification
     name = Column(String(100), nullable=False)  # Display name, matches CSV filename
     slug = Column(String(100), nullable=False, unique=True, index=True)
-    
+
     # Content for UI display
     description = Column(Text, nullable=True)
-    
+
+    # Boundary geometry for map layer (WGS84)
+    geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=True)
+
     # Display settings
     display_order = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
-    
+
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

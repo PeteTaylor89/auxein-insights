@@ -1,9 +1,8 @@
 // src/components/RegionalMap/MapSidebar.jsx
-// Fixed mobile bottom sheet - tap outside to close, doesn't cover map
 import { useState, useEffect } from 'react';
-import { 
+import {
   ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
-  Map, Layers, MapPin, Eye, EyeOff, Shield, Grape, X 
+  Map, Layers, MapPin, Eye, EyeOff, Shield, Grape, X, Thermometer
 } from 'lucide-react';
 import publicApi from '../../services/publicApi';
 
@@ -27,28 +26,32 @@ const FALLBACK_REGIONS = [
   { name: 'Central Otago', slug: 'central-otago', bounds: { min_lng: 168.5, min_lat: -45.5, max_lng: 170.0, max_lat: -44.5 } },
 ];
 
-function MapSidebar({ 
-  currentStyle, 
-  onStyleChange, 
-  opacity, 
+function MapSidebar({
+  currentStyle,
+  onStyleChange,
+  opacity,
   onOpacityChange,
   showBlocks = true,
   onToggleBlocks,
-  showRegions = true,
+  showRegions = false,
   onToggleRegions,
   regionOpacity = 0.5,
   onRegionOpacityChange,
-  showGIs = true,
+  showGIs = false,
   onToggleGIs,
   giOpacity = 0.0,
-  onRegionClick 
+  showClimateZones = false,
+  onToggleClimateZones,
+  climateZoneOpacity = 0.4,
+  onClimateZoneOpacityChange,
+  onRegionClick,
+  onClimateZoneClick
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeSection, setActiveSection] = useState('layers');
   const [regions, setRegions] = useState([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
-  
-  // Mobile state - starts collapsed
+
   const [isMobile, setIsMobile] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -56,7 +59,6 @@ function MapSidebar({
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -85,42 +87,30 @@ function MapSidebar({
 
   const formatArea = (ha) => {
     if (!ha) return '';
-    if (ha >= 1000) {
-      return `${(ha / 1000).toFixed(1)}k ha`;
-    }
+    if (ha >= 1000) return `${(ha / 1000).toFixed(1)}k ha`;
     return `${Math.round(ha)} ha`;
   };
 
   const handleRegionClick = (region) => {
     onRegionClick(region);
-    if (isMobile) {
-      setMobileExpanded(false);
-    }
+    if (isMobile) setMobileExpanded(false);
   };
 
-  // Close mobile sheet when clicking overlay
   const handleOverlayClick = () => {
     setMobileExpanded(false);
   };
 
   const renderSidebarContent = () => (
     <div className="sidebar-content">
-      {/* Map Styles Section */}
+      {/* Map Styles */}
       <div className="sidebar-section">
-        <button 
-          className="section-header"
-          onClick={() => toggleSection('styles')}
-        >
+        <button className="section-header" onClick={() => toggleSection('styles')}>
           <div className="section-title">
-            <Map size={18} />
-            <span>Map Styles</span>
+            <Map size={15} />
+            <span>Map Style</span>
           </div>
-          <ChevronRight 
-            size={16} 
-            className={`chevron ${activeSection === 'styles' ? 'rotated' : ''}`}
-          />
+          <ChevronRight size={14} className={`chevron ${activeSection === 'styles' ? 'rotated' : ''}`} />
         </button>
-
         {activeSection === 'styles' && (
           <div className="section-content">
             <div className="style-options">
@@ -139,148 +129,92 @@ function MapSidebar({
         )}
       </div>
 
-      {/* Layers Section */}
+      {/* Layers */}
       <div className="sidebar-section">
-        <button 
-          className="section-header"
-          onClick={() => toggleSection('layers')}
-        >
+        <button className="section-header" onClick={() => toggleSection('layers')}>
           <div className="section-title">
-            <Layers size={18} />
+            <Layers size={15} />
             <span>Layers</span>
           </div>
-          <ChevronRight 
-            size={16} 
-            className={`chevron ${activeSection === 'layers' ? 'rotated' : ''}`}
-          />
+          <ChevronRight size={14} className={`chevron ${activeSection === 'layers' ? 'rotated' : ''}`} />
         </button>
-
         {activeSection === 'layers' && (
           <div className="section-content">
-            <div className="layer-item">
-              <div className="layer-header">
-                <label className="layer-label">
-                  <button 
-                    className="layer-toggle-btn"
-                    onClick={onToggleBlocks}
-                    title={showBlocks ? 'Hide layer' : 'Show layer'}
-                  >
-                    {showBlocks ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <Grape size={14} className="layer-icon-grape" />
-                  <span>Vineyard Blocks</span>
-                </label>
-              </div>
-              
+            {/* Blocks — on by default */}
+            <div className="layer-row">
+              <button className={`layer-toggle ${showBlocks ? 'on' : ''}`} onClick={onToggleBlocks} title={showBlocks ? 'Hide' : 'Show'}>
+                <Grape size={13} className="layer-icon-grape" />
+                <span>Blocks</span>
+                {showBlocks ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
               {showBlocks && (
-                <div className="opacity-control">
-                  <label htmlFor="block-opacity-slider">
-                    Opacity: {Math.round(opacity * 100)}%
-                  </label>
-                  <input
-                    id="block-opacity-slider"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={opacity}
-                    onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-                    className="opacity-slider"
-                  />
-                </div>
+                <input type="range" min="0" max="1" step="0.05" value={opacity}
+                  onChange={(e) => onOpacityChange(parseFloat(e.target.value))} className="opacity-slider" />
               )}
             </div>
 
-            <div className="layer-item">
-              <div className="layer-header">
-                <label className="layer-label">
-                  <button 
-                    className="layer-toggle-btn"
-                    onClick={onToggleRegions}
-                    title={showRegions ? 'Hide layer' : 'Show layer'}
-                  >
-                    {showRegions ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <MapPin size={14} className="layer-icon-region" />
-                  <span>Wine Regions</span>
-                </label>
-              </div>
-              
+            {/* Climate Zones */}
+            <div className="layer-row">
+              <button className={`layer-toggle ${showClimateZones ? 'on' : ''}`} onClick={onToggleClimateZones} title={showClimateZones ? 'Hide' : 'Show'}>
+                <Thermometer size={13} className="layer-icon-zone" />
+                <span>Climate Zones</span>
+                {showClimateZones ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
+              {showClimateZones && (
+                <input type="range" min="0" max="1" step="0.05" value={climateZoneOpacity}
+                  onChange={(e) => onClimateZoneOpacityChange(parseFloat(e.target.value))} className="opacity-slider" />
+              )}
+            </div>
+
+            {/* Regions — off by default, press to load */}
+            <div className="layer-row">
+              <button className={`layer-toggle ${showRegions ? 'on' : ''}`} onClick={onToggleRegions} title={showRegions ? 'Hide' : 'Show'}>
+                <MapPin size={13} className="layer-icon-region" />
+                <span>Regions</span>
+                {showRegions ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
               {showRegions && (
-                <div className="opacity-control">
-                  <label htmlFor="region-opacity-slider">
-                    Opacity: {Math.round(regionOpacity * 100)}%
-                  </label>
-                  <input
-                    id="region-opacity-slider"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={regionOpacity}
-                    onChange={(e) => onRegionOpacityChange(parseFloat(e.target.value))}
-                    className="opacity-slider"
-                  />
-                </div>
+                <input type="range" min="0" max="1" step="0.05" value={regionOpacity}
+                  onChange={(e) => onRegionOpacityChange(parseFloat(e.target.value))} className="opacity-slider" />
               )}
             </div>
 
-            <div className="layer-item">
-              <div className="layer-header">
-                <label className="layer-label">
-                  <button 
-                    className="layer-toggle-btn"
-                    onClick={onToggleGIs}
-                    title={showGIs ? 'Hide layer' : 'Show layer'}
-                  >
-                    {showGIs ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <Shield size={14} className="layer-icon-gi" />
-                  <span>Protected GIs</span>
-                </label>
-              </div>
+            {/* GIs — off by default */}
+            <div className="layer-row">
+              <button className={`layer-toggle ${showGIs ? 'on' : ''}`} onClick={onToggleGIs} title={showGIs ? 'Hide' : 'Show'}>
+                <Shield size={13} className="layer-icon-gi" />
+                <span>Protected GIs</span>
+                {showGIs ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Regions Section */}
+      {/* Explore Regions */}
       <div className="sidebar-section">
-        <button 
-          className="section-header"
-          onClick={() => toggleSection('regions')}
-        >
+        <button className="section-header" onClick={() => toggleSection('regions')}>
           <div className="section-title">
-            <MapPin size={18} />
+            <MapPin size={15} />
             <span>Explore Regions</span>
           </div>
-          <ChevronRight 
-            size={16} 
-            className={`chevron ${activeSection === 'regions' ? 'rotated' : ''}`}
-          />
+          <ChevronRight size={14} className={`chevron ${activeSection === 'regions' ? 'rotated' : ''}`} />
         </button>
-
         {activeSection === 'regions' && (
           <div className="section-content">
             {loadingRegions ? (
               <div className="loading-regions">
                 <div className="loading-spinner small" />
-                <span>Loading regions...</span>
+                <span>Loading...</span>
               </div>
             ) : (
               <div className="regions-list">
                 {regions.map((region) => (
-                  <button
-                    key={region.slug}
-                    className="region-btn"
-                    onClick={() => handleRegionClick(region)}
-                  >
-                    <MapPin size={14} />
+                  <button key={region.slug} className="region-btn" onClick={() => handleRegionClick(region)}>
+                    <MapPin size={12} />
                     <span className="region-name">{region.name}</span>
                     {region.total_planted_ha && (
-                      <span className="region-area">
-                        {formatArea(region.total_planted_ha)}
-                      </span>
+                      <span className="region-area">{formatArea(region.total_planted_ha)}</span>
                     )}
                   </button>
                 ))}
@@ -291,49 +225,26 @@ function MapSidebar({
       </div>
 
       {/* Legend */}
-      <div className="sidebar-section">
-        <div className="section-header" style={{ cursor: 'default' }}>
-          <div className="section-title">
-            <span>Legend</span>
-          </div>
-        </div>
-        <div className="section-content">
-          <div className="legend-content">
-            <div className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: '#22c55e' }} />
-              <span>Vineyard Blocks</span>
-            </div>
-            <div className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: '#3b82f6' }} />
-              <span>Wine Regions</span>
-            </div>
-            <div className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: '#961111' }} />
-              <span>Protected GIs</span>
-            </div>
-            <p className="legend-note">Click any feature to view details</p>
-          </div>
+      <div className="sidebar-section legend-section">
+        <div className="legend-content">
+          <div className="legend-item"><div className="legend-color" style={{ backgroundColor: '#22c55e' }} /><span>Blocks</span></div>
+          <div className="legend-item"><div className="legend-color" style={{ backgroundColor: '#f59e0b' }} /><span>Climate Zones</span></div>
+          <div className="legend-item"><div className="legend-color" style={{ backgroundColor: '#3b82f6' }} /><span>Regions</span></div>
+          <div className="legend-item"><div className="legend-color" style={{ backgroundColor: '#961111' }} /><span>GIs</span></div>
         </div>
       </div>
     </div>
   );
 
-  // MOBILE: Bottom sheet with overlay
+  // MOBILE: Bottom sheet
   if (isMobile) {
     return (
       <>
-        {/* Overlay - tap to close */}
         {mobileExpanded && (
-          <div 
-            className="mobile-sidebar-overlay"
-            onClick={handleOverlayClick}
-          />
+          <div className="mobile-sidebar-overlay" onClick={handleOverlayClick} />
         )}
-        
-        {/* Bottom sheet */}
         <div className={`map-sidebar-mobile ${mobileExpanded ? 'expanded' : ''}`}>
-          {/* Header - always visible */}
-          <button 
+          <button
             className="mobile-sidebar-header"
             onClick={() => setMobileExpanded(!mobileExpanded)}
             aria-expanded={mobileExpanded}
@@ -341,13 +252,11 @@ function MapSidebar({
           >
             <div className="mobile-drag-handle" />
             <div className="mobile-header-content">
-              <Layers size={18} />
+              <Layers size={16} />
               <span>Map Controls</span>
-              {mobileExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+              {mobileExpanded ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
             </div>
           </button>
-
-          {/* Content - only when expanded */}
           {mobileExpanded && (
             <div className="mobile-sidebar-content">
               {renderSidebarContent()}
@@ -358,52 +267,27 @@ function MapSidebar({
     );
   }
 
-  // DESKTOP: Original sidebar
+  // DESKTOP: Sidebar
   return (
     <>
       <div className={`map-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-        <button 
-          className="sidebar-toggle"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        <button className="sidebar-toggle" onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
-
         {!isCollapsed && renderSidebarContent()}
       </div>
 
       {isCollapsed && (
         <div className="sidebar-collapsed-buttons">
-          <button 
-            className="collapsed-btn"
-            onClick={() => {
-              setIsCollapsed(false);
-              setActiveSection('styles');
-            }}
-            title="Map Styles"
-          >
-            <Map size={20} />
+          <button className="collapsed-btn" onClick={() => { setIsCollapsed(false); setActiveSection('styles'); }} title="Map Styles">
+            <Map size={18} />
           </button>
-          <button 
-            className="collapsed-btn"
-            onClick={() => {
-              setIsCollapsed(false);
-              setActiveSection('layers');
-            }}
-            title="Layers"
-          >
-            <Layers size={20} />
+          <button className="collapsed-btn" onClick={() => { setIsCollapsed(false); setActiveSection('layers'); }} title="Layers">
+            <Layers size={18} />
           </button>
-          <button 
-            className="collapsed-btn"
-            onClick={() => {
-              setIsCollapsed(false);
-              setActiveSection('regions');
-            }}
-            title="Regions"
-          >
-            <MapPin size={20} />
+          <button className="collapsed-btn" onClick={() => { setIsCollapsed(false); setActiveSection('regions'); }} title="Regions">
+            <MapPin size={18} />
           </button>
         </div>
       )}

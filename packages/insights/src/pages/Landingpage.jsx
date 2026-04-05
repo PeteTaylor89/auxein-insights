@@ -2,12 +2,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  MapPin, Thermometer, Cloud, TrendingUp, ChartArea, ChartSpline,
-  CloudSunRain, Grape, ShieldCheck, Bug, X,
-  Lock, History
+  ChartSpline, CloudSunRain, Grape, ShieldCheck, X,
+  History, ChevronRight, Map
 } from 'lucide-react';
 
-import RegionalMap from '../components/RegionalMap';
 import Logo from '../assets/App_Logo_September 20251.jpg';
 import './LandingPage.css';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
@@ -17,6 +15,7 @@ import { PublicClimateContainer } from '../components/climate';
 import PasswordResetModal from '../components/auth/PasswordResetModal';
 import SiteBanner from '../components/SiteBanner';
 import SiteHeader from '../components/SiteHeader';
+import SeasonalStatsWidget from '../components/SeasonalStatsWidget';
 import articleService from '../services/articleService';
 
 function LandingPage() {
@@ -68,19 +67,12 @@ function LandingPage() {
     setAuthModalOpen(true);
   };
 
-  const featuredRegions = [
-    { id: 'marlborough', name: 'Marlborough', temp: '15.2°C', gdd: 1250, lat: -41.5, lon: 173.9 },
-    { id: 'central-otago', name: 'Central Otago', temp: '11.8°C', gdd: 1050, lat: -45.0, lon: 169.1 },
-    { id: 'waipara', name: 'Waipara', temp: '13.5°C', gdd: 1150, lat: -43.0, lon: 172.7 },
-    { id: 'hawkes-bay', name: 'Hawke\'s Bay', temp: '15.8°C', gdd: 1400, lat: -39.6, lon: 176.9 }
-  ];
-
   const insightOptions = [
-    { id: 'currentseason', icon: <CloudSunRain size={28} />, label: 'Current Season', hasComponent: true, initialView: 'currentseason' },
-    { id: 'phenology', icon: <Grape size={28} />, label: 'Phenology', hasComponent: true, initialView: 'phenology' },
-    { id: 'disease', icon: <ShieldCheck size={28} />, label: 'Disease Pressures', hasComponent: true, initialView: 'disease' },
-    { id: 'climatehistory', icon: <History size={28} />, label: 'Climate History', hasComponent: true, initialView: 'seasons' },
-    { id: 'climateprojections', icon: <ChartSpline size={28} />, label: 'Climate Projections', hasComponent: true, initialView: 'projections' }
+    { id: 'currentseason', icon: <CloudSunRain size={22} />, label: 'Current Season', hasComponent: true, initialView: 'currentseason' },
+    { id: 'phenology', icon: <Grape size={22} />, label: 'Phenology', hasComponent: true, initialView: 'phenology' },
+    { id: 'disease', icon: <ShieldCheck size={22} />, label: 'Disease Pressures', hasComponent: true, initialView: 'disease' },
+    { id: 'climatehistory', icon: <History size={22} />, label: 'Climate History', hasComponent: true, initialView: 'seasons' },
+    { id: 'climateprojections', icon: <ChartSpline size={22} />, label: 'Climate Projections', hasComponent: true, initialView: 'projections' }
   ];
 
   const handleInsightClick = (insightId) => {
@@ -90,15 +82,6 @@ function LandingPage() {
         document.getElementById('insights-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     }
-  };
-
-  const handleMapInteraction = () => {
-    if (!isAuthenticated) {
-      setAuthContext('map');
-      setAuthModalOpen(true);
-      return false;
-    }
-    return true;
   };
 
   const handleAuthModalClose = () => {
@@ -168,10 +151,11 @@ function LandingPage() {
               onClick={() => handleInsightClick(insight.id)}
             >
               <div className="insight-icon">{insight.icon}</div>
-              <div className="insight-label">{insight.label}</div>
-              {isDemoMode && (
-                <div className="card-demo-badge">Demo</div>
-              )}
+              <div className="insight-label">
+                {insight.label}
+                {isDemoMode && <span className="card-demo-badge">Demo</span>}
+              </div>
+              <ChevronRight size={18} className="insight-chevron" />
             </button>
           ))}
         </div>
@@ -183,32 +167,22 @@ function LandingPage() {
         )}
       </section>
 
-      {/* Map Section */}
+      {/* Seasonal Stats Widget */}
+      <SeasonalStatsWidget onAuthRequired={() => { setAuthContext('widget'); setAuthModalOpen(true); }} />
+
+      {/* Map CTA Section */}
       <section className="map-section">
-        <div className="section-header">
-          <h2>Regional Explorer</h2>
-          {!isAuthenticated && (
-            <span className="auth-hint">
-              <Lock size={14} /> Sign in to explore the map
-            </span>
-          )}
-        </div>
-        
-        <div className={`map-container-wrapper ${!isAuthenticated ? 'locked' : ''}`}>
-          {!isAuthenticated ? (
-            <div className="map-locked-overlay" onClick={handleMapInteraction}>
-              <div className="map-lock-content">
-                <h3>Vine Atlas</h3>
-                <p>Sign in to explore New Zealand wine regions</p>
-              </div>
-              <div className="map-preview-blur">
-                <RegionalMap regions={featuredRegions} />
-              </div>
-            </div>
-          ) : (
-            <RegionalMap regions={featuredRegions} />
-          )}
-        </div>
+        <Link to="/map" className="map-cta-card">
+          <div className="map-cta-icon">
+            <Map size={32} />
+          </div>
+          <div className="map-cta-text">
+            <h3>Vine Atlas</h3>
+            <p>Explore New Zealand wine regions, blocks, and geographical indications</p>
+          </div>
+          <ChevronRight size={24} className="map-cta-chevron" />
+        </Link>
+        <span className="map-cta-note">Best experienced on desktop</span>
       </section>
 
       {/* Latest Articles Carousel */}

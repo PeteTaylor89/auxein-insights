@@ -45,14 +45,14 @@ a.header-brand {
 
 .header-title-block h1 {
   margin: 0;
-  font-size: 22pt;
+  font-size: var(--font-xl);
   font-weight: bold;
   color: #2F2F2F;
 }
 
 .header-title-block p {
   margin: 0;
-  font-size: 16pt;
+  font-size: var(--font-md);
   font-style: italic;
   color: #5B6830;
 }
@@ -70,7 +70,7 @@ a.header-brand {
 .header-nav a {
   color: #5B6830;
   text-decoration: none;
-  font-size: 14pt;
+  font-size: var(--font-base);
   font-weight: 600;
   transition: color 0.2s;
 }
@@ -219,7 +219,7 @@ a.header-brand {
   transition: all 0.2s ease;
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
   color: #5B6830;
-  font-size: 14pt;
+  font-size: var(--font-base);
   font-weight: 600;
 }
 
@@ -409,20 +409,39 @@ a.header-brand {
 
 /* Sign In button */
 .mobile-auth-btn {
-  background: #D1583B !important;
-  color: white !important;
-  margin: 16px;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  font-weight: 600;
+  gap: 10px;
+  margin: 20px 16px 16px;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #D1583B 0%, #B84A2E 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(209, 88, 59, 0.3);
+  width: calc(100% - 32px);
+  text-align: center;
 }
 
 .mobile-auth-btn svg {
-  color: white !important;
+  color: white;
+  flex-shrink: 0;
 }
 
 .mobile-auth-btn:hover {
-  background: #B84A2E !important;
+  background: linear-gradient(135deg, #B84A2E 0%, #9E3F26 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(209, 88, 59, 0.4);
+}
+
+.mobile-auth-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(209, 88, 59, 0.3);
 }
 
 /* User info (when logged in) */
@@ -513,11 +532,11 @@ a.header-brand {
   }
 
   .header-title-block h1 {
-    font-size: 15pt;
+    font-size: var(--font-md);
   }
 
   .header-title-block p {
-    font-size: 10pt;
+    font-size: var(--font-sm);
   }
 
   .mobile-menu-btn {
@@ -541,11 +560,11 @@ a.header-brand {
   }
 
   .header-title-block h1 {
-    font-size: 14pt;
+    font-size: var(--font-base);
   }
 
   .header-title-block p {
-    font-size: 9pt;
+    font-size: var(--font-xs);
   }
 
   /* Full width drawer on small screens */

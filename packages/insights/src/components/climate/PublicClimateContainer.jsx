@@ -286,7 +286,7 @@ const PublicClimateContainer = ({
         <div className="demo-cta-banner">
           <span>Viewing Waipara demo data</span>
           <button className="demo-cta-btn" onClick={onAuthRequired}>
-            Sign up free to explore all wine regions and climate zones &rarr;
+            Sign up free to explore all regions &rarr;
           </button>
         </div>
       )}

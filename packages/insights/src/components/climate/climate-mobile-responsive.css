@@ -21,50 +21,55 @@
 
 @media (max-width: 768px) {
   .public-climate-container {
-    padding: 16px;
+    padding: 10px;
     border-radius: 8px;
     margin: 0;
   }
-  
+
   .climate-header {
-    margin-bottom: 12px;
-    padding-bottom: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
   }
-  
+
   .header-title {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
-  
+
   .header-title h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
-  
+
   .about-btn {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
   }
-  
+
   .about-btn span {
     display: none;
   }
-  
+
   .climate-attribution {
-    padding: 10px 12px;
-    font-size: 11px;
+    padding: 6px 8px;
+    font-size: 10px;
     flex-wrap: wrap;
   }
 }
 
 @media (max-width: 480px) {
   .public-climate-container {
-    padding: 12px;
+    padding: 8px;
     border-radius: 0;
     box-shadow: none;
   }
-  
+
   .header-title h2 {
-    font-size: 18px;
+    font-size: 16px;
+  }
+
+  .climate-header {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
   }
 }
 
@@ -189,8 +194,9 @@
 
 /* =============================================================================
    CHART CONTAINER - RESPONSIVE HEIGHTS
-   
-   Critical fix: Charts need proper height constraints on mobile
+
+   Critical fix: Charts need proper height constraints on mobile.
+   Maximise chart area by reducing surrounding padding and text.
    ============================================================================= */
 
 /* Base chart container improvements */
@@ -205,7 +211,7 @@
   .chart-container {
     height: 350px;
   }
-  
+
   .disease-pressure-explorer .chart-container {
     height: 280px;
   }
@@ -214,50 +220,146 @@
 /* Tablet */
 @media (max-width: 768px) {
   .chart-container {
-    height: 280px;
-    padding: 12px;
+    height: 300px;
+    padding: 4px;
   }
-  
+
   .disease-pressure-explorer .chart-container {
-    height: 240px;
-    padding: 10px;
+    height: 260px;
+    padding: 4px;
+  }
+
+  /* Reduce chart section spacing */
+  .chart-section {
+    margin-bottom: 0.75rem;
+  }
+
+  .chart-controls {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
+    gap: 0.25rem;
+  }
+
+  .chart-tab {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    gap: 0.25rem;
+  }
+
+  /* Reduce explorer padding */
+  .current-season-explorer,
+  .phenology-explorer,
+  .disease-pressure-explorer {
+    padding: 0.75rem;
+  }
+
+  /* Tighten headers */
+  .season-header,
+  .phenology-header,
+  .disease-header {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .season-title h3,
+  .header-title h3,
+  .disease-header h3 {
+    font-size: 1.1rem;
+  }
+
+  /* Compact summary cards */
+  .summary-cards {
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .summary-card {
+    padding: 0.625rem;
+    gap: 0.375rem;
+  }
+
+  .card-value {
+    font-size: 1.1rem;
+  }
+
+  .card-label {
+    font-size: 0.625rem;
+  }
+
+  /* Recent days section */
+  .recent-days-section h4 {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Milestones — tighter */
+  .milestones-section {
+    padding: 0.625rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .milestones-section h4 {
+    font-size: 0.8rem;
+    margin-bottom: 0.375rem;
   }
 }
 
 /* Large mobile */
 @media (max-width: 640px) {
   .chart-container {
-    height: 240px;
-    padding: 8px;
+    height: 260px;
+    padding: 2px;
     border-radius: 6px;
   }
-  
+
   .disease-pressure-explorer .chart-container {
-    height: 200px;
+    height: 220px;
   }
 }
 
 /* Small mobile */
 @media (max-width: 480px) {
   .chart-container {
-    height: 200px;
-    padding: 6px;
-    margin-bottom: 16px;
+    height: 240px;
+    padding: 0;
+    margin-bottom: 0.5rem;
   }
-  
+
   .disease-pressure-explorer .chart-container {
-    height: 180px;
+    height: 200px;
+  }
+
+  .current-season-explorer,
+  .phenology-explorer,
+  .disease-pressure-explorer {
+    padding: 0.5rem;
+  }
+
+  .season-header,
+  .phenology-header,
+  .disease-header {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.375rem;
+  }
+
+  .summary-cards {
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .summary-card {
+    padding: 0.5rem 0.625rem;
   }
 }
 
 /* Landscape mobile - shorter charts */
 @media (max-width: 768px) and (orientation: landscape) {
   .chart-container {
-    height: 180px;
+    height: 200px;
   }
-  
+
   .disease-pressure-explorer .chart-container {
-    height: 160px;
+    height: 170px;
   }
 }
 
@@ -269,10 +371,10 @@
   .chart-controls {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
-    margin-bottom: 12px;
+    gap: 4px;
+    margin-bottom: 0.5rem;
   }
-  
+
   .chart-metric-selector {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -280,13 +382,13 @@
     padding: 2px;
     gap: 2px;
   }
-  
+
   .chart-metric-selector::-webkit-scrollbar {
     display: none;
   }
-  
+
   .chart-type-btn {
-    padding: 8px 12px;
+    padding: 6px 10px;
     font-size: 12px;
     white-space: nowrap;
     flex-shrink: 0;
@@ -297,10 +399,10 @@
   .chart-metric-selector {
     justify-content: stretch;
   }
-  
+
   .chart-type-btn {
     flex: 1;
-    padding: 10px 8px;
+    padding: 8px 6px;
     font-size: 11px;
     min-width: 0;
   }
@@ -312,19 +414,19 @@
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 8px;
-    margin: 0 -12px 12px;
-    padding: 0 12px 8px;
+    padding-bottom: 4px;
+    margin: 0 -8px 8px;
+    padding: 0 8px 4px;
   }
-  
+
   .chart-tab {
-    padding: 8px 12px;
-    font-size: 0.8rem;
+    padding: 6px 10px;
+    font-size: 0.75rem;
     white-space: nowrap;
     flex-shrink: 0;
-    min-height: 40px;
+    min-height: 36px;
   }
-  
+
   .chart-tab svg {
     width: 14px;
     height: 14px;
@@ -333,9 +435,9 @@
 
 @media (max-width: 480px) {
   .chart-tab {
-    padding: 8px 10px;
-    font-size: 0.75rem;
-    gap: 4px;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    gap: 3px;
   }
 }
 
@@ -1170,31 +1272,32 @@
   .disease-pressure-explorer .chart-section {
     border-radius: 8px;
   }
-  
+
   .chart-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 4px;
+    padding: 6px 8px;
   }
-  
+
   .chart-header h4 {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
   }
-  
+
   .days-selector {
     width: 100%;
     justify-content: flex-start;
+    gap: 4px;
   }
-  
+
   .days-selector span {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
   }
-  
+
   .days-btn {
-    padding: 6px 10px;
-    font-size: 0.7rem;
-    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 0.65rem;
+    min-height: 28px;
   }
   
   /* General recommendations */
@@ -1371,30 +1474,30 @@
   .explorer-placeholder,
   .explorer-loading,
   .explorer-error {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1rem;
   }
-  
+
   .loading-state svg,
   .error-state svg,
   .no-zone-message svg,
   .no-data-message svg,
   .explorer-placeholder svg {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
   }
-  
+
   .loading-state h3,
   .no-zone-message h3,
   .no-data-message h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
   }
-  
+
   .loading-state p,
   .error-state p,
   .no-zone-message p,
   .no-data-message p,
   .explorer-placeholder p {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 }
 

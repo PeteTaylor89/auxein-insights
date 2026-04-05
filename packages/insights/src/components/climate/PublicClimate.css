@@ -2663,7 +2663,8 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
   }
 
   .demo-cta-btn:hover {
