@@ -4,6 +4,7 @@ import { usePublicAuth } from '../contexts/PublicAuthContext';
 import RegionalMap from '../components/RegionalMap';
 import SiteHeader from '../components/SiteHeader';
 import AuthModal from '../components/auth/AuthModal';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import './MapExplorer.css';
 
 const featuredRegions = [
@@ -16,6 +17,12 @@ const featuredRegions = [
 function MapExplorer() {
   const { isAuthenticated } = usePublicAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  useDocumentMeta({
+    title: 'Vine Atlas — NZ Wine Region Map',
+    description: 'Explore New Zealand wine regions, vineyard blocks, and geographical indications on an interactive map.',
+    path: '/map',
+  });
 
   if (!isAuthenticated) {
     return (

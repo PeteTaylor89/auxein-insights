@@ -311,13 +311,13 @@ function SeasonalStatsWidget({ onAuthRequired }) {
                 <div>
                   <h4>Available metrics</h4>
                   <ul>
-                    <li><strong>GDD (base 10 &amp; base 0)</strong> — Growing Degree Days accumulated over the season</li>
-                    <li><strong>Average Temperature</strong> — Mean daily temperature for the period</li>
-                    <li><strong>Average Diurnal Range</strong> — Mean difference between daily max and min temperatures</li>
-                    <li><strong>Total Rainfall</strong> — Cumulative rainfall in millimetres</li>
-                    <li><strong>Avg Min / Max Temperature</strong> — Mean of daily minimums and maximums</li>
-                    <li><strong>Frost Days</strong> — Days where the minimum temperature dropped to 0°C or below</li>
-                    <li><strong>Hot Days</strong> — Days where the maximum temperature exceeded 30°C</li>
+                    <li><strong>GDD (base 10 &amp; base 0)</strong> - Growing Degree Days accumulated over the season</li>
+                    <li><strong>Average Temperature</strong> - Mean daily temperature for the period</li>
+                    <li><strong>Average Diurnal Range</strong> - Mean difference between daily max and min temperatures</li>
+                    <li><strong>Total Rainfall</strong> - Cumulative rainfall in millimetres</li>
+                    <li><strong>Avg Min / Max Temperature</strong> - Mean of daily minimums and maximums</li>
+                    <li><strong>Frost Days</strong> - Days where the minimum temperature dropped to 0°C or below</li>
+                    <li><strong>Hot Days</strong> - Days where the maximum temperature exceeded 30°C</li>
                   </ul>
                   <p>Toggle the chips to choose which metrics appear on your card, in the order you select them.</p>
                 </div>
@@ -348,7 +348,7 @@ function SeasonalStatsWidget({ onAuthRequired }) {
                     Seasonal stats are calculated from our regional weather station network.
                     If you operate a Harvest or other weather station in a wine region, you can
                     connect it to improve coverage and accuracy for all growers.
-                    <a href="https://auxein.co.nz/contact" target="_blank" rel="noopener noreferrer"> Get in touch</a>.
+                    <a href="https://auxein.co.nz/contact" target="_blank" rel="noopener noreferrer"> <strong>Get in touch</strong></a>.
                   </p>
                 </div>
               </section>

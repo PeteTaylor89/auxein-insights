@@ -49,6 +49,7 @@ const PhenologyExplorer = ({ zone }) => {
   const [varietiesList, setVarietiesList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [expandedVariety, setExpandedVariety] = useState(null);
   const [selectedVarieties, setSelectedVarieties] = useState(['PN', 'CH', 'SB']); // Default varieties
 
@@ -96,7 +97,7 @@ const PhenologyExplorer = ({ zone }) => {
     };
 
     loadPhenology();
-  }, [zone?.slug, selectedVarieties]);
+  }, [zone?.slug, selectedVarieties, retryCount]);
 
   // Get stage info
   const getStageInfo = (stageName) => {
@@ -156,9 +157,13 @@ const PhenologyExplorer = ({ zone }) => {
   if (error) {
     return (
       <div className="phenology-explorer">
-        <div className="error-state">
+        <div className="climate-error-card">
           <AlertCircle size={32} />
           <p>{error}</p>
+          <button className="climate-error-retry" onClick={() => setRetryCount(c => c + 1)}>
+            <RefreshCw size={14} />
+            Try again
+          </button>
         </div>
       </div>
     );

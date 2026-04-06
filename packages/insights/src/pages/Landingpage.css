@@ -464,6 +464,42 @@
   padding: 40px 24px;
 }
 
+.articles-carousel-wrapper {
+  position: relative;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.95);
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.carousel-arrow:hover {
+  background: #5B6830;
+  color: white;
+  border-color: #5B6830;
+}
+
+.carousel-arrow-prev { left: -18px; }
+.carousel-arrow-next { right: -18px; }
+
+@media (max-width: 768px) {
+  .carousel-arrow { display: none; }
+}
+
 .articles-carousel {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Thermometer, Droplets, Snowflake, Sun } from 'lucide-react';
 import Logo from '../assets/App_Logo_September 20251.jpg';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import './WidgetEmbed.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -27,6 +28,12 @@ function WidgetEmbed() {
   const varsParam = searchParams.get('vars');
 
   const displayVars = varsParam ? varsParam.split(',').filter(v => VAR_META[v]) : Object.keys(VAR_META);
+
+  useDocumentMeta({
+    title: variety ? `${variety} Seasonal Stats — ${zone || 'NZ Wine'}` : 'Seasonal Stats Widget',
+    description: 'Seasonal climate statistics for New Zealand wine regions — GDD, rainfall, frost days, and more.',
+    path: '/widget/seasonal',
+  });
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

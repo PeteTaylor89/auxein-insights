@@ -50,6 +50,7 @@ const CurrentSeasonExplorer = ({ zone }) => {
   const [progressData, setProgressData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [activeChart, setActiveChart] = useState('gdd'); // 'gdd', 'temperature', 'rainfall'
 
   // Load data when zone changes
@@ -81,7 +82,7 @@ const CurrentSeasonExplorer = ({ zone }) => {
     };
 
     loadData();
-  }, [zone?.slug]);
+  }, [zone?.slug, retryCount]);
 
   // Trend icon component
   const TrendIcon = ({ value, inverted = false }) => {
@@ -268,9 +269,13 @@ const CurrentSeasonExplorer = ({ zone }) => {
   if (error) {
     return (
       <div className="current-season-explorer">
-        <div className="error-state">
+        <div className="climate-error-card">
           <AlertCircle size={32} />
           <p>{error}</p>
+          <button className="climate-error-retry" onClick={() => setRetryCount(c => c + 1)}>
+            <RefreshCw size={14} />
+            Try again
+          </button>
         </div>
       </div>
     );

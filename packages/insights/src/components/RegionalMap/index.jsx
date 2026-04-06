@@ -8,6 +8,7 @@ import BlockPopup from './BlockPopup';
 import RegionPopup from './RegionPopup';
 import GIPopup from './GIPopup';
 import RegionStatsModal from './RegionStatsModal';
+import ClimateZonePanel from './ClimateZonePanel';
 import MapSidebar from './MapSidebar';
 import './RegionalMap.css';
 
@@ -624,6 +625,7 @@ function RegionalMap() {
     const zone = {
       slug: feature.properties.slug,
       name: feature.properties.name,
+      region_name: feature.properties.region_name,
       coordinates: [e.lngLat.lng, e.lngLat.lat]
     };
 
@@ -631,10 +633,6 @@ function RegionalMap() {
     setSelectedRegion(null);
     setSelectedGI(null);
     setSelectedClimateZone(zone);
-    console.log(`🌡️ Climate zone clicked: ${zone.name}`);
-
-    // TODO: highlight blocks within this zone via spatial intersection
-    // and open climate history/projections panel
   };
 
   // =========================================================================
@@ -815,20 +813,35 @@ function RegionalMap() {
       )}
 
       {selectedRegion && (
-        <RegionPopup
-          region={selectedRegion}
-          onClose={() => setSelectedRegion(null)}
-          onExploreStats={(details) => {
-            setStatsModalRegion(details);
-            setSelectedRegion(null); // Close the popup when opening modal
-          }}
-        />
+        <div className="map-popup-overlay" onClick={() => setSelectedRegion(null)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <RegionPopup
+              region={selectedRegion}
+              onClose={() => setSelectedRegion(null)}
+              onExploreStats={(details) => {
+                setStatsModalRegion(details);
+                setSelectedRegion(null);
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {selectedGI && (
-        <GIPopup
-          gi={selectedGI}
-          onClose={() => setSelectedGI(null)}
+        <div className="map-popup-overlay" onClick={() => setSelectedGI(null)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <GIPopup
+              gi={selectedGI}
+              onClose={() => setSelectedGI(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {selectedClimateZone && (
+        <ClimateZonePanel
+          zone={selectedClimateZone}
+          onClose={() => setSelectedClimateZone(null)}
         />
       )}
 

@@ -16,19 +16,21 @@
  * - About modal opens
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, Info, HelpCircle, CloudSunRain, Grape, 
-  ShieldCheck, History, ChartSpline 
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import {
+  X, Info, HelpCircle, CloudSunRain, Grape,
+  ShieldCheck, History, ChartSpline, Loader
 } from 'lucide-react';
 import ZoneSelector from './ZoneSelector';
 import ZoneSelectorRealtime from './ZoneSelectorRealtime';
-import CurrentSeasonExplorer from './CurrentSeasonExplorer';
-import PhenologyExplorer from './PhenologyExplorer';
-import DiseasePressureExplorer from './DiseasePressureExplorer';
-import SeasonExplorer from './SeasonExplorer';
-import ProjectionsExplorer from './ProjectionsExplorer';
 import ClimateAbout from './ClimateAbout';
+import { ClimateErrorBoundary } from './ClimateErrorCard';
+
+const CurrentSeasonExplorer = lazy(() => import('./CurrentSeasonExplorer'));
+const PhenologyExplorer = lazy(() => import('./PhenologyExplorer'));
+const DiseasePressureExplorer = lazy(() => import('./DiseasePressureExplorer'));
+const SeasonExplorer = lazy(() => import('./SeasonExplorer'));
+const ProjectionsExplorer = lazy(() => import('./ProjectionsExplorer'));
 import { 
   trackClimateViewOpened, 
   trackClimateViewChanged,
@@ -93,6 +95,7 @@ const VIEW_ORDER = ['currentseason', 'phenology', 'disease', 'seasons', 'project
 
 const PublicClimateContainer = ({
   initialView = 'currentseason',
+  initialZoneSlug = null,
   onClose,
   demoMode = false,
   onAuthRequired,
@@ -124,6 +127,26 @@ const PublicClimateContainer = ({
       setActiveView(initialView);
     }
   }, [initialView]);
+
+  // Auto-select zone from initialZoneSlug prop (e.g., deep-link from map)
+  useEffect(() => {
+    if (initialZoneSlug && !selectedZone) {
+      const loadInitialZone = async () => {
+        try {
+          const zone = await getZone(initialZoneSlug);
+          setSelectedZone({
+            id: zone.id,
+            name: zone.name,
+            slug: zone.slug,
+            region_name: zone.region_name,
+          });
+        } catch (err) {
+          console.error('Failed to load initial zone:', err);
+        }
+      };
+      loadInitialZone();
+    }
+  }, [initialZoneSlug]);
 
   // Auto-select Waipara in demo mode
   useEffect(() => {
@@ -251,19 +274,20 @@ const PublicClimateContainer = ({
 
       {/* View Tabs - Scrollable on mobile */}
       <div className="climate-view-tabs-wrapper">
-        <div className="climate-view-tabs" ref={tabsRef}>
+        <div className="climate-view-tabs" ref={tabsRef} role="tablist" aria-label="Climate explorers">
           {VIEW_ORDER.map((viewKey) => {
             const config = VIEW_CONFIG[viewKey];
             const IconComponent = config.icon;
             const isActive = activeView === viewKey;
-            
+
             return (
               <button
                 key={viewKey}
                 data-view={viewKey}
+                role="tab"
                 className={`view-tab ${isActive ? 'active' : ''}`}
                 onClick={() => handleViewChange(viewKey)}
-                aria-pressed={isActive}
+                aria-selected={isActive}
                 title={config.description}
               >
                 <IconComponent size={18} />
@@ -292,12 +316,16 @@ const PublicClimateContainer = ({
       )}
 
       {/* Main Content */}
-      <div className="climate-content">
-        <ContentComponent 
-          zone={selectedZone} 
-          comparisonZones={comparisonZones}
-          onComparisonZonesChange={handleComparisonZonesChange}
-        />
+      <div className="climate-content" role="tabpanel" aria-label={currentViewConfig.label}>
+        <ClimateErrorBoundary key={activeView}>
+          <Suspense fallback={<div className="climate-explorer-loading"><Loader size={20} className="spin" /> Loading explorer...</div>}>
+            <ContentComponent
+              zone={selectedZone}
+              comparisonZones={comparisonZones}
+              onComparisonZonesChange={handleComparisonZonesChange}
+            />
+          </Suspense>
+        </ClimateErrorBoundary>
       </div>
 
       {/* Data Attribution */}

@@ -38,11 +38,11 @@ async def get_climate_zones_geojson(
         if simplify > 0:
             geometry_sql = """
                 ST_AsGeoJSON(
-                    ST_SimplifyPreserveTopology(geometry, :tolerance)
+                    ST_SimplifyPreserveTopology(cz.geometry, :tolerance)
                 ) as geometry_json
             """
         else:
-            geometry_sql = "ST_AsGeoJSON(geometry) as geometry_json"
+            geometry_sql = "ST_AsGeoJSON(cz.geometry) as geometry_json"
 
         query = text(f"""
             SELECT
@@ -95,6 +95,8 @@ async def get_climate_zones_geojson(
             "features": features
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching climate zones GeoJSON: {e}")
         raise HTTPException(status_code=500, detail="Failed to load climate zones")
@@ -129,6 +131,8 @@ async def get_blocks_in_climate_zone(
             "count": len(block_ids)
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching blocks for zone {slug}: {e}")
         raise HTTPException(status_code=500, detail="Failed to query blocks")

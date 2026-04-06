@@ -142,6 +142,10 @@ const SiteBanner = () => {
         className="site-banners"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        aria-live="polite"
+        aria-atomic="true"
+        role="region"
+        aria-label="Site announcements"
       >
         <div className="banner-carousel">
           {/* Prev arrow — desktop only */}

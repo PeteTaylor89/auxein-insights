@@ -64,6 +64,7 @@ const DiseasePressureExplorer = ({ zone }) => {
   const [pressureData, setPressureData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [expandedDisease, setExpandedDisease] = useState(null);
   const [recentDays, setRecentDays] = useState(14);
 
@@ -99,7 +100,7 @@ const DiseasePressureExplorer = ({ zone }) => {
     };
 
     loadData();
-  }, [zone?.slug, recentDays]);
+  }, [zone?.slug, recentDays, retryCount]);
 
   // Toggle disease expansion
   const toggleDisease = (diseaseKey) => {
@@ -229,9 +230,13 @@ const DiseasePressureExplorer = ({ zone }) => {
   if (error) {
     return (
       <div className="disease-pressure-explorer">
-        <div className="error-state">
+        <div className="climate-error-card">
           <AlertCircle size={32} />
           <p>{error}</p>
+          <button className="climate-error-retry" onClick={() => setRetryCount(c => c + 1)}>
+            <RefreshCw size={14} />
+            Try again
+          </button>
         </div>
       </div>
     );
