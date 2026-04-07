@@ -31,8 +31,8 @@ import {
 } from '../../services/publicClimateService';
 
 // Growing season month labels in order
-const SEASON_MONTH_LABELS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
-const SEASON_MONTH_ORDER = [10, 11, 12, 1, 2, 3, 4];
+const SEASON_MONTH_LABELS = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
+const SEASON_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4];
 
 // Chart colors
 const CHART_COLORS = [

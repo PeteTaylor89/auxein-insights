@@ -53,7 +53,7 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
           <p>
             <strong>Update frequency:</strong> Daily (always before 6pm NZST)<br />
             <strong>Data sources:</strong> Regional weather station network<br />
-            <strong>Season:</strong> October 1 to April 30 (Southern Hemisphere growing season)
+            <strong>Season:</strong> September 1 to April 30 (Southern Hemisphere growing season)
           </p>
         </div>
       </section>

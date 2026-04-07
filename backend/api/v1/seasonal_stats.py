@@ -2,7 +2,7 @@
 backend/api/v1/seasonal_stats.py
 
 Public endpoint for seasonal stats widget.
-Calculates climate metrics from 1 Oct to harvest date using daily zone data.
+Calculates climate metrics from 1 Sep to harvest date using daily zone data.
 No auth required for calculation; auth optional for data capture.
 """
 
@@ -66,24 +66,24 @@ async def calculate_seasonal_stats(
     user_id: Optional[int] = Depends(_get_optional_user_id)
 ):
     """
-    Calculate seasonal climate metrics from 1 Oct to harvest date.
+    Calculate seasonal climate metrics from 1 Sep to harvest date.
 
     Metrics: gdd10, gdd0, avg_temp, avg_diurnal, total_rainfall,
     avg_min_temp, avg_max_temp, frost_days, hot_days
     """
     harvest = request.harvest_date
 
-    # Determine season start: 1 Oct of the year before if harvest is Jan-Sep,
-    # or 1 Oct of the same year if harvest is Oct-Dec
-    if harvest.month >= 10:
-        season_start = date(harvest.year, 10, 1)
+    # Determine season start: 1 Sep of the year before if harvest is Jan-Aug,
+    # or 1 Sep of the same year if harvest is Sep-Dec
+    if harvest.month >= 9:
+        season_start = date(harvest.year, 9, 1)
         vintage_year = harvest.year + 1
     else:
-        season_start = date(harvest.year - 1, 10, 1)
+        season_start = date(harvest.year - 1, 9, 1)
         vintage_year = harvest.year
 
     if harvest <= season_start:
-        raise HTTPException(status_code=400, detail="Harvest date must be after 1 October")
+        raise HTTPException(status_code=400, detail="Harvest date must be after 1 September")
 
     # Fetch zone name
     zone_row = db.execute(

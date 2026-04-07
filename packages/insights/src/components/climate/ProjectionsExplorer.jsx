@@ -66,7 +66,7 @@ const ProjectionsExplorer = ({ zone }) => {
     if (!selectedProjection?.monthly) return null;
 
     // Sort by growing season order (Oct-Apr)
-    const growingSeasonOrder = [10, 11, 12, 1, 2, 3, 4];
+    const growingSeasonOrder = [9, 10, 11, 12, 1, 2, 3, 4];
     const sortedMonthly = [...selectedProjection.monthly]
       .filter(m => growingSeasonOrder.includes(m.month))
       .sort((a, b) => {
@@ -404,9 +404,9 @@ const ProjectionsExplorer = ({ zone }) => {
               </thead>
               <tbody>
                 {selectedProjection.monthly
-                  .filter(m => [10, 11, 12, 1, 2, 3, 4].includes(m.month))
+                  .filter(m => [9, 10, 11, 12, 1, 2, 3, 4].includes(m.month))
                   .sort((a, b) => {
-                    const order = [10, 11, 12, 1, 2, 3, 4];
+                    const order = [9, 10, 11, 12, 1, 2, 3, 4];
                     return order.indexOf(a.month) - order.indexOf(b.month);
                   })
                   .map((m) => (

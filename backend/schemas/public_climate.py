@@ -83,7 +83,7 @@ class MonthlyBaseline(BaseModel):
 
 
 class SeasonBaseline(BaseModel):
-    """Aggregated baseline for growing season (Oct-Apr)."""
+    """Aggregated baseline for growing season (Sep-Apr)."""
     period: str = "1986-2005"
     gdd_total: Optional[Decimal] = None
     rain_total: Optional[Decimal] = None

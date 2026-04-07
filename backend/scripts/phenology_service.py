@@ -102,24 +102,64 @@ def get_average_daily_gdd(db, zone_id: int, target_date: date) -> Optional[Decim
 
 
 def get_baseline_gdd(db, zone_id: int, day_of_vintage: int) -> Optional[Decimal]:
-    """Get baseline cumulative GDD for day of vintage."""
+    """Get baseline cumulative GDD for day of vintage, adjusted to Sep 1 start."""
     baseline = db.query(ClimateZoneDailyBaseline).filter(
         ClimateZoneDailyBaseline.zone_id == zone_id,
         ClimateZoneDailyBaseline.day_of_vintage == day_of_vintage
     ).first()
-    
-    return baseline.gdd_base0_cumulative_avg if baseline else None
+
+    if not baseline or not baseline.gdd_base0_cumulative_avg:
+        return None
+
+    if day_of_vintage < 63:
+        return Decimal('0')
+
+    # Subtract Aug 31 (day 62) baseline to get Sep 1 start
+    aug31 = db.query(ClimateZoneDailyBaseline).filter(
+        ClimateZoneDailyBaseline.zone_id == zone_id,
+        ClimateZoneDailyBaseline.day_of_vintage == 62
+    ).first()
+
+    offset = Decimal(str(aug31.gdd_base0_cumulative_avg)) if aug31 and aug31.gdd_base0_cumulative_avg else Decimal('0')
+    return max(Decimal('0'), Decimal(str(baseline.gdd_base0_cumulative_avg)) - offset)
 
 
-def determine_stage(gdd: Decimal, thresholds: dict) -> str:
-    """Determine current phenological stage."""
-    if thresholds['gdd_flowering'] and gdd < thresholds['gdd_flowering']:
+def get_gdd_offset_at_day(db, zone_id: int, vintage_year: int, target_doy: int) -> Decimal:
+    """Get actual GDD cumulative at a specific day_of_vintage for a zone/season.
+
+    Used to compute offsets for Sep 1 (day 62 = Aug 31) and Oct 1 (day 92 = Sep 30).
+    Converts target_doy back to a date range and queries directly.
+    """
+    # Convert day_of_vintage to approximate date
+    july_1 = date(vintage_year - 1, 7, 1)
+    target_date = july_1 + timedelta(days=target_doy - 1)
+
+    # Look for closest record on or before target date
+    record = db.query(ClimateZoneDaily).filter(
+        ClimateZoneDaily.zone_id == zone_id,
+        ClimateZoneDaily.vintage_year == vintage_year,
+        ClimateZoneDaily.date <= target_date,
+        ClimateZoneDaily.gdd_cumulative.isnot(None)
+    ).order_by(ClimateZoneDaily.date.desc()).first()
+
+    if record:
+        return Decimal(str(record.gdd_cumulative))
+    return Decimal('0')
+
+
+def determine_stage(gdd_sep1: Decimal, gdd_oct1: Decimal, thresholds: dict) -> str:
+    """Determine current phenological stage.
+
+    Flowering/véraison thresholds are calibrated from Sep 1 (use gdd_sep1).
+    Harvest thresholds are calibrated from Oct 1 (use gdd_oct1).
+    """
+    if thresholds['gdd_flowering'] and gdd_sep1 < thresholds['gdd_flowering']:
         return 'pre_flowering'
-    elif thresholds['gdd_veraison'] and gdd < thresholds['gdd_veraison']:
+    elif thresholds['gdd_veraison'] and gdd_sep1 < thresholds['gdd_veraison']:
         return 'flowering'
-    elif thresholds['gdd_harvest_170'] and gdd < thresholds['gdd_harvest_170']:
+    elif thresholds['gdd_harvest_170'] and gdd_oct1 < thresholds['gdd_harvest_170']:
         return 'veraison'
-    elif thresholds['gdd_harvest_200'] and gdd < thresholds['gdd_harvest_200']:
+    elif thresholds['gdd_harvest_200'] and gdd_oct1 < thresholds['gdd_harvest_200']:
         return 'ripening'
     return 'harvest_ready'
 
@@ -204,35 +244,53 @@ def run_phenology_service(
                 continue
             
             count = 0
+            doy = get_day_of_vintage(target)
+
+            # Pre-compute offsets per zone (one DB hit per zone per date, not per variety)
+            zone_offsets = {}
             for zone in zones:
-                current_gdd = Decimal(str(zone['gdd_cumulative']))
+                zid = zone['zone_id']
+                vy = zone['vintage_year']
+                aug31_offset = get_gdd_offset_at_day(db, zid, vy, 62)   # Aug 31
+                sep30_offset = get_gdd_offset_at_day(db, zid, vy, 92)   # Sep 30
+                zone_offsets[zid] = (aug31_offset, sep30_offset)
+
+            for zone in zones:
+                raw_gdd = Decimal(str(zone['gdd_cumulative']))
+                aug31_offset, sep30_offset = zone_offsets[zone['zone_id']]
+
+                # GDD from Sep 1 (base 0) — used for flowering/véraison and stored as gdd_accumulated
+                gdd_sep1 = max(Decimal('0'), raw_gdd - aug31_offset) if doy >= 63 else Decimal('0')
+                # GDD from Oct 1 (base 0) — used for harvest thresholds
+                gdd_oct1 = max(Decimal('0'), raw_gdd - sep30_offset) if doy >= 93 else Decimal('0')
+
                 avg_daily = get_average_daily_gdd(db, zone['zone_id'], target)
-                baseline_gdd = get_baseline_gdd(db, zone['zone_id'], get_day_of_vintage(target))
-                
+                baseline_gdd = get_baseline_gdd(db, zone['zone_id'], doy)
+
                 for variety in thresholds:
-                    stage = determine_stage(current_gdd, variety)
-                    
-                    # Calculate baseline comparison
+                    stage = determine_stage(gdd_sep1, gdd_oct1, variety)
+
+                    # Baseline comparison uses Sep 1 GDD
                     days_vs_baseline = gdd_vs_baseline = None
                     if baseline_gdd and avg_daily and avg_daily > 0:
-                        gdd_vs_baseline = current_gdd - baseline_gdd
+                        gdd_vs_baseline = gdd_sep1 - baseline_gdd
                         days_vs_baseline = int(gdd_vs_baseline / avg_daily)
-                    
+
                     record = PhenologyEstimate(
                         zone_id=zone['zone_id'],
                         variety_code=variety['variety_code'],
                         vintage_year=zone['vintage_year'],
                         estimate_date=target,
-                        gdd_accumulated=current_gdd,
+                        gdd_accumulated=gdd_sep1,
                         current_stage=stage,
-                        flowering_date=estimate_date(current_gdd, variety['gdd_flowering'], avg_daily, target),
-                        veraison_date=estimate_date(current_gdd, variety['gdd_veraison'], avg_daily, target),
-                        harvest_170_date=estimate_date(current_gdd, variety['gdd_harvest_170'], avg_daily, target),
-                        harvest_180_date=estimate_date(current_gdd, variety['gdd_harvest_180'], avg_daily, target),
-                        harvest_190_date=estimate_date(current_gdd, variety['gdd_harvest_190'], avg_daily, target),
-                        harvest_200_date=estimate_date(current_gdd, variety['gdd_harvest_200'], avg_daily, target),
-                        harvest_210_date=estimate_date(current_gdd, variety['gdd_harvest_210'], avg_daily, target),
-                        harvest_220_date=estimate_date(current_gdd, variety['gdd_harvest_220'], avg_daily, target),
+                        flowering_date=estimate_date(gdd_sep1, variety['gdd_flowering'], avg_daily, target),
+                        veraison_date=estimate_date(gdd_sep1, variety['gdd_veraison'], avg_daily, target),
+                        harvest_170_date=estimate_date(gdd_oct1, variety['gdd_harvest_170'], avg_daily, target),
+                        harvest_180_date=estimate_date(gdd_oct1, variety['gdd_harvest_180'], avg_daily, target),
+                        harvest_190_date=estimate_date(gdd_oct1, variety['gdd_harvest_190'], avg_daily, target),
+                        harvest_200_date=estimate_date(gdd_oct1, variety['gdd_harvest_200'], avg_daily, target),
+                        harvest_210_date=estimate_date(gdd_oct1, variety['gdd_harvest_210'], avg_daily, target),
+                        harvest_220_date=estimate_date(gdd_oct1, variety['gdd_harvest_220'], avg_daily, target),
                         days_vs_baseline=days_vs_baseline,
                         gdd_vs_baseline=gdd_vs_baseline,
                         confidence=zone['confidence'],

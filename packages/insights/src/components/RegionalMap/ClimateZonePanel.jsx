@@ -18,7 +18,7 @@ const SSP_LABELS = {
   SSP370: { label: 'High emissions', color: '#ef4444', desc: 'SSP3-7.0 — Limited action, continued fossil fuel use' },
 };
 
-const GS_MONTHS = [10, 11, 12, 1, 2, 3, 4];
+const GS_MONTHS = [9, 10, 11, 12, 1, 2, 3, 4];
 
 function MonthBar({ month, onHover, onLeave }) {
   const tmin = Number(month.tmin);

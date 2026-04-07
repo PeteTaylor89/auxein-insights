@@ -171,70 +171,70 @@ def calc_baseline_comparison(current: Decimal, baseline: Decimal) -> BaselineCom
 
 def get_baseline_gdd_for_day(db: Session, zone_id: int, day_of_vintage: int) -> Optional[Decimal]:
     """
-    Get cumulative GDD baseline for a specific day of vintage, calculated from October 1.
-    
-    The baseline table stores GDD cumulative from July 1, but phenology thresholds
-    are calibrated from October 1 (Southern Hemisphere growing season start).
-    This function adjusts by subtracting the GDD accumulated July 1 - September 30.
-    
-    Day of vintage: July 1 = day 1, September 30 = day 92, October 1 = day 93
+    Get cumulative GDD baseline for a specific day of vintage, calculated from September 1.
+
+    The baseline table stores GDD cumulative from July 1, but season metrics
+    are calibrated from September 1 (Southern Hemisphere growing season start).
+    This function adjusts by subtracting the GDD accumulated July 1 - August 31.
+
+    Day of vintage: July 1 = day 1, August 31 = day 62, September 1 = day 63
     """
     # Get GDD at requested day
     baseline = db.query(ClimateZoneDailyBaseline).filter(
         ClimateZoneDailyBaseline.zone_id == zone_id,
         ClimateZoneDailyBaseline.day_of_vintage == day_of_vintage
     ).first()
-    
+
     if not baseline or not baseline.gdd_base0_cumulative_avg:
         return None
-    
-    # Get GDD at September 30 (day 92) to subtract winter accumulation
-    # Only adjust if we're past October 1 (day 93)
-    if day_of_vintage >= 93:
-        sept30_baseline = db.query(ClimateZoneDailyBaseline).filter(
+
+    # Get GDD at August 31 (day 62) to subtract winter accumulation
+    # Only adjust if we're past September 1 (day 63)
+    if day_of_vintage >= 63:
+        aug31_baseline = db.query(ClimateZoneDailyBaseline).filter(
             ClimateZoneDailyBaseline.zone_id == zone_id,
-            ClimateZoneDailyBaseline.day_of_vintage == 92
+            ClimateZoneDailyBaseline.day_of_vintage == 62
         ).first()
-        
-        if sept30_baseline and sept30_baseline.gdd_base0_cumulative_avg:
-            gdd_from_oct1 = Decimal(str(baseline.gdd_base0_cumulative_avg)) - Decimal(str(sept30_baseline.gdd_base0_cumulative_avg))
-            return gdd_from_oct1
-    
-    # Before October 1, return 0 (growing season hasn't started)
-    if day_of_vintage < 93:
+
+        if aug31_baseline and aug31_baseline.gdd_base0_cumulative_avg:
+            gdd_from_sep1 = Decimal(str(baseline.gdd_base0_cumulative_avg)) - Decimal(str(aug31_baseline.gdd_base0_cumulative_avg))
+            return gdd_from_sep1
+
+    # Before September 1, return 0 (growing season hasn't started)
+    if day_of_vintage < 63:
         return Decimal('0')
-    
+
     return Decimal(str(baseline.gdd_base0_cumulative_avg))
 
 
-def get_sept30_gdd_offset(db: Session, zone_id: int) -> Decimal:
+def get_aug31_gdd_offset(db: Session, zone_id: int) -> Decimal:
     """
-    Get the GDD accumulated from July 1 to September 30 for a zone.
-    
+    Get the GDD accumulated from July 1 to August 31 for a zone.
+
     This offset is subtracted from current season gdd_cumulative (which starts July 1)
-    to get GDD from October 1 for phenology comparisons.
+    to get GDD from September 1 for season comparisons.
     """
-    sept30_baseline = db.query(ClimateZoneDailyBaseline).filter(
+    aug31_baseline = db.query(ClimateZoneDailyBaseline).filter(
         ClimateZoneDailyBaseline.zone_id == zone_id,
-        ClimateZoneDailyBaseline.day_of_vintage == 92  # September 30
+        ClimateZoneDailyBaseline.day_of_vintage == 62  # August 31
     ).first()
-    
-    if sept30_baseline and sept30_baseline.gdd_base0_cumulative_avg:
-        return Decimal(str(sept30_baseline.gdd_base0_cumulative_avg))
+
+    if aug31_baseline and aug31_baseline.gdd_base0_cumulative_avg:
+        return Decimal(str(aug31_baseline.gdd_base0_cumulative_avg))
     return Decimal('0')
 
 
-def adjust_gdd_to_oct1(gdd_from_july1: Decimal, sept30_offset: Decimal, day_of_vintage: int) -> Decimal:
+def adjust_gdd_to_sep1(gdd_from_july1: Decimal, aug31_offset: Decimal, day_of_vintage: int) -> Decimal:
     """
-    Adjust GDD cumulative from July 1 start to October 1 start.
-    
-    Returns 0 if before October 1 (day 93).
+    Adjust GDD cumulative from July 1 start to September 1 start.
+
+    Returns 0 if before September 1 (day 63).
     """
     if gdd_from_july1 is None:
         return None
-    if day_of_vintage < 93:
+    if day_of_vintage < 63:
         return Decimal('0')
-    return max(Decimal('0'), Decimal(str(gdd_from_july1)) - sept30_offset)
+    return max(Decimal('0'), Decimal(str(gdd_from_july1)) - aug31_offset)
 
 
 # =============================================================================
@@ -313,29 +313,29 @@ def get_current_season_climate(
     # Latest date with data
     latest_date = season_data[0].date
     season_start = get_season_start(vintage_year)  # July 1
-    growing_season_start = date(vintage_year - 1, 10, 1)  # Oct 1
+    growing_season_start = date(vintage_year - 1, 9, 1)  # Sep 1
     days_into_season = max(0, (latest_date - growing_season_start).days + 1)
     doy = date_to_day_of_vintage(latest_date)
-    
-    # Get September 30 offset from ACTUAL current season data (for adjusting actual GDD)
-    # Find the actual GDD cumulative on or near September 30 (day 92)
-    actual_sept30_offset = Decimal('0')
+
+    # Get August 31 offset from ACTUAL current season data (for adjusting actual GDD)
+    # Find the actual GDD cumulative on or near August 31 (day 62)
+    actual_aug31_offset = Decimal('0')
     for d in season_data:
         d_doy = date_to_day_of_vintage(d.date)
-        if d_doy <= 92 and d.gdd_cumulative:
-            actual_sept30_offset = Decimal(str(d.gdd_cumulative))
-            break  # season_data is desc ordered, so first match <= 92 is closest to Sept 30
-    
-    # Calculate season totals (GDD adjusted to October 1 start using ACTUAL offset)
-    gdd_raw = Decimal(str(season_data[0].gdd_cumulative)) if season_data[0].gdd_cumulative else Decimal('0')
-    gdd_total = to_decimal(max(Decimal('0'), gdd_raw - actual_sept30_offset)) if doy >= 93 else to_decimal(Decimal('0'))
+        if d_doy <= 62 and d.gdd_cumulative:
+            actual_aug31_offset = Decimal(str(d.gdd_cumulative))
+            break  # season_data is desc ordered, so first match <= 62 is closest to Aug 31
 
-    # Filter to growing season data only (Oct 1 onwards, day_of_vintage >= 93)
+    # Calculate season totals (GDD adjusted to September 1 start using ACTUAL offset)
+    gdd_raw = Decimal(str(season_data[0].gdd_cumulative)) if season_data[0].gdd_cumulative else Decimal('0')
+    gdd_total = to_decimal(max(Decimal('0'), gdd_raw - actual_aug31_offset)) if doy >= 63 else to_decimal(Decimal('0'))
+
+    # Filter to growing season data only (Sep 1 onwards, day_of_vintage >= 63)
     growing_data = [d for d in season_data if d.date >= growing_season_start]
 
     rainfall_total = to_decimal(sum(float(d.rainfall_mm or 0) for d in growing_data))
 
-    # Calculate averages from Oct 1 onwards
+    # Calculate averages from Sep 1 onwards
     temps = [float(d.temp_mean) for d in growing_data if d.temp_mean]
     temp_mean_avg = to_decimal(sum(temps) / len(temps)) if temps else None
 
@@ -344,20 +344,20 @@ def get_current_season_climate(
 
     temps_min = [float(d.temp_min) for d in growing_data if d.temp_min]
     temp_min_avg = to_decimal(sum(temps_min) / len(temps_min)) if temps_min else None
-    
-    # Get baseline for comparison (already adjusted to October 1 in helper function)
+
+    # Get baseline for comparison (already adjusted to September 1 in helper function)
     baseline_gdd = get_baseline_gdd_for_day(db, zone.id, doy)
-    
-    # Calculate baseline rainfall total (from Oct 1 = day 93)
+
+    # Calculate baseline rainfall total (from Sep 1 = day 63)
     baseline_rain = db.query(
         func.sum(ClimateZoneDailyBaseline.rain_avg)
     ).filter(
         ClimateZoneDailyBaseline.zone_id == zone.id,
-        ClimateZoneDailyBaseline.day_of_vintage >= 93,
+        ClimateZoneDailyBaseline.day_of_vintage >= 63,
         ClimateZoneDailyBaseline.day_of_vintage <= doy
     ).scalar()
-    
-    # Build season summary (season_start = Oct 1 growing season start)
+
+    # Build season summary (season_start = Sep 1 growing season start)
     season_summary = SeasonSummary(
         vintage_year=vintage_year,
         label=get_season_label(vintage_year),
@@ -450,71 +450,71 @@ def get_gdd_progress(
     ).order_by(ClimateZoneDailyBaseline.day_of_vintage).all()
     baseline_by_doy = {b.day_of_vintage: b for b in baseline_data}
     
-    # Get September 30 offset from BASELINE (for adjusting baseline values)
-    baseline_sept30_offset = get_sept30_gdd_offset(db, zone.id)
-    
-    # Get September 30 offset from ACTUAL current season data (for adjusting actual values)
-    # Find the actual GDD cumulative on or near September 30 (day 92)
-    actual_sept30_offset = Decimal('0')
+    # Get August 31 offset from BASELINE (for adjusting baseline values)
+    baseline_aug31_offset = get_aug31_gdd_offset(db, zone.id)
+
+    # Get August 31 offset from ACTUAL current season data (for adjusting actual values)
+    # Find the actual GDD cumulative on or near August 31 (day 62)
+    actual_aug31_offset = Decimal('0')
     season_data_by_doy = {date_to_day_of_vintage(d.date): d for d in season_data}
-    
-    # Look for Sept 30 (day 92) or closest day before Oct 1
-    for check_doy in [92, 91, 90, 89]:
+
+    # Look for Aug 31 (day 62) or closest day before Sep 1
+    for check_doy in [62, 61, 60, 59]:
         if check_doy in season_data_by_doy:
-            sept30_data = season_data_by_doy[check_doy]
-            if sept30_data.gdd_cumulative:
-                actual_sept30_offset = Decimal(str(sept30_data.gdd_cumulative))
+            aug31_data = season_data_by_doy[check_doy]
+            if aug31_data.gdd_cumulative:
+                actual_aug31_offset = Decimal(str(aug31_data.gdd_cumulative))
             break
-    
-    # Build time series with October 1 adjusted GDD
+
+    # Build time series with September 1 adjusted GDD
     daily_data = []
     latest = season_data[-1]
-    
+
     for d in season_data:
         doy = date_to_day_of_vintage(d.date)
         baseline = baseline_by_doy.get(doy)
-        
-        # Adjust ACTUAL GDD using ACTUAL September 30 offset
+
+        # Adjust ACTUAL GDD using ACTUAL August 31 offset
         gdd_actual_raw = float(d.gdd_cumulative) if d.gdd_cumulative else 0
-        gdd_actual = max(0, gdd_actual_raw - float(actual_sept30_offset)) if doy >= 93 else 0
-        
-        # Adjust BASELINE GDD using BASELINE September 30 offset
+        gdd_actual = max(0, gdd_actual_raw - float(actual_aug31_offset)) if doy >= 63 else 0
+
+        # Adjust BASELINE GDD using BASELINE August 31 offset
         gdd_baseline = None
         if baseline and baseline.gdd_base0_cumulative_avg:
             gdd_baseline_raw = float(baseline.gdd_base0_cumulative_avg)
-            gdd_baseline = max(0, gdd_baseline_raw - float(baseline_sept30_offset)) if doy >= 93 else 0
-        
+            gdd_baseline = max(0, gdd_baseline_raw - float(baseline_aug31_offset)) if doy >= 63 else 0
+
         daily_data.append({
             "date": str(d.date),
             "day_of_vintage": doy,
-            "gdd_actual": gdd_actual if doy >= 93 else None,
+            "gdd_actual": gdd_actual if doy >= 63 else None,
             "gdd_baseline": gdd_baseline,
         })
-    
-    # Calculate current position vs baseline (October 1 adjusted)
+
+    # Calculate current position vs baseline (September 1 adjusted)
     current_doy = date_to_day_of_vintage(latest.date)
     current_gdd_raw = Decimal(str(latest.gdd_cumulative)) if latest.gdd_cumulative else Decimal('0')
-    current_gdd = max(Decimal('0'), current_gdd_raw - actual_sept30_offset) if current_doy >= 93 else Decimal('0')
-    
+    current_gdd = max(Decimal('0'), current_gdd_raw - actual_aug31_offset) if current_doy >= 63 else Decimal('0')
+
     baseline_current = baseline_by_doy.get(current_doy)
     baseline_gdd = None
     if baseline_current and baseline_current.gdd_base0_cumulative_avg:
         baseline_gdd_raw = Decimal(str(baseline_current.gdd_base0_cumulative_avg))
-        baseline_gdd = max(Decimal('0'), baseline_gdd_raw - baseline_sept30_offset) if current_doy >= 93 else Decimal('0')
-    
+        baseline_gdd = max(Decimal('0'), baseline_gdd_raw - baseline_aug31_offset) if current_doy >= 63 else Decimal('0')
+
     # Estimate days ahead/behind by finding where baseline equals current GDD
-    # (using October 1 adjusted values)
+    # (using September 1 adjusted values)
     days_vs_baseline = None
     if baseline_gdd and current_gdd:
         for doy, b in sorted(baseline_by_doy.items()):
-            if doy >= 93 and b.gdd_base0_cumulative_avg:
-                adjusted_baseline = float(b.gdd_base0_cumulative_avg) - float(baseline_sept30_offset)
+            if doy >= 63 and b.gdd_base0_cumulative_avg:
+                adjusted_baseline = float(b.gdd_base0_cumulative_avg) - float(baseline_aug31_offset)
                 if adjusted_baseline >= float(current_gdd):
                     days_vs_baseline = current_doy - doy
                     break
-    
+
     # Get phenology milestones (default to Pinot Noir)
-    # Thresholds are calibrated from October 1, so use adjusted current_gdd
+    # Thresholds are calibrated from September 1, so use adjusted current_gdd
     milestones = []
     thresholds = db.query(PhenologyThreshold).filter(
         PhenologyThreshold.variety_code == 'PN'
@@ -855,20 +855,20 @@ def get_regional_overview(
         doy = date_to_day_of_vintage(latest.date)
         
         # Query for Sept 30 actual GDD for this zone
-        sept30_actual = db.query(ClimateZoneDaily).filter(
+        aug31_actual = db.query(ClimateZoneDaily).filter(
             ClimateZoneDaily.zone_id == zone.id,
             ClimateZoneDaily.vintage_year == vintage_year,
-            ClimateZoneDaily.date <= date(vintage_year - 1, 9, 30)
+            ClimateZoneDaily.date <= date(vintage_year - 1, 8, 31)
         ).order_by(ClimateZoneDaily.date.desc()).first()
-        
-        actual_sept30_offset = Decimal(str(sept30_actual.gdd_cumulative)) if sept30_actual and sept30_actual.gdd_cumulative else Decimal('0')
-        
-        # Adjust actual GDD to October 1 start
+
+        actual_aug31_offset = Decimal(str(aug31_actual.gdd_cumulative)) if aug31_actual and aug31_actual.gdd_cumulative else Decimal('0')
+
+        # Adjust actual GDD to September 1 start
         actual_gdd_adjusted = None
-        if latest.gdd_cumulative and doy >= 93:
-            actual_gdd_adjusted = max(Decimal('0'), Decimal(str(latest.gdd_cumulative)) - actual_sept30_offset)
+        if latest.gdd_cumulative and doy >= 63:
+            actual_gdd_adjusted = max(Decimal('0'), Decimal(str(latest.gdd_cumulative)) - actual_aug31_offset)
         
-        # Get baseline for comparison (already adjusted to Oct 1)
+        # Get baseline for comparison (already adjusted to Sep 1)
         baseline_gdd = get_baseline_gdd_for_day(db, zone.id, doy)
         
         gdd_vs_baseline_pct = None

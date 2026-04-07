@@ -301,7 +301,7 @@ function SeasonalStatsWidget({ onAuthRequired }) {
                   <p>
                     Select your climate zone, enter your grape variety, and set your harvest date.
                     The tool calculates key climate metrics from the start of the growing season
-                    (1 October) through to your harvest date using daily weather station data.
+                    (1 September) through to your harvest date using daily weather station data.
                   </p>
                 </div>
               </section>

@@ -65,7 +65,7 @@ MONTH_NAMES = {
     9: "September", 10: "October", 11: "November", 12: "December"
 }
 
-GROWING_SEASON_MONTHS = [10, 11, 12, 1, 2, 3, 4]  # Oct-Apr
+GROWING_SEASON_MONTHS = [9, 10, 11, 12, 1, 2, 3, 4]  # Sep-Apr
 
 # Truncated seasons to exclude from queries (incomplete data)
 # 1986 = 85/86 season (missing Oct-Dec 1985)
@@ -310,7 +310,7 @@ def get_zone_history(
     
     Filter options:
     - start_year/end_year: Calendar year range
-    - vintage_year: Single growing season (Oct-Apr)
+    - vintage_year: Single growing season (Sep-Apr)
     - months: Specific months only
     """
     zone = get_zone_or_404(db, slug)

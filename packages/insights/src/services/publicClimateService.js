@@ -229,9 +229,9 @@ export const PROJECTION_PERIODS = {
 };
 
 /**
- * Growing season months (Oct-Apr)
+ * Growing season months (Sep-Apr)
  */
-export const GROWING_SEASON_MONTHS = [10, 11, 12, 1, 2, 3, 4];
+export const GROWING_SEASON_MONTHS = [9, 10, 11, 12, 1, 2, 3, 4];
 
 /**
  * Month names for display
@@ -243,7 +243,7 @@ export const MONTH_NAMES = {
 };
 
 /**
- * Get growing season months in order (Oct → Apr)
+ * Get growing season months in order (Sep → Apr)
  */
 export const getGrowingSeasonLabels = () => {
   return GROWING_SEASON_MONTHS.map(m => MONTH_NAMES[m]);

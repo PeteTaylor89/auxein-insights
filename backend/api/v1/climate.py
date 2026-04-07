@@ -547,8 +547,8 @@ def get_monthly_chart_data(block_id: int, season_year: int, chart_type: str, db:
     block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
     latitude = block.centroid_latitude if block else -41.0
     
-    monthly_data = [0] * 7  # Oct-Apr
-    month_mapping = {10: 0, 11: 1, 12: 2, 1: 3, 2: 4, 3: 5, 4: 6}
+    monthly_data = [0] * 8  # Sep-Apr
+    month_mapping = {9: 0, 10: 1, 11: 2, 12: 3, 1: 4, 2: 5, 3: 6, 4: 7}
     
     # Get all data for the season
     climate_data = db.query(ClimateHistoricalData).filter(

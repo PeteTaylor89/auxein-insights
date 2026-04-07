@@ -76,7 +76,7 @@ class ClimateHistoryMonthly(Base):
     for temperature, GDD, rainfall, and solar radiation.
     
     Vintage year follows Southern Hemisphere convention:
-    - Oct 1986 through Apr 1987 = vintage_year 1987
+    - Sep 1986 through Apr 1987 = vintage_year 1987
     """
     __tablename__ = "climate_history_monthly"
     

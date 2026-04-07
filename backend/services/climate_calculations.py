@@ -17,9 +17,9 @@ class ClimateCalculations:
     def get_growing_season_dates(season_year: int) -> Tuple[date, date]:
         """
         Get growing season dates for Southern Hemisphere
-        Season 2022/23 = Oct 1, 2022 to Apr 30, 2023
+        Season 2022/23 = Sep 1, 2022 to Apr 30, 2023
         """
-        start_date = date(season_year, 10, 1)
+        start_date = date(season_year, 9, 1)
         end_date = date(season_year + 1, 4, 30)
         return start_date, end_date
     
