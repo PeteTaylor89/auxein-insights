@@ -115,6 +115,8 @@ export default function HomePage() {
               in a changing world.
             </motion.p>
 
+            
+
             <motion.div
               className="flex flex-wrap gap-4"
               initial={{ opacity: 0, y: 20 }}

@@ -62,7 +62,7 @@ class HarvestIngestion:
     def fetch_harvest_data(self, trace_id, start_time, end_time):
         """Fetch data from Harvest API with pagination support"""
         all_data = []
-        
+
         params = {
             'output_type': 'application/json',
             'command_type': 'get_data',
@@ -220,29 +220,50 @@ class HarvestIngestion:
             except Exception as e:
                 print(f"    Failed to log ingestion: {e}")
     
-    def run(self):
-        """Main ingestion process"""
+    def run(self, start_date=None, end_date=None, **kwargs):
+        """Main ingestion process.
+
+        Args:
+            start_date: Explicit start date string (DD/MM/YYYY). Overrides incremental logic.
+            end_date: Explicit end date string (DD/MM/YYYY). Defaults to now minus delay.
+        """
         print(f"\n{'='*60}")
         print(f"Starting Harvest ingestion at {datetime.now()}")
+        if start_date:
+            print(f"Date range: {start_date} to {end_date or 'now'}")
         print(f"{'='*60}\n")
-        
+
+        from zoneinfo import ZoneInfo
+        nz_tz = ZoneInfo('Pacific/Auckland')
+
+        # Parse explicit dates if provided
+        explicit_start = None
+        explicit_end = None
+        if start_date:
+            explicit_start = datetime.strptime(start_date, '%d/%m/%Y').replace(tzinfo=nz_tz)
+        if end_date:
+            explicit_end = datetime.strptime(end_date, '%d/%m/%Y').replace(hour=23, minute=59, second=59, tzinfo=nz_tz)
+
         stations = self.get_active_stations()
         print(f"Found {len(stations)} active Harvest stations\n")
-        
+
         for station in stations:
             station_id = station[0]
             station_code = station[1]
             source_id = station[2]  # trace_id
             notes = station[3]
-            
+
             print(f"Processing: {station_code}")
-            
+
             try:
-                # Calculate time window (accounting for 13-hour delay)
-                from zoneinfo import ZoneInfo
-                nz_tz = ZoneInfo('Pacific/Auckland')
-                end_time = datetime.now(nz_tz) - timedelta(hours=self.delay_hours)  # ADD TIMEZONE HERE
-                start_time = self.get_last_timestamp(station_id)
+                # Calculate time window
+                if explicit_start:
+                    start_time = explicit_start
+                    end_time = explicit_end or (datetime.now(nz_tz) - timedelta(hours=self.delay_hours))
+                else:
+                    # Incremental: from last record to now (accounting for 13-hour delay)
+                    end_time = datetime.now(nz_tz) - timedelta(hours=self.delay_hours)
+                    start_time = self.get_last_timestamp(station_id)
                 
                 # Skip if already up to date
                 if start_time >= end_time:

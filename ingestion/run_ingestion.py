@@ -92,7 +92,10 @@ def main():
         try:
             print("▶ Starting HARVEST ingestion...\n")
             ingester = HarvestIngestion()
-            ingester.run()
+            ingester.run(
+                start_date=args.start,
+                end_date=args.end,
+            )
             print("✓ Harvest ingestion complete\n")
         except Exception as e:
             print(f"✗ Harvest ingestion failed: {e}\n")
