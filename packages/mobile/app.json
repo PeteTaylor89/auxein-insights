@@ -14,7 +14,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "co.nz.auxein.grow"
+      "bundleIdentifier": "co.nz.auxein.grow",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Auxein Grow uses your location to track field work and record GPS data for tasks.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Auxein Grow uses your location in the background to continue tracking field work when the app is minimised.",
+        "NSLocationAlwaysUsageDescription": "Auxein Grow uses your location in the background to continue tracking field work when the app is minimised.",
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,8 +28,28 @@
         "backgroundColor": "#FDF6E3"
       },
       "edgeToEdgeEnabled": true,
-      "package": "co.nz.auxein.grow"
+      "package": "co.nz.auxein.grow",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Auxein Grow uses your location in the background to continue tracking field work when the app is minimised.",
+          "locationWhenInUsePermission": "Auxein Grow uses your location to track field work and record GPS data for tasks.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-task-manager"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },

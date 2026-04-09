@@ -49,6 +49,39 @@ export const tasksService = {
     const res = await api.post(`/tasks/tasks/${taskId}/complete`, payload);
     return res.data;
   },
+  createTask: async (data) => {
+    const res = await api.post('/tasks/tasks', data);
+    return res.data;
+  },
+  // GPS tracking
+  startGpsTracking: async (taskId, payload = {}) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/gps/start`, payload);
+    return res.data;
+  },
+  bulkAddGpsPoints: async (taskId, payload) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/gps/points/bulk`, payload);
+    return res.data;
+  },
+  pauseGpsTracking: async (taskId, payload = {}) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/gps/pause`, payload);
+    return res.data;
+  },
+  resumeGpsTracking: async (taskId, payload = {}) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/gps/resume`, payload);
+    return res.data;
+  },
+  stopGpsTracking: async (taskId, payload = {}) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/gps/stop`, payload);
+    return res.data;
+  },
+  getGpsTrack: async (taskId, params = {}) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/gps/track`, { params });
+    return res.data;
+  },
+  getGpsStats: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/gps/stats`);
+    return res.data;
+  },
   getEquipmentCheck: async (taskId) => {
     const res = await api.get(`/tasks/tasks/${taskId}/equipment-check`);
     return res.data;
@@ -155,6 +188,10 @@ export const blocksService = {
   getCompanyBlocks: async () => {
     const res = await api.get('/blocks/company');
     return res.data?.blocks || res.data || [];
+  },
+  getBlocksGeoJson: async () => {
+    const res = await api.get('/blocks/geojson');
+    return res.data;
   },
 };
 
@@ -273,6 +310,22 @@ export const assetService = {
   },
   getAsset: async (id) => {
     const res = await api.get(`/assets/${id}`);
+    return res.data;
+  },
+  createAsset: async (data) => {
+    const res = await api.post('/assets', data);
+    return res.data;
+  },
+  getAssetsGeoJson: async () => {
+    const res = await api.get('/assets/geojson');
+    return res.data;
+  },
+};
+
+// --- Risk Management (prefix: /risk-management) ---
+export const riskService = {
+  getRisks: async (params = {}) => {
+    const res = await api.get('/risk-management/risks/', { params });
     return res.data;
   },
 };

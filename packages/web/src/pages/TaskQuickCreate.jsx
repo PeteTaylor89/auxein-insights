@@ -43,11 +43,15 @@ function TaskQuickCreate() {
       .catch(() => setBlocks([]))
       .finally(() => setLoadingBlocks(false));
 
-    if (usersService.getCompanyUsers) {
-      usersService.getCompanyUsers()
-        .then(setCompanyUsers)
-        .catch(() => {});
-    }
+    usersService.getCompanyUsers()
+      .then((users) => {
+        const active = (Array.isArray(users) ? users : []).filter(u => u.is_active !== false && !u.is_suspended);
+        setCompanyUsers(active);
+      })
+      .catch((err) => {
+        console.warn('Could not load company users for assignment:', err.message);
+        setCompanyUsers([]);
+      });
   }, []);
 
   const handleTemplateSelect = (template) => {

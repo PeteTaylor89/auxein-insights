@@ -8,7 +8,7 @@ import {
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
   Wrench, Package, FileText, AlertCircle, Plus, Settings
 } from 'lucide-react';
-import { tasksService, assetService, blocksService, adminService, spatialAreasService } from '@vineyard/shared';
+import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
 import './vineyard-pages.css';
 
@@ -180,41 +180,12 @@ function TaskCreationWizard() {
     const fetchCompanyUsers = async () => {
       try {
         setLoadingUsers(true);
-
-        let usersData;
-
-        // Preferred (but admin-only on backend):
-        // GET /admin/companies/{company_id}/users
-        // NOTE: This requires role=admin backend-side.
-        try {
-          usersData = await adminService.getCompanyUsers(user.company_id, { limit: 200 });
-        } catch (e) {
-          // If caller is not system admin, fall back to:
-          // GET /admin/users?company_id=... (admin or manager allowed)
-          usersData = await adminService.getAllUsers({
-            company_id: user.company_id,
-            status: 'active',
-            limit: 200,
-          });
-        }
-
-        // Normalize response formats
-        let usersArray = [];
-        if (Array.isArray(usersData)) {
-          usersArray = usersData;
-        } else if (usersData && Array.isArray(usersData.data)) {
-          usersArray = usersData.data;
-        } else if (usersData && Array.isArray(usersData.users)) {
-          usersArray = usersData.users;
-        }
-
-        // Filter to active, non-suspended users
-        const activeUsers = usersArray.filter(u => u.is_active && !u.is_suspended);
-
+        const users = await usersService.getCompanyUsers();
+        const activeUsers = (Array.isArray(users) ? users : [])
+          .filter(u => u.is_active !== false && !u.is_suspended);
         setCompanyUsers(activeUsers);
-        console.log('✅ Loaded company users for assignment:', activeUsers);
       } catch (error) {
-        console.error('❌ Error fetching company users:', error);
+        console.error('Failed to load company users:', error);
         setCompanyUsers([]);
       } finally {
         setLoadingUsers(false);
@@ -834,16 +805,24 @@ function TaskCreationWizard() {
             <FormSection title="Assign To" icon={<Users size={18} />}>
               {/* Users */}
               <FormField label="Assign Users">
-                <div className="vp-flex-row" style={{ marginBottom: 'var(--space-md)' }}>
+                <div style={{ marginBottom: 'var(--space-md)' }}>
                   <select
-                    value={selectedUser}
-                    onChange={(e) => setSelectedUser(e.target.value)}
+                    value=""
+                    onChange={(e) => {
+                      const userId = parseInt(e.target.value);
+                      if (userId && !taskAssignments.assigned_users.includes(userId)) {
+                        setTaskAssignments(prev => ({
+                          ...prev,
+                          assigned_users: [...prev.assigned_users, userId]
+                        }));
+                      }
+                    }}
                     className="vp-select"
-                    style={{ flex: 1 }}
+                    style={{ width: '100%' }}
                     disabled={companyUsers.length === 0}
                   >
                     <option value="">
-                      {companyUsers.length === 0 ? 'No users available' : 'Select user...'}
+                      {companyUsers.length === 0 ? 'No users available' : 'Select user to assign...'}
                     </option>
                     {companyUsers
                       .filter(u => !taskAssignments.assigned_users.includes(u.id))
@@ -853,13 +832,6 @@ function TaskCreationWizard() {
                         </option>
                     ))}
                   </select>
-                  <button
-                    onClick={handleAddUser}
-                    disabled={!selectedUser}
-                    className="vp-btn-add-inline"
-                  >
-                    <Plus size={16} />
-                  </button>
                 </div>
 
                 {taskAssignments.assigned_users.length > 0 ? (

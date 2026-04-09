@@ -21,6 +21,7 @@ from db.models.spatial_area import SpatialArea
 from db.models.vineyard_row import VineyardRow
 from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration
 from db.models.risk_action import RiskAction
+from services.gps_processing import process_gps_track
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -1072,6 +1073,13 @@ def complete_task(
             )
             db.commit()
 
+    # Process GPS breadcrumbs into summary (if any points exist)
+    if task.requires_gps_tracking:
+        try:
+            process_gps_track(task_id, db)
+        except Exception as e:
+            logger.warning(f"GPS summary processing failed for task {task_id}: {e}")
+
     logger.info(f"Task {task_id} completed by user {current_user.id}")
 
     return task
@@ -1748,11 +1756,12 @@ def start_gps_tracking(
     
     # Add initial point if provided
     if start_data.initial_point:
+        point_dict = start_data.initial_point.model_dump(exclude={'device_id'})
         gps_point = TaskGPSTrack(
             task_id=task_id,
             user_id=current_user.id,
-            device_id=start_data.device_id,
-            **start_data.initial_point.model_dump()
+            device_id=start_data.device_id or start_data.initial_point.device_id,
+            **point_dict,
         )
         db.add(gps_point)
     
@@ -1822,11 +1831,13 @@ def add_bulk_gps_points(
     # Create GPS points
     gps_points = []
     for point_data in bulk_data.points:
+        point_dict = point_data.model_dump(exclude={'segment_id', 'device_id'})
         gps_point = TaskGPSTrack(
             task_id=task_id,
             user_id=current_user.id,
             segment_id=point_data.segment_id or base_segment_id,
-            **point_data.model_dump()
+            device_id=point_data.device_id,
+            **point_dict,
         )
         db.add(gps_point)
         gps_points.append(gps_point)
@@ -1863,15 +1874,16 @@ def pause_gps_tracking(
         
         segment_id = last_point.segment_id if last_point else 1
         
+        point_dict = pause_data.final_point.model_dump(exclude_none=True)
         gps_point = TaskGPSTrack(
             task_id=task_id,
             user_id=current_user.id,
             segment_id=segment_id,
-            timestamp=datetime.now(),
-            **pause_data.final_point.model_dump()
+            timestamp=point_dict.pop('timestamp', None) or datetime.now(),
+            **point_dict,
         )
         db.add(gps_point)
-    
+
     # Deactivate GPS tracking
     task.gps_tracking_active = False
     
@@ -1907,12 +1919,13 @@ def resume_gps_tracking(
     
     # Add initial point for new segment if provided
     if resume_data.initial_point:
+        point_dict = resume_data.initial_point.model_dump(exclude_none=True)
         gps_point = TaskGPSTrack(
             task_id=task_id,
             user_id=current_user.id,
             segment_id=new_segment_id,
-            timestamp=datetime.now(),
-            **resume_data.initial_point.model_dump()
+            timestamp=point_dict.pop('timestamp', None) or datetime.now(),
+            **point_dict,
         )
         db.add(gps_point)
     
@@ -1944,21 +1957,28 @@ def stop_gps_tracking(
         
         segment_id = last_point.segment_id if last_point else 1
         
+        point_dict = stop_data.final_point.model_dump(exclude_none=True)
         gps_point = TaskGPSTrack(
             task_id=task_id,
             user_id=current_user.id,
             segment_id=segment_id,
-            timestamp=datetime.now(),
-            **stop_data.final_point.model_dump()
+            timestamp=point_dict.pop('timestamp', None) or datetime.now(),
+            **point_dict,
         )
         db.add(gps_point)
-    
+
     # Deactivate GPS tracking
     task.gps_tracking_active = False
-    
+
     db.commit()
     db.refresh(task)
-    
+
+    # Process GPS breadcrumbs into summary
+    try:
+        process_gps_track(task_id, db)
+    except Exception as e:
+        logger.warning(f"GPS summary processing failed for task {task_id}: {e}")
+
     logger.info(f"GPS tracking stopped for task {task_id}")
     return task
 
@@ -1992,60 +2012,187 @@ def get_gps_track_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get summary statistics for GPS track"""
+    """Get summary statistics for GPS track — uses pre-computed summary if available"""
     task = check_task_access(db, task_id, current_user)
-    
-    # Get all points
+
+    # Try pre-computed summary first
+    from db.models.task_gps_summary import TaskGPSSummary
+    summary = db.query(TaskGPSSummary).filter(TaskGPSSummary.task_id == task_id).first()
+
+    if summary:
+        # Get time range from breadcrumbs for start/end timestamps
+        first_point = db.query(TaskGPSTrack).filter(
+            TaskGPSTrack.task_id == task_id
+        ).order_by(TaskGPSTrack.timestamp).first()
+        last_point = db.query(TaskGPSTrack).filter(
+            TaskGPSTrack.task_id == task_id
+        ).order_by(desc(TaskGPSTrack.timestamp)).first()
+
+        return TaskGPSTrackSummaryStats(
+            task_id=task_id,
+            total_points=summary.total_points or 0,
+            total_segments=summary.total_segments or 0,
+            total_distance_meters=summary.total_distance_meters or Decimal("0"),
+            total_distance_km=summary.total_distance_km or Decimal("0"),
+            area_covered_hectares=summary.coverage_area_hectares,
+            tracking_start_time=first_point.timestamp if first_point else datetime.now(),
+            tracking_end_time=last_point.timestamp if last_point else None,
+            total_tracking_duration_minutes=summary.total_duration_minutes or 0,
+            active_tracking_duration_minutes=summary.active_duration_minutes or 0,
+            max_speed_kmh=summary.max_speed_kmh,
+            avg_speed_kmh=summary.avg_speed_kmh,
+            min_speed_kmh=None,
+            avg_accuracy_meters=summary.avg_accuracy_meters,
+            points_with_poor_accuracy=summary.poor_accuracy_points or 0,
+        )
+
+    # Fallback: compute from raw points (for in-progress tasks)
     points = db.query(TaskGPSTrack).filter(
         TaskGPSTrack.task_id == task_id
     ).order_by(TaskGPSTrack.timestamp).all()
-    
+
     if not points:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No GPS data available for this task"
         )
-    
-    # Calculate statistics
+
     total_points = len(points)
     total_segments = len(set(p.segment_id for p in points))
-    
-    # Time range
     tracking_start = points[0].timestamp
     tracking_end = points[-1].timestamp
     total_duration = int((tracking_end - tracking_start).total_seconds() / 60)
-    
-    # Speed statistics
+
     speeds = [float(p.speed) for p in points if p.speed is not None]
-    max_speed = Decimal(str(max(speeds))) if speeds else None
-    avg_speed = Decimal(str(sum(speeds) / len(speeds))) if speeds else None
-    min_speed = Decimal(str(min(speeds))) if speeds else None
-    
-    # Accuracy statistics
+    max_speed = Decimal(str(round(max(speeds), 2))) if speeds else None
+    avg_speed = Decimal(str(round(sum(speeds) / len(speeds), 2))) if speeds else None
+    min_speed = Decimal(str(round(min(speeds), 2))) if speeds else None
+
     accuracies = [float(p.accuracy) for p in points if p.accuracy is not None]
-    avg_accuracy = Decimal(str(sum(accuracies) / len(accuracies))) if accuracies else None
+    avg_accuracy = Decimal(str(round(sum(accuracies) / len(accuracies), 2))) if accuracies else None
     poor_accuracy_count = sum(1 for a in accuracies if a > 20)
-    
-    # Calculate distance (simplified - should use haversine formula)
-    total_distance = Decimal("0")
-    # TODO: Implement proper distance calculation
-    
+
     return TaskGPSTrackSummaryStats(
         task_id=task_id,
         total_points=total_points,
         total_segments=total_segments,
-        total_distance_meters=total_distance,
-        total_distance_km=total_distance / 1000,
+        total_distance_meters=Decimal("0"),
+        total_distance_km=Decimal("0"),
         tracking_start_time=tracking_start,
         tracking_end_time=tracking_end,
         total_tracking_duration_minutes=total_duration,
-        active_tracking_duration_minutes=total_duration,  # TODO: Exclude pauses
+        active_tracking_duration_minutes=total_duration,
         max_speed_kmh=max_speed,
         avg_speed_kmh=avg_speed,
         min_speed_kmh=min_speed,
         avg_accuracy_meters=avg_accuracy,
-        points_with_poor_accuracy=poor_accuracy_count
+        points_with_poor_accuracy=poor_accuracy_count,
     )
+
+
+@router.get("/tasks/{task_id}/gps/summary")
+def get_gps_summary(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get processed GPS summary for a completed task"""
+    task = check_task_access(db, task_id, current_user)
+    from db.models.task_gps_summary import TaskGPSSummary
+    summary = db.query(TaskGPSSummary).filter(TaskGPSSummary.task_id == task_id).first()
+    if not summary:
+        raise HTTPException(status_code=404, detail="No GPS summary — task may still be in progress")
+    return {
+        "task_id": summary.task_id,
+        "total_distance_meters": float(summary.total_distance_meters or 0),
+        "total_distance_km": float(summary.total_distance_km or 0),
+        "active_duration_minutes": summary.active_duration_minutes,
+        "total_duration_minutes": summary.total_duration_minutes,
+        "total_points": summary.total_points,
+        "total_segments": summary.total_segments,
+        "avg_speed_kmh": float(summary.avg_speed_kmh) if summary.avg_speed_kmh else None,
+        "max_speed_kmh": float(summary.max_speed_kmh) if summary.max_speed_kmh else None,
+        "time_stationary_minutes": summary.time_stationary_minutes,
+        "time_moving_minutes": summary.time_moving_minutes,
+        "coverage_area_hectares": float(summary.coverage_area_hectares) if summary.coverage_area_hectares else None,
+        "block_area_hectares": float(summary.block_area_hectares) if summary.block_area_hectares else None,
+        "coverage_percentage": float(summary.coverage_percentage) if summary.coverage_percentage else None,
+        "avg_accuracy_meters": float(summary.avg_accuracy_meters) if summary.avg_accuracy_meters else None,
+        "poor_accuracy_points": summary.poor_accuracy_points,
+    }
+
+
+@router.get("/tasks/{task_id}/gps/track/geojson")
+def get_gps_track_geojson(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get GPS track as GeoJSON Feature"""
+    task = check_task_access(db, task_id, current_user)
+    from db.models.task_gps_summary import TaskGPSSummary
+    from geoalchemy2.shape import to_shape
+    from shapely.geometry import mapping as shapely_mapping
+
+    summary = db.query(TaskGPSSummary).filter(TaskGPSSummary.task_id == task_id).first()
+    if not summary or not summary.track_geometry:
+        raise HTTPException(status_code=404, detail="No GPS track geometry available")
+
+    track_shape = to_shape(summary.track_geometry)
+    return {
+        "type": "Feature",
+        "geometry": shapely_mapping(track_shape),
+        "properties": {
+            "task_id": task_id,
+            "task_number": task.task_number,
+            "distance_km": float(summary.total_distance_km or 0),
+            "duration_minutes": summary.active_duration_minutes,
+            "total_points": summary.total_points,
+        }
+    }
+
+
+@router.get("/tasks/{task_id}/gps/coverage/geojson")
+def get_gps_coverage_geojson(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get GPS coverage polygon as GeoJSON Feature"""
+    task = check_task_access(db, task_id, current_user)
+    from db.models.task_gps_summary import TaskGPSSummary
+    from geoalchemy2.shape import to_shape
+    from shapely.geometry import mapping as shapely_mapping
+
+    summary = db.query(TaskGPSSummary).filter(TaskGPSSummary.task_id == task_id).first()
+    if not summary or not summary.coverage_geometry:
+        raise HTTPException(status_code=404, detail="No coverage geometry available")
+
+    coverage_shape = to_shape(summary.coverage_geometry)
+    return {
+        "type": "Feature",
+        "geometry": shapely_mapping(coverage_shape),
+        "properties": {
+            "task_id": task_id,
+            "coverage_hectares": float(summary.coverage_area_hectares or 0),
+            "block_hectares": float(summary.block_area_hectares or 0),
+            "coverage_percentage": float(summary.coverage_percentage or 0),
+        }
+    }
+
+
+@router.post("/tasks/{task_id}/gps/reprocess")
+def reprocess_gps_track(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Re-process GPS breadcrumbs into summary (admin/debug)"""
+    task = check_task_access(db, task_id, current_user)
+    summary = process_gps_track(task_id, db)
+    if not summary:
+        raise HTTPException(status_code=404, detail="No GPS points to process")
+    return {"message": f"Reprocessed {summary.total_points} points", "distance_km": float(summary.total_distance_km or 0)}
 
 
 # ============================================================================

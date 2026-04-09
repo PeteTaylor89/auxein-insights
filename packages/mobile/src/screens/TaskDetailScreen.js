@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, taskRowService } from '../api/services';
+import { useGpsTracking } from '../hooks/useGpsTracking';
+import GpsTrackingOverlay from './GpsTrackingScreen';
 
 export default function TaskDetailScreen({ route, navigation }) {
   const { taskId } = route.params;
@@ -18,6 +20,10 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // GPS tracking
+  const gps = useGpsTracking();
+  const [showGpsOverlay, setShowGpsOverlay] = useState(false);
 
   // Row completion modal state
   const [showRowModal, setShowRowModal] = useState(false);
@@ -108,11 +114,19 @@ export default function TaskDetailScreen({ route, navigation }) {
   const doStartTask = async (skipEquipmentCheck) => {
     setActionLoading(true);
     try {
+      const gpsRequired = task?.requires_gps_tracking === true;
       await tasksService.startTask(taskId, {
         skip_equipment_check: skipEquipmentCheck,
-        start_gps_tracking: false,
+        start_gps_tracking: gpsRequired,
       });
       setShowEquipmentModal(false);
+      // Start GPS tracking only if task requires it
+      if (gpsRequired) {
+        const gpsStarted = await gps.startTracking(taskId);
+        if (!gpsStarted) {
+          Alert.alert('GPS Note', 'Task started but GPS tracking could not be enabled. You can continue without tracking.');
+        }
+      }
       await loadAll();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to start task');
@@ -194,6 +208,14 @@ export default function TaskDetailScreen({ route, navigation }) {
   const handleCompleteTask = async () => {
     setActionLoading(true);
     try {
+      // Stop GPS tracking first (don't let GPS errors block completion)
+      if (gps.isTracking || gps.isPaused) {
+        try {
+          await gps.stopTracking();
+        } catch (gpsErr) {
+          console.warn('[GPS] Stop failed during complete, continuing:', gpsErr.message);
+        }
+      }
       const payload = { completion_notes: completionNotes || null };
       if (consumableActuals.length > 0) {
         payload.consumable_actuals = consumableActuals.map(c => ({
@@ -256,6 +278,52 @@ export default function TaskDetailScreen({ route, navigation }) {
             {task.assignee_names?.length > 0 && <Field label="Assigned" value={task.assignee_names.join(', ')} />}
           </View>
         </View>
+
+        {/* GPS Tracking Card — tap to open full GPS screen */}
+        {isInProgress && (gps.isTracking || gps.isPaused) && (
+          <TouchableOpacity
+            style={styles.card}
+            activeOpacity={0.7}
+            onPress={() => setShowGpsOverlay(true)}
+          >
+            <View style={styles.gpsHeader}>
+              <View style={styles.gpsHeaderLeft}>
+                <View style={[styles.gpsDot, gps.isPaused ? styles.gpsDotPaused : styles.gpsDotActive]} />
+                <Text style={styles.sectionTitle}>
+                  {gps.isPaused ? 'GPS Paused' : 'GPS Tracking'}
+                </Text>
+              </View>
+              <Text style={styles.gpsExpandHint}>Tap to expand →</Text>
+            </View>
+
+            <View style={styles.gpsStats}>
+              <View style={styles.gpsStat}>
+                <Text style={styles.gpsStatValue}>
+                  {(gps.stats.distance / 1000).toFixed(2)}
+                </Text>
+                <Text style={styles.gpsStatLabel}>km</Text>
+              </View>
+              <View style={styles.gpsStat}>
+                <Text style={styles.gpsStatValue}>
+                  {Math.floor(gps.stats.duration / 3600) > 0
+                    ? `${Math.floor(gps.stats.duration / 3600)}h ${Math.floor((gps.stats.duration % 3600) / 60)}m`
+                    : `${Math.floor(gps.stats.duration / 60)}m ${Math.floor(gps.stats.duration % 60)}s`}
+                </Text>
+                <Text style={styles.gpsStatLabel}>time</Text>
+              </View>
+              <View style={styles.gpsStat}>
+                <Text style={styles.gpsStatValue}>{gps.stats.pointCount}</Text>
+                <Text style={styles.gpsStatLabel}>points</Text>
+              </View>
+              <View style={styles.gpsStat}>
+                <Text style={styles.gpsStatValue}>
+                  {gps.stats.avgSpeed > 0 ? gps.stats.avgSpeed.toFixed(1) : '—'}
+                </Text>
+                <Text style={styles.gpsStatLabel}>km/h</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Row Progress */}
         {(rows.length > 0 || progress) && (
@@ -491,6 +559,16 @@ export default function TaskDetailScreen({ route, navigation }) {
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* GPS Full-Screen Overlay */}
+      <Modal visible={showGpsOverlay} animationType="slide">
+        <GpsTrackingOverlay
+          gps={gps}
+          taskTitle={task.title || `Task #${task.id}`}
+          taskNumber={task.task_number}
+          onClose={() => setShowGpsOverlay(false)}
+        />
+      </Modal>
     </View>
   );
 }
@@ -620,6 +698,26 @@ const styles = StyleSheet.create({
     flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
     padding: spacing.sm, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.white,
   },
+
+  // GPS tracking
+  gpsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  gpsHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  gpsDot: { width: 10, height: 10, borderRadius: 5 },
+  gpsDotActive: { backgroundColor: colors.success },
+  gpsDotPaused: { backgroundColor: colors.warning },
+  gpsExpandHint: { fontSize: fontSize.xs, color: colors.textMuted, fontStyle: 'italic' },
+  gpsStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: spacing.md },
+  gpsStat: { alignItems: 'center' },
+  gpsStatValue: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
+  gpsStatLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  gpsActions: { flexDirection: 'row', gap: spacing.sm },
+  gpsBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: 'center' },
+  gpsBtnResume: { backgroundColor: colors.success },
+  gpsBtnPause: { backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warning },
+  gpsBtnStop: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.danger },
+  gpsBtnText: { color: colors.white, fontSize: fontSize.sm, fontWeight: '600' },
+  gpsBtnPauseText: { color: colors.warning, fontSize: fontSize.sm, fontWeight: '600' },
+  gpsBtnStopText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: '600' },
 
   // Quality rating
   qualityRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
