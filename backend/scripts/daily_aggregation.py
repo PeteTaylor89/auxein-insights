@@ -39,12 +39,16 @@ logger = logging.getLogger(__name__)
 NZ_TZ = pytz.timezone('Pacific/Auckland')
 
 
-def get_active_stations(db) -> List[dict]:
-    """Get all active weather stations with their IDs and zone_ids."""
-    stations = db.query(WeatherStation).filter(
+def get_active_stations(db, zone_id: Optional[int] = None) -> List[dict]:
+    """Get active weather stations, optionally filtered by zone_id."""
+    query = db.query(WeatherStation).filter(
         WeatherStation.is_active == True
-    ).order_by(WeatherStation.station_id).all()
-    
+    )
+    if zone_id is not None:
+        query = query.filter(WeatherStation.zone_id == zone_id)
+
+    stations = query.order_by(WeatherStation.station_id).all()
+
     return [
         {
             'station_id': s.station_id,
@@ -192,9 +196,10 @@ def run_daily_aggregation(
     target_date: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    zone_id: Optional[int] = None
 ):
-    """Run daily aggregation for specified date(s)."""
+    """Run daily aggregation for specified date(s), optionally filtered to a single zone."""
     
     # Determine dates to process
     if target_date:
@@ -214,15 +219,17 @@ def run_daily_aggregation(
     
     logger.info(f"Daily Aggregation: weather_data → weather_data_daily")
     logger.info(f"Dates to process: {dates_to_process[0]} to {dates_to_process[-1]} ({len(dates_to_process)} days)")
-    
+    if zone_id is not None:
+        logger.info(f"Zone filter: {zone_id}")
+
     if dry_run:
         logger.info("[DRY RUN MODE]")
-    
+
     db = SessionLocal()
-    
+
     try:
         # Get active stations
-        stations = get_active_stations(db)
+        stations = get_active_stations(db, zone_id=zone_id)
         logger.info(f"Found {len(stations)} active weather stations")
         
         # Process each date
@@ -264,14 +271,16 @@ def main():
     parser.add_argument('--start', type=str, help='Start date for range (YYYY-MM-DD)')
     parser.add_argument('--end', type=str, help='End date for range (YYYY-MM-DD)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be processed without inserting')
-    
+    parser.add_argument('--zone-id', type=int, help='Process only stations in this zone')
+
     args = parser.parse_args()
-    
+
     run_daily_aggregation(
         target_date=args.date,
         start_date=args.start,
         end_date=args.end,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        zone_id=args.zone_id
     )
 
 

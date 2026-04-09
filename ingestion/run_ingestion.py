@@ -16,13 +16,15 @@ from sources.ecan import ECANIngestion
 from sources.mdc import MDCIngestion
 from sources.gw import GWIngestion
 from sources.hbrc import HBRCIngestion
+from sources.tdc import TDCIngestion
+from sources.gdc import GDCIngestion
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'all'], 
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'all'],
         default='all',
         help='Data source to ingest'
     )
@@ -64,7 +66,7 @@ def main():
         '--interval',
         type=str,
         default='30 minutes',
-        help='MDC/GW/HBRC data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
+        help='MDC/GW/HBRC/TDC data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
     )
     
     args = parser.parse_args()
@@ -169,6 +171,44 @@ def main():
             print(f"✗ HBRC ingestion failed: {e}\n")
             success = False
     
+    # Run TDC ingestion
+    if args.source in ['tdc', 'all']:
+        try:
+            print("▶ Starting TDC ingestion...\n")
+            ingester = TDCIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ TDC ingestion complete\n")
+        except Exception as e:
+            print(f"✗ TDC ingestion failed: {e}\n")
+            success = False
+
+    # Run GDC ingestion
+    if args.source in ['gdc', 'all']:
+        try:
+            print("▶ Starting GDC ingestion...\n")
+            ingester = GDCIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ GDC ingestion complete\n")
+        except Exception as e:
+            print(f"✗ GDC ingestion failed: {e}\n")
+            success = False
+
     print(f"{'='*70}")
     if success:
         print(f"  ✓ ALL INGESTION COMPLETE")

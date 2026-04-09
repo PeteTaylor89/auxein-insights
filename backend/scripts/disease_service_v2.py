@@ -489,9 +489,10 @@ def run_disease_service(
     start_date: str = None,
     end_date: str = None,
     backfill_days: int = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    zone_id: int = None
 ):
-    """Run disease pressure calculations."""
+    """Run disease pressure calculations, optionally filtered to a single zone."""
     logger.info("=" * 60)
     logger.info("Disease Pressure Service v2")
     logger.info("UC Davis PM | González-Domínguez Botrytis | Goidanich DM")
@@ -517,16 +518,24 @@ def run_disease_service(
             dates = [date.today() - timedelta(days=1)]
         
         logger.info(f"Processing: {dates[0]} to {dates[-1]} ({len(dates)} days)")
+        if zone_id is not None:
+            logger.info(f"Zone filter: {zone_id}")
         if dry_run:
             logger.info("[DRY RUN]")
-        
+
         # Get zones with hourly data
-        zones = db.execute(text("""
-            SELECT DISTINCT z.id, z.name 
+        zones_query = """
+            SELECT DISTINCT z.id, z.name
             FROM climate_zones z
             JOIN climate_zone_hourly h ON z.id = h.zone_id
-        """)).fetchall()
-        
+        """
+        params = {}
+        if zone_id is not None:
+            zones_query += " WHERE z.id = :zone_id"
+            params['zone_id'] = zone_id
+
+        zones = db.execute(text(zones_query), params).fetchall()
+
         logger.info(f"Found {len(zones)} zones with hourly data")
         
         total = 0
@@ -676,9 +685,10 @@ def main():
     parser.add_argument('--end', type=str, help='End date for range (YYYY-MM-DD), defaults to yesterday')
     parser.add_argument('--backfill', type=int, help='Number of days to backfill from yesterday')
     parser.add_argument('--dry-run', action='store_true', help='Show without saving')
-    
+    parser.add_argument('--zone-id', type=int, help='Process only this zone')
+
     args = parser.parse_args()
-    run_disease_service(args.date, args.start, args.end, args.backfill, args.dry_run)
+    run_disease_service(args.date, args.start, args.end, args.backfill, args.dry_run, zone_id=args.zone_id)
 
 
 if __name__ == '__main__':

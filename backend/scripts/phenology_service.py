@@ -70,13 +70,17 @@ def get_phenology_thresholds(db) -> List[dict]:
     ]
 
 
-def get_zones_with_climate_data(db, target_date: date) -> List[dict]:
-    """Get zones with climate_zone_daily data for target date."""
-    zones = db.query(ClimateZoneDaily).filter(
+def get_zones_with_climate_data(db, target_date: date, zone_id: Optional[int] = None) -> List[dict]:
+    """Get zones with climate_zone_daily data for target date, optionally filtered by zone_id."""
+    query = db.query(ClimateZoneDaily).filter(
         ClimateZoneDaily.date == target_date,
         ClimateZoneDaily.gdd_cumulative.isnot(None)
-    ).all()
-    
+    )
+    if zone_id is not None:
+        query = query.filter(ClimateZoneDaily.zone_id == zone_id)
+
+    zones = query.all()
+
     return [
         {
             'zone_id': z.zone_id,
@@ -203,9 +207,10 @@ def run_phenology_service(
     target_date: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    zone_id: Optional[int] = None
 ):
-    """Run phenology estimation."""
+    """Run phenology estimation, optionally filtered to a single zone."""
     
     # Determine dates to process
     if target_date:
@@ -221,7 +226,9 @@ def run_phenology_service(
     
     logger.info(f"Phenology Estimation Service")
     logger.info(f"Dates: {dates_to_process[0]} to {dates_to_process[-1]} ({len(dates_to_process)} days)")
-    
+    if zone_id is not None:
+        logger.info(f"Zone filter: {zone_id}")
+
     if dry_run:
         logger.info("[DRY RUN MODE]")
     
@@ -237,7 +244,7 @@ def run_phenology_service(
         
         total_count = 0
         for target in sorted(dates_to_process):
-            zones = get_zones_with_climate_data(db, target)
+            zones = get_zones_with_climate_data(db, target, zone_id=zone_id)
             
             if not zones:
                 logger.info(f"  {target}: No zones with climate data, skipping")
@@ -365,9 +372,10 @@ def main():
     parser.add_argument('--start', type=str, help='Start date for range (YYYY-MM-DD)')
     parser.add_argument('--end', type=str, help='End date for range (YYYY-MM-DD)')
     parser.add_argument('--dry-run', action='store_true', help='Show without saving')
-    
+    parser.add_argument('--zone-id', type=int, help='Process only this zone')
+
     args = parser.parse_args()
-    run_phenology_service(args.date, args.start, args.end, args.dry_run)
+    run_phenology_service(args.date, args.start, args.end, args.dry_run, zone_id=args.zone_id)
 
 
 if __name__ == '__main__':

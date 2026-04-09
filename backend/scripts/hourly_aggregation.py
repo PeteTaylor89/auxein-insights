@@ -238,20 +238,26 @@ def check_station_variables(db: Session, zone_id: int = None):
 # DATA AGGREGATION
 # =============================================================================
 
-def get_zone_station_mappings(db: Session) -> Dict[int, List[int]]:
+def get_zone_station_mappings(db: Session, zone_id: int = None) -> Dict[int, List[int]]:
     """
     Get mapping of zone_id -> list of station_ids.
-    
+
     Uses zone_id column directly on weather_stations table
     (as per realtime_climate_001 migration).
     """
-    result = db.execute(text("""
-        SELECT zone_id, station_id 
+    query = """
+        SELECT zone_id, station_id
         FROM weather_stations
         WHERE zone_id IS NOT NULL
           AND is_active = TRUE
-        ORDER BY zone_id, station_id
-    """)).fetchall()
+    """
+    params = {}
+    if zone_id is not None:
+        query += " AND zone_id = :zone_id"
+        params['zone_id'] = zone_id
+    query += " ORDER BY zone_id, station_id"
+
+    result = db.execute(text(query), params).fetchall()
     
     mappings = {}
     for row in result:
@@ -445,9 +451,10 @@ def determine_confidence(station_count: int, expected_min: int = 2) -> str:
 def run_hourly_aggregation(
     hours_back: int = 24,
     target_date: str = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    zone_id: int = None
 ):
-    """Run hourly aggregation for zone climate data."""
+    """Run hourly aggregation for zone climate data, optionally filtered to a single zone."""
     logger.info("=" * 60)
     logger.info("Hourly Climate Aggregation Service")
     logger.info("=" * 60)
@@ -470,12 +477,14 @@ def run_hourly_aggregation(
         
         logger.info(f"Processing: {start_local} to {end_local} (NZ time)")
         logger.info(f"           {start_utc} to {end_utc} (UTC)")
-        
+        if zone_id is not None:
+            logger.info(f"Zone filter: {zone_id}")
+
         if dry_run:
             logger.info("[DRY RUN MODE - No changes will be saved]")
-        
+
         # Get zone-station mappings from weather_stations table
-        zone_stations = get_zone_station_mappings(db)
+        zone_stations = get_zone_station_mappings(db, zone_id=zone_id)
         logger.info(f"Found {len(zone_stations)} zones with station assignments")
         
         if not zone_stations:
@@ -503,11 +512,12 @@ def run_hourly_aggregation(
 def run_hourly_aggregation_range(
     start_date: str,
     end_date: str = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    zone_id: int = None
 ):
     """
     Run hourly aggregation for a date range.
-    
+
     Processes day by day to avoid memory issues with large date ranges.
     """
     logger.info("=" * 60)
@@ -523,15 +533,17 @@ def run_hourly_aggregation_range(
     
     total_days = (end - start).days + 1
     logger.info(f"Date range: {start_date} to {end_date or 'today'} ({total_days} days)")
-    
+    if zone_id is not None:
+        logger.info(f"Zone filter: {zone_id}")
+
     if dry_run:
         logger.info("[DRY RUN MODE - No changes will be saved]")
-    
+
     db = SessionLocal()
-    
+
     try:
         # Get zone-station mappings
-        zone_stations = get_zone_station_mappings(db)
+        zone_stations = get_zone_station_mappings(db, zone_id=zone_id)
         logger.info(f"Found {len(zone_stations)} zones with station assignments")
         
         if not zone_stations:
@@ -746,11 +758,13 @@ def main():
                         help='Show without saving')
     parser.add_argument('--check-vars', action='store_true',
                         help='List available variable names in weather_data')
+    parser.add_argument('--zone-id', type=int,
+                        help='Process only this zone')
     parser.add_argument('--check-stations', type=int, nargs='?', const=0, default=None,
                         help='Check which stations have which variables (optionally for a specific zone_id)')
-    
+
     args = parser.parse_args()
-    
+
     if args.check_vars:
         db = SessionLocal()
         try:
@@ -766,9 +780,9 @@ def main():
             db.close()
     elif args.start_date:
         # Date range mode
-        run_hourly_aggregation_range(args.start_date, args.end_date, args.dry_run)
+        run_hourly_aggregation_range(args.start_date, args.end_date, args.dry_run, zone_id=args.zone_id)
     else:
-        run_hourly_aggregation(args.hours, args.date, args.dry_run)
+        run_hourly_aggregation(args.hours, args.date, args.dry_run, zone_id=args.zone_id)
 
 
 if __name__ == '__main__':

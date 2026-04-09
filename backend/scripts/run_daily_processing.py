@@ -78,7 +78,8 @@ def main():
     parser.add_argument('--skip-zone', action='store_true', help='Skip zone aggregation')
     parser.add_argument('--skip-phenology', action='store_true', help='Skip phenology')
     parser.add_argument('--skip-disease', action='store_true', help='Skip disease pressure')
-    
+    parser.add_argument('--zone-id', type=int, help='Process only this zone (passed to all sub-scripts)')
+
     args = parser.parse_args()
     
     # Determine target date
@@ -92,6 +93,8 @@ def main():
     logger.info("AUXEIN DAILY PROCESSING PIPELINE")
     logger.info("=" * 60)
     logger.info(f"Target date:  {target_date}")
+    if args.zone_id:
+        logger.info(f"Zone filter:  {args.zone_id}")
     logger.info(f"Run time:     {datetime.now(NZ_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
     logger.info(f"Dry run:      {args.dry_run}")
     logger.info("=" * 60)
@@ -106,6 +109,8 @@ def main():
         daily_args = ['--date', target_date]
         if args.dry_run:
             daily_args.append('--dry-run')
+        if args.zone_id:
+            daily_args.extend(['--zone-id', str(args.zone_id)])
         results['daily_aggregation'] = run_script('daily_aggregation.py', daily_args)
     else:
         logger.info("\n[1/6] DAILY AGGREGATION - SKIPPED")
@@ -119,6 +124,8 @@ def main():
         hourly_args = ['--date', target_date]
         if args.dry_run:
             hourly_args.append('--dry-run')
+        if args.zone_id:
+            hourly_args.extend(['--zone-id', str(args.zone_id)])
         results['hourly_aggregation'] = run_script('hourly_aggregation.py', hourly_args)
     else:
         logger.info("\n[2/6] HOURLY AGGREGATION - SKIPPED")
@@ -132,6 +139,8 @@ def main():
         zone_args = ['--date', target_date]
         if args.dry_run:
             zone_args.append('--dry-run')
+        if args.zone_id:
+            zone_args.extend(['--zone-id', str(args.zone_id)])
         results['zone_aggregation'] = run_script('zone_aggregation.py', zone_args)
     else:
         logger.info("\n[3/6] ZONE AGGREGATION - SKIPPED")
@@ -145,6 +154,8 @@ def main():
         pheno_args = ['--date', target_date]
         if args.dry_run:
             pheno_args.append('--dry-run')
+        if args.zone_id:
+            pheno_args.extend(['--zone-id', str(args.zone_id)])
         results['phenology'] = run_script('phenology_service.py', pheno_args)
     else:
         logger.info("\n[4/6] PHENOLOGY - SKIPPED")
@@ -158,6 +169,8 @@ def main():
         disease_args = ['--date', target_date]
         if args.dry_run:
             disease_args.append('--dry-run')
+        if args.zone_id:
+            disease_args.extend(['--zone-id', str(args.zone_id)])
         results['disease'] = run_script('disease_service_v2.py', disease_args)
     else:
         logger.info("\n[5/6] DISEASE PRESSURE - SKIPPED")

@@ -74,21 +74,29 @@ def mean_with_outlier_removal(values: List[float], sd_threshold: float = OUTLIER
     return mean(filtered)
 
 
-def get_zones_with_stations(db) -> List[dict]:
-    """Get climate zones with sufficient station coverage."""
-    result = db.execute(text("""
-        SELECT 
+def get_zones_with_stations(db, zone_id: Optional[int] = None) -> List[dict]:
+    """Get climate zones with sufficient station coverage, optionally filtered by zone_id."""
+    query = """
+        SELECT
             cz.id as zone_id,
             cz.name as zone_name,
             COUNT(DISTINCT ws.station_id) as station_count
         FROM climate_zones cz
         LEFT JOIN weather_stations ws ON ws.zone_id = cz.id AND ws.is_active = true
         WHERE cz.is_active = true
+    """
+    params = {'min_stations': MIN_STATIONS_FOR_ZONE}
+    if zone_id is not None:
+        query += " AND cz.id = :zone_id"
+        params['zone_id'] = zone_id
+    query += """
         GROUP BY cz.id, cz.name
         HAVING COUNT(DISTINCT ws.station_id) >= :min_stations
         ORDER BY cz.name
-    """), {'min_stations': MIN_STATIONS_FOR_ZONE})
-    
+    """
+
+    result = db.execute(text(query), params)
+
     return [
         {
             'zone_id': row[0],
@@ -232,9 +240,10 @@ def run_zone_aggregation(
     target_date: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    zone_id: Optional[int] = None
 ):
-    """Run zone aggregation for specified date(s)."""
+    """Run zone aggregation for specified date(s), optionally filtered to a single zone."""
     
     if target_date:
         dates_to_process = [datetime.strptime(target_date, '%Y-%m-%d').date()]
@@ -247,14 +256,16 @@ def run_zone_aggregation(
     
     logger.info(f"Zone Aggregation: weather_data_daily → climate_zone_daily")
     logger.info(f"Dates: {dates_to_process[0]} to {dates_to_process[-1]} ({len(dates_to_process)} days)")
-    
+    if zone_id is not None:
+        logger.info(f"Zone filter: {zone_id}")
+
     if dry_run:
         logger.info("[DRY RUN MODE]")
-    
+
     db = SessionLocal()
-    
+
     try:
-        zones = get_zones_with_stations(db)
+        zones = get_zones_with_stations(db, zone_id=zone_id)
         logger.info(f"Found {len(zones)} zones with >= {MIN_STATIONS_FOR_ZONE} stations")
         
         for zone in zones:
@@ -296,10 +307,11 @@ def main():
     parser.add_argument('--start', type=str, help='Start date for range')
     parser.add_argument('--end', type=str, help='End date for range')
     parser.add_argument('--dry-run', action='store_true', help='Show without inserting')
-    
+    parser.add_argument('--zone-id', type=int, help='Process only this zone')
+
     args = parser.parse_args()
-    
-    run_zone_aggregation(args.date, args.start, args.end, args.dry_run)
+
+    run_zone_aggregation(args.date, args.start, args.end, args.dry_run, zone_id=args.zone_id)
 
 
 if __name__ == '__main__':

@@ -23,7 +23,8 @@
       "Bash(cd A:/auxein-insights-V0.1 && grep -n \"archive_chain\" backend/services/*.py backend/api/v1/*.py)",
       "Bash(find A:auxein-insights-V0.1/packages/mobile -type f -name *.jsx -o -name *.js -o -name *.ts -o -name *.tsx)",
       "Bash(xargs grep:*)",
-      "Bash(grep -A 30 class.*TaskAsset A:/auxein-insights-V0.1/backend/schemas/task_template.py)"
+      "Bash(grep -A 30 class.*TaskAsset A:/auxein-insights-V0.1/backend/schemas/task_template.py)",
+      "Bash(curl:*)"
     ]
   }
 }
