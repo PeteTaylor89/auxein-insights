@@ -7,18 +7,21 @@ from api.deps import get_db, get_current_user
 from db.models.user import User
 from db.models.observation_run import ObservationRun
 from services.run_completion import complete_run
+from services.property_service import verify_block_access
 
 router = APIRouter(prefix="/api", tags=["observation-runs"])
 
 
 def _verify_run_ownership(db: Session, run_id: int, user: User) -> ObservationRun:
-    """Verify the run belongs to the user's company"""
+    """Verify the run belongs to the user's company and is in their property scope"""
     run = db.query(ObservationRun).filter(
         ObservationRun.id == run_id,
         ObservationRun.company_id == user.company_id
     ).first()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    if user.user_type != "auxein_admin" and run.block_id is not None:
+        verify_block_access(db, user, run.block_id)
     return run
 
 

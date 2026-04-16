@@ -5,10 +5,12 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, func, cast, Integer
+from sqlalchemy import select, and_, or_, func, cast, Integer
 
 # --- deps & utils (adapt imports to your project layout) ---
 from api.deps import get_db, get_current_user
+from db.models.block import VineyardBlock
+from services.property_service import get_visible_property_ids, verify_block_access
 
 from schemas.observations import (
     ObservationTemplateCreate, ObservationTemplateUpdate, ObservationTemplateOut,
@@ -37,6 +39,42 @@ from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 
 router = APIRouter(prefix="/api", tags=["observations"])
+
+
+def build_run_scope_filter(db: Session, user):
+    """
+    Returns a SQLAlchemy WHERE clause restricting ObservationRun queries to
+    blocks in the user's property scope, plus block-less runs.
+    Returns None for auxein_admin (no narrowing).
+    """
+    if user.user_type == "auxein_admin":
+        return None
+
+    visible_property_ids = get_visible_property_ids(db, user)
+    visible_block_ids = [
+        row[0] for row in db.query(VineyardBlock.id).filter(
+            or_(
+                VineyardBlock.property_id.in_(visible_property_ids) if visible_property_ids else False,
+                and_(
+                    VineyardBlock.property_id.is_(None),
+                    VineyardBlock.company_id == user.company_id
+                )
+            )
+        ).all()
+    ]
+
+    if visible_block_ids:
+        return or_(
+            ObservationRun.block_id.in_(visible_block_ids),
+            ObservationRun.block_id.is_(None)
+        )
+    return ObservationRun.block_id.is_(None)
+
+
+def check_run_access(db: Session, user, run):
+    """Verify user can access this run via block scope. Raises 403 on denial."""
+    if user.user_type != "auxein_admin" and run.block_id is not None:
+        verify_block_access(db, user, run.block_id)
 
 
 # -----------------------------
@@ -480,6 +518,9 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
     if not block_id:
         raise HTTPException(status_code=400, detail="block_id is required for a run")
 
+    # Property scope: verify the creator can access the target block
+    verify_block_access(db, user, block_id, require_write=True)
+
     # Handle free-form observations
     template_id = payload.template_id
     is_freeform = False
@@ -592,8 +633,11 @@ def check_run_conflicts(
     q = select(ObservationRun).where(
         ObservationRun.observed_at_end.is_(None),  # Only active runs
     )
-    
+
     q = q.where(ObservationRun.company_id == user.company_id)
+    scope = build_run_scope_filter(db, user)
+    if scope is not None:
+        q = q.where(scope)
     
     if plan_id:
         q = q.where(ObservationRun.plan_id == plan_id)
@@ -628,6 +672,9 @@ def list_runs(
          .options(selectinload(ObservationRun.template))
          )
     q = q.where(ObservationRun.company_id == user.company_id)
+    scope = build_run_scope_filter(db, user)
+    if scope is not None:
+        q = q.where(scope)
     if template_id: q = q.where(ObservationRun.template_id == template_id)
     if plan_id: q = q.where(ObservationRun.plan_id == plan_id)
     if active_only: q = q.where(ObservationRun.observed_at_end.is_(None))
@@ -672,6 +719,7 @@ def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current
         raise HTTPException(status_code=404, detail="Run not found")
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    check_run_access(db, user, run)
     run.plan_name = run.plan.name if run.plan else None
     run.template_name = run.template.name if run.template else None
     if run.creator:
@@ -688,6 +736,7 @@ def update_run(run_id: int, payload: ObservationRunUpdate, db: Session = Depends
         raise HTTPException(status_code=404, detail="Run not found")
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    check_run_access(db, user, run)
     if payload.status is not None:
         # basic state handling; extend as needed
         if payload.status == "completed":
@@ -716,6 +765,7 @@ def complete_run_endpoint(run_id: int, db: Session = Depends(get_db), user=Depen
         raise HTTPException(status_code=404, detail="Run not found")
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    check_run_access(db, user, run)
     # Check if already completed
     if run.observed_at_end:
         raise HTTPException(
@@ -759,6 +809,7 @@ def cancel_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_curr
         raise HTTPException(status_code=404, detail="Run not found")
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    check_run_access(db, user, run)
     if run.observed_at_end:
         raise HTTPException(status_code=400, detail="Run is already completed")
     
@@ -780,6 +831,7 @@ def list_spots(run_id: int, db: Session = Depends(get_db), user=Depends(get_curr
     run = db.get(ObservationRun, run_id)
     if not run or run.company_id != user.company_id:
         raise HTTPException(status_code=404, detail="Run not found")
+    check_run_access(db, user, run)
     rows = db.execute(select(ObservationSpot).where(ObservationSpot.run_id == run_id).order_by(ObservationSpot.created_at.asc())).scalars().all()
     return rows
 
@@ -790,6 +842,7 @@ def add_spot(run_id: int, payload: ObservationSpotCreate, db: Session = Depends(
         raise HTTPException(status_code=404, detail="Run not found")
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    check_run_access(db, user, run)
     gps_geom = None
     if payload.latitude is not None and payload.longitude is not None:
         # Note: lon, lat order for WGS84
@@ -824,6 +877,9 @@ def update_spot(spot_id: int, payload: ObservationSpotUpdate, db: Session = Depe
         raise HTTPException(status_code=404, detail="Spot not found")
     if spot.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    run = db.get(ObservationRun, spot.run_id)
+    if run:
+        check_run_access(db, user, run)
 
     # scalar fields
     if payload.block_id is not None:
@@ -867,6 +923,9 @@ def delete_spot(spot_id: int, db: Session = Depends(get_db), user=Depends(get_cu
         return
     if spot.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    run = db.get(ObservationRun, spot.run_id)
+    if run:
+        check_run_access(db, user, run)
 
     db.delete(spot)
     db.commit()

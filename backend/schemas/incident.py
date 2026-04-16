@@ -101,14 +101,16 @@ class IncidentBase(BaseModel):
 
 class IncidentCreate(IncidentBase):
     company_id: int
+    property_id: Optional[int] = None
 
 class IncidentUpdate(BaseModel):
     incident_title: Optional[str] = None
     incident_description: Optional[str] = None
+    property_id: Optional[int] = None
     incident_type: Optional[IncidentType] = None
     severity: Optional[IncidentSeverity] = None
     category: Optional[IncidentCategory] = None
-    
+
     # Location updates
     location_description: Optional[str] = None
     location: Optional[Point] = None
@@ -189,7 +191,8 @@ class IncidentClosure(BaseModel):
 class IncidentResponse(BaseModel):
     id: int
     company_id: int
-    
+    property_id: Optional[int] = None
+
     # Basic incident info
     incident_number: str
     incident_title: str

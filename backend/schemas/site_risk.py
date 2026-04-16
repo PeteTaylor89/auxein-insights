@@ -79,13 +79,14 @@ class SiteRiskBase(BaseModel):
 
 class SiteRiskCreate(SiteRiskBase):
     company_id: int
+    property_id: Optional[int] = None
 
 class SiteRiskUpdate(BaseModel):
     risk_title: Optional[str] = None
     risk_description: Optional[str] = None
     risk_category: Optional[RiskCategory] = None
     risk_type: Optional[RiskType] = None
-    # Removed block_id - risks are company-wide with their own locations
+    property_id: Optional[int] = None
     
     # Location updates
     location: Optional[Point] = None
@@ -130,7 +131,7 @@ class ResidualRiskUpdate(BaseModel):
 class SiteRiskResponse(BaseModel):
     id: int
     company_id: int
-    # Removed block_id - risks are company-wide with their own locations
+    property_id: Optional[int] = None
     
     # Risk identification
     risk_title: str

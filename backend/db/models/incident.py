@@ -10,7 +10,8 @@ class Incident(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
-    
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
+
     # Incident identification
     incident_number = Column(String(50), unique=False, nullable=False)  # Auto-generated
     incident_title = Column(String(200), nullable=False)
@@ -104,6 +105,7 @@ class Incident(Base):
     
     # Relationships
     company = relationship("Company", back_populates="incidents")
+    assigned_property = relationship("Property", foreign_keys=[property_id])
     reporter = relationship("User", foreign_keys=[reported_by], back_populates="reported_incidents")
     investigator = relationship("User", foreign_keys=[investigator_id], back_populates="investigated_incidents")
     closer = relationship("User", foreign_keys=[closed_by])

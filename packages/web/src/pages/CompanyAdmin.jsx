@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake } from 'lucide-react';
-import { companyAdminService, propertyService, usersService, reportService, blocksService } from '@vineyard/shared';
+import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3 } from 'lucide-react';
+import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
 import ForecastPointPicker from '../components/ForecastPointPicker';
@@ -14,6 +14,7 @@ const TABS = [
   { key: 'users', label: 'Team', icon: Users },
   { key: 'invite', label: 'Invite', icon: UserPlus },
   { key: 'properties', label: 'Properties', icon: MapPinned },
+  { key: 'blocks', label: 'Blocks', icon: Grid3x3 },
   { key: 'relationships', label: 'Relationships', icon: Handshake },
   { key: 'timesheets', label: 'Timesheets', icon: Clock },
   { key: 'training', label: 'Training', icon: GraduationCap },
@@ -71,6 +72,7 @@ function CompanyAdmin() {
           {activeTab === 'users' && <UsersTab />}
           {activeTab === 'invite' && <InviteTab />}
           {activeTab === 'properties' && <PropertiesTab />}
+          {activeTab === 'blocks' && <BlocksTab />}
           {activeTab === 'relationships' && <RelationshipsTab />}
           {activeTab === 'timesheets' && <TimesheetsTab />}
           {activeTab === 'training' && <TrainingTab />}
@@ -582,6 +584,547 @@ function RelationshipsTab() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// TAB: Blocks (block metadata + row management)
+// ============================================================================
+function BlocksTab() {
+  const { userTypeRole } = useAuth();
+  const [blocks, setBlocks] = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [propertyFilter, setPropertyFilter] = useState('all');
+  const [editingBlockId, setEditingBlockId] = useState(null);
+
+  const canManage = userTypeRole === 'company_admin' || userTypeRole === 'auxein_admin';
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [rawBlocks, rawProps] = await Promise.all([
+        blocksService.getCompanyBlocks().catch(() => ({ blocks: [] })),
+        propertyService.listProperties().catch(() => []),
+      ]);
+      const blockList = rawBlocks?.blocks || (Array.isArray(rawBlocks) ? rawBlocks : []);
+      setBlocks(blockList);
+      setProperties(Array.isArray(rawProps) ? rawProps : []);
+    } catch (err) {
+      console.error('Failed to load blocks/properties', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const propertyName = (id) => properties.find(p => p.id === id)?.name || '—';
+
+  const filteredBlocks = blocks.filter(b => {
+    if (propertyFilter === 'unassigned' && b.property_id) return false;
+    if (propertyFilter !== 'all' && propertyFilter !== 'unassigned' && b.property_id !== parseInt(propertyFilter)) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return (b.block_name || '').toLowerCase().includes(q) || (b.variety || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  if (loading) return <p className="ca-loading">Loading blocks...</p>;
+
+  return (
+    <div className="ca-section">
+      <div className="ca-section-header">
+        <h2 className="ca-section-title">Blocks</h2>
+      </div>
+      <p className="ca-section-desc">
+        Edit block details and manage rows. Block geometry is edited via the map.
+      </p>
+
+      <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          className="ca-inline-input"
+          style={{ maxWidth: 240 }}
+          type="text"
+          placeholder="Search name or variety..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          className="ca-inline-input"
+          style={{ maxWidth: 220 }}
+          value={propertyFilter}
+          onChange={e => setPropertyFilter(e.target.value)}
+        >
+          <option value="all">All properties</option>
+          <option value="unassigned">Unassigned</option>
+          {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <span className="ca-muted" style={{ fontSize: 'var(--font-size-sm)' }}>
+          {filteredBlocks.length} of {blocks.length} blocks
+        </span>
+      </div>
+
+      {filteredBlocks.length === 0 ? (
+        <p className="ca-empty">No blocks match your filters.</p>
+      ) : (
+        <table className="ca-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Variety</th>
+              <th>Property</th>
+              <th>Area (ha)</th>
+              <th>Rows</th>
+              {canManage && <th>Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredBlocks.map(b => (
+              <tr key={b.id}>
+                <td style={{ fontWeight: 500 }}>{b.block_name || 'Unnamed'}</td>
+                <td>{b.variety || <span className="ca-muted">—</span>}</td>
+                <td>{b.property_id ? propertyName(b.property_id) : <span className="ca-muted">Unassigned</span>}</td>
+                <td>{b.area ? Number(b.area).toFixed(2) : <span className="ca-muted">—</span>}</td>
+                <td>{b.row_count ?? <span className="ca-muted">—</span>}</td>
+                {canManage && (
+                  <td>
+                    <button className="ca-btn-icon" onClick={() => setEditingBlockId(b.id)} title="Edit block">
+                      <Pencil size={14} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {editingBlockId && (
+        <BlockEditModal
+          blockId={editingBlockId}
+          properties={properties}
+          onClose={() => setEditingBlockId(null)}
+          onSaved={() => { load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// Block Edit Modal — metadata + row management
+// ============================================================================
+const VARIETY_OPTIONS = [
+  'Sauvignon Blanc', 'Pinot Noir', 'Chardonnay', 'Pinot Gris', 'Riesling',
+  'Merlot', 'Syrah', 'Gewürztraminer', 'Cabernet Sauvignon', 'Malbec',
+  'Viognier', 'Cabernet Franc', 'Other',
+];
+const TRAINING_SYSTEMS = ['VSP', 'Scott Henry', 'Lyre', 'Geneva Double Curtain', 'Pergola', 'Gobelet', 'Cordon', 'Cane Pruned', 'Other'];
+
+function BlockEditModal({ blockId, properties, onClose, onSaved }) {
+  const [block, setBlock] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(null);
+  const [error, setError] = useState(null);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const b = await blocksService.getBlockById(blockId);
+      setBlock(b);
+      setForm({
+        block_name: b.block_name || '',
+        variety: b.variety || '',
+        clone: b.clone || '',
+        rootstock: b.rootstock || '',
+        training_system: b.training_system || '',
+        planted_date: b.planted_date?.slice(0, 10) || '',
+        removed_date: b.removed_date?.slice(0, 10) || '',
+        row_spacing: b.row_spacing ?? '',
+        vine_spacing: b.vine_spacing ?? '',
+        swnz: !!b.swnz,
+        organic: !!b.organic,
+        biodynamic: !!b.biodynamic,
+        regenerative: !!b.regenerative,
+        property_id: b.property_id ?? '',
+      });
+      try {
+        const r = await vineyardRowsService.getRowsByBlock(blockId);
+        setRows(Array.isArray(r) ? r : []);
+      } catch {
+        setRows([]);
+      }
+    } catch (err) {
+      console.error('Failed to load block', err);
+      setError('Failed to load block details');
+    } finally {
+      setLoading(false);
+    }
+  }, [blockId]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const handleChange = (field) => (e) => {
+    const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm(f => ({ ...f, [field]: val }));
+  };
+
+  const handleSaveBlock = async (e) => {
+    e?.preventDefault?.();
+    if (!form.block_name.trim()) { setError('Block name is required'); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await blocksService.updateBlock(blockId, {
+        block_name: form.block_name.trim(),
+        variety: form.variety || null,
+        clone: form.clone || null,
+        rootstock: form.rootstock || null,
+        training_system: form.training_system || null,
+        planted_date: form.planted_date || null,
+        removed_date: form.removed_date || null,
+        row_spacing: form.row_spacing ? parseFloat(form.row_spacing) : null,
+        vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
+        swnz: form.swnz,
+        organic: form.organic,
+        biodynamic: form.biodynamic,
+        regenerative: form.regenerative,
+        property_id: form.property_id ? parseInt(form.property_id) : null,
+      });
+      onSaved?.();
+      await loadAll();
+    } catch (err) {
+      console.error('Save block failed', err);
+      setError(err?.response?.data?.detail || err.message || 'Failed to save block');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAllRows = async () => {
+    if (!window.confirm(`Delete all ${rows.length} rows for this block?`)) return;
+    try {
+      await vineyardRowsService.deleteAllRowsByBlock(blockId);
+      setRows([]);
+      onSaved?.();
+    } catch (err) {
+      console.error('Delete rows failed', err);
+      alert(err?.response?.data?.detail || 'Failed to delete rows');
+    }
+  };
+
+  return (
+    <div className="ca-modal-backdrop" onClick={onClose}>
+      <div className="ca-modal" onClick={e => e.stopPropagation()}>
+        <div className="ca-modal-header">
+          <h3 className="ca-section-title" style={{ margin: 0 }}>Edit Block</h3>
+          <button className="ca-btn-icon" onClick={onClose} title="Close"><X size={16} /></button>
+        </div>
+        <div className="ca-modal-body">
+          {loading && <p className="ca-loading">Loading...</p>}
+          {error && <div className="ca-form-error">{error}</div>}
+          {!loading && form && (
+            <>
+              <form onSubmit={handleSaveBlock}>
+                <h4 className="ca-section-title" style={{ fontSize: 'var(--font-size-md)', marginBottom: 'var(--space-sm)' }}>Details</h4>
+                <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                  <div>
+                    <label className="ca-inline-label">Name *</label>
+                    <input className="ca-inline-input" value={form.block_name} onChange={handleChange('block_name')} required />
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Property</label>
+                    <select className="ca-inline-input" value={form.property_id} onChange={handleChange('property_id')}>
+                      <option value="">Unassigned</option>
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Variety</label>
+                    <input className="ca-inline-input" list="block-variety-options" value={form.variety} onChange={handleChange('variety')} />
+                    <datalist id="block-variety-options">
+                      {VARIETY_OPTIONS.map(v => <option key={v} value={v} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Clone</label>
+                    <input className="ca-inline-input" value={form.clone} onChange={handleChange('clone')} />
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Rootstock</label>
+                    <input className="ca-inline-input" value={form.rootstock} onChange={handleChange('rootstock')} />
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Training System</label>
+                    <select className="ca-inline-input" value={form.training_system} onChange={handleChange('training_system')}>
+                      <option value="">Select...</option>
+                      {TRAINING_SYSTEMS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Planted Date</label>
+                    <input className="ca-inline-input" type="date" value={form.planted_date} onChange={handleChange('planted_date')} />
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Removed Date</label>
+                    <input className="ca-inline-input" type="date" value={form.removed_date} onChange={handleChange('removed_date')} />
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Row Spacing (m)</label>
+                    <input className="ca-inline-input" type="number" step="0.1" value={form.row_spacing} onChange={handleChange('row_spacing')} />
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Vine Spacing (m)</label>
+                    <input className="ca-inline-input" type="number" step="0.1" value={form.vine_spacing} onChange={handleChange('vine_spacing')} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
+                  {['swnz', 'organic', 'biodynamic', 'regenerative'].map(cert => (
+                    <label key={cert} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)', fontSize: 'var(--font-size-sm)' }}>
+                      <input type="checkbox" checked={form[cert]} onChange={handleChange(cert)} />
+                      {cert.toUpperCase()}
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-base)' }}>
+                  <button type="submit" className="ca-btn-primary" disabled={saving}>
+                    <Save size={14} /> {saving ? 'Saving...' : 'Save Block'}
+                  </button>
+                </div>
+              </form>
+
+              <hr style={{ margin: 'var(--space-lg) 0', border: 0, borderTop: '1px solid var(--color-border)' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+                <h4 className="ca-section-title" style={{ fontSize: 'var(--font-size-md)', margin: 0 }}>
+                  <Rows3 size={16} style={{ verticalAlign: 'middle', marginRight: 'var(--space-xs)' }} />
+                  Rows ({rows.length})
+                </h4>
+                {rows.length > 0 && (
+                  <button className="ca-btn-icon" onClick={handleDeleteAllRows} title="Delete all rows">
+                    <Trash2 size={14} /> Delete All
+                  </button>
+                )}
+              </div>
+
+              {rows.length === 0 ? (
+                <BulkRowCreate blockId={blockId} block={block} onCreated={loadAll} />
+              ) : (
+                <RowsTable rows={rows} onChange={loadAll} />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkRowCreate({ blockId, block, onCreated }) {
+  const [form, setForm] = useState({
+    row_start: block?.row_start || '1',
+    row_end: block?.row_end || '',
+    row_count: block?.row_count || '',
+    variety: block?.variety || '',
+    clone: block?.clone || '',
+    rootstock: block?.rootstock || '',
+    vine_spacing: block?.vine_spacing ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr(null);
+    const count = parseInt(form.row_count);
+    if (!form.row_start || !form.row_end || !count || count < 1) {
+      setErr('Row start, end and count are all required'); return;
+    }
+    setSaving(true);
+    try {
+      await vineyardRowsService.bulkCreateRows({
+        block_id: blockId,
+        row_start: String(form.row_start),
+        row_end: String(form.row_end),
+        row_count: count,
+        variety: form.variety || null,
+        clone: form.clone || null,
+        rootstock: form.rootstock || null,
+        vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
+      });
+      await onCreated();
+    } catch (e) {
+      console.error('Bulk create failed', e);
+      setErr(e?.response?.data?.detail || 'Failed to create rows');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} style={{ padding: 'var(--space-base)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-md)' }}>
+      <p className="ca-section-desc" style={{ marginBottom: 'var(--space-md)' }}>
+        No rows yet. Create a range (e.g. 1–20, or A–J) and the rows will be generated with the defaults below.
+      </p>
+      {err && <div className="ca-form-error" style={{ marginBottom: 'var(--space-sm)' }}>{err}</div>}
+      <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+        <div>
+          <label className="ca-inline-label">Row Start *</label>
+          <input className="ca-inline-input" value={form.row_start} onChange={handle('row_start')} placeholder="1 or A" required />
+        </div>
+        <div>
+          <label className="ca-inline-label">Row End *</label>
+          <input className="ca-inline-input" value={form.row_end} onChange={handle('row_end')} placeholder="20 or J" required />
+        </div>
+        <div>
+          <label className="ca-inline-label">Row Count *</label>
+          <input className="ca-inline-input" type="number" min="1" value={form.row_count} onChange={handle('row_count')} required />
+        </div>
+        <div>
+          <label className="ca-inline-label">Variety</label>
+          <input className="ca-inline-input" value={form.variety} onChange={handle('variety')} />
+        </div>
+        <div>
+          <label className="ca-inline-label">Clone</label>
+          <input className="ca-inline-input" value={form.clone} onChange={handle('clone')} />
+        </div>
+        <div>
+          <label className="ca-inline-label">Rootstock</label>
+          <input className="ca-inline-input" value={form.rootstock} onChange={handle('rootstock')} />
+        </div>
+        <div>
+          <label className="ca-inline-label">Vine Spacing (m)</label>
+          <input className="ca-inline-input" type="number" step="0.1" value={form.vine_spacing} onChange={handle('vine_spacing')} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-base)' }}>
+        <button type="submit" className="ca-btn-primary" disabled={saving}>
+          <Plus size={14} /> {saving ? 'Creating...' : 'Create Rows'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function RowsTable({ rows, onChange }) {
+  const [editingRowId, setEditingRowId] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (r) => {
+    setEditingRowId(r.id);
+    setForm({
+      row_number: r.row_number ?? '',
+      variety: r.variety || '',
+      clone: r.clone || '',
+      rootstock: r.rootstock || '',
+      row_length: r.row_length ?? '',
+      vine_spacing: r.vine_spacing ?? '',
+    });
+  };
+  const cancel = () => { setEditingRowId(null); setForm({}); };
+
+  const save = async (id) => {
+    setSaving(true);
+    try {
+      await vineyardRowsService.updateRow(id, {
+        row_number: String(form.row_number),
+        variety: form.variety || null,
+        clone: form.clone || null,
+        rootstock: form.rootstock || null,
+        row_length: form.row_length ? parseFloat(form.row_length) : null,
+        vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
+      });
+      await onChange();
+      cancel();
+    } catch (e) {
+      console.error('Row save failed', e);
+      alert(e?.response?.data?.detail || 'Failed to save row');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm('Delete this row?')) return;
+    try {
+      await vineyardRowsService.deleteRow(id);
+      await onChange();
+    } catch (e) {
+      console.error('Row delete failed', e);
+      alert(e?.response?.data?.detail || 'Failed to delete row');
+    }
+  };
+
+  const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  return (
+    <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+      <table className="ca-table">
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Variety</th>
+            <th>Clone</th>
+            <th>Rootstock</th>
+            <th>Length (m)</th>
+            <th>Vine Spacing</th>
+            <th>Vines</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const isEditing = editingRowId === r.id;
+            return (
+              <tr key={r.id}>
+                {isEditing ? (
+                  <>
+                    <td><input className="ca-inline-input" value={form.row_number} onChange={handle('row_number')} /></td>
+                    <td><input className="ca-inline-input" value={form.variety} onChange={handle('variety')} /></td>
+                    <td><input className="ca-inline-input" value={form.clone} onChange={handle('clone')} /></td>
+                    <td><input className="ca-inline-input" value={form.rootstock} onChange={handle('rootstock')} /></td>
+                    <td><input className="ca-inline-input" type="number" step="0.1" value={form.row_length} onChange={handle('row_length')} /></td>
+                    <td><input className="ca-inline-input" type="number" step="0.1" value={form.vine_spacing} onChange={handle('vine_spacing')} /></td>
+                    <td>{r.vine_count ?? '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="ca-btn-icon" onClick={() => save(r.id)} disabled={saving} title="Save"><Save size={14} /></button>
+                      <button className="ca-btn-icon" onClick={cancel} title="Cancel"><X size={14} /></button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={{ fontWeight: 500 }}>{r.row_number}</td>
+                    <td>{r.variety || <span className="ca-muted">—</span>}</td>
+                    <td>{r.clone || <span className="ca-muted">—</span>}</td>
+                    <td>{r.rootstock || <span className="ca-muted">—</span>}</td>
+                    <td>{r.row_length ?? <span className="ca-muted">—</span>}</td>
+                    <td>{r.vine_spacing ?? <span className="ca-muted">—</span>}</td>
+                    <td>{r.vine_count ?? <span className="ca-muted">—</span>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="ca-btn-icon" onClick={() => startEdit(r)} title="Edit"><Pencil size={14} /></button>
+                      <button className="ca-btn-icon" onClick={() => remove(r.id)} title="Delete"><Trash2 size={14} /></button>
+                    </td>
+                  </>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

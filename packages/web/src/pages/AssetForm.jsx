@@ -12,7 +12,7 @@ import {
   Wrench,
   Calendar
 } from 'lucide-react';
-import { assetService, authService } from '@vineyard/shared';
+import { assetService, authService, propertyService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import CalibrationInlineManager from '../components/CalibrationInlineManager';
 import MaintenanceTable from '../components/MaintenanceTable';
@@ -39,8 +39,9 @@ export default function AssetForm() {
     maintenance_interval_days: '', maintenance_interval_hours: '',
     current_hours: '', current_kilometers: '', insurance_expiry: '',
     wof_due: '', registration_expiry: '', fuel_type: '',
-    fuel_efficiency_standard: ''
+    fuel_efficiency_standard: '', property_id: ''
   });
+  const [properties, setProperties] = useState([]);
 
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
@@ -62,6 +63,7 @@ export default function AssetForm() {
   }, []);
 
   useEffect(() => {
+    propertyService.listProperties().then(res => setProperties(Array.isArray(res) ? res : [])).catch(() => setProperties([]));
     if (isEditMode) loadAsset();
   }, [id]);
 
@@ -95,7 +97,8 @@ export default function AssetForm() {
         wof_due: asset.wof_due || '',
         registration_expiry: asset.registration_expiry || '',
         fuel_type: asset.fuel_type || '',
-        fuel_efficiency_standard: asset.fuel_efficiency_standard || ''
+        fuel_efficiency_standard: asset.fuel_efficiency_standard || '',
+        property_id: asset.property_id ?? ''
       });
       if (asset.id) {
         const [photoFiles, docFiles] = await Promise.all([
@@ -129,6 +132,7 @@ export default function AssetForm() {
 
       const payload = sanitizePayload({
         ...formData,
+        property_id: formData.property_id ? Number(formData.property_id) : null,
         year_manufactured: formData.year_manufactured ? Number(formData.year_manufactured) : null,
         purchase_price: formData.purchase_price ? Number(formData.purchase_price) : null,
         current_value: formData.current_value ? Number(formData.current_value) : null,
@@ -305,6 +309,12 @@ export default function AssetForm() {
                 <FormField label="Status">
                   <select className="af-select" value={formData.status} onChange={(e) => handleChange('status', e.target.value)}>
                     {statusOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="Property">
+                  <select className="af-select" value={formData.property_id} onChange={(e) => handleChange('property_id', e.target.value)}>
+                    <option value="">Company-wide</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </FormField>
               </div>

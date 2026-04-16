@@ -105,6 +105,7 @@ class AssetBase(BaseModel):
 
 class AssetCreate(AssetBase):
     asset_number: str
+    property_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     location_geojson: Optional[Dict[str, Any]] = None  # GeoJSON for lines/polygons
@@ -118,6 +119,7 @@ class AssetCreate(AssetBase):
 class AssetUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    property_id: Optional[int] = None
     category: Optional[AssetCategory] = None
     subcategory: Optional[str] = None
     make: Optional[str] = None
@@ -165,6 +167,7 @@ class AssetUpdate(BaseModel):
 class AssetResponse(AssetBase):
     id: int
     company_id: int
+    property_id: Optional[int] = None
     asset_number: str
     current_hours: Optional[Decimal] = None
     current_kilometers: Optional[Decimal] = None

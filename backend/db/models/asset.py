@@ -20,6 +20,7 @@ class Asset(Base):
     # Core identification
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
     asset_number = Column(String(50), nullable=False)  # Company-specific asset ID
     name = Column(String(100), nullable=False)
     description = Column(Text)
@@ -107,6 +108,7 @@ class Asset(Base):
     
     # Relationships
     company = relationship("Company", back_populates="assets")
+    assigned_property = relationship("Property", foreign_keys=[property_id])
     maintenance_records = relationship("AssetMaintenance", back_populates="asset", cascade="all, delete-orphan")
     calibration_records = relationship("AssetCalibration", back_populates="asset", cascade="all, delete-orphan")
     stock_movements = relationship("StockMovement", back_populates="asset", cascade="all, delete-orphan")

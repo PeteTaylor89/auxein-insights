@@ -22,6 +22,7 @@ from db.models.vineyard_row import VineyardRow
 from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration
 from db.models.risk_action import RiskAction
 from services.gps_processing import process_gps_track
+from services.property_service import get_visible_property_ids, verify_block_access
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -65,16 +66,54 @@ router = APIRouter()
 # ============================================================================
 
 def generate_task_number(db: Session, company_id: int) -> str:
-    """Generate unique task number: TASK-2025-001"""
+    """Generate unique task number: TASK-{year}-C{company_id}-{seq}.
+    company_id is embedded so numbers stay unique under the global
+    unique constraint on task_number."""
     year = datetime.now().year
-    
-    # Get count of tasks for this company this year
+    prefix = f"TASK-{year}-C{company_id}-"
+
+    # Count existing tasks for this company in this year, retry on collision
     count = db.query(func.count(Task.id)).filter(
         Task.company_id == company_id,
         func.extract('year', Task.created_at) == year
     ).scalar() or 0
-    
-    return f"TASK-{year}-{count + 1:03d}"
+
+    # Walk forward until we find a number that isn't taken (handles deleted-then-recreated gaps)
+    seq = count + 1
+    while db.query(Task.id).filter(Task.task_number == f"{prefix}{seq:03d}").first():
+        seq += 1
+
+    return f"{prefix}{seq:03d}"
+
+
+def build_task_scope_filter(db: Session, user: User):
+    """
+    Returns a SQLAlchemy filter restricting Task queries to blocks within the
+    user's property scope, plus block-less (company-wide) tasks.
+    Returns None for auxein_admin (no narrowing).
+    """
+    if user.user_type == "auxein_admin":
+        return None
+
+    visible_property_ids = get_visible_property_ids(db, user)
+    visible_block_ids = [
+        row[0] for row in db.query(VineyardBlock.id).filter(
+            or_(
+                VineyardBlock.property_id.in_(visible_property_ids) if visible_property_ids else False,
+                and_(
+                    VineyardBlock.property_id.is_(None),
+                    VineyardBlock.company_id == user.company_id
+                )
+            )
+        ).all()
+    ]
+
+    if visible_block_ids:
+        return or_(
+            Task.block_id.in_(visible_block_ids),
+            Task.block_id.is_(None)
+        )
+    return Task.block_id.is_(None)
 
 
 def check_task_access(db: Session, task_id: int, user: User) -> Task:
@@ -89,6 +128,11 @@ def check_task_access(db: Session, task_id: int, user: User) -> Task:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
+
+    # Property scope: task tied to a block must have block in user's scope.
+    # Block-less tasks are company-wide (visible to all company users).
+    if user.user_type != "auxein_admin" and task.block_id is not None:
+        verify_block_access(db, user, task.block_id)
 
     return task
 
@@ -291,16 +335,21 @@ def create_task(
     if task_data.template_id:
         template = check_template_access(db, task_data.template_id, current_user)
         template_defaults = template.to_task_defaults()
-    
+
     # Generate task number
     task_number = generate_task_number(db, current_user.company_id)
-    
+
     # Merge template defaults with provided data (provided data takes precedence)
     task_dict = task_data.model_dump(exclude_unset=True)
     for key, value in template_defaults.items():
         if key not in task_dict or task_dict[key] is None:
             task_dict[key] = value
-    
+
+    # Property scope: verify the creator can access the chosen block
+    target_block_id = task_dict.get('block_id')
+    if target_block_id is not None:
+        verify_block_access(db, current_user, target_block_id, require_write=True)
+
     # Auto-schedule if a start date is provided
     initial_status = TaskStatus.scheduled if task_dict.get('scheduled_start_date') else TaskStatus.draft
 
@@ -352,6 +401,11 @@ def quick_create_task(
     # Remove keys set explicitly below to avoid duplicate keyword args
     for k in ('company_id', 'template_id', 'task_number', 'created_by', 'status'):
         template_defaults.pop(k, None)
+
+    # Property scope: verify the creator can access the chosen block
+    target_block_id = template_defaults.get('block_id')
+    if target_block_id is not None:
+        verify_block_access(db, current_user, target_block_id, require_write=True)
 
     # Create task
     task = Task(
@@ -423,6 +477,9 @@ def _build_unified_feed(db, current_user, days_ahead, include_completed):
         TaskAssignment.user_id == current_user.id,
         Task.company_id == company_id,
     )
+    scope_filter = build_task_scope_filter(db, current_user)
+    if scope_filter is not None:
+        task_query = task_query.filter(scope_filter)
     if not include_completed:
         task_query = task_query.filter(Task.status.notin_([TaskStatus.completed, TaskStatus.cancelled]))
 
@@ -565,7 +622,10 @@ def list_tasks(
     query = db.query(Task).filter(
         Task.company_id == current_user.company_id
     )
-    
+    scope_filter = build_task_scope_filter(db, current_user)
+    if scope_filter is not None:
+        query = query.filter(scope_filter)
+
     # Apply filters
     if status:
         query = query.filter(Task.status == status)
@@ -631,13 +691,17 @@ def get_task(
         Task.id == task_id,
         Task.company_id == current_user.company_id
     ).first()
-    
+
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
-    
+
+    # Property scope check
+    if current_user.user_type != "auxein_admin" and task.block_id is not None:
+        verify_block_access(db, current_user, task.block_id)
+
     # Add computed fields
     task.assignment_count = len(task.assignments)
     task.assignee_names = [a.user.full_name for a in task.assignments if a.user]
@@ -2216,6 +2280,9 @@ def get_my_tasks(
         TaskAssignment.user_id == current_user.id,
         Task.company_id == current_user.company_id
     )
+    scope_filter = build_task_scope_filter(db, current_user)
+    if scope_filter is not None:
+        query = query.filter(scope_filter)
     
     # Filter by status (supports comma-separated values)
     if status:
@@ -2246,11 +2313,15 @@ def get_tasks_calendar(
     current_user: User = Depends(get_current_user)
 ):
     """Get tasks formatted for calendar view"""
-    tasks = db.query(Task).filter(
+    query = db.query(Task).filter(
         Task.company_id == current_user.company_id,
         Task.scheduled_start_date >= start_date,
         Task.scheduled_start_date <= end_date
-    ).all()
+    )
+    scope_filter = build_task_scope_filter(db, current_user)
+    if scope_filter is not None:
+        query = query.filter(scope_filter)
+    tasks = query.all()
     
     events = []
     for task in tasks:
@@ -2296,50 +2367,49 @@ def get_task_stats(
     current_user: User = Depends(get_current_user)
 ):
     """Get task statistics for dashboard"""
+    scope_filter = build_task_scope_filter(db, current_user)
+
+    def _base_filters(*extra):
+        filters = [Task.company_id == current_user.company_id, *extra]
+        if scope_filter is not None:
+            filters.append(scope_filter)
+        return and_(*filters)
+
     # Total tasks
-    total_tasks = db.query(func.count(Task.id)).filter(
-        Task.company_id == current_user.company_id
-    ).scalar()
-    
+    total_tasks = db.query(func.count(Task.id)).filter(_base_filters()).scalar()
+
     # Tasks by status
     status_counts = db.query(
         Task.status,
         func.count(Task.id)
-    ).filter(
-        Task.company_id == current_user.company_id
-    ).group_by(Task.status).all()
-    
+    ).filter(_base_filters()).group_by(Task.status).all()
+
     by_status = {status: count for status, count in status_counts}
-    
+
     # Tasks by category
     category_counts = db.query(
         Task.task_category,
         func.count(Task.id)
-    ).filter(
-        Task.company_id == current_user.company_id
-    ).group_by(Task.task_category).all()
-    
+    ).filter(_base_filters()).group_by(Task.task_category).all()
+
     by_category = {category: count for category, count in category_counts}
-    
+
     # Tasks by priority
     priority_counts = db.query(
         Task.priority,
         func.count(Task.id)
-    ).filter(
-        Task.company_id == current_user.company_id
-    ).group_by(Task.priority).all()
-    
+    ).filter(_base_filters()).group_by(Task.priority).all()
+
     by_priority = {priority: count for priority, count in priority_counts}
-    
+
     # Time statistics
     total_hours = db.query(func.sum(Task.actual_hours)).filter(
-        Task.company_id == current_user.company_id
+        _base_filters()
     ).scalar() or Decimal("0")
-    
+
     # Completed tasks
     completed_tasks = db.query(Task).filter(
-        Task.company_id == current_user.company_id,
-        Task.status == TaskStatus.completed
+        _base_filters(Task.status == TaskStatus.completed)
     ).all()
     
     avg_completion_time = None
@@ -2356,31 +2426,35 @@ def get_task_stats(
     # On-time vs overdue
     today = date.today()
     tasks_overdue = db.query(func.count(Task.id)).filter(
-        Task.company_id == current_user.company_id,
-        Task.status.in_([TaskStatus.scheduled, TaskStatus.in_progress]),
-        Task.scheduled_start_date < today
+        _base_filters(
+            Task.status.in_([TaskStatus.scheduled, TaskStatus.in_progress]),
+            Task.scheduled_start_date < today,
+        )
     ).scalar() or 0
-    
+
     tasks_on_time = db.query(func.count(Task.id)).filter(
-        Task.company_id == current_user.company_id,
-        Task.status.in_([TaskStatus.scheduled, TaskStatus.in_progress]),
-        Task.scheduled_start_date >= today
+        _base_filters(
+            Task.status.in_([TaskStatus.scheduled, TaskStatus.in_progress]),
+            Task.scheduled_start_date >= today,
+        )
     ).scalar() or 0
-    
+
     # Completed this week
     week_start = today - timedelta(days=today.weekday())
     tasks_completed_this_week = db.query(func.count(Task.id)).filter(
-        Task.company_id == current_user.company_id,
-        Task.status == TaskStatus.completed,
-        Task.completed_at >= week_start
+        _base_filters(
+            Task.status == TaskStatus.completed,
+            Task.completed_at >= week_start,
+        )
     ).scalar() or 0
-    
+
     # Completed this month
     month_start = today.replace(day=1)
     tasks_completed_this_month = db.query(func.count(Task.id)).filter(
-        Task.company_id == current_user.company_id,
-        Task.status == TaskStatus.completed,
-        Task.completed_at >= month_start
+        _base_filters(
+            Task.status == TaskStatus.completed,
+            Task.completed_at >= month_start,
+        )
     ).scalar() or 0
     
     return TaskStatsResponse(

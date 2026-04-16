@@ -74,14 +74,16 @@ def verify_block_access(
     if current_user.user_type == "auxein_admin":
         return block
 
-    # Check access via property path or legacy company_id
+    # Property-scoped: must be in user's visible properties.
+    # Legacy fallback (company_id match) only applies when block has no property_id.
     has_access = False
     if block.property_id:
         visible_ids = get_visible_property_ids(db, current_user)
         if block.property_id in visible_ids:
             has_access = True
-    if not has_access and block.company_id == current_user.company_id:
-        has_access = True
+    else:
+        if block.company_id == current_user.company_id:
+            has_access = True
 
     if not has_access:
         raise HTTPException(status_code=403, detail="Access denied")

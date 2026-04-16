@@ -16,9 +16,38 @@ from schemas.asset import (
     MaintenanceDue, CalibrationDue, ComplianceAlert, StockAlert, CertificationScheme
 )
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
+from services.property_service import get_visible_property_ids
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def check_asset_scope(db: Session, user, asset):
+    """Verify user can access this asset via property scope. Raises 403 on denial."""
+    if user.user_type == "auxein_admin":
+        return
+    if asset.property_id is not None:
+        visible = get_visible_property_ids(db, user)
+        if asset.property_id not in visible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+
+def build_asset_scope_filter(db: Session, user):
+    """
+    Returns a SQLAlchemy filter restricting Asset queries to the user's property
+    scope, plus company-wide (NULL property_id) assets.
+    Returns None for auxein_admin (no narrowing).
+    """
+    if user.user_type == "auxein_admin":
+        return None
+
+    visible_property_ids = get_visible_property_ids(db, user)
+    if visible_property_ids:
+        return or_(
+            Asset.property_id.in_(visible_property_ids),
+            Asset.property_id.is_(None)
+        )
+    return Asset.property_id.is_(None)
 
 @router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
@@ -47,6 +76,12 @@ def create_asset(
             detail="Asset number already exists for this company"
         )
     
+    # Validate property_id if set — must be in user's visible scope
+    if asset_in.property_id is not None:
+        visible = get_visible_property_ids(db, current_user)
+        if asset_in.property_id not in visible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Property not accessible")
+
     # Create asset — extract spatial fields before passing to ORM
     asset_data = asset_in.dict(exclude={'latitude', 'longitude', 'location_geojson'})
     asset = Asset(
@@ -105,7 +140,13 @@ def list_assets(
     # Filter by company for regular users
     if company_id:
         query = query.filter(Asset.company_id == company_id)
-    
+
+    # Property scope filter (only for User type, not Contractor)
+    if isinstance(current_user_or_contractor, User):
+        scope = build_asset_scope_filter(db, current_user_or_contractor)
+        if scope is not None:
+            query = query.filter(scope)
+
     # Apply filters
     if category:
         query = query.filter(Asset.category == category)
@@ -159,6 +200,9 @@ def get_assets_geojson(
         Asset.is_active == True,
         or_(Asset.location_point.isnot(None), Asset.location_geometry.isnot(None))
     )
+    scope = build_asset_scope_filter(db, current_user)
+    if scope is not None:
+        query = query.filter(scope)
     if category:
         query = query.filter(Asset.category == category)
 
@@ -206,14 +250,20 @@ def get_assets_summary(
         company_id = None
     
     query = db.query(Asset).filter(Asset.is_active == True)
-    
+
     if company_id:
         query = query.filter(Asset.company_id == company_id)
+
+    if isinstance(current_user_or_contractor, User):
+        scope = build_asset_scope_filter(db, current_user_or_contractor)
+        if scope is not None:
+            query = query.filter(scope)
+
     if category:
         query = query.filter(Asset.category == category)
     if asset_type:
         query = query.filter(Asset.asset_type == asset_type)
-    
+
     assets = query.all()
     return assets
 
@@ -437,6 +487,7 @@ def get_asset(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
             )
+        check_asset_scope(db, user, asset)
 
     if asset.requires_calibration and asset.calibration_interval_days:
         latest_calibration = db.query(AssetCalibration).filter(
@@ -539,7 +590,15 @@ def update_asset(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    
+    check_asset_scope(db, current_user, asset)
+
+    # Validate new property_id if being changed
+    update_data_check = asset_update.dict(exclude_unset=True)
+    if 'property_id' in update_data_check and update_data_check['property_id'] is not None:
+        visible = get_visible_property_ids(db, current_user)
+        if update_data_check['property_id'] not in visible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Target property not accessible")
+
     # Update asset attributes — handle spatial fields separately
     update_data = asset_update.dict(exclude_unset=True)
     lat = update_data.pop('latitude', None)
@@ -586,7 +645,8 @@ def delete_asset(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    
+    check_asset_scope(db, current_user, asset)
+
     # Soft delete
     asset.is_active = False
     asset.status = "disposed"

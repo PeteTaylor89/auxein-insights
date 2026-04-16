@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { riskManagementService } from '@vineyard/shared';
+import { riskManagementService, propertyService } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
 import MobileNavigation from '../components/MobileNavigation';
 import './RiskManagement.css';
@@ -21,6 +21,7 @@ function CreateRisk() {
   const [riskLocation, setRiskLocation] = useState(null);
   const [relatedActions, setRelatedActions] = useState([]);
   const [loadingActions, setLoadingActions] = useState(false);
+  const [properties, setProperties] = useState([]);
 
   const [formData, setFormData] = useState(() => {
     if (editMode && existingRiskData) {
@@ -33,14 +34,15 @@ function CreateRisk() {
         location_description: existingRiskData.location_description || '',
         potential_consequences: existingRiskData.potential_consequences || '', existing_controls: existingRiskData.existing_controls || '',
         regulatory_requirements: existingRiskData.regulatory_requirements || '',
-        owner_id: existingRiskData.owner_id || '', review_frequency_days: existingRiskData.review_frequency_days || 365
+        owner_id: existingRiskData.owner_id || '', review_frequency_days: existingRiskData.review_frequency_days || 365,
+        property_id: existingRiskData.property_id ?? ''
       };
     }
     return {
       risk_title: '', risk_description: '', risk_category: '', risk_type: '',
       inherent_likelihood: 1, inherent_severity: 1, residual_likelihood: 1, residual_severity: 1,
       location_description: '', potential_consequences: '', existing_controls: '',
-      regulatory_requirements: '', owner_id: '', review_frequency_days: 365
+      regulatory_requirements: '', owner_id: '', review_frequency_days: 365, property_id: ''
     };
   });
 
@@ -73,6 +75,7 @@ function CreateRisk() {
 
   useEffect(() => {
     document.body.classList.add("primary-bg");
+    propertyService.listProperties().then(res => setProperties(Array.isArray(res) ? res : [])).catch(() => setProperties([]));
     if (editMode && existingRiskData) {
       if (existingRiskData.location) setRiskLocation(existingRiskData.location);
       else if (existingRiskData.area) setRiskLocation(existingRiskData.area);
@@ -140,6 +143,7 @@ function CreateRisk() {
     try {
       const cleanedData = {
         ...formData, company_id: user.company_id,
+        property_id: formData.property_id ? Number(formData.property_id) : null,
         owner_id: formData.owner_id || null, regulatory_requirements: formData.regulatory_requirements || null,
         existing_controls: formData.existing_controls || null, potential_consequences: formData.potential_consequences || null,
         location_description: formData.location_description || null,
@@ -283,6 +287,14 @@ function CreateRisk() {
               </select>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>Types identify the kind of impact risks might have</div>
             </div>
+          </div>
+
+          <div style={{ marginBottom: 'var(--space-base)' }}>
+            <label className="rm-field-label">Property <span className="rm-required">*</span></label>
+            <select className="rm-select" name="property_id" value={formData.property_id} onChange={handleChange} required>
+              <option value="">Select Property</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
 
           {/* Location */}

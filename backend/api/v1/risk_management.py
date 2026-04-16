@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from db.models.user import User
 from api.deps import get_db, get_current_user
+from services.property_service import get_visible_property_ids
 
 # New risk management imports
 from db.models.site_risk import SiteRisk
@@ -81,6 +82,37 @@ def convert_location_data(location_data, field_name="location"):
         logger.error(f"Error converting {field_name} data: {e}, data: {location_data}")
         return None
 
+def _property_scope_filter(model, db, user):
+    """Build property scope filter for SiteRisk or Incident. Returns None for admin."""
+    if user.user_type == "auxein_admin":
+        return None
+    visible = get_visible_property_ids(db, user)
+    if visible:
+        return or_(model.property_id.in_(visible), model.property_id.is_(None))
+    return model.property_id.is_(None)
+
+
+def _check_property_scope(db, user, entity):
+    """Verify user can access an entity via its property_id. Raises 403."""
+    if user.user_type == "auxein_admin":
+        return
+    if entity.property_id is not None:
+        visible = get_visible_property_ids(db, user)
+        if entity.property_id not in visible:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+
+def _validate_property_id(db, user, property_id):
+    """Validate a property_id assignment. Non-admin must have property in scope."""
+    if property_id is None:
+        if user.user_type not in ("auxein_admin", "company_admin"):
+            raise HTTPException(status_code=403, detail="Only admins can create company-wide items")
+        return
+    visible = get_visible_property_ids(db, user)
+    if property_id not in visible:
+        raise HTTPException(status_code=403, detail="Property not accessible")
+
+
 # ===== SITE RISKS ENDPOINTS =====
 
 @router.get("/risk-management/risks/", response_model=List[SiteRiskSummary])
@@ -95,7 +127,10 @@ def get_company_risks(
 ):
     """Get all risks for the current user's company"""
     query = db.query(SiteRisk).filter(SiteRisk.company_id == current_user.company_id)
-    
+    scope = _property_scope_filter(SiteRisk, db, current_user)
+    if scope is not None:
+        query = query.filter(scope)
+
     if risk_type:
         query = query.filter(SiteRisk.risk_type == risk_type)
     if risk_level:
@@ -115,7 +150,9 @@ def create_risk(
     """Create a new site risk"""
     if not RiskPermissions.can_create_risk(current_user):
         raise HTTPException(status_code=403, detail="Insufficient permissions to create risks")
-    
+
+    _validate_property_id(db, current_user, risk_data.property_id)
+
     try:
         # Prepare risk data
         risk_dict = risk_data.dict()
@@ -186,7 +223,8 @@ def get_risk(
     
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
-    
+    _check_property_scope(db, current_user, risk)
+
     # CRITICAL: Debug and fix None values
     print(f" Before fix - custom_fields: {risk.custom_fields}")
     print(f"Before fix - custom_fields type: {type(risk.custom_fields)}")
@@ -220,15 +258,18 @@ def update_risk(
         SiteRisk.id == risk_id,
         SiteRisk.company_id == current_user.company_id
     ).first()
-    
+
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
-    
+    _check_property_scope(db, current_user, risk)
+
     if not RiskPermissions.can_modify_risk(current_user, risk):
         raise HTTPException(status_code=403, detail="Insufficient permissions to modify this risk")
-    
+
     # Update fields
     update_data = risk_data.dict(exclude_unset=True)
+    if 'property_id' in update_data and update_data['property_id'] is not None:
+        _validate_property_id(db, current_user, update_data['property_id'])
     
     # Convert location data using your existing utilities
     if 'location' in update_data and update_data['location']:
@@ -672,7 +713,10 @@ def get_incidents(
 ):
     """Get incidents for the company"""
     query = db.query(Incident).filter(Incident.company_id == current_user.company_id)
-    
+    scope = _property_scope_filter(Incident, db, current_user)
+    if scope is not None:
+        query = query.filter(scope)
+
     if incident_type:
         query = query.filter(Incident.incident_type == incident_type)
     if severity:
@@ -692,6 +736,8 @@ def create_incident(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new incident"""
+    _validate_property_id(db, current_user, incident_data.property_id)
+
     try:
         # Prepare incident data
         incident_dict = incident_data.dict()
@@ -821,10 +867,11 @@ def get_incident(
         Incident.id == incident_id,
         Incident.company_id == current_user.company_id
     ).first()
-    
+
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
-    
+    _check_property_scope(db, current_user, incident)
+
     return incident
 
 # ===== INTEGRATED DASHBOARD ENDPOINTS =====
@@ -983,10 +1030,11 @@ def update_incident_enhanced(
         Incident.id == incident_id,
         Incident.company_id == current_user.company_id
     ).first()
-    
+
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
-    
+    _check_property_scope(db, current_user, incident)
+
     try:
         # Get update data and exclude unset fields
         update_data = incident_data.dict(exclude_unset=True)

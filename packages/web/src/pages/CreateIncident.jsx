@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import {riskManagementService} from '@vineyard/shared';
+import {riskManagementService, propertyService} from '@vineyard/shared';
 
 function CreateIncident() {
   const { user } = useAuth();
@@ -25,6 +25,7 @@ function CreateIncident() {
   // Location map state
   const [showLocationMap, setShowLocationMap] = useState(false);
   const [incidentLocation, setIncidentLocation] = useState(null);
+  const [properties, setProperties] = useState([]);
   
   // Form state - initialize with existing data if in edit mode
   const [formData, setFormData] = useState(() => {
@@ -55,7 +56,8 @@ function CreateIncident() {
         immediate_actions_taken: existingIncidentData.immediate_actions_taken || '',
         related_risk_id: existingIncidentData.related_risk_id || '',
         evidence_collected: existingIncidentData.evidence_collected || false,
-        photos_taken: existingIncidentData.photos_taken || false
+        photos_taken: existingIncidentData.photos_taken || false,
+        property_id: existingIncidentData.property_id ?? ''
       };
     }
     return {
@@ -82,7 +84,8 @@ function CreateIncident() {
       immediate_actions_taken: '',
       related_risk_id: '',
       evidence_collected: false,
-      photos_taken: false
+      photos_taken: false,
+      property_id: ''
     };
   });
 
@@ -174,7 +177,8 @@ function CreateIncident() {
   // Set body background and fetch available risks
   useEffect(() => {
     document.body.classList.add("primary-bg");
-    
+    propertyService.listProperties().then(res => setProperties(Array.isArray(res) ? res : [])).catch(() => setProperties([]));
+
     // If in edit mode, set the existing location data
     if (editMode && existingIncidentData) {
       if (existingIncidentData.location) {
@@ -320,6 +324,7 @@ function CreateIncident() {
       const cleanedData = {
         ...formData,
         company_id: user.company_id,
+        property_id: formData.property_id ? Number(formData.property_id) : null,
         // Convert date strings to proper format
         incident_date: formData.incident_date ? new Date(formData.incident_date).toISOString() : new Date().toISOString(),
         discovered_date: formData.discovered_date ? new Date(formData.discovered_date).toISOString() : null,
@@ -633,6 +638,22 @@ function CreateIncident() {
                   resize: 'vertical'
                 }}
               />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Property *
+              </label>
+              <select
+                name="property_id"
+                value={formData.property_id}
+                onChange={handleChange}
+                required
+                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}
+              >
+                <option value="">Select Property</option>
+                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
