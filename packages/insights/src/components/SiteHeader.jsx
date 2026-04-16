@@ -115,7 +115,8 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             <Link to="/">Home</Link>
             <Link to="/articles">Articles</Link>
             <a href="https://auxein.co.nz/about/" target="_blank" rel="noopener noreferrer">About</a>
-            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer">Insights-Pro</a>
+            <a href="https://auxein.co.nz/grow/" target="_blank" rel="noopener noreferrer">Auxein Grow</a>
+            <a href="https://auxein.co.nz/contact/" target="_blank" rel="noopener noreferrer">Contact</a>
             <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
 
             {isAdmin && (
@@ -188,8 +189,10 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             <Link to="/" onClick={closeMobileMenu}>Home</Link>
             <Link to="/articles" onClick={closeMobileMenu}>Articles</Link>
             <Link to="https://auxein.co.nz/about/" onClick={closeMobileMenu}>About</Link>
-            <a href="https://auxein.co.nz/insights-pro/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
-              Insights-Pro
+            <a href="https://auxein.co.nz/grow/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
+              Auxein Grow
+            </a><a href="https://auxein.co.nz/contact/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
+              Contact
             </a>
             <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
               Auxein

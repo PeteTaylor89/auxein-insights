@@ -62,32 +62,28 @@ export default function useAssetsLayer(map, mapReady, visible) {
           data: assetsData,
         });
 
-        // Point assets — circle markers coloured by category
+        // Point assets — icon markers (olive wrench)
         map.addLayer({
           id: POINT_LAYER_ID,
-          type: 'circle',
+          type: 'symbol',
           source: SOURCE_ID,
           filter: ['==', ['geometry-type'], 'Point'],
+          layout: {
+            'icon-image': 'v2-asset-icon',
+            'icon-size': 0.8,
+            'icon-allow-overlap': true,
+            'text-field': ['get', 'name'],
+            'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+            'text-size': 10,
+            'text-offset': [0, 1.6],
+            'text-anchor': 'top',
+            'text-allow-overlap': false,
+            'text-optional': true,
+          },
           paint: {
-            'circle-color': [
-              'match',
-              ['get', 'category'],
-              'equipment', ASSET_COLORS.equipment,
-              'vehicle', ASSET_COLORS.vehicle,
-              'tool', ASSET_COLORS.tool,
-              'infrastructure', ASSET_COLORS.infrastructure,
-              'consumable', ASSET_COLORS.consumable,
-              '#6b7280',
-            ],
-            'circle-radius': [
-              'interpolate', ['linear'], ['zoom'],
-              8, 4,
-              12, 7,
-              16, 10,
-            ],
-            'circle-opacity': 0.85,
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 1.5,
+            'text-color': '#2F2F2F',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1.5,
           },
         });
 
@@ -105,26 +101,7 @@ export default function useAssetsLayer(map, mapReady, visible) {
           },
         });
 
-        // Labels on zoom
-        map.addLayer({
-          id: LABEL_LAYER_ID,
-          type: 'symbol',
-          source: SOURCE_ID,
-          filter: ['==', ['geometry-type'], 'Point'],
-          minzoom: 14,
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-size': 11,
-            'text-offset': [0, 1.4],
-            'text-anchor': 'top',
-            'text-allow-overlap': false,
-          },
-          paint: {
-            'text-color': '#1f2937',
-            'text-halo-color': '#ffffff',
-            'text-halo-width': 1.5,
-          },
-        });
+        // Labels layer no longer needed — included in symbol layer above
 
         addedRef.current = true;
       } catch (err) {

@@ -10,7 +10,6 @@ import { ForgotPasswordForm, ResetPasswordForm } from './components/PasswordRese
 import ChangePasswordForm from './components/ChangePasswordForm';
 import AcceptInvitation from './components/AcceptInvitation';
 import Profile from './pages/Profile';
-import Maps from './pages/Maps';
 import RiskDashboard from './pages/RiskDashboard';
 import CreateRisk from './pages/CreateRisk';
 import CreateAction from './pages/CreateAction';
@@ -45,8 +44,8 @@ import TaskCreationWizard from './pages/TaskCreationWizard';
 import TaskQuickCreate from './pages/TaskQuickCreate';
 import TaskDetail from './pages/TaskDetail';
 
-// Lazy-load Maps V2 so any module error won't crash the rest of the app
-const MapsPageV2 = lazy(() => import('./pages/maps-v2/MapsPage'));
+// Lazy-load Maps so any module error won't crash the rest of the app
+const MapsPage = lazy(() => import('./pages/maps-v2/MapsPage'));
 const Admin = lazy(() => import('./pages/Admin'));
 const CompanyAdmin = lazy(() => import('./pages/CompanyAdmin'));
 
@@ -119,14 +118,8 @@ function AppRoutes() {
 
         <Route path="/maps" element={
           <ProtectedRoute>
-            <Maps />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/maps-v2" element={
-          <ProtectedRoute>
             <Suspense fallback={<div className="loading-screen">Loading Maps...</div>}>
-              <MapsPageV2 />
+              <MapsPage />
             </Suspense>
           </ProtectedRoute>
         } />

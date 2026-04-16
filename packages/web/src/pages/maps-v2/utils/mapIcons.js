@@ -8,6 +8,16 @@ const ICON_SIZE = 32; // logical px (rendered at 2x for retina)
  * Each element is { type, attrs } matching the lucide icon definition.
  */
 const ICON_DEFS = {
+  // TriangleAlert (risks) — ! inside triangle
+  risk: [
+    { type: 'path', attrs: { d: 'M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' } },
+    { type: 'path', attrs: { d: 'M12 9v4' } },
+    { type: 'path', attrs: { d: 'M12 17h.01' } },
+  ],
+  // Wrench (assets)
+  wrench: [
+    { type: 'path', attrs: { d: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z' } },
+  ],
   // ClipboardList (tasks)
   tasks: [
     { type: 'rect', attrs: { x: 8, y: 2, width: 8, height: 4, rx: 1 } },
@@ -112,6 +122,11 @@ export function registerMapIcons(map) {
     { id: 'v2-tasks-icon', bg: '#D1583B', fg: '#ffffff', def: ICON_DEFS.tasks },
     { id: 'v2-tasks-icon-inactive', bg: '#94a3b8', fg: '#ffffff', def: ICON_DEFS.tasks },
     { id: 'v2-obs-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.binoculars },
+    { id: 'v2-risk-icon-low', bg: '#28a745', fg: '#ffffff', def: ICON_DEFS.risk },
+    { id: 'v2-risk-icon-medium', bg: '#f59e0b', fg: '#ffffff', def: ICON_DEFS.risk },
+    { id: 'v2-risk-icon-high', bg: '#dc2626', fg: '#ffffff', def: ICON_DEFS.risk },
+    { id: 'v2-risk-icon-critical', bg: '#7c2d12', fg: '#ffffff', def: ICON_DEFS.risk },
+    { id: 'v2-asset-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.wrench },
   ];
 
   icons.forEach(({ id, bg, fg, def }) => {

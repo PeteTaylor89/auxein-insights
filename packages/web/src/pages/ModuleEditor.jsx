@@ -1,1419 +1,345 @@
-
-
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { useTrainingModule, useTrainingSlides, useTrainingQuestions } from '@vineyard/shared';
-import {trainingService, api} from '@vineyard/shared';
+import { trainingService, api } from '@vineyard/shared';
+import './Training.css';
 
 function ModuleEditor() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  useEffect(() => {
-    console.log('=== MODULE EDITOR DEBUG ===');
-    console.log('trainingService:', trainingService);
-    console.log('trainingService.slides methods:', Object.keys(trainingService.slides || {}));
-    console.log('Has uploadSlideImage?', typeof trainingService.slides?.uploadSlideImage);
-    console.log('===========================');
-  }, []);
-  // Hooks for data management
+
   const { module, loading: moduleLoading, error: moduleError, updateModule } = useTrainingModule(moduleId);
   const { slides, loading: slidesLoading, createSlide, updateSlide, deleteSlide, reorderSlides } = useTrainingSlides(moduleId);
   const { questions, loading: questionsLoading, createQuestion, updateQuestion, deleteQuestion } = useTrainingQuestions(moduleId);
-  
-  // UI state
+
   const [activeTab, setActiveTab] = useState('slides');
   const [selectedSlide, setSelectedSlide] = useState(null);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState(false);
-  
-  // Auto-save functionality
   const autoSaveTimeoutRef = useRef(null);
-  
-  // Check permissions
+
   const canManage = user?.role === 'admin' || user?.role === 'manager';
-  
+
   useEffect(() => {
-    if (!canManage) {
-      navigate('/training');
-      return;
-    }
-    
-    // Select first slide if available
-    if (slides.length > 0 && !selectedSlide) {
-      setSelectedSlide(slides[0]);
-    }
+    if (!canManage) { navigate('/training'); return; }
+    if (slides.length > 0 && !selectedSlide) setSelectedSlide(slides[0]);
   }, [canManage, navigate, slides, selectedSlide]);
 
-  // Auto-save when content changes
   const triggerAutoSave = (slideData) => {
     setUnsavedChanges(true);
-    
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-    
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = setTimeout(async () => {
       try {
         setAutoSaving(true);
-        if (selectedSlide?.id) {
-          await updateSlide(selectedSlide.id, slideData);
-          setUnsavedChanges(false);
-        }
-      } catch (error) {
-        console.error('Auto-save failed:', error);
-      } finally {
-        setAutoSaving(false);
-      }
-    }, 2000); // Auto-save after 2 seconds of inactivity
+        if (selectedSlide?.id) { await updateSlide(selectedSlide.id, slideData); setUnsavedChanges(false); }
+      } catch (e) { console.error('Auto-save failed:', e); }
+      finally { setAutoSaving(false); }
+    }, 2000);
   };
 
-  // Cleanup auto-save on unmount
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-    };
-  }, []);
+  useEffect(() => () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); }, []);
 
-  // Handle slide content changes
   const handleSlideChange = (field, value) => {
-    const updatedSlide = { ...selectedSlide, [field]: value };
-    setSelectedSlide(updatedSlide);
-    
-    // Trigger auto-save
+    const updated = { ...selectedSlide, [field]: value };
+    setSelectedSlide(updated);
     triggerAutoSave({ [field]: value });
   };
 
-  // Handle slide reordering
-  const handleSlideReorder = async (dragIndex, hoverIndex) => {
-    try {
-      const draggedSlide = slides[dragIndex];
-      const newSlides = [...slides];
-      
-      // Remove dragged item and insert it at new position
-      newSlides.splice(dragIndex, 1);
-      newSlides.splice(hoverIndex, 0, draggedSlide);
-      
-      // Update order property for all slides
-      const updatedSlides = newSlides.map((slide, index) => ({
-        ...slide,
-        order: index + 1
-      }));
-      
-      // Update server with new order
-      await reorderSlides(updatedSlides);
-      
-    } catch (error) {
-      console.error('Failed to reorder slides:', error);
-      alert('Failed to reorder slides: ' + error.message);
-    }
-  };
-
-  // Drag and drop handlers
+  // Drag and drop
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
 
-  const handleDragStart = (e, index) => {
-    setDraggedItem(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.target.outerHTML);
-    e.dataTransfer.setDragImage(e.target, 0, 0);
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverItem(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverItem(null);
-  };
-
-  const handleDrop = async (e, dropIndex) => {
-    e.preventDefault();
-    
-    if (draggedItem !== null && draggedItem !== dropIndex) {
-      await handleSlideReorder(draggedItem, dropIndex);
-    }
-    
-    handleDragEnd();
-  };
-
-  // Handle bullet point changes
-  const handleBulletPointChange = (index, value) => {
-    const updatedBulletPoints = [...(selectedSlide.bullet_points || [])];
-    updatedBulletPoints[index] = value;
-    
-    const updatedSlide = { ...selectedSlide, bullet_points: updatedBulletPoints };
-    setSelectedSlide(updatedSlide);
-    
-    triggerAutoSave({ bullet_points: updatedBulletPoints });
-  };
-
-  const addBulletPoint = () => {
-    const updatedBulletPoints = [...(selectedSlide.bullet_points || []), ''];
-    const updatedSlide = { ...selectedSlide, bullet_points: updatedBulletPoints };
-    setSelectedSlide(updatedSlide);
-    
-    triggerAutoSave({ bullet_points: updatedBulletPoints });
-  };
-
-  const removeBulletPoint = (index) => {
-    const updatedBulletPoints = selectedSlide.bullet_points?.filter((_, i) => i !== index) || [];
-    const updatedSlide = { ...selectedSlide, bullet_points: updatedBulletPoints };
-    setSelectedSlide(updatedSlide);
-    
-    triggerAutoSave({ bullet_points: updatedBulletPoints });
-  };
-
-  // Create new slide
-  const handleCreateSlide = async () => {
+  const handleSlideReorder = async (dragIndex, hoverIndex) => {
     try {
-      const newSlide = await createSlide({
-        title: 'New Slide',
-        content: '',
-        bullet_points: [],
-        order: slides.length + 1
-      });
-      setSelectedSlide(newSlide);
-    } catch (error) {
-      alert('Failed to create slide: ' + error.message);
-    }
+      const newSlides = [...slides];
+      const [dragged] = newSlides.splice(dragIndex, 1);
+      newSlides.splice(hoverIndex, 0, dragged);
+      await reorderSlides(newSlides.map((s, i) => ({ ...s, order: i + 1 })));
+    } catch (e) { console.error('Failed to reorder slides:', e); alert('Failed to reorder slides: ' + e.message); }
   };
 
-  // Delete slide
+  const handleDragStart = (e, index) => { setDraggedItem(index); e.dataTransfer.effectAllowed = 'move'; };
+  const handleDragOver = (e, index) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverItem(index); };
+  const handleDragEnd = () => { setDraggedItem(null); setDragOverItem(null); };
+  const handleDrop = async (e, dropIndex) => { e.preventDefault(); if (draggedItem !== null && draggedItem !== dropIndex) await handleSlideReorder(draggedItem, dropIndex); handleDragEnd(); };
+
+  const handleBulletPointChange = (index, value) => {
+    const bp = [...(selectedSlide.bullet_points || [])]; bp[index] = value;
+    setSelectedSlide({ ...selectedSlide, bullet_points: bp }); triggerAutoSave({ bullet_points: bp });
+  };
+  const addBulletPoint = () => { const bp = [...(selectedSlide.bullet_points || []), '']; setSelectedSlide({ ...selectedSlide, bullet_points: bp }); triggerAutoSave({ bullet_points: bp }); };
+  const removeBulletPoint = (index) => { const bp = selectedSlide.bullet_points?.filter((_, i) => i !== index) || []; setSelectedSlide({ ...selectedSlide, bullet_points: bp }); triggerAutoSave({ bullet_points: bp }); };
+
+  const handleCreateSlide = async () => {
+    try { const ns = await createSlide({ title: 'New Slide', content: '', bullet_points: [], order: slides.length + 1 }); setSelectedSlide(ns); }
+    catch (e) { alert('Failed to create slide: ' + e.message); }
+  };
+
   const handleDeleteSlide = async (slideId) => {
     if (!confirm('Are you sure you want to delete this slide?')) return;
-    
-    try {
-      await deleteSlide(slideId);
-      
-      // Select another slide if the current one was deleted
-      if (selectedSlide?.id === slideId) {
-        const remainingSlides = slides.filter(s => s.id !== slideId);
-        setSelectedSlide(remainingSlides.length > 0 ? remainingSlides[0] : null);
-      }
-    } catch (error) {
-      alert('Failed to delete slide: ' + error.message);
-    }
+    try { await deleteSlide(slideId); if (selectedSlide?.id === slideId) { const rem = slides.filter(s => s.id !== slideId); setSelectedSlide(rem.length > 0 ? rem[0] : null); } }
+    catch (e) { alert('Failed to delete slide: ' + e.message); }
   };
 
-  // Validate content for mobile
   const validateSlideForMobile = (slide) => {
     if (!slide) return {};
-    
-    return {
-      titleLength: slide.title?.length < 50,
-      contentLength: (slide.content?.length || 0) < 200,
-      bulletCount: (slide.bullet_points?.length || 0) <= 5,
-      hasContent: slide.title && (slide.content || (slide.bullet_points?.length > 0))
+    return { titleLength: slide.title?.length < 50, contentLength: (slide.content?.length || 0) < 200, bulletCount: (slide.bullet_points?.length || 0) <= 5, hasContent: slide.title && (slide.content || (slide.bullet_points?.length > 0)) };
+  };
+
+  // Slide Image Upload sub-component
+  const SlideImageUpload = ({ slide, onImageUploaded, onImageRemoved }) => {
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [error, setError] = useState(null);
+    const fileInputRef = useRef(null);
+
+    const handleFileSelect = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) { setError('Please select a valid image file (JPEG, PNG, GIF, or WebP)'); return; }
+      if (file.size > 10 * 1024 * 1024) { setError('Image too large. Please use an image under 10MB.'); return; }
+      setError(null); setUploading(true); setUploadProgress(0);
+      try {
+        await trainingService.slides.uploadSlideImage(slide.id, file, (progress) => setUploadProgress(progress));
+        const updatedSlides = await trainingService.slides.getSlides(moduleId);
+        const updated = updatedSlides.find(s => s.id === slide.id);
+        if (updated) { setSelectedSlide(updated); onImageUploaded(updated.image_url); }
+      } catch (e) { setError(trainingService.errorHandler.handleApiError(e)); }
+      finally { setUploading(false); setUploadProgress(0); if (fileInputRef.current) fileInputRef.current.value = ''; }
     };
-  };
 
-const SlideImageUpload = ({ slide, onImageUploaded, onImageRemoved }) => {
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [error, setError] = useState(null);
-  const fileInputRef = useRef(null);
+    const handleRemoveImage = async () => {
+      if (!confirm('Remove this image from the slide?')) return;
+      try {
+        await trainingService.slides.removeSlideImage(slide.id, slide.image_info?.id);
+        const updatedSlides = await trainingService.slides.getSlides(moduleId);
+        const updated = updatedSlides.find(s => s.id === slide.id);
+        if (updated) setSelectedSlide(updated);
+        onImageRemoved();
+      } catch (e) { alert('Failed to remove image: ' + trainingService.errorHandler.handleApiError(e)); }
+    };
 
-  const handleFileSelect = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      setError('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image too large. Please use an image under 10MB.');
-      return;
-    }
-
-    setError(null);
-    setUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const result = await trainingService.slides.uploadSlideImage(
-        slide.id, 
-        file,
-        (progress) => setUploadProgress(progress)
+    if (slide.has_image && slide.image_info) {
+      return (
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', height: 300, background: 'var(--color-surface-warm)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={slide.image_info.url} alt={slide.image_info.alt_text || 'Slide image'} className="tr-image-preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+          </div>
+          <div style={{ padding: 'var(--space-base)', background: 'var(--color-surface-warm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 'var(--font-size-base)', color: 'var(--color-text-muted)' }}>{slide.image_info.filename} ({Math.round(slide.image_info.file_size / 1024)}KB)</span>
+            <button className="tr-btn-danger tr-btn-sm" onClick={handleRemoveImage}>Remove Image</button>
+          </div>
+        </div>
       );
-      
-      const updatedSlides = await trainingService.slides.getSlides(moduleId);
-      const updatedSlide = updatedSlides.find(s => s.id === slide.id);
-      
-      if (updatedSlide) {
-        setSelectedSlide(updatedSlide);
-        onImageUploaded(updatedSlide.image_url);
-      }
-      
-    } catch (error) {
-      const errorMessage = trainingService.errorHandler.handleApiError(error);
-      setError(errorMessage);
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
-  };
 
-  const handleRemoveImage = async () => {
-    if (!confirm('Remove this image from the slide?')) return;
-
-    try {
-      await trainingService.slides.removeSlideImage(slide.id, slide.image_info?.id);
-      
-      const updatedSlides = await trainingService.slides.getSlides(moduleId);
-      const updatedSlide = updatedSlides.find(s => s.id === slide.id);
-      
-      if (updatedSlide) {
-        setSelectedSlide(updatedSlide);
-      }
-      
-      onImageRemoved();
-    } catch (error) {
-      const errorMessage = trainingService.errorHandler.handleApiError(error);
-      alert('Failed to remove image: ' + errorMessage);
-    }
-  };
-
-  if (slide.has_image && slide.image_info) {
     return (
-      <div style={{
-        border: '1px solid #e5e7eb',
-        borderRadius: '8px',
-        overflow: 'hidden'
-      }}>
-        <div style={{
-          position: 'relative',
-          height: '300px',
-          background: '#f9fafb',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <img 
-            src={slide.image_info.url}
-            alt={slide.image_info.alt_text || 'Slide image'}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: 'block'
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
-            }}
-          />
-          <div style={{
-            display: 'none',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '200px',
-            color: '#6b7280',
-            background: '#f3f4f6'
-          }}>
-            Image failed to load
-          </div>
+      <div>
+        <div className="tr-image-upload" style={{ background: uploading ? 'var(--color-info-bg)' : 'var(--color-surface-warm)' }}>
+          {uploading ? (
+            <div>
+              <div style={{ fontSize: '2rem', marginBottom: 'var(--space-base)' }}>📤</div>
+              <div className="tr-progress-bar" style={{ marginBottom: 'var(--space-base)' }}><div className="tr-progress-fill" style={{ width: `${uploadProgress}%` }} /></div>
+              <p style={{ margin: 0, fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Uploading... {uploadProgress}%</p>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>🖼️</div>
+              <p style={{ fontSize: 'var(--font-size-base)', color: 'var(--color-text-muted)', margin: '0 0 var(--space-base) 0' }}>Click to upload an image</p>
+              <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', margin: '0 0 var(--space-base) 0' }}>JPEG, PNG, GIF or WebP (max 10MB)</p>
+              <button className="tr-btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>Choose Image</button>
+            </div>
+          )}
         </div>
-        
-        <div style={{
-          padding: '1rem',
-          background: '#f8fafc',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-            {slide.image_info.filename} ({Math.round(slide.image_info.file_size / 1024)}KB)
-          </div>
-          <button
-            onClick={handleRemoveImage}
-            style={{
-              background: '#dc2626',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '0.75rem'
-            }}
-          >
-            Remove Image
-          </button>
-        </div>
+        {error && <div style={{ marginTop: 'var(--space-sm)', padding: 'var(--space-md)', background: 'var(--color-danger-bg)', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: 'var(--color-danger)', fontSize: 'var(--font-size-base)' }}>{typeof error === 'string' ? error : JSON.stringify(error)}</div>}
+        <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleFileSelect} style={{ display: 'none' }} />
       </div>
     );
-  }
-
-  return (
-    <div>
-      <div style={{
-        border: '2px dashed #d1d5db',
-        borderRadius: '8px',
-        padding: '2rem',
-        textAlign: 'center',
-        background: uploading ? '#f0f9ff' : '#fafafa'
-      }}>
-        {uploading ? (
-          <div>
-            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📤</div>
-            <div style={{
-              background: '#e5e7eb',
-              borderRadius: '999px',
-              height: '8px',
-              marginBottom: '1rem',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                background: '#3b82f6',
-                height: '100%',
-                width: `${uploadProgress}%`,
-                borderRadius: '999px',
-                transition: 'width 0.3s ease'
-              }} />
-            </div>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: '#3b82f6' }}>
-              Uploading... {uploadProgress}%
-            </p>
-          </div>
-        ) : (
-          <div>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🖼️</div>
-            <p style={{
-              fontSize: '0.875rem',
-              color: '#6b7280',
-              margin: '0 0 1rem 0'
-            }}>
-              Click to upload an image
-            </p>
-            <p style={{
-              fontSize: '0.75rem',
-              color: '#9ca3af',
-              margin: '0 0 1rem 0'
-            }}>
-              JPEG, PNG, GIF or WebP (max 10MB)
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '6px',
-                cursor: uploading ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500'
-              }}
-            >
-              Choose Image
-            </button>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div style={{
-          marginTop: '0.5rem',
-          padding: '0.75rem',
-          background: '#fef2f2',
-          border: '1px solid #fecaca',
-          borderRadius: '6px',
-          color: '#dc2626',
-          fontSize: '0.875rem'
-        }}>
-          {typeof error === 'string' ? error : JSON.stringify(error)}
-        </div>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
-        onChange={handleFileSelect}
-        style={{ display: 'none' }}
-      />
-    </div>
-  );
-};
-
+  };
 
   const validation = validateSlideForMobile(selectedSlide);
 
-  // Character counters
   const CharacterCounter = ({ current, max, warn }) => (
-    <span style={{
-      fontSize: '0.75rem',
-      color: current > max ? '#dc2626' : current > warn ? '#f59e0b' : '#6b7280'
-    }}>
+    <span style={{ fontSize: 'var(--font-size-xs)', color: current > max ? 'var(--color-danger)' : current > warn ? 'var(--color-warning)' : 'var(--color-text-muted)', marginLeft: 'var(--space-sm)' }}>
       {current}/{max} {current > warn && '⚠️'}
     </span>
   );
 
-  // Mobile preview component
   const MobilePreview = () => {
     if (!selectedSlide) return <div>Select a slide to preview</div>;
-    
     return (
-      <div style={{
-        width: '320px',
-        height: '568px',
-        background: 'white',
-        border: '8px solid #1f2937',
-        borderRadius: '24px',
-        padding: '20px',
-        overflow: 'auto',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-      }}>
-        {/* Mobile slide content */}
-        <div style={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          {/* Title */}
-          <h2 style={{
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            color: '#1f2937',
-            marginBottom: '1rem',
-            lineHeight: '1.3'
-          }}>
-            {selectedSlide.title || 'Slide Title'}
-          </h2>
-          
-          {/* Content */}
-          {selectedSlide.content && (
-            <div style={{
-              fontSize: '1rem',
-              color: '#374151',
-              lineHeight: '1.5',
-              marginBottom: '1rem'
-            }}>
-              {selectedSlide.content}
-            </div>
-          )}
-          
-          {/* Bullet points */}
-          {selectedSlide.bullet_points && selectedSlide.bullet_points.length > 0 && (
-            <ul style={{
-              paddingLeft: '1.5rem',
-              fontSize: '1rem',
-              color: '#374151',
-              lineHeight: '1.6'
-            }}>
-              {selectedSlide.bullet_points.map((bullet, index) => (
-                bullet && <li key={index} style={{ marginBottom: '0.5rem' }}>{bullet}</li>
-              ))}
-            </ul>
-          )}
-          
-          {/* Real Image Display */}
+      <div style={{ width: 320, height: 568, background: 'white', border: '8px solid var(--color-charcoal)', borderRadius: 24, padding: 20, overflow: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: 'var(--space-base)', lineHeight: 1.3 }}>{selectedSlide.title || 'Slide Title'}</h2>
+          {selectedSlide.content && <div style={{ fontSize: '1rem', color: 'var(--color-text)', lineHeight: 1.5, marginBottom: 'var(--space-base)' }}>{selectedSlide.content}</div>}
+          {selectedSlide.bullet_points?.length > 0 && <ul style={{ paddingLeft: '1.5rem', fontSize: '1rem', color: 'var(--color-text)', lineHeight: 1.6 }}>{selectedSlide.bullet_points.map((b, i) => b && <li key={i} style={{ marginBottom: 'var(--space-sm)' }}>{b}</li>)}</ul>}
           {selectedSlide.has_image && selectedSlide.image_info && (
-            <div style={{
-              marginTop: '1rem',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              
-            }}>
-              <img 
-                src={selectedSlide.image_info.url}
-                alt={selectedSlide.image_info.alt_text || 'Slide image'}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  maxHeight: '200px',
-                  objectFit: 'cover'
-                }}
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
-              {selectedSlide.image_caption && (
-                <div style={{
-                  padding: '0.5rem',
-                  fontSize: '0.75rem',
-                  color: '#6b7280',
-                  background: '#f9fafb',
-                  textAlign: 'center'
-                }}>
-                  {selectedSlide.image_caption}
-                </div>
-              )}
+            <div style={{ marginTop: 'var(--space-base)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+              <img src={selectedSlide.image_info.url} alt={selectedSlide.image_info.alt_text || 'Slide image'} style={{ width: '100%', height: 'auto', maxHeight: 200, objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+              {selectedSlide.image_caption && <div style={{ padding: 'var(--space-sm)', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', background: 'var(--color-surface-warm)', textAlign: 'center' }}>{selectedSlide.image_caption}</div>}
             </div>
           )}
-          
-          {/* Mobile-specific warnings */}
-          <div style={{
-            marginTop: 'auto',
-            paddingTop: '1rem',
-            borderTop: '1px solid #e5e7eb',
-            fontSize: '0.75rem'
-          }}>
-            {!validation.titleLength && (
-              <div style={{ color: '#dc2626', marginBottom: '0.25rem' }}>
-                ⚠️ Title too long for mobile
-              </div>
-            )}
-            {!validation.contentLength && (
-              <div style={{ color: '#dc2626', marginBottom: '0.25rem' }}>
-                ⚠️ Content too long for mobile
-              </div>
-            )}
-            {!validation.bulletCount && (
-              <div style={{ color: '#dc2626', marginBottom: '0.25rem' }}>
-                ⚠️ Too many bullet points for mobile
-              </div>
-            )}
+          <div style={{ marginTop: 'auto', paddingTop: 'var(--space-base)', borderTop: '1px solid var(--color-border)', fontSize: 'var(--font-size-xs)' }}>
+            {!validation.titleLength && <div style={{ color: 'var(--color-danger)', marginBottom: 2 }}>⚠️ Title too long for mobile</div>}
+            {!validation.contentLength && <div style={{ color: 'var(--color-danger)', marginBottom: 2 }}>⚠️ Content too long for mobile</div>}
+            {!validation.bulletCount && <div style={{ color: 'var(--color-danger)' }}>⚠️ Too many bullet points for mobile</div>}
           </div>
         </div>
       </div>
     );
   };
 
-  // Loading state
-  if (moduleLoading || slidesLoading) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h2>Loading Module Editor...</h2>
-          <p>Setting up your training module...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (moduleError) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc'
-      }}>
-        <div style={{ textAlign: 'center', maxWidth: '500px', padding: '2rem' }}>
-          <h2 style={{ color: '#dc2626' }}>❌ Error Loading Module</h2>
-          <p style={{ marginBottom: '1rem' }}>{moduleError}</p>
-          <button 
-            onClick={() => navigate('/training')} 
-            style={{
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Back to Training
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!module) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: '#f8fafc'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h2>Module not found</h2>
-          <button 
-            onClick={() => navigate('/training')} 
-            style={{
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Back to Training
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (moduleLoading || slidesLoading) return <div className="page-container"><div className="tr-loading"><div><h2>Loading Module Editor...</h2><p>Setting up your training module...</p></div></div></div>;
+  if (moduleError) return <div className="page-container"><div className="tr-error"><div className="tr-error-content"><h2>Error Loading Module</h2><p>{moduleError}</p><button className="tr-btn-primary" onClick={() => navigate('/training')}>Back to Training</button></div></div></div>;
+  if (!module) return <div className="page-container"><div className="tr-loading"><div><h2>Module not found</h2><button className="tr-btn-primary" onClick={() => navigate('/training')}>Back to Training</button></div></div></div>;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#f8fafc',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-surface-warm)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{
-        background: 'white',
-        borderBottom: '1px solid #e5e7eb',
-        padding: '1rem 1.5rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            onClick={() => navigate('/training')}
-            style={{
-              background: 'none',
-              border: '1px solid #d1d5db',
-              padding: '0.5rem',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-            ← Back
-          </button>
+      <div style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', padding: 'var(--space-base) var(--space-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-base)' }}>
+          <button className="tr-btn-ghost" onClick={() => navigate('/training')}>← Back</button>
           <div>
-            <h1 style={{
-              margin: 0,
-              fontSize: '1.25rem',
-              fontWeight: '600',
-              color: '#1f2937'
-            }}>
-              {module.title}
-            </h1>
-            <p style={{
-              margin: 0,
-              fontSize: '0.875rem',
-              color: '#6b7280'
-            }}>
+            <h1 style={{ margin: 0, fontSize: 'var(--font-size-xl)', fontWeight: 600, color: 'var(--color-text)' }}>{module.title}</h1>
+            <p style={{ margin: 0, fontSize: 'var(--font-size-base)', color: 'var(--color-text-muted)' }}>
               {slides.length} slides • {questions.length} questions
-              {autoSaving && <span style={{ color: '#f59e0b' }}> • Saving...</span>}
-              {unsavedChanges && <span style={{ color: '#dc2626' }}> • Unsaved changes</span>}
+              {autoSaving && <span className="tr-autosave tr-autosave--saving"> • Saving...</span>}
+              {unsavedChanges && !autoSaving && <span className="tr-autosave tr-autosave--unsaved"> • Unsaved changes</span>}
             </p>
           </div>
         </div>
-        
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button
-            onClick={() => setShowMobilePreview(!showMobilePreview)}
-            style={{
-              background: showMobilePreview ? '#3b82f6' : 'white',
-              color: showMobilePreview ? 'white' : '#374151',
-              border: '1px solid #d1d5db',
-              padding: '0.5rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
-            }}
-          >
-            📱 Mobile Preview
-          </button>
-          
-          <button
-            onClick={() => navigate(`/training`)}
-            style={{
-              background: showMobilePreview ? '#3b82f6' : 'white',
-              color: showMobilePreview ? 'white' : '#374151',
-              border: '1px solid #d1d5db',
-              padding: '0.6rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
-            }}
-          >
-            Save and Close
-          </button>
-          
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+          <button className={showMobilePreview ? 'tr-btn-primary' : 'tr-btn-ghost'} onClick={() => setShowMobilePreview(!showMobilePreview)}>📱 Mobile Preview</button>
+          <button className="tr-btn-ghost" onClick={() => navigate('/training')}>Save and Close</button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        overflow: 'hidden'
-      }}>
-        {/* Left Sidebar - Slide List */}
-        <div style={{
-          width: '300px',
-          background: 'white',
-          borderRight: '1px solid #e5e7eb',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          {/* Tabs */}
-          <div style={{
-            display: 'flex',
-            borderBottom: '1px solid #e5e7eb'
-          }}>
-            <button
-              onClick={() => setActiveTab('slides')}
-              style={{
-                flex: 1,
-                padding: '1rem',
-                border: 'none',
-                background: activeTab === 'slides' ? '#f8fafc' : 'white',
-                borderBottom: activeTab === 'slides' ? '2px solid #3b82f6' : '2px solid transparent',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                color: activeTab === 'slides' ? '#3b82f6' : '#6b7280'
-              }}
-            >
-              Slides ({slides.length})
-            </button>
-            {module.has_questionnaire && (
-              <button
-                onClick={() => setActiveTab('questions')}
-                style={{
-                  flex: 1,
-                  padding: '1rem',
-                  border: 'none',
-                  background: activeTab === 'questions' ? '#f8fafc' : 'white',
-                  borderBottom: activeTab === 'questions' ? '2px solid #3b82f6' : '2px solid transparent',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  color: activeTab === 'questions' ? '#3b82f6' : '#6b7280'
-                }}
-              >
-                Quiz ({questions.length})
-              </button>
-            )}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left Sidebar */}
+        <div className="tr-editor-sidebar" style={{ borderTop: 'none', borderRadius: 0, borderRight: '1px solid var(--color-border)' }}>
+          <div className="tr-tab-bar">
+            <button className={`tr-tab ${activeTab === 'slides' ? 'active' : ''}`} onClick={() => setActiveTab('slides')}>Slides ({slides.length})</button>
+            {module.has_questionnaire && <button className={`tr-tab ${activeTab === 'questions' ? 'active' : ''}`} onClick={() => setActiveTab('questions')}>Quiz ({questions.length})</button>}
           </div>
 
-          {/* Slide List */}
           {activeTab === 'slides' && (
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <div style={{ padding: '1rem' }}>
-                <button
-                  onClick={handleCreateSlide}
-                  style={{
-                    width: '100%',
-                    background: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.75rem',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    marginBottom: '1rem'
-                  }}
-                >
-                  + Add Slide
-                </button>
+              <div style={{ padding: 'var(--space-base)' }}>
+                <button className="tr-btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 'var(--space-base)' }} onClick={handleCreateSlide}>+ Add Slide</button>
               </div>
-              
-              <div style={{ padding: '0 1rem 1rem' }}>
+              <div style={{ padding: '0 var(--space-base) var(--space-base)' }}>
                 {slides.map((slide, index) => (
-                  <div
-                    key={slide.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnd={handleDragEnd}
-                    onDrop={(e) => handleDrop(e, index)}
-                    onClick={() => setSelectedSlide(slide)}
-                    style={{
-                      padding: '0.75rem',
-                      border: selectedSlide?.id === slide.id ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      marginBottom: '0.5rem',
-                      cursor: 'pointer',
-                      background: selectedSlide?.id === slide.id ? '#f0f9ff' : 
-                                 dragOverItem === index ? '#fef3c7' : 'white',
-                      transition: 'all 0.2s ease',
-                      opacity: draggedItem === index ? 0.5 : 1,
-                      transform: dragOverItem === index && draggedItem !== null && draggedItem !== index ? 
-                                'translateY(-2px)' : 'translateY(0)',
-                      boxShadow: dragOverItem === index && draggedItem !== null && draggedItem !== index ? 
-                                '0 4px 8px rgba(0, 0, 0, 0.1)' : 'none',
-                      position: 'relative'
-                    }}
-                  >
-                    {/* Drag handle */}
-                    <div 
-                      onMouseDown={(e) => e.stopPropagation()}
-                      style={{
-                        position: 'absolute',
-                        left: '0.5rem',
-                        top: '0.75rem',
-                        cursor: 'grab',
-                        color: '#6b7280',
-                        padding: '0.25rem',
-                        background: '#f9fafb',
-                        borderRadius: '4px',
-                        border: '1px solid #e5e7eb',
-                        width: '24px',
-                        height: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        userSelect: 'none',
-                        zIndex: 5,
-                        fontSize: '14px'
-                      }}
-                      title="Drag to reorder"
-                    >
-                      ≡
+                  <div key={slide.id} draggable onDragStart={(e) => handleDragStart(e, index)} onDragOver={(e) => handleDragOver(e, index)} onDragEnd={handleDragEnd} onDrop={(e) => handleDrop(e, index)} onClick={() => setSelectedSlide(slide)}
+                    className={`tr-slide-item ${selectedSlide?.id === slide.id ? 'active' : ''}`}
+                    style={{ padding: 'var(--space-md)', border: selectedSlide?.id === slide.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-sm)', opacity: draggedItem === index ? 0.5 : 1, transform: dragOverItem === index && draggedItem !== null && draggedItem !== index ? 'translateY(-2px)' : 'translateY(0)', position: 'relative', display: 'block', background: selectedSlide?.id === slide.id ? 'var(--color-olive-light)' : dragOverItem === index ? 'var(--color-warning-bg)' : 'var(--color-surface)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-sm)' }}>
+                      <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: 500 }}>Slide {index + 1}</span>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteSlide(slide.id); }} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 'var(--font-size-xs)', padding: 'var(--space-xs)' }}>×</button>
                     </div>
-                    
-                    <div style={{ paddingLeft: '3rem' }}>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: '0.5rem'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{
-                            fontSize: '0.75rem',
-                            color: '#6b7280',
-                            fontWeight: '500'
-                          }}>
-                            Slide {index + 1}
-                          </span>
-                          <span style={{
-                            fontSize: '0.625rem',
-                            color: '#9ca3af',
-                            fontStyle: 'italic'
-                          }}>
-                            (drag to reorder)
-                          </span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSlide(slide.id);
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#dc2626',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            padding: '0.25rem'
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                      
-                      <h4 style={{
-                        margin: '0 0 0.25rem 0',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        color: '#1f2937'
-                      }}>
-                        {slide.title || 'Untitled Slide'}
-                      </h4>
-                      
-                      <p style={{
-                        margin: 0,
-                        fontSize: '0.75rem',
-                        color: '#6b7280',
-                        lineHeight: '1.3'
-                      }}>
-                        {slide.content ? 
-                          (slide.content.length > 50 ? `${slide.content.substring(0, 50)}...` : slide.content) :
-                          `${slide.bullet_points?.length || 0} bullet points`
-                        }
-                      </p>
-                      
-                      {/* Mobile validation indicators */}
-                      <div style={{
-                        marginTop: '0.5rem',
-                        display: 'flex',
-                        gap: '0.25rem'
-                      }}>
-                        {validateSlideForMobile(slide).hasContent && (
-                          <span style={{ fontSize: '0.625rem', color: '#059669' }}>✓</span>
-                        )}
-                        {!validateSlideForMobile(slide).titleLength && (
-                          <span style={{ fontSize: '0.625rem', color: '#dc2626' }}>📏</span>
-                        )}
-                        {!validateSlideForMobile(slide).contentLength && (
-                          <span style={{ fontSize: '0.625rem', color: '#dc2626' }}>📝</span>
-                        )}
-                        {!validateSlideForMobile(slide).bulletCount && (
-                          <span style={{ fontSize: '0.625rem', color: '#dc2626' }}>📋</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Drop indicator */}
-                    {dragOverItem === index && draggedItem !== null && draggedItem !== index && (
-                      <div style={{
-                        position: 'absolute',
-                        top: draggedItem < index ? '100%' : '-2px',
-                        left: 0,
-                        right: 0,
-                        height: '2px',
-                        background: '#3b82f6',
-                        borderRadius: '1px',
-                        zIndex: 10
-                      }} />
-                    )}
-                  </div>
-                ))}
-                
-                {slides.length === 0 && (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '2rem 1rem',
-                    color: '#6b7280'
-                  }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      No slides yet. Create your first slide to get started.
+                    <h4 style={{ margin: '0 0 var(--space-xs) 0', fontSize: 'var(--font-size-base)', fontWeight: 500, color: selectedSlide?.id === slide.id ? 'var(--color-primary)' : 'var(--color-text)' }}>{slide.title || 'Untitled Slide'}</h4>
+                    <p style={{ margin: 0, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', lineHeight: 1.3 }}>
+                      {slide.content ? (slide.content.length > 50 ? `${slide.content.substring(0, 50)}...` : slide.content) : `${slide.bullet_points?.length || 0} bullet points`}
                     </p>
                   </div>
-                )}
+                ))}
+                {slides.length === 0 && <div className="tr-empty" style={{ padding: 'var(--space-xl) var(--space-base)' }}><div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📄</div><p style={{ fontSize: 'var(--font-size-base)', margin: 0 }}>No slides yet. Create your first slide.</p></div>}
               </div>
             </div>
           )}
 
-          {/* Question List */}
           {activeTab === 'questions' && module.has_questionnaire && (
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <div style={{ padding: '1rem' }}>
-                <button
-                  onClick={() => alert('Question builder coming soon!')}
-                  style={{
-                    width: '100%',
-                    background: '#8b5cf6',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.75rem',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    marginBottom: '1rem'
-                  }}
-                >
-                  + Add Question
-                </button>
+              <div style={{ padding: 'var(--space-base)' }}>
+                <button className="tr-btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 'var(--space-base)' }} onClick={() => alert('Question builder coming soon!')}>+ Add Question</button>
               </div>
-              
-              <div style={{
-                textAlign: 'center',
-                padding: '2rem 1rem',
-                color: '#6b7280'
-              }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>❓</div>
-                <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                  Question builder will be available in the next update.
-                </p>
-              </div>
+              <div className="tr-empty" style={{ padding: 'var(--space-xl) var(--space-base)' }}><div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>❓</div><p style={{ fontSize: 'var(--font-size-base)', margin: 0 }}>Question builder will be available in the next update.</p></div>
             </div>
           )}
         </div>
 
         {/* Main Editor Area */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          overflow: 'hidden'
-        }}>
-          {/* Content Editor */}
-          <div style={{
-            flex: showMobilePreview ? 2 : 1,
-            background: 'white',
-            padding: '2rem',
-            overflow: 'auto'
-          }}>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <div style={{ flex: showMobilePreview ? 2 : 1, background: 'var(--color-surface)', padding: 'var(--space-xl)', overflow: 'auto' }}>
             {selectedSlide ? (
               <div>
-                {/* Basic Formatting Toolbar */}
-                <div style={{
-                  display: 'flex',
-                  gap: '0.5rem',
-                  marginBottom: '1.5rem',
-                  padding: '0.75rem',
-                  background: '#f8fafc',
-                  borderRadius: '8px',
-                  alignItems: 'center'
-                }}>
-                  <span style={{
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151'
-                  }}>
-                    Mobile-Optimized Editor
-                  </span>
+                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)', padding: 'var(--space-md)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
+                  <span style={{ fontSize: 'var(--font-size-base)', fontWeight: 500, color: 'var(--color-text)' }}>Mobile-Optimized Editor</span>
                   <div style={{ flex: 1 }} />
-                  <span style={{
-                    fontSize: '0.75rem',
-                    color: validation.hasContent ? '#059669' : '#dc2626'
-                  }}>
-                    {validation.hasContent ? '✓ Ready for mobile' : '⚠️ Needs content'}
-                  </span>
+                  <span style={{ fontSize: 'var(--font-size-xs)', color: validation.hasContent ? 'var(--color-success)' : 'var(--color-danger)' }}>{validation.hasContent ? '✓ Ready for mobile' : '⚠️ Needs content'}</span>
                 </div>
 
-                {/* Slide Title */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '0.5rem'
-                  }}>
-                    Slide Title *
-                    <CharacterCounter 
-                      current={selectedSlide.title?.length || 0} 
-                      max={50} 
-                      warn={40} 
-                    />
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedSlide.title || ''}
-                    onChange={(e) => handleSlideChange('title', e.target.value)}
-                    placeholder="Enter slide title (keep under 50 characters for mobile)"
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: `1px solid ${validation.titleLength ? '#d1d5db' : '#f59e0b'}`,
-                      borderRadius: '6px',
-                      fontSize: '1rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {!validation.titleLength && (
-                    <p style={{ color: '#f59e0b', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                      ⚠️ Title is too long for mobile display
-                    </p>
-                  )}
+                <div style={{ marginBottom: 'var(--space-lg)' }}>
+                  <label className="tr-field-label">Slide Title * <CharacterCounter current={selectedSlide.title?.length || 0} max={50} warn={40} /></label>
+                  <input className="tr-input" type="text" value={selectedSlide.title || ''} onChange={(e) => handleSlideChange('title', e.target.value)} placeholder="Enter slide title (keep under 50 characters)" style={!validation.titleLength ? { borderColor: 'var(--color-warning)' } : undefined} />
+                  {!validation.titleLength && <p style={{ color: 'var(--color-warning)', fontSize: 'var(--font-size-xs)', marginTop: 'var(--space-xs)' }}>⚠️ Title is too long for mobile display</p>}
                 </div>
 
-                {/* Slide Content */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '0.5rem'
-                  }}>
-                    Content Text (Optional)
-                    <CharacterCounter 
-                      current={selectedSlide.content?.length || 0} 
-                      max={200} 
-                      warn={150} 
-                    />
-                  </label>
-                  <textarea
-                    value={selectedSlide.content || ''}
-                    onChange={(e) => handleSlideChange('content', e.target.value)}
-                    placeholder="Enter slide content (2-3 sentences maximum for mobile)"
-                    rows={4}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: `1px solid ${validation.contentLength ? '#d1d5db' : '#f59e0b'}`,
-                      borderRadius: '6px',
-                      fontSize: '1rem',
-                      resize: 'vertical',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {!validation.contentLength && (
-                    <p style={{ color: '#f59e0b', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                      ⚠️ Content is too long for mobile display
-                    </p>
-                  )}
+                <div style={{ marginBottom: 'var(--space-lg)' }}>
+                  <label className="tr-field-label">Content Text (Optional) <CharacterCounter current={selectedSlide.content?.length || 0} max={200} warn={150} /></label>
+                  <textarea className="tr-textarea" value={selectedSlide.content || ''} onChange={(e) => handleSlideChange('content', e.target.value)} placeholder="Enter slide content (2-3 sentences for mobile)" rows={4} style={!validation.contentLength ? { borderColor: 'var(--color-warning)' } : undefined} />
+                  {!validation.contentLength && <p style={{ color: 'var(--color-warning)', fontSize: 'var(--font-size-xs)', marginTop: 'var(--space-xs)' }}>⚠️ Content is too long for mobile display</p>}
                 </div>
 
-                {/* Bullet Points */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '0.5rem'
-                  }}>
-                    Bullet Points (Max 5 for mobile)
-                    <span style={{
-                      fontSize: '0.75rem',
-                      color: validation.bulletCount ? '#6b7280' : '#f59e0b'
-                    }}>
-                      {' '}{selectedSlide.bullet_points?.length || 0}/5
-                      {!validation.bulletCount && ' ⚠️'}
-                    </span>
+                <div style={{ marginBottom: 'var(--space-lg)' }}>
+                  <label className="tr-field-label">
+                    Bullet Points (Max 5)
+                    <span style={{ fontSize: 'var(--font-size-xs)', color: validation.bulletCount ? 'var(--color-text-muted)' : 'var(--color-warning)', marginLeft: 'var(--space-sm)' }}>{selectedSlide.bullet_points?.length || 0}/5 {!validation.bulletCount && '⚠️'}</span>
                   </label>
-                  
-                  {selectedSlide.bullet_points?.map((bullet, index) => (
-                    <div key={index} style={{
-                      display: 'flex',
-                      gap: '0.5rem',
-                      marginBottom: '0.5rem',
-                      alignItems: 'center'
-                    }}>
-                      <span style={{
-                        fontSize: '0.875rem',
-                        color: '#6b7280',
-                        minWidth: '20px'
-                      }}>
-                        •
-                      </span>
-                      <input
-                        type="text"
-                        value={bullet}
-                        onChange={(e) => handleBulletPointChange(index, e.target.value)}
-                        placeholder="Enter bullet point (30 characters max for mobile)"
-                        style={{
-                          flex: 1,
-                          padding: '0.5rem',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          fontSize: '0.875rem'
-                        }}
-                      />
-                      <button
-                        onClick={() => removeBulletPoint(index)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#dc2626',
-                          cursor: 'pointer',
-                          fontSize: '1rem',
-                          padding: '0.25rem'
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  
+                  <div className="tr-bullet-list">
+                    {selectedSlide.bullet_points?.map((bullet, index) => (
+                      <div key={index} className="tr-bullet-item">
+                        <span style={{ fontSize: 'var(--font-size-base)', color: 'var(--color-text-muted)', minWidth: 20 }}>•</span>
+                        <input className="tr-input" type="text" value={bullet} onChange={(e) => handleBulletPointChange(index, e.target.value)} placeholder="Enter bullet point" />
+                        <button onClick={() => removeBulletPoint(index)} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: '1rem', padding: 'var(--space-xs)' }}>×</button>
+                      </div>
+                    ))}
+                  </div>
                   {(selectedSlide.bullet_points?.length || 0) < 5 && (
-                    <button
-                      onClick={addBulletPoint}
-                      style={{
-                        background: 'none',
-                        border: '1px dashed #d1d5db',
-                        color: '#6b7280',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        width: '100%'
-                      }}
-                    >
-                      + Add Bullet Point
-                    </button>
+                    <button onClick={addBulletPoint} style={{ background: 'none', border: '1px dashed var(--color-border)', color: 'var(--color-text-muted)', padding: 'var(--space-sm) var(--space-base)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 'var(--font-size-base)', width: '100%', marginTop: 'var(--space-sm)' }}>+ Add Bullet Point</button>
                   )}
                 </div>
 
-                {/* Image Upload */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '0.5rem'
-                  }}>
-                    Slide Image (Optional)
-                  </label>
-                  
-                  <SlideImageUpload 
-                    slide={selectedSlide}
-                    onImageUploaded={(imageUrl) => {
-                      const updatedSlide = { ...selectedSlide, image_url: imageUrl };
-                      setSelectedSlide(updatedSlide);
-                    }}
-                    onImageRemoved={() => {
-                      const updatedSlide = { 
-                        ...selectedSlide, 
-                        image_url: null, 
-                        image_alt_text: null, 
-                        image_caption: null 
-                      };
-                      setSelectedSlide(updatedSlide);
-                    }}
-                  />
+                <div style={{ marginBottom: 'var(--space-lg)' }}>
+                  <label className="tr-field-label">Slide Image (Optional)</label>
+                  <SlideImageUpload slide={selectedSlide} onImageUploaded={(url) => setSelectedSlide({ ...selectedSlide, image_url: url })} onImageRemoved={() => setSelectedSlide({ ...selectedSlide, image_url: null, image_alt_text: null, image_caption: null })} />
                 </div>
 
-                {/* Mobile Optimization Tips */}
-                <div style={{
-                  background: '#f0f9ff',
-                  border: '1px solid #3b82f6',
-                  borderRadius: '8px',
-                  padding: '1rem'
-                }}>
-                  <h4 style={{
-                    margin: '0 0 0.5rem 0',
-                    fontSize: '0.875rem',
-                    fontWeight: '600',
-                    color: '#1e40af'
-                  }}>
-                    📱 Mobile Optimization Tips
-                  </h4>
-                  <ul style={{
-                    margin: 0,
-                    paddingLeft: '1rem',
-                    fontSize: '0.75rem',
-                    color: '#1e40af'
-                  }}>
-                    <li>Keep titles under 50 characters</li>
-                    <li>Limit content to 2-3 sentences (200 characters)</li>
-                    <li>Use maximum 5 bullet points</li>
-                    <li>Each bullet point should be under 30 characters</li>
+                <div className="tr-info">
+                  <h4 style={{ margin: '0 0 var(--space-sm) 0', fontSize: 'var(--font-size-base)', fontWeight: 600 }}>📱 Mobile Optimization Tips</h4>
+                  <ul style={{ margin: 0, paddingLeft: 'var(--space-base)', fontSize: 'var(--font-size-xs)' }}>
+                    <li>Keep titles under 50 characters</li><li>Limit content to 2-3 sentences (200 characters)</li>
+                    <li>Use maximum 5 bullet points</li><li>Each bullet point should be under 30 characters</li>
                     <li>Images should be landscape and load quickly</li>
                   </ul>
                 </div>
               </div>
             ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: '4rem 2rem',
-                color: '#6b7280'
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
-                <h3 style={{
-                  margin: '0 0 0.5rem 0',
-                  fontSize: '1.25rem',
-                  fontWeight: '600'
-                }}>
-                  Select a slide to edit
-                </h3>
-                <p style={{
-                  margin: '0 0 2rem 0',
-                  fontSize: '0.875rem'
-                }}>
-                  Choose a slide from the left panel or create a new one to start editing.
-                </p>
-                <button
-                  onClick={handleCreateSlide}
-                  style={{
-                    background: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.75rem 1.5rem',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500'
-                  }}
-                >
-                  Create First Slide
-                </button>
+              <div className="tr-empty">
+                <div className="tr-empty-icon">📝</div>
+                <h3>Select a slide to edit</h3>
+                <p>Choose a slide from the left panel or create a new one to start editing.</p>
+                <button className="tr-btn-primary" onClick={handleCreateSlide}>Create First Slide</button>
               </div>
             )}
           </div>
 
-          {/* Mobile Preview Panel */}
           {showMobilePreview && (
-            <div style={{
-              width: '400px',
-              background: '#1f2937',
-              padding: '2rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderLeft: '1px solid #e5e7eb'
-            }}>
+            <div style={{ width: 400, background: 'var(--color-charcoal)', padding: 'var(--space-xl)', display: 'flex', justifyContent: 'center', alignItems: 'center', borderLeft: '1px solid var(--color-border)' }}>
               <MobilePreview />
             </div>
           )}
         </div>
       </div>
 
-      {/* Mobile Preview Modal */}
-      {showMobilePreview && window.innerWidth < 1200 && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 50,
-          padding: '1rem'
-        }}>
-          <div style={{
-            background: '#1f2937',
-            borderRadius: '12px',
-            padding: '2rem',
-            position: 'relative'
-          }}>
-            <button
-              onClick={() => setShowMobilePreview(false)}
-              style={{
-                position: 'absolute',
-                top: '1rem',
-                right: '1rem',
-                background: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '32px',
-                height: '32px',
-                cursor: 'pointer',
-                fontSize: '1.2rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              ×
-            </button>
-            <MobilePreview />
-          </div>
-        </div>
-      )}
-
-      {/* Unsaved Changes Warning */}
       {unsavedChanges && (
-        <div style={{
-          position: 'fixed',
-          bottom: '1rem',
-          right: '1rem',
-          background: '#fef3c7',
-          border: '1px solid #f59e0b',
-          borderRadius: '8px',
-          padding: '0.75rem 1rem',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: '0.875rem',
-          color: '#92400e'
-        }}>
-          <div style={{
-            width: '8px',
-            height: '8px',
-            background: '#f59e0b',
-            borderRadius: '50%'
-          }} />
+        <div style={{ position: 'fixed', bottom: 'var(--space-base)', right: 'var(--space-base)', background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning)', borderRadius: 'var(--radius-md)', padding: 'var(--space-md) var(--space-base)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: 'var(--font-size-base)', color: '#92400e' }}>
+          <div style={{ width: 8, height: 8, background: 'var(--color-warning)', borderRadius: '50%' }} />
           Unsaved changes - Auto-saving...
         </div>
       )}

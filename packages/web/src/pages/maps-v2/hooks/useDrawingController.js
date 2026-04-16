@@ -4,106 +4,29 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
 const DRAW_STYLES = [
-  // Inactive polygon fill
-  {
-    id: 'gl-draw-polygon-fill-inactive',
-    type: 'fill',
-    filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-    paint: { 'fill-color': '#5B6830', 'fill-outline-color': '#5B6830', 'fill-opacity': 0.15 },
-  },
-  // Active polygon fill
-  {
-    id: 'gl-draw-polygon-fill-active',
-    type: 'fill',
-    filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-    paint: { 'fill-color': '#5B6830', 'fill-outline-color': '#5B6830', 'fill-opacity': 0.3 },
-  },
-  // Inactive polygon outline
-  {
-    id: 'gl-draw-polygon-stroke-inactive',
-    type: 'line',
-    filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#5B6830', 'line-dasharray': [0.2, 2], 'line-width': 2 },
-  },
-  // Active polygon outline
-  {
-    id: 'gl-draw-polygon-stroke-active',
-    type: 'line',
-    filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#5B6830', 'line-width': 2.5 },
-  },
-  // Midpoints
-  {
-    id: 'gl-draw-polygon-midpoint',
-    type: 'circle',
-    filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']],
-    paint: { 'circle-radius': 4, 'circle-color': '#5B6830' },
-  },
-  // Inactive line (red for split)
-  {
-    id: 'gl-draw-line-inactive',
-    type: 'line',
-    filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#D1583B', 'line-width': 3 },
-  },
-  // Active line
-  {
-    id: 'gl-draw-line-active',
-    type: 'line',
-    filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#D1583B', 'line-width': 3 },
-  },
-  // Vertex points (inactive)
-  {
-    id: 'gl-draw-point-inactive',
-    type: 'circle',
-    filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['==', 'meta', 'vertex']],
-    paint: { 'circle-radius': 5, 'circle-color': '#fff', 'circle-stroke-color': '#5B6830', 'circle-stroke-width': 2 },
-  },
-  // Vertex points (active)
-  {
-    id: 'gl-draw-point-active',
-    type: 'circle',
-    filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'meta', 'midpoint']],
-    paint: { 'circle-radius': 6, 'circle-color': '#fff', 'circle-stroke-color': '#D1583B', 'circle-stroke-width': 2 },
-  },
-  // Static polygon fill (for draft preview in simple_select mode)
-  {
-    id: 'gl-draw-polygon-fill-static',
-    type: 'fill',
-    filter: ['all', ['==', 'mode', 'static'], ['==', '$type', 'Polygon']],
-    paint: { 'fill-color': '#5B6830', 'fill-outline-color': '#5B6830', 'fill-opacity': 0.15 },
-  },
-  // Static polygon outline
-  {
-    id: 'gl-draw-polygon-stroke-static',
-    type: 'line',
-    filter: ['all', ['==', 'mode', 'static'], ['==', '$type', 'Polygon']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#5B6830', 'line-width': 2, 'line-dasharray': [0.2, 2] },
-  },
+  { id: 'gl-draw-polygon-fill-inactive', type: 'fill', filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']], paint: { 'fill-color': '#5B6830', 'fill-outline-color': '#5B6830', 'fill-opacity': 0.15 } },
+  { id: 'gl-draw-polygon-fill-active', type: 'fill', filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']], paint: { 'fill-color': '#5B6830', 'fill-outline-color': '#5B6830', 'fill-opacity': 0.3 } },
+  { id: 'gl-draw-polygon-stroke-inactive', type: 'line', filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#5B6830', 'line-dasharray': [0.2, 2], 'line-width': 2 } },
+  { id: 'gl-draw-polygon-stroke-active', type: 'line', filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#5B6830', 'line-width': 2.5 } },
+  { id: 'gl-draw-polygon-midpoint', type: 'circle', filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']], paint: { 'circle-radius': 4, 'circle-color': '#5B6830' } },
+  { id: 'gl-draw-line-inactive', type: 'line', filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#D1583B', 'line-width': 3 } },
+  { id: 'gl-draw-line-active', type: 'line', filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#D1583B', 'line-width': 3 } },
+  { id: 'gl-draw-vertex-inactive', type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']], paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-stroke-width': 2, 'circle-stroke-color': '#5B6830' } },
+  { id: 'gl-draw-vertex-active', type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['==', 'active', 'true']], paint: { 'circle-radius': 7, 'circle-color': '#5B6830' } },
+  { id: 'gl-draw-polygon-fill-static', type: 'fill', filter: ['all', ['==', 'mode', 'static'], ['==', '$type', 'Polygon']], paint: { 'fill-color': '#5B6830', 'fill-outline-color': '#5B6830', 'fill-opacity': 0.15 } },
+  { id: 'gl-draw-polygon-stroke-static', type: 'line', filter: ['all', ['==', 'mode', 'static'], ['==', '$type', 'Polygon']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#5B6830', 'line-width': 2, 'line-dasharray': [0.5, 2] } },
+  { id: 'gl-draw-line-static', type: 'line', filter: ['all', ['==', 'mode', 'static'], ['==', '$type', 'LineString']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#D1583B', 'line-width': 3 } },
 ];
 
-const DRAFT_SOURCE = 'v2-draft-geometry';
-const DRAFT_FILL = 'v2-draft-fill';
-const DRAFT_LINE = 'v2-draft-line';
+const DRAFT_SOURCE = 'v2-draw-draft';
+const DRAFT_LAYER_FILL = 'v2-draw-draft-fill';
+const DRAFT_LAYER_LINE = 'v2-draw-draft-line';
 
-/**
- * Hook that manages MapboxDraw lifecycle on the map.
- *
- * @param {mapboxgl.Map|null} map
- * @param {boolean} mapReady
- * @returns drawing controller API
- */
 export default function useDrawingController(map, mapReady) {
   const drawRef = useRef(null);
   const [isDrawActive, setIsDrawActive] = useState(false);
 
-  // Initialize draw control
+  // Initialize draw control on mount — always present on the map
   useEffect(() => {
     if (!map || !mapReady) return;
 
@@ -119,134 +42,52 @@ export default function useDrawingController(map, mapReady) {
 
     return () => {
       setIsDrawActive(false);
-      try {
-        map.removeControl(draw);
-      } catch {
-        // map may already be destroyed
-      }
+      try { map.removeControl(draw); } catch { /* map may already be destroyed */ }
       drawRef.current = null;
     };
   }, [map, mapReady]);
 
-  // Start drawing a polygon
-  const startDrawPolygon = useCallback(() => {
-    drawRef.current?.changeMode('draw_polygon');
-  }, []);
+  const startDrawPolygon = useCallback(() => { drawRef.current?.changeMode('draw_polygon'); }, []);
+  const startDrawLine = useCallback(() => { drawRef.current?.changeMode('draw_line_string'); }, []);
+  const startDirectSelect = useCallback((featureId) => { drawRef.current?.changeMode('direct_select', { featureId }); }, []);
+  const resetMode = useCallback(() => { drawRef.current?.changeMode('simple_select'); }, []);
+  const deleteAll = useCallback(() => { drawRef.current?.deleteAll(); }, []);
+  const addFeature = useCallback((feature) => drawRef.current?.add(feature), []);
+  const getFeature = useCallback((featureId) => drawRef.current?.get(featureId), []);
 
-  // Start drawing a line (for split)
-  const startDrawLine = useCallback(() => {
-    drawRef.current?.changeMode('draw_line_string');
-  }, []);
-
-  // Enter direct_select mode to edit vertices of a feature
-  const startDirectSelect = useCallback((featureId) => {
-    drawRef.current?.changeMode('direct_select', { featureId });
-  }, []);
-
-  // Go back to simple_select (idle)
-  const resetMode = useCallback(() => {
-    drawRef.current?.changeMode('simple_select');
-  }, []);
-
-  // Delete all drawn features
-  const deleteAll = useCallback(() => {
-    drawRef.current?.deleteAll();
-  }, []);
-
-  // Add a feature to draw (for editing existing geometry)
-  const addFeature = useCallback((feature) => {
-    return drawRef.current?.add(feature);
-  }, []);
-
-  // Get a feature by ID from draw
-  const getFeature = useCallback((featureId) => {
-    return drawRef.current?.get(featureId);
-  }, []);
-
-  // Freeze drawing: clear everything and go to simple_select
+  // Freeze: clear all Draw features and return to simple_select.
+  // With no features, Draw in simple_select won't intercept clicks on our layers.
   const freeze = useCallback(() => {
     drawRef.current?.deleteAll();
     drawRef.current?.changeMode('simple_select');
   }, []);
 
-  // Show a static draft polygon on the map (outside of draw)
   const showDraft = useCallback((geometry) => {
     if (!map) return;
     clearDraft();
-
-    map.addSource(DRAFT_SOURCE, {
-      type: 'geojson',
-      data: { type: 'Feature', geometry, properties: {} },
-    });
-
-    map.addLayer({
-      id: DRAFT_FILL,
-      type: 'fill',
-      source: DRAFT_SOURCE,
-      paint: { 'fill-color': '#5B6830', 'fill-opacity': 0.2 },
-    });
-
-    map.addLayer({
-      id: DRAFT_LINE,
-      type: 'line',
-      source: DRAFT_SOURCE,
-      paint: { 'line-color': '#5B6830', 'line-width': 2 },
-    });
+    map.addSource(DRAFT_SOURCE, { type: 'geojson', data: { type: 'Feature', geometry, properties: {} } });
+    map.addLayer({ id: DRAFT_LAYER_FILL, type: 'fill', source: DRAFT_SOURCE, paint: { 'fill-color': '#5B6830', 'fill-opacity': 0.2 } });
+    map.addLayer({ id: DRAFT_LAYER_LINE, type: 'line', source: DRAFT_SOURCE, paint: { 'line-color': '#5B6830', 'line-width': 2, 'line-dasharray': [3, 2] } });
   }, [map]);
 
-  // Clear the static draft polygon
   const clearDraft = useCallback(() => {
     if (!map) return;
     try {
-      if (map.getLayer(DRAFT_FILL)) map.removeLayer(DRAFT_FILL);
-      if (map.getLayer(DRAFT_LINE)) map.removeLayer(DRAFT_LINE);
+      if (map.getLayer(DRAFT_LAYER_FILL)) map.removeLayer(DRAFT_LAYER_FILL);
+      if (map.getLayer(DRAFT_LAYER_LINE)) map.removeLayer(DRAFT_LAYER_LINE);
       if (map.getSource(DRAFT_SOURCE)) map.removeSource(DRAFT_SOURCE);
-    } catch {
-      // layers may not exist
-    }
+    } catch { /* ignore */ }
   }, [map]);
 
-  // Register event listeners (returns cleanup fn)
   const onDrawCreate = useCallback((handler) => {
     if (!map) return () => {};
     map.on('draw.create', handler);
     return () => map.off('draw.create', handler);
   }, [map]);
 
-  const onDrawUpdate = useCallback((handler) => {
-    if (!map) return () => {};
-    map.on('draw.update', handler);
-    return () => map.off('draw.update', handler);
-  }, [map]);
-
-  const onDrawDelete = useCallback((handler) => {
-    if (!map) return () => {};
-    map.on('draw.delete', handler);
-    return () => map.off('draw.delete', handler);
-  }, [map]);
-
-  const onDrawSelectionChange = useCallback((handler) => {
-    if (!map) return () => {};
-    map.on('draw.selectionchange', handler);
-    return () => map.off('draw.selectionchange', handler);
-  }, [map]);
-
   return {
-    draw: drawRef,
-    isDrawActive,
-    startDrawPolygon,
-    startDrawLine,
-    startDirectSelect,
-    resetMode,
-    deleteAll,
-    addFeature,
-    getFeature,
-    freeze,
-    showDraft,
-    clearDraft,
-    onDrawCreate,
-    onDrawUpdate,
-    onDrawDelete,
-    onDrawSelectionChange,
+    isDrawActive, startDrawPolygon, startDrawLine, startDirectSelect,
+    resetMode, deleteAll, addFeature, getFeature,
+    freeze, showDraft, clearDraft, onDrawCreate,
   };
 }

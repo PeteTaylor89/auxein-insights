@@ -1,7 +1,7 @@
 // maps-v2/MapsPage.jsx — Page shell: sidebar + map + mode toggle
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import * as turf from '@turf/turf';
-import { useAuth, blocksService, spatialAreasService, propertyService } from '@vineyard/shared';
+import { useAuth, blocksService, spatialAreasService, propertyService, parcelsService } from '@vineyard/shared';
 import useMapbox from './hooks/useMapbox';
 import useBlocksLayer from './hooks/useBlocksLayer';
 import useRisksLayer from './hooks/useRisksLayer';
@@ -31,13 +31,20 @@ import BlockCreateForm from './components/drawing/BlockCreateForm';
 import BlockEditForm from './components/drawing/BlockEditForm';
 import BlockSplitFlow from './components/drawing/BlockSplitFlow';
 import SpatialAreaForm from './components/drawing/SpatialAreaForm';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   showReactPopup,
   BlockPopupContent,
   ObservationPopupContent,
   TaskPopupContent,
   RiskPopupContent,
+  AssetPopupContent,
+  ParcelPopupContent,
 } from './components/shared/MapPopup';
+import ParcelAssignmentModal from './components/drawing/ParcelAssignmentModal';
+import BlockCompanyAssignModal from './components/drawing/BlockCompanyAssignModal';
+import useAvailableCompanies from './hooks/useAvailableCompanies';
 import './MapsPage.css';
 
 function resolveViewerRole(user) {
@@ -78,6 +85,7 @@ class MapsErrorBoundary extends React.Component {
 }
 
 function MapsPageInner() {
+  const navigate = useNavigate();
   const { user, userTypeRole } = useAuth();
   const { scope, isAuxeinAdmin: isAuxeinAdminLegacy, companyId } = useMemo(
     () => resolveViewerRole(user),
@@ -97,19 +105,33 @@ function MapsPageInner() {
   const [showObservations, setShowObservations] = useState(true);
   const [showAssets, setShowAssets] = useState(false);
 
+  // Panel collapse state (for sidebar cleanliness)
+  const [collapsed, setCollapsed] = useState({
+    blocks: false,
+    risks: true,
+    spatialAreas: true,
+    parcels: true,
+    tasks: true,
+    observations: true,
+    assets: true,
+  });
+  const toggleCollapse = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+
   // Properties state (admin only)
   const [properties, setProperties] = useState([]);
 
-  // Fetch properties for admin
+  const isAdmin = isAuxeinAdmin || userTypeRole === 'company_admin';
+
+  // Fetch properties for admin users
   const fetchProperties = useCallback(async () => {
-    if (!isAuxeinAdmin) return;
+    if (!isAdmin) return;
     try {
       const data = await propertyService.listProperties({ limit: 500 });
       setProperties(data);
     } catch (err) {
       console.error('Failed to load properties:', err);
     }
-  }, [isAuxeinAdmin]);
+  }, [isAdmin]);
 
   useEffect(() => {
     fetchProperties();
@@ -130,6 +152,14 @@ function MapsPageInner() {
   const editFeatureIdRef = useRef(null);
   const [showSpatialEdit, setShowSpatialEdit] = useState(false);
   const [editSpatialData, setEditSpatialData] = useState(null);
+
+  // Parcel assignment modal (auxein admin)
+  const [showParcelAssign, setShowParcelAssign] = useState(false);
+  const [selectedParcelForAssign, setSelectedParcelForAssign] = useState(null);
+
+  // Block company assignment modal (auxein admin)
+  const [showBlockCompanyAssign, setShowBlockCompanyAssign] = useState(false);
+  const [selectedBlockForAssign, setSelectedBlockForAssign] = useState(null);
 
   // Map instance
   const { map, mapRef, mapReady, activeStyle, is3D, setStyle, containerRef } =
@@ -158,8 +188,11 @@ function MapsPageInner() {
     useSpatialAreasLayer(map, mapReady, showSpatialAreas);
 
   // Parcels (admin only)
-  const { parcelCount, loading: parcelsLoading, error: parcelsError } =
-    useParcelsLayer(map, mapReady, showParcels, isAuxeinAdmin);
+  const { parcelCount, loading: parcelsLoading, error: parcelsError, refresh: refreshParcels } =
+    useParcelsLayer(map, mapReady, showParcels, isAdmin, isAuxeinAdmin, companyId);
+
+  // Companies list (auxein admin only — for assignment dropdowns)
+  const { companies: availableCompanies, loading: companiesLoading } = useAvailableCompanies(isAuxeinAdmin);
 
   // Tasks
   const {
@@ -172,7 +205,7 @@ function MapsPageInner() {
     useObservationsLayer(map, mapReady, showObservations, blocksData);
 
   // Assets
-  const { assetCount, loading: assetsLoading, error: assetsError } =
+  const { assetsData, assetCount, loading: assetsLoading, error: assetsError } =
     useAssetsLayer(map, mapReady, showAssets);
 
   // Block split state machine
@@ -415,195 +448,173 @@ function MapsPageInner() {
     setTimeout(() => setShowSpatialAreas(true), 100);
   }, [drawing]);
 
-  // Unified click handler — only the topmost interactive layer gets a popup
+  // ---- Parcel assignment handlers (auxein admin) ----
+  const handleOpenParcelAssign = useCallback((parcelProps) => {
+    setSelectedParcelForAssign(parcelProps);
+    setShowParcelAssign(true);
+  }, []);
+
+  const handleParcelAssignSuccess = useCallback(() => {
+    setShowParcelAssign(false);
+    setSelectedParcelForAssign(null);
+    if (refreshParcels) refreshParcels();
+  }, [refreshParcels]);
+
+  const handleRemoveParcelAssignment = useCallback(async (parcelId, companyIdToRemove) => {
+    if (!parcelId || !companyIdToRemove) return;
+    if (!window.confirm('Remove this parcel assignment? This cannot be undone.')) return;
+    try {
+      await parcelsService.removeParcelAssignment(parcelId, companyIdToRemove);
+      if (refreshParcels) refreshParcels();
+    } catch (err) {
+      console.error('Remove parcel assignment failed:', err);
+      alert(err?.response?.data?.detail || err.message || 'Failed to remove assignment');
+    }
+  }, [refreshParcels]);
+
+  // ---- Block company assignment handlers (auxein admin) ----
+  const handleOpenBlockCompanyAssign = useCallback(async (blockId) => {
+    try {
+      const data = await blocksService.getBlockById(blockId);
+      setSelectedBlockForAssign(data);
+      setShowBlockCompanyAssign(true);
+    } catch (err) {
+      console.error('Failed to load block for assignment:', err);
+      alert('Failed to load block details');
+    }
+  }, []);
+
+  const handleBlockAssignSuccess = useCallback(() => {
+    setShowBlockCompanyAssign(false);
+    setSelectedBlockForAssign(null);
+    refresh();  // refresh blocks layer
+  }, [refresh]);
+
+  // Click handler using refs to avoid stale closures.
+  // Uses map.on('click', layerId, ...) which fires BEFORE MapboxDraw's generic handler.
+  // Re-attaches whenever layers are added via a polling interval.
+  const drawModeRef = useRef(drawMode);
+  drawModeRef.current = drawMode;
+  const flyToBlockRef = useRef(flyToBlock);
+  flyToBlockRef.current = flyToBlock;
+  const handleOpenBlockEditRef = useRef(handleOpenBlockEdit);
+  handleOpenBlockEditRef.current = handleOpenBlockEdit;
+  const handleOpenSpatialEditRef = useRef(handleOpenSpatialEdit);
+  handleOpenSpatialEditRef.current = handleOpenSpatialEdit;
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const isAuxeinAdminRef = useRef(isAuxeinAdmin);
+  isAuxeinAdminRef.current = isAuxeinAdmin;
+  const handleOpenParcelAssignRef = useRef(handleOpenParcelAssign);
+  handleOpenParcelAssignRef.current = handleOpenParcelAssign;
+  const handleRemoveParcelAssignmentRef = useRef(handleRemoveParcelAssignment);
+  handleRemoveParcelAssignmentRef.current = handleRemoveParcelAssignment;
+  const handleOpenBlockCompanyAssignRef = useRef(handleOpenBlockCompanyAssign);
+  handleOpenBlockCompanyAssignRef.current = handleOpenBlockCompanyAssign;
+
   useEffect(() => {
     if (!map || !mapReady) return;
 
-    // Priority order: point layers first (risks, observations, tasks), then fill (blocks)
+    // Priority order: first = highest priority. Point layers beat fill layers.
     const INTERACTIVE_LAYERS = [
-      'v2-assets-points',
-      'v2-risks-circles',
-      'v2-observations-symbol',
-      'v2-tasks-symbol',
-      'v2-blocks-fill',
+      'v2-assets-points', 'v2-risks-circles', 'v2-observations-symbol',
+      'v2-tasks-symbol', 'v2-spatial-fill', 'v2-parcels-fill', 'v2-blocks-fill',
     ];
 
     const handleClick = (e) => {
-      // Skip popups when drawing/splitting/editing
-      if (drawMode !== 'idle') return;
+      if (drawModeRef.current !== 'idle') return;
 
-      // Query all interactive layers that currently exist on the map
-      const activeLayers = INTERACTIVE_LAYERS.filter((id) => map.getLayer(id));
-      if (activeLayers.length === 0) return;
+      // Query only layers that exist on the map right now
+      const existingLayers = INTERACTIVE_LAYERS.filter((id) => map.getLayer(id));
+      if (existingLayers.length === 0) return;
 
-      const features = map.queryRenderedFeatures(e.point, { layers: activeLayers });
-      if (!features?.length) return;
+      // queryRenderedFeatures with a small buffer for easier clicking on icons
+      const bbox = [
+        [e.point.x - 8, e.point.y - 8],
+        [e.point.x + 8, e.point.y + 8],
+      ];
+      const allFeatures = map.queryRenderedFeatures(bbox, { layers: existingLayers });
+      if (!allFeatures?.length) return;
 
-      // First feature is from the topmost layer — show only that popup
-      const feature = features[0];
-      const layerId = feature.layer?.id;
-      const p = feature.properties || {};
+      // Pick highest-priority feature (lowest index in INTERACTIVE_LAYERS)
+      let topFeature = null;
+      let topPriority = Infinity;
+      for (const f of allFeatures) {
+        const idx = INTERACTIVE_LAYERS.indexOf(f.layer?.id);
+        if (idx !== -1 && idx < topPriority) {
+          topPriority = idx;
+          topFeature = f;
+        }
+      }
+      if (!topFeature) return;
+
+      const layerId = topFeature.layer.id;
+      const p = topFeature.properties || {};
+      const nav = navigateRef.current;
+      const lngLat = [e.lngLat.lng, e.lngLat.lat];
 
       if (layerId === 'v2-assets-points') {
-        const coords = feature.geometry.coordinates;
-        showReactPopup(map, {
-          lngLat: coords,
-          content: (
-            <div style={{ minWidth: 160 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>{p.name || 'Asset'}</div>
-              <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                {p.category}{p.subcategory ? ` / ${p.subcategory}` : ''}
-              </div>
-              {p.asset_number && <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>#{p.asset_number}</div>}
-              {p.location_label && <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{p.location_label}</div>}
-              <div style={{ fontSize: '0.75rem', marginTop: 4, color: p.status === 'active' ? '#059669' : '#dc2626' }}>
-                {p.status}
-              </div>
-            </div>
-          ),
-        });
+        showReactPopup(map, { lngLat, content: <AssetPopupContent properties={p} onNavigate={() => { const t = p.asset_type === 'consumable' ? 'consumables' : 'equipment'; nav(`/assets/${t}/${p.id}/edit`); }} /> });
       } else if (layerId === 'v2-risks-circles') {
-        const coords = feature.geometry.coordinates;
-        showReactPopup(map, {
-          lngLat: coords,
-          content: <RiskPopupContent properties={p} />,
-        });
+        showReactPopup(map, { lngLat, content: <RiskPopupContent properties={p} onNavigate={() => nav('/riskdashboard')} /> });
       } else if (layerId === 'v2-observations-symbol') {
-        const coords = feature.geometry.coordinates;
-        showReactPopup(map, {
-          lngLat: coords,
-          content: <ObservationPopupContent properties={p} />,
-        });
+        showReactPopup(map, { lngLat, content: <ObservationPopupContent properties={p} onNavigate={() => nav('/observations')} /> });
       } else if (layerId === 'v2-tasks-symbol') {
-        const coords = feature.geometry.coordinates;
-        showReactPopup(map, {
-          lngLat: coords,
-          content: <TaskPopupContent properties={p} />,
-        });
+        showReactPopup(map, { lngLat, content: <TaskPopupContent properties={p} onNavigate={() => nav('/observations')} /> });
+      } else if (layerId === 'v2-spatial-fill') {
+        showReactPopup(map, { lngLat, content: (
+          <div className="v2-popup">
+            <div className="v2-popup-header"><div className="v2-popup-badge v2-popup-badge--owned">Spatial Area</div></div>
+            <h3 className="v2-popup-title">{p.name || 'Unnamed Area'}</h3>
+            {p.area_type && <div className="v2-popup-grid"><div className="v2-popup-row"><span className="v2-popup-label">Type</span><span className="v2-popup-value">{p.area_type}</span></div></div>}
+            <div className="v2-popup-footer">{p.id && <button className="v2-popup-btn v2-popup-btn--accent" onClick={() => handleOpenSpatialEditRef.current(Number(p.id))}>Edit Area</button>}</div>
+          </div>
+        ) });
+      } else if (layerId === 'v2-parcels-fill') {
+        showReactPopup(map, { lngLat, content: (
+          <ParcelPopupContent
+            properties={p}
+            isAuxeinAdmin={isAuxeinAdminRef.current}
+            onAssign={(props) => handleOpenParcelAssignRef.current(props)}
+            onRemove={(pid, cid) => handleRemoveParcelAssignmentRef.current(pid, cid)}
+          />
+        ) });
       } else if (layerId === 'v2-blocks-fill') {
-        showReactPopup(map, {
-          lngLat: [e.lngLat.lng, e.lngLat.lat],
-          content: (
-            <BlockPopupContent
-              feature={feature}
-              onFlyTo={flyToBlock}
-              onEdit={handleOpenBlockEdit}
-            />
-          ),
-        });
+        showReactPopup(map, { lngLat, content: (
+          <BlockPopupContent
+            feature={topFeature}
+            onFlyTo={flyToBlockRef.current}
+            onEdit={handleOpenBlockEditRef.current}
+            isAuxeinAdmin={isAuxeinAdminRef.current}
+            onAssignCompany={handleOpenBlockCompanyAssignRef.current}
+          />
+        ) });
       }
     };
 
-    map.on('click', handleClick);
-
-    // Cursor: pointer when hovering any interactive layer
     const onMouseMove = (e) => {
-      const activeLayers = INTERACTIVE_LAYERS.filter((id) => map.getLayer(id));
-      if (activeLayers.length === 0) return;
-      const features = map.queryRenderedFeatures(e.point, { layers: activeLayers });
+      const existingLayers = INTERACTIVE_LAYERS.filter((id) => map.getLayer(id));
+      if (existingLayers.length === 0) return;
+      const features = map.queryRenderedFeatures(e.point, { layers: existingLayers });
       map.getCanvas().style.cursor = features?.length ? 'pointer' : '';
     };
 
+    map.on('click', handleClick);
     map.on('mousemove', onMouseMove);
 
     return () => {
       map.off('click', handleClick);
       map.off('mousemove', onMouseMove);
     };
-  }, [map, mapReady, flyToBlock, drawMode, handleOpenBlockEdit]);
+  }, [map, mapReady]);
 
   return (
     <div className="v2-maps-page">
       <Sidebar mode={mode} onModeChange={setMode}>
         {mode === 'management' ? (
           <>
-            <BlocksPanel
-              blocksData={blocksData}
-              blockCount={blockCount}
-              loading={loading}
-              error={error}
-              flyToBlock={flyToBlock}
-            />
-
-            <RisksPanel
-              riskCount={riskCount}
-              loading={risksLoading}
-              error={risksError}
-              visible={showRisks}
-              onToggle={() => setShowRisks((v) => !v)}
-            />
-
-            <SpatialAreasPanel
-              areaCount={areaCount}
-              loading={areasLoading}
-              error={areasError}
-              visible={showSpatialAreas}
-              onToggle={() => setShowSpatialAreas((v) => !v)}
-            />
-
-            {isAuxeinAdmin && (
-              <div className="v2-panel">
-                <div className="v2-panel-header">
-                  <h3 className="v2-panel-title">
-                    Land Parcels
-                    <span className="v2-panel-count">{parcelCount}</span>
-                    <button
-                      className="v2-layer-toggle-btn"
-                      onClick={() => setShowParcels((v) => !v)}
-                    >
-                      {showParcels ? 'On' : 'Off'}
-                    </button>
-                  </h3>
-                </div>
-                {parcelsLoading && <div className="v2-panel-loading">Loading parcels...</div>}
-                {parcelsError && <div className="v2-panel-error">{parcelsError}</div>}
-                {showParcels && !parcelsLoading && (
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', padding: '0 var(--space-md)' }}>
-                    Zoom in to level 12+ to see parcels
-                  </div>
-                )}
-              </div>
-            )}
-
-            <TasksPanel
-              tasks={tasks}
-              taskCount={taskCount}
-              loading={tasksLoading}
-              error={tasksError}
-              visible={showTasks}
-              onToggle={() => setShowTasks((v) => !v)}
-              activeTrackId={activeTrackId}
-              showTrack={showTrack}
-              hideTrack={hideTrack}
-            />
-
-            <ObservationsPanel
-              observations={observations}
-              obsCount={obsCount}
-              loading={obsLoading}
-              error={obsError}
-              visible={showObservations}
-              onToggle={() => setShowObservations((v) => !v)}
-            />
-
-            <div className="v2-panel">
-              <div className="v2-panel-header">
-                <h3 className="v2-panel-title">
-                  Assets
-                  <span className="v2-panel-count">{assetCount}</span>
-                  <button
-                    className="v2-layer-toggle-btn"
-                    onClick={() => setShowAssets((v) => !v)}
-                  >
-                    {showAssets ? 'On' : 'Off'}
-                  </button>
-                </h3>
-              </div>
-              {assetsLoading && <div className="v2-panel-loading">Loading assets...</div>}
-              {assetsError && <div className="v2-panel-error">{assetsError}</div>}
-            </div>
-
-            {isAuxeinAdmin && properties.length > 0 && (
+            {/* Properties first */}
+            {isAdmin && properties.length > 0 && (
               <PropertiesPanel
                 properties={properties}
                 blocksData={blocksData}
@@ -614,6 +625,160 @@ function MapsPageInner() {
                 }}
               />
             )}
+
+            {/* Blocks — collapsible */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" onClick={() => toggleCollapse('blocks')} style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title">
+                  {collapsed.blocks ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  Blocks
+                  <span className="v2-panel-count">{blockCount}</span>
+                </h3>
+              </div>
+              {!collapsed.blocks && (
+                <BlocksPanel
+                  blocksData={blocksData}
+                  blockCount={blockCount}
+                  loading={loading}
+                  error={error}
+                  flyToBlock={flyToBlock}
+                  headerless
+                />
+              )}
+            </div>
+
+            {/* Risks — collapsible when visible */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showRisks && toggleCollapse('risks')}>
+                  {showRisks && !collapsed.risks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Risks
+                  <span className="v2-panel-count">{riskCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowRisks((v) => !v); }} title={showRisks ? 'Hide risks' : 'Show risks'}>
+                    {showRisks ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {showRisks && !collapsed.risks && (
+                <RisksPanel riskCount={riskCount} loading={risksLoading} error={risksError} visible={showRisks} onToggle={() => setShowRisks((v) => !v)} contentOnly />
+              )}
+            </div>
+
+            {/* Spatial Areas */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showSpatialAreas && toggleCollapse('spatialAreas')}>
+                  {showSpatialAreas && !collapsed.spatialAreas ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Spatial Areas
+                  <span className="v2-panel-count">{areaCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowSpatialAreas((v) => !v); }} title={showSpatialAreas ? 'Hide areas' : 'Show areas'}>
+                    {showSpatialAreas ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {areasLoading && <div className="v2-panel-loading">Loading areas...</div>}
+              {areasError && <div className="v2-panel-error">{areasError}</div>}
+            </div>
+
+            {/* Land Parcels */}
+            {isAdmin && (
+              <div className="v2-panel">
+                <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                  <h3 className="v2-panel-title" onClick={() => showParcels && toggleCollapse('parcels')}>
+                    {showParcels && !collapsed.parcels ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    Land Parcels
+                    <span className="v2-panel-count">{parcelCount}</span>
+                    <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowParcels((v) => !v); }} title={showParcels ? 'Hide parcels' : 'Show parcels'}>
+                      {showParcels ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                  </h3>
+                </div>
+                {showParcels && !collapsed.parcels && (
+                  <>
+                    {parcelsLoading && <div className="v2-panel-loading">Loading parcels...</div>}
+                    {parcelsError && <div className="v2-panel-error">{parcelsError}</div>}
+                    {!parcelsLoading && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', padding: '0 var(--space-md) var(--space-sm)' }}>Zoom in to level 12+ to see parcels</div>}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Tasks — collapsible when visible */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showTasks && toggleCollapse('tasks')}>
+                  {showTasks && !collapsed.tasks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Tasks
+                  <span className="v2-panel-count">{taskCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowTasks((v) => !v); }} title={showTasks ? 'Hide tasks' : 'Show tasks'}>
+                    {showTasks ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {showTasks && !collapsed.tasks && (
+                <TasksPanel tasks={tasks} taskCount={taskCount} loading={tasksLoading} error={tasksError} visible={showTasks} onToggle={() => setShowTasks((v) => !v)} activeTrackId={activeTrackId} showTrack={showTrack} hideTrack={hideTrack} blocksData={blocksData} contentOnly />
+              )}
+            </div>
+
+            {/* Observations — collapsible when visible */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showObservations && toggleCollapse('observations')}>
+                  {showObservations && !collapsed.observations ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Observations
+                  <span className="v2-panel-count">{obsCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowObservations((v) => !v); }} title={showObservations ? 'Hide obs' : 'Show obs'}>
+                    {showObservations ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {showObservations && !collapsed.observations && (
+                <ObservationsPanel observations={observations} obsCount={obsCount} loading={obsLoading} error={obsError} visible={showObservations} onToggle={() => setShowObservations((v) => !v)} contentOnly />
+              )}
+            </div>
+
+            {/* Assets */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showAssets && toggleCollapse('assets')}>
+                  {showAssets && !collapsed.assets ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <Settings size={16} />
+                  Assets
+                  <span className="v2-panel-count">{assetCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowAssets((v) => !v); }} title={showAssets ? 'Hide assets' : 'Show assets'}>
+                    {showAssets ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {showAssets && !collapsed.assets && (
+                <>
+                  {assetsLoading && <div className="v2-panel-loading">Loading assets...</div>}
+                  {assetsError && <div className="v2-panel-error">{assetsError}</div>}
+                  {!assetsLoading && assetsData?.features?.length > 0 && (
+                    <ul className="v2-block-list">
+                      {assetsData.features.filter(f => f.geometry?.type === 'Point').map((feature) => {
+                        const ap = feature.properties || {};
+                        return (
+                          <li key={ap.id || feature.id} className="v2-block-item" onClick={() => {
+                            const coords = feature.geometry?.coordinates;
+                            if (map && coords) map.flyTo({ center: coords, zoom: 17, duration: 1000 });
+                          }}>
+                            <div className="v2-block-name">{ap.name || 'Unnamed Asset'}</div>
+                            <div className="v2-block-meta">
+                              <span style={{ textTransform: 'capitalize' }}>{ap.category || 'Asset'}</span>
+                              {ap.status && <span style={{ color: ap.status === 'active' ? 'var(--color-success)' : 'var(--color-text-muted)' }}>{ap.status}</span>}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {!assetsLoading && (!assetsData?.features?.length) && (
+                    <div className="v2-block-empty" style={{ padding: 'var(--space-md)' }}>No assets with locations</div>
+                  )}
+                </>
+              )}
+            </div>
 
             {isAuxeinAdmin && (
               <FlyoverPanel
@@ -627,7 +792,7 @@ function MapsPageInner() {
           <MapBuilder
             map={map}
             mapReady={mapReady}
-            isAdmin={isAuxeinAdmin}
+            isAdmin={isAdmin}
             builderState={builderState}
           />
         )}
@@ -715,6 +880,26 @@ function MapsPageInner() {
           setShowSpatialEdit(false);
           setEditSpatialData(null);
         }}
+      />
+
+      {/* Parcel assignment modal (auxein admin) */}
+      <ParcelAssignmentModal
+        isOpen={showParcelAssign}
+        parcel={selectedParcelForAssign}
+        companies={availableCompanies}
+        companiesLoading={companiesLoading}
+        onSubmit={handleParcelAssignSuccess}
+        onCancel={() => { setShowParcelAssign(false); setSelectedParcelForAssign(null); }}
+      />
+
+      {/* Block company assignment modal (auxein admin) */}
+      <BlockCompanyAssignModal
+        isOpen={showBlockCompanyAssign}
+        block={selectedBlockForAssign}
+        companies={availableCompanies}
+        companiesLoading={companiesLoading}
+        onSubmit={handleBlockAssignSuccess}
+        onCancel={() => { setShowBlockCompanyAssign(false); setSelectedBlockForAssign(null); }}
       />
     </div>
   );

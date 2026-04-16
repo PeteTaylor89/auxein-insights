@@ -286,6 +286,147 @@
   text-decoration: underline;
 }
 
+/* Chip-style button: used for inline counters/tags in tables */
+.ca-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px 10px;
+  background: var(--color-surface-warm);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.ca-chip-btn:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.ca-chip-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+/* Relationships placeholder cards */
+.ca-relationships-grid {
+  display: grid;
+  gap: var(--space-base);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  margin-top: var(--space-base);
+}
+
+.ca-relationship-card {
+  display: flex;
+  gap: var(--space-base);
+  padding: var(--space-base);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  border-top: 3px solid var(--color-accent);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.ca-relationship-card:hover {
+  box-shadow: var(--shadow-md);
+  border-top-color: var(--color-primary);
+}
+
+.ca-relationship-icon {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-warm);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.ca-relationship-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.ca-relationship-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ca-relationship-desc {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.ca-relationship-status {
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+  padding: 3px 10px;
+  background: var(--color-surface-warm);
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Inline success banner, used inside forms */
+.ca-form-success {
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-base);
+  background: var(--color-success-bg, #ecfdf5);
+  color: #065f46;
+  border: 1px solid var(--color-success, #10b981);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Secondary (outline) button, for actions like "Save & Add Another" */
+.ca-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: white;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ca-btn-secondary:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+.ca-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Alias form */
 .ca-alias-form {
   display: flex;

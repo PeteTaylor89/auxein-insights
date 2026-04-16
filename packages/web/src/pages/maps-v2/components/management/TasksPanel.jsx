@@ -33,8 +33,20 @@ export default function TasksPanel({
   showTrack,
   hideTrack,
   selectedBlockId,
+  contentOnly,
+  blocksData,
 }) {
   const [expandedBlock, setExpandedBlock] = useState(selectedBlockId || null);
+
+  // Build block name lookup from blocksData GeoJSON
+  const blockNameLookup = useMemo(() => {
+    const lookup = {};
+    (blocksData?.features || []).forEach((f) => {
+      const p = f.properties || {};
+      if (p.id) lookup[p.id] = p.block_name || 'Unnamed';
+    });
+    return lookup;
+  }, [blocksData]);
 
   // Group tasks by block
   const tasksByBlock = useMemo(() => {
@@ -42,35 +54,19 @@ export default function TasksPanel({
     (tasks || []).forEach((t) => {
       const bid = t.block_id;
       if (!bid) return;
-      if (!groups[bid]) groups[bid] = { blockName: t.block_name || `Block ${bid}`, tasks: [] };
+      if (!groups[bid]) groups[bid] = { blockName: blockNameLookup[bid] || t.block?.block_name || t.block_name || `Block ${bid}`, tasks: [] };
       groups[bid].tasks.push(t);
     });
-    // Sort tasks within each block by date descending
     Object.values(groups).forEach((g) => {
       g.tasks.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     });
     return groups;
-  }, [tasks]);
+  }, [tasks, blockNameLookup]);
 
   const blockIds = Object.keys(tasksByBlock);
 
-  return (
-    <div className="v2-panel">
-      <div className="v2-panel-header">
-        <h3 className="v2-panel-title">
-          <ClipboardList size={16} />
-          Tasks
-          <span className="v2-panel-count">{taskCount}</span>
-          <button
-            className="v2-layer-toggle-btn"
-            onClick={onToggle}
-            title={visible ? 'Hide tasks' : 'Show tasks'}
-          >
-            {visible ? <Eye size={14} /> : <EyeOff size={14} />}
-          </button>
-        </h3>
-      </div>
-
+  const content = (
+    <>
       {loading && (
         <div className="v2-panel-loading">
           <Loader2 size={16} className="v2-spin" />
@@ -147,6 +143,22 @@ export default function TasksPanel({
           )}
         </ul>
       )}
+    </>
+  );
+
+  if (contentOnly) return content;
+
+  return (
+    <div className="v2-panel">
+      <div className="v2-panel-header">
+        <h3 className="v2-panel-title">
+          <ClipboardList size={16} /> Tasks <span className="v2-panel-count">{taskCount}</span>
+          <button className="v2-layer-toggle-btn" onClick={onToggle} title={visible ? 'Hide tasks' : 'Show tasks'}>
+            {visible ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
+        </h3>
+      </div>
+      {content}
     </div>
   );
 }

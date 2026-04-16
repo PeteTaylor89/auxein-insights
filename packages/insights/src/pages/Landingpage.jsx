@@ -309,7 +309,7 @@ function LandingPage() {
             <p>Auxein Insights</p>
           </div>
           <div className="footer-links">
-            <Link to="/about">About</Link>
+            <a href="https://auxein.co.nz/about" target="_blank" rel="noopener noreferrer">About</a>
             <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
             <a href="https://auxein.co.nz/contact" target="_blank" rel="noopener noreferrer">Contact</a>
             <Link to="/legal?section=privacy">Privacy Policy</Link>

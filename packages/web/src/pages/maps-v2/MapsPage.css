@@ -299,6 +299,16 @@
   color: var(--color-accent);
 }
 
+.v2-popup-badge--parcel-assigned {
+  background: var(--color-success-bg);
+  color: #166534;
+}
+
+.v2-popup-badge--parcel-unassigned {
+  background: var(--color-warning-bg);
+  color: #92400e;
+}
+
 .v2-popup-badge--risk {
   background: #fef3c7;
   color: #92400e;

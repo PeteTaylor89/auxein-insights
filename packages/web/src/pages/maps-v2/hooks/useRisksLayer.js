@@ -6,7 +6,7 @@ import { removeLayers } from '../utils/geometry';
 import { RISK_COLORS } from '../utils/layerColors';
 
 const SOURCE_ID = 'v2-risks';
-const LAYER_ID = 'v2-risks-circles';
+const LAYER_ID = 'v2-risks-circles'; // keep ID for click handler compat
 
 /**
  * Hook that manages the risks layer on the map.
@@ -111,27 +111,32 @@ export default function useRisksLayer(map, mapReady, visible) {
 
         map.addLayer({
           id: LAYER_ID,
-          type: 'circle',
+          type: 'symbol',
           source: SOURCE_ID,
-          paint: {
-            'circle-color': [
+          layout: {
+            'icon-image': [
               'match',
               ['get', 'risk_level'],
-              'low', RISK_COLORS.low,
-              'medium', RISK_COLORS.medium,
-              'high', RISK_COLORS.high,
-              'critical', RISK_COLORS.critical,
-              '#6b7280',
+              'low', 'v2-risk-icon-low',
+              'medium', 'v2-risk-icon-medium',
+              'high', 'v2-risk-icon-high',
+              'critical', 'v2-risk-icon-critical',
+              'v2-risk-icon-medium',
             ],
-            'circle-radius': [
-              'interpolate', ['linear'], ['zoom'],
-              8, 4,
-              12, 6,
-              16, 8,
-            ],
-            'circle-opacity': 0.9,
-            'circle-stroke-color': '#111827',
-            'circle-stroke-width': 1,
+            'icon-size': 0.9,
+            'icon-allow-overlap': true,
+            'text-field': ['get', 'title'],
+            'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+            'text-size': 10,
+            'text-offset': [0, 1.8],
+            'text-anchor': 'top',
+            'text-allow-overlap': false,
+            'text-optional': true,
+          },
+          paint: {
+            'text-color': '#2F2F2F',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1.5,
           },
         });
 

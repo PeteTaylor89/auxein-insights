@@ -31,8 +31,8 @@ export default function useTasksLayer(map, mapReady, visible, blocksData) {
     try {
       setLoading(true);
       setError(null);
-      const result = await tasksService.listTasks({ status: 'all', limit: 500 });
-      const list = result?.tasks || result || [];
+      const result = await tasksService.listTasks({ limit: 500 });
+      const list = Array.isArray(result) ? result : result?.tasks || result?.data || [];
       setTasks(Array.isArray(list) ? list : []);
       setTaskCount(Array.isArray(list) ? list.length : 0);
     } catch (err) {

@@ -112,7 +112,7 @@ function CompanyUserManagement({ companyId }) {
 
   return (
     <div className="company-user-management">
-      <h3>👥 Team Management</h3>
+      <h3>Team Management</h3>
       <p>Manage your company's team members</p>
 
       {/* Filters */}

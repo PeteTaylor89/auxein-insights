@@ -150,16 +150,19 @@ export default function BlockCreateForm({
 
         <div className="v2-form-group">
           <label className="v2-form-label">Variety</label>
-          <select
-            className="v2-form-select"
+          <input
+            className="v2-form-input"
+            type="text"
+            list="variety-options-create"
             value={form.variety}
             onChange={handleChange('variety')}
-          >
-            <option value="">Select variety...</option>
+            placeholder="Type or select variety..."
+          />
+          <datalist id="variety-options-create">
             {VARIETY_OPTIONS.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v} />
             ))}
-          </select>
+          </datalist>
         </div>
 
         <div className="v2-form-row">

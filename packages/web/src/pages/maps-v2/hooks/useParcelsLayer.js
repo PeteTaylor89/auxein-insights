@@ -15,7 +15,7 @@ const DEBOUNCE_MS = 400;
  * @param {boolean} isAdmin
  * @returns {{ parcelCount, loading, error }}
  */
-export default function useParcelsLayer(map, mapReady, visible, isAdmin) {
+export default function useParcelsLayer(map, mapReady, visible, isAdmin, isAuxeinAdmin = false, companyId = null) {
   const [parcelCount, setParcelCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -39,16 +39,29 @@ export default function useParcelsLayer(map, mapReady, visible, isAdmin) {
     try {
       setLoading(true);
       setError(null);
-      const result = await parcelsService.loadParcelsForViewport(map, MIN_ZOOM, false);
+      let result;
+      if (isAuxeinAdmin) {
+        // Admin sees all parcels in viewport
+        result = await parcelsService.loadParcelsForViewport(map, MIN_ZOOM, false);
+      } else if (companyId) {
+        // Company admin sees only their assigned parcels
+        result = await parcelsService.loadCompanyParcelsForViewport(companyId, map, MIN_ZOOM);
+      } else {
+        return;
+      }
       const count = result?.features?.length || 0;
       setParcelCount(count);
+      // Update the map source with the loaded parcel data
+      if (map.getSource(SOURCE_ID) && result) {
+        map.getSource(SOURCE_ID).setData(result);
+      }
     } catch (err) {
       console.error('Failed to load parcels:', err);
       setError(err.message || 'Failed to load parcels');
     } finally {
       setLoading(false);
     }
-  }, [map, visible, isAdmin]);
+  }, [map, visible, isAdmin, isAuxeinAdmin, companyId]);
 
   // Debounced viewport handler
   const onMoveEnd = useCallback(() => {
@@ -137,5 +150,5 @@ export default function useParcelsLayer(map, mapReady, visible, isAdmin) {
     };
   }, [map, mapReady, visible, isAdmin, loadForViewport, onMoveEnd]);
 
-  return { parcelCount, loading, error };
+  return { parcelCount, loading, error, refresh: loadForViewport };
 }

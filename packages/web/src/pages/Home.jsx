@@ -13,10 +13,14 @@ function Home() {
   const [stats, setStats] = useState(null);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [weatherLocation, setWeatherLocation] = useState(null);
+  const [weatherLocations, setWeatherLocations] = useState([]); // [{id, name, lat, lon}]
+  const [selectedWeatherId, setSelectedWeatherId] = useState(null);
   const [latestArticles, setLatestArticles] = useState([]);
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Derived: the location object passed to WeatherWidget
+  const weatherLocation = weatherLocations.find(l => l.id === selectedWeatherId) || weatherLocations[0] || null;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,47 +44,55 @@ function Home() {
         const statsData = await companiesService.getCurrentCompanyStats();
         setStats(statsData);
 
-        // Weather location: prefer property forecast point, fall back to block centroid
+        // Weather locations: every property with a forecast point, plus a block-centroid fallback
         try {
-          let location = null;
+          const locations = [];
 
-          // Try properties first — use first property with forecast coords
           try {
             const props = await propertyService.listProperties();
             const propList = Array.isArray(props) ? props : [];
-            const propWithForecast = propList.find(p => p.forecast_latitude && p.forecast_longitude);
-            if (propWithForecast) {
-              location = {
-                lat: parseFloat(propWithForecast.forecast_latitude),
-                lon: parseFloat(propWithForecast.forecast_longitude),
-                name: propWithForecast.name
-              };
-            } else if (propList.length > 0) {
-              // No forecast point set — fall back to first block centroid but use property name
+
+            // Include every property that has a forecast point
+            for (const p of propList) {
+              if (p.forecast_latitude && p.forecast_longitude) {
+                locations.push({
+                  id: `prop-${p.id}`,
+                  name: p.name,
+                  lat: parseFloat(p.forecast_latitude),
+                  lon: parseFloat(p.forecast_longitude),
+                });
+              }
+            }
+
+            // If no property had a forecast point, fall back to first block centroid
+            if (locations.length === 0 && propList.length > 0) {
               const blocksResponse = await api.get('/blocks/company');
               const blocks = blocksResponse.data.blocks || [];
               if (blocks.length > 0 && blocks[0].centroid_latitude && blocks[0].centroid_longitude) {
-                location = {
+                locations.push({
+                  id: `prop-${propList[0].id}`,
+                  name: propList[0].name,
                   lat: blocks[0].centroid_latitude,
                   lon: blocks[0].centroid_longitude,
-                  name: propList[0].name
-                };
+                });
               }
             }
           } catch {
-            // Properties not available — fall back to blocks
+            // Properties not available — fall back to first block centroid
             const blocksResponse = await api.get('/blocks/company');
             const blocks = blocksResponse.data.blocks || [];
             if (blocks.length > 0 && blocks[0].centroid_latitude && blocks[0].centroid_longitude) {
-              location = {
+              locations.push({
+                id: `block-${blocks[0].id || 0}`,
+                name: `${blocks[0].block_name} Vineyard`,
                 lat: blocks[0].centroid_latitude,
                 lon: blocks[0].centroid_longitude,
-                name: `${blocks[0].block_name} Vineyard`
-              };
+              });
             }
           }
 
-          setWeatherLocation(location);
+          setWeatherLocations(locations);
+          if (locations.length > 0) setSelectedWeatherId(locations[0].id);
         } catch (error) {
           console.error('Error fetching weather location:', error);
         }
@@ -107,7 +119,7 @@ function Home() {
   // Fetch upcoming tasks and notification count
   useEffect(() => {
     if (!user) return;
-    tasksService.getMyTasks?.({ status: 'scheduled', limit: 3 })
+    tasksService.getMyTasks?.({ status: 'scheduled' })
       .then((data) => {
         const tasks = Array.isArray(data) ? data : data?.items || data?.tasks || [];
         setUpcomingTasks(tasks.slice(0, 3));
@@ -134,7 +146,7 @@ function Home() {
             <span>{company?.name || 'Your Company'}</span>
           </div>
           <div className="stats-grid">
-            <Link to="/Maps" className="stat-card">
+            <Link to="/maps" className="stat-card">
               <div className="stat-value">{stats?.block_count || '0'}</div>
               <div className="stat-label">Vineyard Blocks</div>
             </Link>
@@ -176,9 +188,9 @@ function Home() {
                 <div className="icon-wrapper"><BarChart3 size={24} /></div>
                 <div className="actions-title">Reports</div>
               </Link>
-              <Link to="/maps-v2" className="stat-card">
+              <Link to="/maps" className="stat-card">
                 <div className="icon-wrapper"><Map size={24} /></div>
-                <div className="actions-title">Maps V2</div>
+                <div className="actions-title">Map</div>
               </Link>
               {userTypeRole === 'auxein_admin' && (
                 <Link to="/admin" className="stat-card">
@@ -190,6 +202,20 @@ function Home() {
           </div>
 
           <div className="content-container weather-container column-item">
+            {weatherLocations.length > 1 && (
+              <div className="weather-property-selector">
+                <label htmlFor="weather-prop-select">Forecast for</label>
+                <select
+                  id="weather-prop-select"
+                  value={selectedWeatherId || ''}
+                  onChange={(e) => setSelectedWeatherId(e.target.value)}
+                >
+                  {weatherLocations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <WeatherWidget location={weatherLocation} />
           </div>
 

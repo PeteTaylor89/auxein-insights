@@ -70,7 +70,7 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
               BLOCK_FILL_OWN,
               BLOCK_FILL_OTHER,
             ],
-            'fill-opacity': 0.55,
+            'fill-opacity': 0.12,
           },
         });
 
@@ -154,7 +154,7 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
       const lng = block.properties?.centroid_longitude || block.centroid_longitude;
       const lat = block.properties?.centroid_latitude || block.centroid_latitude;
       if (lng && lat) {
-        map.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 });
+        map.flyTo({ center: [lng, lat], zoom: 17, duration: 1000 });
       }
     },
     [map],

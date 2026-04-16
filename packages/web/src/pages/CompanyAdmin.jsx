@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin } from 'lucide-react';
-import { companyAdminService, propertyService, usersService, reportService } from '@vineyard/shared';
+import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake } from 'lucide-react';
+import { companyAdminService, propertyService, usersService, reportService, blocksService } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
 import ForecastPointPicker from '../components/ForecastPointPicker';
@@ -14,6 +14,7 @@ const TABS = [
   { key: 'users', label: 'Team', icon: Users },
   { key: 'invite', label: 'Invite', icon: UserPlus },
   { key: 'properties', label: 'Properties', icon: MapPinned },
+  { key: 'relationships', label: 'Relationships', icon: Handshake },
   { key: 'timesheets', label: 'Timesheets', icon: Clock },
   { key: 'training', label: 'Training', icon: GraduationCap },
   { key: 'aliases', label: 'Aliases', icon: Link2 },
@@ -70,6 +71,7 @@ function CompanyAdmin() {
           {activeTab === 'users' && <UsersTab />}
           {activeTab === 'invite' && <InviteTab />}
           {activeTab === 'properties' && <PropertiesTab />}
+          {activeTab === 'relationships' && <RelationshipsTab />}
           {activeTab === 'timesheets' && <TimesheetsTab />}
           {activeTab === 'training' && <TrainingTab />}
           {activeTab === 'aliases' && <AliasesTab />}
@@ -169,30 +171,46 @@ function InviteTab() {
 // TAB: Properties (with user assignment)
 // ============================================================================
 function PropertiesTab() {
+  const { user, userTypeRole } = useAuth();
   const [users, setUsers] = useState([]);
   const [properties, setProperties] = useState([]);
   const [scopes, setScopes] = useState({});
   const [climateZones, setClimateZones] = useState([]);
+  const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Create form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', address: '', region: '', total_area_ha: '', climate_zone_id: '' });
+  const [creating, setCreating] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState(null);
+
+  // Edit state
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  // Block assignment panel state
+  const [managingBlocksFor, setManagingBlocksFor] = useState(null); // property id
+
+  const canManage = userTypeRole === 'company_admin' || userTypeRole === 'auxein_admin';
 
   const load = useCallback(async () => {
     try {
-      // Fetch independently so one failure doesn't block the other
       let userList = [];
       let propList = [];
+      let blockList = [];
       try {
         const rawUsers = await usersService.listCompanyUsers();
         userList = Array.isArray(rawUsers) ? rawUsers : [];
-      } catch (err) {
-        console.error('Failed to load users', err?.response?.data || err);
-      }
+      } catch (err) { console.error('Failed to load users', err?.response?.data || err); }
       try {
         const rawProps = await propertyService.listProperties();
         propList = Array.isArray(rawProps) ? rawProps : [];
-      } catch (err) {
-        console.error('Failed to load properties', err?.response?.data || err);
-      }
-      // Fetch climate zones for name display
+      } catch (err) { console.error('Failed to load properties', err?.response?.data || err); }
+      try {
+        const rawBlocks = await blocksService.getCompanyBlocks();
+        blockList = rawBlocks?.blocks || (Array.isArray(rawBlocks) ? rawBlocks : []);
+      } catch (err) { console.error('Failed to load blocks', err); }
       try {
         const zoneData = await companyAdminService.getClimateZones();
         const zones = zoneData?.zones || zoneData || [];
@@ -201,8 +219,8 @@ function PropertiesTab() {
 
       setUsers(userList);
       setProperties(propList);
+      setBlocks(blockList);
 
-      // Load scopes for each non-admin user
       const scopeMap = {};
       for (const u of userList) {
         if (u.user_type !== 'company_admin') {
@@ -230,8 +248,79 @@ function PropertiesTab() {
     try {
       await companyAdminService.setUserPropertyScopes(userId, next);
       setScopes(prev => ({ ...prev, [userId]: next }));
+    } catch (err) { console.error('Failed to update scope', err); }
+  };
+
+  const handleCreate = async (e, addAnother = false) => {
+    if (e?.preventDefault) e.preventDefault();
+    if (!createForm.name.trim()) { alert('Property name is required'); return; }
+    setCreating(true);
+    setCreateSuccess(null);
+    try {
+      const payload = {
+        name: createForm.name.trim(),
+        address: createForm.address || null,
+        region: createForm.region || null,
+        total_area_ha: createForm.total_area_ha ? parseFloat(createForm.total_area_ha) : null,
+        climate_zone_id: createForm.climate_zone_id ? parseInt(createForm.climate_zone_id) : null,
+        owner_company_id: user?.company_id || null,
+      };
+      const created = await propertyService.createProperty(payload);
+      const createdName = created?.name || payload.name;
+      setCreateForm({ name: '', address: '', region: '', total_area_ha: '', climate_zone_id: '' });
+      await load();
+      if (addAnother) {
+        setCreateSuccess(`Created "${createdName}". Add another below.`);
+        // Keep form open
+      } else {
+        setShowCreate(false);
+      }
     } catch (err) {
-      console.error('Failed to update scope', err);
+      console.error('Failed to create property:', err);
+      alert(err?.response?.data?.detail || err.message || 'Failed to create property');
+    } finally { setCreating(false); }
+  };
+
+  const startEdit = (p) => {
+    setEditId(p.id);
+    setEditForm({
+      name: p.name || '',
+      address: p.address || '',
+      region: p.region || '',
+      total_area_ha: p.total_area_ha ?? '',
+      climate_zone_id: p.climate_zone_id ?? '',
+    });
+  };
+
+  const cancelEdit = () => { setEditId(null); setEditForm({}); };
+
+  const saveEdit = async (id) => {
+    try {
+      const payload = {
+        name: editForm.name.trim(),
+        address: editForm.address || null,
+        region: editForm.region || null,
+        total_area_ha: editForm.total_area_ha ? parseFloat(editForm.total_area_ha) : null,
+        climate_zone_id: editForm.climate_zone_id ? parseInt(editForm.climate_zone_id) : null,
+      };
+      await propertyService.updateProperty(id, payload);
+      setEditId(null);
+      setEditForm({});
+      await load();
+    } catch (err) {
+      console.error('Failed to update property:', err);
+      alert(err?.response?.data?.detail || err.message || 'Failed to update property');
+    }
+  };
+
+  const toggleBlockAssignment = async (blockId, propertyId, isAssigned) => {
+    try {
+      await blocksService.updateBlock(blockId, { property_id: isAssigned ? null : propertyId });
+      // Update local state optimistically
+      setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, property_id: isAssigned ? null : propertyId } : b));
+    } catch (err) {
+      console.error('Failed to update block assignment:', err);
+      alert('Failed to update block assignment');
     }
   };
 
@@ -245,27 +334,160 @@ function PropertiesTab() {
 
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Properties</h2>
+      <div className="ca-section-header">
+        <h2 className="ca-section-title">Properties</h2>
+        {canManage && !showCreate && (
+          <button className="ca-btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={14} /> New Property
+          </button>
+        )}
+      </div>
+
+      {/* Create form */}
+      {showCreate && (
+        <form onSubmit={handleCreate} style={{ padding: 'var(--space-base)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-lg)' }}>
+          <h3 className="ca-section-title" style={{ marginTop: 0 }}>Create Property</h3>
+          {createSuccess && (
+            <div className="ca-form-success">
+              <Check size={14} /> {createSuccess}
+            </div>
+          )}
+          <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            <div>
+              <label className="ca-inline-label">Name *</label>
+              <input className="ca-inline-input" type="text" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., North Valley Estate" required />
+            </div>
+            <div>
+              <label className="ca-inline-label">Region</label>
+              <input className="ca-inline-input" type="text" value={createForm.region} onChange={e => setCreateForm(f => ({ ...f, region: e.target.value }))} placeholder="e.g., Marlborough" />
+            </div>
+            <div>
+              <label className="ca-inline-label">Area (ha)</label>
+              <input className="ca-inline-input" type="number" step="0.01" value={createForm.total_area_ha} onChange={e => setCreateForm(f => ({ ...f, total_area_ha: e.target.value }))} />
+            </div>
+            <div>
+              <label className="ca-inline-label">Climate Zone</label>
+              <select className="ca-inline-input" value={createForm.climate_zone_id} onChange={e => setCreateForm(f => ({ ...f, climate_zone_id: e.target.value }))}>
+                <option value="">Not set</option>
+                {climateZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </select>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="ca-inline-label">Address</label>
+              <input className="ca-inline-input" type="text" value={createForm.address} onChange={e => setCreateForm(f => ({ ...f, address: e.target.value }))} placeholder="Street, suburb, city" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-base)', justifyContent: 'flex-end' }}>
+            <button type="button" className="ca-btn-icon" onClick={() => { setShowCreate(false); setCreateSuccess(null); setCreateForm({ name: '', address: '', region: '', total_area_ha: '', climate_zone_id: '' }); }}>Cancel</button>
+            <button type="button" className="ca-btn-secondary" disabled={creating} onClick={(e) => handleCreate(e, true)}>
+              <Plus size={14} /> {creating ? 'Saving...' : 'Save & Add Another'}
+            </button>
+            <button type="submit" className="ca-btn-primary" disabled={creating}>
+              <Save size={14} /> {creating ? 'Creating...' : 'Create Property'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {properties.length === 0 ? (
-        <p className="ca-empty">No properties found. Create properties from the system admin page.</p>
+        <p className="ca-empty">No properties yet. {canManage ? 'Click "New Property" to create one.' : 'Ask your admin to create a property.'}</p>
       ) : (
         <>
           <table className="ca-table">
             <thead>
-              <tr><th>Name</th><th>Region</th><th>Area (ha)</th><th>Climate Zone</th></tr>
+              <tr><th>Name</th><th>Region</th><th>Area (ha)</th><th>Climate Zone</th><th>Blocks</th>{canManage && <th>Actions</th>}</tr>
             </thead>
             <tbody>
-              {properties.map(p => (
-                <tr key={p.id}>
-                  <td style={{ fontWeight: 500 }}>{p.name}</td>
-                  <td>{p.region || <span className="ca-muted">-</span>}</td>
-                  <td>{p.total_area_ha || <span className="ca-muted">-</span>}</td>
-                  <td>{zoneName(p.climate_zone_id) || <span className="ca-muted">Not set</span>}</td>
-                </tr>
-              ))}
+              {properties.map(p => {
+                const assignedBlocks = blocks.filter(b => b.property_id === p.id);
+                const isEditing = editId === p.id;
+                return (
+                  <tr key={p.id}>
+                    {isEditing ? (
+                      <>
+                        <td><input className="ca-inline-input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></td>
+                        <td><input className="ca-inline-input" value={editForm.region} onChange={e => setEditForm(f => ({ ...f, region: e.target.value }))} /></td>
+                        <td><input className="ca-inline-input" type="number" step="0.01" value={editForm.total_area_ha} onChange={e => setEditForm(f => ({ ...f, total_area_ha: e.target.value }))} /></td>
+                        <td>
+                          <select className="ca-inline-input" value={editForm.climate_zone_id} onChange={e => setEditForm(f => ({ ...f, climate_zone_id: e.target.value }))}>
+                            <option value="">Not set</option>
+                            {climateZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                          </select>
+                        </td>
+                        <td>{assignedBlocks.length}</td>
+                        <td>
+                          <button className="ca-btn-icon" onClick={() => saveEdit(p.id)} title="Save"><Save size={14} /></button>
+                          <button className="ca-btn-icon" onClick={cancelEdit} title="Cancel"><X size={14} /></button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                        <td>{p.region || <span className="ca-muted">-</span>}</td>
+                        <td>{p.total_area_ha || <span className="ca-muted">-</span>}</td>
+                        <td>{zoneName(p.climate_zone_id) || <span className="ca-muted">Not set</span>}</td>
+                        <td>
+                          <button
+                            className={`ca-chip-btn ${managingBlocksFor === p.id ? 'active' : ''}`}
+                            onClick={() => setManagingBlocksFor(managingBlocksFor === p.id ? null : p.id)}
+                            title={canManage ? 'Manage block assignments' : 'View assigned blocks'}
+                          >
+                            <MapPinned size={12} />
+                            {assignedBlocks.length} {assignedBlocks.length === 1 ? 'block' : 'blocks'}
+                          </button>
+                        </td>
+                        {canManage && (
+                          <td>
+                            <button className="ca-btn-icon" onClick={() => startEdit(p)} title="Edit"><MapPin size={14} /></button>
+                          </td>
+                        )}
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+
+          {/* Block assignment panel */}
+          {managingBlocksFor && (
+            <div style={{ marginTop: 'var(--space-lg)', padding: 'var(--space-base)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                <h3 className="ca-section-title" style={{ margin: 0 }}>
+                  Assign Blocks to "{properties.find(p => p.id === managingBlocksFor)?.name}"
+                </h3>
+                <button className="ca-btn-icon" onClick={() => setManagingBlocksFor(null)}><X size={14} /></button>
+              </div>
+              <p className="ca-section-desc">Tick blocks to assign them to this property. Blocks can only belong to one property at a time.</p>
+              <div style={{ display: 'grid', gap: 'var(--space-sm)', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+                {blocks.length === 0 ? (
+                  <p className="ca-muted">No blocks available. Create blocks via the map.</p>
+                ) : blocks.map(b => {
+                  const assignedHere = b.property_id === managingBlocksFor;
+                  const assignedElsewhere = b.property_id && !assignedHere;
+                  return (
+                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', padding: 'var(--space-sm)', background: assignedHere ? 'var(--color-olive-light)' : 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: canManage ? 'pointer' : 'default', opacity: assignedElsewhere ? 0.6 : 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={assignedHere}
+                        disabled={!canManage}
+                        onChange={() => toggleBlockAssignment(b.id, managingBlocksFor, assignedHere)}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500 }}>{b.block_name || 'Unnamed block'}</div>
+                        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                          {b.variety || 'No variety'} {b.area ? `• ${Number(b.area).toFixed(2)} ha` : ''}
+                          {assignedElsewhere && (
+                            <span style={{ color: 'var(--color-warning)' }}> • assigned to another property</span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <h3 className="ca-section-title" style={{ marginTop: 'var(--space-lg)' }}>User Property Assignments</h3>
           <p className="ca-section-desc">
@@ -317,6 +539,49 @@ function PropertiesTab() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+
+// ============================================================================
+// TAB: Relationships (placeholder — property management + contractor relationships)
+// ============================================================================
+function RelationshipsTab() {
+  return (
+    <div className="ca-section">
+      <h2 className="ca-section-title">Relationships</h2>
+      <p className="ca-section-desc">
+        Manage external relationships — who owns and manages your properties, and who you contract work to.
+      </p>
+
+      <div className="ca-relationships-grid">
+        <div className="ca-relationship-card">
+          <div className="ca-relationship-icon">
+            <MapPinned size={28} />
+          </div>
+          <div className="ca-relationship-body">
+            <h3 className="ca-relationship-title">Property Management</h3>
+            <p className="ca-relationship-desc">
+              Transfer day-to-day management of a property to another company, or take over management of a property you don't own. Backed by an audit trail and blockchain-logged transfers.
+            </p>
+            <span className="ca-relationship-status">Coming soon</span>
+          </div>
+        </div>
+
+        <div className="ca-relationship-card">
+          <div className="ca-relationship-icon">
+            <Handshake size={28} />
+          </div>
+          <div className="ca-relationship-body">
+            <h3 className="ca-relationship-title">Contractor Relationships</h3>
+            <p className="ca-relationship-desc">
+              Invite contractors to take on tasks for your company. Manage active engagements, scope of work, and historical assignments.
+            </p>
+            <span className="ca-relationship-status">Coming soon</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

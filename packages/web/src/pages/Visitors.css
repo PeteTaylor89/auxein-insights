@@ -1,0 +1,277 @@
+/* Visitors.css — shared styles for VisitorManagement + VisitorRegistration */
+
+/* Stats grid */
+.vi-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.vi-stat-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  transition: transform var(--transition-fast);
+}
+
+.vi-stat-card:hover { transform: translateY(-2px); }
+
+.vi-stat-content { display: flex; align-items: center; }
+.vi-stat-label { font-size: var(--font-size-base); font-weight: 500; color: var(--color-text-muted); margin: 0 0 var(--space-xs) 0; }
+.vi-stat-value { font-size: var(--font-size-xl); font-weight: 700; color: var(--color-text); margin: 0; }
+
+/* Card */
+.vi-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  border-top: 4px solid var(--color-accent);
+  overflow: hidden;
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.vi-card-header {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-warm);
+}
+
+.vi-card-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--color-text); margin: 0 0 var(--space-xs) 0; }
+.vi-card-subtitle { font-size: var(--font-size-base); color: var(--color-text-muted); margin: 0; }
+
+/* Alerts */
+.vi-alerts {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.vi-alerts h3 { font-size: var(--font-size-lg); font-weight: 600; color: #92400e; margin: 0 0 var(--space-md) 0; }
+.vi-alert-item { display: flex; align-items: center; color: #92400e; font-size: var(--font-size-base); margin-bottom: var(--space-sm); }
+
+/* Visit items */
+.vi-visit-item {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition-fast);
+}
+
+.vi-visit-item:hover { background: var(--color-olive-light); }
+
+.vi-visit-main { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md); }
+.vi-visit-info { display: flex; align-items: center; flex: 1; }
+
+.vi-avatar {
+  width: 40px; height: 40px;
+  background: var(--color-olive-light);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-right: var(--space-base);
+  color: var(--color-primary);
+}
+
+.vi-visitor-name { font-size: var(--font-size-lg); font-weight: 500; color: var(--color-text); margin: 0 0 var(--space-xs) 0; }
+.vi-visit-meta { display: flex; align-items: center; font-size: var(--font-size-base); color: var(--color-text-muted); gap: var(--space-sm); }
+.vi-meta-sep { color: var(--color-border); }
+
+.vi-visit-actions { display: flex; align-items: center; gap: var(--space-md); }
+
+.vi-visit-details-extra {
+  margin-left: 56px;
+  display: flex; align-items: center; gap: var(--space-lg);
+  font-size: var(--font-size-xs); color: var(--color-text-muted);
+}
+
+/* Badges */
+.vi-badge {
+  display: inline-flex; align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs); font-weight: 500;
+}
+
+.vi-badge--danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.vi-badge--success { background: var(--color-success-bg); color: var(--color-success); }
+.vi-badge--info { background: var(--color-info-bg); color: var(--color-info); }
+.vi-badge--default { background: #f3f4f6; color: #374151; }
+.vi-badge--completed { background: var(--color-success-bg); color: #16a34a; }
+.vi-badge--in_progress { background: var(--color-info-bg); color: var(--color-info); }
+
+/* Buttons */
+.vi-btn-primary {
+  display: inline-flex; align-items: center; gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
+  background: var(--color-primary); color: var(--color-white);
+  border: none; border-radius: var(--radius-sm);
+  font-size: var(--font-size-base); font-family: var(--font-family); font-weight: 500;
+  cursor: pointer; transition: background var(--transition-fast);
+}
+
+.vi-btn-primary:hover { background: var(--color-primary-hover); }
+
+.vi-btn-ghost {
+  display: inline-flex; align-items: center;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs); font-weight: 500; color: var(--color-text);
+  cursor: pointer; transition: all var(--transition-fast);
+}
+
+.vi-btn-ghost:hover { border-color: var(--color-primary); background: var(--color-surface-warm); }
+
+/* Activity list */
+.vi-activity-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-base) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition-fast);
+}
+
+.vi-activity-item:hover { background: var(--color-olive-light); }
+.vi-activity-name { font-size: var(--font-size-base); font-weight: 500; color: var(--color-text); margin: 0 0 var(--space-xs) 0; }
+.vi-activity-details { font-size: var(--font-size-xs); color: var(--color-text-muted); margin: 0; }
+
+/* Loading / error / empty */
+.vi-loading { display: flex; align-items: center; justify-content: center; min-height: 256px; }
+.vi-empty { padding: var(--space-2xl); text-align: center; }
+.vi-empty-title { font-size: var(--font-size-lg); font-weight: 500; color: var(--color-text); margin: 0 0 var(--space-sm) 0; }
+.vi-empty-text { color: var(--color-text-muted); margin: 0; }
+
+.vi-error {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 400px; text-align: center;
+  background: var(--color-surface); border-radius: var(--radius-lg); padding: var(--space-2xl);
+  border: 1px solid var(--color-border);
+}
+
+.vi-error h3 { font-size: var(--font-size-xl); font-weight: 600; color: var(--color-text); margin: 0 0 var(--space-sm) 0; }
+.vi-error p { color: var(--color-text-muted); margin: 0 0 var(--space-lg) 0; }
+
+/* ===== Registration Portal ===== */
+
+/* Progress steps */
+.vi-progress-steps {
+  display: flex; justify-content: center; gap: var(--space-xl);
+  margin-bottom: var(--space-xl); padding: var(--space-lg) 0;
+}
+
+.vi-step { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); }
+
+.vi-step-circle {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: var(--font-size-base);
+  border: 2px solid var(--color-border);
+  color: var(--color-text-muted); background: var(--color-surface);
+  transition: all var(--transition-fast);
+}
+
+.vi-step.active .vi-step-circle { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-white); }
+.vi-step.done .vi-step-circle { border-color: var(--color-success); background: var(--color-success); color: var(--color-white); }
+
+.vi-step-label { font-size: var(--font-size-xs); color: var(--color-text-muted); font-weight: 500; }
+.vi-step.active .vi-step-label { color: var(--color-primary); font-weight: 600; }
+
+/* Form section */
+.vi-form-section {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-base);
+  box-shadow: var(--shadow-md);
+  border-top: 4px solid var(--color-accent);
+}
+
+.vi-form-section h3 {
+  margin: 0 0 var(--space-lg) 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.vi-form-grid {
+  display: grid;
+  gap: var(--space-base);
+  grid-template-columns: 1fr 1fr;
+}
+
+.vi-field-label {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.vi-input,
+.vi-select,
+.vi-textarea {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+}
+
+.vi-input:focus, .vi-select:focus, .vi-textarea:focus { outline: none; border-color: var(--color-primary); }
+.vi-input--error { border-color: var(--color-danger); }
+
+.vi-field-error { font-size: var(--font-size-xs); color: var(--color-danger); margin-top: 2px; }
+
+/* PPE grid */
+.vi-ppe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}
+
+.vi-ppe-item {
+  display: flex; align-items: center; gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.vi-ppe-item.selected { border-color: var(--color-primary); background: var(--color-olive-light); }
+.vi-ppe-item input[type="checkbox"] { accent-color: var(--color-primary); }
+
+/* Summary panel */
+.vi-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.vi-summary-item-label { font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; font-weight: 600; }
+.vi-summary-item-value { font-size: var(--font-size-base); color: var(--color-text); font-weight: 500; }
+
+/* Form actions */
+.vi-form-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-xl);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .vi-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .vi-form-grid { grid-template-columns: 1fr; }
+  .vi-progress-steps { gap: var(--space-sm); }
+  .vi-step-label { display: none; }
+  .vi-visit-main { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
+  .vi-visit-details-extra { margin-left: 0; flex-wrap: wrap; }
+}

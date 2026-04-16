@@ -18,6 +18,7 @@ export default function ObservationsPanel({
   error,
   visible,
   onToggle,
+  contentOnly,
 }) {
   const [expandedBlock, setExpandedBlock] = useState(null);
 
@@ -39,32 +40,10 @@ export default function ObservationsPanel({
 
   const blockIds = Object.keys(obsByBlock);
 
-  return (
-    <div className="v2-panel">
-      <div className="v2-panel-header">
-        <h3 className="v2-panel-title">
-          <Binoculars size={16} />
-          Observations
-          <span className="v2-panel-count">{obsCount}</span>
-          <button
-            className="v2-layer-toggle-btn"
-            onClick={onToggle}
-            title={visible ? 'Hide observations' : 'Show observations'}
-          >
-            {visible ? <EyeIcon size={14} /> : <EyeOff size={14} />}
-          </button>
-        </h3>
-      </div>
-
-      {loading && (
-        <div className="v2-panel-loading">
-          <Loader2 size={16} className="v2-spin" />
-          Loading observations...
-        </div>
-      )}
-
+  const content = (
+    <>
+      {loading && <div className="v2-panel-loading"><Loader2 size={16} className="v2-spin" /> Loading observations...</div>}
       {error && <div className="v2-panel-error">{error}</div>}
-
       {visible && !loading && (
         <ul className="v2-block-list">
           {blockIds.map((bid) => {
@@ -72,31 +51,18 @@ export default function ObservationsPanel({
             const isExpanded = expandedBlock === bid;
             return (
               <li key={bid}>
-                <div
-                  className="v2-block-item"
-                  onClick={() => setExpandedBlock(isExpanded ? null : bid)}
-                >
+                <div className="v2-block-item" onClick={() => setExpandedBlock(isExpanded ? null : bid)}>
                   <div className="v2-block-name">{group.blockName}</div>
-                  <div className="v2-block-meta">
-                    <span>{group.obs.length} obs</span>
-                  </div>
+                  <div className="v2-block-meta"><span>{group.obs.length} obs</span></div>
                 </div>
                 {isExpanded && (
                   <ul className="v2-task-list">
                     {group.obs.map((o) => (
                       <li key={o.id} className="v2-task-item">
-                        <span className="v2-task-status" title={o.observation_type || 'general'}>
-                          {TYPE_ICONS[o.observation_type] || TYPE_ICONS.general}
-                        </span>
+                        <span className="v2-task-status" title={o.observation_type || 'general'}>{TYPE_ICONS[o.observation_type] || TYPE_ICONS.general}</span>
                         <div className="v2-task-info">
-                          <span className="v2-task-title">
-                            {o.plan_name || o.template_name || 'Observation'}
-                          </span>
-                          <span className="v2-task-category">
-                            {o.started_at
-                              ? new Date(o.started_at).toLocaleDateString()
-                              : o.status || ''}
-                          </span>
+                          <span className="v2-task-title">{o.plan_name || o.template_name || 'Observation'}</span>
+                          <span className="v2-task-category">{o.started_at ? new Date(o.started_at).toLocaleDateString() : o.status || ''}</span>
                         </div>
                       </li>
                     ))}
@@ -105,11 +71,25 @@ export default function ObservationsPanel({
               </li>
             );
           })}
-          {!loading && blockIds.length === 0 && (
-            <li className="v2-block-empty">No observations found</li>
-          )}
+          {!loading && blockIds.length === 0 && <li className="v2-block-empty">No observations found</li>}
         </ul>
       )}
+    </>
+  );
+
+  if (contentOnly) return content;
+
+  return (
+    <div className="v2-panel">
+      <div className="v2-panel-header">
+        <h3 className="v2-panel-title">
+          <Binoculars size={16} /> Observations <span className="v2-panel-count">{obsCount}</span>
+          <button className="v2-layer-toggle-btn" onClick={onToggle} title={visible ? 'Hide observations' : 'Show observations'}>
+            {visible ? <EyeIcon size={14} /> : <EyeOff size={14} />}
+          </button>
+        </h3>
+      </div>
+      {content}
     </div>
   );
 }
