@@ -7,10 +7,11 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
-import { colors, spacing, fontSize, radius } from '../styles/theme';
+import { Feather } from '@expo/vector-icons';
+import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
-import PhotoStrip from '../components/PhotoStrip';
+import { SectionCard, GpsSection, BottomActionBar, PhotoGrid } from '../components';
 
 export default function SpotCaptureScreen({ route, navigation }) {
   const { templateId, blockId, blockName, templateName, planName, companyId, planId,
@@ -86,17 +87,25 @@ export default function SpotCaptureScreen({ route, navigation }) {
     })();
   }, [templateId, runId]);
 
-  // Set up navigation header
+  // Set up navigation header — olive themed per wireframe
   useEffect(() => {
     navigation.setOptions({
-      title: templateName || 'Capture Spot',
+      title: '',
+      headerStyle: { backgroundColor: colors.headerObs },
+      headerShadowVisible: false,
       headerLeft: () => (
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: spacing.md }}>
-          <Text style={{ color: colors.primary, fontSize: fontSize.base }}>← Back</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: spacing.md }}>
+          <Feather name="chevron-left" size={20} color={colors.white} />
+          <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: fontSize.base }}>{planName || 'Observation'}</Text>
         </TouchableOpacity>
       ),
+      headerRight: () => spots.length > 0 ? (
+        <View style={{ backgroundColor: colors.successBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+          <Text style={{ fontSize: fontSize.xs, fontWeight: '600', color: colors.success }}>{spots.length} saved</Text>
+        </View>
+      ) : null,
     });
-  }, [navigation, templateName]);
+  }, [navigation, planName, spots.length]);
 
   // Auto-grab GPS
   useEffect(() => { grabGps(); }, []);
@@ -106,8 +115,8 @@ export default function SpotCaptureScreen({ route, navigation }) {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        setGps({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
+        setGps({ latitude: loc.coords.latitude, longitude: loc.coords.longitude, accuracy: loc.coords.accuracy });
       }
     } catch (err) {
       console.log('GPS error:', err.message);
@@ -692,81 +701,86 @@ export default function SpotCaptureScreen({ route, navigation }) {
     return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
   }
 
+  const hasUnsavedData = Object.values(values).some(v => v != null && v !== '') || notes.trim() || imageCapture.images.length > 0;
+
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Header info */}
-          <View style={styles.headerCard}>
-            <Text style={styles.headerTemplate}>{templateName}</Text>
-            {blockName && <Text style={styles.headerBlock}>{blockName}</Text>}
-            {planName && <Text style={styles.headerPlan}>Plan: {planName}</Text>}
-            <View style={styles.gpsRow}>
-              <Text style={styles.gpsLabel}>GPS:</Text>
-              {gpsLoading ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : gps ? (
-                <Text style={styles.gpsValue}>{gps.latitude.toFixed(5)}, {gps.longitude.toFixed(5)}</Text>
-              ) : (
-                <TouchableOpacity onPress={grabGps}>
-                  <Text style={styles.gpsRetry}>Tap to capture</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {spots.length > 0 && (
-              <Text style={styles.spotCount}>{spots.length} spot{spots.length > 1 ? 's' : ''} recorded</Text>
-            )}
-          </View>
+    <View style={styles.container}>
+      {/* Sub-header with block info */}
+      <View style={styles.subHeader}>
+        <Text style={styles.subHeaderTitle}>New Observation</Text>
+        <Text style={styles.subHeaderSubtitle}>
+          {blockName || 'No block'}{template?.type ? ` · ${templateName}` : ''}
+        </Text>
+      </View>
 
-          {/* Dynamic template fields */}
-          <View style={styles.fieldsSection}>
-            {fields.map(renderField)}
-          </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
+            {/* Spot card — wraps GPS + fields + photos + timestamp */}
+            <View style={styles.content}>
+              <SectionCard
+                icon="map-pin"
+                title={`Spot ${runId ? '' : '(unsaved)'}`}
+                subtitle={`${blockName || 'Block'}${spots.length > 0 ? ` · ${spots.length} saved` : ''}`}
+                badge={hasUnsavedData ? 'Unsaved' : null}
+                badgeColor="warning"
+              >
+                {/* GPS Section */}
+                {gpsLoading ? (
+                  <View style={styles.gpsLoadingRow}>
+                    <ActivityIndicator size="small" color={colors.gps} />
+                    <Text style={{ color: colors.gps, fontSize: fontSize.sm }}>Acquiring GPS...</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={grabGps} activeOpacity={0.7}>
+                    <GpsSection
+                      latitude={gps?.latitude}
+                      longitude={gps?.longitude}
+                      accuracy={gps?.accuracy}
+                      isLocked={gps != null}
+                    />
+                  </TouchableOpacity>
+                )}
 
-          {/* Notes */}
-          <View style={styles.notesSection}>
-            <Text style={styles.fieldLabel}>Notes</Text>
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Additional notes..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              numberOfLines={2}
-            />
-          </View>
+                {/* Dynamic template fields */}
+                {fields.map(renderField)}
 
-          {/* Photos */}
-          <View style={styles.photoSection}>
-            <PhotoStrip
-              images={imageCapture.images}
-              onAdd={imageCapture.showPicker}
-              onRemove={imageCapture.removeImage}
-              uploading={imageCapture.uploading}
-            />
-          </View>
+                {/* Notes */}
+                <View style={styles.fieldWrap}>
+                  <Text style={styles.fieldLabel}>Notes</Text>
+                  <TextInput
+                    style={[styles.input, styles.multiline]}
+                    value={notes}
+                    onChangeText={setNotes}
+                    placeholder="Additional notes..."
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
 
-          {/* Action buttons */}
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnPrimary]}
-              onPress={handleSaveSpot}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.actionBtnText}>Save Spot</Text>
-              )}
-            </TouchableOpacity>
-            {spots.length > 0 && (
-              <>
-                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleCompleteRun}>
-                  <Text style={styles.actionBtnText}>Finish Run ({spots.length})</Text>
-                </TouchableOpacity>
+                {/* Photos */}
+                <PhotoGrid
+                  photos={imageCapture.images}
+                  maxPhotos={5}
+                  onAddPhoto={imageCapture.showPicker}
+                  onRemovePhoto={imageCapture.removeImage}
+                  label="Photos"
+                />
+
+                {/* Timestamp */}
+                <View style={styles.timestampRow}>
+                  <Feather name="clock" size={14} color={colors.textMuted} />
+                  <Text style={styles.timestampText}>
+                    {new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              </SectionCard>
+
+              {/* Continue later link */}
+              {spots.length > 0 && (
                 <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnOutline]}
+                  style={styles.continueLater}
                   onPress={() => {
                     Alert.alert(
                       'Continue Later?',
@@ -778,15 +792,25 @@ export default function SpotCaptureScreen({ route, navigation }) {
                     );
                   }}
                 >
-                  <Text style={styles.actionBtnOutlineText}>Continue Later</Text>
+                  <Feather name="pause-circle" size={14} color={colors.textMuted} />
+                  <Text style={styles.continueLaterText}>Continue later</Text>
                 </TouchableOpacity>
-              </>
-            )}
-          </View>
+              )}
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
 
-          <View style={{ height: spacing.xxl }} />
-        </ScrollView>
-      </TouchableWithoutFeedback>
+      {/* Fixed bottom action bar */}
+      <BottomActionBar
+        primaryLabel={saving ? 'Saving...' : 'Save'}
+        primaryIcon="save"
+        onPrimary={handleSaveSpot}
+        disabled={saving}
+        secondaryLabel={spots.length > 0 ? `Finish (${spots.length})` : 'Add Spot'}
+        secondaryIcon={spots.length > 0 ? 'check-circle' : 'plus'}
+        onSecondary={spots.length > 0 ? handleCompleteRun : handleSaveSpot}
+      />
 
       {/* Reference data picker modal */}
       {renderPickerModal()}
@@ -800,7 +824,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
           onChange={handleDateTimeChange}
         />
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -823,25 +847,40 @@ function FieldWrapper({ field, children }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceWarm },
+  container: { flex: 1, backgroundColor: colors.backgroundWarm },
   scroll: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { padding: spacing.base },
 
-  // Header card
-  headerCard: {
-    backgroundColor: colors.primary, padding: spacing.base,
+  // Sub-header (below nav, olive themed)
+  subHeader: {
+    backgroundColor: colors.headerObs,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.base,
   },
-  headerTemplate: { color: colors.white, fontSize: fontSize.lg, fontWeight: '600' },
-  headerBlock: { color: 'rgba(255,255,255,0.8)', fontSize: fontSize.sm, marginTop: 2 },
-  headerPlan: { color: 'rgba(255,255,255,0.7)', fontSize: fontSize.xs, marginTop: 2, fontStyle: 'italic' },
-  gpsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  gpsLabel: { color: 'rgba(255,255,255,0.7)', fontSize: fontSize.xs },
-  gpsValue: { color: colors.white, fontSize: fontSize.xs, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  gpsRetry: { color: colors.white, fontSize: fontSize.xs, textDecorationLine: 'underline' },
-  spotCount: { color: 'rgba(255,255,255,0.9)', fontSize: fontSize.xs, fontWeight: '600', marginTop: spacing.xs },
+  subHeaderTitle: { color: colors.white, fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  subHeaderSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: fontSize.sm },
 
-  // Fields
-  fieldsSection: { padding: spacing.base },
+  // GPS loading
+  gpsLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: spacing.md },
+
+  // Timestamp row
+  timestampRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: colors.background, borderRadius: radius.md,
+    marginTop: spacing.sm,
+  },
+  timestampText: { fontSize: fontSize.sm, color: colors.textMuted },
+
+  // Continue later
+  continueLater: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: spacing.md,
+  },
+  continueLaterText: { fontSize: fontSize.sm, color: colors.textMuted },
+
+  // Fields (kept from original)
   fieldWrap: { marginBottom: spacing.md },
   fieldHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
   fieldLabel: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text },
@@ -887,21 +926,6 @@ const styles = StyleSheet.create({
   pickerPlaceholder: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
   pickerChevron: { fontSize: fontSize.xs, color: colors.textMuted, marginLeft: spacing.xs },
   refDescription: { fontSize: fontSize.xs, color: colors.info, marginTop: 2, fontStyle: 'italic' },
-
-  // Notes & photos
-  notesSection: { paddingHorizontal: spacing.base },
-  photoSection: { paddingHorizontal: spacing.base, marginTop: spacing.sm },
-
-  // Actions
-  actions: {
-    padding: spacing.base, gap: spacing.sm,
-  },
-  actionBtn: { paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
-  actionBtnPrimary: { backgroundColor: colors.primary },
-  actionBtnSuccess: { backgroundColor: colors.success },
-  actionBtnOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
-  actionBtnText: { color: colors.white, fontSize: fontSize.base, fontWeight: '600' },
-  actionBtnOutlineText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: '500' },
 
   // Picker modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

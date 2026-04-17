@@ -14,18 +14,48 @@ export const colors = {
   accent: '#D1583B',
   surface: '#FFFFFF',
   surfaceWarm: '#FDF6E3',
-  text: '#2F2F2F',
-  textMuted: '#666666',
+  text: '#1f2937',
+  textSecondary: '#374151',
+  textMuted: '#6b7280',
   border: '#e5e7eb',
+  borderLight: '#f3f4f6',
 
-  success: '#28a745',
+  // Wireframe backgrounds
+  background: '#f8fafc',
+  backgroundWarm: '#f1f5f9',
+
+  // Context-colored headers
+  headerObs: '#5B6830',
+  headerIncident: '#991b1b',
+  headerIncidentGrad: '#b91c1c',
+  headerTask: '#5B6830',
+
+  // GPS section
+  gps: '#166534',
+  gpsBg: '#f0fdf4',
+  gpsBorder: '#bbf7d0',
+  gpsActive: '#22c55e',
+
+  // Status
+  success: '#16a34a',
+  successLight: '#22c55e',
   successBg: '#dcfce7',
+  successBorder: '#86efac',
   warning: '#f59e0b',
+  warningDark: '#92400e',
   warningBg: '#fef3c7',
+  warningBorder: '#f59e0b',
   danger: '#dc2626',
-  dangerBg: '#fecaca',
+  dangerDark: '#991b1b',
+  dangerBg: '#fee2e2',
+  dangerBorder: '#fca5a5',
   info: '#2d5a87',
   infoBg: '#dbeafe',
+
+  // Track map
+  trackBlue: '#3b82f6',
+  trackBlueDark: '#2563eb',
+  trackLive: '#ef4444',
 };
 
 export const spacing = {
@@ -56,3 +86,20 @@ export const radius = {
 };
 
 export const fontFamily = 'System';
+
+export const shadows = {
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  elevated: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+};
