@@ -5,18 +5,21 @@ import {
   TouchableOpacity, ActivityIndicator, Alert,
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { maintenanceService, calibrationService, riskActionService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
 import PhotoStrip from './PhotoStrip';
+import { useToast } from './Toast';
 
 const SOURCE_CONFIG = {
-  maintenance: { accent: '#E67E22', label: 'Maintenance', icon: '🔧' },
-  calibration: { accent: '#8E44AD', label: 'Calibration', icon: '⚙️' },
-  risk_action: { accent: '#E74C3C', label: 'Risk Action', icon: '⚠️' },
+  maintenance: { accent: '#E67E22', label: 'Maintenance', icon: 'tool' },
+  calibration: { accent: '#8E44AD', label: 'Calibration', icon: 'sliders' },
+  risk_action: { accent: '#E74C3C', label: 'Risk Action', icon: 'alert-triangle' },
 };
 
 export default function FeedItemModal({ visible, item, onClose, onComplete }) {
+  const toast = useToast();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -115,12 +118,12 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
         });
       }
 
-      Alert.alert('Done', `${SOURCE_CONFIG[item.source]?.label} completed.`);
+      toast.show(`${SOURCE_CONFIG[item.source]?.label} completed`, 'success');
       onComplete?.();
       onClose();
     } catch (err) {
       const msg = err.response?.data?.detail;
-      Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to complete');
+      toast.show(typeof msg === 'string' ? msg : 'Failed to complete', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -137,7 +140,9 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
             <ScrollView keyboardShouldPersistTaps="handled">
               {/* Header */}
               <View style={[styles.header, { borderBottomColor: src.accent }]}>
-                <Text style={styles.headerIcon}>{src.icon}</Text>
+                <View style={[styles.headerIconBox, { backgroundColor: src.accent + '18' }]}>
+                  <Feather name={src.icon} size={22} color={src.accent} />
+                </View>
                 <View style={styles.headerText}>
                   <Text style={[styles.headerLabel, { color: src.accent }]}>{src.label}</Text>
                   <Text style={styles.headerTitle}>{item.title}</Text>
@@ -377,7 +382,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     padding: spacing.lg, borderBottomWidth: 2,
   },
-  headerIcon: { fontSize: 28 },
+  headerIconBox: {
+    width: 44, height: 44, borderRadius: radius.md,
+    alignItems: 'center', justifyContent: 'center',
+  },
   headerText: { flex: 1 },
   headerLabel: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'uppercase' },
   headerTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginTop: 2 },

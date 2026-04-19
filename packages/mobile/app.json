@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FDF6E3"
+      "backgroundColor": "#5B6830"
     },
     "ios": {
       "supportsTablet": false,
@@ -25,7 +25,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FDF6E3"
+        "backgroundColor": "#5B6830"
       },
       "edgeToEdgeEnabled": true,
       "package": "co.nz.auxein.grow",

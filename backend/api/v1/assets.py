@@ -106,6 +106,30 @@ def create_asset(
     db.refresh(asset)
 
     logger.info(f"Asset {asset.id} created successfully by user {current_user.id}")
+
+    # Notify admins and managers when a new asset is registered
+    try:
+        from services.notification_service import NotificationService
+        from db.models.notification import NotificationType
+        notification_service = NotificationService(db)
+        notification_service.notify_admins(
+            company_id=current_user.company_id,
+            notification_type=NotificationType.system,
+            title=f"New asset: {asset.name}",
+            body=f"#{asset.asset_number} ({asset.category}) added by {current_user.first_name or current_user.username}",
+            data={"asset_id": asset.id, "asset_number": asset.asset_number},
+        )
+        notification_service.notify_managers(
+            company_id=current_user.company_id,
+            notification_type=NotificationType.system,
+            title=f"New asset: {asset.name}",
+            body=f"#{asset.asset_number} ({asset.category}) added by {current_user.first_name or current_user.username}",
+            data={"asset_id": asset.id, "asset_number": asset.asset_number},
+        )
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Asset creation notification failed: {e}")
+
     return asset
 
 @router.get("", response_model=List[AssetResponse])

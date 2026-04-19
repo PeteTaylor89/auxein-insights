@@ -23,6 +23,8 @@ from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, A
 from db.models.risk_action import RiskAction
 from services.gps_processing import process_gps_track
 from services.property_service import get_visible_property_ids, verify_block_access
+from db.models.timesheet import TimesheetDay, TimeEntry, TimesheetStatus
+from services.timesheet_rules import create_entry as ts_create_entry
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -1120,6 +1122,32 @@ def complete_task(
         if assignment.status in ["assigned", "accepted"]:
             assignment.status = "completed"
 
+    # Log hours to today's timesheet if provided
+    hours_entry_created = False
+    if complete_request.hours_worked and complete_request.hours_worked > 0:
+        work_date = date.today()
+        day = db.query(TimesheetDay).filter(
+            TimesheetDay.company_id == task.company_id,
+            TimesheetDay.user_id == current_user.id,
+            TimesheetDay.work_date == work_date,
+        ).first()
+        if not day:
+            day = TimesheetDay(
+                company_id=task.company_id,
+                user_id=current_user.id,
+                work_date=work_date,
+                status=TimesheetStatus.draft,
+            )
+            db.add(day)
+            db.flush()
+        # Only append entry if day is still editable
+        if day.status in (TimesheetStatus.draft, TimesheetStatus.submitted, TimesheetStatus.rejected):
+            try:
+                ts_create_entry(db, day.id, task.id, complete_request.hours_worked)
+                hours_entry_created = True
+            except Exception as e:
+                logger.warning(f"Timesheet entry failed for task {task_id}: {e}")
+
     db.commit()
     db.refresh(task)
 
@@ -1136,6 +1164,18 @@ def complete_task(
                 data={"task_id": task.id, "task_number": task.task_number}
             )
             db.commit()
+
+    # Notify the user themselves if hours were logged (so the timesheet update is visible)
+    if hours_entry_created:
+        notification_service = NotificationService(db)
+        notification_service.notify_user(
+            user=current_user,
+            notification_type=NotificationType.timesheet,
+            title=f"{complete_request.hours_worked}h added to today's timesheet",
+            body=f"From task {task.task_number}: {task.title}",
+            data={"task_id": task.id, "task_number": task.task_number, "hours": str(complete_request.hours_worked)},
+        )
+        db.commit()
 
     # Process GPS breadcrumbs into summary (if any points exist)
     if task.requires_gps_tracking:

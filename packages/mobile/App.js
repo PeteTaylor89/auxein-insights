@@ -1,6 +1,7 @@
 // App.js — Auxein Grow mobile entry point
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
@@ -8,6 +9,7 @@ import { initMobileApi } from './src/api/setup';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import OfflineBanner from './src/components/OfflineBanner';
+import { ToastProvider } from './src/components/Toast';
 import { initQueue, flushQueue } from './src/services/gpsQueue';
 
 // Swap the shared api instance to use SecureStore auth
@@ -26,7 +28,7 @@ function RootNavigator() {
   if (initialLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#5B6830" />
+        <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
   }
@@ -43,15 +45,19 @@ function RootNavigator() {
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <AuthProvider>
-        <StatusBar style="auto" />
-        <RootNavigator />
-      </AuthProvider>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <AuthProvider>
+          <ToastProvider>
+            <StatusBar style="auto" />
+            <RootNavigator />
+          </ToastProvider>
+        </AuthProvider>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FDF6E3' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#5B6830' },
 });

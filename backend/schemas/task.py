@@ -317,6 +317,7 @@ class TaskCompleteRequest(TaskActionRequest):
     completion_photo_ids: Optional[List[str]] = Field(default_factory=list)
     weather_conditions: Optional[Dict[str, Any]] = None
     consumable_actuals: Optional[List[ConsumableActual]] = None  # P0: stock deduction
+    hours_worked: Optional[Decimal] = Field(None, ge=0, le=24, description="Hours to add to today's timesheet (0.25h increments)")
 
 
 class TaskCancelRequest(TaskActionRequest):

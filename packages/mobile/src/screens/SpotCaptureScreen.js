@@ -616,7 +616,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
                       )}
                     </View>
                     {!isMulti && selected && (
-                      <Text style={styles.pickerCheck}>✓</Text>
+                      <Feather name="check" size={18} color={colors.success} />
                     )}
                   </TouchableOpacity>
                 );

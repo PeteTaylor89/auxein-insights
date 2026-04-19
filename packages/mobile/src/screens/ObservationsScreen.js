@@ -1,21 +1,23 @@
 // screens/ObservationsScreen.js — Observation hub: quick obs, active runs, planned obs
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Modal, FlatList, Alert,
+  RefreshControl, Modal, FlatList,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
-import { colors, spacing, fontSize, radius } from '../styles/theme';
+import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService, blocksService } from '../api/services';
+import { OBS_CATEGORY_ICONS, SkeletonCard } from '../components';
 
-// Template categories for quick observation
+// Template categories
 const TEMPLATE_CATEGORIES = [
-  { key: 'phenology', icon: '🍇', label: 'Phenology & Growth', types: ['phenology', 'growth', 'bud_count'] },
-  { key: 'disease', icon: '🦠', label: 'Pests & Disease', types: ['pest_disease', 'disease', 'pest', 'beneficials', 'nutrient_health'] },
-  { key: 'yield', icon: '📊', label: 'Yield & Sampling', types: ['flower_set', 'bunch_count', 'pre_veraison_yield', 'post_veraison_yield', 'maturity_sampling', 'lab_sampling_pre_winery'] },
-  { key: 'environment', icon: '🌿', label: 'Environment', types: ['soil_groundcover', 'land_management', 'frost_event', 'weather', 'irrigation_check', 'biosecurity'] },
-  { key: 'other', icon: '📝', label: 'Field Note & Other', types: ['other', 'compliance', 'hazard', 'maintenance'] },
+  { key: 'phenology',   label: 'Phenology & Growth',  types: ['phenology', 'growth', 'bud_count'] },
+  { key: 'disease',     label: 'Pests & Disease',     types: ['pest_disease', 'disease', 'pest', 'beneficials', 'nutrient_health'] },
+  { key: 'yield',       label: 'Yield & Sampling',    types: ['flower_set', 'bunch_count', 'pre_veraison_yield', 'post_veraison_yield', 'maturity_sampling', 'lab_sampling_pre_winery'] },
+  { key: 'environment', label: 'Environment',         types: ['soil_groundcover', 'land_management', 'frost_event', 'weather', 'irrigation_check', 'biosecurity'] },
+  { key: 'other',       label: 'Field Note & Other',  types: ['other', 'compliance', 'hazard', 'maintenance'] },
 ];
 
 export default function ObservationsScreen({ navigation }) {
@@ -26,7 +28,6 @@ export default function ObservationsScreen({ navigation }) {
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Quick obs flow state
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showBlockPicker, setShowBlockPicker] = useState(false);
@@ -52,33 +53,25 @@ export default function ObservationsScreen({ navigation }) {
     }
   }, []);
 
-  // Reload on screen focus (so resuming from SpotCapture refreshes the list)
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  // --- Quick Field Note (ad-hoc, no template selection) ---
+  const getType = (t) => t.type || t.observation_type || '';
 
   const handleQuickFieldNote = () => {
     const freeForm = templates.find(t => getType(t) === 'other' && /free.?form/i.test(t.name));
     if (freeForm) {
-      // Skip template picker — go straight to block picker
       setSelectedTemplate(freeForm);
       setShowBlockPicker(true);
     } else {
-      // Fallback: open the Other category
       const otherCat = TEMPLATE_CATEGORIES.find(c => c.key === 'other');
       if (otherCat) handleCategoryPress(otherCat);
     }
   };
 
-  // --- Quick Observation Flow ---
-
   const handleCategoryPress = (cat) => {
     setSelectedCategory(cat);
     setShowTemplatePicker(true);
   };
-
-  // Template type comes as "type" or "observation_type" depending on serialization
-  const getType = (t) => t.type || t.observation_type || '';
 
   const categoryTemplates = selectedCategory
     ? templates.filter(t => selectedCategory.types.includes(getType(t)))
@@ -92,7 +85,6 @@ export default function ObservationsScreen({ navigation }) {
 
   const handleBlockSelect = (block) => {
     setShowBlockPicker(false);
-    // Navigate to spot capture — run creation is deferred until first spot save
     navigation.navigate('SpotCapture', {
       templateId: selectedTemplate.id,
       blockId: block.id,
@@ -101,8 +93,6 @@ export default function ObservationsScreen({ navigation }) {
       companyId: user?.company_id,
     });
   };
-
-  // --- Resume active run ---
 
   const handleResumeRun = (run) => {
     navigation.navigate('SpotCapture', {
@@ -115,11 +105,8 @@ export default function ObservationsScreen({ navigation }) {
     });
   };
 
-  // --- Planned Observation Flow ---
-
   const handleStartPlan = (plan) => {
     const blockId = plan.targets?.length === 1 ? plan.targets[0].block_id : null;
-    // Navigate to spot capture — run creation is deferred until first spot save
     navigation.navigate('SpotCapture', {
       templateId: plan.template_id,
       planId: plan.id,
@@ -152,41 +139,48 @@ export default function ObservationsScreen({ navigation }) {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} tintColor={colors.primary} />}
     >
-      {/* Active Runs — shown first so they're immediately visible */}
+      {/* Active Runs — always first so resumable work is visible */}
       {activeRuns.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>In Progress</Text>
-          <Text style={styles.sectionSub}>Tap to resume capturing spots</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>In progress</Text>
+            <Text style={styles.sectionHint}>Tap to resume</Text>
+          </View>
           {activeRuns.map(run => (
-            <TouchableOpacity key={run.id} style={styles.activeRunCard} onPress={() => handleResumeRun(run)}>
-              <View style={styles.activeRunHeader}>
-                <View style={styles.activeRunDot} />
-                <Text style={styles.activeRunName} numberOfLines={1}>{run.template_name || run.name}</Text>
+            <TouchableOpacity key={run.id} style={styles.runCard} onPress={() => handleResumeRun(run)} activeOpacity={0.75}>
+              <View style={styles.runDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.runName} numberOfLines={1}>{run.template_name || run.name}</Text>
+                <Text style={styles.runMeta}>
+                  {run.block_name || 'No block'}
+                  {run.spots_count != null ? ` · ${run.spots_count} spot${run.spots_count !== 1 ? 's' : ''}` : ''}
+                  {run.observed_at_start ? ` · ${timeAgo(run.observed_at_start)}` : ''}
+                </Text>
               </View>
-              <Text style={styles.activeRunMeta}>
-                {run.block_name || 'No block'}
-                {run.spots_count != null ? ` · ${run.spots_count} spot${run.spots_count !== 1 ? 's' : ''}` : ''}
-                {run.observed_at_start ? ` · ${timeAgo(run.observed_at_start)}` : ''}
-              </Text>
+              <Feather name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           ))}
         </View>
       )}
 
       {/* Quick Field Note */}
-      <TouchableOpacity style={styles.fieldNoteBtn} onPress={handleQuickFieldNote}>
-        <Text style={styles.fieldNoteIcon}>📋</Text>
+      <TouchableOpacity style={styles.fieldNoteBtn} onPress={handleQuickFieldNote} activeOpacity={0.85}>
+        <View style={styles.fieldNoteIconBox}>
+          <Feather name="edit-3" size={20} color={colors.white} />
+        </View>
         <View style={styles.fieldNoteLabelWrap}>
-          <Text style={styles.fieldNoteLabel}>Quick Field Note</Text>
+          <Text style={styles.fieldNoteLabel}>Quick field note</Text>
           <Text style={styles.fieldNoteSub}>Photo, notes & GPS — no template needed</Text>
         </View>
-        <Text style={styles.fieldNoteChevron}>›</Text>
+        <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.7)" />
       </TouchableOpacity>
 
       {/* Quick Observation */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Observation</Text>
-        <Text style={styles.sectionSub}>Pick a category, select a template, choose a block</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quick observation</Text>
+        </View>
+        <Text style={styles.sectionSub}>Pick a category → template → block</Text>
         <View style={styles.categoryGrid}>
           {TEMPLATE_CATEGORIES.map(cat => {
             const count = templates.filter(t => cat.types.includes(getType(t))).length;
@@ -195,10 +189,18 @@ export default function ObservationsScreen({ navigation }) {
                 key={cat.key}
                 style={styles.categoryCard}
                 onPress={() => handleCategoryPress(cat)}
+                activeOpacity={0.75}
+                disabled={count === 0}
               >
-                <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                <View style={[styles.categoryIconBox, count === 0 && { backgroundColor: colors.borderLight }]}>
+                  <Feather
+                    name={OBS_CATEGORY_ICONS[cat.key] || 'circle'}
+                    size={20}
+                    color={count === 0 ? colors.textMuted : colors.success}
+                  />
+                </View>
                 <Text style={styles.categoryLabel}>{cat.label}</Text>
-                <Text style={styles.categoryCount}>{count} templates</Text>
+                <Text style={styles.categoryCount}>{count} template{count !== 1 ? 's' : ''}</Text>
               </TouchableOpacity>
             );
           })}
@@ -207,18 +209,27 @@ export default function ObservationsScreen({ navigation }) {
 
       {/* Planned Observations */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Planned Observations</Text>
-        {plans.length === 0 ? (
-          <Text style={styles.emptyText}>No observation plans scheduled</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Planned observations</Text>
+        </View>
+        {loading && plans.length === 0 ? (
+          <SkeletonCard />
+        ) : plans.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Feather name="calendar" size={20} color={colors.textMuted} />
+            <Text style={styles.emptyText}>No observation plans scheduled</Text>
+          </View>
         ) : (
           plans.map(plan => (
-            <TouchableOpacity key={plan.id} style={styles.planCard} onPress={() => handleStartPlan(plan)}>
+            <TouchableOpacity key={plan.id} style={styles.planCard} onPress={() => handleStartPlan(plan)} activeOpacity={0.75}>
               <View style={styles.planHeader}>
                 <Text style={styles.planName} numberOfLines={1}>{plan.name}</Text>
                 {plan.priority && (
-                  <Text style={[styles.planPriority, { color: priorityColor(plan.priority) }]}>
-                    {plan.priority}
-                  </Text>
+                  <View style={[styles.priorityBadge, { backgroundColor: priorityColor(plan.priority) + '18' }]}>
+                    <Text style={[styles.priorityText, { color: priorityColor(plan.priority) }]}>
+                      {plan.priority}
+                    </Text>
+                  </View>
                 )}
               </View>
               <Text style={styles.planMeta}>
@@ -227,7 +238,8 @@ export default function ObservationsScreen({ navigation }) {
                 {plan.runs_count ? ` · ${plan.runs_count} run${plan.runs_count > 1 ? 's' : ''}` : ''}
               </Text>
               {plan.instructions && <Text style={styles.planInstructions} numberOfLines={2}>{plan.instructions}</Text>}
-              <View style={[styles.statusBadge, { backgroundColor: plan.status === 'in_progress' ? colors.warning + '20' : colors.info + '20' }]}>
+              <View style={[styles.statusBadge, { backgroundColor: (plan.status === 'in_progress' ? colors.warning : colors.info) + '18' }]}>
+                <View style={[styles.statusDot, { backgroundColor: plan.status === 'in_progress' ? colors.warning : colors.info }]} />
                 <Text style={[styles.statusText, { color: plan.status === 'in_progress' ? colors.warning : colors.info }]}>
                   {plan.status?.replace(/_/g, ' ')}
                 </Text>
@@ -239,12 +251,28 @@ export default function ObservationsScreen({ navigation }) {
 
       <View style={{ height: spacing.xxl }} />
 
-      {/* Template Picker Modal */}
+      {/* Template Picker — bottom sheet */}
       <Modal visible={showTemplatePicker} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{selectedCategory?.icon} {selectedCategory?.label}</Text>
-            <Text style={styles.modalSub}>Select a template</Text>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTemplatePicker(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View style={[styles.categoryIconBox, { marginBottom: 0 }]}>
+                <Feather
+                  name={OBS_CATEGORY_ICONS[selectedCategory?.key] || 'circle'}
+                  size={20}
+                  color={colors.success}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>{selectedCategory?.label}</Text>
+                <Text style={styles.modalSub}>Select a template</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowTemplatePicker(false)} hitSlop={10}>
+                <Feather name="x" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
             {categoryTemplates.length === 0 ? (
               <Text style={styles.emptyText}>No templates in this category</Text>
             ) : (
@@ -253,25 +281,37 @@ export default function ObservationsScreen({ navigation }) {
                 keyExtractor={t => String(t.id)}
                 renderItem={({ item: t }) => (
                   <TouchableOpacity style={styles.templateItem} onPress={() => handleTemplateSelect(t)}>
-                    <Text style={styles.templateName}>{t.name}</Text>
-                    <Text style={styles.templateType}>{(t.observation_type || t.type || '').replace(/_/g, ' ')}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.templateName}>{t.name}</Text>
+                      <Text style={styles.templateType}>{getType(t).replace(/_/g, ' ')}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 )}
               />
             )}
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowTemplatePicker(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
-      {/* Block Picker Modal */}
+      {/* Block Picker — bottom sheet */}
       <Modal visible={showBlockPicker} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Block</Text>
-            <Text style={styles.modalSub}>{selectedTemplate?.name}</Text>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowBlockPicker(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View style={[styles.categoryIconBox, { marginBottom: 0, backgroundColor: colors.primary + '18' }]}>
+                <Feather name="grid" size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Select block</Text>
+                <Text style={styles.modalSub}>{selectedTemplate?.name}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowBlockPicker(false)} hitSlop={10}>
+                <Feather name="x" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
             {blocks.length === 0 ? (
               <Text style={styles.emptyText}>No blocks found</Text>
             ) : (
@@ -280,98 +320,138 @@ export default function ObservationsScreen({ navigation }) {
                 keyExtractor={b => String(b.id)}
                 renderItem={({ item: b }) => (
                   <TouchableOpacity style={styles.templateItem} onPress={() => handleBlockSelect(b)}>
-                    <Text style={styles.templateName}>{b.block_name || b.name}</Text>
-                    <Text style={styles.templateType}>{b.variety || ''}{b.area_hectares ? ` · ${b.area_hectares} ha` : ''}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.templateName}>{b.block_name || b.name}</Text>
+                      <Text style={styles.templateType}>
+                        {b.variety || ''}
+                        {b.area_hectares ? ` · ${b.area_hectares} ha` : ''}
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 )}
               />
             )}
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowBlockPicker(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceWarm },
+  container: { flex: 1, backgroundColor: colors.background },
 
   // Sections
   section: { padding: spacing.base },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  sectionTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text },
+  sectionHint: { fontSize: fontSize.xs, color: colors.textMuted },
   sectionSub: { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.md },
-  emptyText: { color: colors.textMuted, fontSize: fontSize.sm, fontStyle: 'italic', padding: spacing.md },
+  emptyCard: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
+  },
+  emptyText: { color: colors.textMuted, fontSize: fontSize.sm, fontStyle: 'italic' },
 
   // Quick field note button
   fieldNoteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     marginHorizontal: spacing.base, marginTop: spacing.base,
-    backgroundColor: colors.primary, borderRadius: radius.md,
-    padding: spacing.md, paddingHorizontal: spacing.base,
+    backgroundColor: colors.primary, borderRadius: radius.lg,
+    padding: spacing.md, ...shadows.card,
   },
-  fieldNoteIcon: { fontSize: 24 },
+  fieldNoteIconBox: {
+    width: 40, height: 40, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   fieldNoteLabelWrap: { flex: 1 },
   fieldNoteLabel: { fontSize: fontSize.base, fontWeight: '600', color: colors.white },
   fieldNoteSub: { fontSize: fontSize.xs, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
-  fieldNoteChevron: { fontSize: 24, color: 'rgba(255,255,255,0.6)', fontWeight: '300' },
 
   // Category grid
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   categoryCard: {
-    width: '48%', backgroundColor: colors.surface, borderRadius: radius.md,
+    width: '48%', backgroundColor: colors.surface, borderRadius: radius.lg,
     padding: spacing.base, borderWidth: 1, borderColor: colors.border,
     alignItems: 'center', gap: spacing.xs,
   },
-  categoryIcon: { fontSize: 28 },
-  categoryLabel: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text, textAlign: 'center' },
+  categoryIconBox: {
+    width: 44, height: 44, borderRadius: radius.md,
+    backgroundColor: colors.gpsBg,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  categoryLabel: {
+    fontSize: fontSize.sm, fontWeight: '600', color: colors.text,
+    textAlign: 'center',
+  },
   categoryCount: { fontSize: fontSize.xs, color: colors.textMuted },
 
   // Active run cards
-  activeRunCard: {
-    backgroundColor: colors.surface, borderRadius: radius.md,
+  runCard: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
     padding: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.warning,
-    borderLeftWidth: 3,
+    borderWidth: 1, borderColor: colors.warning + '40',
+    borderLeftWidth: 3, borderLeftColor: colors.warning,
   },
-  activeRunHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  activeRunDot: {
-    width: 8, height: 8, borderRadius: 4,
+  runDot: {
+    width: 10, height: 10, borderRadius: 5,
     backgroundColor: colors.warning,
   },
-  activeRunName: { fontSize: fontSize.base, fontWeight: '500', color: colors.text, flex: 1 },
-  activeRunMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xs, marginLeft: 20 },
+  runName: { fontSize: fontSize.base, fontWeight: '600', color: colors.text },
+  runMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 
   // Plan cards
   planCard: {
-    backgroundColor: colors.surface, borderRadius: radius.md,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
     padding: spacing.md, marginBottom: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
-  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  planName: { fontSize: fontSize.base, fontWeight: '500', color: colors.text, flex: 1 },
-  planPriority: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize' },
+  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  planName: { fontSize: fontSize.base, fontWeight: '600', color: colors.text, flex: 1 },
+  priorityBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
+  priorityText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   planMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xs },
   planInstructions: { fontSize: fontSize.xs, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xs },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill, marginTop: spacing.sm },
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm, paddingVertical: 3,
+    borderRadius: radius.pill, marginTop: spacing.sm,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize' },
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
-    padding: spacing.lg, maxHeight: '70%',
+  // Modal bottom sheets
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xxl, borderTopRightRadius: radius.xxl,
+    padding: spacing.lg, paddingTop: spacing.md, maxHeight: '75%',
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border,
+    alignSelf: 'center', marginBottom: spacing.md,
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    marginBottom: spacing.md, paddingBottom: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
   modalTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text },
-  modalSub: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.md },
-  modalCancel: { marginTop: spacing.md, padding: spacing.md, alignItems: 'center' },
-  modalCancelText: { color: colors.textMuted, fontSize: fontSize.base, fontWeight: '500' },
+  modalSub: { fontSize: fontSize.sm, color: colors.textMuted },
 
   // Template/block list items
   templateItem: {
-    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
   templateName: { fontSize: fontSize.base, fontWeight: '500', color: colors.text },
   templateType: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2, textTransform: 'capitalize' },

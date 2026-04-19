@@ -1,22 +1,28 @@
 // screens/TasksScreen.js — Unified feed: tasks, maintenance, calibrations, risk actions
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  RefreshControl, ScrollView,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService } from '../api/services';
 import FeedItemModal from '../components/FeedItemModal';
+import { SOURCE_ICONS, SkeletonCard } from '../components';
 
-// Source config: icon, accent colour, label
-const SOURCE_CONFIG = {
-  task:        { icon: '📋', accent: colors.primary,  label: 'Task' },
-  maintenance: { icon: '🔧', accent: '#E67E22',       label: 'Maintenance' },
-  calibration: { icon: '⚙️', accent: '#8E44AD',       label: 'Calibration' },
-  risk_action: { icon: '⚠️', accent: '#E74C3C',       label: 'Risk Action' },
+const SOURCE_LABELS = {
+  task: 'Task',
+  maintenance: 'Maintenance',
+  calibration: 'Calibration',
+  risk_action: 'Risk Action',
 };
+
+const FILTERS = ['all', 'task', 'maintenance', 'calibration', 'risk_action'];
 
 export default function TasksScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all | task | maintenance | calibration | risk_action
+  const [filter, setFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
 
   const loadFeed = useCallback(async () => {
@@ -41,8 +47,7 @@ export default function TasksScreen({ navigation }) {
     if (k === 'in_progress') return colors.warning;
     if (k === 'scheduled' || k === 'ready' || k === 'due') return colors.info;
     if (k === 'completed' || k === 'pass') return colors.success;
-    if (k === 'cancelled') return colors.danger;
-    if (k === 'overdue') return colors.danger;
+    if (k === 'cancelled' || k === 'overdue') return colors.danger;
     return colors.textMuted;
   };
 
@@ -55,46 +60,62 @@ export default function TasksScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => {
-    const src = SOURCE_CONFIG[item.source] || SOURCE_CONFIG.task;
+    const src = SOURCE_ICONS[item.source] || SOURCE_ICONS.task;
+    const label = SOURCE_LABELS[item.source] || 'Task';
 
     return (
       <TouchableOpacity
         style={[styles.card, item.is_overdue && styles.cardOverdue]}
         onPress={() => handlePress(item)}
-        activeOpacity={item.source === 'task' ? 0.7 : 0.9}
+        activeOpacity={0.75}
       >
-        {/* Source indicator strip */}
         <View style={[styles.sourceStrip, { backgroundColor: src.accent }]} />
 
         <View style={styles.cardBody}>
           <View style={styles.cardHeader}>
             <View style={styles.titleRow}>
-              <Text style={styles.sourceIcon}>{src.icon}</Text>
+              <View style={[styles.sourceIconBox, { backgroundColor: src.accent + '18' }]}>
+                <Feather name={src.icon} size={14} color={src.accent} />
+              </View>
               <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
             </View>
             {item.is_overdue && (
               <View style={styles.overdueBadge}>
+                <Feather name="alert-triangle" size={10} color={colors.danger} />
                 <Text style={styles.overdueText}>OVERDUE</Text>
               </View>
             )}
           </View>
 
           <View style={styles.cardMeta}>
-            <View style={[styles.sourceBadge, { backgroundColor: src.accent + '18' }]}>
-              <Text style={[styles.sourceBadgeText, { color: src.accent }]}>{src.label}</Text>
+            <View style={[styles.sourceBadge, { backgroundColor: src.accent + '14' }]}>
+              <Text style={[styles.sourceBadgeText, { color: src.accent }]}>{label}</Text>
             </View>
             {item.scheduled_date && (
-              <Text style={styles.metaText}>
-                {new Date(item.scheduled_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })}
-              </Text>
+              <View style={styles.metaRow}>
+                <Feather name="calendar" size={11} color={colors.textMuted} />
+                <Text style={styles.metaText}>
+                  {new Date(item.scheduled_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })}
+                </Text>
+              </View>
             )}
-            {item.asset_name && <Text style={styles.metaText}>{item.asset_name}</Text>}
-            {item.block_name && <Text style={styles.metaText}>{item.block_name}</Text>}
-            {item.category ? <Text style={styles.metaText}>{item.category.replace(/_/g, ' ')}</Text> : null}
+            {item.asset_name && (
+              <View style={styles.metaRow}>
+                <Feather name="package" size={11} color={colors.textMuted} />
+                <Text style={styles.metaText}>{item.asset_name}</Text>
+              </View>
+            )}
+            {item.block_name && (
+              <View style={styles.metaRow}>
+                <Feather name="grid" size={11} color={colors.textMuted} />
+                <Text style={styles.metaText}>{item.block_name}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.cardFooter}>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '18' }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusColor(item.status) }]} />
               <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
                 {(item.status || 'draft').replace(/_/g, ' ')}
               </Text>
@@ -114,35 +135,62 @@ export default function TasksScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Filter tabs */}
-      <View style={styles.filterRow}>
-        {['all', 'task', 'maintenance', 'calibration', 'risk_action'].map(f => {
-          const label = f === 'all' ? 'All' : (SOURCE_CONFIG[f]?.label || f);
-          const icon = f === 'all' ? '' : (SOURCE_CONFIG[f]?.icon || '') + ' ';
+      {/* Filter pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterContent}
+      >
+        {FILTERS.map(f => {
+          const isActive = filter === f;
+          const src = f !== 'all' ? SOURCE_ICONS[f] : null;
+          const label = f === 'all' ? 'All' : SOURCE_LABELS[f];
           return (
             <TouchableOpacity
               key={f}
-              style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
+              style={[styles.filterPill, isActive && styles.filterPillActive]}
               onPress={() => setFilter(f)}
             >
-              <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                {icon}{label}
+              {src && (
+                <Feather
+                  name={src.icon}
+                  size={12}
+                  color={isActive ? colors.white : src.accent}
+                />
+              )}
+              <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                {label}
               </Text>
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => `${item.source}-${item.id}`}
-        renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadFeed} tintColor={colors.primary} />}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          !loading ? <Text style={styles.empty}>No items found</Text> : null
-        }
-      />
+      {loading && items.length === 0 ? (
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => `${item.source}-${item.id}`}
+          renderItem={renderItem}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadFeed} tintColor={colors.primary} />}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.empty}>
+                <Feather name="inbox" size={40} color={colors.textMuted} />
+                <Text style={styles.emptyText}>Nothing here</Text>
+                <Text style={styles.emptyHint}>Pull down to refresh</Text>
+              </View>
+            ) : null
+          }
+        />
+      )}
 
       <FeedItemModal
         visible={!!selectedItem}
@@ -155,51 +203,83 @@ export default function TasksScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceWarm },
-  filterRow: {
-    flexDirection: 'row', gap: spacing.xs,
-    padding: spacing.sm, paddingHorizontal: spacing.sm,
+  container: { flex: 1, backgroundColor: colors.background },
+
+  // Filter pills
+  filterScroll: {
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+    maxHeight: 52,
   },
-  filterBtn: {
-    paddingVertical: spacing.xs, paddingHorizontal: spacing.sm,
-    borderRadius: radius.sm, borderWidth: 1, borderColor: colors.oliveBorder,
+  filterContent: {
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.sm,
+    gap: spacing.xs, alignItems: 'center',
   },
-  filterBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { fontSize: 11, color: colors.textMuted },
-  filterTextActive: { color: colors.white, fontWeight: '500' },
-  list: { padding: spacing.base, gap: spacing.sm },
+  filterPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: spacing.md, paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  filterPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterText: { fontSize: fontSize.xs, fontWeight: '500', color: colors.text },
+  filterTextActive: { color: colors.white, fontWeight: '600' },
+
+  // List
+  list: { padding: spacing.base, gap: spacing.sm, paddingBottom: spacing.xxl },
 
   // Card
   card: {
-    flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md,
+    flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
   },
   cardOverdue: { borderColor: colors.danger, borderWidth: 1.5 },
   sourceStrip: { width: 4 },
   cardBody: { flex: 1, padding: spacing.md },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.xs },
-  sourceIcon: { fontSize: 16 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.sm },
+  sourceIconBox: {
+    width: 26, height: 26, borderRadius: radius.sm,
+    alignItems: 'center', justifyContent: 'center',
+  },
   itemTitle: { fontSize: fontSize.base, fontWeight: '500', color: colors.text, flex: 1 },
-  overdueBadge: { backgroundColor: colors.danger + '20', paddingHorizontal: spacing.xs, paddingVertical: 1, borderRadius: radius.pill },
+  overdueBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: colors.dangerBg, paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
   overdueText: { fontSize: 9, fontWeight: '700', color: colors.danger },
 
   // Meta
-  cardMeta: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs, flexWrap: 'wrap', alignItems: 'center' },
-  sourceBadge: { paddingHorizontal: spacing.xs, paddingVertical: 1, borderRadius: radius.pill },
+  cardMeta: {
+    flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm,
+    flexWrap: 'wrap', alignItems: 'center',
+  },
+  sourceBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   sourceBadgeText: { fontSize: 10, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaText: { fontSize: fontSize.xs, color: colors.textMuted },
 
   // Footer
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
+  cardFooter: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start', paddingHorizontal: spacing.sm, paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize' },
-  taskNumber: { fontSize: fontSize.xs, color: colors.textMuted },
+  taskNumber: { fontSize: fontSize.xs, color: colors.textMuted, fontVariant: ['tabular-nums'] },
 
   // Progress
-  progressBar: { height: 4, backgroundColor: colors.border, borderRadius: 2, marginTop: spacing.sm, overflow: 'hidden' },
+  progressBar: { height: 4, backgroundColor: colors.borderLight, borderRadius: 2, marginTop: spacing.sm, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2 },
 
-  empty: { textAlign: 'center', color: colors.textMuted, fontSize: fontSize.sm, padding: spacing.xl, fontStyle: 'italic' },
+  // Empty
+  empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.sm },
+  emptyText: { fontSize: fontSize.md, color: colors.text, fontWeight: '600', marginTop: spacing.sm },
+  emptyHint: { fontSize: fontSize.sm, color: colors.textMuted },
 });

@@ -203,6 +203,22 @@ export const propertyService = {
   },
 };
 
+// --- Incidents (prefix: /risk-management/incidents) ---
+export const incidentService = {
+  list: async (params = {}) => {
+    const res = await api.get('/risk-management/incidents/', { params });
+    return res.data;
+  },
+  create: async (data) => {
+    const res = await api.post('/risk-management/incidents/', data);
+    return res.data;
+  },
+  get: async (id) => {
+    const res = await api.get(`/risk-management/incidents/${id}`);
+    return res.data;
+  },
+};
+
 // --- Files (prefix: /v1/files) ---
 export const fileService = {
   upload: async (entityType, entityId, imageUri, fileCategory = 'photo') => {

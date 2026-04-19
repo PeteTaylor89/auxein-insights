@@ -30,12 +30,12 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [activeRow, setActiveRow] = useState(null);
   const [rowNotes, setRowNotes] = useState('');
   const [rowIssues, setRowIssues] = useState('');
-  const [rowQuality, setRowQuality] = useState(0);
 
   // Complete modal state
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState('');
   const [consumableActuals, setConsumableActuals] = useState([]);
+  const [hoursWorked, setHoursWorked] = useState('');
 
   // Equipment check modal state
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -139,7 +139,6 @@ export default function TaskDetailScreen({ route, navigation }) {
     setActiveRow(row);
     setRowNotes('');
     setRowIssues('');
-    setRowQuality(0);
     setShowRowModal(true);
   };
 
@@ -149,7 +148,6 @@ export default function TaskDetailScreen({ route, navigation }) {
       await taskRowService.completeRow(taskId, activeRow.id, {
         notes: rowNotes || null,
         issues_found: rowIssues || null,
-        quality_rating: rowQuality > 0 ? rowQuality : null,
       });
       setShowRowModal(false);
       setActiveRow(null);
@@ -224,8 +222,14 @@ export default function TaskDetailScreen({ route, navigation }) {
           batch_number: c.batch_number || null,
         }));
       }
+      const hrs = parseFloat(hoursWorked);
+      if (!isNaN(hrs) && hrs > 0) {
+        const quantized = Math.round(hrs * 4) / 4;
+        payload.hours_worked = quantized;
+      }
       await tasksService.completeTask(taskId, payload);
       setShowCompleteModal(false);
+      setHoursWorked('');
       await loadAll();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to complete task');
@@ -398,21 +402,6 @@ export default function TaskDetailScreen({ route, navigation }) {
                   Complete Row {activeRow?.row_identifier || activeRow?.vineyard_row?.row_number || activeRow?.id}
                 </Text>
 
-                <Text style={styles.inputLabel}>Quality Rating</Text>
-                <View style={styles.qualityRow}>
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      style={[styles.qualityStar, rowQuality >= n && styles.qualityStarActive]}
-                      onPress={() => setRowQuality(rowQuality === n ? 0 : n)}
-                    >
-                      <Text style={[styles.qualityStarText, rowQuality >= n && styles.qualityStarTextActive]}>
-                        {n}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
                 <Text style={styles.inputLabel}>Notes</Text>
                 <TextInput
                   style={styles.notesInput}
@@ -527,6 +516,32 @@ export default function TaskDetailScreen({ route, navigation }) {
                     ))}
                   </View>
                 )}
+
+                <Text style={styles.inputLabel}>Hours worked (optional)</Text>
+                <View style={styles.hoursRow}>
+                  <TextInput
+                    style={styles.hoursInput}
+                    value={hoursWorked}
+                    onChangeText={setHoursWorked}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <View style={styles.hoursChipRow}>
+                    {['0.5', '1', '2', '4', '8'].map(h => (
+                      <TouchableOpacity
+                        key={h}
+                        style={styles.hoursChip}
+                        onPress={() => setHoursWorked(h)}
+                      >
+                        <Text style={styles.hoursChipText}>{h}h</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                <Text style={styles.hoursHint}>
+                  Quarter-hour increments. Adds an entry to today&apos;s timesheet.
+                </Text>
 
                 <Text style={styles.inputLabel}>Completion Notes</Text>
                 <TextInput
@@ -719,15 +734,20 @@ const styles = StyleSheet.create({
   gpsBtnPauseText: { color: colors.warning, fontSize: fontSize.sm, fontWeight: '600' },
   gpsBtnStopText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: '600' },
 
-  // Quality rating
-  qualityRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  qualityStar: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border,
-    justifyContent: 'center', alignItems: 'center', backgroundColor: colors.white,
+  // Hours input
+  hoursRow: { marginBottom: spacing.xs, gap: spacing.sm },
+  hoursInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    padding: spacing.md, fontSize: fontSize.md, color: colors.text,
+    backgroundColor: colors.white, fontVariant: ['tabular-nums'],
   },
-  qualityStarActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  qualityStarText: { fontSize: fontSize.base, fontWeight: '600', color: colors.textMuted },
-  qualityStarTextActive: { color: colors.white },
+  hoursChipRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  hoursChip: {
+    paddingHorizontal: spacing.md, paddingVertical: 6,
+    borderRadius: radius.pill, backgroundColor: colors.borderLight,
+  },
+  hoursChipText: { fontSize: fontSize.xs, fontWeight: '600', color: colors.textSecondary },
+  hoursHint: { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.md, fontStyle: 'italic' },
 
   // Notes input
   inputLabel: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text, marginBottom: spacing.xs },
