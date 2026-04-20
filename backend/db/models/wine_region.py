@@ -1,5 +1,5 @@
 # db/models/wine_region.py
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, func, Float
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
@@ -8,10 +8,14 @@ from db.base_class import Base
 
 class WineRegion(Base):
     __tablename__ = "wine_regions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     slug = Column(String(100), nullable=False, unique=True, index=True)
+
+    # Data Ingestion Platform (Phase 0.2) — country + region hierarchy
+    country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
+    parent_region_id = Column(Integer, ForeignKey('wine_regions.id'), nullable=True)
     
     # Boundary geometry (from LINZ council boundaries)
     geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=True)
@@ -58,6 +62,8 @@ class WineRegion(Base):
         back_populates="region",
         cascade="all, delete-orphan"
     )
+    country = relationship("Country", foreign_keys=[country_id])
+    parent_region = relationship("WineRegion", remote_side=[id], backref="sub_regions")
     
     def __repr__(self):
         return f"<WineRegion(id={self.id}, name='{self.name}')>"

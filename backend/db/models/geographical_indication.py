@@ -32,6 +32,18 @@ class GeographicalIndication(Base):
     
     # Parent region (optional, linked via spatial containment or manual)
     region_id = Column(Integer, ForeignKey("wine_regions.id"), nullable=True)
+
+    # Data Ingestion Platform (Phase 0b) — generalized designation fields.
+    # Enables multi-country support (EU PDO/PGI, AU GI, US AVA, AOC, DOCG, ...).
+    # Existing NZ IPoNZ GIs backfilled with designation_system='IPoNZ_GI' and
+    # designation_metadata = { ip_number, iponz_url, status, ... }.
+    designation_system = Column(String(50), nullable=False,
+                                server_default='IPoNZ_GI')
+    country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
+    parent_designation_id = Column(Integer,
+                                   ForeignKey('geographical_indications.id'),
+                                   nullable=True)
+    designation_metadata = Column(JSONB, nullable=True)
     
     # Display settings
     display_order = Column(Integer, default=0)
@@ -44,6 +56,10 @@ class GeographicalIndication(Base):
     
     # Relationships
     region = relationship("WineRegion", back_populates="geographical_indications")
+    country = relationship("Country", foreign_keys=[country_id])
+    parent_designation = relationship("GeographicalIndication",
+                                      remote_side=[id],
+                                      backref="sub_designations")
     
     def __repr__(self):
         return f"<GeographicalIndication(id={self.id}, name='{self.name}', ip_number='{self.ip_number}')>"

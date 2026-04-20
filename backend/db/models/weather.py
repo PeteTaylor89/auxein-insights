@@ -7,7 +7,7 @@ from db.base_class import Base
 
 class WeatherStation(Base):
     __tablename__ = 'weather_stations'
-    
+
     station_id = Column(Integer, primary_key=True, autoincrement=True)
     station_code = Column(String(100), unique=True, nullable=False)
     station_name = Column(String(255))
@@ -23,8 +23,25 @@ class WeatherStation(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
     updated_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
-    
+
+    # Data Ingestion Platform (Phase 0.2) — generic device + company + geo fields.
+    # Until the rename to `devices`, these live alongside the legacy columns.
+    device_class = Column(String(50), nullable=False, server_default='weather_station')
+    country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
+    data_source_id = Column(Integer, ForeignKey('data_sources.id'), nullable=True)
+    company_id = Column(Integer, ForeignKey('companies.id'), nullable=True)
+    property_id = Column(Integer, ForeignKey('properties.id'), nullable=True)
+    asset_id = Column(Integer, ForeignKey('assets.id'), nullable=True)
+    api_credential_ref = Column(String(200), nullable=True)
+    ingest_cadence_minutes = Column(Integer, nullable=False, server_default='360')
+    visibility = Column(String(20), nullable=False, server_default='public')
+    contributes_to_regional = Column(Boolean, nullable=False, server_default=text('true'))
+    is_high_resolution = Column(Boolean, nullable=False, server_default=text('false'))
+    timezone = Column(String(50), nullable=False, server_default='Pacific/Auckland')
+
     zone = relationship("ClimateZone", backref="weather_stations")
+    country = relationship("Country", foreign_keys=[country_id])
+    data_source_ref = relationship("DataSource", foreign_keys=[data_source_id])
 
 class WeatherData(Base):
     __tablename__ = 'weather_data'

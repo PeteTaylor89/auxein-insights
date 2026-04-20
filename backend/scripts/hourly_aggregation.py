@@ -240,33 +240,45 @@ def check_station_variables(db: Session, zone_id: int = None):
 
 def get_zone_station_mappings(db: Session, zone_id: int = None) -> Dict[int, List[int]]:
     """
-    Get mapping of zone_id -> list of station_ids.
+    Return dict of root_zone_id -> list of station_ids contributing to that zone's subtree.
 
-    Uses zone_id column directly on weather_stations table
-    (as per realtime_climate_001 migration).
+    A station tagged at a sub-zone (e.g. Bannockburn) is returned under both
+    its direct zone AND every ancestor zone (Central Otago). Resolution via a
+    recursive CTE over climate_zones.parent_zone_id so a parent-level zone can
+    aggregate hourly data drawn from all its descendants.
     """
     query = """
-        SELECT zone_id, station_id
-        FROM weather_stations
-        WHERE zone_id IS NOT NULL
-          AND is_active = TRUE
+        WITH RECURSIVE zone_tree(root_id, descendant_id) AS (
+            SELECT id, id FROM climate_zones WHERE is_active = TRUE
+            UNION ALL
+            SELECT zt.root_id, cz.id
+            FROM climate_zones cz
+            JOIN zone_tree zt ON cz.parent_zone_id = zt.descendant_id
+            WHERE cz.is_active = TRUE
+        )
+        SELECT zt.root_id AS zone_id, ws.station_id
+        FROM zone_tree zt
+        JOIN weather_stations ws
+            ON ws.zone_id = zt.descendant_id
+           AND ws.is_active = TRUE
+        WHERE ws.zone_id IS NOT NULL
     """
     params = {}
     if zone_id is not None:
-        query += " AND zone_id = :zone_id"
+        query += " AND zt.root_id = :zone_id"
         params['zone_id'] = zone_id
-    query += " ORDER BY zone_id, station_id"
+    query += " ORDER BY zt.root_id, ws.station_id"
 
     result = db.execute(text(query), params).fetchall()
-    
+
     mappings = {}
     for row in result:
-        zone_id = row[0]
+        root_zone_id = row[0]
         station_id = row[1]
-        if zone_id not in mappings:
-            mappings[zone_id] = []
-        mappings[zone_id].append(station_id)
-    
+        if root_zone_id not in mappings:
+            mappings[root_zone_id] = []
+        mappings[root_zone_id].append(station_id)
+
     return mappings
 
 

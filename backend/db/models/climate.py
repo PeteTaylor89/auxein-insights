@@ -44,12 +44,19 @@ class ClimateZone(Base):
     display_order = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
 
+    # Data Ingestion Platform (Phase 0.2) — hierarchy + country
+    parent_zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=True)
+    zone_level = Column(String(20), nullable=False, server_default='region')
+    country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     region = relationship("WineRegion", backref="climate_zones")
+    parent_zone = relationship("ClimateZone", remote_side=[id], backref="sub_zones")
+    country = relationship("Country", foreign_keys=[country_id])
     history = relationship("ClimateHistoryMonthly", back_populates="zone", cascade="all, delete-orphan")
     baseline = relationship("ClimateBaselineMonthly", back_populates="zone", cascade="all, delete-orphan")
     projections = relationship("ClimateProjection", back_populates="zone", cascade="all, delete-orphan")

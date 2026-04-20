@@ -60,3 +60,10 @@ from db.models.research_engagement import ResearchFile, ResearchComment, Researc
 from db.models.email_campaign import EmailTemplate, EmailCampaign, EmailSend
 from db.models.user_enrichment import UserEvent, UserProfile
 from db.models.external_alias import ExternalAlias
+from db.models.data_platform import (
+    Country,
+    DataSource,
+    MeasurementCatalog,
+    IngestionCredential,
+    DeviceMeasurement,
+)

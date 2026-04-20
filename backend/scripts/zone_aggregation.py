@@ -75,14 +75,34 @@ def mean_with_outlier_removal(values: List[float], sd_threshold: float = OUTLIER
 
 
 def get_zones_with_stations(db, zone_id: Optional[int] = None) -> List[dict]:
-    """Get climate zones with sufficient station coverage, optionally filtered by zone_id."""
+    """Get climate zones with sufficient station coverage across their subtree.
+
+    Station coverage is evaluated over each zone's descendants as well as the
+    zone itself: a station registered to Bannockburn (sub_zone) contributes
+    to Bannockburn's count AND Central Otago's count. Resolution happens via
+    a recursive CTE over climate_zones.parent_zone_id.
+
+    This is what lets a parent region publish aggregate data when all of its
+    stations are tagged at the sub-zone level.
+    """
     query = """
+        WITH RECURSIVE zone_tree(root_id, descendant_id) AS (
+            SELECT id, id FROM climate_zones WHERE is_active = true
+            UNION ALL
+            SELECT zt.root_id, cz.id
+            FROM climate_zones cz
+            JOIN zone_tree zt ON cz.parent_zone_id = zt.descendant_id
+            WHERE cz.is_active = true
+        )
         SELECT
             cz.id as zone_id,
             cz.name as zone_name,
             COUNT(DISTINCT ws.station_id) as station_count
         FROM climate_zones cz
-        LEFT JOIN weather_stations ws ON ws.zone_id = cz.id AND ws.is_active = true
+        LEFT JOIN zone_tree zt ON zt.root_id = cz.id
+        LEFT JOIN weather_stations ws
+            ON ws.zone_id = zt.descendant_id
+           AND ws.is_active = true
         WHERE cz.is_active = true
     """
     params = {'min_stations': MIN_STATIONS_FOR_ZONE}
@@ -108,15 +128,29 @@ def get_zones_with_stations(db, zone_id: Optional[int] = None) -> List[dict]:
 
 
 def get_zone_stations_with_data(db, zone_id: int, target_date: date) -> List[dict]:
-    """Get stations in zone with data for target date."""
+    """Get stations contributing to a zone's subtree with data for target date.
+
+    Resolves the zone's descendants via recursive CTE so stations tagged at
+    deeper levels (sub_zone) still surface when aggregating a region.
+    """
     result = db.execute(text("""
-        SELECT 
+        WITH RECURSIVE zone_tree(zone_id) AS (
+            SELECT id FROM climate_zones
+            WHERE id = :zone_id AND is_active = true
+            UNION ALL
+            SELECT cz.id
+            FROM climate_zones cz
+            JOIN zone_tree zt ON cz.parent_zone_id = zt.zone_id
+            WHERE cz.is_active = true
+        )
+        SELECT
             ws.station_id,
             wdd.temp_min, wdd.temp_max, wdd.temp_mean,
             wdd.humidity_mean, wdd.rainfall_mm, wdd.solar_radiation, wdd.gdd_base0
         FROM weather_stations ws
+        JOIN zone_tree zt ON zt.zone_id = ws.zone_id
         JOIN weather_data_daily wdd ON wdd.station_id = ws.station_id
-        WHERE ws.zone_id = :zone_id AND ws.is_active = true AND wdd.date = :target_date
+        WHERE ws.is_active = true AND wdd.date = :target_date
     """), {'zone_id': zone_id, 'target_date': target_date})
     
     return [
