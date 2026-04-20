@@ -182,18 +182,31 @@ Rebuild CreateIncident as step-based wizard:
 
 ## Build Order
 
-| # | Phase | Effort | Key Deliverable |
-|---|---|---|---|
-| 1 | M5.1 Design system | Medium | Shared components, theme update |
-| 2 | GPS.1 Accuracy filtering | Small | useGpsTracking.js refinements |
-| 3 | GPS.2 Spray track map | Large | Full-screen live GPS map (hero feature) |
-| 4 | M5.2 Observation capture | Medium | Rebuilt SpotCaptureScreen |
-| 5 | OFF.1+OFF.2 Network + GPS queue | Medium | Offline resilience |
-| 6 | M5.3 Incident wizard | Medium | Step-based incident flow |
-| 7 | GPS.3 Coverage calc | Small | Coverage % in spray view |
-| 8 | GPS.5 Background tracking | Large | Dev build, expo-task-manager |
-| 9 | OFF.3 Full offline cache | Large | Complete offline support |
-| 10 | M5.4 Visual polish | Ongoing | Icons, toasts, skeletons |
+| # | Phase | Effort | Status | Key Deliverable |
+|---|---|---|---|---|
+| 1 | M5.1 Design system | Medium | ✅ 2026-04-17 | Shared components, theme update |
+| 2 | GPS.1 Accuracy filtering | Small | ✅ 2026-04-17 | useGpsTracking.js refinements |
+| 3 | GPS.2 Spray track map | Large | ⏳ Deferred | Full-screen live GPS map (needs dev build) |
+| 4 | M5.2 Observation capture | Medium | ✅ 2026-04-17 | Rebuilt SpotCaptureScreen |
+| 5 | OFF.1+OFF.2 Network + GPS queue | Medium | ✅ 2026-04-17 (untested) | Offline resilience |
+| 6 | M5.3 Incident wizard | Medium | ✅ 2026-04-19 | CreateIncidentScreen step wizard |
+| 7 | GPS.3 Coverage calc | Small | ❌ Not started | Coverage % in spray view |
+| 8 | GPS.5 Background tracking | Large | ❌ Not started | Dev build, expo-task-manager |
+| 9 | OFF.3 Full offline cache | Large | ❌ Not started | Complete offline support |
+| 10 | M5.4 Visual polish | Ongoing | ✅ 2026-04-19 | Icons (Feather app-wide), toasts, skeletons, branding |
+
+## Phase A.5 Additions (2026-04-19)
+
+Features added after competitor-screenshot polish review:
+
+| Feature | Status | Notes |
+|---|---|---|
+| Row quality rating removed | ✅ | User preference — not valuable to field workers |
+| Task complete → timesheet hours | ✅ | `hours_worked` on `TaskCompleteRequest`; backend upserts today's `TimesheetDay` + `TimeEntry`; notifies user |
+| Asset registration (mobile) | ✅ | `CreateAssetScreen` + FAB on AssetsScreen; notifies admins + managers |
+| Hazard/Risk create (mobile) | ❌ | Deferred — lightweight wizard pattern like incident, notifies admins/managers |
+| Reopen GPS on active task | ❌ | Deferred — small UX addition (30min) |
+| Visitor register | 📋 Scoping | See `docs/plans/VISITOR_REGISTER_SCOPING.md` |
 
 ---
 
