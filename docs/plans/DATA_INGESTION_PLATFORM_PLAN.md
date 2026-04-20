@@ -26,6 +26,38 @@ The goal of this plan is to produce a **generic devices + timeseries + alerts pl
 
 ---
 
+## 1a. Prod-safety discipline (applies to every migration in this plan)
+
+Migrations in this plan are executed against the **live prod RDS** while backend
+code changes land in the local dev branch and are deployed via `eb deploy`
+later. Therefore every migration must leave the *currently deployed* prod
+backend (running the *old* SQLAlchemy models) fully functional.
+
+Rules enforced across all phases:
+
+| Rule | Why |
+|---|---|
+| New columns must have `server_default` or be nullable | Old code INSERTs without specifying them — NOT NULL without default crashes prod. |
+| New CHECK / NOT NULL constraints apply only to new columns or existing values already known to satisfy them | A CHECK on an existing column can fail old INSERTs. |
+| Never DROP a column or table that old prod code still reads or writes | Prod 500s immediately. Drop happens only after a prod deploy removes the reference. |
+| Table renames must ship back-compat views under the old name | Old code queries tables by name; the view keeps the old name resolvable. Use simple `SELECT *` passthrough views so Postgres auto-updatable view rules apply and `INSERT ... ON CONFLICT` keeps working. |
+| Column renames avoided until callers audited | Column aliases on views complicate `ON CONFLICT` and `RETURNING`; defer until a dedicated cleanup migration after the backend deploy catches up. |
+| New FKs added only when existing data already satisfies them | FK additions scan existing rows; a stray orphan kills the migration. |
+| New tables and their FKs to legacy tables are always safe | Old code doesn't reference them. |
+| Seed data uses `ON CONFLICT DO NOTHING` | Idempotent if run twice (staging drop-and-rebuild scenarios). |
+
+Green-light checklist before running a migration against prod:
+
+1. Does old prod code still SELECT the same columns it did before? (Columns must remain present, may have new neighbours.)
+2. Does old prod code still INSERT without breaking? (Defaults or nullability on any new required column.)
+3. Does old prod code still UPDATE cleanly? (No new constraint rejecting existing update patterns.)
+4. Are all table renames accompanied by a back-compat view under the old name?
+5. Has the migration been dry-run against a recent prod snapshot in staging? (When a staging clone exists.)
+
+Backend deploys catch up to schema changes **after** the migration lands — never before. When a backend change depends on a schema change, the sequence is: (1) migration, (2) verify prod still healthy, (3) deploy backend.
+
+---
+
 ## 2. Current state — verified
 
 ### 2.1 Schema (NZ-only, weather-first)
