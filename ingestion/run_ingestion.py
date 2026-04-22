@@ -93,12 +93,23 @@ def main():
     if args.source in ['harvest', 'all']:
         try:
             print("▶ Starting HARVEST ingestion...\n")
-            ingester = HarvestIngestion()
-            ingester.run(
-                start_date=args.start,
-                end_date=args.end,
-            )
-            print("✓ Harvest ingestion complete\n")
+            # Build a credential resolver that lives for the whole Harvest run
+            # so per-process caching kicks in (one Secrets Manager call per ref,
+            # not per device).
+            from db_connection import get_ingestion_session
+            from services.credential_service import CredentialResolver
+
+            cred_session = get_ingestion_session()()
+            resolver = CredentialResolver(db=cred_session)
+            try:
+                ingester = HarvestIngestion(resolver=resolver)
+                ingester.run(
+                    start_date=args.start,
+                    end_date=args.end,
+                )
+                print("✓ Harvest ingestion complete\n")
+            finally:
+                cred_session.close()
         except Exception as e:
             print(f"✗ Harvest ingestion failed: {e}\n")
             success = False

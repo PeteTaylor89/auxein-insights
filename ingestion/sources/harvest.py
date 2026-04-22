@@ -1,6 +1,6 @@
 import requests
 from datetime import datetime, timedelta
-import os
+from typing import Optional
 from sqlalchemy import text
 import sys
 from pathlib import Path
@@ -9,26 +9,41 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 
+# Backend service for credential resolution (Phase B1)
+backend_path = Path(__file__).parent.parent.parent / "backend"
+sys.path.insert(0, str(backend_path))
+from services.credential_service import CredentialResolver, CredentialError  # noqa: E402
+
+
 class HarvestIngestion:
-    """Ingestion class for Harvest Electronics weather data"""
-    
-    def __init__(self):
+    """Ingestion class for Harvest Electronics weather data.
+
+    Per-device credential resolution (Phase B1): each device's
+    `api_credential_ref` resolves through CredentialResolver to its actual API
+    key. Devices sharing a ref share a key (one Auxein-owned key serves many
+    public stations; each customer brings their own ref/key when onboarded).
+    """
+
+    def __init__(self, resolver: Optional[CredentialResolver] = None):
         self.data_source = 'HARVEST'
-        self.api_key = os.getenv('HARVEST_API_KEY')
-        if not self.api_key:
-            raise ValueError("HARVEST_API_KEY not set in environment")
-        
         self.base_url = 'https://live.harvest.com/api.php'
         self.delay_hours = 13  # Harvest has 13-hour data delay
-        
+
         # Database connection
         self.Session = get_ingestion_session()
-    
+
+        # Credential resolver — instantiate one if caller didn't pass one in.
+        # The resolver holds its own DB session for credential lookups,
+        # independent of the per-call sessions used for stations / data inserts.
+        if resolver is None:
+            resolver = CredentialResolver(db=self.Session())
+        self.resolver = resolver
+
     def get_active_stations(self):
-        """Get all active Harvest stations from database"""
+        """Get all active Harvest stations from database, including credential ref."""
         with self.Session() as session:
             result = session.execute(text("""
-                SELECT station_id, station_code, source_id, notes
+                SELECT station_id, station_code, source_id, notes, api_credential_ref
                 FROM weather_stations
                 WHERE data_source = :source AND is_active = true
                 ORDER BY station_code
@@ -59,14 +74,19 @@ class HarvestIngestion:
                 nz_tz = ZoneInfo('Pacific/Auckland')
                 return datetime.now(nz_tz) - timedelta(days=2)
     
-    def fetch_harvest_data(self, trace_id, start_time, end_time):
-        """Fetch data from Harvest API with pagination support"""
+    def fetch_harvest_data(self, trace_id, start_time, end_time, api_key):
+        """Fetch data from Harvest API with pagination support.
+
+        api_key is passed in per call rather than read from self, so devices
+        belonging to different Harvest accounts (different credential refs)
+        can be ingested in the same run.
+        """
         all_data = []
 
         params = {
             'output_type': 'application/json',
             'command_type': 'get_data',
-            'api_key': self.api_key,
+            'api_key': api_key,
             'trace_id': trace_id,
             'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
             'end_time': end_time.strftime('%Y-%m-%d %H:%M:%S')
@@ -247,13 +267,49 @@ class HarvestIngestion:
         stations = self.get_active_stations()
         print(f"Found {len(stations)} active Harvest stations\n")
 
+        # Pre-resolve every distinct credential ref so we know upfront which
+        # are healthy. Failures here mean affected stations get skipped with a
+        # clear log line instead of erroring mid-fetch.
+        unique_refs = sorted({s[4] for s in stations if s[4]})
+        resolved_keys: dict[str, str] = {}
+        ref_errors: dict[str, str] = {}
+        for ref in unique_refs:
+            try:
+                resolved_keys[ref] = self.resolver.resolve(ref)
+            except CredentialError as e:
+                ref_errors[ref] = str(e)
+                print(f"  ⚠ Credential '{ref}' failed to resolve: {e}")
+        print(
+            f"Resolved {len(resolved_keys)}/{len(unique_refs)} credential ref(s) "
+            f"across {len(stations)} stations\n"
+        )
+
         for station in stations:
             station_id = station[0]
             station_code = station[1]
             source_id = station[2]  # trace_id
             notes = station[3]
+            credential_ref = station[4]
 
             print(f"Processing: {station_code}")
+
+            # Resolve API key for this station via its credential ref.
+            if not credential_ref:
+                print(f"  ✗ No api_credential_ref set on device {station_id}; skipping\n")
+                self.log_ingestion(
+                    station_id, datetime.now(nz_tz), 0, 0,
+                    'FAILED', 'Device has no api_credential_ref',
+                )
+                continue
+            api_key = resolved_keys.get(credential_ref)
+            if api_key is None:
+                err = ref_errors.get(credential_ref, 'unknown resolver error')
+                print(f"  ✗ Credential '{credential_ref}' unavailable; skipping\n")
+                self.log_ingestion(
+                    station_id, datetime.now(nz_tz), 0, 0,
+                    'FAILED', f"Credential '{credential_ref}' unavailable: {err}",
+                )
+                continue
 
             try:
                 # Calculate time window
@@ -264,14 +320,14 @@ class HarvestIngestion:
                     # Incremental: from last record to now (accounting for 13-hour delay)
                     end_time = datetime.now(nz_tz) - timedelta(hours=self.delay_hours)
                     start_time = self.get_last_timestamp(station_id)
-                
+
                 # Skip if already up to date
                 if start_time >= end_time:
                     print(f"  ✓ Already up to date (last: {start_time})\n")
                     continue
-                
+
                 # Fetch from API
-                response = self.fetch_harvest_data(source_id, start_time, end_time)
+                response = self.fetch_harvest_data(source_id, start_time, end_time, api_key)
                 
                 if not response:
                     self.log_ingestion(station_id, start_time, 0, 0, 
