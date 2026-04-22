@@ -148,9 +148,9 @@ const PublicClimateContainer = ({
     }
   }, [initialZoneSlug]);
 
-  // Auto-select Waipara in demo mode
+  // Auto-select Waipara in demo mode (skipped when a deep-link zone is provided)
   useEffect(() => {
-    if (demoMode && !selectedZone) {
+    if (demoMode && !selectedZone && !initialZoneSlug) {
       const loadDemoZone = async () => {
         try {
           const zone = await getZone('waipara');
@@ -168,7 +168,7 @@ const PublicClimateContainer = ({
       };
       loadDemoZone();
     }
-  }, [demoMode]);
+  }, [demoMode, initialZoneSlug]);
 
   const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.currentseason;
   const ContentComponent = currentViewConfig.component;

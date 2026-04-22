@@ -69,9 +69,30 @@ function ArticlePreviewBody({ body }) {
               displayMode={node.attrs?.displayMode || 'chart'}
               title={node.attrs?.title}
               snapshotData={node.attrs?.snapshotData || null}
+              vintages={node.attrs?.vintages || ''}
+              includeBaseline={node.attrs?.includeBaseline !== false}
             />
           </Suspense>
         );
+      case 'iframe': {
+        const a = node.attrs || {};
+        const h = Math.max(120, Number(a.height) || 600);
+        const w = a.width || '100';
+        return (
+          <div key={key} style={{ width: `${w}%`, margin: '1rem auto' }}>
+            <iframe
+              src={a.src}
+              title={a.title || 'Embedded content'}
+              width="100%"
+              height={h}
+              sandbox={a.sandbox || 'allow-scripts allow-same-origin allow-popups allow-forms'}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              style={{ border: '1px solid #e5e7eb', borderRadius: '8px', display: 'block' }}
+            />
+          </div>
+        );
+      }
       case 'hardBreak':
         return <br key={key} />;
       default:
@@ -195,8 +216,16 @@ function AdminArticleEditor() {
       case 'disease_pressure':
         return getDiseasePressure(attrs.zoneSlug);
       case 'season_comparison': {
-        const yr = new Date().getFullYear();
-        return compareSeasons({ zone: attrs.zoneSlug, vintages: `${yr},${yr - 1}`, include_baseline: true });
+        let vintages = attrs.vintages;
+        if (!vintages) {
+          const yr = new Date().getFullYear();
+          vintages = `${yr},${yr - 1}`;
+        }
+        return compareSeasons({
+          zone: attrs.zoneSlug,
+          vintages,
+          include_baseline: attrs.includeBaseline !== false,
+        });
       }
       default:
         return null;

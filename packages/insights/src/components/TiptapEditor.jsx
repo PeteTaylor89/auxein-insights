@@ -8,12 +8,14 @@ import { useRef, useCallback, useState } from 'react';
 import {
   Bold, Italic, Strikethrough, Heading2, Heading3, Heading4,
   List, ListOrdered, Quote, Code2, Link2, ImagePlus, Minus,
-  Undo2, Redo2, BarChart3
+  Undo2, Redo2, BarChart3, Frame
 } from 'lucide-react';
 import publicApi from '../services/publicApi';
 import ResizableImage from './ResizableImage';
 import ClimateWidgetExtension from './editor/ClimateWidgetExtension';
 import ClimateWidgetInserter from './editor/ClimateWidgetInserter';
+import IframeExtension from './editor/IframeExtension';
+import IframeInserter from './editor/IframeInserter';
 import './TiptapEditor.css';
 
 // Custom Image extension with width attribute and resizable node view
@@ -36,6 +38,7 @@ const ResizableImageExtension = Image.extend({
 function TiptapEditor({ content, onChange }) {
   const fileInputRef = useRef(null);
   const [showWidgetInserter, setShowWidgetInserter] = useState(false);
+  const [showIframeInserter, setShowIframeInserter] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -53,6 +56,7 @@ function TiptapEditor({ content, onChange }) {
         placeholder: 'Write your article content here...',
       }),
       ClimateWidgetExtension,
+      IframeExtension,
     ],
     content: content || { type: 'doc', content: [{ type: 'paragraph' }] },
     onUpdate: ({ editor }) => {
@@ -159,6 +163,9 @@ function TiptapEditor({ content, onChange }) {
           <button type="button" onClick={() => setShowWidgetInserter(true)} title="Insert Climate Widget" style={{ color: '#16a34a' }}>
             <BarChart3 size={16} />
           </button>
+          <button type="button" onClick={() => setShowIframeInserter(true)} title="Insert Iframe" style={{ color: '#16a34a' }}>
+            <Frame size={16} />
+          </button>
         </div>
 
         <div className="tiptap-toolbar-group">
@@ -187,6 +194,13 @@ function TiptapEditor({ content, onChange }) {
         <ClimateWidgetInserter
           editor={editor}
           onClose={() => setShowWidgetInserter(false)}
+        />
+      )}
+
+      {showIframeInserter && (
+        <IframeInserter
+          editor={editor}
+          onClose={() => setShowIframeInserter(false)}
         />
       )}
     </div>

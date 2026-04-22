@@ -17,6 +17,8 @@ const ClimateWidgetExtension = Node.create({
       metric: { default: '' },
       displayMode: { default: 'chart' }, // 'chart' or 'table'
       title: { default: '' },
+      vintages: { default: '' },           // comma-separated vintage years, used by season_comparison
+      includeBaseline: { default: true },  // include long-term baseline in season_comparison
       isStatic: { default: false },        // freeze data on publish
       snapshotData: { default: null },      // embedded API response
       snapshotDate: { default: null },      // when snapshot was taken

@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Is This a Trend or a Blip? - Auxein Insights</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil: #3a3000;
+    --vine: #5B6830;
+    --leaf: #6d7d3a;
+    --sage: #8f9e5a;
+    --stone: #c8c9a8;
+    --cream: #FDF6E3;
+    --mist: #f0e9d0;
+    --gold: #D1583B;
+    --alert: #a83820;
+    --text: #2F2F2F;
+    --text-light: #6a6a5a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 48px 24px 64px;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 40px;
+    border-left: 3px solid var(--leaf);
+    padding-left: 20px;
+  }
+
+  .header .eyebrow {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--leaf);
+    margin-bottom: 10px;
+  }
+
+  .header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(26px, 5vw, 36px);
+    line-height: 1.2;
+    color: var(--soil);
+    margin-bottom: 12px;
+  }
+
+  .header h1 em {
+    font-style: italic;
+    color: var(--leaf);
+  }
+
+  .header p {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text-light);
+    font-weight: 300;
+  }
+
+  /* Progress */
+  .progress-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 36px;
+    align-items: center;
+  }
+
+  .progress-step {
+    height: 3px;
+    flex: 1;
+    background: var(--mist);
+    border-radius: 2px;
+    transition: background 0.4s ease;
+  }
+
+  .progress-step.active { background: var(--leaf); }
+  .progress-step.done { background: var(--sage); }
+
+  .progress-label {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+
+  /* Question card */
+  .question-card {
+    background: white;
+    border-radius: 2px;
+    padding: 36px;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 2px 16px rgba(44,24,16,0.06);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .question-card.fade-out {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  .question-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: 12px;
+  }
+
+  .question-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    line-height: 1.4;
+    color: var(--soil);
+    margin-bottom: 28px;
+  }
+
+  /* Options */
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    border: 1.5px solid var(--mist);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+    text-align: left;
+    width: 100%;
+  }
+
+  .option:hover {
+    border-color: var(--sage);
+    background: #f9f7f3;
+  }
+
+  .option.selected {
+    border-color: var(--leaf);
+    background: #f0f5f1;
+  }
+
+  .option-content {}
+
+  .option-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 2px;
+  }
+
+  .option-sub {
+    font-size: 12px;
+    color: var(--text-light);
+    font-weight: 300;
+  }
+
+  /* Next button */
+  .btn-next {
+    margin-top: 24px;
+    padding: 14px 28px;
+    background: var(--vine);
+    color: white;
+    border: none;
+    border-radius: 2px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+    display: none;
+  }
+
+  .btn-next:hover { background: var(--leaf); }
+  .btn-next:active { transform: scale(0.98); }
+  .btn-next.visible { display: inline-flex; align-items: center; gap: 8px; }
+
+  .btn-next svg { width: 14px; height: 14px; }
+
+  /* Back */
+  .btn-back {
+    background: none;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+  }
+
+  .btn-back:hover { color: var(--vine); }
+  .btn-back.hidden { visibility: hidden; }
+
+  /* Result */
+  .result-card {
+    display: none;
+    background: white;
+    border-radius: 2px;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 2px 16px rgba(44,24,16,0.06);
+    overflow: hidden;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card.visible { display: block; }
+
+  .result-header {
+    padding: 28px 36px;
+    border-bottom: 1px solid var(--mist);
+  }
+
+  .result-verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+
+  .verdict-trend {
+    background: #fbeee9;
+    color: #D1583B;
+  }
+
+  .verdict-blip {
+    background: #f0f3e6;
+    color: #5B6830;
+  }
+
+  .verdict-unclear {
+    background: #fdf6e3;
+    color: #7a6820;
+  }
+
+  .result-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    line-height: 1.3;
+    color: var(--soil);
+    margin-bottom: 10px;
+  }
+
+  .result-header p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-light);
+    font-weight: 300;
+  }
+
+  .result-body {
+    padding: 28px 36px;
+  }
+
+  .where-to-look {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: 16px;
+  }
+
+  .insight-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+
+  .insight-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: var(--mist);
+    border-radius: 2px;
+    text-decoration: none;
+    transition: background 0.2s ease;
+    gap: 12px;
+  }
+
+  .insight-link:hover { background: #ddd9d0; }
+
+  .insight-link-content {}
+
+  .insight-link-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--vine);
+    margin-bottom: 2px;
+  }
+
+  .insight-link-sub {
+    font-size: 12px;
+    color: var(--text-light);
+    font-weight: 300;
+  }
+
+  .insight-link-arrow {
+    color: var(--sage);
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+
+  .what-to-ask {
+    background: #fdf6e3;
+    border-left: 3px solid #D1583B;
+    padding: 18px 20px;
+    margin-bottom: 28px;
+    border-radius: 0 2px 2px 0;
+  }
+
+  .what-to-ask-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #D1583B;
+    margin-bottom: 10px;
+  }
+
+  .what-to-ask ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .what-to-ask li {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+    padding-left: 16px;
+    position: relative;
+    font-weight: 300;
+  }
+
+  .what-to-ask li::before {
+    content: '-';
+    position: absolute;
+    left: 0;
+    color: #D1583B;
+  }
+
+  .result-footer {
+    padding: 20px 36px 28px;
+    border-top: 1px solid var(--mist);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cta-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 24px;
+    background: var(--vine);
+    color: white;
+    text-decoration: none;
+    border-radius: 2px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    transition: background 0.2s;
+    text-align: center;
+  }
+
+  .cta-primary:hover { background: var(--leaf); }
+
+  .cta-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px 24px;
+    border: 1.5px solid var(--vine);
+    color: var(--vine);
+    text-decoration: none;
+    border-radius: 2px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .cta-secondary:hover {
+    background: var(--vine);
+    color: white;
+  }
+
+  .btn-restart {
+    background: none;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-light);
+    cursor: pointer;
+    text-align: center;
+    padding: 4px;
+    transition: color 0.2s;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .btn-restart:hover { color: var(--vine); }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--mist);
+    margin: 32px 0;
+  }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="eyebrow">Auxein Insights - Planning for Change, Part 1</div>
+    <h1>Is This a Trend<br>or a Blip?</h1>
+    <p>You've just come through a season that felt unusual. Before you decide whether it belongs in your long-term planning or your short-term incident log, answer three questions - and we'll point you directly to the Auxein Insights view that can help you find out.</p>
+  </div>
+
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-step active" id="step0"></div>
+    <div class="progress-step" id="step1"></div>
+    <div class="progress-step" id="step2"></div>
+    <span class="progress-label" id="progressLabel">Question 1 of 3</span>
+  </div>
+
+  <button class="btn-back hidden" id="btnBack" onclick="goBack()">← Back</button>
+
+  <!-- Question 1: Region -->
+  <div class="question-card" id="q1">
+    <div class="question-label">Question 1 of 3</div>
+    <div class="question-text">Which region are you growing in?</div>
+    <div class="options" id="q1-options">
+      <button class="option" onclick="selectOption('region','marlborough', this)">
+        <div class="option-content">
+          <div class="option-title">Marlborough</div>
+          <div class="option-sub">Wairau Valley, Awatere, Southern Valleys</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('region','hawkesbay', this)">
+        <div class="option-content">
+          <div class="option-title">Hawke's Bay</div>
+          <div class="option-sub">Gimblett Gravels, Bridge Pa, Havelock North</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('region','waipara', this)">
+        <div class="option-content">
+          <div class="option-title">Waipara / North Canterbury</div>
+          <div class="option-sub">Waipara Valley, Omihi, Waikari</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('region','centralotago', this)">
+        <div class="option-content">
+          <div class="option-title">Central Otago</div>
+          <div class="option-sub">Bannockburn, Cromwell, Gibbston, Wanaka</div>
+        </div>
+      </button>
+    </div>
+    <button class="btn-next" id="next1" onclick="nextQuestion(1)">
+      Next
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+
+  <!-- Question 2: What did you observe -->
+  <div class="question-card hidden" id="q2">
+    <div class="question-label">Question 2 of 3</div>
+    <div class="question-text">What did you observe this season that felt unusual?</div>
+    <div class="options" id="q2-options">
+      <button class="option" onclick="selectOption('observation','heat', this)">
+        <div class="option-content">
+          <div class="option-title">Unusually high temperatures</div>
+          <div class="option-sub">Heat events, elevated growing season warmth, early harvest</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('observation','cool', this)">
+        <div class="option-content">
+          <div class="option-title">Unusually cool or slow season</div>
+          <div class="option-sub">Late budburst, slow ripening, delayed harvest</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('observation','dry', this)">
+        <div class="option-content">
+          <div class="option-title">Dry conditions or drought stress</div>
+          <div class="option-sub">Low rainfall, irrigation pressure, vine water stress</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('observation','wet', this)">
+        <div class="option-content">
+          <div class="option-title">Excessive rainfall or disease pressure</div>
+          <div class="option-sub">Botrytis risk, waterlogging, harvest disruption</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('observation','frost', this)">
+        <div class="option-content">
+          <div class="option-title">Frost damage or unexpected frost risk</div>
+          <div class="option-sub">Spring frost events, bud damage, late frosts</div>
+        </div>
+      </button>
+    </div>
+    <button class="btn-next" id="next2" onclick="nextQuestion(2)">
+      Next
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+
+  <!-- Question 3: Season timing -->
+  <div class="question-card hidden" id="q3">
+    <div class="question-label">Question 3 of 3</div>
+    <div class="question-text">When in the season did this occur?</div>
+    <div class="options" id="q3-options">
+      <button class="option" onclick="selectOption('timing','early', this)">
+        <div class="option-content">
+          <div class="option-title">Early season</div>
+          <div class="option-sub">Budburst through flowering (Aug–Nov)</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('timing','mid', this)">
+        <div class="option-content">
+          <div class="option-title">Mid season</div>
+          <div class="option-sub">Fruit set through veraison (Dec–Jan)</div>
+        </div>
+      </button>
+      <button class="option" onclick="selectOption('timing','harvest', this)">
+        <div class="option-content">
+          <div class="option-title">Harvest period</div>
+          <div class="option-sub">Veraison through picking (Feb–Apr)</div>
+        </div>
+      </button>
+    </div>
+    <button class="btn-next" id="next3" onclick="showResult()">
+      Show me where to look
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+
+  <!-- Result -->
+  <div class="result-card" id="result"></div>
+
+</div>
+
+<script>
+const answers = { region: null, observation: null, timing: null };
+let currentQ = 1;
+
+const regionNames = {
+  marlborough: 'Marlborough',
+  hawkesbay: "Hawke's Bay",
+  waipara: 'Waipara / North Canterbury',
+  centralotago: 'Central Otago'
+};
+
+// Deep-links into the Insights SPA: /?view=<view>&zone=<zoneSlug>
+// Valid views: currentseason | phenology | disease | climatehistory | climateprojections
+// Marlborough has no parent zone slug — defaulting to lower-wairau (largest sub-zone).
+const regionZoneSlug = {
+  marlborough: 'lower-wairau',
+  hawkesbay: 'hawkes-bay',
+  waipara: 'waipara',
+  centralotago: 'central-otago'
+};
+
+const insightsBase = 'https://insights.auxein.co.nz';
+const buildLink = (zone, view) => `${insightsBase}/?view=${view}&zone=${zone}`;
+
+// All four metric keys map to the Climate History (seasons) explorer —
+// user switches metric in-page once landed.
+const regionLinks = Object.fromEntries(
+  Object.entries(regionZoneSlug).map(([region, zone]) => [region, {
+    temp: buildLink(zone, 'climatehistory'),
+    rainfall: buildLink(zone, 'climatehistory'),
+    frost: buildLink(zone, 'climatehistory'),
+    gdd: buildLink(zone, 'climatehistory'),
+    base: buildLink(zone, 'climatehistory')
+  }])
+);
+
+// Result logic
+const results = {
+  heat: {
+    verdict: 'trend',
+    verdictLabel: '⚠ Worth investigating as a trend',
+    headline: 'Warming trends in {region} are measurable - this may not be isolated.',
+    context: 'Heat accumulation across New Zealand wine regions has been increasing. Before treating this season as an outlier, it\'s worth checking whether the regional temperature trend supports that assumption.',
+    links: [
+      { title: 'Temperature trend view', sub: 'Mean and maximum temperature over time', key: 'temp' },
+      { title: 'Growing degree days', sub: 'Heat accumulation across the season', key: 'gdd' }
+    ],
+    questions: [
+      'Has mean growing season temperature in {region} trended upward over the past 20 years?',
+      'Is this season\'s heat accumulation outside the historical range, or near the top of it?',
+      'What do the 2050 and 2100 projections suggest for summer temperature in this region?'
+    ]
+  },
+  cool: {
+    verdict: 'blip',
+    verdictLabel: '✓ Likely a blip - but worth confirming',
+    headline: 'Cool seasons do still occur - but check the long-term trend.',
+    context: 'A cooler than expected season is more likely to be natural variability than a reversal of warming trends. That said, it\'s useful to see where this season sits relative to the historical range for your region.',
+    links: [
+      { title: 'Temperature trend view', sub: 'Mean temperature and seasonal variability', key: 'temp' },
+      { title: 'Growing degree days', sub: 'How this season compares to historical heat accumulation', key: 'gdd' }
+    ],
+    questions: [
+      'Does {region}\'s temperature data show meaningful year-to-year variability, or is the trend quite smooth?',
+      'How does this season\'s GDD compare to the 10-year and 20-year averages?',
+      'Is a cool season in this region associated with specific synoptic patterns worth understanding?'
+    ]
+  },
+  dry: {
+    verdict: 'unclear',
+    verdictLabel: '◐ Could be either - check the rainfall record',
+    headline: 'Rainfall variability is high - regional data will tell you whether this is unusual.',
+    context: 'Rainfall is the most variable of the key climate metrics in New Zealand viticulture. A dry season can reflect natural inter-annual variability, a shifting seasonal pattern, or both. The historical record for your region will help you distinguish these.',
+    links: [
+      { title: 'Rainfall trend view', sub: 'Annual and seasonal rainfall over time', key: 'rainfall' },
+      { title: 'Temperature trend view', sub: 'Higher temperatures increase evapotranspiration demand', key: 'temp' }
+    ],
+    questions: [
+      'Has annual rainfall in {region} trended downward, or is variability simply high?',
+      'Is dry autumn / harvest-period rainfall becoming more common in this region?',
+      'How does irrigation demand projection change under the high emissions scenario?'
+    ]
+  },
+  wet: {
+    verdict: 'unclear',
+    verdictLabel: '◐ Could be either - check seasonal rainfall patterns',
+    headline: 'Wet seasons are part of the variability - but timing shifts matter.',
+    context: 'Total annual rainfall may not be changing dramatically, but when it falls across the season is shifting in some regions. Harvest-period rainfall in particular has significant implications for disease pressure and fruit quality.',
+    links: [
+      { title: 'Rainfall trend view', sub: 'Seasonal rainfall distribution over time', key: 'rainfall' },
+      { title: 'Temperature trend view', sub: 'Warmer conditions can shift disease pressure thresholds', key: 'temp' }
+    ],
+    questions: [
+      'Is harvest-period (Feb–Apr) rainfall in {region} trending upward or becoming more variable?',
+      'Has the historical record shown clustering of wet harvest years, or is this genuinely isolated?',
+      'What do future projections suggest for autumn rainfall in this region?'
+    ]
+  },
+  frost: {
+    verdict: 'trend',
+    verdictLabel: '⚠ Worth investigating - frost risk windows are shifting',
+    headline: 'Frost patterns are changing - but not always in the direction you might expect.',
+    context: 'While average temperatures are warming, earlier budburst driven by warmer springs can actually increase frost exposure risk in some regions. The relationship between warming and frost damage is not straightforward and is worth examining in the data.',
+    links: [
+      { title: 'Temperature trend view', sub: 'Spring temperature trends affecting budburst timing', key: 'temp' }
+    ],
+    questions: [
+      'Has the date of last frost in {region} shifted over the past 20 years?',
+      'Has budburst timing advanced in this region - potentially increasing frost exposure?',
+      'What do future projections suggest for frost risk days under different emissions scenarios?'
+    ]
+  }
+};
+
+function selectOption(key, value, el) {
+  answers[key] = value;
+  const parent = el.closest('.options');
+  parent.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const nextId = key === 'region' ? 'next1' : key === 'observation' ? 'next2' : 'next3';
+  document.getElementById(nextId).classList.add('visible');
+}
+
+function nextQuestion(from) {
+  const card = document.getElementById('q' + from);
+  card.classList.add('fade-out');
+  setTimeout(() => {
+    card.classList.add('hidden');
+    card.classList.remove('fade-out');
+    const next = document.getElementById('q' + (from + 1));
+    next.classList.remove('hidden');
+    updateProgress(from + 1);
+    document.getElementById('btnBack').classList.remove('hidden');
+  }, 280);
+}
+
+function goBack() {
+  if (currentQ <= 1) return;
+  const cur = document.getElementById('q' + currentQ);
+  cur.classList.add('hidden');
+  currentQ--;
+  document.getElementById('q' + currentQ).classList.remove('hidden');
+  updateProgress(currentQ);
+  if (currentQ === 1) document.getElementById('btnBack').classList.add('hidden');
+  document.getElementById('result').classList.remove('visible');
+  document.getElementById('result').style.display = 'none';
+}
+
+function updateProgress(q) {
+  currentQ = q;
+  for (let i = 0; i < 3; i++) {
+    const el = document.getElementById('step' + i);
+    if (i < q - 1) { el.className = 'progress-step done'; }
+    else if (i === q - 1) { el.className = 'progress-step active'; }
+    else { el.className = 'progress-step'; }
+  }
+  document.getElementById('progressLabel').textContent = 'Question ' + q + ' of 3';
+}
+
+function showResult() {
+  const card = document.getElementById('q3');
+  card.classList.add('fade-out');
+  setTimeout(() => {
+    card.classList.add('hidden');
+    card.classList.remove('fade-out');
+    renderResult();
+    document.getElementById('progressLabel').textContent = 'Your result';
+    ['step0','step1','step2'].forEach(id => {
+      document.getElementById(id).className = 'progress-step done';
+    });
+    document.getElementById('btnBack').classList.add('hidden');
+  }, 280);
+}
+
+function renderResult() {
+  const obs = answers.observation;
+  const region = answers.region;
+  const regionName = regionNames[region];
+  const links = regionLinks[region];
+  const r = results[obs];
+
+  const headline = r.headline.replace(/{region}/g, regionName);
+  const questions = r.questions.map(q => q.replace(/{region}/g, regionName));
+
+  const verdictClass = r.verdict === 'trend' ? 'verdict-trend' : r.verdict === 'blip' ? 'verdict-blip' : 'verdict-unclear';
+
+  const linkHTML = r.links.map(l => `
+    <a class="insight-link" href="${links[l.key]}" target="_blank" rel="noopener">
+      <div class="insight-link-content">
+        <div class="insight-link-title">${l.title}</div>
+        <div class="insight-link-sub">${l.sub} - ${regionName}</div>
+      </div>
+      <div class="insight-link-arrow">→</div>
+    </a>
+  `).join('');
+
+  const questionHTML = questions.map(q => `<li>${q}</li>`).join('');
+
+  document.getElementById('result').innerHTML = `
+    <div class="result-header">
+      <div class="result-verdict ${verdictClass}">${r.verdictLabel}</div>
+      <h2>${headline}</h2>
+      <p>${r.context}</p>
+    </div>
+    <div class="result-body">
+      <div class="where-to-look">Where to look in Auxein Insights</div>
+      <div class="insight-links">${linkHTML}</div>
+      <div class="what-to-ask">
+        <div class="what-to-ask-label">Questions to ask of Auxein</div>
+        <ul>${questionHTML}</ul>
+      </div>
+    </div>
+    <div class="result-footer">
+      <a class="cta-primary" href="${links.base}" target="_blank" rel="noopener">
+        Open ${regionName} in Auxein Insights →
+      </a>
+      <a class="cta-secondary" href="https://auxein.co.nz/contact" target="_blank" rel="noopener">
+        Connect your weather station
+      </a>
+      <button class="btn-restart" onclick="restart()">Start again with a different season or region</button>
+    </div>
+  `;
+
+  document.getElementById('result').classList.add('visible');
+  document.getElementById('result').style.display = 'block';
+}
+
+function restart() {
+  answers.region = null;
+  answers.observation = null;
+  answers.timing = null;
+  currentQ = 1;
+
+  ['q1','q2','q3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('hidden', 'fade-out');
+    if (i > 0) el.classList.add('hidden');
+  });
+
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  document.querySelectorAll('.btn-next').forEach(b => b.classList.remove('visible'));
+
+  document.getElementById('result').classList.remove('visible');
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('btnBack').classList.add('hidden');
+
+  updateProgress(1);
+}
+</script>
+</body>
+</html>

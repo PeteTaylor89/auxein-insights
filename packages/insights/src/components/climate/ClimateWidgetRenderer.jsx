@@ -30,7 +30,7 @@ const DISEASE_LABELS = {
   botrytis: 'Botrytis',
 };
 
-function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, displayMode = 'chart', title, snapshotData }) {
+function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, displayMode = 'chart', title, snapshotData, vintages, includeBaseline = true }) {
   const [data, setData] = useState(snapshotData || null);
   const [loading, setLoading] = useState(!snapshotData);
   const [error, setError] = useState(null);
@@ -61,11 +61,15 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
             break;
           }
           case 'season_comparison': {
-            const currentYear = new Date().getFullYear();
+            let vintagesParam = vintages;
+            if (!vintagesParam) {
+              const currentYear = new Date().getFullYear();
+              vintagesParam = `${currentYear},${currentYear - 1}`;
+            }
             setData(await compareSeasons({
               zone: zoneSlug,
-              vintages: `${currentYear},${currentYear - 1}`,
-              include_baseline: true,
+              vintages: vintagesParam,
+              include_baseline: includeBaseline,
             }));
             break;
           }
@@ -80,7 +84,7 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
     };
 
     fetchData();
-  }, [widgetType, zoneSlug, metric, snapshotData]);
+  }, [widgetType, zoneSlug, metric, snapshotData, vintages, includeBaseline]);
 
   const content = useMemo(() => {
     if (!data) return null;

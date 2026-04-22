@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { X, BarChart3 } from 'lucide-react';
 import { getAllZones } from '../../services/realtimeClimateService';
+import { getZoneSeasons } from '../../services/publicClimateService';
 
 const WIDGET_TYPES = [
   { value: 'gdd_progress', label: 'GDD Progress', metrics: [], modes: ['chart', 'table'] },
@@ -30,6 +31,10 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const [title, setTitle] = useState('');
   const [isStatic, setIsStatic] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [availableSeasons, setAvailableSeasons] = useState([]);
+  const [selectedVintages, setSelectedVintages] = useState([]);
+  const [includeBaseline, setIncludeBaseline] = useState(true);
+  const [seasonsLoading, setSeasonsLoading] = useState(false);
 
   useEffect(() => {
     getAllZones().then((data) => {
@@ -46,6 +51,34 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const selectedType = WIDGET_TYPES.find((t) => t.value === widgetType);
   const availableMetrics = selectedType?.metrics || [];
   const availableModes = selectedType?.modes || ['chart'];
+  const showSeasonPicker = widgetType === 'season_comparison';
+
+  // Load available seasons when zone or widget type changes (only if season_comparison)
+  useEffect(() => {
+    if (!showSeasonPicker || !zoneSlug) {
+      setAvailableSeasons([]);
+      return;
+    }
+    setSeasonsLoading(true);
+    getZoneSeasons(zoneSlug, { limit: 100 })
+      .then((data) => {
+        const list = data?.seasons || [];
+        setAvailableSeasons(list);
+        // Default-select two most recent (matches previous hardcoded behavior)
+        setSelectedVintages((prev) => {
+          if (prev.length > 0) return prev.filter((v) => list.some((s) => s.vintage_year === v));
+          return list.slice(0, 2).map((s) => s.vintage_year);
+        });
+      })
+      .catch(() => setAvailableSeasons([]))
+      .finally(() => setSeasonsLoading(false));
+  }, [showSeasonPicker, zoneSlug]);
+
+  const toggleVintage = (year) => {
+    setSelectedVintages((prev) =>
+      prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year]
+    );
+  };
 
   const handleWidgetTypeChange = (value) => {
     setWidgetType(value);
@@ -65,6 +98,8 @@ function ClimateWidgetInserter({ editor, onClose }) {
 
   const handleInsert = () => {
     if (!editor || !zoneSlug) return;
+    if (showSeasonPicker && selectedVintages.length === 0) return;
+    const sortedVintages = [...selectedVintages].sort((a, b) => b - a);
     editor.chain().focus().insertContent({
       type: 'climateWidget',
       attrs: {
@@ -75,6 +110,8 @@ function ClimateWidgetInserter({ editor, onClose }) {
         displayMode,
         title,
         isStatic,
+        vintages: showSeasonPicker ? sortedVintages.join(',') : '',
+        includeBaseline: showSeasonPicker ? includeBaseline : true,
       },
     }).run();
     onClose();
@@ -142,6 +179,53 @@ function ClimateWidgetInserter({ editor, onClose }) {
             </div>
           )}
 
+          {showSeasonPicker && (
+            <div>
+              <label style={labelStyle}>Seasons to compare</label>
+              {seasonsLoading ? (
+                <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Loading seasons...</p>
+              ) : availableSeasons.length === 0 ? (
+                <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>No seasons available for this zone.</p>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxHeight: '140px', overflowY: 'auto', padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                  {availableSeasons.map((s) => {
+                    const checked = selectedVintages.includes(s.vintage_year);
+                    return (
+                      <button
+                        key={s.vintage_year}
+                        type="button"
+                        onClick={() => toggleVintage(s.vintage_year)}
+                        style={{
+                          padding: '0.3rem 0.6rem',
+                          border: '1px solid',
+                          borderColor: checked ? '#16a34a' : '#d1d5db',
+                          background: checked ? '#f0fdf4' : 'white',
+                          color: checked ? '#16a34a' : '#374151',
+                          borderRadius: '999px',
+                          fontSize: '0.75rem',
+                          fontWeight: checked ? 600 : 400,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {s.label || s.vintage_year}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.8rem', color: '#374151', marginTop: '0.5rem' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeBaseline}
+                  onChange={(e) => setIncludeBaseline(e.target.checked)}
+                />
+                Include long-term baseline
+              </label>
+            </div>
+          )}
+
           {availableModes.length > 1 && (
             <div>
               <label style={labelStyle}>Display</label>
@@ -206,8 +290,9 @@ function ClimateWidgetInserter({ editor, onClose }) {
             Cancel
           </button>
           <button
-            onClick={handleInsert} disabled={!zoneSlug}
-            style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: '#16a34a', color: 'white', fontSize: '0.875rem', cursor: 'pointer', opacity: zoneSlug ? 1 : 0.5 }}
+            onClick={handleInsert}
+            disabled={!zoneSlug || (showSeasonPicker && selectedVintages.length === 0)}
+            style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: '#16a34a', color: 'white', fontSize: '0.875rem', cursor: 'pointer', opacity: (!zoneSlug || (showSeasonPicker && selectedVintages.length === 0)) ? 0.5 : 1 }}
           >
             Insert Widget
           </button>

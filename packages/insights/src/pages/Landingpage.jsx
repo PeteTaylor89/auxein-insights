@@ -64,12 +64,16 @@ function LandingPage() {
   const resetToken = searchParams.get('reset_token');
   const deepLinkView = searchParams.get('view');
   const deepLinkZone = searchParams.get('zone');
+  // Latch the deep-link zone so it survives the URL cleanup below —
+  // PublicClimateContainer mounts on the next render after the param is gone.
+  const [latchedZone, setLatchedZone] = useState(null);
 
   // Deep-link: auto-open an insight view (e.g., from map panel CTA)
   const VALID_VIEWS = ['currentseason', 'phenology', 'disease', 'climatehistory', 'climateprojections'];
   useEffect(() => {
     if (deepLinkView && !activeInsight && VALID_VIEWS.includes(deepLinkView)) {
       setActiveInsight(deepLinkView);
+      if (deepLinkZone) setLatchedZone(deepLinkZone);
       searchParams.delete('view');
       searchParams.delete('zone');
       setSearchParams(searchParams, { replace: true });
@@ -144,7 +148,7 @@ function LandingPage() {
         <div className="insight-content-wrapper">
           <PublicClimateContainer
             initialView={insight.initialView}
-            initialZoneSlug={deepLinkZone || null}
+            initialZoneSlug={latchedZone || deepLinkZone || null}
             onClose={() => setActiveInsight(null)}
             demoMode={isDemoMode}
             onAuthRequired={() => { setAuthContext('demo_upgrade'); setAuthModalOpen(true); }}
