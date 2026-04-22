@@ -109,7 +109,15 @@ def main():
                 )
                 print("✓ Harvest ingestion complete\n")
             finally:
-                cred_session.close()
+                # The credential session sits idle through the entire Harvest
+                # run (resolver caches values after initial pre-resolve), so
+                # AWS RDS / the network may close the connection before we
+                # get here. We don't care — no work is pending on this
+                # session at this point.
+                try:
+                    cred_session.close()
+                except Exception as close_err:
+                    print(f"  (note: credential session close raised: {close_err})\n")
         except Exception as e:
             print(f"✗ Harvest ingestion failed: {e}\n")
             success = False
