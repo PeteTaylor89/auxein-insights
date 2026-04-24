@@ -1,10 +1,34 @@
 # Environmental & Operational Data Ingestion Platform — Architecture Plan
 
-**Status:** Draft — awaiting review
+**Status:** In progress — Phases 0, 0b, A, B1 deployed to prod
 **Author:** Claude + Peter
-**Date:** 2026-04-20
+**Date:** 2026-04-20 (created), 2026-04-22 (last updated)
 **Scope:** Generalize the current NZ weather-focused ingestion pipeline into a global, multi-source environmental & operational timeseries platform with a separate alerts subsystem. Includes infrastructure for multiple API keys, company-owned devices, zone hierarchy, and international expansion (AU September launch; UK / CA / CH / other wine countries progressively).
-**Related docs:** `docs/Auxein Inisghts Deployment Workflow V1.0.docx`
+**Related docs:** `docs/Auxein Inisghts Deployment Workflow V1.0.docx`, `docs/runbooks/onboard-harvest-credential.md`
+
+---
+
+## Progress snapshot
+
+| Phase | State | Notes |
+|---|---|---|
+| 0 — Catalog tables + devices/timeseries rename | ✅ Deployed | back-compat views in place; 25 measurements seeded |
+| 0b — Geography abstraction + hemisphere-aware vintage | ✅ Deployed | `core/vintage.py` ready; legacy SH-hardcoded helpers untouched until first NH customer |
+| A — Zone hierarchy + recursive CTE | ✅ Deployed | Marlborough/Wairarapa overview rows + synthesized climate data |
+| **B1 — Credential resolver + Harvest dual-key** | ✅ **Deployed 2026-04-22** | All Harvest devices on `harvest/default` ref → resolves to `HARVEST_API_KEY` env var. Identical behaviour to pre-B1. Hot fix shipped same day for idle-session close error. |
+| B1.5 — Roll out backlog of site-specific Harvest keys | 🟡 In progress 2026-04-24 | CODC credential `harvest/codc` live. 12 CODC device placeholders in `harvest_stations.py` (3 sites × 4 measurements). Harvest ingester extended with `--station` / `--credential-ref` / `--dry-run` filters; `max_pages` raised 50 → 2000 for multi-year backfills. First scoped backfill running: `--start 01/09/2025`. Complete once coords populated, 12 devices verified in prod with SUCCESS `ingestion_log`. |
+| B1.6 — Audit script + offboarding playbook + tag enforcement | ✅ Shipped 2026-04-24 | `audit_credentials.py` (4 checks: resolution, orphan device refs, unused credentials, AWS tag + ARN hygiene). `offboard-harvest-credential.md` runbook with rollback path. Onboarding runbook tightened on tag requirements. |
+| B1.7 — Resolver per-call sessionmaker | ⏸️ Deferred | Only needed if resolver called outside the pre-resolve window (e.g. dynamic device addition mid-run). Revisit for B4 wizard which may fetch credentials on-demand during onboarding. |
+| B1.8 — Harvest backfill performance + ops ergonomics | 📝 Backlog | Bulk INSERT path serializes every row as a round-trip due to `ON CONFLICT DO UPDATE` — ~34k rows/trace = 5–10 min of silent wall-clock per trace during 01/09/2025→now CODC backfill. Needed: (1) `--chunk-days` flag on `run_ingestion.py` so backfill runs in bounded windows with per-chunk commits (resumable on failure); (2) batched multi-row INSERT via psycopg2 `execute_values` (~10–100× faster than SQLAlchemy executemany+ON CONFLICT); (3) progress prints every N rows in `insert_data()` so console doesn't go silent; (4) optional rate-limit guard if we ever parallelize traces (Harvest cap: 200 req/min, 2 concurrent). Feeds into B4 wizard's "Trigger backfill" UX — latency and feedback visibility matter. |
+| **Probe 1** — Harvest list-sites endpoint + empirical data lag | ⏭️ Next | See §9a. Two investigations gating B3/B4/C scoping. Half day. |
+| B2 — Variable-cadence GHA split | ⏸️ Decided post-Probe 1 | See §9a. If Harvest lag is really 13h, cadence split has no user value. |
+| B3 + B4 + C-merged — Grow vertical slice | ⏸️ Scoped post-Probe 1 | See §9a. Paste-key → sites → traces → measurements → devices + device_measurements + dashboard. Delivered as one slice, not three phases. ~8d combined. |
+| Alerts (frost, rain, etc.) | ⏸️ Separate plan | Pulled out of B4. Own plan after Grow slice lands + data lag is known. |
+| C — Harvest device reclassification | ⏸️ | |
+| D — Station discovery admin UI | ⏸️ | |
+| E — BoM ingestion + AU seed | ⏸️ | September 2026 launch target |
+| F — Alerts schema placeholder | ⏸️ | |
+| G — Grow weather module v1 | ⏸️ | |
 
 ---
 
@@ -539,6 +563,51 @@ Nothing else structural. No new core tables. No new Grow modules required until 
 **Total to AU launch (0 + 0b + A + B + D + E + F):** ~19 dev days. Tight but achievable by September 2026 if started promptly. Grow weather module (G) is recommended for AU launch alongside but could slip to October.
 
 **Critical path:** 0 → 0b → B → D → E. A and C can run in parallel with B.
+
+---
+
+## 9a. Grow-first re-sequencing (2026-04-24)
+
+The original §9 phasing is linear and infrastructure-first. Product thinking in the 2026-04-24 session reshaped this: customers don't care about the schema, they care about "paste my API key, see my stations on a map, see my data on a dashboard, get alerted when frost hits." Re-sequenced to deliver that vertical slice earlier, with the phases collapsed into a customer-visible flow.
+
+### Key reality checks required before scoping B3/B4/C
+
+Two unknowns gate the Grow vertical slice. Resolve these before scoping B3+B4+C in detail — their answers change the scope substantially.
+
+| Unknown | Why it matters | How to resolve |
+|---|---|---|
+| **Empirical Harvest data lag** — `harvest.py:30` hardcodes `delay_hours = 13`. Is this conservative padding or real? | If real, alerts are summary-only (overnight frost occurred) not real-time intervention. Kills B2's live-cadence premise. If false, alerts are viable. | Once CODC backfill reaches recent dates, `SELECT NOW() - MAX(t.timestamp) FROM timeseries_observations t JOIN devices d ON d.id = t.device_id WHERE d.station_code LIKE 'HARV_CODC%';` per trace. Measure across several cron ticks. |
+| **Harvest list-sites endpoint** — does Harvest expose "list all sites for this API key"? | Gates the first step of the wizard ("paste key → we find your sites"). If absent, user must also paste site IDs (much worse UX). | Probe with `harvest/codc` key against Harvest's API reference. Document what's returned. |
+
+**Bonus unknown (cheap to verify):** Harvest returns GPS as three *traces* (Lat, Lon, Alt) per site — visible in the codc_sites.md probe. Can we auto-pin sites on the map by fetching those three traces, letting the user nudge? Much nicer than blind pin-placement.
+
+### Revised Grow-vertical-slice sequencing
+
+| Step | Scope | Maps to original | Effort |
+|---|---|---|---|
+| **Probe 1** | Run the two reality checks above. Half day, mostly investigation. | n/a | 0.5d |
+| **C-merged** | Phase C promoted and merged into the wizard work: `device_measurements` populated per-device, keyed off `trace_name` (not uom), so traces like "Soil Temperature 100mm" and "Air Temperature" resolve to distinct `measurement_code` values instead of colliding on the °C uom. | C (promoted) | ~2d |
+| **B3 — backend API for Grow weather** | Three write endpoints + two read endpoints, all gated to the caller's `company_id`: <br>• `POST /api/v1/grow/weather/discover` — body `{ api_key }` → sites list from Harvest <br>• `POST /api/v1/grow/weather/site-traces` — body `{ api_key, site_id }` → trace list grouped by `measurement_code` with recommended selections <br>• `POST /api/v1/grow/weather/register` — body `{ api_key, site_id, lat, lng, elevation, selected_trace_ids }` → provisions AWS secret (if first time for company) + `ingestion_credentials` row + `devices` rows + `device_measurements` rows + triggers bounded backfill <br>• `GET /api/v1/grow/weather/devices` — list company's devices with latest reading <br>• `GET /api/v1/grow/weather/devices/{id}/observations?from&to&measurement_code` — timeseries for one device, for graph rendering | B3 + parts of B4 + C | ~3d |
+| **B4 — Company Admin onboarding wizard** | Four-step React flow in Pro web app, Company Admin scope: <br>1. Paste API key → `POST /discover` → render site list <br>2. Select sites → for each, call `GET site-traces`, auto-pin from GPS traces, user nudges lat/lng on a map picker, confirms <br>3. Review trace list per site → user selects which measurements to ingest (checkboxes, sensible defaults) <br>4. Review summary → press "Activate" → `POST /register` per site → progress indicator while backfill runs | B4 | ~3d |
+| **Dashboard** | Pre-formatted graphs per device: temperature, rainfall, solar (and others if selected). Month view, week view, last-24h view. Pulls from `GET /observations`. | G (first cut) | ~3d |
+| **B2 — variable cadence** | DECIDED AFTER Probe 1. If delay is real 13h: no point in a live cron (cadence split deferred indefinitely). If delay is minutes: split workflow into `weather-ingestion-public.yml` (6h) + `weather-ingestion-live.yml` (15min) filtered by `ingest_cadence_minutes`. | B2 | 0.5–2d depending on Probe 1 answer |
+| **Alerts** | SEPARATE PLAN. Not baked into B4. Once dashboard is live and live-cadence is decided, product conversation to scope: threshold model, delivery channels (email/SMS/push), subscription UI, quiet hours. Deferred from F (which stays schema-only). | F + new | TBD |
+
+### What stays orthogonal to the Grow slice
+
+- **D — Station discovery admin UI** for BoM/future sources. The Grow wizard solves discovery for Harvest (and is reusable shell for other customer-bringing-key providers). Council-side discovery (BoM → thousands of public stations) is different UX, still needed for Phase E AU launch.
+- **E — BoM ingestion + AU seed** — unchanged, still September 2026 target. Depends on D's council-side discovery shell.
+- **Insights flow-through** — automatic. Zone aggregation recursive CTE (Phase A) already picks up any device with `contributes_to_regional = true` regardless of `company_id`. Customer Grow stations feeding regional aggregates "for free" is existing design, not new work. Confirm once CODC backfill verifies the flow.
+- **H — operational modules** (pumps, fans, tanks, hydrology) — still progressive, customer-demand driven.
+
+### Implications for the original §9 phase IDs
+
+- **B2 demoted** — was "critical path for AU launch", now a post-probe decision.
+- **C promoted** — was parallelizable with B, now a blocker for B4.
+- **B3 + B4 + partial C bundled** — delivered as one vertical slice against a pilot customer, not three sequential phases.
+- **F unchanged** — schema placeholder only; functional alerts are their own plan.
+- **G first cut bundled with B4** — the dashboard is the payoff of the wizard, ship them together.
+- **AU launch path** (0 + 0b + A + B + D + E + F) still valid. D is AU-scoped (council discovery); B3/B4/C are Grow-scoped. Independent streams.
 
 ---
 

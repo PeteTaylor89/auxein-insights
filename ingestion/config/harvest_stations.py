@@ -451,5 +451,169 @@ HARVEST_STATIONS = [
         'notes': {
             'company': 'Maori Point'
         }
+    },
+    # ------------------------------------------------------------------
+    # Central Otago District Council (CODC) — public infrastructure
+    # Credential: ingestion_credentials.name='codc' -> harvest/codc
+    # Coordinates left as None — fill in before running setup; the
+    # setup script skips entries with missing lat/lon.
+    # Only temp/humidity/rain/solar ingest cleanly under v1 Harvest
+    # parser; wind/ET/soil/dew/wetbulb traces deferred to Phase C.
+    # ------------------------------------------------------------------
+    {
+        'station_code': 'HARV_CODC_ALEX_TEMP',
+        'station_name': 'CODC ALEXANDRA - TEMPERATURE',
+        'data_source': 'HARVEST',
+        'source_id': '60324',
+        'latitude': -45.24247,
+        'longitude': 169.384903,
+        'elevation': 152.08,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7202, 'site_name': 'Alexandra'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ALEX_HUMIDITY',
+        'station_name': 'CODC ALEXANDRA - HUMIDITY',
+        'data_source': 'HARVEST',
+        'source_id': '60325',
+        'latitude': -45.24247,
+        'longitude': 169.384903,
+        'elevation': 152.08,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7202, 'site_name': 'Alexandra'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ALEX_PRECIP',
+        'station_name': 'CODC ALEXANDRA - PRECIPITATION',
+        'data_source': 'HARVEST',
+        'source_id': '60326',
+        'latitude': -45.24247,
+        'longitude': 169.384903,
+        'elevation': 152.08,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7202, 'site_name': 'Alexandra'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ALEX_RADIATION',
+        'station_name': 'CODC ALEXANDRA - RADIATION',
+        'data_source': 'HARVEST',
+        'source_id': '60330',
+        'latitude': -45.24247,
+        'longitude': 169.384903,
+        'elevation': 152.08,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7202, 'site_name': 'Alexandra'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_CROM_TEMP',
+        'station_name': 'CODC CROMWELL - TEMPERATURE',
+        'data_source': 'HARVEST',
+        'source_id': '60295',
+        'latitude': -45.041248,
+        'longitude': 169.194107,
+        'elevation': 211.95,
+        'region': 'Central Otago',
+        'zone_id': 18,
+        'notes': {'company': 'CODC', 'site_id': 7209, 'site_name': 'Cromwell'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_CROM_HUMIDITY',
+        'station_name': 'CODC CROMWELL - HUMIDITY',
+        'data_source': 'HARVEST',
+        'source_id': '60296',
+        'latitude': -45.041248,
+        'longitude': 169.194107,
+        'elevation': 211.95,
+        'region': 'Central Otago',
+        'zone_id': 18,
+        'notes': {'company': 'CODC', 'site_id': 7209, 'site_name': 'Cromwell'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_CROM_PRECIP',
+        'station_name': 'CODC CROMWELL - PRECIPITATION',
+        'data_source': 'HARVEST',
+        'source_id': '60297',
+        'latitude': -45.041248,
+        'longitude': 169.194107,
+        'elevation': 211.95,
+        'region': 'Central Otago',
+        'zone_id': 18,
+        'notes': {'company': 'CODC', 'site_id': 7209, 'site_name': 'Cromwell'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_CROM_RADIATION',
+        'station_name': 'CODC CROMWELL - RADIATION',
+        'data_source': 'HARVEST',
+        'source_id': '60301',
+        'latitude': -45.041248,
+        'longitude': 169.194107,
+        'elevation': 211.95,
+        'region': 'Central Otago',
+        'zone_id': 18,
+        'notes': {'company': 'CODC', 'site_id': 7209, 'site_name': 'Cromwell'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ROXB_TEMP',
+        'station_name': 'CODC ROXBURGH - TEMPERATURE',
+        'data_source': 'HARVEST',
+        'source_id': '60196',
+        'latitude': -45.544609,
+        'longitude': 169.315994,
+        'elevation': 120.05,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7206, 'site_name': 'Roxburgh'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ROXB_HUMIDITY',
+        'station_name': 'CODC ROXBURGH - HUMIDITY',
+        'data_source': 'HARVEST',
+        'source_id': '60197',
+        'latitude': -45.544609,
+        'longitude': 169.315994,
+        'elevation': 120.05,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7206, 'site_name': 'Roxburgh'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ROXB_PRECIP',
+        'station_name': 'CODC ROXBURGH - PRECIPITATION',
+        'data_source': 'HARVEST',
+        'source_id': '60198',
+        'latitude': -45.544609,
+        'longitude': 169.315994,
+        'elevation': 120.05,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7206, 'site_name': 'Roxburgh'},
+        'api_credential_ref': 'harvest/codc'
+    },
+    {
+        'station_code': 'HARV_CODC_ROXB_RADIATION',
+        'station_name': 'CODC ROXBURGH - RADIATION',
+        'data_source': 'HARVEST',
+        'source_id': '60202',
+        'latitude': -45.544609,
+        'longitude': 169.315994,
+        'elevation': 120.05,
+        'region': 'Central Otago',
+        'zone_id': 17,
+        'notes': {'company': 'CODC', 'site_id': 7206, 'site_name': 'Roxburgh'},
+        'api_credential_ref': 'harvest/codc'
     }
 ]

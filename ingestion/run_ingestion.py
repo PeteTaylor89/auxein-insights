@@ -63,6 +63,13 @@ def main():
         help='Station code to backfill a single station (e.g., HBRC_BRIDGE_PA, MDC_BLENHEIM_OFFICE)'
     )
     parser.add_argument(
+        '--credential-ref',
+        type=str,
+        dest='credential_ref',
+        help='Harvest only: scope ingestion to devices using this api_credential_ref '
+             '(e.g., harvest/codc to backfill just that customer). Omit to run the whole fleet.'
+    )
+    parser.add_argument(
         '--interval',
         type=str,
         default='30 minutes',
@@ -82,6 +89,8 @@ def main():
         print(f"  Date range: {args.start} to {args.end or 'today'}")
     if args.station:
         print(f"  Station: {args.station}")
+    if args.credential_ref:
+        print(f"  Credential ref: {args.credential_ref}")
     if args.dry_run:
         print(f"  *** DRY RUN - No data will be inserted ***")
     print(f"{'='*70}\n")
@@ -106,6 +115,9 @@ def main():
                 ingester.run(
                     start_date=args.start,
                     end_date=args.end,
+                    station_code=args.station,
+                    credential_ref=args.credential_ref,
+                    dry_run=args.dry_run,
                 )
                 print("✓ Harvest ingestion complete\n")
             finally:

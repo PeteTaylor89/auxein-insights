@@ -29,12 +29,17 @@ Prerequisites:
    - For customer keys: the customer slug, e.g.
      `auxein/ingestion/harvest/black-estate`
    - Lowercase, hyphens, no spaces
-6. **Tags** (required for hygiene — set up in Phase B1.6 audit):
+6. **Required tags** — `audit_credentials.py` check [D] fails without
+   all five. Set them at creation time; adding them later is easy to
+   forget.
    - `provider` = `HARVEST`
    - `purpose` = `ingestion`
-   - `company_id` = `<id>` or `auxein-owned`
+   - `company_id` = `<id>` for customer keys, or `auxein-owned` for
+     Auxein-managed keys (incl. public data partners like CODC)
    - `created_by` = `<your email>`
-   - `contact_email` = customer security/billing contact, or yours
+   - `contact_email` = customer security/billing contact, or yours for
+     Auxein-owned keys. This is the address we alert when the key fails
+     to resolve.
 7. Disable rotation for now (manual rotation only — defer until B7)
 8. Copy the **Secret ARN** — needed in Step 2
 

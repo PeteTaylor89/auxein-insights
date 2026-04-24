@@ -39,15 +39,31 @@ class HarvestIngestion:
             resolver = CredentialResolver(db=self.Session())
         self.resolver = resolver
 
-    def get_active_stations(self):
-        """Get all active Harvest stations from database, including credential ref."""
+    def get_active_stations(self, station_code=None, credential_ref=None):
+        """Get active Harvest stations from database, including credential ref.
+
+        Optional filters (either, both, or neither):
+            station_code: exact station_code match (single device).
+            credential_ref: exact api_credential_ref match (e.g. 'harvest/codc'
+                to scope to all devices sharing that credential).
+        """
+        params = {'source': self.data_source}
+        filters = ["data_source = :source", "is_active = true"]
+        if station_code:
+            filters.append("station_code = :station_code")
+            params['station_code'] = station_code
+        if credential_ref:
+            filters.append("api_credential_ref = :credential_ref")
+            params['credential_ref'] = credential_ref
+
+        sql = f"""
+            SELECT station_id, station_code, source_id, notes, api_credential_ref
+            FROM weather_stations
+            WHERE {' AND '.join(filters)}
+            ORDER BY station_code
+        """
         with self.Session() as session:
-            result = session.execute(text("""
-                SELECT station_id, station_code, source_id, notes, api_credential_ref
-                FROM weather_stations
-                WHERE data_source = :source AND is_active = true
-                ORDER BY station_code
-            """), {'source': self.data_source})
+            result = session.execute(text(sql), params)
             return result.fetchall()
     
     def get_last_timestamp(self, station_id, variable='temp'):
@@ -94,7 +110,10 @@ class HarvestIngestion:
         
         url = self.base_url
         page_count = 0
-        max_pages = 50  # Safety limit to prevent infinite loops
+        # Safety cap against runaway pagination loops. Sized for multi-year
+        # backfills at 10-min cadence: 100 records/page × 2000 pages ≈ 4 years
+        # of one trace. Harvest's rate limit (200 req/min) is the real ceiling.
+        max_pages = 2000
         
         try:
             print(f"    Fetching trace {trace_id}: {start_time.date()} to {end_time.date()}")
@@ -240,17 +259,28 @@ class HarvestIngestion:
             except Exception as e:
                 print(f"    Failed to log ingestion: {e}")
     
-    def run(self, start_date=None, end_date=None, **kwargs):
+    def run(self, start_date=None, end_date=None, station_code=None, credential_ref=None, dry_run=False, **kwargs):
         """Main ingestion process.
 
         Args:
             start_date: Explicit start date string (DD/MM/YYYY). Overrides incremental logic.
             end_date: Explicit end date string (DD/MM/YYYY). Defaults to now minus delay.
+            station_code: Scope to a single station_code (backfill / testing).
+            credential_ref: Scope to all devices using this api_credential_ref
+                (e.g. 'harvest/codc' to backfill just that customer's fleet).
+            dry_run: If True, fetch + parse but skip DB writes and skip
+                ingestion_log entries. Exercises credential + API + parser.
         """
         print(f"\n{'='*60}")
         print(f"Starting Harvest ingestion at {datetime.now()}")
         if start_date:
             print(f"Date range: {start_date} to {end_date or 'now'}")
+        if station_code:
+            print(f"Station filter:    {station_code}")
+        if credential_ref:
+            print(f"Credential filter: {credential_ref}")
+        if dry_run:
+            print(f"*** DRY RUN — no DB writes, no ingestion_log entries ***")
         print(f"{'='*60}\n")
 
         from zoneinfo import ZoneInfo
@@ -264,7 +294,7 @@ class HarvestIngestion:
         if end_date:
             explicit_end = datetime.strptime(end_date, '%d/%m/%Y').replace(hour=23, minute=59, second=59, tzinfo=nz_tz)
 
-        stations = self.get_active_stations()
+        stations = self.get_active_stations(station_code=station_code, credential_ref=credential_ref)
         print(f"Found {len(stations)} active Harvest stations\n")
 
         # Pre-resolve every distinct credential ref so we know upfront which
@@ -328,29 +358,36 @@ class HarvestIngestion:
 
                 # Fetch from API
                 response = self.fetch_harvest_data(source_id, start_time, end_time, api_key)
-                
+
                 if not response:
-                    self.log_ingestion(station_id, start_time, 0, 0, 
-                                     'FAILED', 'No response from API')
+                    if not dry_run:
+                        self.log_ingestion(station_id, start_time, 0, 0,
+                                         'FAILED', 'No response from API')
                     print(f"  ✗ Failed to fetch data\n")
                     continue
-                
+
                 # Parse response
                 records = self.parse_response(station_id, response)
-                
+
                 if not records:
-                    self.log_ingestion(station_id, start_time, 0, 0,
-                                     'FAILED', 'No valid records parsed')
+                    if not dry_run:
+                        self.log_ingestion(station_id, start_time, 0, 0,
+                                         'FAILED', 'No valid records parsed')
                     print(f"  ✗ No valid records\n")
                     continue
-                
+
+                if dry_run:
+                    print(f"  ✓ DRY RUN: parsed {len(records)} records (skipped insert + log)")
+                    print(f"  Time range: {records[0]['timestamp'].date()} to {records[-1]['timestamp'].date()}\n")
+                    continue
+
                 # Insert into database
                 inserted = self.insert_data(records)
-                
+
                 # Log success
-                self.log_ingestion(station_id, start_time, len(records), 
+                self.log_ingestion(station_id, start_time, len(records),
                                  inserted, 'SUCCESS')
-                
+
                 print(f"  ✓ Inserted {inserted} records")
                 print(f"  Time range: {records[0]['timestamp'].date()} to {records[-1]['timestamp'].date()}\n")
                 

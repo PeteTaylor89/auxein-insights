@@ -76,6 +76,7 @@ def setup_harvest_stations(dry_run: bool = False):
                 'region': config.get('region'),
                 'zone_id': config.get('zone_id'),
                 'notes': notes_json,
+                'api_credential_ref': config.get('api_credential_ref'),
             }
 
             if dry_run:
@@ -86,6 +87,7 @@ def setup_harvest_stations(dry_run: bool = False):
                 print(f"    Zone ID: {config.get('zone_id')}")
                 print(f"    Coords:  {config['latitude']}, {config['longitude']}")
                 print(f"    Elev:    {config.get('elevation')}")
+                print(f"    Cred:    {config.get('api_credential_ref') or '(default)'}")
                 created += 1
             else:
                 try:
@@ -93,12 +95,13 @@ def setup_harvest_stations(dry_run: bool = False):
                         INSERT INTO weather_stations
                             (station_code, station_name, data_source, source_id,
                             latitude, longitude, elevation, location,
-                            region, zone_id, notes, is_active)
+                            region, zone_id, notes, is_active, api_credential_ref)
                         VALUES
                             (:code, :name, 'HARVEST', :source_id,
                             :lat, :lon, :elevation,
                             ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
-                            :region, :zone_id, CAST(:notes AS jsonb), true)
+                            :region, :zone_id, CAST(:notes AS jsonb), true,
+                            :api_credential_ref)
                     """), params)
                     session.commit()
                     print(f"  ✓ Created: {station_code} ({config['station_name']})")
