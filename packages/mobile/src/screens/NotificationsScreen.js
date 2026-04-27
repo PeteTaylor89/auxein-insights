@@ -4,8 +4,9 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, fontSize, radius } from '../styles/theme';
+import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { notificationService } from '../api/services';
 
 const TYPE_COLORS = {
@@ -67,25 +68,43 @@ export default function NotificationsScreen() {
 
   const hasUnread = notifications.some(n => !n.read);
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.card, !item.read && styles.cardUnread]}
-      onPress={() => !item.read && handleMarkRead(item.id)}
-      activeOpacity={item.read ? 1 : 0.7}
-    >
-      <View style={styles.cardHeader}>
-        {!item.read && <View style={styles.unreadDot} />}
-        <View style={[styles.typeBadge, { backgroundColor: (TYPE_COLORS[item.type] || colors.textMuted) + '20' }]}>
-          <Text style={[styles.typeText, { color: TYPE_COLORS[item.type] || colors.textMuted }]}>
-            {item.type}
+  const renderItem = ({ item }) => {
+    const accent = TYPE_COLORS[item.type] || colors.textMuted;
+    return (
+      <TouchableOpacity
+        style={[styles.card, item.read ? styles.cardRead : styles.cardUnread]}
+        onPress={() => !item.read && handleMarkRead(item.id)}
+        activeOpacity={item.read ? 1 : 0.7}
+      >
+        {!item.read && <View style={[styles.accentStrip, { backgroundColor: accent }]} />}
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.typeBadge, { backgroundColor: accent + '20' }]}>
+              <Text style={[styles.typeText, { color: accent }]}>{item.type}</Text>
+            </View>
+            <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
+            {!item.read ? (
+              <View style={[styles.unreadDot, { backgroundColor: accent }]} />
+            ) : (
+              <Text style={styles.readMark}>Read</Text>
+            )}
+          </View>
+          <Text style={[styles.title, !item.read && styles.titleUnread, item.read && styles.titleRead]}>
+            {item.title}
           </Text>
+          {item.body && (
+            <Text
+              style={[styles.body, item.read && styles.bodyRead]}
+              numberOfLines={2}
+            >
+              {item.body}
+            </Text>
+          )}
         </View>
-        <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
-      </View>
-      <Text style={[styles.title, !item.read && styles.titleUnread]}>{item.title}</Text>
-      {item.body && <Text style={styles.body} numberOfLines={2}>{item.body}</Text>}
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -103,8 +122,9 @@ export default function NotificationsScreen() {
         ListEmptyComponent={
           !loading && (
             <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>🔔</Text>
+              <Feather name="bell-off" size={40} color={colors.textMuted} />
               <Text style={styles.emptyText}>No notifications</Text>
+              <Text style={styles.emptyHint}>You're all caught up</Text>
             </View>
           )
         }
@@ -121,22 +141,36 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   markAllText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: '600' },
-  list: { padding: spacing.base, paddingBottom: spacing.xxl },
+  list: { padding: spacing.base, paddingBottom: spacing.xxl, gap: spacing.sm },
+
   card: {
-    backgroundColor: colors.surface, borderRadius: radius.md,
-    padding: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
+    flexDirection: 'row',
+    backgroundColor: colors.surface, borderRadius: radius.lg,
+    borderWidth: 1, overflow: 'hidden',
   },
-  cardUnread: { borderLeftWidth: 3, borderLeftColor: colors.primary },
+  cardUnread: { borderColor: colors.border, ...shadows.card },
+  cardRead: {
+    borderColor: colors.borderLight, backgroundColor: colors.borderLight + '99',
+    opacity: 0.78,
+  },
+
+  accentStrip: { width: 4 },
+  cardBody: { flex: 1, padding: spacing.md },
+
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  unreadDot: { width: 10, height: 10, borderRadius: 5 },
+  readMark: { fontSize: 10, color: colors.textMuted, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.5 },
   typeBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   typeText: { fontSize: fontSize.xs, fontWeight: '600', textTransform: 'capitalize' },
   timeText: { fontSize: fontSize.xs, color: colors.textMuted, marginLeft: 'auto' },
+
   title: { fontSize: fontSize.base, color: colors.text },
-  titleUnread: { fontWeight: '600' },
+  titleUnread: { fontWeight: '700', color: colors.text },
+  titleRead: { fontWeight: '400', color: colors.textSecondary },
   body: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  empty: { alignItems: 'center', paddingTop: spacing.xxl },
-  emptyIcon: { fontSize: 40, marginBottom: spacing.md },
-  emptyText: { fontSize: fontSize.md, color: colors.textMuted },
+  bodyRead: { color: colors.textMuted },
+
+  empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.sm },
+  emptyText: { fontSize: fontSize.md, color: colors.text, fontWeight: '600', marginTop: spacing.sm },
+  emptyHint: { fontSize: fontSize.sm, color: colors.textMuted },
 });

@@ -111,7 +111,7 @@ export default function AssetsScreen({ navigation }) {
             >
               <Feather
                 name={ASSET_CATEGORY_ICONS[cat.key] || 'package'}
-                size={13}
+                size={16}
                 color={isActive ? colors.white : colors.textMuted}
               />
               <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>
@@ -162,16 +162,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
   // Filter pills
-  filterRow: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, maxHeight: 52 },
+  filterRow: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, maxHeight: 60 },
   filterContent: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, gap: spacing.xs, alignItems: 'center' },
   filterChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: spacing.md, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: spacing.base, paddingVertical: 9,
     borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.surface,
   },
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterLabel: { fontSize: fontSize.xs, color: colors.text, fontWeight: '500' },
+  filterLabel: { fontSize: fontSize.sm, color: colors.text, fontWeight: '500' },
   filterLabelActive: { color: colors.white, fontWeight: '600' },
 
   // List

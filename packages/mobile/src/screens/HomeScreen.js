@@ -2,15 +2,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, Modal, FlatList, StatusBar,
+  TouchableOpacity, Modal, FlatList, StatusBar, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { tasksService, propertyService, observationService } from '../api/services';
+import { tasksService, propertyService, observationService, notificationService } from '../api/services';
 import { SOURCE_ICONS, SkeletonCard } from '../components';
+
+const LOGO_MARK = require('../../assets/brand/logo-mark.png');
 
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
@@ -21,14 +23,16 @@ export default function HomeScreen({ navigation }) {
   const [showPropertyPicker, setShowPropertyPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, runsRes, propsRes] = await Promise.all([
+      const [tasksRes, runsRes, propsRes, unreadRes] = await Promise.all([
         tasksService.getUnifiedFeed({ days_ahead: 7 }).catch(() => []),
         observationService.listRuns({ active_only: true }).catch(() => []),
         propertyService.listProperties().catch(() => []),
+        notificationService.getUnreadCount().catch(() => null),
       ]);
       setUpcomingTasks(Array.isArray(tasksRes) ? tasksRes.slice(0, 6) : []);
       setActiveRuns(Array.isArray(runsRes) ? runsRes : []);
@@ -37,6 +41,7 @@ export default function HomeScreen({ navigation }) {
       if (props.length > 0 && !selectedPropertyId) {
         setSelectedPropertyId(props[0].id);
       }
+      setUnreadCount(unreadRes?.count ?? 0);
     } catch (err) {
       console.log('Home load failed:', err.message);
     } finally {
@@ -58,14 +63,6 @@ export default function HomeScreen({ navigation }) {
     const overdue = upcomingTasks.filter(t => t.is_overdue).length;
     return { tasks, maintenance, overdue, runs: activeRuns.length };
   }, [upcomingTasks, activeRuns]);
-
-  // Today greeting
-  const greeting = useMemo(() => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 18) return 'Good afternoon';
-    return 'Good evening';
-  }, []);
 
   const statusColor = (s) => {
     const k = String(s || '').toLowerCase();
@@ -91,41 +88,48 @@ export default function HomeScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Context header */}
+      {/* Brand header */}
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>{greeting},</Text>
-              <Text style={styles.userName}>{user?.first_name || user?.username || 'there'}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.bellBtn}
-              onPress={() => navigation.navigate('Profile', { screen: 'Notifications' })}
-              hitSlop={10}
-            >
-              <Feather name="bell" size={20} color={colors.white} />
-            </TouchableOpacity>
+          <View style={styles.brandRow}>
+            <Image source={LOGO_MARK} style={styles.brandMark} resizeMode="contain" />
+            <Text style={styles.brandWordmark}>Auxein Grow</Text>
           </View>
-
-          {/* Property switcher */}
-          {properties.length > 0 && (
-            <TouchableOpacity
-              style={styles.propertyPill}
-              onPress={() => properties.length > 1 && setShowPropertyPicker(true)}
-              activeOpacity={properties.length > 1 ? 0.7 : 1}
-            >
-              <Feather name="map-pin" size={14} color={colors.white} />
-              <Text style={styles.propertyName} numberOfLines={1}>
-                {selectedProperty?.name || 'All properties'}
-              </Text>
-              {properties.length > 1 && (
-                <Feather name="chevron-down" size={14} color="rgba(255,255,255,0.7)" />
-              )}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => navigation.navigate('Profile', { screen: 'Notifications' })}
+            hitSlop={10}
+          >
+            <Feather name="bell" size={20} color={colors.white} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {/* Property switcher — context bar below header */}
+      {properties.length > 0 && (
+        <View style={styles.contextBar}>
+          <TouchableOpacity
+            style={styles.propertyPill}
+            onPress={() => properties.length > 1 && setShowPropertyPicker(true)}
+            activeOpacity={properties.length > 1 ? 0.7 : 1}
+          >
+            <Feather name="map-pin" size={16} color={colors.primary} />
+            <Text style={styles.propertyName} numberOfLines={1}>
+              {selectedProperty?.name || 'All properties'}
+            </Text>
+            {properties.length > 1 && (
+              <Feather name="chevron-down" size={16} color={colors.textMuted} />
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView
         style={styles.scroll}
@@ -293,10 +297,19 @@ export default function HomeScreen({ navigation }) {
               onPress={() => { setFabOpen(false); navigation.navigate('CreateIncident'); }}
             />
             <FabOption
+              icon="alert-triangle"
+              label="Risk"
+              color={colors.warning}
+              onPress={() => { setFabOpen(false); navigation.navigate('CreateRisk'); }}
+            />
+            <FabOption
               icon="clipboard"
               label="Task"
               color={colors.primary}
-              onPress={() => { setFabOpen(false); navigation.navigate('Tasks'); }}
+              onPress={() => {
+                setFabOpen(false);
+                navigation.navigate('Tasks', { screen: 'CreateTask' });
+              }}
             />
           </>
         )}
@@ -378,29 +391,49 @@ const styles = StyleSheet.create({
   // Header
   headerSafe: { backgroundColor: colors.primary },
   header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.base,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  greeting: { color: 'rgba(255,255,255,0.75)', fontSize: fontSize.sm },
-  userName: { color: colors.white, fontSize: fontSize.xl, fontWeight: '700', marginTop: 2 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  brandMark: { width: 28, height: 28 },
+  brandWordmark: {
+    color: colors.white, fontSize: fontSize.lg, fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   bellBtn: {
     width: 40, height: 40, borderRadius: radius.md,
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
-  propertyPill: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: spacing.md, paddingVertical: 6,
-    borderRadius: radius.pill,
-    marginTop: spacing.md,
-    maxWidth: '80%',
+  bellBadge: {
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: colors.danger, borderRadius: 10,
+    paddingHorizontal: 5, paddingVertical: 1, minWidth: 18,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.primary,
   },
-  propertyName: { color: colors.white, fontSize: fontSize.sm, fontWeight: '500' },
+  bellBadgeText: { color: colors.white, fontSize: 10, fontWeight: '700' },
+
+  // Context bar (below header, on body bg)
+  contextBar: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  propertyPill: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.borderLight,
+    paddingHorizontal: spacing.base, paddingVertical: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.border,
+    maxWidth: '90%',
+  },
+  propertyName: { color: colors.text, fontSize: fontSize.base, fontWeight: '600' },
 
   // Scroll
   scroll: { flex: 1 },
@@ -474,7 +507,7 @@ const styles = StyleSheet.create({
   // FAB
   fabBackdrop: {
     position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
   fabStack: {
     position: 'absolute', bottom: spacing.lg, right: spacing.lg,

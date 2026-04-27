@@ -165,6 +165,7 @@ function medianAltitude(alt) {
 export function useGpsTracking() {
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [hasBeenStopped, setHasBeenStopped] = useState(false);
   const [stats, setStats] = useState({ distance: 0, duration: 0, pointCount: 0, avgSpeed: 0 });
   const [error, setError] = useState(null);
 
@@ -390,6 +391,7 @@ export function useGpsTracking() {
 
       setIsTracking(true);
       setIsPaused(false);
+      setHasBeenStopped(false);
       setStats({ distance: 0, duration: 0, pointCount: 1, avgSpeed: 0 });
 
       return true;
@@ -482,6 +484,7 @@ export function useGpsTracking() {
 
       setIsTracking(false);
       setIsPaused(false);
+      setHasBeenStopped(true);
     } catch (err) {
       console.error('[GPS] Stop error:', err);
       setError(err.message);
@@ -500,6 +503,7 @@ export function useGpsTracking() {
   return {
     isTracking,
     isPaused,
+    hasBeenStopped,
     stats,
     error,
     startTracking,

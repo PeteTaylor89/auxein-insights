@@ -82,6 +82,11 @@ export const tasksService = {
     const res = await api.get(`/tasks/tasks/${taskId}/gps/stats`);
     return res.data;
   },
+  getGpsSummary: async (taskId) => {
+    // Returns 200 once GPS has been stopped (summary committed); 404 otherwise.
+    const res = await api.get(`/tasks/tasks/${taskId}/gps/summary`);
+    return res.data;
+  },
   getEquipmentCheck: async (taskId) => {
     const res = await api.get(`/tasks/tasks/${taskId}/equipment-check`);
     return res.data;
@@ -301,7 +306,10 @@ export const riskActionService = {
 // --- Notifications (prefix: /v1/notifications) ---
 export const notificationService = {
   getNotifications: async (params = {}) => {
-    const res = await api.get('/v1/notifications/', { params });
+    // No trailing slash — backend route is `@router.get("")` so the canonical path is
+    // `/api/v1/notifications` (no slash). A trailing slash triggers a 307 redirect, and
+    // axios in React Native drops the Authorization header across redirects → 401.
+    const res = await api.get('/v1/notifications', { params });
     return res.data;
   },
   getUnreadCount: async () => {
@@ -342,6 +350,10 @@ export const assetService = {
 export const riskService = {
   getRisks: async (params = {}) => {
     const res = await api.get('/risk-management/risks/', { params });
+    return res.data;
+  },
+  create: async (data) => {
+    const res = await api.post('/risk-management/risks/', data);
     return res.data;
   },
 };

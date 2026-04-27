@@ -15,6 +15,8 @@ import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import CreateIncidentScreen from '../screens/CreateIncidentScreen';
 import CreateAssetScreen from '../screens/CreateAssetScreen';
+import CreateRiskScreen from '../screens/CreateRiskScreen';
+import CreateTaskScreen from '../screens/CreateTaskScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -43,6 +45,7 @@ function HomeStackNavigator() {
     <HomeStack.Navigator screenOptions={stackScreenOptions}>
       <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="CreateIncident" component={CreateIncidentScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="CreateRisk" component={CreateRiskScreen} options={{ headerShown: false }} />
     </HomeStack.Navigator>
   );
 }
@@ -52,6 +55,7 @@ function TasksStackNavigator() {
     <TaskStack.Navigator screenOptions={stackScreenOptions}>
       <TaskStack.Screen name="TaskList" component={TasksScreen} options={{ title: 'My Tasks' }} />
       <TaskStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task Detail' }} />
+      <TaskStack.Screen name="CreateTask" component={CreateTaskScreen} options={{ headerShown: false }} />
     </TaskStack.Navigator>
   );
 }
@@ -91,7 +95,7 @@ export default function AppNavigator() {
         tabBarIcon: ({ focused, color }) => (
           <Feather
             name={TAB_ICONS[route.name] || 'circle'}
-            size={22}
+            size={26}
             color={focused ? colors.primary : colors.textMuted}
           />
         ),
@@ -100,11 +104,11 @@ export default function AppNavigator() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          paddingTop: 4,
-          height: 60,
-          paddingBottom: 6,
+          paddingTop: 6,
+          height: 72,
+          paddingBottom: 10,
         },
-        tabBarLabelStyle: { fontSize: fontSize.xs, fontWeight: '500' },
+        tabBarLabelStyle: { fontSize: fontSize.sm, fontWeight: '500' },
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.primary,
         headerTitleStyle: { fontWeight: '600', fontSize: fontSize.md },
@@ -115,7 +119,20 @@ export default function AppNavigator() {
       <Tab.Screen name="Tasks" component={TasksStackNavigator} options={{ headerShown: false }} />
       <Tab.Screen name="Observe" component={ObservationsStackNavigator} options={{ headerShown: false }} />
       <Tab.Screen name="Assets" component={AssetsStackNavigator} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={ProfileStackNavigator} options={{ headerShown: false }} />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStackNavigator}
+        options={{ headerShown: false }}
+        listeners={({ navigation }) => ({
+          // Tapping the Profile tab always returns to ProfileMain.
+          // Otherwise, deep-linking into Notifications via the Home bell leaves
+          // the stack on Notifications across tab switches.
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Profile', { screen: 'ProfileMain' });
+          },
+        })}
+      />
     </Tab.Navigator>
   );
 }

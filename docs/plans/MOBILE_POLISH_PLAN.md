@@ -186,14 +186,44 @@ Rebuild CreateIncident as step-based wizard:
 |---|---|---|---|---|
 | 1 | M5.1 Design system | Medium | ✅ 2026-04-17 | Shared components, theme update |
 | 2 | GPS.1 Accuracy filtering | Small | ✅ 2026-04-17 | useGpsTracking.js refinements |
-| 3 | GPS.2 Spray track map | Large | ⏳ Deferred | Full-screen live GPS map (needs dev build) |
+| 2b | GPS tuning field validation | — | ✅ 2026-04-24 | Open-sky street test: clean parallel lines, good turning, Kalman tuning (Q=6, R_BASE=2) validated. Driveway convergence confirmed as multipath (walls/fences), not algorithm. |
+| 2c | GPS lifecycle refinement | Small | ✅ 2026-04-27 | `hasBeenStopped` flag in hook; backend `/gps/summary` checked on TaskDetail load; three-state UI (start / live / locked-complete); explicit "Stop and lock" confirmation. Daylight end-to-end walk-test still pending. |
+| 3 | GPS.2 Spray track map | Large | ⏳ Gated on dev build | Full-screen live GPS map (needs EAS dev build + map library decision) |
 | 4 | M5.2 Observation capture | Medium | ✅ 2026-04-17 | Rebuilt SpotCaptureScreen |
-| 5 | OFF.1+OFF.2 Network + GPS queue | Medium | ✅ 2026-04-17 (untested) | Offline resilience |
+| 5 | OFF.1+OFF.2 Network + GPS queue | Medium | ⚠️ Shipped 2026-04-17, still untested | Offline resilience. Tunnel-mode walk 2026-04-24 confirmed track retention but did NOT stress offline path (phone stayed on cellular). Proper verification: airplane mode mid-walk + re-enable, confirm queued points flush. |
 | 6 | M5.3 Incident wizard | Medium | ✅ 2026-04-19 | CreateIncidentScreen step wizard |
-| 7 | GPS.3 Coverage calc | Small | ❌ Not started | Coverage % in spray view |
-| 8 | GPS.5 Background tracking | Large | ❌ Not started | Dev build, expo-task-manager |
-| 9 | OFF.3 Full offline cache | Large | ❌ Not started | Complete offline support |
-| 10 | M5.4 Visual polish | Ongoing | ✅ 2026-04-19 | Icons (Feather app-wide), toasts, skeletons, branding |
+| 7 | GPS.3 Coverage calc | Small | ❌ Not started | Coverage % in spray view. Depends on GPS.2. |
+| 8 | GPS.4 Battery efficiency | Medium | ❌ Not started | Adaptive polling stationary-vs-moving, low-battery degradation. Not dev-build blocked. |
+| 9 | GPS.5 Background tracking | Large | ⏳ Gated on dev build | expo-task-manager + background location task |
+| 10 | OFF.3 Full offline cache | Large | ❌ Not started | Task + observation read cache + write queue |
+| 11 | M5.4 Visual polish | Ongoing | ✅ 2026-04-19 | Icons (Feather app-wide), toasts, skeletons, branding |
+| 12 | EAS build pipeline | Medium | ✅ 2026-04-27 (config) / ⏳ Pending first build | `eas.json` + `app.config.js` + Mapbox plugin wired; Mapbox tokens stored in EAS env (dev/preview/prod buckets). First Android dev build deferred until Apple Developer Program is sorted (user testing on iPhone Expo Go meanwhile). See `docs/asbuilt/MOBILE_BUILD_PIPELINE.md`. |
+| 13 | Risk wizard (mobile) | Medium | ✅ 2026-04-27 | `CreateRiskScreen` 2-step wizard (category + type → details + likelihood × severity); backend `create_risk` notifies managers/admins; "Risk" FAB option on Home. Reframed from Hazard. |
+| 14 | Task creation (mobile) | Medium | ✅ 2026-04-27 | `CreateTaskScreen` single-form + new `BlockPickerModal` component (search by name/variety, property-aware filter); `+` FAB on Tasks tab; Home FAB "Task" deep-links here. |
+
+### Dev build decision — gating GPS.2 + GPS.5 + MapScreen
+
+Three biggest remaining items (spray track map, background tracking, overview map tab) all require `npx expo prebuild` + `eas build --profile development`. One-time setup, unlocks all three at once.
+
+Decisions required before running the dev build:
+
+| Decision | Options | Notes |
+|---|---|---|
+| Map library | `react-native-maps` (free, Apple/Google native) OR `@rnmapbox/maps` (richer styles + offline tile cache, needs Mapbox tokens) | Polish plan GPS.2 says react-native-maps; memory + MOBILE_BUILD_PLAN.md mention Mapbox. Must resolve before prebuild. |
+| Mapbox tokens (if Mapbox chosen) | Need both `sk.*` (secret, for tile download) + `pk.*` (public, runtime). User has tokens — still to confirm both types present. | |
+| First-build platform | Android-only (easier: APK install, no Apple Dev account) OR Android + iOS (iOS needs Apple Developer Program membership + TestFlight) | |
+
+### Non-blocked items that can ship on Expo Go first
+
+If we want to keep shipping before committing to the dev build:
+
+- ~~**Hazard/Risk create (mobile)**~~ — ✅ shipped 2026-04-27 as Risk wizard.
+- ~~**Reopen GPS on active task**~~ — ✅ shipped 2026-04-27, then refined to a three-state lifecycle (start / live / locked-complete) — pause-only resume, stop is permanent.
+- ~~**Task creation**~~ — ✅ shipped 2026-04-27 (`CreateTaskScreen` + `BlockPickerModal`).
+- **GPS.4 battery efficiency** — adaptive polling + low-battery mode.
+- **OFF.2 offline queue verification** — airplane-mode walk test + any bugs found.
+- **OFF.3 full offline cache** — task + observation read cache + write queue.
+- **Visitor register** — in scoping, product conversation needed (`docs/plans/VISITOR_REGISTER_SCOPING.md`).
 
 ## Phase A.5 Additions (2026-04-19)
 
@@ -204,9 +234,26 @@ Features added after competitor-screenshot polish review:
 | Row quality rating removed | ✅ | User preference — not valuable to field workers |
 | Task complete → timesheet hours | ✅ | `hours_worked` on `TaskCompleteRequest`; backend upserts today's `TimesheetDay` + `TimeEntry`; notifies user |
 | Asset registration (mobile) | ✅ | `CreateAssetScreen` + FAB on AssetsScreen; notifies admins + managers |
-| Hazard/Risk create (mobile) | ❌ | Deferred — lightweight wizard pattern like incident, notifies admins/managers |
-| Reopen GPS on active task | ❌ | Deferred — small UX addition (30min) |
+| Hazard/Risk create (mobile) | ✅ 2026-04-27 | Now `CreateRiskScreen` (reframed Hazard → Risk). 2-step wizard: category (origin) + type (impact) → details + likelihood × severity → live inherent score. Backend `create_risk` notifies managers always, admins on high/critical. |
+| Reopen GPS on active task | ✅ 2026-04-27 | Implemented as a three-state GPS card on TaskDetail: never-started shows "Start GPS Tracking"; live shows stats card; stopped shows "GPS Recording Complete" (locked, with summary stats from `/gps/summary`). Stop confirmation explicit about permanence. |
 | Visitor register | 📋 Scoping | See `docs/plans/VISITOR_REGISTER_SCOPING.md` |
+
+## Phase 2026-04-27 — UI polish + bug fixes
+
+| Change | Notes |
+|---|---|
+| Login screen tightened | Removed tagline + "Welcome back" + "Sign in to continue"; footer "© Auxein, NZ" |
+| Profile screen | Removed Server field; bell icon swapped from emoji to Feather; chevron Feather; version → 0.1.0 |
+| Nav bar | Tab icons 22→26, height 60→72, label fontSize bumped to `sm` |
+| Tasks/Assets filter pills | Icons 12/13→16, padding/text bumped |
+| Home header | Branded redesign — logo mark + "Auxein Grow" wordmark, no greeting; property selector moved to its own context bar below header (bigger pill) |
+| Home FAB | `+ Log` backdrop opacity 0.3→0.55 (more obvious modal feel); added "Risk" option (between Incident and Task) |
+| Notifications visual treatment | Read/unread now sharply distinct — unread cards have shadow + accent strip in type colour + bold title; read cards muted (border-light bg, 0.78 opacity, "READ" marker). Empty state uses `Feather bell-off` (was emoji). |
+| Notifications navigation bug | Profile tab listener resets to `ProfileMain` on tab press, so Home-bell deep-link doesn't pin Notifications across tab switches |
+| Notifications API bug | `notificationService.getNotifications` was hitting `/v1/notifications/` (trailing slash) → 307 redirect → axios drops `Authorization` in RN → 401. Fixed by removing trailing slash. Inline comment added. |
+| Home bell badge | Added; previously only Profile screen fetched the unread count |
+| Backend `FileEntityType` | Added `risk`; uncommented `incident` (latent bug — incident photo uploads were silently failing) |
+| Mobile build pipeline | EAS project linked; `app.config.js`, `eas.json`, `@rnmapbox/maps` config plugin all wired; Mapbox tokens stored in EAS env (sk = secret, pk = sensitive). See `docs/asbuilt/MOBILE_BUILD_PIPELINE.md` and `docs/asbuilt/SECRETS_MANAGEMENT.md`. |
 
 ---
 

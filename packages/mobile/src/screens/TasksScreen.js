@@ -155,7 +155,7 @@ export default function TasksScreen({ navigation }) {
               {src && (
                 <Feather
                   name={src.icon}
-                  size={12}
+                  size={16}
                   color={isActive ? colors.white : src.accent}
                 />
               )}
@@ -198,6 +198,14 @@ export default function TasksScreen({ navigation }) {
         onClose={() => setSelectedItem(null)}
         onComplete={loadFeed}
       />
+
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('CreateTask')}
+        activeOpacity={0.85}
+      >
+        <Feather name="plus" size={24} color={colors.white} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -208,21 +216,21 @@ const styles = StyleSheet.create({
   // Filter pills
   filterScroll: {
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    maxHeight: 52,
+    maxHeight: 60,
   },
   filterContent: {
     paddingHorizontal: spacing.sm, paddingVertical: spacing.sm,
     gap: spacing.xs, alignItems: 'center',
   },
   filterPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: spacing.md, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: spacing.base, paddingVertical: 9,
     borderRadius: radius.pill,
     borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.surface,
   },
   filterPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { fontSize: fontSize.xs, fontWeight: '500', color: colors.text },
+  filterText: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text },
   filterTextActive: { color: colors.white, fontWeight: '600' },
 
   // List
@@ -282,4 +290,14 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.sm },
   emptyText: { fontSize: fontSize.md, color: colors.text, fontWeight: '600', marginTop: spacing.sm },
   emptyHint: { fontSize: fontSize.sm, color: colors.textMuted },
+
+  // FAB
+  fab: {
+    position: 'absolute', bottom: spacing.lg, right: spacing.lg,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6,
+  },
 });

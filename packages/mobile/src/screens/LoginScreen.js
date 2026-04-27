@@ -41,14 +41,10 @@ export default function LoginScreen() {
             <Image source={LOGO_MARK} style={styles.logoMarkImg} resizeMode="contain" />
           </View>
           <Text style={styles.brand}>Auxein Grow</Text>
-          <Text style={styles.tagline}>Vineyard operations, in the field.</Text>
         </View>
 
         {/* Card */}
         <View style={styles.card}>
-          <Text style={styles.welcome}>Welcome back</Text>
-          <Text style={styles.welcomeSub}>Sign in to continue</Text>
-
           {error ? (
             <View style={styles.errorBox}>
               <Feather name="alert-circle" size={16} color={colors.danger} />
@@ -124,7 +120,7 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        <Text style={styles.footer}>© Auxein · NZ vineyard management</Text>
+        <Text style={styles.footer}>© Auxein, NZ</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -146,7 +142,6 @@ const styles = StyleSheet.create({
   },
   logoMarkImg: { width: '100%', height: '100%' },
   brand: { color: colors.white, fontSize: fontSize.xxl, fontWeight: '700', letterSpacing: 0.3 },
-  tagline: { color: 'rgba(255,255,255,0.78)', fontSize: fontSize.sm, marginTop: spacing.xs },
 
   // Card
   card: {
@@ -155,8 +150,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.elevated,
   },
-  welcome: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
-  welcomeSub: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, marginBottom: spacing.lg },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,

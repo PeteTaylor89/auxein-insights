@@ -1,6 +1,7 @@
 // screens/ProfileScreen.js — User profile, notifications, stats, app info
 import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { notificationService } from '../api/services';
@@ -35,14 +36,14 @@ export default function ProfileScreen() {
 
       {/* Notifications */}
       <TouchableOpacity style={styles.notifRow} onPress={() => navigation.navigate('Notifications')}>
-        <Text style={styles.notifIcon}>🔔</Text>
+        <Feather name="bell" size={20} color={colors.primary} />
         <Text style={styles.notifLabel}>Notifications</Text>
         {unreadCount > 0 && (
           <View style={styles.notifBadge}>
             <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
           </View>
         )}
-        <Text style={styles.chevron}>›</Text>
+        <Feather name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
       {/* User Info */}
@@ -60,8 +61,7 @@ export default function ProfileScreen() {
       {/* App Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Info</Text>
-        <Field label="Version" value="1.0.0" />
-        <Field label="Server" value="api.auxein.co.nz" />
+        <Field label="Version" value="0.1.0" />
         <View style={styles.webNote}>
           <Text style={styles.webNoteText}>Full company management, reports, and maps available on the web app</Text>
         </View>
@@ -112,14 +112,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg, padding: spacing.base,
     borderWidth: 1, borderColor: colors.border,
   },
-  notifIcon: { fontSize: 20 },
   notifLabel: { flex: 1, fontSize: fontSize.base, fontWeight: '500', color: colors.text },
   notifBadge: {
     backgroundColor: colors.danger, borderRadius: radius.pill,
     paddingHorizontal: spacing.sm, paddingVertical: 2, minWidth: 22, alignItems: 'center',
   },
   notifBadgeText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.white },
-  chevron: { fontSize: 20, color: colors.textMuted, fontWeight: '300' },
 
   // Sections
   section: {

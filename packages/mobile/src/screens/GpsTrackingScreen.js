@@ -39,12 +39,12 @@ export default function GpsTrackingScreen({ gps, taskTitle, taskNumber, onClose 
 
   const handleStop = () => {
     Alert.alert(
-      'Stop Tracking',
-      'Stop GPS tracking for this task? Data collected so far is saved.',
+      'Stop and lock GPS?',
+      'GPS recording will be saved permanently. You won\'t be able to add more tracking to this task afterwards.\n\nThe task itself can still be completed (hours, notes, etc.) — this only locks the GPS track.\n\nIf you just want a break, use Pause instead.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Stop Tracking',
+          text: 'Stop and lock',
           style: 'destructive',
           onPress: async () => {
             await gps.stopTracking();

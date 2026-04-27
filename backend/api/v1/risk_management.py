@@ -195,13 +195,35 @@ def create_risk(
         db.add(risk)
         db.commit()
         db.refresh(risk)
-        
+
         # CRITICAL: Ensure custom_fields is not None before returning
         if risk.custom_fields is None:
             risk.custom_fields = {}
             db.commit()
             db.refresh(risk)
-        
+
+        # Notify managers; admins on high/critical
+        try:
+            notification_service = NotificationService(db)
+            notification_service.notify_managers(
+                company_id=current_user.company_id,
+                notification_type=NotificationType.action,
+                title=f"New risk logged: {risk.risk_title}",
+                body=f"{inherent_level.title()} risk · score {inherent_score}",
+                data={"risk_id": risk.id, "inherent_risk_level": inherent_level, "inherent_risk_score": inherent_score},
+            )
+            if inherent_level in ("high", "critical"):
+                notification_service.notify_admins(
+                    company_id=current_user.company_id,
+                    notification_type=NotificationType.action,
+                    title=f"{inherent_level.title()} risk: {risk.risk_title}",
+                    body=f"Inherent score {inherent_score} · created by {current_user.username}",
+                    data={"risk_id": risk.id, "inherent_risk_level": inherent_level, "inherent_risk_score": inherent_score},
+                )
+            db.commit()
+        except Exception as notify_err:
+            logger.warning(f"Risk notification dispatch failed: {notify_err}")
+
         return risk
         
     except Exception as e:

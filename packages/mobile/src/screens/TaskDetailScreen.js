@@ -5,6 +5,7 @@ import {
   ActivityIndicator, RefreshControl, Alert, TextInput, Modal,
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, taskRowService } from '../api/services';
 import { useGpsTracking } from '../hooks/useGpsTracking';
@@ -24,6 +25,7 @@ export default function TaskDetailScreen({ route, navigation }) {
   // GPS tracking
   const gps = useGpsTracking();
   const [showGpsOverlay, setShowGpsOverlay] = useState(false);
+  const [gpsCommittedSummary, setGpsCommittedSummary] = useState(null); // server-side summary if GPS was stopped/committed
 
   // Row completion modal state
   const [showRowModal, setShowRowModal] = useState(false);
@@ -63,11 +65,23 @@ export default function TaskDetailScreen({ route, navigation }) {
     }
   }, [taskId]);
 
+  const loadGpsCommitted = useCallback(async () => {
+    // Only check if not actively tracking — avoids hitting endpoint mid-flight.
+    if (gps.isTracking || gps.isPaused) return;
+    try {
+      const summary = await tasksService.getGpsSummary(taskId);
+      setGpsCommittedSummary(summary || null);
+    } catch (err) {
+      // 404 = no summary yet (never started or still active); anything else also benign here
+      setGpsCommittedSummary(null);
+    }
+  }, [taskId, gps.isTracking, gps.isPaused]);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadTask(), loadRows()]);
+    await Promise.all([loadTask(), loadRows(), loadGpsCommitted()]);
     setLoading(false);
-  }, [loadTask, loadRows]);
+  }, [loadTask, loadRows, loadGpsCommitted]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -282,6 +296,79 @@ export default function TaskDetailScreen({ route, navigation }) {
             {task.assignee_names?.length > 0 && <Field label="Assigned" value={task.assignee_names.join(', ')} />}
           </View>
         </View>
+
+        {/* GPS — committed/locked. Server has a summary OR this session stopped it. */}
+        {isInProgress && task?.requires_gps_tracking && !gps.isTracking && !gps.isPaused && (gpsCommittedSummary || gps.hasBeenStopped) && (
+          <View style={styles.card}>
+            <View style={styles.gpsHeader}>
+              <View style={styles.gpsHeaderLeft}>
+                <View style={[styles.gpsDot, { backgroundColor: colors.success }]} />
+                <Text style={styles.sectionTitle}>GPS Recording Complete</Text>
+              </View>
+              <Feather name="lock" size={14} color={colors.textMuted} />
+            </View>
+            <Text style={styles.gpsHint}>
+              GPS track is saved and locked. Complete the task below to log hours and notes.
+            </Text>
+            {gpsCommittedSummary && (
+              <View style={styles.gpsStats}>
+                <View style={styles.gpsStat}>
+                  <Text style={styles.gpsStatValue}>
+                    {Number(gpsCommittedSummary.total_distance_km || 0).toFixed(2)}
+                  </Text>
+                  <Text style={styles.gpsStatLabel}>km</Text>
+                </View>
+                <View style={styles.gpsStat}>
+                  <Text style={styles.gpsStatValue}>
+                    {gpsCommittedSummary.active_duration_minutes || 0}m
+                  </Text>
+                  <Text style={styles.gpsStatLabel}>active</Text>
+                </View>
+                <View style={styles.gpsStat}>
+                  <Text style={styles.gpsStatValue}>{gpsCommittedSummary.total_points || 0}</Text>
+                  <Text style={styles.gpsStatLabel}>points</Text>
+                </View>
+                {gpsCommittedSummary.coverage_area_hectares != null && (
+                  <View style={styles.gpsStat}>
+                    <Text style={styles.gpsStatValue}>
+                      {Number(gpsCommittedSummary.coverage_area_hectares).toFixed(2)}
+                    </Text>
+                    <Text style={styles.gpsStatLabel}>ha</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* GPS — never started yet, task in progress + tracking required */}
+        {isInProgress && task?.requires_gps_tracking && !gps.isTracking && !gps.isPaused && !gpsCommittedSummary && !gps.hasBeenStopped && (
+          <View style={styles.card}>
+            <View style={styles.gpsHeader}>
+              <View style={styles.gpsHeaderLeft}>
+                <View style={[styles.gpsDot, { backgroundColor: colors.textMuted }]} />
+                <Text style={styles.sectionTitle}>GPS Tracking</Text>
+              </View>
+            </View>
+            <Text style={styles.gpsHint}>
+              GPS is not currently recording. Start now to capture coverage for this task.
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnPrimary, { marginTop: spacing.md }]}
+              onPress={async () => {
+                const ok = await gps.startTracking(taskId);
+                if (!ok) {
+                  Alert.alert('GPS', 'Could not start tracking. Check location permission and try again.');
+                } else {
+                  setShowGpsOverlay(true);
+                }
+              }}
+            >
+              <Feather name="play-circle" size={18} color={colors.white} />
+              <Text style={[styles.actionBtnText, { marginLeft: spacing.xs }]}>Start GPS Tracking</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* GPS Tracking Card — tap to open full GPS screen */}
         {isInProgress && (gps.isTracking || gps.isPaused) && (
@@ -665,7 +752,7 @@ const styles = StyleSheet.create({
     padding: spacing.base, paddingBottom: spacing.lg,
     flexDirection: 'row', gap: spacing.sm,
   },
-  actionBtn: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
+  actionBtn: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   actionBtnPrimary: { backgroundColor: colors.primary },
   actionBtnSuccess: { backgroundColor: colors.success },
   actionBtnText: { color: colors.white, fontSize: fontSize.base, fontWeight: '600' },
@@ -721,6 +808,7 @@ const styles = StyleSheet.create({
   gpsDotActive: { backgroundColor: colors.success },
   gpsDotPaused: { backgroundColor: colors.warning },
   gpsExpandHint: { fontSize: fontSize.xs, color: colors.textMuted, fontStyle: 'italic' },
+  gpsHint: { fontSize: fontSize.sm, color: colors.textMuted },
   gpsStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: spacing.md },
   gpsStat: { alignItems: 'center' },
   gpsStatValue: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },

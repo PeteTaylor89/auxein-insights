@@ -23,7 +23,8 @@ class FileEntityType(str, Enum):
     observation_spot = "observation_spot"
     task = "task"
     risk_action = "risk_action"
-    # incident = "incident"
+    risk = "risk"
+    incident = "incident"
 
 class UploadStatus(str, Enum):
     uploaded = "uploaded"
