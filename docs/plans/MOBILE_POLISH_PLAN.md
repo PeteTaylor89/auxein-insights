@@ -157,14 +157,26 @@ Rebuild CreateIncident as step-based wizard:
 
 ## Phase OFF.3 — Task & Observation Offline Cache
 
-**Effort:** Large | **Dependency:** OFF.1
+**Effort:** Large | **Dependency:** OFF.1 | **Status:** Phases 1-2 shipped 2026-05-01 (untested), phases 3-6 pending
 
-- Read cache — cache last-loaded task list, task detail, observation runs in AsyncStorage
-- Write queue — queue status changes (start/pause/complete), spot saves, row completions
-- Conflict resolution — last-write-wins for status, append-only for spots/rows
-- Sync indicator in header (green checkmark / orange spinner / red X)
-- Manual sync via pull-to-refresh
-- ProfileScreen shows last sync time and pending queue count
+Six-phase plan, each reviewable independently. Two phases of foundation + task read cache shipped on 2026-05-01 — all UNTESTED, no UI changes yet (pure plumbing + behind-the-scenes wrapping). Out of scope for OFF.3: offline creation of new entities (createTask/Run/Incident/Risk) and offline photo uploads — both need temp-ID reconciliation, deferred to a future OFF.4.
+
+| Phase | Status | Deliverable |
+|---|---|---|
+| 1. Foundation | ✅ 2026-05-01 (untested) | `services/offlineCache.js` (generic SWR), `services/writeQueue.js` (typed write queue), `services/syncCoordinator.js` (reconnect listener + status). Wired into `App.js` post-auth init. |
+| 2. Task read cache | ✅ 2026-05-01 (untested) | `services/tasksCache.js` wrapping `getUnifiedFeed` / `getTask` / `listRows` / `getProgress` / `getMyTasks`. TasksScreen + TaskDetailScreen consume cached variants. |
+| 3. Observation + asset read cache | ❌ Not started | Wrap `observationService` reads + `assetService.listAssets`. |
+| 4. Write queue for task actions | ❌ Not started | `startTask`, `completeTask`, `completeRow`, `skipRow`, GPS pause/resume/stop. Optimistic local cache update. Last-write-wins for status. |
+| 5. Write queue for observation spots | ❌ Not started | `createSpot`, `updateSpot`, `completeRun`. Append-only for spots. |
+| 6. Sync UI | ❌ Not started | OfflineBanner pending count, sync state pill in headers, pull-to-refresh forces flush, ProfileScreen last-sync + pending count. |
+
+**Conflict resolution:** Last-write-wins for status fields. Append-only for spots/rows (each write is an independent queue entry).
+
+**Test plan when phases 1-2 land in front of a device:**
+1. Online: open app → Tasks tab loads → tap a task → back out
+2. Force-quit, enable airplane mode
+3. Reopen → Tasks list and any previously-viewed task detail render from cache (not empty / spinner)
+4. OfflineBanner is shown; writes intentionally still hit the network in this milestone (write queue is Phase 4)
 
 ---
 
@@ -195,7 +207,7 @@ Rebuild CreateIncident as step-based wizard:
 | 7 | GPS.3 Coverage calc | Small | ❌ Not started | Coverage % in spray view. Depends on GPS.2. |
 | 8 | GPS.4 Battery efficiency | Medium | ❌ Not started | Adaptive polling stationary-vs-moving, low-battery degradation. Not dev-build blocked. |
 | 9 | GPS.5 Background tracking | Large | ⏳ Gated on dev build | expo-task-manager + background location task |
-| 10 | OFF.3 Full offline cache | Large | ❌ Not started | Task + observation read cache + write queue |
+| 10 | OFF.3 Full offline cache | Large | ⚠️ Phases 1-2 of 6 shipped 2026-05-01, untested | Task + observation read cache + write queue. Foundation services + task read-cache integrated into TasksScreen / TaskDetailScreen. Phases 3-6 (obs cache, write queues, sync UI) still to do. |
 | 11 | M5.4 Visual polish | Ongoing | ✅ 2026-04-19 | Icons (Feather app-wide), toasts, skeletons, branding |
 | 12 | EAS build pipeline | Medium | ✅ 2026-04-27 (config) / ⏳ Pending first build | `eas.json` + `app.config.js` + Mapbox plugin wired; Mapbox tokens stored in EAS env (dev/preview/prod buckets). First Android dev build deferred until Apple Developer Program is sorted (user testing on iPhone Expo Go meanwhile). See `docs/asbuilt/MOBILE_BUILD_PIPELINE.md`. |
 | 13 | Risk wizard (mobile) | Medium | ✅ 2026-04-27 | `CreateRiskScreen` 2-step wizard (category + type → details + likelihood × severity); backend `create_risk` notifies managers/admins; "Risk" FAB option on Home. Reframed from Hazard. |
@@ -220,9 +232,9 @@ If we want to keep shipping before committing to the dev build:
 - ~~**Hazard/Risk create (mobile)**~~ — ✅ shipped 2026-04-27 as Risk wizard.
 - ~~**Reopen GPS on active task**~~ — ✅ shipped 2026-04-27, then refined to a three-state lifecycle (start / live / locked-complete) — pause-only resume, stop is permanent.
 - ~~**Task creation**~~ — ✅ shipped 2026-04-27 (`CreateTaskScreen` + `BlockPickerModal`).
-- **GPS.4 battery efficiency** — adaptive polling + low-battery mode.
+- ~~**GPS.4 battery efficiency**~~ — deferred (most modern tractors have charging points; revisit if field workers report drain issues).
 - **OFF.2 offline queue verification** — airplane-mode walk test + any bugs found.
-- **OFF.3 full offline cache** — task + observation read cache + write queue.
+- **OFF.3 full offline cache** — phases 1-2 (foundation + task read cache) shipped 2026-05-01 untested. Phases 3-6 still pending.
 - **Visitor register** — in scoping, product conversation needed (`docs/plans/VISITOR_REGISTER_SCOPING.md`).
 
 ## Phase A.5 Additions (2026-04-19)

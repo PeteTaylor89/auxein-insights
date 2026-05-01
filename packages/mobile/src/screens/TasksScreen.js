@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
-import { tasksService } from '../api/services';
+import { getUnifiedFeedCached } from '../services/tasksCache';
 import FeedItemModal from '../components/FeedItemModal';
 import { SOURCE_ICONS, SkeletonCard } from '../components';
 
@@ -28,11 +28,21 @@ export default function TasksScreen({ navigation }) {
   const loadFeed = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await tasksService.getUnifiedFeed({ days_ahead: 30 });
-      setItems(Array.isArray(data) ? data : []);
+      const fresh = await getUnifiedFeedCached(
+        { days_ahead: 30 },
+        {
+          // Hide skeleton on cache hit so a fresh fetch behind it doesn't flash one in.
+          onCached: (cached) => {
+            if (cached?.data) {
+              setItems(Array.isArray(cached.data) ? cached.data : []);
+              setLoading(false);
+            }
+          },
+        },
+      );
+      setItems(Array.isArray(fresh) ? fresh : []);
     } catch (err) {
       console.log('Failed to load feed:', err.message);
-      setItems([]);
     } finally {
       setLoading(false);
     }

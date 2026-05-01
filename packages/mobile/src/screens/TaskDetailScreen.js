@@ -8,6 +8,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, taskRowService } from '../api/services';
+import { getTaskCached, listRowsCached, getRowProgressCached } from '../services/tasksCache';
 import { useGpsTracking } from '../hooks/useGpsTracking';
 import GpsTrackingOverlay from './GpsTrackingScreen';
 
@@ -44,9 +45,18 @@ export default function TaskDetailScreen({ route, navigation }) {
 
   const loadTask = useCallback(async () => {
     try {
-      const data = await tasksService.getTask(taskId);
-      setTask(data);
-      navigation.setOptions({ title: data.title || `Task #${data.id}` });
+      const data = await getTaskCached(taskId, {
+        onCached: (cached) => {
+          if (cached?.data) {
+            setTask(cached.data);
+            navigation.setOptions({ title: cached.data.title || `Task #${cached.data.id}` });
+          }
+        },
+      });
+      if (data) {
+        setTask(data);
+        navigation.setOptions({ title: data.title || `Task #${data.id}` });
+      }
     } catch (err) {
       console.log('Failed to load task:', err.message);
     }
@@ -55,8 +65,12 @@ export default function TaskDetailScreen({ route, navigation }) {
   const loadRows = useCallback(async () => {
     try {
       const [rowData, progressData] = await Promise.all([
-        taskRowService.listRows(taskId).catch(() => []),
-        taskRowService.getProgress(taskId).catch(() => null),
+        listRowsCached(taskId, {
+          onCached: (cached) => { if (Array.isArray(cached?.data)) setRows(cached.data); },
+        }).catch(() => []),
+        getRowProgressCached(taskId, {
+          onCached: (cached) => { if (cached?.data) setProgress(cached.data); },
+        }).catch(() => null),
       ]);
       setRows(Array.isArray(rowData) ? rowData : []);
       setProgress(progressData);

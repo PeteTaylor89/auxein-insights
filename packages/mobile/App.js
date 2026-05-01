@@ -10,7 +10,9 @@ import AppNavigator from './src/navigation/AppNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import OfflineBanner from './src/components/OfflineBanner';
 import { ToastProvider } from './src/components/Toast';
-import { initQueue, flushQueue } from './src/services/gpsQueue';
+import { initQueue } from './src/services/gpsQueue';
+import { initWriteQueue } from './src/services/writeQueue';
+import { initSyncCoordinator, triggerSync } from './src/services/syncCoordinator';
 
 // Swap the shared api instance to use SecureStore auth
 initMobileApi();
@@ -18,11 +20,17 @@ initMobileApi();
 function RootNavigator() {
   const { isAuthenticated, initialLoading } = useAuth();
 
-  // Init offline queue and flush any pending GPS points on auth
+  // Init offline queues + sync coordinator on auth, then drain anything pending.
+  // Coordinator listens for reconnect transitions and auto-flushes thereafter.
   React.useEffect(() => {
-    if (isAuthenticated) {
-      initQueue().then(() => flushQueue()).catch(() => {});
-    }
+    if (!isAuthenticated) return;
+    (async () => {
+      try {
+        await Promise.all([initQueue(), initWriteQueue()]);
+        await initSyncCoordinator();
+        await triggerSync();
+      } catch {}
+    })();
   }, [isAuthenticated]);
 
   if (initialLoading) {
