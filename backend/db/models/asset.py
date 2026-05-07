@@ -5,7 +5,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey,
-    JSON, Numeric
+    JSON, Numeric, Index
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
@@ -71,6 +71,16 @@ class Asset(Base):
     location_geometry = Column(Geometry('GEOMETRY', srid=4326), nullable=True)  # Lines/polygons (irrigation, fences)
     requires_calibration = Column(Boolean, default=False)
     calibration_interval_days = Column(Integer)
+    # Persistent calibration spec for this asset. When set, every new calibration schedule
+    # (initial on asset creation, plus auto-spawned after each completion) inherits these
+    # values so field workers see the right tolerances on the mobile form. The asset's
+    # spec is the source of truth; event rows snapshot it for audit/history.
+    calibration_type = Column(String(50))           # e.g. flow_rate, pressure, fuel_efficiency
+    calibration_parameter_name = Column(String(100))
+    calibration_unit_of_measure = Column(String(20))
+    calibration_target_value = Column(Numeric(12, 4))
+    calibration_tolerance_min = Column(Numeric(12, 4))
+    calibration_tolerance_max = Column(Numeric(12, 4))
     
     # Maintenance scheduling (for equipment)
     requires_maintenance = Column(Boolean, default=False)
@@ -322,7 +332,10 @@ class AssetCalibration(Base):
     id = Column(Integer, primary_key=True, index=True)
     asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
-    
+    # Schedule that this event resolved (null for legacy/ad-hoc records). When set,
+    # the event "consumed" a pending AssetCalibrationSchedule row.
+    schedule_id = Column(Integer, ForeignKey("asset_calibration_schedules.id"), nullable=True, index=True)
+
     # Calibration details
     calibration_type = Column(String(50), nullable=False)  # flow_rate, pressure, fuel_efficiency, etc.
     calibration_date = Column(Date, nullable=False)
@@ -382,7 +395,8 @@ class AssetCalibration(Base):
     # Relationships
     asset = relationship("Asset", back_populates="calibration_records")
     company = relationship("Company")
-    
+    schedule = relationship("AssetCalibrationSchedule", foreign_keys=[schedule_id])
+
     def get_files_by_category(self, db_session, category: str = None):
         """Get files associated with this calibration record"""
         from db.models.file import File
@@ -394,6 +408,61 @@ class AssetCalibration(Base):
         if category:
             query = query.filter(File.file_category == category)
         return query.all()
+
+
+class AssetCalibrationSchedule(Base):
+    """
+    A forward-looking calibration ticket. Each row represents "calibration X for asset Y
+    is due by date D". When the calibration is performed, an AssetCalibration event row
+    is created and this schedule is marked completed (status='completed', completed_at set,
+    completed_calibration_id linking the event). A new pending schedule is auto-created for
+    the next cycle (asset interval on pass, 7-day recheck on fail).
+
+    A partial unique index on (asset_id, calibration_type) WHERE status='pending' enforces
+    "at most one pending schedule per asset+type" so the unified feed never shows duplicates.
+    """
+    __tablename__ = "asset_calibration_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+
+    # Calibration spec snapshot at scheduling time (so the spec is stable even if the asset's
+    # template later changes). Mirrors fields on AssetCalibration.
+    calibration_type = Column(String(50), nullable=False)
+    parameter_name = Column(String(100))
+    unit_of_measure = Column(String(20))
+    target_value = Column(Numeric(12, 4))
+    tolerance_min = Column(Numeric(12, 4))
+    tolerance_max = Column(Numeric(12, 4))
+
+    due_date = Column(Date, nullable=False, index=True)
+
+    # v0.1 lifecycle: pending → completed.
+    status = Column(String(20), nullable=False, default="pending")
+
+    completed_calibration_id = Column(Integer, ForeignKey("asset_calibrations.id"), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    notes = Column(Text)
+
+    created_by = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    asset = relationship("Asset")
+    company = relationship("Company")
+    completed_calibration = relationship("AssetCalibration", foreign_keys=[completed_calibration_id])
+
+    __table_args__ = (
+        Index(
+            "ix_asset_calibration_schedules_pending_unique",
+            "asset_id", "calibration_type",
+            unique=True,
+            postgresql_where=Column("status") == "pending",
+        ),
+    )
 
 
 class StockMovement(Base):

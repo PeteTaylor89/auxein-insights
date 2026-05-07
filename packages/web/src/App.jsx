@@ -31,6 +31,7 @@ import PlanEdit from './pages/PlanEdit';
 import RunStart from './pages/RunStart';
 import AdhocObservationCreate from './pages/AdhocObservationCreate';
 import AssetsDashboard from './pages/AssetsDashboard';
+import Calibrations from './pages/Calibrations';
 import AssetForm from './pages/AssetForm';
 import ConsumableForm from './pages/ConsumableForm';
 import ContractorManagement from './pages/ContractorManagement';
@@ -260,6 +261,12 @@ function AppRoutes() {
         <Route path="/assets" element={
           <ProtectedRoute>
             <AssetsDashboard  />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/calibrations" element={
+          <ProtectedRoute>
+            <Calibrations  />
           </ProtectedRoute>
         } />
 

@@ -35,7 +35,10 @@ export default function AssetForm() {
     purchase_date: '', purchase_price: '', current_value: '',
     status: 'active', location_label: '', latitude: '', longitude: '',
     location_geojson: null, requires_calibration: false,
-    calibration_interval_days: '', requires_maintenance: false,
+    calibration_interval_days: '',
+    calibration_type: '', calibration_parameter_name: '', calibration_unit_of_measure: '',
+    calibration_target_value: '', calibration_tolerance_min: '', calibration_tolerance_max: '',
+    requires_maintenance: false,
     maintenance_interval_days: '', maintenance_interval_hours: '',
     current_hours: '', current_kilometers: '', insurance_expiry: '',
     wof_due: '', registration_expiry: '', fuel_type: '',
@@ -88,6 +91,12 @@ export default function AssetForm() {
         location_geojson: asset.location_geojson || null,
         requires_calibration: asset.requires_calibration || false,
         calibration_interval_days: asset.calibration_interval_days || '',
+        calibration_type: asset.calibration_type || '',
+        calibration_parameter_name: asset.calibration_parameter_name || '',
+        calibration_unit_of_measure: asset.calibration_unit_of_measure || '',
+        calibration_target_value: asset.calibration_target_value ?? '',
+        calibration_tolerance_min: asset.calibration_tolerance_min ?? '',
+        calibration_tolerance_max: asset.calibration_tolerance_max ?? '',
         requires_maintenance: asset.requires_maintenance || false,
         maintenance_interval_days: asset.maintenance_interval_days || '',
         maintenance_interval_hours: asset.maintenance_interval_hours || '',
@@ -137,6 +146,12 @@ export default function AssetForm() {
         purchase_price: formData.purchase_price ? Number(formData.purchase_price) : null,
         current_value: formData.current_value ? Number(formData.current_value) : null,
         calibration_interval_days: formData.calibration_interval_days ? Number(formData.calibration_interval_days) : null,
+        calibration_type: formData.calibration_type || null,
+        calibration_parameter_name: formData.calibration_parameter_name || null,
+        calibration_unit_of_measure: formData.calibration_unit_of_measure || null,
+        calibration_target_value: formData.calibration_target_value !== '' ? Number(formData.calibration_target_value) : null,
+        calibration_tolerance_min: formData.calibration_tolerance_min !== '' ? Number(formData.calibration_tolerance_min) : null,
+        calibration_tolerance_max: formData.calibration_tolerance_max !== '' ? Number(formData.calibration_tolerance_max) : null,
         maintenance_interval_days: formData.maintenance_interval_days ? Number(formData.maintenance_interval_days) : null,
         maintenance_interval_hours: formData.maintenance_interval_hours ? Number(formData.maintenance_interval_hours) : null,
         current_hours: formData.current_hours ? Number(formData.current_hours) : null,
@@ -382,18 +397,51 @@ export default function AssetForm() {
                 <label htmlFor="requires_calibration">This equipment requires calibration</label>
               </div>
               {formData.requires_calibration && (
-                <div className="af-form-grid">
-                  <FormField label="Calibration Interval (days)">
-                    <input className="af-input" type="number" value={formData.calibration_interval_days} onChange={(e) => handleChange('calibration_interval_days', e.target.value)} placeholder="e.g., 30" />
-                  </FormField>
-                  {isEditMode && (
-                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                      <button className="af-btn-success" onClick={() => setShowCalibrationManager(true)}>
-                        <Settings size={16} /> Manage Calibrations
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <>
+                  <div className="af-form-grid">
+                    <FormField label="Calibration Interval (days)">
+                      <input className="af-input" type="number" value={formData.calibration_interval_days} onChange={(e) => handleChange('calibration_interval_days', e.target.value)} placeholder="e.g., 30" />
+                    </FormField>
+                    {isEditMode && (
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button className="af-btn-success" onClick={() => setShowCalibrationManager(true)}>
+                          <Settings size={16} /> Manage Calibrations
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <h4 style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 600, color: '#666' }}>
+                    Calibration Spec — applied to every scheduled calibration for this asset
+                  </h4>
+                  <div className="af-form-grid">
+                    <FormField label="Calibration Type">
+                      <select className="af-input" value={formData.calibration_type} onChange={(e) => handleChange('calibration_type', e.target.value)}>
+                        <option value="">Select type...</option>
+                        <option value="flow_rate">Flow rate</option>
+                        <option value="pressure">Pressure</option>
+                        <option value="fuel_efficiency">Fuel efficiency</option>
+                        <option value="temperature">Temperature</option>
+                        <option value="weight">Weight</option>
+                        <option value="general">General</option>
+                      </select>
+                    </FormField>
+                    <FormField label="Parameter Name">
+                      <input className="af-input" value={formData.calibration_parameter_name} onChange={(e) => handleChange('calibration_parameter_name', e.target.value)} placeholder="e.g., Nozzle output" />
+                    </FormField>
+                    <FormField label="Unit of Measure">
+                      <input className="af-input" value={formData.calibration_unit_of_measure} onChange={(e) => handleChange('calibration_unit_of_measure', e.target.value)} placeholder="e.g., L/min" />
+                    </FormField>
+                    <FormField label="Target Value">
+                      <input className="af-input" type="number" step="0.0001" value={formData.calibration_target_value} onChange={(e) => handleChange('calibration_target_value', e.target.value)} placeholder="e.g., 2.0" />
+                    </FormField>
+                    <FormField label="Tolerance Min">
+                      <input className="af-input" type="number" step="0.0001" value={formData.calibration_tolerance_min} onChange={(e) => handleChange('calibration_tolerance_min', e.target.value)} placeholder="e.g., 1.8" />
+                    </FormField>
+                    <FormField label="Tolerance Max">
+                      <input className="af-input" type="number" step="0.0001" value={formData.calibration_tolerance_max} onChange={(e) => handleChange('calibration_tolerance_max', e.target.value)} placeholder="e.g., 2.2" />
+                    </FormField>
+                  </div>
+                </>
               )}
             </FormSection>
 

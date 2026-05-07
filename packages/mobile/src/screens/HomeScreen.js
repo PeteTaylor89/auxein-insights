@@ -149,7 +149,7 @@ export default function HomeScreen({ navigation }) {
             icon="clipboard"
             iconBg={colors.primary + '18'}
             iconColor={colors.primary}
-            label="Upcoming"
+            label="Upcoming tasks"
             value={counts.tasks}
             onPress={() => navigation.navigate('Tasks')}
           />
@@ -157,25 +157,25 @@ export default function HomeScreen({ navigation }) {
             icon="alert-triangle"
             iconBg={counts.overdue > 0 ? colors.dangerBg : colors.borderLight}
             iconColor={counts.overdue > 0 ? colors.danger : colors.textMuted}
-            label="Overdue"
+            label="Overdue tasks"
             value={counts.overdue}
+            onPress={() => navigation.navigate('Tasks')}
+          />
+          <StatTile
+            icon="tool"
+            iconBg="#E67E2218"
+            iconColor="#E67E22"
+            label="Maintenance due"
+            value={counts.maintenance}
             onPress={() => navigation.navigate('Tasks')}
           />
           <StatTile
             icon="search"
             iconBg={colors.gpsBg}
             iconColor={colors.success}
-            label="Active obs"
+            label="Active observations"
             value={counts.runs}
             onPress={() => navigation.navigate('Observe')}
-          />
-          <StatTile
-            icon="tool"
-            iconBg="#E67E2218"
-            iconColor="#E67E22"
-            label="Maintenance"
-            value={counts.maintenance}
-            onPress={() => navigation.navigate('Tasks')}
           />
         </View>
 
@@ -301,6 +301,12 @@ export default function HomeScreen({ navigation }) {
               label="Risk"
               color={colors.warning}
               onPress={() => { setFabOpen(false); navigation.navigate('CreateRisk'); }}
+            />
+            <FabOption
+              icon="user-plus"
+              label="Visitor"
+              color={colors.primary}
+              onPress={() => { setFabOpen(false); navigation.navigate('CreateVisitor'); }}
             />
             <FabOption
               icon="clipboard"

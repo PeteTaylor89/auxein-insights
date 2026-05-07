@@ -25,6 +25,12 @@ export default function TermsContent() {
               Privacy Policy
             </Link>
             <Link
+              href="/grow/privacy"
+              className="px-4 py-2 bg-white border border-olive/25 text-charcoal hover:border-olive rounded-lg font-medium transition-colors"
+            >
+              Auxein Grow Privacy
+            </Link>
+            <Link
               href="/terms"
               className="px-4 py-2 bg-olive text-white rounded-lg font-medium"
             >

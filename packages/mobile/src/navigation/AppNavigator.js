@@ -17,6 +17,7 @@ import CreateIncidentScreen from '../screens/CreateIncidentScreen';
 import CreateAssetScreen from '../screens/CreateAssetScreen';
 import CreateRiskScreen from '../screens/CreateRiskScreen';
 import CreateTaskScreen from '../screens/CreateTaskScreen';
+import CreateVisitorScreen from '../screens/CreateVisitorScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -46,6 +47,7 @@ function HomeStackNavigator() {
       <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="CreateIncident" component={CreateIncidentScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="CreateRisk" component={CreateRiskScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="CreateVisitor" component={CreateVisitorScreen} options={{ headerShown: false }} />
     </HomeStack.Navigator>
   );
 }

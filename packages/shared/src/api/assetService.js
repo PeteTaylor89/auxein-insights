@@ -288,8 +288,29 @@ const calibrationOperations = {
   getAssetCalibrationHistory: async (assetId, { calibration_type = null, limit = 50 } = {}) => {
     const params = { limit };
     if (calibration_type) params.calibration_type = calibration_type;
-    
+
     const res = await api.get(`/calibrations/asset/${assetId}`, { params });
+    return res.data;
+  },
+
+  // -------------------------------------------------------------------------
+  // SCHEDULE OPERATIONS — forward-looking calibration tickets
+  // -------------------------------------------------------------------------
+
+  /**
+   * List calibration schedules with filtering.
+   * @param {Object} params - Filter parameters (asset_id, status, pending_only, due_before, etc.)
+   */
+  listSchedules: async (params = {}) => {
+    const res = await api.get('/calibration-schedules', { params });
+    return res.data;
+  },
+
+  /**
+   * Get one calibration schedule by ID.
+   */
+  getSchedule: async (scheduleId) => {
+    const res = await api.get(`/calibration-schedules/${scheduleId}`);
     return res.data;
   },
 

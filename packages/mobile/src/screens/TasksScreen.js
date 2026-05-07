@@ -123,6 +123,27 @@ export default function TasksScreen({ navigation }) {
             )}
           </View>
 
+          {item.source === 'calibration' && (item.target_value != null || item.tolerance_min != null) && (
+            <View style={[styles.specStrip, { backgroundColor: src.accent + '12', borderColor: src.accent + '33' }]}>
+              <Feather name="target" size={11} color={src.accent} />
+              <Text style={styles.specText} numberOfLines={1}>
+                {item.target_value != null && (
+                  <>
+                    <Text style={styles.specLabel}>Target </Text>
+                    {item.target_value}{item.unit_of_measure ? ` ${item.unit_of_measure}` : ''}
+                  </>
+                )}
+                {item.target_value != null && item.tolerance_min != null && '  ·  '}
+                {item.tolerance_min != null && item.tolerance_max != null && (
+                  <>
+                    <Text style={styles.specLabel}>Tol </Text>
+                    {item.tolerance_min} – {item.tolerance_max}{item.unit_of_measure ? ` ${item.unit_of_measure}` : ''}
+                  </>
+                )}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.cardFooter}>
             <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '18' }]}>
               <View style={[styles.statusDot, { backgroundColor: statusColor(item.status) }]} />
@@ -277,6 +298,17 @@ const styles = StyleSheet.create({
   sourceBadgeText: { fontSize: 10, fontWeight: '600' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaText: { fontSize: fontSize.xs, color: colors.textMuted },
+
+  // Calibration spec strip — shows target + tolerance so the user knows what to look for
+  specStrip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+  },
+  specText: { fontSize: fontSize.sm, color: colors.text, flex: 1, fontVariant: ['tabular-nums'] },
+  specLabel: { color: colors.textMuted, fontSize: fontSize.xs, fontWeight: '600' },
 
   // Footer
   cardFooter: {

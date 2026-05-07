@@ -9,16 +9,68 @@ from decimal import Decimal
 import logging
 
 from db.session import get_db
-from db.models.asset import Asset, AssetCalibration
+from db.models.asset import Asset, AssetCalibration, AssetCalibrationSchedule
 from db.models.user import User
 from db.models.contractor import Contractor
+from db.models.notification import NotificationType
 from schemas.asset import (
     CalibrationCreate, CalibrationUpdate, CalibrationResponse, CalibrationDue
 )
+from services.notification_service import NotificationService
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# When a calibration fails (out_of_tolerance), schedule the recheck this many days out.
+# Hard-coded for v0.1; promote to Asset.calibration_failure_recheck_days if per-asset config needed.
+CALIBRATION_FAILURE_RECHECK_DAYS = 7
+
+
+def create_pending_schedule(
+    db: Session,
+    asset: Asset,
+    due_date: date,
+    *,
+    calibration_type: str = "general",
+    parameter_name: Optional[str] = None,
+    unit_of_measure: Optional[str] = None,
+    target_value: Optional[Decimal] = None,
+    tolerance_min: Optional[Decimal] = None,
+    tolerance_max: Optional[Decimal] = None,
+    created_by: Optional[int] = None,
+    notes: Optional[str] = None,
+) -> Optional[AssetCalibrationSchedule]:
+    """
+    Create a pending calibration schedule for an asset, but only if no pending schedule
+    already exists for the (asset, calibration_type) pair (partial unique index enforces this
+    at the DB level too — this check just avoids the integrity error).
+    """
+    existing = db.query(AssetCalibrationSchedule).filter(
+        AssetCalibrationSchedule.asset_id == asset.id,
+        AssetCalibrationSchedule.calibration_type == calibration_type,
+        AssetCalibrationSchedule.status == "pending",
+    ).first()
+    if existing:
+        return None
+
+    schedule = AssetCalibrationSchedule(
+        asset_id=asset.id,
+        company_id=asset.company_id,
+        calibration_type=calibration_type,
+        parameter_name=parameter_name,
+        unit_of_measure=unit_of_measure,
+        target_value=target_value,
+        tolerance_min=tolerance_min,
+        tolerance_max=tolerance_max,
+        due_date=due_date,
+        status="pending",
+        created_by=created_by,
+        notes=notes,
+    )
+    db.add(schedule)
+    db.flush()
+    return schedule
 
 @router.post("", response_model=CalibrationResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=CalibrationResponse, status_code=status.HTTP_201_CREATED)
@@ -57,8 +109,28 @@ def create_calibration_record(
         # Contractor can create calibration records
         created_by = None
     
+    # Validate schedule_id (if supplied) belongs to the same asset and is pending.
+    schedule_to_consume: Optional[AssetCalibrationSchedule] = None
+    if calibration_in.schedule_id is not None:
+        schedule_to_consume = db.query(AssetCalibrationSchedule).filter(
+            AssetCalibrationSchedule.id == calibration_in.schedule_id
+        ).first()
+        if not schedule_to_consume:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+        if schedule_to_consume.asset_id != asset.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Schedule does not belong to this asset",
+            )
+        if schedule_to_consume.status != "pending":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Schedule is already {schedule_to_consume.status}",
+            )
+
     # Create calibration record
     calibration_data = calibration_in.dict()
+    # schedule_id is on the create payload but stored on the event row too, so just keep it.
     calibration = AssetCalibration(
         **calibration_data,
         company_id=asset.company_id,
@@ -83,14 +155,85 @@ def create_calibration_record(
         calibration.status = "pass"  # Default to pass, can be updated
         calibration.within_tolerance = True
     
-    # Calculate next due date
-    if asset.calibration_interval_days:
+    # Calculate next due date.
+    # pass → schedule next at asset's normal interval
+    # out_of_tolerance → schedule a recheck in CALIBRATION_FAILURE_RECHECK_DAYS days
+    #   regardless of asset interval (the asset is suspect, recheck soon)
+    if calibration.status == "out_of_tolerance":
+        calibration.next_due_date = calibration.calibration_date + timedelta(days=CALIBRATION_FAILURE_RECHECK_DAYS)
+    elif asset.calibration_interval_days:
         calibration.next_due_date = calibration.calibration_date + timedelta(days=asset.calibration_interval_days)
-    
+
     db.add(calibration)
+    db.flush()  # so calibration.id is available for the schedule link below
+
+    # If this event resolved a scheduled ticket, mark it completed and link.
+    # Then auto-create the next pending schedule for this (asset, calibration_type).
+    if schedule_to_consume:
+        schedule_to_consume.status = "completed"
+        schedule_to_consume.completed_at = func.now()
+        schedule_to_consume.completed_calibration_id = calibration.id
+        # Flush before create_pending_schedule queries — otherwise its existing-pending
+        # check can still see this row as 'pending' (autoflush is unreliable across sessions),
+        # which would make it return None silently and skip spawning the next cycle.
+        db.flush()
+
+    if calibration.next_due_date and asset.requires_calibration:
+        # The new event already computed next_due_date above (pass → asset interval, fail → 7d).
+        # Mirror that to a fresh pending schedule so the feed surfaces it. Prefer the Asset's
+        # persistent spec — falls back to the just-completed event's spec if the asset's
+        # fields are NULL (e.g. legacy asset that hasn't had spec captured yet).
+        create_pending_schedule(
+            db,
+            asset,
+            due_date=calibration.next_due_date,
+            calibration_type=asset.calibration_type or calibration.calibration_type,
+            parameter_name=asset.calibration_parameter_name or calibration.parameter_name,
+            unit_of_measure=asset.calibration_unit_of_measure or calibration.unit_of_measure,
+            target_value=asset.calibration_target_value if asset.calibration_target_value is not None else calibration.target_value,
+            tolerance_min=asset.calibration_tolerance_min if asset.calibration_tolerance_min is not None else calibration.tolerance_min,
+            tolerance_max=asset.calibration_tolerance_max if asset.calibration_tolerance_max is not None else calibration.tolerance_max,
+            created_by=created_by,
+        )
+
     db.commit()
     db.refresh(calibration)
-    
+
+    # Dispatch fail notifications: managers get a heads-up; the user who performed the
+    # calibration gets a persistent record (in addition to whatever in-app toast the client shows).
+    if calibration.status == "out_of_tolerance":
+        unit = calibration.unit_of_measure or ""
+        title = f"Calibration failed: {asset.name}"
+        body = (
+            f"Reading {calibration.measured_value} {unit} outside tolerance. "
+            f"Recheck scheduled {calibration.next_due_date.isoformat()}."
+        )
+        data = {
+            "calibration_id": calibration.id,
+            "asset_id": asset.id,
+            "next_due_date": calibration.next_due_date.isoformat(),
+        }
+        notif_service = NotificationService(db)
+        notif_service.notify_managers(
+            company_id=calibration.company_id,
+            notification_type=NotificationType.action,
+            title=title,
+            body=body,
+            data=data,
+        )
+        if isinstance(current_user_or_contractor, User):
+            notif_service.notify_user(
+                user=current_user_or_contractor,
+                notification_type=NotificationType.action,
+                title=title,
+                body=body,
+                data=data,
+            )
+        logger.info(
+            f"Calibration {calibration.id} failed (out_of_tolerance) — notified managers, "
+            f"recheck scheduled {calibration.next_due_date}"
+        )
+
     logger.info(f"Calibration record {calibration.id} created for asset {asset.id}")
     return calibration
 
@@ -141,9 +284,13 @@ def list_calibration_records(
     
     # Order by calibration date (most recent first)
     query = query.order_by(desc(AssetCalibration.calibration_date))
-    
+
     # Apply pagination
     calibration_records = query.offset(skip).limit(limit).all()
+    # Surface the asset's display name as a flat field so the web table doesn't have
+    # to dive into the relationship object (which Pydantic doesn't serialize by default).
+    for c in calibration_records:
+        c.asset_name = c.asset.name if c.asset else None
     logger.info(f"Retrieved {len(calibration_records)} calibration records")
     return calibration_records
 
@@ -273,11 +420,13 @@ def update_calibration_record(
                 detail="Not enough permissions"
             )
     
-    # Update calibration record
+    # Update calibration record. PUT is for genuine corrections to an existing record
+    # (typo in measured_value, etc). Field calibration completions must POST a new record
+    # so each event is preserved in history; see create_calibration_record.
     update_data = calibration_update.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(calibration, key, value)
-    
+
     # Recalculate status if measured value changed
     if "measured_value" in update_data:
         if calibration.tolerance_min is not None and calibration.tolerance_max is not None:
@@ -291,10 +440,10 @@ def update_calibration_record(
             within_tolerance = abs(float(calibration.measured_value) - float(calibration.target_value)) <= tolerance
             calibration.within_tolerance = within_tolerance
             calibration.status = "pass" if within_tolerance else "out_of_tolerance"
-    
+
     db.commit()
     db.refresh(calibration)
-    
+
     logger.info(f"Calibration record {calibration_id} updated")
     return calibration
 

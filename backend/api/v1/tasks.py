@@ -19,7 +19,7 @@ from db.models.company import Company
 from db.models.block import VineyardBlock
 from db.models.spatial_area import SpatialArea
 from db.models.vineyard_row import VineyardRow
-from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration
+from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration, AssetCalibrationSchedule
 from db.models.risk_action import RiskAction
 from services.gps_processing import process_gps_track
 from services.property_service import get_visible_property_ids, verify_block_access
@@ -531,38 +531,40 @@ def _build_unified_feed(db, current_user, days_ahead, include_completed):
         })
 
     # --- 3. Calibrations due/overdue ---
-    cal_query = db.query(AssetCalibration).options(
-        joinedload(AssetCalibration.asset)
-    ).filter(
-        AssetCalibration.company_id == company_id,
-    )
-    cal_query = cal_query.filter(
-        or_(
-            and_(AssetCalibration.due_date != None, AssetCalibration.due_date <= future_date),
-            and_(AssetCalibration.next_due_date != None, AssetCalibration.next_due_date <= future_date),
+    # Feed pulls from forward-looking schedule tickets (status='pending'). Event rows
+    # in asset_calibrations are history-only and not surfaced here.
+    sched_query = (
+        db.query(AssetCalibrationSchedule)
+        .options(joinedload(AssetCalibrationSchedule.asset))
+        .filter(
+            AssetCalibrationSchedule.company_id == company_id,
+            AssetCalibrationSchedule.status == "pending",
+            AssetCalibrationSchedule.due_date <= future_date,
         )
     )
-    for c in cal_query.all():
-        due = c.next_due_date or c.due_date
-        if not due:
-            continue
-        is_overdue = due < today
-        if not is_overdue and c.status == "pass":
-            continue
+    for s in sched_query.all():
+        is_overdue = s.due_date < today
         feed.append({
-            "id": c.id,
+            "id": s.id,
             "source": "calibration",
-            "title": f"Calibrate: {c.parameter_name}",
-            "description": c.adjustment_details,
+            "title": f"Calibrate: {s.parameter_name}" if s.parameter_name else f"Calibrate: {s.asset.name if s.asset else 'asset'}",
+            "description": s.notes,
             "status": "overdue" if is_overdue else "due",
             "priority": "high" if is_overdue else "medium",
-            "scheduled_date": str(due) if due else None,
-            "category": c.calibration_type or "",
-            "asset_name": c.asset.name if c.asset else None,
+            "scheduled_date": str(s.due_date),
+            "category": s.calibration_type or "",
+            "asset_name": s.asset.name if s.asset else None,
             "block_name": None,
             "progress_percentage": 0,
             "is_overdue": is_overdue,
             "task_number": None,
+            # Spec snapshot for at-a-glance display on the mobile feed card.
+            # Decimals → floats so the payload serialises without help.
+            "parameter_name": s.parameter_name,
+            "unit_of_measure": s.unit_of_measure,
+            "target_value": float(s.target_value) if s.target_value is not None else None,
+            "tolerance_min": float(s.tolerance_min) if s.tolerance_min is not None else None,
+            "tolerance_max": float(s.tolerance_max) if s.tolerance_max is not None else None,
         })
 
     # --- 4. Risk actions assigned to user ---

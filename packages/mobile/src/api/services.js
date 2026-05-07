@@ -274,8 +274,44 @@ export const calibrationService = {
     const res = await api.get(`/calibrations/${id}`);
     return res.data;
   },
+  // Create a new calibration event. Pass `schedule_id` when this completes a
+  // pending schedule — the backend will mark the schedule completed and auto-spawn
+  // the next pending one (asset interval on pass, 7-day recheck on fail).
+  create: async (data) => {
+    const res = await api.post('/calibrations', data);
+    return res.data;
+  },
+  // PUT only for editing/correcting a previously-saved event. Do not use to "complete" a calibration.
   update: async (id, data) => {
     const res = await api.put(`/calibrations/${id}`, data);
+    return res.data;
+  },
+};
+
+// --- Calibration Schedules (prefix: /calibration-schedules) ---
+// Read-only from the mobile client. Schedules are created server-side as side-effects
+// of asset registration and calibration events.
+export const calibrationScheduleService = {
+  get: async (id) => {
+    const res = await api.get(`/calibration-schedules/${id}`);
+    return res.data;
+  },
+  list: async (params = {}) => {
+    const res = await api.get('/calibration-schedules', { params });
+    return res.data;
+  },
+};
+
+// --- Visitors (prefix: /visitors) ---
+export const visitorService = {
+  // Register a visitor + visit + sign in, in one call. Mirrors the web visitor portal flow.
+  // Backend endpoint accepts a free-form dict + company_id query param.
+  registerPortal: async (formData, companyId) => {
+    const res = await api.post('/visitors/register', formData, { params: { company_id: companyId } });
+    return res.data;
+  },
+  listActive: async () => {
+    const res = await api.get('/visitors/visits/active');
     return res.data;
   },
 };

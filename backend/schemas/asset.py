@@ -99,6 +99,15 @@ class AssetBase(BaseModel):
     location_label: Optional[str] = None
     requires_calibration: bool = False
     calibration_interval_days: Optional[int] = None
+    # Persistent calibration spec — populated when requires_calibration is true so each
+    # scheduled calibration ticket carries the right tolerances without the user having
+    # to re-enter them per cycle.
+    calibration_type: Optional[str] = None
+    calibration_parameter_name: Optional[str] = None
+    calibration_unit_of_measure: Optional[str] = None
+    calibration_target_value: Optional[Decimal] = None
+    calibration_tolerance_min: Optional[Decimal] = None
+    calibration_tolerance_max: Optional[Decimal] = None
     requires_maintenance: bool = False
     maintenance_interval_hours: Optional[int] = None
     maintenance_interval_days: Optional[int] = None
@@ -139,6 +148,12 @@ class AssetUpdate(BaseModel):
     current_value: Optional[Decimal] = None
     requires_calibration: Optional[bool] = None
     calibration_interval_days: Optional[int] = None
+    calibration_type: Optional[str] = None
+    calibration_parameter_name: Optional[str] = None
+    calibration_unit_of_measure: Optional[str] = None
+    calibration_target_value: Optional[Decimal] = None
+    calibration_tolerance_min: Optional[Decimal] = None
+    calibration_tolerance_max: Optional[Decimal] = None
     active_ingredient: Optional[str] = None
     concentration: Optional[str] = None
     application_rate_min: Optional[Decimal] = None
@@ -377,7 +392,11 @@ class CalibrationBase(BaseModel):
 class CalibrationCreate(CalibrationBase):
     asset_id: int
     calibration_date: Optional[date] = None
-    
+    # When set, this calibration event resolves the given pending schedule. The endpoint
+    # will mark that schedule as completed and auto-create a new pending schedule for the
+    # next cycle (asset interval on pass, 7-day recheck on fail).
+    schedule_id: Optional[int] = None
+
     @validator("calibration_date", pre=True, always=True)
     def set_calibration_date(cls, v):
         return v or date.today()
@@ -416,9 +435,34 @@ class CalibrationResponse(CalibrationBase):
     notes: Optional[str] = None
     created_at: datetime
     created_by: Optional[int] = None
-    
+    asset_name: Optional[str] = None
+
     class Config:
         from_attributes = True
+
+# Calibration Schedule Schemas (forward-looking tickets)
+class CalibrationScheduleResponse(BaseModel):
+    id: int
+    asset_id: int
+    company_id: int
+    calibration_type: str
+    parameter_name: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    target_value: Optional[Decimal] = None
+    tolerance_min: Optional[Decimal] = None
+    tolerance_max: Optional[Decimal] = None
+    due_date: date
+    status: str
+    completed_calibration_id: Optional[int] = None
+    completed_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    created_by: Optional[int] = None
+    asset_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 
 # Stock Movement Schemas
 class StockMovementBase(BaseModel):

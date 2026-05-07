@@ -111,6 +111,16 @@
   border-bottom-color: var(--color-primary);
 }
 
+/* Tab variant that navigates to its own page rather than switching inline content. */
+.ad-tab--link {
+  border-left: 1px dashed var(--color-border);
+  font-style: italic;
+  opacity: 0.85;
+}
+.ad-tab--link:hover {
+  opacity: 1;
+}
+
 /* Section header within tab */
 .ad-section-header {
   display: flex;

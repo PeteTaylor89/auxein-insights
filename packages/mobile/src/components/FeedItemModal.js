@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
-import { maintenanceService, calibrationService, riskActionService } from '../api/services';
+import { maintenanceService, calibrationService, calibrationScheduleService, riskActionService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
 import PhotoStrip from './PhotoStrip';
 import { useToast } from './Toast';
@@ -73,7 +73,10 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
     try {
       let data;
       if (item.source === 'maintenance') data = await maintenanceService.get(item.id);
-      else if (item.source === 'calibration') data = await calibrationService.get(item.id);
+      // Calibration feed items are now schedule tickets, not event rows. Load the
+      // schedule so we have the spec (parameter, units, target, tolerances) to render
+      // the form and post against on completion.
+      else if (item.source === 'calibration') data = await calibrationScheduleService.get(item.id);
       else if (item.source === 'risk_action') data = await riskActionService.get(item.id);
       setDetail(data);
     } catch (err) {
@@ -86,12 +89,11 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
   const handleComplete = async () => {
     setSubmitting(true);
     try {
-      // Upload photos first
-      if (imageCapture.images.length > 0) {
-        await imageCapture.uploadAll(item.id);
-      }
+      let calibrationResult = null;
 
       if (item.source === 'maintenance') {
+        // Photos tag against item.id — maintenance still uses the legacy update-in-place pattern.
+        if (imageCapture.images.length > 0) await imageCapture.uploadAll(item.id);
         await maintenanceService.complete(item.id, {
           notes: notes || undefined,
           condition_before: conditionBefore || undefined,
@@ -101,16 +103,35 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
           asset_kilometers_at_maintenance: assetKms ? parseFloat(assetKms) : undefined,
         });
       } else if (item.source === 'calibration') {
-        await calibrationService.update(item.id, {
+        // POST a new calibration EVENT row, passing the schedule_id so the backend can
+        // mark this schedule completed and auto-spawn the next pending one. Spec fields
+        // (parameter, units, target, tolerances) come from the loaded schedule.
+        if (!detail) throw new Error('Calibration schedule not loaded');
+        calibrationResult = await calibrationService.create({
+          schedule_id: detail.id,
+          asset_id: detail.asset_id,
+          calibration_type: detail.calibration_type,
           calibration_date: new Date().toISOString().split('T')[0],
+          parameter_name: detail.parameter_name,
+          unit_of_measure: detail.unit_of_measure,
+          target_value: detail.target_value,
           measured_value: measuredValue ? parseFloat(measuredValue) : undefined,
-          status: 'pass',
-          within_tolerance: true,
+          tolerance_min: detail.tolerance_min,
+          tolerance_max: detail.tolerance_max,
+          // calibrated_by isn't on the schedule — backend will use the authenticated user.
+          // Falling back to a sensible default keeps the schema validator happy.
+          calibrated_by: 'mobile',
           adjustment_made: adjustmentMade,
           adjustment_details: adjustmentDetails || undefined,
           notes: notes || undefined,
         });
+        // Photos must tag against the new event row's id, not the schedule_id —
+        // otherwise they'd be lost when the asset's calibration history is queried.
+        if (imageCapture.images.length > 0 && calibrationResult?.id) {
+          await imageCapture.uploadAll(calibrationResult.id);
+        }
       } else if (item.source === 'risk_action') {
+        if (imageCapture.images.length > 0) await imageCapture.uploadAll(item.id);
         await riskActionService.complete(item.id, {
           completion_notes: notes || undefined,
           actual_cost: actualCost ? parseFloat(actualCost) : undefined,
@@ -118,7 +139,14 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
         });
       }
 
-      toast.show(`${SOURCE_CONFIG[item.source]?.label} completed`, 'success');
+      if (item.source === 'calibration' && calibrationResult?.status === 'out_of_tolerance') {
+        const recheck = calibrationResult.next_due_date
+          ? ` Recheck scheduled ${calibrationResult.next_due_date}.`
+          : '';
+        toast.show(`Calibration failed — outside tolerance.${recheck}`, 'error');
+      } else {
+        toast.show(`${SOURCE_CONFIG[item.source]?.label} completed`, 'success');
+      }
       onComplete?.();
       onClose();
     } catch (err) {

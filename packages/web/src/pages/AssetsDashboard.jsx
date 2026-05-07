@@ -14,7 +14,8 @@ import {
   Droplet,
   Truck,
   Settings,
-  TrendingUp
+  TrendingUp,
+  Sliders,
 } from 'lucide-react';
 import { assetService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
@@ -52,6 +53,13 @@ export default function AssetsDashboard() {
             </button>
             <button className={`ad-tab ${tab === 'maintenance' ? 'active' : ''}`} onClick={() => setTab('maintenance')}>
               <Calendar size={16} /> Maintenance
+            </button>
+            <button
+              className="ad-tab ad-tab--link"
+              onClick={() => navigate('/calibrations')}
+              title="Open the calibrations table"
+            >
+              <Sliders size={16} /> Calibrations <ArrowRight size={12} style={{ marginLeft: 2, opacity: 0.6 }} />
             </button>
           </div>
 

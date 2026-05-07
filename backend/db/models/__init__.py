@@ -31,7 +31,7 @@ from .contractor_relationship import ContractorRelationship
 from .contractor_movement import ContractorMovement
 from .contractor_assignment import ContractorAssignment
 from .contractor_training import ContractorTraining
-from db.models.asset import Asset, AssetMaintenance, AssetCalibration, StockMovement, TaskAsset
+from db.models.asset import Asset, AssetMaintenance, AssetCalibration, AssetCalibrationSchedule, StockMovement, TaskAsset
 from db.models.file import File
 from db.models.reference_item import ReferenceItem
 from db.models.observation_link import ObservationTaskLink

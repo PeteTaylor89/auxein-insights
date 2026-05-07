@@ -107,6 +107,28 @@ def create_asset(
 
     logger.info(f"Asset {asset.id} created successfully by user {current_user.id}")
 
+    # If the asset requires calibration, auto-create an initial pending schedule due today.
+    # The user will see it as "due now" in the unified feed and can perform the baseline
+    # calibration; that POST consumes this schedule and rolls forward by asset interval.
+    # Spec fields (parameter, units, target, tolerances) are inherited from the Asset.
+    if asset.requires_calibration:
+        try:
+            from api.v1.calibrations import create_pending_schedule
+            create_pending_schedule(
+                db, asset, due_date=date.today(),
+                calibration_type=asset.calibration_type or "general",
+                parameter_name=asset.calibration_parameter_name,
+                unit_of_measure=asset.calibration_unit_of_measure,
+                target_value=asset.calibration_target_value,
+                tolerance_min=asset.calibration_tolerance_min,
+                tolerance_max=asset.calibration_tolerance_max,
+                created_by=current_user.id,
+                notes="Initial calibration on asset registration",
+            )
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Initial calibration schedule creation failed for asset {asset.id}: {e}")
+
     # Notify admins and managers when a new asset is registered
     try:
         from services.notification_service import NotificationService
@@ -640,11 +662,76 @@ def update_asset(
         asset.location_point = f"SRID=4326;POINT({lng} {lat})"
         asset.location_geometry = None  # clear any previous line/polygon
 
+    # Snapshot pre-update value so we can detect a transition into requires_calibration=true
+    was_requiring_calibration = bool(asset.requires_calibration)
+
     for key, value in update_data.items():
         setattr(asset, key, value)
 
     db.commit()
     db.refresh(asset)
+
+    # Calibration schedule sync — applies whenever requires_calibration is true after the update.
+    # The asset's spec is the source of truth for forward schedules. Past/completed event rows
+    # are immutable — they keep their snapshot.
+    #
+    # Strategy: the partial unique index allows at most one pending row per (asset, type), but
+    # legacy state can leave multiple pending rows for the same asset across different types
+    # (backfill picked one type, then the asset's actual type was set later). Mass-updating all
+    # of them to the new asset.calibration_type would collide with that index. So:
+    #   - 0 pending rows → create one fresh
+    #   - 1 pending row  → sync its spec (incl. calibration_type) to the asset
+    #   - >1 pending rows → keep the earliest-due one, delete the rest, then sync the keeper.
+    #     We preserve the keeper's due_date so the user's existing schedule date isn't lost.
+    if asset.requires_calibration:
+        try:
+            from db.models.asset import AssetCalibrationSchedule
+            from api.v1.calibrations import create_pending_schedule
+            from sqlalchemy import asc
+
+            pending = db.query(AssetCalibrationSchedule).filter(
+                AssetCalibrationSchedule.asset_id == asset.id,
+                AssetCalibrationSchedule.status == 'pending',
+            ).order_by(asc(AssetCalibrationSchedule.due_date)).all()
+
+            new_type = asset.calibration_type or "general"
+
+            if not pending:
+                create_pending_schedule(
+                    db, asset, due_date=date.today(),
+                    calibration_type=new_type,
+                    parameter_name=asset.calibration_parameter_name,
+                    unit_of_measure=asset.calibration_unit_of_measure,
+                    target_value=asset.calibration_target_value,
+                    tolerance_min=asset.calibration_tolerance_min,
+                    tolerance_max=asset.calibration_tolerance_max,
+                    created_by=current_user.id,
+                    notes=(
+                        "Initial calibration after asset registration update"
+                        if not was_requiring_calibration
+                        else "Schedule created after asset spec update"
+                    ),
+                )
+            else:
+                keeper = pending[0]
+                extras = pending[1:]
+                for extra in extras:
+                    db.delete(extra)
+                # Flush deletes before mutating the keeper, so the unique index sees the
+                # extras gone before the keeper's type changes.
+                if extras:
+                    db.flush()
+                keeper.calibration_type = new_type
+                keeper.parameter_name = asset.calibration_parameter_name
+                keeper.unit_of_measure = asset.calibration_unit_of_measure
+                keeper.target_value = asset.calibration_target_value
+                keeper.tolerance_min = asset.calibration_tolerance_min
+                keeper.tolerance_max = asset.calibration_tolerance_max
+
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Calibration schedule sync on asset update failed for {asset.id}: {e}")
+            db.rollback()
 
     logger.info(f"Asset {asset_id} updated by user {current_user.id}")
     return asset
