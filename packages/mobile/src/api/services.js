@@ -314,6 +314,15 @@ export const visitorService = {
     const res = await api.get('/visitors/visits/active');
     return res.data;
   },
+  // Backend takes `notes` as a query param, not a body.
+  signOut: async (visitId, notes) => {
+    const res = await api.post(
+      `/visitors/visits/${visitId}/sign-out`,
+      null,
+      { params: notes ? { notes } : {} },
+    );
+    return res.data;
+  },
 };
 
 // --- Risk Actions (prefix: /risk-management) ---

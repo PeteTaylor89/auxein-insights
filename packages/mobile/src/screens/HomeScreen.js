@@ -9,7 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { tasksService, propertyService, observationService, notificationService } from '../api/services';
+import { tasksService, propertyService, observationService, notificationService, visitorService } from '../api/services';
 import { SOURCE_ICONS, SkeletonCard } from '../components';
 
 const LOGO_MARK = require('../../assets/brand/logo-mark.png');
@@ -24,15 +24,17 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeVisitorCount, setActiveVisitorCount] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, runsRes, propsRes, unreadRes] = await Promise.all([
+      const [tasksRes, runsRes, propsRes, unreadRes, visitorsRes] = await Promise.all([
         tasksService.getUnifiedFeed({ days_ahead: 7 }).catch(() => []),
         observationService.listRuns({ active_only: true }).catch(() => []),
         propertyService.listProperties().catch(() => []),
         notificationService.getUnreadCount().catch(() => null),
+        visitorService.listActive().catch(() => []),
       ]);
       setUpcomingTasks(Array.isArray(tasksRes) ? tasksRes.slice(0, 6) : []);
       setActiveRuns(Array.isArray(runsRes) ? runsRes : []);
@@ -42,6 +44,7 @@ export default function HomeScreen({ navigation }) {
         setSelectedPropertyId(props[0].id);
       }
       setUnreadCount(unreadRes?.count ?? 0);
+      setActiveVisitorCount(Array.isArray(visitorsRes) ? visitorsRes.length : 0);
     } catch (err) {
       console.log('Home load failed:', err.message);
     } finally {
@@ -112,7 +115,7 @@ export default function HomeScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      {/* Property switcher — context bar below header */}
+      {/* Property switcher + onsite chip — context bar below header */}
       {properties.length > 0 && (
         <View style={styles.contextBar}>
           <TouchableOpacity
@@ -127,6 +130,17 @@ export default function HomeScreen({ navigation }) {
             {properties.length > 1 && (
               <Feather name="chevron-down" size={16} color={colors.textMuted} />
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.onsiteChip}
+            onPress={() => navigation.navigate('Visitors')}
+            activeOpacity={0.7}
+          >
+            <Feather name="users" size={14} color={colors.primary} />
+            <Text style={styles.onsiteText}>
+              {activeVisitorCount > 0 ? `${activeVisitorCount} on site` : 'On site'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -425,6 +439,7 @@ const styles = StyleSheet.create({
 
   // Context bar (below header, on body bg)
   contextBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
@@ -432,14 +447,21 @@ const styles = StyleSheet.create({
   },
   propertyPill: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    alignSelf: 'flex-start',
+    flexShrink: 1,
     backgroundColor: colors.borderLight,
     paddingHorizontal: spacing.base, paddingVertical: 10,
     borderRadius: radius.pill,
     borderWidth: 1, borderColor: colors.border,
-    maxWidth: '90%',
   },
-  propertyName: { color: colors.text, fontSize: fontSize.base, fontWeight: '600' },
+  propertyName: { color: colors.text, fontSize: fontSize.base, fontWeight: '600', flexShrink: 1 },
+  onsiteChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.primary + '14',
+    paddingHorizontal: spacing.md, paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.primary + '30',
+  },
+  onsiteText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '600' },
 
   // Scroll
   scroll: { flex: 1 },

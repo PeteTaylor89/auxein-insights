@@ -46,3 +46,9 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Mobile store credentials (NEVER commit)
+packages/mobile/google-play-service-account.json
+packages/mobile/*.keystore
+packages/mobile/*.p8
+packages/mobile/AuthKey_*.p8
