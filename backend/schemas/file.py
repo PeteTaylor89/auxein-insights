@@ -54,7 +54,11 @@ class FileResponse(FileBase):
     id: str
     company_id: int
     stored_filename: str
-    file_path: str
+    # file_path is set for legacy local-disk rows; s3_key is set for new S3 rows.
+    # Exactly one is populated. Neither is exposed as a real URL — clients use
+    # the computed download_url field below, which routes through the backend.
+    file_path: Optional[str] = None
+    s3_key: Optional[str] = None
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
     upload_status: UploadStatus

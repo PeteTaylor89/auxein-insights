@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional, Union
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FastAPIFile, Form
-from fastapi.responses import FileResponse as FastAPIFileResponse
+from fastapi.responses import FileResponse as FastAPIFileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pathlib import Path
 
@@ -16,10 +16,11 @@ from db.models.user import User
 from db.models.contractor import Contractor
 from db.models.company import Company
 from schemas.file import (
-    FileCreate, FileUpdate, FileResponse, FileUploadResponse, 
+    FileCreate, FileUpdate, FileResponse, FileUploadResponse,
     FileSummary, FileEntityType, FileCategory
 )
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
+from services import file_storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -130,6 +131,10 @@ async def upload_file(
     # Verify entity exists and user has access (basic check)
     # You might want to add specific entity validation here
     
+    # Track what we've persisted so we can clean up on DB failure.
+    s3_key: Optional[str] = None
+    file_path: Optional[Path] = None
+
     try:
         # Generate file ID and stored filename
         file_id = str(uuid.uuid4())
@@ -138,14 +143,23 @@ async def upload_file(
             entity_id=entity_id,
             original_filename=file.filename
         )
-        
-        # Create upload directory
-        upload_dir = create_upload_directory(company_id, entity_type.value)
-        file_path = upload_dir / stored_filename
-        
-        # Save file to disk
-        save_uploaded_file(file, file_path)
-        
+
+        if file_storage.is_enabled():
+            # Production path — stream straight into S3. The bucket is private;
+            # downloads later flow through download_file which streams back.
+            s3_key = file_storage.make_s3_key(
+                company_id=company_id,
+                entity_type=entity_type.value,
+                stored_filename=stored_filename,
+            )
+            file_storage.upload_fileobj(file.file, s3_key, content_type=file.content_type)
+        else:
+            # Local-dev fallback — keep writing to UPLOAD_DIR. Same legacy path,
+            # so dev parity stays intact and `download_file` reads it via file_path.
+            upload_dir = create_upload_directory(company_id, entity_type.value)
+            file_path = upload_dir / stored_filename
+            save_uploaded_file(file, file_path)
+
         # Create file record in database
         db_file = File(
             id=file_id,
@@ -154,7 +168,8 @@ async def upload_file(
             entity_id=entity_id,
             original_filename=file.filename,
             stored_filename=stored_filename,
-            file_path=str(file_path),
+            file_path=str(file_path) if file_path else None,
+            s3_key=s3_key,
             file_size=file.size,
             mime_type=file.content_type,
             file_category=file_category.value,
@@ -162,29 +177,35 @@ async def upload_file(
             uploaded_by=uploaded_by,
             upload_status="uploaded"
         )
-        
+
         db.add(db_file)
         db.commit()
         db.refresh(db_file)
-        
-        logger.info(f"File uploaded successfully: {file_id}")
-        
+
+        logger.info(f"File uploaded successfully: {file_id} (storage={'s3' if s3_key else 'local'})")
+
         return FileUploadResponse(
             file_id=file_id,
             message="File uploaded successfully",
             file_url=f"/api/v1/files/{file_id}",
             download_url=f"/api/v1/files/{file_id}/download"
         )
-        
+
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
-        # Clean up file if database operation failed
-        if 'file_path' in locals() and file_path.exists():
+        # Best-effort cleanup so the bucket / disk doesn't accumulate orphans
+        # when the DB write fails after the bytes have landed.
+        if s3_key:
+            try:
+                file_storage.delete_object(s3_key)
+            except Exception:
+                logger.exception("Failed to clean up orphan S3 object %s", s3_key)
+        if file_path and file_path.exists():
             try:
                 file_path.unlink()
-            except:
+            except Exception:
                 pass
-        
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="File upload failed"
@@ -294,7 +315,33 @@ def download_file(
             )
 
 
-    # Check if file exists on disk
+    # Prefer S3 (new uploads). Fall back to local disk for any legacy rows
+    # written before the S3 cutover that still carry only file_path.
+    if file.s3_key:
+        head = file_storage.head_object(file.s3_key)
+        if head is None:
+            logger.error(f"File not found in S3: key={file.s3_key} file_id={file.id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found"
+            )
+        # Use the original filename for the Content-Disposition so browsers
+        # save the file with the user-friendly name they uploaded.
+        return StreamingResponse(
+            file_storage.stream_object(file.s3_key),
+            media_type=file.mime_type or head.get("ContentType") or "application/octet-stream",
+            headers={
+                "Content-Disposition": f'inline; filename="{file.original_filename}"',
+                "Content-Length": str(head.get("ContentLength", "")),
+            },
+        )
+
+    if not file.file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File has no storage location"
+        )
+
     file_path = Path(file.file_path)
     if not file_path.exists():
         logger.error(f"File not found on disk: {file.file_path}")
@@ -302,7 +349,7 @@ def download_file(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found on disk"
         )
-    
+
     return FastAPIFileResponse(
         path=file_path,
         filename=file.original_filename,
@@ -369,15 +416,23 @@ def delete_file(
         )
     
     if permanent:
-        # Hard delete - remove from disk and database
-        file_path = Path(file.file_path)
-        if file_path.exists():
+        # Hard delete - remove from storage (S3 OR disk) and database.
+        if file.s3_key:
             try:
-                file_path.unlink()
-                logger.info(f"File deleted from disk: {file.file_path}")
+                file_storage.delete_object(file.s3_key)
+                logger.info(f"File deleted from S3: {file.s3_key}")
             except Exception as e:
-                logger.error(f"Failed to delete file from disk: {str(e)}")
-        
+                # Don't block the DB delete — S3 cleanup can be reconciled later.
+                logger.error(f"Failed to delete file from S3: {str(e)}")
+        if file.file_path:
+            file_path = Path(file.file_path)
+            if file_path.exists():
+                try:
+                    file_path.unlink()
+                    logger.info(f"File deleted from disk: {file.file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete file from disk: {str(e)}")
+
         db.delete(file)
         logger.info(f"File {file_id} permanently deleted by user {current_user.id}")
     else:

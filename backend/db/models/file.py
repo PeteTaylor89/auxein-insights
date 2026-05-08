@@ -19,7 +19,14 @@ class File(Base):
     # File details
     original_filename = Column(String(255), nullable=False)
     stored_filename = Column(String(255), nullable=False)  # Generated filename
-    file_path = Column(String(500), nullable=False)  # Full path including directory structure
+
+    # Storage location — exactly one of these is set per row.
+    #   s3_key:    new files (post-S3 migration). Object lives in UPLOADS_S3_BUCKET.
+    #   file_path: legacy files written to the EB local disk before the migration.
+    # Reads prefer s3_key when both are present.
+    file_path = Column(String(500), nullable=True)
+    s3_key = Column(String(500), nullable=True, index=True)
+
     file_size = Column(Integer)  # Size in bytes
     mime_type = Column(String(100))
     

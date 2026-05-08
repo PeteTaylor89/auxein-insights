@@ -153,6 +153,13 @@ class Settings(BaseSettings):
     ARTICLE_IMAGES_S3_BUCKET: Optional[str] = os.getenv("ARTICLE_IMAGES_S3_BUCKET")
     ARTICLE_IMAGES_CDN_URL: Optional[str] = os.getenv("ARTICLE_IMAGES_CDN_URL")
 
+    # S3 user uploads (private bucket, IAM-only access via EB instance role).
+    # When UPLOADS_S3_BUCKET is unset (e.g. local dev), files.py falls back to
+    # local UPLOAD_DIR storage. In prod the EB env has these wired.
+    UPLOADS_S3_BUCKET: Optional[str] = os.getenv("UPLOADS_S3_BUCKET")
+    UPLOADS_S3_REGION: str = os.getenv("UPLOADS_S3_REGION", os.getenv("AWS_REGION", "ap-southeast-2"))
+    UPLOADS_PRESIGNED_URL_TTL_SECONDS: int = int(os.getenv("UPLOADS_PRESIGNED_URL_TTL_SECONDS", "900"))
+
     # VITE API
     VITE_API_URL: Optional[str] = Field(None, description="Frontend API URL")
 

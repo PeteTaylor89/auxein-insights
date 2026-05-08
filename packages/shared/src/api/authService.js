@@ -8,16 +8,30 @@ const getClientType = () => {
   } catch { return 'web'; }
 };
 
+// Defends against a 200-with-HTML response (e.g. CloudFront SPA rewrite catching
+// a misrouted /api/* call) being mistaken for a real auth payload. Without this,
+// any non-JSON 200 would land in storeAuthData with undefined fields and the app
+// would happily setIsAuthenticated(true).
+const isValidAuthResponse = (r) =>
+  r && typeof r === 'object' &&
+  typeof r.access_token === 'string' && r.access_token.length > 0 &&
+  typeof r.user_type === 'string';
+
+const isValidUserProfile = (u) =>
+  u && typeof u === 'object' &&
+  (typeof u.id === 'number' || typeof u.id === 'string') &&
+  typeof u.email === 'string';
+
 const authService = {
   login: async (email, password) => {
     const clientType = getClientType();
-    
+
     // OAuth2 format with enhanced headers
-    const response = await api.post('/auth/login', 
+    const response = await api.post('/auth/login',
       new URLSearchParams({
         'username': email,
         'password': password
-      }), 
+      }),
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -25,21 +39,30 @@ const authService = {
         }
       }
     );
+    if (!isValidAuthResponse(response.data)) {
+      throw new Error('Login failed: server returned an unexpected response. Check the API URL is correct.');
+    }
     return response.data; // Now includes user_type, user_id, full_name, etc.
   },
-  
+
   register: async (userData) => {
     const response = await api.post('/auth/register', userData);
     return response.data;
   },
-  
+
   refreshToken: async (refreshToken) => {
     const response = await api.post('/auth/refresh-token', { refresh_token: refreshToken });
+    if (!isValidAuthResponse(response.data)) {
+      throw new Error('Token refresh failed: server returned an unexpected response.');
+    }
     return response.data;
   },
-  
+
   getProfile: async () => {
     const response = await api.get('/auth/me');
+    if (!isValidUserProfile(response.data)) {
+      throw new Error('Profile fetch failed: server returned an unexpected response.');
+    }
     return response.data;
   },
   

@@ -102,6 +102,7 @@ allowed_origins = [
     "https://www.auxein.co.nz",
     "https://auxein.co.nz",
     "https://app.auxein.co.nz",
+    "https://grow.auxein.co.nz",
     "https://insights.auxein.co.nz",
     "http://localhost",
     "http://localhost:3000",

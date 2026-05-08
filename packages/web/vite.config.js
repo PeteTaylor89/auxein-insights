@@ -35,6 +35,10 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Main bundle is ~3 MB; default precache cap is 2 MiB.
+        // Bumped to 5 MiB so the SW precaches the full app shell.
+        // Code-splitting via manualChunks would let us drop this back.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.yourdomain\.com\/.*$/i,

@@ -41,7 +41,7 @@ Remove-Item Env:\DATABASE_URL
 **Option B** (safer — SSH into EB instance and run there). Use this if RDS isn't publicly reachable.
 
 ```bash
-eb ssh auxein-api-prod
+eb ssh auxein-api-prod-lb
 cd /var/app/current
 source /var/app/venv/*/bin/activate
 alembic upgrade head
@@ -53,8 +53,8 @@ exit
 
 ```powershell
 cd A:\auxein-insights-V0.1\backend
-eb status auxein-api-prod
-eb deploy auxein-api-prod
+eb status auxein-api-prod-lb
+eb deploy auxein-api-prod-lb
 ```
 
 Watch the deploy for ~5 min. Tail logs if needed: `eb logs --all --stream`.
@@ -67,7 +67,7 @@ Watch the deploy for ~5 min. Tail logs if needed: `eb logs --all --stream`.
 - [ ] Hit `/api/v1/calibrations` — should return list with the new event-row shape
 - [ ] Spot-check a calibration completion in the web UI to confirm the new schedule/event flow works
 
-If anything 5xx's, check logs: `eb logs auxein-api-prod`. Alembic schema drift is the most likely culprit.
+If anything 5xx's, check logs: `eb logs auxein-api-prod-lb`. Alembic schema drift is the most likely culprit.
 
 ---
 
