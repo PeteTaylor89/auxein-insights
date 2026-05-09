@@ -1,5 +1,5 @@
-// components/SiteFooter.jsx — Pro app footer
-import Logo from '../assets/App_Logo_September 2025.jpg';
+// components/SiteFooter.jsx — Auxein Grow web app footer
+import Logo from '../assets/logo-mark.png';
 import './SiteFooter.css';
 
 function SiteFooter() {
@@ -9,8 +9,8 @@ function SiteFooter() {
     <footer className="site-footer">
       <div className="footer-content">
         <div className="footer-brand">
-          <img src={Logo} alt="Auxein Logo" />
-          <span>Auxein Pro</span>
+          <img src={Logo} alt="Auxein Grow logo" />
+          <span>Auxein Grow</span>
         </div>
         <div className="footer-links">
           <a href="https://auxein.co.nz/about/" target="_blank" rel="noopener noreferrer">About</a>

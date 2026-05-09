@@ -17,6 +17,12 @@ class BannerType(str, enum.Enum):
     coming_soon = "coming_soon"
 
 
+class BannerAudience(str, enum.Enum):
+    insights = "insights"
+    grow = "grow"
+    both = "both"
+
+
 class SiteBanner(Base):
     __tablename__ = "site_banners"
 
@@ -25,6 +31,9 @@ class SiteBanner(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     banner_type: Mapped[BannerType] = mapped_column(
         Enum(BannerType), nullable=False, default=BannerType.update
+    )
+    audience: Mapped[BannerAudience] = mapped_column(
+        Enum(BannerAudience), nullable=False, default=BannerAudience.insights, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

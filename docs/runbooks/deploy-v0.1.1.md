@@ -49,7 +49,26 @@ alembic current
 exit
 ```
 
-### 1.2 EB deploy
+### 1.2 EB env vars (set BEFORE deploy if not already)
+
+The brand-aware email refactor (2026-05-08) needs these env vars on EB. Set once via the AWS CLI; they trigger a rolling update so don't combine with a `eb deploy` immediately after — wait for the env update to settle first.
+
+```powershell
+aws elasticbeanstalk update-environment `
+  --application-name auxein-api `
+  --environment-name auxein-api-prod-lb `
+  --region ap-southeast-2 `
+  --profile eb-cli `
+  --option-settings `
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=GROW_FRONTEND_URL,Value=https://grow.auxein.co.nz" `
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=GROW_SUPPORT_EMAIL,Value=grow@auxein.co.nz" `
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=INSIGHTS_FRONTEND_URL,Value=https://insights.auxein.co.nz" `
+    "Namespace=aws:elasticbeanstalk:application:environment,OptionName=INSIGHTS_SUPPORT_EMAIL,Value=insights@auxein.co.nz"
+```
+
+These four feed `core/branding.py` (Brand abstraction). Without them set, email links + SEO prerender fall back to localhost in prod.
+
+### 1.3 EB deploy
 
 ```powershell
 cd A:\auxein-insights-V0.1\backend
@@ -59,7 +78,7 @@ eb deploy auxein-api-prod-lb
 
 Watch the deploy for ~5 min. Tail logs if needed: `eb logs --all --stream`.
 
-### 1.3 Smoke test
+### 1.4 Smoke test
 
 - [ ] `curl https://api.auxein.co.nz/api/health` → 200
 - [ ] Hit `/api/v1/visitors/visits/active` (auth required) — should not 5xx
@@ -119,6 +138,8 @@ Smoke:
 ---
 
 ## Stage 5 — Mobile → Google Play internal testing
+
+> **2026-05-08 status: BLOCKED on `BLOCKER-001`.** Play Console enrolled and app shell created (package `co.nz.auxein.grow`), but the GCP service account JSON cannot be created — the auxein.co.nz Workspace org enforces `iam.disableServiceAccountKeyCreation` and `pete.taylor@auxein.co.nz` lacks the org-level role to override it. Two unblock paths in `BUGS.md → BLOCKER-001`. Preview APK build (5.3) does NOT need the JSON and can proceed independently for sideload testing.
 
 ### 5.1 Play Console one-time setup (skip if done)
 

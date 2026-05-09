@@ -12,8 +12,15 @@ const EMPTY_FORM = {
   title: '',
   content: '',
   banner_type: 'update',
+  audience: 'insights',
   is_active: true,
   display_order: 0,
+};
+
+const AUDIENCE_LABEL = {
+  insights: 'Insights only',
+  grow: 'Grow only',
+  both: 'Both products',
 };
 
 const BannerManagement = () => {
@@ -55,6 +62,7 @@ const BannerManagement = () => {
       title: banner.title,
       content: banner.content,
       banner_type: banner.banner_type,
+      audience: banner.audience || 'insights',
       is_active: banner.is_active,
       display_order: banner.display_order,
     });
@@ -194,6 +202,24 @@ const BannerManagement = () => {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px', color: '#374151' }}>
+                    Audience
+                  </label>
+                  <select
+                    value={formData.audience}
+                    onChange={(e) => setFormData({ ...formData, audience: e.target.value })}
+                    style={{
+                      padding: '10px 12px', border: '1px solid #ddd',
+                      borderRadius: '6px', fontSize: '14px', background: 'white'
+                    }}
+                  >
+                    <option value="insights">Insights only</option>
+                    <option value="grow">Grow only</option>
+                    <option value="both">Both products</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px', color: '#374151' }}>
                     Display Order
                   </label>
                   <input
@@ -271,6 +297,7 @@ const BannerManagement = () => {
               <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
                 <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Banner</th>
                 <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Type</th>
+                <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Audience</th>
                 <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Status</th>
                 <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: '#6b7280', textAlign: 'right' }}>Actions</th>
               </tr>
@@ -296,6 +323,9 @@ const BannerManagement = () => {
                       {banner.banner_type === 'update' ? <Megaphone size={12} /> : <Rocket size={12} />}
                       {banner.banner_type === 'update' ? 'Update' : 'Coming Soon'}
                     </span>
+                  </td>
+                  <td style={{ padding: '14px 16px', fontSize: '13px', color: '#6b7280' }}>
+                    {AUDIENCE_LABEL[banner.audience] || banner.audience || 'Insights only'}
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <button

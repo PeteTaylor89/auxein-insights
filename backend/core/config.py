@@ -167,8 +167,23 @@ class Settings(BaseSettings):
     # Falls back to VITE_API_URL if not set separately
     API_BASE_URL: Optional[str] = None
 
-    # Frontend URL for email links
+    # Legacy single FRONTEND_URL — kept for backward compatibility with anything
+    # not yet routed through the brand abstraction (core/branding.py). New code
+    # should use Brand.frontend_url instead.
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+    # Per-brand frontend URLs and support emails. These drive the brand-aware
+    # email templates in core/email_utils.py + core/email_templates.py and the
+    # SEO prerender in utils/seo_prerender.py. Default values target local dev
+    # ports so tests work; EB has the prod values wired:
+    #   GROW_FRONTEND_URL=https://grow.auxein.co.nz
+    #   GROW_SUPPORT_EMAIL=grow@auxein.co.nz
+    #   INSIGHTS_FRONTEND_URL=https://insights.auxein.co.nz
+    #   INSIGHTS_SUPPORT_EMAIL=insights@auxein.co.nz
+    GROW_FRONTEND_URL: str = os.getenv("GROW_FRONTEND_URL", "http://localhost:5173")
+    GROW_SUPPORT_EMAIL: str = os.getenv("GROW_SUPPORT_EMAIL", "grow@auxein.co.nz")
+    INSIGHTS_FRONTEND_URL: str = os.getenv("INSIGHTS_FRONTEND_URL", "http://localhost:5174")
+    INSIGHTS_SUPPORT_EMAIL: str = os.getenv("INSIGHTS_SUPPORT_EMAIL", "insights@auxein.co.nz")
 
     @property
     def api_base_url(self) -> str:

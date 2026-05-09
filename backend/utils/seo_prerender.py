@@ -22,9 +22,11 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 _INSIGHTS_BUCKET = "auxein-insights-webapp"
-# Use FRONTEND_URL if it's a real domain; fall back to production URL
-_frontend = (settings.FRONTEND_URL or "").rstrip("/")
-_SITE_URL = _frontend if _frontend.startswith("https://") else "https://insights.auxein.co.nz"
+# Insights-branded URLs only — articles + research are Insights content. Falls
+# back to the public URL if INSIGHTS_FRONTEND_URL isn't a https:// host (e.g.
+# in local dev where it points at http://localhost:5174).
+_insights_frontend = (settings.INSIGHTS_FRONTEND_URL or "").rstrip("/")
+_SITE_URL = _insights_frontend if _insights_frontend.startswith("https://") else "https://insights.auxein.co.nz"
 
 
 # ── S3 helpers ──────────────────────────────────────────────────────

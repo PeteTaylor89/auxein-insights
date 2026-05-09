@@ -5,6 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from typing import List, Optional
 import logging
 from core.config import settings
+from core.branding import Brand, GROW
 
 logger = logging.getLogger(__name__)
 
@@ -15,26 +16,31 @@ class EmailService:
         self.smtp_username = getattr(settings, 'SMTP_USERNAME', None)
         self.smtp_password = getattr(settings, 'SMTP_PASSWORD', None)
         self.from_email = getattr(settings, 'FROM_EMAIL', self.smtp_username)
-        self.from_name = getattr(settings, 'FROM_NAME', 'Auxein Insights')
+        # Falls back to "Auxein" so the From: header is brand-neutral when callers
+        # don't pass a brand. Brand-aware sends override per-message via from_name.
+        self.from_name = getattr(settings, 'FROM_NAME', 'Auxein')
         self.frontend_url = getattr(settings, 'FRONTEND_URL', None)
     def send_email(
         self,
         to_email: str,
         subject: str,
         html_content: str,
-        text_content: Optional[str] = None
+        text_content: Optional[str] = None,
+        brand: Optional[Brand] = None,
     ) -> bool:
-        """Send an email"""
-        
+        """Send an email. If brand is provided, the From: header uses the brand's
+        from_name; otherwise falls back to the EmailService default (env FROM_NAME)."""
+
         if not self.smtp_username or not self.smtp_password:
             logger.warning("SMTP credentials not configured, skipping email send")
             return False
-        
+
         try:
             # Create message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
-            msg['From'] = f"{self.from_name} <{self.from_email}>"
+            from_display = brand.from_name if brand else self.from_name
+            msg['From'] = f"{from_display} <{self.from_email}>"
             msg['To'] = to_email
             
             # Add text and HTML content
@@ -224,7 +230,7 @@ def get_base_email_styles():
 
 
 
-def get_verification_email_template(username: str, verification_link: str) -> tuple[str, str]:
+def get_verification_email_template(username: str, verification_link: str, brand: Brand = GROW) -> tuple[str, str]:
     """Get verification email template"""
     
     html_template = f"""
@@ -232,7 +238,7 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Verify Your Email - Auxein Insights</title>
+        <title>Verify Your Email - {brand.display_name}</title>
         {get_base_email_styles()}
     </head>
     <body>
@@ -240,13 +246,13 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
             <div class="container">
                 <div class="header">
                     <div class="logo">
-                        <h1>Auxein <span class="brand-accent" style="color: #D1583B;">TO GROW</span></h1>
+                        <h1>{brand.display_name}</h1>
                     </div>
-                    <p style="margin: 0; font-size: 18px; opacity: 0.9;">Welcome to Auxein Insights!</p>
+                    <p style="margin: 0; font-size: 18px; opacity: 0.9;">Welcome to {brand.display_name}!</p>
                 </div>
                 <div class="content">
                     <h2>Hi {username},</h2>
-                    <p>Thank you for creating an account with <strong class="brand-primary">Auxein Insights</strong>. To complete your registration and start your vineyard management journey, please verify your email address by clicking the button below:</p>
+                    <p>Thank you for creating an account with <strong class="brand-primary">{brand.display_name}</strong>. To complete your registration and start your vineyard management journey, please verify your email address by clicking the button below:</p>
                     
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="{verification_link}" class="button">Verify Email Address</a>
@@ -266,10 +272,10 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
                     
                     <p>If you didn't create an account with us, please ignore this email.</p>
                     
-                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                    <p>Best regards,<br><strong class="brand-primary">The {brand.display_name} Team</strong></p>
                 </div>
                 <div class="footer">
-                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>© 2025 {brand.display_name}. All rights reserved.</p>
                     <p>Helping vineyards grow through intelligent insights</p>
                 </div>
             </div>
@@ -279,11 +285,11 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
     """
     
     text_template = f"""
-    Welcome to Auxein Insights!
+    Welcome to {brand.display_name}!
     
     Hi {username},
     
-    Thank you for creating an account with Auxein Insights. To complete your registration, please verify your email address by visiting this link:
+    Thank you for creating an account with {brand.display_name}. To complete your registration, please verify your email address by visiting this link:
     
     {verification_link}
     
@@ -292,13 +298,13 @@ def get_verification_email_template(username: str, verification_link: str) -> tu
     If you didn't create an account with us, please ignore this email.
     
     Best regards,
-    The Auxein Insights Team
+    The {brand.display_name} Team
     """
     
     return html_template, text_template
 
 
-def get_password_reset_email_template(username: str, reset_link: str) -> tuple[str, str]:
+def get_password_reset_email_template(username: str, reset_link: str, brand: Brand = GROW) -> tuple[str, str]:
     """Get password reset email template"""
     
     html_template = f"""
@@ -306,7 +312,7 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Reset Your Password - Auxein Insights</title>
+        <title>Reset Your Password - {brand.display_name}</title>
         {get_base_email_styles()}
     </head>
     <body>
@@ -314,13 +320,13 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
             <div class="container">
                 <div class="header" style="background-color: #D1583B;">
                     <div class="logo">
-                        <h1 style="color: #FDF6E3;">Auxein <span style="color: #FDF6E3;">TO GROW</span></h1>
+                        <h1 style="color: #FDF6E3;">{brand.display_name}</h1>
                     </div>
                     <p style="margin: 0; font-size: 18px; opacity: 0.9; color: #FDF6E3;">Password Reset Request</p>
                 </div>
                 <div class="content">
                     <h2>Hi {username},</h2>
-                    <p>We received a request to reset your password for your <strong class="brand-primary">Auxein Insights</strong> account.</p>
+                    <p>We received a request to reset your password for your <strong class="brand-primary">{brand.display_name}</strong> account.</p>
                     
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="{reset_link}" class="button accent-button">Reset Password</a>
@@ -345,10 +351,10 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
                         </ul>
                     </div>
                     
-                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                    <p>Best regards,<br><strong class="brand-primary">The {brand.display_name} Team</strong></p>
                 </div>
                 <div class="footer">
-                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>© 2025 {brand.display_name}. All rights reserved.</p>
                     <p>Protecting your vineyard data with enterprise-grade security</p>
                 </div>
             </div>
@@ -358,11 +364,11 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
     """
     
     text_template = f"""
-    Password Reset Request - Auxein Insights
+    Password Reset Request - {brand.display_name}
     
     Hi {username},
     
-    We received a request to reset your password for your Auxein Insights account.
+    We received a request to reset your password for your {brand.display_name} account.
     
     To reset your password, please visit this link:
     {reset_link}
@@ -374,45 +380,43 @@ def get_password_reset_email_template(username: str, reset_link: str) -> tuple[s
     For security reasons, we recommend using a strong, unique password and not sharing it with anyone.
     
     Best regards,
-    The Auxein Insights Team
+    The {brand.display_name} Team
     """
     
     return html_template, text_template
 
 
-def send_verification_email(email: str, username: str, verification_token: str) -> bool:
+def send_verification_email(email: str, username: str, verification_token: str, brand: Brand = GROW) -> bool:
     """Send email verification email"""
-    
-    # Create verification link (you'll need to update this with your frontend URL)
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    verification_link = f"{frontend_url}/verify-email?token={verification_token}"
-    
-    html_content, text_content = get_verification_email_template(username, verification_link)
-    
+
+    verification_link = f"{brand.frontend_url}/verify-email?token={verification_token}"
+
+    html_content, text_content = get_verification_email_template(username, verification_link, brand)
+
     return email_service.send_email(
         to_email=email,
-        subject="Verify Your Email - Auxein Insights",
+        subject=f"Verify Your Email - {brand.display_name}",
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )
 
-def send_password_reset_email(email: str, username: str, reset_token: str) -> bool:
+def send_password_reset_email(email: str, username: str, reset_token: str, brand: Brand = GROW) -> bool:
     """Send password reset email"""
-    
-    # Create reset link (you'll need to update this with your frontend URL)
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
-    html_content, text_content = get_password_reset_email_template(username, reset_link)
-    
+
+    reset_link = f"{brand.frontend_url}/reset-password?token={reset_token}"
+    html_content, text_content = get_password_reset_email_template(username, reset_link, brand)
+
     return email_service.send_email(
         to_email=email,
-        subject="Reset Your Password - Auxein Insights",
+        subject=f"Reset Your Password - {brand.display_name}",
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )
 
 
-def send_welcome_email(email: str, username: str, company_name: str) -> bool:
+def send_welcome_email(email: str, username: str, company_name: str, brand: Brand = GROW) -> bool:
     """Send welcome email to new users"""
     
     html_content = f"""
@@ -420,7 +424,7 @@ def send_welcome_email(email: str, username: str, company_name: str) -> bool:
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Welcome to Auxein Insights</title>
+        <title>Welcome to {brand.display_name}</title>
         {get_base_email_styles()}
     </head>
     <body>
@@ -428,13 +432,13 @@ def send_welcome_email(email: str, username: str, company_name: str) -> bool:
             <div class="container">
                 <div class="header" style="background: linear-gradient(135deg, #5B6830, #6B7840);">
                     <div class="logo">
-                        <h1>Auxein <span style="color: #D1583B;">TO GROW</span></h1>
+                        <h1>{brand.display_name}</h1>
                     </div>
                     <p style="margin: 0; font-size: 18px; opacity: 0.9;">Welcome to the vineyard management revolution!</p>
                 </div>
                 <div class="content">
                     <h2>Hi {username},</h2>
-                    <p>Welcome to <strong class="brand-primary">{company_name}</strong> on <strong class="brand-primary">Auxein Insights</strong>! Your account has been successfully created and verified.</p>
+                    <p>Welcome to <strong class="brand-primary">{company_name}</strong> on <strong class="brand-primary">{brand.display_name}</strong>! Your account has been successfully created and verified.</p>
                     
                     <div class="highlight-box">
                         <h3>🚀 You now have access to:</h3>
@@ -452,14 +456,14 @@ def send_welcome_email(email: str, username: str, company_name: str) -> bool:
                         <p style="margin-bottom: 0;">Start by setting up your first vineyard blocks and exploring the powerful features designed specifically for New Zealand winegrowers.</p>
                     </div>
                     
-                    <p>If you need any help getting started, don't hesitate to reach out to our support team at <a href="mailto:support@auxein.co.nz">support@auxein.co.nz</a>.</p>
+                    <p>If you need any help getting started, don't hesitate to reach out to our support team at <a href="mailto:{brand.support_email}">{brand.support_email}</a>.</p>
                     
                     <p>Here's to a successful growing season!</p>
                     
-                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                    <p>Best regards,<br><strong class="brand-primary">The {brand.display_name} Team</strong></p>
                 </div>
                 <div class="footer">
-                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>© 2025 {brand.display_name}. All rights reserved.</p>
                     <p>Empowering New Zealand winegrowers with intelligent vineyard management</p>
                 </div>
             </div>
@@ -470,28 +474,28 @@ def send_welcome_email(email: str, username: str, company_name: str) -> bool:
     
     return email_service.send_email(
         to_email=email,
-        subject=f"Welcome to {company_name} - Auxein Insights",
-        html_content=html_content
+        subject=f"Welcome to {company_name} - {brand.display_name}",
+        html_content=html_content,
+        brand=brand,
     )
 
 def send_admin_welcome_email(
-    email: str, 
-    username: str, 
-    company_name: str, 
-    password: str = None
+    email: str,
+    username: str,
+    company_name: str,
+    password: str = None,
+    brand: Brand = GROW,
 ) -> bool:
     """Send welcome email to new company admin with login credentials"""
-    
-    # Create login link
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    login_link = f"{frontend_url}/login"
+
+    login_link = f"{brand.frontend_url}/login"
     
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Welcome to Auxein Insights - Admin Account Created</title>
+        <title>Welcome to {brand.display_name} - Admin Account Created</title>
         {get_base_email_styles()}
     </head>
     <body>
@@ -499,14 +503,14 @@ def send_admin_welcome_email(
             <div class="container">
                 <div class="header" style="background: linear-gradient(135deg, #5B6830, #6B7840);">
                     <div class="logo">
-                        <h1>Auxein <span style="color: #D1583B;">TO GROW</span></h1>
+                        <h1>{brand.display_name}</h1>
                     </div>
                     <p style="margin: 5px 0; font-size: 18px; opacity: 0.9;">Your <strong>{company_name}</strong> admin account is ready</p>
                 </div>
                 <div class="content">
                     <h2>Hi {username},</h2>
                     
-                    <p>Congratulations! Your company <strong class="brand-primary">{company_name}</strong> has been set up on Auxein Insights, and you've been designated as the company administrator.</p>
+                    <p>Congratulations! Your company <strong class="brand-primary">{company_name}</strong> has been set up on {brand.display_name}, and you've been designated as the company administrator.</p>
                     
                     <div class="credentials-box">
                         <h3 style="margin-top: 0;">🔑 Your Login Credentials</h3>
@@ -535,14 +539,14 @@ def send_admin_welcome_email(
                         </ul>
                     </div>
 
-                    <p>Need help? Contact our support team at <a href="mailto:support@auxein.co.nz">support@auxein.co.nz</a></p>
+                    <p>Need help? Contact our support team at <a href="mailto:{brand.support_email}">{brand.support_email}</a></p>
                     
-                    <p>Welcome to the Auxein Insights community!</p>
+                    <p>Welcome to the {brand.display_name} community!</p>
                     
-                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                    <p>Best regards,<br><strong class="brand-primary">The {brand.display_name} Team</strong></p>
                 </div>
                 <div class="footer">
-                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>© 2025 {brand.display_name}. All rights reserved.</p>
                     <p>Leading vineyard management technology for New Zealand</p>
                 </div>
             </div>
@@ -552,11 +556,11 @@ def send_admin_welcome_email(
     """
     
     text_content = f"""
-    Welcome to Auxein Insights - Admin Account Created
+    Welcome to {brand.display_name} - Admin Account Created
     
     Hi {username},
     
-    Congratulations! Your company {company_name} has been set up on Auxein Insights, and you've been designated as the company administrator.
+    Congratulations! Your company {company_name} has been set up on {brand.display_name}, and you've been designated as the company administrator.
     
     Your Login Credentials:
     - Email: {email}
@@ -574,21 +578,22 @@ def send_admin_welcome_email(
     - Assign Tasks
     - Generate Reports
     
-    Need help? Contact support@auxein.co.nz
+    Need help? Contact {brand.support_email}
     
-    Welcome to the Auxein Insights community!
+    Welcome to the {brand.display_name} community!
     
     Best regards,
-    The Auxein Insights Team
+    The {brand.display_name} Team
     """
 
-    subject = f"Welcome to Auxein Insights - {company_name} Admin Account Ready!"
-    
+    subject = f"Welcome to {brand.display_name} - {company_name} Admin Account Ready!"
+
     return email_service.send_email(
         to_email=email,
         subject=subject,
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )
 
 def send_invitation_email(
@@ -599,13 +604,13 @@ def send_invitation_email(
     invitation_token: str,
     message: str = None,
     suggested_username: str = None,
-    temporary_password: str = None
+    temporary_password: str = None,
+    brand: Brand = GROW,
 ) -> bool:
     """Send invitation email with account setup instructions"""
-    
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    invitation_link = f"{frontend_url}/accept-invitation?token={invitation_token}"
-    login_link = f"{frontend_url}/login"
+
+    invitation_link = f"{brand.frontend_url}/accept-invitation?token={invitation_token}"
+    login_link = f"{brand.frontend_url}/login"
     
     # Logo URL - update this to match your hosted logo location
     logo_url = f"/images/App_Logo_September 2025.jpg"  # Assumes logo is in public/images/
@@ -615,7 +620,7 @@ def send_invitation_email(
     <html>
     <head>
         <meta charset="utf-8">
-        <title>You're Invited to Join {company_name} - Auxein Insights</title>
+        <title>You're Invited to Join {company_name} - {brand.display_name}</title>
         <style>
             body {{ 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
@@ -755,16 +760,16 @@ def send_invitation_email(
             <div class="container">
                 <div class="header">
                     <div class="logo">
-                        <img src="{logo_url}" alt="Auxein TO GROW" style="height: 45px; width: auto; max-width: 250px;">
+                        <img src="{logo_url}" alt="{brand.display_name}" style="height: 45px; width: auto; max-width: 250px;">
                         <!-- Fallback text for when images don't load -->
-                        <div class="logo-fallback">Auxein <span style="color: #D1583B;">TO GROW</span></div>
+                        <div class="logo-fallback">{brand.display_name}</div>
                     </div>
                     <p style="margin: 10px 0 5px 0; font-size: 18px; opacity: 0.9;">You're invited to join</p>
                     <p style="margin: 0; font-size: 20px; font-weight: 600;">{company_name}</p>
                 </div>
                 <div class="content">
                     <h2>Welcome to the team!</h2>
-                    <p><strong class="brand-primary">{inviter_name}</strong> has invited you to join <strong class="brand-primary">{company_name}</strong> as a <strong class="brand-accent">{role.title()}</strong> on the Auxein Insights vineyard management platform.</p>
+                    <p><strong class="brand-primary">{inviter_name}</strong> has invited you to join <strong class="brand-primary">{company_name}</strong> as a <strong class="brand-accent">{role.title()}</strong> on the {brand.display_name} vineyard management platform.</p>
                     
                     {f'<div class="message-box"><strong>Personal message from {inviter_name}:</strong><br><em>"{message}"</em></div>' if message else ''}
                     
@@ -790,7 +795,7 @@ def send_invitation_email(
                             <li><strong>Complete Setup:</strong> Click "Complete Account Setup" to customize your profile</li>
                             {f'<li><strong>Or Login:</strong> Use the temporary credentials above to login directly</li>' if temporary_password else ''}
                             <li><strong>Explore:</strong> Access vineyard data, observations, and team tools</li>
-                            <li><strong>Get Help:</strong> Contact support@auxein.co.nz if you need assistance</li>
+                            <li><strong>Get Help:</strong> Contact {brand.support_email} if you need assistance</li>
                         </ol>
                     </div>
                     
@@ -798,10 +803,10 @@ def send_invitation_email(
                     
                     <p>Welcome to the team!</p>
                     
-                    <p>Best regards,<br><strong class="brand-primary">The Auxein Insights Team</strong></p>
+                    <p>Best regards,<br><strong class="brand-primary">The {brand.display_name} Team</strong></p>
                 </div>
                 <div class="footer">
-                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>© 2025 {brand.display_name}. All rights reserved.</p>
                     <p>Collaborative vineyard management for better results</p>
                 </div>
             </div>
@@ -811,7 +816,7 @@ def send_invitation_email(
     """
     
     text_content = f"""
-    You're Invited to Join {company_name} - Auxein Insights
+    You're Invited to Join {company_name} - {brand.display_name}
     
     Hi there!
     
@@ -833,23 +838,24 @@ def send_invitation_email(
     Welcome to the team!
     
     Best regards,
-    The Auxein Insights Team
+    The {brand.display_name} Team
     """
 
-    subject = f"Welcome to {company_name} - Your Auxein Insights Invitation"
-    
+    subject = f"Welcome to {company_name} - Your {brand.display_name} Invitation"
+
     return email_service.send_email(
         to_email=email,
         subject=subject,
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )
 
 #####################################
 #   Depreciated email templates     #
 #####################################
 
-def get_contractor_verification_email_template(contractor_name: str, verification_link: str) -> tuple[str, str]:
+def get_contractor_verification_email_template(contractor_name: str, verification_link: str, brand: Brand = GROW) -> tuple[str, str]:
     """Get contractor verification email template"""
     
     html_template = f"""
@@ -857,7 +863,7 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Verify Your Contractor Account - Auxein Insights</title>
+        <title>Verify Your Contractor Account - {brand.display_name}</title>
         <style>
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
@@ -889,13 +895,13 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
     <body>
         <div class="container">
             <div class="header">
-                <h1>🚀 Welcome to Auxein Insights!</h1>
+                <h1>🚀 Welcome to {brand.display_name}!</h1>
                 <div class="contractor-badge">Contractor Portal</div>
             </div>
             <div class="content">
                 <h2>Hi {contractor_name},</h2>
                 
-                <p>Thank you for registering as a contractor with Auxein Insights! You're now part of New Zealand's leading vineyard management network.</p>
+                <p>Thank you for registering as a contractor with {brand.display_name}! You're now part of New Zealand's leading vineyard management network.</p>
                 
                 <p>To complete your registration and start connecting with vineyard companies, please verify your email address by clicking the button below:</p>
                 
@@ -920,7 +926,7 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
                 
                 <div style="background-color: #f0f9ff; padding: 20px; border-radius: 6px; margin: 20px 0;">
                     <h4>📱 Mobile App Coming Soon!</h4>
-                    <p>The Auxein Insights mobile app will be your go-to tool for managing assignments, checking in at properties, and tracking your work on the go.</p>
+                    <p>The {brand.display_name} mobile app will be your go-to tool for managing assignments, checking in at properties, and tracking your work on the go.</p>
                 </div>
                 
                 <p>If you didn't create this contractor account, please ignore this email.</p>
@@ -930,10 +936,10 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
                 <p>Welcome to the network!</p>
                 
                 <p>Best regards,<br>
-                <strong>The Auxein Insights Contractor Team</strong></p>
+                <strong>The {brand.display_name} Contractor Team</strong></p>
             </div>
             <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
+                <p>© 2025 {brand.display_name}. All rights reserved.</p>
                 <p>Contractor Support: contractors@auxein.co.nz</p>
             </div>
         </div>
@@ -942,11 +948,11 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
     """
     
     text_template = f"""
-    Welcome to Auxein Insights - Contractor Portal
+    Welcome to {brand.display_name} - Contractor Portal
     
     Hi {contractor_name},
     
-    Thank you for registering as a contractor with Auxein Insights! You're now part of New Zealand's leading vineyard management network.
+    Thank you for registering as a contractor with {brand.display_name}! You're now part of New Zealand's leading vineyard management network.
     
     To complete your registration and start connecting with vineyard companies, please verify your email address by visiting this link:
     
@@ -961,7 +967,7 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
     4. Start earning - Accept assignments and build your reputation
     
     Mobile App Coming Soon!
-    The Auxein Insights mobile app will be your go-to tool for managing assignments, checking in at properties, and tracking your work on the go.
+    The {brand.display_name} mobile app will be your go-to tool for managing assignments, checking in at properties, and tracking your work on the go.
     
     If you didn't create this contractor account, please ignore this email.
     
@@ -970,26 +976,26 @@ def get_contractor_verification_email_template(contractor_name: str, verificatio
     Welcome to the network!
     
     Best regards,
-    The Auxein Insights Contractor Team
+    The {brand.display_name} Contractor Team
     
     ---
-    © 2025 Auxein Insights. All rights reserved.
+    © 2025 {brand.display_name}. All rights reserved.
     Contractor Support: contractors@auxein.co.nz
     """
     
     return html_template, text_template
 
-def get_contractor_welcome_email_template(contractor_name: str, business_name: str) -> tuple[str, str]:
+def get_contractor_welcome_email_template(contractor_name: str, business_name: str, brand: Brand = GROW) -> tuple[str, str]:
     """Get contractor welcome email template (sent after email verification)"""
-    
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+
+    frontend_url = brand.frontend_url
     
     html_template = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Account Verified - Welcome to Auxein Insights</title>
+        <title>Account Verified - Welcome to {brand.display_name}</title>
         <style>
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
@@ -1021,12 +1027,12 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
         <div class="container">
             <div class="header">
                 <h1>✅ Email Verified Successfully!</h1>
-                <p>Welcome to the Auxein Insights contractor network</p>
+                <p>Welcome to the {brand.display_name} contractor network</p>
             </div>
             <div class="content">
                 <h2>Congratulations {contractor_name}!</h2>
                 
-                <p>Your email has been verified and your contractor account for <strong>{business_name}</strong> is now active on Auxein Insights.</p>
+                <p>Your email has been verified and your contractor account for <strong>{business_name}</strong> is now active on {brand.display_name}.</p>
                 
                 <h3>🚀 Next Steps to Get Started:</h3>
                 
@@ -1084,7 +1090,7 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
                     <strong>📱 Important:</strong> The mobile app is currently in development. For now, you can access everything through our web platform. You'll be notified when the mobile app is available!
                 </div>
                 
-                <h3>🎯 What Makes Auxein Insights Different?</h3>
+                <h3>🎯 What Makes {brand.display_name} Different?</h3>
                 <ul>
                     <li><strong>Fair Payment Terms</strong> - Transparent rates and timely payments</li>
                     <li><strong>Reputation System</strong> - Build your profile with verified reviews</li>
@@ -1103,10 +1109,10 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
                 <p>We're excited to have {business_name} as part of our contractor network!</p>
                 
                 <p>Best regards,<br>
-                <strong>The Auxein Insights Contractor Team</strong></p>
+                <strong>The {brand.display_name} Contractor Team</strong></p>
             </div>
             <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
+                <p>© 2025 {brand.display_name}. All rights reserved.</p>
                 <p>Contractor Support: contractors@auxein.co.nz</p>
             </div>
         </div>
@@ -1115,11 +1121,11 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
     """
     
     text_template = f"""
-    Email Verified Successfully - Welcome to Auxein Insights
+    Email Verified Successfully - Welcome to {brand.display_name}
     
     Congratulations {contractor_name}!
     
-    Your email has been verified and your contractor account for {business_name} is now active on Auxein Insights.
+    Your email has been verified and your contractor account for {business_name} is now active on {brand.display_name}.
     
     Next Steps to Get Started:
     
@@ -1143,7 +1149,7 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
     
     IMPORTANT: The mobile app is currently in development. For now, you can access everything through our web platform. You'll be notified when the mobile app is available!
     
-    What Makes Auxein Insights Different?
+    What Makes {brand.display_name} Different?
     - Fair Payment Terms - Transparent rates and timely payments
     - Reputation System - Build your profile with verified reviews
     - Biosecurity Compliance - Tools to maintain and track compliance
@@ -1158,39 +1164,39 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
     We're excited to have {business_name} as part of our contractor network!
     
     Best regards,
-    The Auxein Insights Contractor Team
+    The {brand.display_name} Contractor Team
     
     ---
-    © 2025 Auxein Insights. All rights reserved.
+    © 2025 {brand.display_name}. All rights reserved.
     Contractor Support: contractors@auxein.co.nz
     """
     
     return html_template, text_template
 
-def send_contractor_verification_email(email: str, contractor_name: str, verification_token: str) -> bool:
+def send_contractor_verification_email(email: str, contractor_name: str, verification_token: str, brand: Brand = GROW) -> bool:
     """Send contractor email verification email"""
-    
-    # Create verification link
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    verification_link = f"{frontend_url}/contractor/verify-email?token={verification_token}"
-    
-    html_content, text_content = get_contractor_verification_email_template(contractor_name, verification_link)
-    
+
+    verification_link = f"{brand.frontend_url}/contractor/verify-email?token={verification_token}"
+
+    html_content, text_content = get_contractor_verification_email_template(contractor_name, verification_link, brand)
+
     return email_service.send_email(
         to_email=email,
-        subject="Verify Your Contractor Account - Auxein Insights",
+        subject=f"Verify Your Contractor Account - {brand.display_name}",
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )
 
-def send_contractor_welcome_email(email: str, contractor_name: str, business_name: str) -> bool:
+def send_contractor_welcome_email(email: str, contractor_name: str, business_name: str, brand: Brand = GROW) -> bool:
     """Send welcome email to verified contractor"""
-    
-    html_content, text_content = get_contractor_welcome_email_template(contractor_name, business_name)
-    
+
+    html_content, text_content = get_contractor_welcome_email_template(contractor_name, business_name, brand)
+
     return email_service.send_email(
         to_email=email,
-        subject="Welcome to Auxein Insights - Your contractor account is ready!",
+        subject=f"Welcome to {brand.display_name} - Your contractor account is ready!",
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )

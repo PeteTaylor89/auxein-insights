@@ -1,0 +1,301 @@
+/* SiteBanner.css — Auxein Grow announcement carousel
+   Mirrors the Insights SiteBanner styling, expressed via theme tokens. */
+
+.site-banners {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: var(--space-md) var(--space-base) var(--space-lg);
+  overflow: hidden;
+}
+
+/* Carousel layout */
+.banner-carousel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.banner-arrow {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-olive-border);
+  background: var(--color-white);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.banner-arrow:hover {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+}
+
+/* Banner card */
+.site-banner {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-olive-border);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.2s ease;
+}
+
+.site-banner:hover {
+  box-shadow: 0 2px 8px rgba(91, 104, 48, 0.12);
+}
+
+.site-banner-update .banner-icon {
+  color: var(--color-primary);
+  background: var(--color-olive-light);
+}
+
+.site-banner-coming_soon .banner-icon {
+  color: var(--color-accent);
+  background: rgba(209, 88, 59, 0.08);
+}
+
+.banner-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+
+/* Banner content */
+.banner-content {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.banner-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-primary);
+}
+
+.site-banner-coming_soon .banner-title {
+  color: var(--color-accent);
+}
+
+.banner-text {
+  color: #505050;
+  line-height: 1.5;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Dots (desktop only) */
+.banner-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 0;
+}
+
+.banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-olive-border);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.banner-dot.active {
+  background: var(--color-primary);
+  transform: scale(1.4);
+}
+
+/* Slide transitions */
+.banner-slide-enter {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.banner-slide-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.banner-slide-exit {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* Expanded modal */
+.banner-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: bannerFadeIn 0.2s ease;
+}
+
+@keyframes bannerFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.banner-modal {
+  position: relative;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  max-width: 520px;
+  width: 100%;
+  padding: var(--space-xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  animation: bannerSlideUp 0.25s ease;
+}
+
+@keyframes bannerSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.banner-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  transition: all var(--transition-base);
+}
+
+.banner-modal-close:hover {
+  background: #f5f5f5;
+  color: var(--color-text);
+}
+
+.banner-modal-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-base);
+}
+
+.banner-modal-icon-update {
+  background: var(--color-olive-light);
+  color: var(--color-primary);
+}
+
+.banner-modal-icon-coming_soon {
+  background: rgba(209, 88, 59, 0.1);
+  color: var(--color-accent);
+}
+
+.banner-modal-title {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.banner-modal-title-update {
+  color: var(--color-primary);
+}
+
+.banner-modal-title-coming_soon {
+  color: var(--color-accent);
+}
+
+.banner-modal-content {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #505050;
+  white-space: pre-wrap;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .site-banners {
+    padding: var(--space-sm) var(--space-base) 0;
+    touch-action: pan-y pinch-zoom;
+    user-select: none;
+  }
+
+  .site-banner {
+    font-size: 13px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .banner-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .banner-content {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .banner-title {
+    font-size: 14px;
+  }
+
+  .banner-text {
+    font-size: 12px;
+  }
+
+  .banner-arrow,
+  .banner-dots {
+    display: none;
+  }
+
+  .banner-carousel {
+    gap: 0;
+  }
+
+  .banner-modal {
+    max-width: 100%;
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+  }
+
+  .banner-modal-title {
+    font-size: 18px;
+  }
+
+  .banner-modal-content {
+    font-size: 14px;
+  }
+}

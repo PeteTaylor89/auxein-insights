@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks } from 'lucide-react';
@@ -16,9 +16,26 @@ function readTemplateFields(tpl) {
   return Array.isArray(s) ? s : Array.isArray(s.fields) ? s.fields : [];
 }
 
+const VALID_TABS = ['plans', 'runs', 'templates', 'tasks', 'task-templates'];
+
 export default function ObservationDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('plans');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'plans';
+  const [tab, setTab] = useState(initialTab);
+
+  // Keep tab in sync with URL (back button + deep links)
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    if (VALID_TABS.includes(urlTab) && urlTab !== tab) {
+      setTab(urlTab);
+    }
+  }, [searchParams]);
+
+  const switchTab = (next) => {
+    setTab(next);
+    setSearchParams(next === 'plans' ? {} : { tab: next }, { replace: true });
+  };
 
   const StatusBadge = ({ status }) => {
     const colors = {
@@ -95,11 +112,11 @@ export default function ObservationDashboard() {
       {/* Tab Navigation — grouped: Obs tabs then Task tabs */}
       <div className="stats-container" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="obs-tab-bar">
-          <TabButton label="Scheduled" active={tab === 'plans'} onClick={() => setTab('plans')} />
-          <TabButton label="Runs" active={tab === 'runs'} onClick={() => setTab('runs')} />
-          <TabButton label="Obs Templates" active={tab === 'templates'} onClick={() => setTab('templates')} />
-          <TabButton label="Task Management" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
-          <TabButton label="Task Templates" active={tab === 'task-templates'} onClick={() => setTab('task-templates')} />
+          <TabButton label="Scheduled" active={tab === 'plans'} onClick={() => switchTab('plans')} />
+          <TabButton label="Runs" active={tab === 'runs'} onClick={() => switchTab('runs')} />
+          <TabButton label="Obs Templates" active={tab === 'templates'} onClick={() => switchTab('templates')} />
+          <TabButton label="Task Management" active={tab === 'tasks'} onClick={() => switchTab('tasks')} />
+          <TabButton label="Task Templates" active={tab === 'task-templates'} onClick={() => switchTab('task-templates')} />
         </div>
 
         <div style={{ padding: 'var(--space-lg)' }}>

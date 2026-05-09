@@ -28,3 +28,4 @@ export { default as calendarService } from './calendarService.js';
 export { default as reportService } from './reportService.js';
 export { default as companyAdminService } from './companyAdminService.js';
 export { default as taskRowService } from './taskRowService.js';
+export { default as bannerService } from './bannerService.js';

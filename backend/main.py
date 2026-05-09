@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows
 from core.config import settings
 import logging
 import traceback
@@ -11,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 import os
 import re
-from html import escape as html_escape
 
 try:
     from api.v1 import blockchain
@@ -356,6 +355,12 @@ app.include_router(
 )
 
 app.include_router(
+    admin_grow_banners.router,
+    prefix="/api/v1/grow-admin",
+    tags=["Grow Admin - Banners"]
+)
+
+app.include_router(
     articles.router,
     prefix="/api/v1",
     tags=["Articles"]
@@ -485,120 +490,11 @@ def list_all_routes():
     return {"total_routes": len(routes), "routes": routes}
 
 
-# Mount static files (React app) - this should be AFTER API routes
+# Static dir holds the holding page (index.html + favicon + logo) served by the
+# holding_page_middleware below. SEO injection for /articles/* and /research/*
+# was removed when api.auxein.co.nz stopped serving the public Insights frontend
+# — those URLs now 301 to insights.auxein.co.nz via legacy_insights_redirect.
 static_dir = "static"
-
-def _get_seo_meta(content_type: str, slug: str) -> dict | None:
-    """Look up title/description/image/structured data for an article or research report."""
-    from db.session import SessionLocal
-    db = SessionLocal()
-    try:
-        if content_type == "articles":
-            from db.models.article import Article
-            row = db.query(
-                Article.title, Article.meta_description, Article.og_image_url,
-                Article.seo_title, Article.structured_data, Article.tags,
-                Article.published_at, Article.slug,
-            ).filter(Article.slug == slug, Article.status == "published").first()
-        elif content_type == "research":
-            from db.models.research import ResearchReport
-            row = db.query(
-                ResearchReport.title, ResearchReport.meta_description,
-                ResearchReport.og_image_url, ResearchReport.seo_title,
-                ResearchReport.structured_data, ResearchReport.tags,
-                ResearchReport.published_at, ResearchReport.slug,
-            ).filter(ResearchReport.slug == slug, ResearchReport.status == "published").first()
-        else:
-            return None
-
-        if not row:
-            return None
-
-        title, meta_desc, og_image, seo_title, structured_data, tags, published_at, slug_val = row
-        return {
-            "title": seo_title or title,
-            "description": meta_desc or "",
-            "image": og_image or "",
-            "structured_data": structured_data,
-            "tags": tags or [],
-            "published_at": published_at.isoformat() if published_at else "",
-            "slug": slug_val,
-            "content_type": content_type,
-        }
-    except Exception:
-        logger.exception("SEO meta lookup failed for %s/%s", content_type, slug)
-        return None
-    finally:
-        db.close()
-
-
-_SITE_URL = "https://insights.auxein.co.nz"
-
-
-def _build_json_ld(meta: dict) -> str:
-    """Build JSON-LD structured data for a content page."""
-    import json as jsonlib
-
-    # Use stored structured_data if the author has provided custom JSON-LD
-    if meta.get("structured_data"):
-        return jsonlib.dumps(meta["structured_data"])
-
-    content_type = meta.get("content_type", "articles")
-    schema_type = "ScholarlyArticle" if content_type == "research" else "Article"
-
-    ld = {
-        "@context": "https://schema.org",
-        "@type": schema_type,
-        "headline": meta["title"],
-        "description": meta.get("description", ""),
-        "datePublished": meta.get("published_at", ""),
-        "author": {"@type": "Organization", "name": "Auxein Limited", "url": "https://auxein.co.nz"},
-        "publisher": {"@type": "Organization", "name": "Auxein Limited", "url": "https://auxein.co.nz"},
-        "mainEntityOfPage": {
-            "@type": "WebPage",
-            "@id": f"{_SITE_URL}/{content_type}/{meta.get('slug', '')}",
-        },
-    }
-    if meta.get("image"):
-        ld["image"] = meta["image"]
-    if meta.get("tags"):
-        ld["keywords"] = ", ".join(meta["tags"])
-    return jsonlib.dumps(ld)
-
-
-def _build_breadcrumb_ld(meta: dict) -> str:
-    """Build BreadcrumbList JSON-LD."""
-    import json as jsonlib
-    content_type = meta.get("content_type", "articles")
-    section_name = "Articles" if content_type == "articles" else "Research"
-    return jsonlib.dumps({
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-            {"@type": "ListItem", "position": 1, "name": "Home", "item": _SITE_URL},
-            {"@type": "ListItem", "position": 2, "name": section_name, "item": f"{_SITE_URL}/{content_type}"},
-            {"@type": "ListItem", "position": 3, "name": meta["title"]},
-        ],
-    })
-
-
-def _inject_meta_tags(html: str, meta: dict) -> str:
-    """Insert OG / description meta tags + JSON-LD just before <title> in the HTML."""
-    safe_title = html_escape(meta["title"], quote=True)
-    safe_desc = html_escape(meta["description"], quote=True)
-    tags = (
-        f'<meta property="og:title" content="{safe_title}" />\n'
-        f'<meta property="og:description" content="{safe_desc}" />\n'
-        f'<meta property="og:type" content="article" />\n'
-    )
-    if meta.get("image"):
-        safe_image = html_escape(meta["image"], quote=True)
-        tags += f'<meta property="og:image" content="{safe_image}" />\n'
-    tags += f'<meta name="description" content="{safe_desc}" />\n'
-    # JSON-LD structured data
-    tags += f'<script type="application/ld+json">{_build_json_ld(meta)}</script>\n'
-    tags += f'<script type="application/ld+json">{_build_breadcrumb_ld(meta)}</script>\n'
-    return html.replace("<title>", tags + "<title>", 1)
 
 
 # ─── Top-level unsubscribe route ───
@@ -642,54 +538,70 @@ async def unsubscribe_toplevel(token: str):
         db.close()
 
 
-_SEO_PATH_RE = re.compile(r"^(articles|research)/([a-z0-9][a-z0-9-]*)$")
+# Legacy URLs from when api.auxein.co.nz served the public Insights frontend.
+# Anything under /articles/* or /research/* now lives at insights.auxein.co.nz.
+# We 301 to the canonical host so backlinks (Google, social shares, old emails) keep working.
+_LEGACY_INSIGHTS_RE = re.compile(r"^/(articles|research)(/.*)?$")
+_INSIGHTS_HOST = "https://insights.auxein.co.nz"
+
+
+@app.middleware("http")
+async def legacy_insights_redirect(request: Request, call_next):
+    path = request.url.path
+    match = _LEGACY_INSIGHTS_RE.match(path)
+    if match:
+        from fastapi.responses import RedirectResponse
+        target = f"{_INSIGHTS_HOST}{path}"
+        if request.url.query:
+            target += f"?{request.url.query}"
+        return RedirectResponse(target, status_code=301)
+    return await call_next(request)
+
 
 if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-    # Read index.html once at startup for SEO injection
+    # Holding-page middleware: api.auxein.co.nz/ and any unmatched non-API path
+    # serves the branded Auxein API holding page (backend/static/index.html).
+    # The page is self-contained — no SPA assets to load — so we don't need
+    # a /static mount or per-asset routing. Only serves on 404/405 from non-API
+    # paths, so real API errors still surface as JSON.
     _index_html_path = os.path.join(static_dir, "index.html")
     _index_html = ""
     if os.path.exists(_index_html_path):
         with open(_index_html_path, "r", encoding="utf-8") as f:
             _index_html = f.read()
 
-    # SPA middleware: serve React app for non-API routes that don't match any endpoint.
-    # Unlike a catch-all @app.get("/{path:path}"), this cannot produce 405 errors
-    # on API POST/PUT/DELETE requests because it only runs AFTER route matching.
     @app.middleware("http")
-    async def spa_middleware(request: Request, call_next):
+    async def holding_page_middleware(request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
 
-        # Only intercept non-API 404/405 responses to serve SPA
         if response.status_code in (404, 405) and not path.startswith("/api"):
             # Drain the original response body to avoid resource leaks
             async for _ in response.body_iterator:
                 pass
 
-            # Check if it's a static file
+            # Serve the small set of files referenced by the holding page directly
+            # (favicon.ico, logo-mark.png) — no need for a full /static mount for
+            # just two assets.
             file_path = os.path.join(static_dir, path.lstrip("/"))
-            if os.path.isfile(file_path):
+            if os.path.isfile(file_path) and not os.path.isdir(file_path):
                 return FileResponse(file_path)
 
             if _index_html:
-                # SEO injection for content pages
-                slug_match = _SEO_PATH_RE.match(path.lstrip("/"))
-                if slug_match:
-                    meta = _get_seo_meta(slug_match.group(1), slug_match.group(2))
-                    if meta:
-                        return HTMLResponse(content=_inject_meta_tags(_index_html, meta))
                 return HTMLResponse(content=_index_html)
 
         return response
 else:
-    # If no static files, serve a simple root
+    # If no static dir, serve a JSON pointer instead of nothing.
     @app.get("/")
     def root():
         return {
-            "message": "Vineyard API - React app not built",
-            "api_docs": "/docs"
+            "message": "Auxein API",
+            "apps": {
+                "grow": "https://grow.auxein.co.nz",
+                "insights": "https://insights.auxein.co.nz",
+                "marketing": "https://auxein.co.nz",
+            },
         }
 
 

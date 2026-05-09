@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@vineyard/shared';
 import { companiesService, tasksService, notificationService, propertyService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget';
+import SiteBanner from '../components/SiteBanner';
 import { Link } from 'react-router-dom';
-import { User, Users, ClipboardList, Calendar, Shield, Map, Zap, Eye, BarChart3, Bell } from "lucide-react";
+import { ClipboardList, Calendar, Shield, Map, Zap, Eye, BarChart3, Bell, ArrowRight } from "lucide-react";
 
-const INSIGHTS_URL = import.meta.env.VITE_INSIGHTS_URL || '';
+const INSIGHTS_URL = import.meta.env.VITE_INSIGHTS_URL || 'https://insights.auxein.co.nz';
 
 function Home() {
   const { user, userTypeRole } = useAuth();
@@ -130,15 +131,14 @@ function Home() {
       .catch(() => {});
   }, [user]);
 
+  const renderStatValue = (value) => {
+    if (loading) return <span className="stat-skeleton" aria-hidden="true" />;
+    return value ?? 0;
+  };
+
   return (
     <div className="home-page">
-      {/* Welcome banner */}
-      <div className="home-welcome">
-        <h2 className="home-welcome-title">
-          Welcome back{user?.first_name ? `, ${user.first_name}` : ''}.
-        </h2>
-      </div>
-
+      <SiteBanner />
       <div className="home-content">
         {/* Company Stats */}
         <div className="stats-container">
@@ -147,19 +147,19 @@ function Home() {
           </div>
           <div className="stats-grid">
             <Link to="/maps" className="stat-card">
-              <div className="stat-value">{stats?.block_count || '0'}</div>
+              <div className="stat-value">{renderStatValue(stats?.block_count)}</div>
               <div className="stat-label">Vineyard Blocks</div>
             </Link>
             <Link to="/observations" className="stat-card">
-              <div className="stat-value">{stats?.observation_count || '0'}</div>
+              <div className="stat-value">{renderStatValue(stats?.observation_count)}</div>
               <div className="stat-label">Observations</div>
             </Link>
-            <Link to="/observations" className="stat-card" onClick={() => { /* switches to tasks tab */ }}>
-              <div className="stat-value">{stats?.task_count || '0'}</div>
+            <Link to="/observations?tab=tasks" className="stat-card">
+              <div className="stat-value">{renderStatValue(stats?.task_count)}</div>
               <div className="stat-label">Tasks</div>
             </Link>
-            <div className="stat-card">
-              <div className="stat-value">{stats?.user_count || '0'}</div>
+            <div className="stat-card stat-card--static">
+              <div className="stat-value">{renderStatValue(stats?.user_count)}</div>
               <div className="stat-label">Team Members</div>
             </div>
           </div>
@@ -249,7 +249,7 @@ function Home() {
                 </li>
               ))
             ) : (
-              <li className="upcoming-item">
+              <li className="upcoming-item upcoming-item--empty">
                 <div className="upcoming-icon"><ClipboardList size={18} /></div>
                 <div className="upcoming-details">
                   <div className="upcoming-title">No upcoming tasks</div>
@@ -257,16 +257,14 @@ function Home() {
                 </div>
               </li>
             )}
-            <li className="upcoming-item">
-              <Link to="/calendar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
-                <div className="upcoming-icon"><Calendar size={18} /></div>
-                <div className="upcoming-details">
-                  <div className="upcoming-title" style={{ color: 'var(--color-primary)' }}>View full calendar</div>
-                  <div className="upcoming-meta">Tasks, observations, maintenance & more</div>
-                </div>
-              </Link>
-            </li>
           </ul>
+          <div className="upcoming-footer">
+            <Link to="/calendar" className="btn-ghost">
+              <Calendar size={16} />
+              View full calendar
+              <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
 
         {/* Latest Articles Carousel */}

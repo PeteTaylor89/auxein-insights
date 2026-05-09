@@ -9,30 +9,38 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: false },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'favicon-96x96.png',
+        'apple-touch-icon.png',
+        'og-image.jpg',
+      ],
       manifest: {
-        name: 'Vineyard Management System',
-        short_name: 'Vineyard App',
-        description: 'Vineyard Management System for tracking blocks, tasks, and observations',
-        theme_color: '#4CAF50',
+        name: 'Auxein Grow',
+        short_name: 'Auxein Grow',
+        description: 'Vineyard operations platform for New Zealand growers — calibrations, observations, and field tasks.',
+        theme_color: '#5B6830',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
         icons: [
           {
-            src: 'icons/icon-192x192.png',
+            src: 'web-app-manifest-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
           },
           {
-            src: 'icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            src: 'icons/icon-512x512.png',
+            src: 'web-app-manifest-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+          },
+          {
+            src: 'web-app-manifest-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
       },
       workbox: {
         // Main bundle is ~3 MB; default precache cap is 2 MiB.

@@ -262,29 +262,17 @@ Set these in the EB Console → Configuration → Software → Environment prope
 | `UPLOADS_S3_REGION` | `ap-southeast-2` |
 | `UPLOADS_PRESIGNED_URL_TTL_SECONDS` | `900` (15 min default for read URLs) |
 
-Setting these now is harmless — `files.py` doesn't read them yet. When the migration ships they'll already be in place, no second EB config change needed.
+Already in place from this morning. `files.py` consumes them via `services/file_storage.py`.
 
 ---
 
-## After this runbook — what's deferred
+## `files.py` S3 migration — DONE 2026-05-08
 
-### Backend `files.py` migration (separate phase, ~1 day)
+Shipped same day as this runbook. `backend/api/v1/files.py` now streams uploads to `auxein-uploads` via `backend/services/file_storage.py`. Backend redeploys no longer lose photos. Verified end-to-end: upload via web → object lands in S3 with the right key → download streams back through the backend.
 
-`backend/api/v1/files.py` currently writes to local `UPLOAD_DIR` on the EB instance — **wiped on every redeploy**.
+Schema: alembic `add_files_s3_key` added nullable `files.s3_key` and made `files.file_path` nullable. Reads prefer `s3_key`; legacy local rows still readable via `file_path` fallback.
 
-Migration steps (write up as its own runbook when scoped):
-
-1. Add a `services/file_storage.py` abstraction with `put_object(key, fileobj, content_type) -> s3_key` and `get_presigned_url(s3_key, ttl) -> str`. Mirror the boto3 pattern in `backend/api/v1/article_images.py` (`_get_s3_client`).
-2. Update `files.py` upload handler to write to S3 instead of local disk; persist `s3_key` (or update `file_path` semantics) in the `files` table.
-3. Update download handler to mint a pre-signed URL and 302 redirect (or return URL in JSON for clients to fetch directly).
-4. Migration script: walk existing `UPLOAD_DIR` on the EB instance, upload to S3, update DB rows.
-5. Cutover: deploy backend, run migration script over SSH (`eb ssh auxein-api-prod-lb`), verify, drop local files.
-
-**Until that ships, do NOT redeploy the backend** if anyone has uploaded photos since the last redeploy — they'll be lost. Today's `eb deploy` may have already wiped any incident/calibration/risk photos uploaded between the prior deploy and today. Check with the user list before next backend redeploy.
-
-### Mobile photos already going through the backend
-
-Mobile screens (`CreateIncidentScreen`, `CreateRiskScreen`, `CreateAssetScreen`, calibration `FeedItemModal`, observation `SpotCaptureScreen`) all upload via the backend `files` endpoint, so they automatically benefit from the S3 migration once it ships. No mobile-side change needed beyond perhaps swapping local file URLs for the backend-returned signed URL in viewers.
+Mobile screens (`CreateIncidentScreen`, `CreateRiskScreen`, `CreateAssetScreen`, calibration `FeedItemModal`, observation `SpotCaptureScreen`) all upload via the backend `/files/upload` endpoint and automatically benefit. No client changes needed — backend streams downloads, so the existing `axios.get('/files/{id}/download', { responseType: 'blob' })` calls keep working unchanged.
 
 ---
 
@@ -292,7 +280,7 @@ Mobile screens (`CreateIncidentScreen`, `CreateRiskScreen`, `CreateAssetScreen`,
 
 | | Bucket | Domain / Access |
 |---|---|---|
-| Stage A | `auxein-grow-web` (new) | `https://grow.auxein.co.nz` via CloudFront `<DIST-ID>` |
-| Stage B | `auxein-uploads` (new) | Backend-only via instance role; pre-signed URLs for clients |
+| Stage A | `auxein-grow-web` (new) | `https://grow.auxein.co.nz` via CloudFront `E2DU9CGNMPH53L` |
+| Stage B | `auxein-uploads` (new) | Backend-only via instance role; backend-streamed downloads |
 
-After both stages: `packages/web` can deploy to `grow.auxein.co.nz`; backend has the IAM + env vars ready for the `files.py` migration whenever you scope it.
+Both stages live as of 2026-05-08. Pro web deployable to `grow.auxein.co.nz`; backend uploads safe across redeploys.

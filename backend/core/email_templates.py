@@ -1,13 +1,15 @@
 # core/email_templates.py - Add these templates to your email service
 from core.config import settings
+from core.branding import Brand, GROW
 
 def get_invitation_email_template(
     invitee_name: str,
-    inviter_name: str, 
+    inviter_name: str,
     company_name: str,
     role: str,
     invitation_link: str,
-    custom_message: str = None
+    custom_message: str = None,
+    brand: Brand = GROW,
 ) -> tuple[str, str]:
     """Get invitation email template"""
     
@@ -25,7 +27,7 @@ def get_invitation_email_template(
     <html>
     <head>
         <meta charset="utf-8">
-        <title>You're Invited to Join {company_name} - Auxein Insights</title>
+        <title>You're Invited to Join {company_name} - {brand.display_name}</title>
         <style>
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
@@ -66,12 +68,12 @@ def get_invitation_email_template(
         <div class="container">
             <div class="header">
                 <h1>🎉 You're Invited!</h1>
-                <p>Join {company_name} on Auxein Insights</p>
+                <p>Join {company_name} on {brand.display_name}</p>
             </div>
             <div class="content">
                 <h2>Hi{f" {invitee_name}" if invitee_name else ""},</h2>
                 
-                <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> on Auxein Insights, the leading vineyard management platform.</p>
+                <p><strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> on {brand.display_name}, the leading vineyard management platform.</p>
                 
                 <div class="role-badge">Your Role: {role_description}</div>
                 
@@ -97,15 +99,15 @@ def get_invitation_email_template(
                 
                 <p><strong>Important:</strong> This invitation will expire in 7 days for security reasons.</p>
                 
-                <p>If you have any questions about Auxein Insights or need help getting started, don't hesitate to reach out to our support team.</p>
+                <p>If you have any questions about {brand.display_name} or need help getting started, don't hesitate to reach out to our support team.</p>
                 
                 <p>We're excited to have you join the team!</p>
                 
                 <p>Best regards,<br>
-                {inviter_name} & The Auxein Insights Team</p>
+                {inviter_name} & The {brand.display_name} Team</p>
             </div>
             <div class="footer">
-                <p>© 2025 Auxein Insights. All rights reserved.</p>
+                <p>© 2025 {brand.display_name}. All rights reserved.</p>
                 <p>This invitation was sent to you by {inviter_name} at {company_name}</p>
             </div>
         </div>
@@ -114,11 +116,11 @@ def get_invitation_email_template(
     """
     
     text_template = f"""
-    You're Invited to Join {company_name} - Auxein Insights
+    You're Invited to Join {company_name} - {brand.display_name}
     
     Hi{f" {invitee_name}" if invitee_name else ""},
     
-    {inviter_name} has invited you to join {company_name} on Auxein Insights, the leading vineyard management platform.
+    {inviter_name} has invited you to join {company_name} on {brand.display_name}, the leading vineyard management platform.
     
     Your Role: {role_description}
     
@@ -141,71 +143,72 @@ def get_invitation_email_template(
     We're excited to have you join the team!
     
     Best regards,
-    {inviter_name} & The Auxein Insights Team
+    {inviter_name} & The {brand.display_name} Team
     
     ---
-    © 2025 Auxein Insights. All rights reserved.
+    © 2025 {brand.display_name}. All rights reserved.
     This invitation was sent to you by {inviter_name} at {company_name}
     """
     
     return html_template, text_template
 
 def send_invitation_email(
-    email: str, 
+    email: str,
     invitee_name: str,
     inviter_name: str,
-    company_name: str, 
+    company_name: str,
     role: str,
     invitation_token: str,
-    custom_message: str = None
+    custom_message: str = None,
+    brand: Brand = GROW,
 ) -> bool:
     """Send invitation email"""
-    
+
     from services.email_service import UnifiedEmailService
-    
-    # Create invitation link
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    invitation_link = f"{frontend_url}/accept-invitation?token={invitation_token}"
-    
+
+    invitation_link = f"{brand.frontend_url}/accept-invitation?token={invitation_token}"
+
     html_content, text_content = get_invitation_email_template(
         invitee_name=invitee_name,
         inviter_name=inviter_name,
         company_name=company_name,
         role=role,
         invitation_link=invitation_link,
-        custom_message=custom_message
+        custom_message=custom_message,
+        brand=brand,
     )
-    
-    subject = f"You're invited to join {company_name} on Auxein Insights"
-    
+
+    subject = f"You're invited to join {company_name} on {brand.display_name}"
+
     return email_service.send_email(
         to_email=email,
         subject=subject,
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )
 
 def send_invitation_reminder_email(
     email: str,
-    invitee_name: str, 
+    invitee_name: str,
     inviter_name: str,
     company_name: str,
     invitation_token: str,
-    days_remaining: int
+    days_remaining: int,
+    brand: Brand = GROW,
 ) -> bool:
     """Send invitation reminder email"""
-    
+
     from services.email_service import UnifiedEmailService
-    
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    invitation_link = f"{frontend_url}/accept-invitation?token={invitation_token}"
+
+    invitation_link = f"{brand.frontend_url}/accept-invitation?token={invitation_token}"
     
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Reminder: Invitation to {company_name} - Auxein Insights</title>
+        <title>Reminder: Invitation to {company_name} - {brand.display_name}</title>
     </head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -215,7 +218,7 @@ def send_invitation_reminder_email(
             <div style="padding: 30px; background-color: #f9fafb;">
                 <h2>Hi{f" {invitee_name}" if invitee_name else ""},</h2>
                 
-                <p>This is a friendly reminder that <strong>{inviter_name}</strong> invited you to join <strong>{company_name}</strong> on Auxein Insights.</p>
+                <p>This is a friendly reminder that <strong>{inviter_name}</strong> invited you to join <strong>{company_name}</strong> on {brand.display_name}.</p>
                 
                 <p style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px;">
                     <strong>⚠️ Your invitation expires in {days_remaining} day{"s" if days_remaining != 1 else ""}!</strong>
@@ -229,7 +232,7 @@ def send_invitation_reminder_email(
                 
                 <p>Don't miss out on joining your team on the leading vineyard management platform!</p>
                 
-                <p>Best regards,<br>The Auxein Insights Team</p>
+                <p>Best regards,<br>The {brand.display_name} Team</p>
             </div>
         </div>
     </body>
@@ -237,25 +240,25 @@ def send_invitation_reminder_email(
     """
     
     subject = f"Reminder: Your invitation to {company_name} expires soon"
-    
+
     return email_service.send_email(
         to_email=email,
         subject=subject,
-        html_content=html_content
+        html_content=html_content,
+        brand=brand,
     )
 def send_welcome_email(
-    email: str, 
-    username: str, 
-    company_name: str, 
-    password: str = None
+    email: str,
+    username: str,
+    company_name: str,
+    password: str = None,
+    brand: Brand = GROW,
 ) -> bool:
     """Send welcome email to new company admin"""
-    
+
     from services.email_service import UnifiedEmailService
-    
-    # Create login link
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-    login_link = f"{frontend_url}/login"
+
+    login_link = f"{brand.frontend_url}/login"
     
     # Logo URL - update this to match your hosted logo location
     logo_url = f"https://static.wixstatic.com/media/518d4a_389e37adefda43c0ab5a3798c64ea734~mv2.png"
@@ -265,7 +268,7 @@ def send_welcome_email(
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Welcome to Auxein Insights - Your Account is Ready!</title>
+        <title>Welcome to {brand.display_name} - Your Account is Ready!</title>
         <style>
             body {{ 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
@@ -397,16 +400,16 @@ def send_welcome_email(
             <div class="container">
                 <div class="header">
                     <div class="logo">
-                        <img src="{logo_url}" alt="Auxein TO GROW" style="height: 45px; width: auto; max-width: 250px;">
-                        <div class="logo-fallback">Auxein <span style="color: #D1583B;">TO GROW</span></div>
+                        <img src="{logo_url}" alt="{brand.display_name}" style="height: 45px; width: auto; max-width: 250px;">
+                        <div class="logo-fallback">{brand.display_name}</div>
                     </div>
-                    <h1>Welcome to Auxein Insights!</h1>
+                    <h1>Welcome to {brand.display_name}!</h1>
                     <p style="margin: 5px 0; font-size: 16px; opacity: 0.9;">Your vineyard management platform is ready</p>
                 </div>
                 <div class="content">
                     <h2>Hi {username},</h2>
                     
-                    <p>Congratulations! Your company <strong class="brand-primary">{company_name}</strong> has been successfully set up on Auxein Insights, and you've been designated as the company administrator.</p>
+                    <p>Congratulations! Your company <strong class="brand-primary">{company_name}</strong> has been successfully set up on {brand.display_name}, and you've been designated as the company administrator.</p>
                     
                     <div class="credentials">
                         <h3 style="margin-top: 0; color: #5B6830;">Your Login Credentials</h3>
@@ -450,22 +453,22 @@ def send_welcome_email(
                     
                     <div style="background: rgba(253, 246, 227, 0.6); border-radius: 8px; padding: 20px; margin: 25px 0;">
                         <h3 style="margin-top: 0; color: #5B6830;">Need Help?</h3>
-                        <p>Our team is here to help you get the most out of Auxein Insights:</p>
+                        <p>Our team is here to help you get the most out of {brand.display_name}:</p>
                         <ul style="margin: 15px 0; padding-left: 25px;">
-                            <li><strong>Email Support:</strong> <a href="mailto:support@auxein.co.nz">support@auxein.co.nz</a></li>
+                            <li><strong>Email Support:</strong> <a href="mailto:{brand.support_email}">{brand.support_email}</a></li>
                             <li><strong>Phone Support:</strong> Available during business hours</li>
                             <li><strong>Online Documentation:</strong> Comprehensive guides and tutorials</li>
                         </ul>
                     </div>
                     
-                    <p>We're excited to have <strong class="brand-primary">{company_name}</strong> as part of the Auxein Insights community!</p>
+                    <p>We're excited to have <strong class="brand-primary">{company_name}</strong> as part of the {brand.display_name} community!</p>
                     
                     <p>Best regards,<br>
-                    <strong class="brand-primary">The Auxein Insights Team</strong><br>
+                    <strong class="brand-primary">The {brand.display_name} Team</strong><br>
                     <span style="color: rgba(47, 47, 47, 0.7);">Leading vineyard management solutions</span></p>
                 </div>
                 <div class="footer">
-                    <p>© 2025 Auxein Insights. All rights reserved.</p>
+                    <p>© 2025 {brand.display_name}. All rights reserved.</p>
                     <p>This welcome email was sent to {email} for {company_name}</p>
                 </div>
             </div>
@@ -475,11 +478,11 @@ def send_welcome_email(
     """
     
     text_content = f"""
-    Welcome to Auxein Insights - Your Account is Ready!
+    Welcome to {brand.display_name} - Your Account is Ready!
     
     Hi {username},
     
-    Congratulations! Your company {company_name} has been successfully set up on Auxein Insights, and you've been designated as the company administrator.
+    Congratulations! Your company {company_name} has been successfully set up on {brand.display_name}, and you've been designated as the company administrator.
     
     Your Login Credentials:
     - Email: {email}
@@ -506,26 +509,27 @@ def send_welcome_email(
     5. Start recording observations and assigning tasks
     
     Need Help?
-    - Email Support: support@auxein.co.nz
+    - Email Support: {brand.support_email}
     - Phone Support: Available during business hours
     - Online Documentation: Comprehensive guides and tutorials
     
-    We're excited to have {company_name} as part of the Auxein Insights community!
+    We're excited to have {company_name} as part of the {brand.display_name} community!
     
     Best regards,
-    The Auxein Insights Team
+    The {brand.display_name} Team
     Leading vineyard management solutions
     
     ---
-    © 2025 Auxein Insights. All rights reserved.
+    © 2025 {brand.display_name}. All rights reserved.
     This welcome email was sent to {email} for {company_name}
     """
     
-    subject = f"Welcome to Auxein Insights - {company_name} Account Ready!"
-    
+    subject = f"Welcome to {brand.display_name} - {company_name} Account Ready!"
+
     return email_service.send_email(
         to_email=email,
         subject=subject,
         html_content=html_content,
-        text_content=text_content
+        text_content=text_content,
+        brand=brand,
     )

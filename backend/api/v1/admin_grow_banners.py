@@ -1,30 +1,44 @@
-# backend/api/v1/admin_banners.py
-"""Admin CRUD endpoints for site banners."""
+# backend/api/v1/admin_grow_banners.py
+"""Grow admin CRUD endpoints for site banners.
+
+Mirrors the Insights admin endpoints (`admin_banners.py`) but gated by Grow's
+auxein_admin role rather than the Insights PublicUser admin. Both endpoints
+write to the same `site_banners` table — the `audience` field on each banner
+controls which product surfaces it.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from db.session import get_db
+from api.deps import get_db, get_current_user
 from db.models.site_banner import SiteBanner
-from db.models.public_user import PublicUser
-from core.admin_security import require_admin
+from db.models.user import User
 from schemas.site_banner import (
     BannerCreate, BannerUpdate, BannerResponse, BannerListResponse
 )
 
-router = APIRouter(prefix="/banners", tags=["Admin - Banners"])
+router = APIRouter(prefix="/banners", tags=["Grow Admin - Banners"])
+
+
+def require_auxein_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_auxein_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Auxein admin access required",
+        )
+    return current_user
 
 
 @router.get("", response_model=BannerListResponse)
 def list_banners(
     db: Session = Depends(get_db),
-    admin: PublicUser = Depends(require_admin),
+    admin: User = Depends(require_auxein_admin),
 ):
-    """List all banners (includes inactive)."""
+    """List all banners (includes inactive, all audiences)."""
     banners = db.query(SiteBanner).order_by(SiteBanner.display_order).all()
     return BannerListResponse(
         banners=[BannerResponse.model_validate(b) for b in banners],
-        total=len(banners)
+        total=len(banners),
     )
 
 
@@ -32,7 +46,7 @@ def list_banners(
 def create_banner(
     data: BannerCreate,
     db: Session = Depends(get_db),
-    admin: PublicUser = Depends(require_admin),
+    admin: User = Depends(require_auxein_admin),
 ):
     """Create a new site banner."""
     banner = SiteBanner(
@@ -54,7 +68,7 @@ def update_banner(
     banner_id: int,
     data: BannerUpdate,
     db: Session = Depends(get_db),
-    admin: PublicUser = Depends(require_admin),
+    admin: User = Depends(require_auxein_admin),
 ):
     """Update an existing banner."""
     banner = db.query(SiteBanner).filter(SiteBanner.id == banner_id).first()
@@ -74,7 +88,7 @@ def update_banner(
 def delete_banner(
     banner_id: int,
     db: Session = Depends(get_db),
-    admin: PublicUser = Depends(require_admin),
+    admin: User = Depends(require_auxein_admin),
 ):
     """Delete a banner."""
     banner = db.query(SiteBanner).filter(SiteBanner.id == banner_id).first()

@@ -2,18 +2,20 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { Shield, Building2, Users, MapPinned, Wrench } from 'lucide-react';
+import { Shield, Building2, Users, MapPinned, Wrench, Megaphone } from 'lucide-react';
 import CompanyCreationForm from '../components/admin/CompanyCreationForm';
 import CompanyManagement from '../components/admin/CompanyManagement';
 import UserManagement from '../components/admin/UserManagement';
 import PropertyManagement from '../components/admin/PropertyManagement';
 import ContractorRegistry from '../components/admin/ContractorRegistry';
+import BannerManagement from '../components/admin/BannerManagement';
 
 const TABS = [
   { id: 'companies', label: 'Companies', icon: Building2 },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'properties', label: 'Properties', icon: MapPinned },
   { id: 'contractors', label: 'Contractors', icon: Wrench },
+  { id: 'banners', label: 'Banners', icon: Megaphone },
 ];
 
 function Admin() {
@@ -75,6 +77,7 @@ function Admin() {
         {activeTab === 'users' && <UserManagement />}
         {activeTab === 'properties' && <PropertyManagement />}
         {activeTab === 'contractors' && <ContractorRegistry />}
+        {activeTab === 'banners' && <BannerManagement />}
       </div>
 
       <style>{`

@@ -1,10 +1,10 @@
-// components/SiteHeader.jsx — Pro app sticky header with nav, auth, mobile menu
+// components/SiteHeader.jsx — Auxein Grow web app sticky header with nav, auth, mobile menu
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, LogOut, Settings, Menu, X, Home, MapPin, Grape, Tractor, TriangleAlert, Lightbulb, Shield, Calendar, Wrench } from 'lucide-react';
 import { useAuth } from '@vineyard/shared';
 import NotificationBell from './NotificationBell';
-import Logo from '../assets/App_Logo_September 2025.jpg';
+import Logo from '../assets/logo-mark.png';
 import './SiteHeader.css';
 
 // Scroll-aware header hook (hides on scroll down on mobile)
