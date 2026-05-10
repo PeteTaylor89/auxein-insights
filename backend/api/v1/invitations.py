@@ -72,16 +72,6 @@ def create_invitation(
             detail="Company has no subscription assigned"
         )
     
-    import secrets
-    import string
-    def generate_temp_password(length=12):
-        """Generate a secure temporary password"""
-        characters = string.ascii_letters + string.digits + "!@#$%^&*"
-        return ''.join(secrets.choice(characters) for _ in range(length))
-    
-    temp_password = generate_temp_password()
-
-    # Create invitation
     invitation = Invitation.create_invitation(
         email=invitation_data.email,
         company_id=current_user.company_id,
@@ -91,14 +81,12 @@ def create_invitation(
         last_name=invitation_data.last_name,
         suggested_username=invitation_data.suggested_username,
         message=invitation_data.message,
-        temporary_password=temp_password
     )
-    
+
     db.add(invitation)
     db.commit()
     db.refresh(invitation)
-    
-    # Send invitation email
+
     background_tasks.add_task(
         send_invitation_email,
         email=invitation.email,
@@ -108,7 +96,6 @@ def create_invitation(
         invitation_token=invitation.token,
         message=invitation.message,
         suggested_username=invitation.suggested_username,
-        temporary_password=temp_password
     )
     
     return invitation

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 function AcceptInvitation() {
   // Get token from URL params
   const [token] = useState(new URLSearchParams(window.location.search).get('token'));
@@ -28,7 +30,7 @@ function AcceptInvitation() {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/invitations/token/${token}`);
+      const response = await fetch(`${API_BASE}/invitations/token/${token}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -68,7 +70,7 @@ function AcceptInvitation() {
     }
 
     try {
-      const response = await fetch('/api/invitations/accept', {
+      const response = await fetch(`${API_BASE}/invitations/accept`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
