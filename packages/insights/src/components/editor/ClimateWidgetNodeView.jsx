@@ -9,10 +9,15 @@ const WIDGET_LABELS = {
   season_comparison: 'Season Comparison',
   current_season_summary: 'Current Season Summary',
   recent_observations: 'Recent Observations',
+  historical_trend: 'Historical Trend',
+  region_trend_compare: 'Region Trend Comparison',
+  region_trend_compare_interactive: 'Region Comparison (Interactive)',
+  projection_outlook: 'Climate Projection',
 };
 
 function ClimateWidgetNodeView({ node, deleteNode }) {
-  const { widgetType, zoneName, title, metric, displayMode, isStatic, snapshotData } = node.attrs;
+  const { widgetType, zoneName, zoneNames, title, metric, displayMode, isStatic, snapshotData } = node.attrs;
+  const zoneLabel = zoneNames || zoneName || 'No zone selected';
   const isTable = displayMode === 'table';
   const Icon = isTable ? Table2 : BarChart3;
 
@@ -41,7 +46,7 @@ function ClimateWidgetNodeView({ node, deleteNode }) {
             </span>
           </div>
           <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-            {zoneName || 'No zone selected'}{metric ? ` — ${metric}` : ''}
+            {zoneLabel}{metric ? ` — ${metric}` : ''}
             {isStatic && (
               <span style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#92400e', fontWeight: 500 }}>
                 <Lock size={10} /> {snapshotData ? 'snapshot taken' : 'will snapshot on save'}

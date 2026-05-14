@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, ChevronDown, Plus, X, Lock} from 'lucide-react';
+import { MapPin, ChevronDown, X, Lock} from 'lucide-react';
 import { getRegions } from '../../services/publicClimateService';
 
 const ZoneSelector = ({
@@ -157,29 +157,35 @@ const ZoneSelector = ({
       {/* Comparison Zones (shown when allowComparison is true and main zone is selected) */}
       {allowComparison && selectedZone && (
         <div className="zone-comparison-section">
-          <div className="comparison-header">
-            <span className="comparison-label">Compare with:</span>
-            {comparisonZones.length < maxComparison && (
-              <div className="add-comparison-container">
+          {comparisonZones.length < maxComparison && (
+            <div className="zone-selector-row">
+              <label className="zone-selector-label">
+                <MapPin size={16} />
+                <span>Compare with</span>
+              </label>
+
+              <div className="zone-dropdown-container">
                 <button
-                  className="add-comparison-btn"
+                  className={`zone-dropdown-trigger ${showCompareDropdown ? 'open' : ''}`}
                   onClick={() => setShowCompareDropdown(!showCompareDropdown)}
                 >
-                  <Plus size={14} />
-                  Add Zone
+                  <span className="zone-dropdown-text">
+                    {comparisonZones.length === 0 ? 'Add a zone to compare' : 'Add another zone'}
+                  </span>
+                  <ChevronDown size={18} className={`dropdown-chevron ${showCompareDropdown ? 'rotated' : ''}`} />
                 </button>
-                
+
                 {showCompareDropdown && (
                   <>
                     <div className="zone-dropdown-overlay" onClick={() => setShowCompareDropdown(false)} />
-                    <div className="zone-dropdown-menu comparison-menu">
+                    <div className="zone-dropdown-menu">
                       {regions.map((region) => {
-                        const availableZones = region.zones.filter(z => 
-                          z.slug !== selectedZone?.slug && 
+                        const availableZones = region.zones.filter(z =>
+                          z.slug !== selectedZone?.slug &&
                           !comparisonZones.find(c => c.slug === z.slug)
                         );
                         if (availableZones.length === 0) return null;
-                        
+
                         return (
                           <div key={region.id} className="zone-region-group">
                             <div className="zone-region-header">
@@ -203,8 +209,8 @@ const ZoneSelector = ({
                   </>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {comparisonZones.length > 0 && (
             <div className="zone-comparison-tags">

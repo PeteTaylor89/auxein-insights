@@ -18,16 +18,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { TrendingUp, TrendingDown, Minus, Calendar, Droplets, Thermometer, Sun, BarChart3, LineChart, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
-import { 
-  getZoneSeasons, 
+import {
+  getZoneSeasons,
   getZoneHistory,
   compareSeasons,
   compareZones,
+  compareZonesSeasons,
   getZoneBaseline,
-  formatMetricValue, 
+  formatMetricValue,
   formatPercentDiff,
   MONTH_NAMES,
-  GROWING_SEASON_MONTHS 
+  GROWING_SEASON_MONTHS
 } from '../../services/publicClimateService';
 
 // Growing season month labels in order
@@ -60,6 +61,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   const [chartMetric, setChartMetric] = useState('gdd');
   const [seasonLimit, setSeasonLimit] = useState(10);
   const [includeLTA, setIncludeLTA] = useState(true);
+  const [zoneCompareMode, setZoneCompareMode] = useState('lta'); // 'lta' | 'season' | 'trend'
   const [seasonPage, setSeasonPage] = useState(0);
 
   const seasonsPerPage = 6;
@@ -126,7 +128,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
 
   // Load zone comparison data
   useEffect(() => {
-    if (viewMode !== 'zone-compare' || comparisonZones.length === 0) {
+    if (viewMode !== 'zone-compare' || zoneCompareMode === 'trend' || comparisonZones.length === 0) {
       setZoneComparisonData(null);
       return;
     }
@@ -149,7 +151,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
     };
 
     loadZoneComparison();
-  }, [zone?.slug, comparisonZones, viewMode, chartMetric, selectedSeason, includeLTA]);
+  }, [zone?.slug, comparisonZones, viewMode, zoneCompareMode, chartMetric, selectedSeason, includeLTA]);
 
   // Get trend icon
   const TrendIcon = ({ value }) => {
@@ -566,7 +568,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
           </button>
         </div>
         
-        {viewMode === 'overview' && (
+        {(viewMode === 'overview' || (viewMode === 'zone-compare' && zoneCompareMode === 'trend')) && (
           <select
             className="season-limit-select"
             value={seasonLimit}
@@ -578,7 +580,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
           </select>
         )}
 
-        {(viewMode === 'monthly' || viewMode === 'zone-compare') && selectedSeason && (
+        {(viewMode === 'monthly' || (viewMode === 'zone-compare' && zoneCompareMode === 'season')) && selectedSeason && (
           <div className="season-selector">
             <label>Season:</label>
             <select
@@ -597,22 +599,27 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
 
         {viewMode === 'zone-compare' && (
           <div className="compare-type-toggle">
-            <label>
-              <input
-                type="radio"
-                checked={includeLTA}
-                onChange={() => setIncludeLTA(true)}
-              />
+            <button
+              type="button"
+              className={`chart-type-btn ${zoneCompareMode === 'lta' ? 'active' : ''}`}
+              onClick={() => { setZoneCompareMode('lta'); setIncludeLTA(true); }}
+            >
               Compare LTA
-            </label>
-            <label>
-              <input
-                type="radio"
-                checked={!includeLTA}
-                onChange={() => setIncludeLTA(false)}
-              />
+            </button>
+            <button
+              type="button"
+              className={`chart-type-btn ${zoneCompareMode === 'season' ? 'active' : ''}`}
+              onClick={() => { setZoneCompareMode('season'); setIncludeLTA(false); }}
+            >
               Compare Season
-            </label>
+            </button>
+            <button
+              type="button"
+              className={`chart-type-btn ${zoneCompareMode === 'trend' ? 'active' : ''}`}
+              onClick={() => setZoneCompareMode('trend')}
+            >
+              Trend over seasons
+            </button>
           </div>
         )}
       </div>
@@ -670,7 +677,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
           />
         )}
         
-        {viewMode === 'zone-compare' && (
+        {viewMode === 'zone-compare' && zoneCompareMode !== 'trend' && (
           <ZoneCompareChart
             mainZone={zone}
             comparisonZones={comparisonZones}
@@ -678,6 +685,16 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
             selectedSeason={selectedSeason}
             useLTA={includeLTA}
             baselineData={baselineData}
+          />
+        )}
+
+        {viewMode === 'zone-compare' && zoneCompareMode === 'trend' && (
+          <ZoneTrendChart
+            mainZone={zone}
+            comparisonZones={comparisonZones}
+            metric={chartMetric}
+            seasonLimit={seasonLimit}
+            showBaseline={includeLTA}
           />
         )}
         
@@ -1170,6 +1187,159 @@ const ZoneCompareChart = ({ mainZone, comparisonZones = [], metric, selectedSeas
           },
           x: {
             title: { display: true, text: 'Growing Season Month' }
+          }
+        },
+      }}
+    />
+  );
+};
+
+// =============================================================================
+// Zone Trend Chart (multi-zone, multi-season)
+// =============================================================================
+
+const ZoneTrendChart = ({ mainZone, comparisonZones = [], metric, seasonLimit, showBaseline }) => {
+  const [trendData, setTrendData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const isRainfall = metric === 'rain';
+
+  useEffect(() => {
+    if (!mainZone?.slug) {
+      setTrendData(null);
+      return;
+    }
+
+    const allZones = [mainZone, ...comparisonZones].filter(Boolean);
+    const zoneSlugs = allZones.map(z => z.slug).join(',');
+    const limitParam = seasonLimit >= 37 ? null : seasonLimit;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await compareZonesSeasons({
+          zones: zoneSlugs,
+          metric,
+          limit: limitParam,
+        });
+        setTrendData(data);
+      } catch (err) {
+        console.error('Error loading zone trend:', err);
+        setError('Failed to load trend data');
+        setTrendData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [mainZone?.slug, comparisonZones, metric, seasonLimit]);
+
+  const chartData = useMemo(() => {
+    if (!trendData?.zones?.length) return null;
+
+    const labels = trendData.zones[0]?.series?.map(s => s.season_label) || [];
+
+    const datasets = [];
+    trendData.zones.forEach((z, i) => {
+      const color = CHART_COLORS[i % CHART_COLORS.length];
+      const values = z.series.map(s => (s.value != null ? Number(s.value) : null));
+
+      datasets.push({
+        label: z.zone_name,
+        data: values,
+        borderColor: color.main,
+        backgroundColor: isRainfall ? color.main + 'CC' : color.main,
+        fill: false,
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        order: i,
+      });
+
+      if (showBaseline && !isRainfall && z.baseline != null) {
+        const baselineValue = Number(z.baseline);
+        datasets.push({
+          label: `${z.zone_name} LTA`,
+          data: labels.map(() => baselineValue),
+          borderColor: color.main,
+          backgroundColor: 'transparent',
+          borderDash: [6, 4],
+          borderWidth: 1.5,
+          fill: false,
+          pointRadius: 0,
+          tension: 0,
+          order: 100 + i,
+        });
+      }
+    });
+
+    return { labels, datasets };
+  }, [trendData, isRainfall, showBaseline]);
+
+  if (loading && !trendData) {
+    return <div className="chart-loading">Loading trend...</div>;
+  }
+  if (error) {
+    return <div className="chart-placeholder">{error}</div>;
+  }
+  if (!chartData) {
+    return (
+      <div className="chart-placeholder">
+        {mainZone ? 'No trend data available.' : 'Select a zone to view trend'}
+      </div>
+    );
+  }
+
+  const ChartComponent = isRainfall ? Bar : Line;
+
+  return (
+    <ChartComponent
+      data={chartData}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              filter: (item) => !item.text.endsWith(' LTA'),
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: (ctx) => {
+                if (ctx.dataset.label?.endsWith(' LTA')) return null;
+                const value = ctx.parsed.y;
+                if (value == null) return null;
+                return `${ctx.dataset.label}: ${formatMetricValue(value, metric)}`;
+              }
+            }
+          },
+          title: {
+            display: true,
+            text: `${metric === 'gdd' ? 'Season GDD' :
+                    metric === 'rain' ? 'Season Rainfall' :
+                    metric === 'tmean' ? 'Season Avg Temp' :
+                    metric === 'tmax' ? 'Season Max Temp' : 'Season Min Temp'} by zone`,
+            font: { size: 14, weight: 'bold' },
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: metric === 'gdd' || metric === 'rain',
+            title: {
+              display: true,
+              text: metric === 'gdd' ? 'GDD (°C·days)' :
+                    metric === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)',
+            }
+          },
+          x: {
+            title: { display: true, text: 'Growing season' }
           }
         },
       }}

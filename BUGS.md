@@ -52,7 +52,7 @@
 - **Files:**
   - `alembic/versions/6fbc24f09e13_add_company_support.py` — has `revision = '[generated_revision_id]'` (literal placeholder string, never filled in). The `companies` table + `company_id` columns it tries to create already exist in prod, so the file is dead code.
   - `alembic/versions/abc123456789_add_token_blacklist_only.py` — has `revision = 'abc123456789'` (looks placeholder-ish). Creates `token_blacklist` table which is **actively used in prod** by `backend/core/security/auth.py` (`is_token_blacklisted` / `blacklist_token`). This file is the only migration that creates the table, so either it WAS applied (and prod's `alembic_version` has `abc123456789` as a second pointer) OR the table was created out-of-band.
-- **Symptom:** `alembic heads` against the files returns 3 heads (`add_banner_audience`, `[generated_revision_id]`, `abc123456789`) instead of 1. Doesn't affect prod or live deploys — only annoys fresh-env bootstrapping (`alembic upgrade head` from scratch would error on the placeholder file).
+- **Symptom (re-verified 2026-05-11):** `alembic heads` actually returns a **single head** (`add_banner_audience`) — alembic silently skips the placeholder-revision file and the `abc123456789` file's down_revision (`848feb1504bd`) is far enough back in the chain that newer revisions bury it. Doesn't affect prod or live deploys — only bites fresh-env bootstrapping when both files are picked up by autogenerate.
 - **Files referencing token_blacklist (proves it's live):** `backend/db/models/__init__.py`, `backend/db/base.py`, `backend/core/security/auth.py`, `backend/db/models/token_blacklist.py`.
 - **Fix steps:**
   1. On prod, run `SELECT version_num FROM alembic_version;`

@@ -8,6 +8,42 @@
 
 ---
 
+
+PT NEW Context:
+READ this and update all below to match the new context:
+WE are proposing the unified user for Grow and Inisghts byt he following:
+**Backend tasks (one Alembic migration + auth changes):**
+- Alembic: add nullable `linked_public_user_id` FK on `users` → `public_users.id` (unique constraint on the FK so two `users` can't both point at the same `public_users` row)
+- **Grow signup flow** (`auth.py`):
+  - Create `users` row as today
+  - Check for existing `public_users` row by email
+    - If found: link via FK (don't overwrite the password)
+    - If not: create new `public_users` row with the same hashed password, link via FK
+- **Insights signup flow** (`public_auth.py`):
+  - Create `public_users` row as today
+  - If a Grow `users` row with that email already exists, link the FK back automatically. No password change.
+- **Password reset / change:**
+  - Propagate the new hash to the linked row in the same transaction
+  - Applies in both directions (Grow password change → public_users hash; Insights password reset → users hash for the linked user)
+- **Backfill** (lazy, opportunistic — no big-bang migration):
+  - On next successful login of an existing Grow user without a linked `public_users` row, check for a matching email
+    - If a public_users row exists: link it (use existing password — don't overwrite); flag for the user that their Insights login may differ
+    - If no public_users row: create one with the just-validated password hash and link
+  - Same behaviour on the Insights side for existing public_users without a Grow link
+- **Edge cases to handle:**
+  - Email change on either side must update the other if linked (or unlink — design decision: recommend re-link if new email also matches, else unlink and surface a "your Insights account is no longer linked" notice)
+  - Account deletion: cascade or unlink? Recommend unlink (keep `public_users` since it may have content/articles attached; soft-delete on `users`)
+
+**Test pass:**
+- New Grow signup → can immediately log into Insights with same credentials
+- New Insights signup of an existing Grow user's email → fails with "log in instead" prompt (or auto-links — confirm with Pete)
+- Password reset in Grow → next Insights login uses the new password
+- Existing Grow user (pre-FK) logs in → public_users row created + linked transparently
+
+We need a means of gating for tenants for publishing purposes as per the below documents. Initially this will be for BSI delivering vinefacts, and we will roll out the same format to all regional associations in Australia for publishing to their members. 
+
+UPDATE the entire below document on this new context. 
+
 ## 1. Background and intent
 
 Auxein is preparing to host a tenanted publisher instance for BSI (the New Zealand Institute for Bioeconomy Science) to deliver VineFacts and other observational research outputs through the Auxein Insights platform. Two architecturally significant decisions sit upstream of any build:

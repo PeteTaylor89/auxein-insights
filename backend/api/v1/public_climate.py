@@ -51,6 +51,9 @@ from schemas.public_climate import (
     SeasonComparisonItem,
     ZonesCompareResponse,
     ZoneComparisonItem,
+    ZonesSeasonsCompareResponse,
+    ZoneSeasonTrend,
+    ZoneSeasonValue,
 )
 
 router = APIRouter(tags=["public_climate"])
@@ -566,11 +569,13 @@ def get_zone_projections(
         season_gdd_projected = Decimal(0)
         season_rain_baseline = Decimal(0)
         season_rain_projected = Decimal(0)
+        season_tmean_baselines = []
+        season_tmean_projecteds = []
         season_tmean_deltas = []
-        
+
         for r in sorted(month_records, key=lambda x: x.month):
             baseline = baseline_records.get(r.month)
-            
+
             monthly.append(MonthlyProjection(
                 month=r.month,
                 month_name=MONTH_NAMES[r.month],
@@ -601,16 +606,29 @@ def get_zone_projections(
                     "gdd": r.gdd_projected,
                 },
             ))
-            
+
             # Accumulate season totals
             if r.month in GROWING_SEASON_MONTHS:
                 season_gdd_baseline += r.gdd_baseline or 0
                 season_gdd_projected += r.gdd_projected or 0
                 season_rain_baseline += baseline.rain if baseline else 0
                 season_rain_projected += r.rain_projected or 0
+                if baseline and baseline.tmean is not None:
+                    season_tmean_baselines.append(baseline.tmean)
+                if r.tmean_projected is not None:
+                    season_tmean_projecteds.append(r.tmean_projected)
                 if r.tmean_delta:
                     season_tmean_deltas.append(r.tmean_delta)
-        
+
+        tmean_baseline_avg = (
+            to_decimal(sum(season_tmean_baselines) / len(season_tmean_baselines))
+            if season_tmean_baselines else None
+        )
+        tmean_projected_avg = (
+            to_decimal(sum(season_tmean_projecteds) / len(season_tmean_projecteds))
+            if season_tmean_projecteds else None
+        )
+
         # Calculate season summary
         season_summary = SeasonProjectionSummary(
             gdd_baseline=to_decimal(season_gdd_baseline),
@@ -620,6 +638,8 @@ def get_zone_projections(
             rain_baseline=to_decimal(season_rain_baseline),
             rain_projected=to_decimal(season_rain_projected),
             rain_change_pct=calc_pct_diff(season_rain_projected, season_rain_baseline),
+            tmean_baseline=tmean_baseline_avg,
+            tmean_projected=tmean_projected_avg,
             tmean_change=to_decimal(sum(season_tmean_deltas) / len(season_tmean_deltas)) if season_tmean_deltas else None,
         )
         
@@ -852,4 +872,99 @@ def compare_zones(
         comparison_type="season" if vintage_year else "baseline",
         zones=comparison_items,
         chart_data=chart_data,
+    )
+
+
+@router.get("/compare/zones/seasons", response_model=ZonesSeasonsCompareResponse)
+def compare_zones_seasons(
+    zones: str = Query(..., description="Comma-separated zone slugs (max 5)"),
+    metric: str = Query("gdd", description="Metric: gdd, rain, tmean, tmax, tmin"),
+    limit: Optional[int] = Query(None, ge=1, description="Most recent N seasons; omit for all"),
+    db: Session = Depends(get_db),
+):
+    """
+    Compare multiple zones across multiple seasons for a single metric.
+
+    Returns a per-zone series of season totals (gdd, rain) or averages (tmean, tmax, tmin)
+    plus that zone's 1986-2005 baseline value for overlay. Excludes truncated seasons.
+    """
+    zone_slugs = [z.strip() for z in zones.split(",") if z.strip()]
+
+    if not zone_slugs:
+        raise HTTPException(status_code=400, detail="At least one zone slug required")
+    if len(zone_slugs) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 zones can be compared")
+    if metric not in METRIC_LABELS:
+        raise HTTPException(status_code=400, detail=f"Invalid metric. Valid: {list(METRIC_LABELS.keys())}")
+
+    zone_objs = db.query(ClimateZone).options(
+        joinedload(ClimateZone.region)
+    ).filter(ClimateZone.slug.in_(zone_slugs)).all()
+
+    if len(zone_objs) != len(zone_slugs):
+        found = {z.slug for z in zone_objs}
+        missing = [s for s in zone_slugs if s not in found]
+        raise HTTPException(status_code=404, detail=f"Zones not found: {missing}")
+
+    # Preserve caller's zone order
+    zones_by_slug = {z.slug: z for z in zone_objs}
+    ordered_zones = [zones_by_slug[s] for s in zone_slugs]
+
+    is_total_metric = metric in ("gdd", "rain")
+    metric_col = getattr(ClimateHistoryMonthly, f"{metric}_mean")
+    agg_expr = func.sum(metric_col) if is_total_metric else func.avg(metric_col)
+
+    # Union of vintage years across all selected zones
+    vintage_query = db.query(ClimateHistoryMonthly.vintage_year).filter(
+        ClimateHistoryMonthly.zone_id.in_([z.id for z in ordered_zones]),
+        ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
+        ~ClimateHistoryMonthly.vintage_year.in_(EXCLUDED_VINTAGE_YEARS),
+    ).distinct().order_by(desc(ClimateHistoryMonthly.vintage_year))
+
+    if limit:
+        vintage_query = vintage_query.limit(limit)
+
+    vintage_years = sorted([v[0] for v in vintage_query.all()])
+
+    zones_trends = []
+    for zone_obj in ordered_zones:
+        baseline = calculate_season_baseline(db, zone_obj.id)
+        baseline_value = getattr(
+            baseline, f"{metric}_total" if is_total_metric else f"{metric}_avg", None
+        )
+
+        rows = db.query(
+            ClimateHistoryMonthly.vintage_year.label("vintage_year"),
+            agg_expr.label("value"),
+        ).filter(
+            ClimateHistoryMonthly.zone_id == zone_obj.id,
+            ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
+            ClimateHistoryMonthly.vintage_year.in_(vintage_years),
+        ).group_by(ClimateHistoryMonthly.vintage_year).all()
+
+        value_by_year = {r.vintage_year: r.value for r in rows}
+
+        series = [
+            ZoneSeasonValue(
+                vintage_year=vy,
+                season_label=get_season_label(vy),
+                value=to_decimal(value_by_year.get(vy)) if value_by_year.get(vy) is not None else None,
+            )
+            for vy in vintage_years
+        ]
+
+        zones_trends.append(ZoneSeasonTrend(
+            zone_id=zone_obj.id,
+            zone_name=zone_obj.name,
+            zone_slug=zone_obj.slug,
+            region_name=zone_obj.region.name if zone_obj.region else None,
+            baseline=baseline_value,
+            series=series,
+        ))
+
+    return ZonesSeasonsCompareResponse(
+        metric=metric,
+        metric_label=METRIC_LABELS[metric],
+        vintage_years=vintage_years,
+        zones=zones_trends,
     )

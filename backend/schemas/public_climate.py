@@ -206,6 +206,8 @@ class SeasonProjectionSummary(BaseModel):
     rain_baseline: Optional[Decimal] = None
     rain_projected: Optional[Decimal] = None
     rain_change_pct: Optional[Decimal] = None
+    tmean_baseline: Optional[Decimal] = None
+    tmean_projected: Optional[Decimal] = None
     tmean_change: Optional[Decimal] = None
 
 
@@ -264,6 +266,31 @@ class ZonesCompareResponse(BaseModel):
     comparison_type: str  # "season" or "baseline"
     zones: List[ZoneComparisonItem] = []
     chart_data: Optional[Dict[str, Any]] = None
+
+
+class ZoneSeasonValue(BaseModel):
+    """Single season value within a zone's trend series."""
+    vintage_year: int
+    season_label: str
+    value: Optional[Decimal] = None
+
+
+class ZoneSeasonTrend(BaseModel):
+    """A zone's metric values across multiple seasons."""
+    zone_id: int
+    zone_name: str
+    zone_slug: str
+    region_name: Optional[str] = None
+    baseline: Optional[Decimal] = None
+    series: List[ZoneSeasonValue] = []
+
+
+class ZonesSeasonsCompareResponse(BaseModel):
+    """Response for comparing multiple zones across multiple seasons."""
+    metric: str
+    metric_label: str
+    vintage_years: List[int] = []
+    zones: List[ZoneSeasonTrend] = []
 
 
 # =============================================================================

@@ -173,6 +173,20 @@ export const compareZones = async (params) => {
   return fetchApi(`/compare/zones${query}`);
 };
 
+/**
+ * Compare multiple zones across multiple seasons (trend over time).
+ * Returns per-zone series of season totals/averages plus each zone's baseline.
+ * @param {Object} params
+ * @param {string} params.zones - Comma-separated zone slugs (max 5)
+ * @param {string} params.metric - gdd | rain | tmean | tmax | tmin
+ * @param {number} [params.limit] - Most recent N seasons; omit for all
+ * @returns {Promise<{metric, metric_label, vintage_years: number[], zones: Array}>}
+ */
+export const compareZonesSeasons = async (params) => {
+  const query = buildQuery(params);
+  return fetchApi(`/compare/zones/seasons${query}`);
+};
+
 // =============================================================================
 // CONSTANTS & HELPERS
 // =============================================================================
@@ -293,6 +307,7 @@ export default {
   getZoneProjections,
   compareSeasons,
   compareZones,
+  compareZonesSeasons,
   SSP_SCENARIOS,
   PROJECTION_PERIODS,
   GROWING_SEASON_MONTHS,

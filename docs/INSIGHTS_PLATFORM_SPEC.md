@@ -50,7 +50,7 @@ The platform consolidates these answers into a single, always-current web produc
 
 ## 3. What Auxein Insights Is
 
-A public-access regional intelligence platform with five integrated reporting surfaces, a regional map, an authored content layer, and a free seasonal-stats widget. All views are zone-aware: every metric, chart and recommendation is scoped to a defined climate zone (e.g. Wairau Valley, Bendigo, Ōpaki, Hawke's Bay).
+A public-access regional intelligence platform with five integrated reporting surfaces, a regional map, an authored content layer, and a free seasonal-stats widget. All views are zone-aware: every metric, chart and recommendation is scoped to a defined climate zone (e.g. Wairau Valley, Bendigo, Hawke's Bay).
 
 ### 3.1 The five climate explorers
 
@@ -86,7 +86,7 @@ A public-access regional intelligence platform with five integrated reporting su
 
 - Open access for browsing and the seasonal widget.
 - Account creation enables saved zones, deeper history, and contribution back to the dataset.
-- The same backend powers the paid Auxein Pro and Auxein Grow products — Insights is the public face of one shared data platform.
+- The same backend powers the paid Auxein Grow products — Insights is the public face of one shared data platform.
 
 ---
 
@@ -224,3 +224,18 @@ A presentation closer — distil to one slide, three points, large type.
 ## 10. One-Line Pitch
 
 > Auxein Insights replaces the wine industry's seasonal climate report cycle with a live, zone-aware intelligence layer — current season, phenology, disease pressure and downscaled projections, on every zone, every day.
+
+
+## 11. PT added notes for new features/updates - to overwrrite 8. Roadmap
+
+CODC rollout completed
+Weather endpoint for Grow scoped seperately
+Add additional history, projections, and current season metrics - frost days, date of last frost, hot days (30C), extreme rainfall (>50mm) - data exists in raw files, to be added to the DB - Alembic migration might be needed - to scope the DB model
+Season closeout - as the growing season has ended, we need to stop the current season, phenology, and disease calcs and create a new climate history card for regions where the data exists. 
+Varibale cadence ingestion - descope for now for regional insights
+Australia Rollout - fully scope, we need regions/nesting/GIs following the same logic as NZ, I have all the historical data for 1955 to 2026 vintages, and we will have a live (FTP) data ingestion for live data presentation in time for Sept launch. There is a australian GI data base that we can use to build out the data. I am also looking into the possibilty of getting a copy of the GAIA 2020 vineyard scan data with polygons of all vineayrds in Aus. 
+Grow integration - scoped in Grow dev
+Marketing site integration with Articles carousel, and stats about weather stations and regions served - push leads to Insights
+
+
+

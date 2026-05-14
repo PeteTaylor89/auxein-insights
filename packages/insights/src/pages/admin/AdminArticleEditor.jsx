@@ -11,7 +11,12 @@ import {
   getCurrentSeason,
   getDiseasePressure,
 } from '../../services/realtimeClimateService';
-import { compareSeasons } from '../../services/publicClimateService';
+import {
+  compareSeasons,
+  compareZonesSeasons,
+  getZoneSeasons,
+  getZoneProjections,
+} from '../../services/publicClimateService';
 
 const ClimateWidgetRenderer = lazy(() => import('../../components/climate/ClimateWidgetRenderer'));
 
@@ -65,12 +70,17 @@ function ArticlePreviewBody({ body }) {
               widgetType={node.attrs?.widgetType}
               zoneSlug={node.attrs?.zoneSlug}
               zoneName={node.attrs?.zoneName}
+              zoneSlugs={node.attrs?.zoneSlugs || ''}
+              zoneNames={node.attrs?.zoneNames || ''}
               metric={node.attrs?.metric}
               displayMode={node.attrs?.displayMode || 'chart'}
               title={node.attrs?.title}
               snapshotData={node.attrs?.snapshotData || null}
               vintages={node.attrs?.vintages || ''}
               includeBaseline={node.attrs?.includeBaseline !== false}
+              seasonLimit={node.attrs?.seasonLimit || 10}
+              scenario={node.attrs?.scenario || ''}
+              period={node.attrs?.period || ''}
             />
           </Suspense>
         );
@@ -227,6 +237,23 @@ function AdminArticleEditor() {
           include_baseline: attrs.includeBaseline !== false,
         });
       }
+      case 'historical_trend': {
+        const lim = attrs.seasonLimit && attrs.seasonLimit < 37 ? attrs.seasonLimit : null;
+        return getZoneSeasons(attrs.zoneSlug, lim ? { limit: lim } : {});
+      }
+      case 'region_trend_compare': {
+        const lim = attrs.seasonLimit && attrs.seasonLimit < 37 ? attrs.seasonLimit : null;
+        return compareZonesSeasons({
+          zones: attrs.zoneSlugs,
+          metric: attrs.metric || 'gdd',
+          limit: lim,
+        });
+      }
+      case 'projection_outlook':
+        return getZoneProjections(attrs.zoneSlug, {
+          ssp: attrs.scenario || 'all',
+          period: attrs.period || 'all',
+        });
       default:
         return null;
     }

@@ -9,7 +9,13 @@ import {
   getCurrentSeason,
   getDiseasePressure,
 } from '../../services/realtimeClimateService';
-import { compareSeasons } from '../../services/publicClimateService';
+import {
+  compareSeasons,
+  compareZonesSeasons,
+  getZoneSeasons,
+  getZoneProjections,
+  getZones,
+} from '../../services/publicClimateService';
 import {
   getResponsiveLineChartOptions,
   getResponsiveBarChartOptions,
@@ -22,6 +28,26 @@ const WIDGET_TITLES = {
   season_comparison: 'Season Comparison',
   current_season_summary: 'Current Season Summary',
   recent_observations: 'Recent Observations',
+  historical_trend: 'Historical Trend',
+  region_trend_compare: 'Region Trend Comparison',
+  region_trend_compare_interactive: 'Region Comparison (Interactive)',
+  projection_outlook: 'Climate Projection',
+};
+
+const TREND_COLORS = [
+  '#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
+];
+
+const SSP_LABELS = {
+  SSP126: 'SSP1-2.6 (Low emissions)',
+  SSP245: 'SSP2-4.5 (Middle road)',
+  SSP370: 'SSP3-7.0 (High emissions)',
+};
+
+const PERIOD_LABELS = {
+  '2021_2040': 'Near-term (2021-2040)',
+  '2041_2060': 'Mid-century (2041-2060)',
+  '2080_2099': 'End of century (2080-2099)',
 };
 
 const DISEASE_LABELS = {
@@ -30,16 +56,68 @@ const DISEASE_LABELS = {
   botrytis: 'Botrytis',
 };
 
-function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, displayMode = 'chart', title, snapshotData, vintages, includeBaseline = true }) {
+function ClimateWidgetRenderer({
+  widgetType,
+  zoneSlug,
+  zoneName,
+  zoneSlugs,
+  zoneNames,
+  metric,
+  displayMode = 'chart',
+  title,
+  snapshotData,
+  vintages,
+  includeBaseline = true,
+  seasonLimit,
+  scenario,
+  period,
+}) {
   const [data, setData] = useState(snapshotData || null);
   const [loading, setLoading] = useState(!snapshotData);
   const [error, setError] = useState(null);
   const isSnapshot = !!snapshotData;
+  const isInteractive = widgetType === 'region_trend_compare_interactive';
+
+  // Reader-driven selection for interactive widget. Seeded from default zoneSlugs.
+  const defaultPair = useMemo(() => {
+    const slugs = (zoneSlugs || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 2);
+    const names = (zoneNames || '').split(',').map(s => s.trim());
+    return slugs.map((slug, i) => ({ slug, name: names[i] || slug }));
+  }, [zoneSlugs, zoneNames]);
+
+  const [readerZones, setReaderZones] = useState(defaultPair);
+  const [zoneOptions, setZoneOptions] = useState(null); // for interactive picker
+  // Reader-overridable settings for the interactive widget. Seeded from author attrs.
+  const [readerMetric, setReaderMetric] = useState(metric || 'gdd');
+  const [readerSeasonLimit, setReaderSeasonLimit] = useState(seasonLimit || 10);
+  const [readerIncludeBaseline, setReaderIncludeBaseline] = useState(includeBaseline !== false);
+
+  const effectiveMetric = isInteractive ? readerMetric : (metric || 'gdd');
+  const effectiveSeasonLimit = isInteractive ? readerSeasonLimit : seasonLimit;
+  const effectiveIncludeBaseline = isInteractive ? readerIncludeBaseline : (includeBaseline !== false);
+
+  useEffect(() => {
+    if (!isInteractive || zoneOptions) return;
+    getZones()
+      .then(res => setZoneOptions(res?.zones || []))
+      .catch(() => setZoneOptions([]));
+  }, [isInteractive, zoneOptions]);
+
+  const activeSlugsForFetch = isInteractive
+    ? readerZones.map(z => z.slug).filter(Boolean).join(',')
+    : zoneSlugs;
 
   useEffect(() => {
     // Skip fetch if we have embedded snapshot data
     if (snapshotData) return;
-    if (!zoneSlug) return;
+
+    const isMultiZone = widgetType === 'region_trend_compare' || isInteractive;
+    if (isMultiZone) {
+      if (!activeSlugsForFetch) { setData(null); setLoading(false); return; }
+    } else {
+      if (!zoneSlug) return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -73,6 +151,28 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
             }));
             break;
           }
+          case 'historical_trend': {
+            const limit = seasonLimit && seasonLimit < 37 ? seasonLimit : null;
+            setData(await getZoneSeasons(zoneSlug, limit ? { limit } : {}));
+            break;
+          }
+          case 'region_trend_compare':
+          case 'region_trend_compare_interactive': {
+            const limit = effectiveSeasonLimit && effectiveSeasonLimit < 37 ? effectiveSeasonLimit : null;
+            setData(await compareZonesSeasons({
+              zones: activeSlugsForFetch,
+              metric: effectiveMetric,
+              limit,
+            }));
+            break;
+          }
+          case 'projection_outlook': {
+            setData(await getZoneProjections(zoneSlug, {
+              ssp: scenario || 'all',
+              period: period || 'all',
+            }));
+            break;
+          }
           default:
             setError('Unknown widget type');
         }
@@ -84,10 +184,10 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
     };
 
     fetchData();
-  }, [widgetType, zoneSlug, metric, snapshotData, vintages, includeBaseline]);
+  }, [widgetType, zoneSlug, activeSlugsForFetch, effectiveMetric, effectiveSeasonLimit, effectiveIncludeBaseline, snapshotData, vintages, scenario, period, isInteractive]);
 
   const content = useMemo(() => {
-    if (!data) return null;
+    if (!data && !isInteractive) return null;
     const isTable = displayMode === 'table';
 
     switch (widgetType) {
@@ -103,12 +203,32 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
         return seasonSummaryTable(data);
       case 'recent_observations':
         return recentObsTable(data);
+      case 'historical_trend':
+        return historicalTrendChart(data, metric, includeBaseline);
+      case 'region_trend_compare':
+        return regionTrendChart(data, metric, includeBaseline);
+      case 'region_trend_compare_interactive':
+        return regionTrendInteractive({
+          data,
+          metric: readerMetric,
+          includeBaseline: readerIncludeBaseline,
+          seasonLimit: readerSeasonLimit,
+          zoneOptions,
+          readerZones,
+          onZonesChange: setReaderZones,
+          onMetricChange: setReaderMetric,
+          onSeasonLimitChange: setReaderSeasonLimit,
+          onIncludeBaselineChange: setReaderIncludeBaseline,
+        });
+      case 'projection_outlook':
+        return projectionStatBlock(data, scenario, period);
       default:
         return null;
     }
-  }, [data, widgetType, metric, displayMode]);
+  }, [data, widgetType, metric, displayMode, includeBaseline, zoneOptions, readerZones, readerMetric, readerIncludeBaseline, readerSeasonLimit, scenario, period, isInteractive]);
 
-  if (loading) {
+  // Interactive widget renders its own picker even while loading/empty
+  if (loading && !isInteractive) {
     return (
       <div style={S.container}>
         <div style={S.loading}>
@@ -119,7 +239,7 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
     );
   }
 
-  if (error) {
+  if (error && !isInteractive) {
     return (
       <div style={S.container}>
         <div style={S.error}><AlertCircle size={18} /> <span>{error}</span></div>
@@ -127,13 +247,17 @@ function ClimateWidgetRenderer({ widgetType, zoneSlug, zoneName, metric, display
     );
   }
 
+  const zoneLabel = widgetType === 'region_trend_compare' || isInteractive
+    ? (zoneNames || (zoneSlugs ? `${zoneSlugs.split(',').length} zones` : ''))
+    : (zoneName || zoneSlug);
+
   return (
     <div style={S.container}>
       <div style={S.header}>
         <h4 style={S.title}>{title || WIDGET_TITLES[widgetType] || 'Climate Data'}</h4>
-        <span style={S.zone}>{zoneName || zoneSlug}</span>
+        <span style={S.zone}>{zoneLabel}</span>
       </div>
-      <div style={displayMode === 'table' ? {} : S.chartWrap}>
+      <div style={(displayMode === 'table' || widgetType === 'projection_outlook' || isInteractive) ? {} : S.chartWrap}>
         {content}
       </div>
       <div style={S.attribution}>
@@ -556,6 +680,320 @@ function recentObsTable(data) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// Historical Trend (single zone, multi-season)
+// API shape: SeasonsResponse from getZoneSeasons
+// ═════════════════════════════════════════════════════════════
+
+function historicalTrendChart(data, metric, includeBaseline) {
+  const seasons = data?.seasons;
+  if (!seasons?.length) return <p style={S.noData}>No season data available.</p>;
+
+  const m = metric || 'gdd';
+  const baseline = data?.baseline || {};
+  const ordered = [...seasons].reverse(); // API returns most-recent-first; chart wants chronological
+  const labels = ordered.map(s => s.season_label);
+  const valueFor = (s) => {
+    switch (m) {
+      case 'gdd': return s.gdd_total != null ? Number(s.gdd_total) : null;
+      case 'rain': return s.rain_total != null ? Number(s.rain_total) : null;
+      case 'tmean': return s.tmean_avg != null ? Number(s.tmean_avg) : null;
+      case 'tmax': return s.tmax_avg != null ? Number(s.tmax_avg) : null;
+      case 'tmin': return s.tmin_avg != null ? Number(s.tmin_avg) : null;
+      default: return null;
+    }
+  };
+  const baselineFor = () => {
+    switch (m) {
+      case 'gdd': return baseline.gdd_total != null ? Number(baseline.gdd_total) : null;
+      case 'rain': return baseline.rain_total != null ? Number(baseline.rain_total) : null;
+      case 'tmean': return baseline.tmean_avg != null ? Number(baseline.tmean_avg) : null;
+      case 'tmax': return baseline.tmax_avg != null ? Number(baseline.tmax_avg) : null;
+      case 'tmin': return baseline.tmin_avg != null ? Number(baseline.tmin_avg) : null;
+      default: return null;
+    }
+  };
+
+  const values = ordered.map(valueFor);
+  const datasets = [{
+    label: WIDGET_TITLES.historical_trend,
+    data: values,
+    borderColor: TREND_COLORS[0],
+    backgroundColor: m === 'rain' ? TREND_COLORS[0] + 'CC' : TREND_COLORS[0],
+    fill: false,
+    tension: 0.3,
+    pointRadius: 3,
+  }];
+
+  const baselineValue = baselineFor();
+  if (includeBaseline && baselineValue != null) {
+    datasets.push({
+      label: 'LTA (1986-2005)',
+      data: labels.map(() => baselineValue),
+      borderColor: '#9ca3af',
+      borderDash: [6, 4],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: false,
+    });
+  }
+
+  const unitTitle = m === 'gdd' ? 'GDD (°C·days)' : m === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)';
+  const ChartComponent = m === 'rain' ? Bar : Line;
+  const options = m === 'rain'
+    ? getResponsiveBarChartOptions({ yAxis: { title: { text: unitTitle, display: true } } })
+    : getResponsiveLineChartOptions({ yAxis: { title: { text: unitTitle, display: true } } });
+
+  return <ChartComponent data={{ labels, datasets }} options={options} />;
+}
+
+// ═════════════════════════════════════════════════════════════
+// Region Trend Compare (multi-zone, multi-season)
+// API shape: ZonesSeasonsCompareResponse from compareZonesSeasons
+// ═════════════════════════════════════════════════════════════
+
+function buildTrendChartData(data, metric, includeBaseline) {
+  if (!data?.zones?.length) return null;
+  const m = metric || 'gdd';
+  const labels = data.zones[0]?.series?.map(s => s.season_label) || [];
+
+  const datasets = [];
+  data.zones.forEach((z, i) => {
+    const color = TREND_COLORS[i % TREND_COLORS.length];
+    const values = z.series.map(s => (s.value != null ? Number(s.value) : null));
+    datasets.push({
+      label: z.zone_name,
+      data: values,
+      borderColor: color,
+      backgroundColor: m === 'rain' ? color + 'CC' : color,
+      fill: false,
+      tension: 0.3,
+      pointRadius: 3,
+      order: i,
+    });
+    if (includeBaseline && m !== 'rain' && z.baseline != null) {
+      datasets.push({
+        label: `${z.zone_name} LTA`,
+        data: labels.map(() => Number(z.baseline)),
+        borderColor: color,
+        borderDash: [6, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+        order: 100 + i,
+      });
+    }
+  });
+
+  return { labels, datasets };
+}
+
+function regionTrendChart(data, metric, includeBaseline) {
+  const chartData = buildTrendChartData(data, metric, includeBaseline);
+  if (!chartData) return <p style={S.noData}>No trend data available.</p>;
+
+  const m = metric || 'gdd';
+  const unitTitle = m === 'gdd' ? 'GDD (°C·days)' : m === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)';
+  const ChartComponent = m === 'rain' ? Bar : Line;
+  const extraPluginOpts = {
+    legend: { labels: { filter: (item) => !item.text?.endsWith(' LTA') } },
+  };
+  const options = m === 'rain'
+    ? getResponsiveBarChartOptions({ yAxis: { title: { text: unitTitle, display: true } }, plugins: extraPluginOpts })
+    : getResponsiveLineChartOptions({ yAxis: { title: { text: unitTitle, display: true } }, plugins: extraPluginOpts });
+
+  return <ChartComponent data={chartData} options={options} />;
+}
+
+// ═════════════════════════════════════════════════════════════
+// Region Trend Compare — Interactive (reader picks up to 2 zones)
+// ═════════════════════════════════════════════════════════════
+
+function regionTrendInteractive({
+  data, metric, includeBaseline, seasonLimit,
+  zoneOptions, readerZones,
+  onZonesChange, onMetricChange, onSeasonLimitChange, onIncludeBaselineChange,
+}) {
+  const setSlotZone = (slotIndex, slug) => {
+    if (!zoneOptions) return;
+    const next = [...readerZones];
+    if (!slug) {
+      next.splice(slotIndex, 1);
+    } else {
+      const z = zoneOptions.find(x => x.slug === slug);
+      const entry = { slug, name: z?.name || slug };
+      if (next[slotIndex]) next[slotIndex] = entry; else next.push(entry);
+    }
+    // Dedupe
+    const seen = new Set();
+    onZonesChange(next.filter(e => {
+      if (!e || seen.has(e.slug)) return false;
+      seen.add(e.slug);
+      return true;
+    }).slice(0, 2));
+  };
+
+  const controlStyle = {
+    padding: '0.4rem 0.6rem',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '0.85rem',
+    background: 'white',
+  };
+
+  const renderSlot = (i) => {
+    const current = readerZones[i]?.slug || '';
+    return (
+      <select
+        key={i}
+        value={current}
+        onChange={(e) => setSlotZone(i, e.target.value)}
+        style={{ ...controlStyle, minWidth: '180px' }}
+      >
+        <option value="">Pick region {i + 1}</option>
+        {(zoneOptions || []).map(z => (
+          <option key={z.slug} value={z.slug}>
+            {z.region_name ? `${z.region_name}, ${z.name}` : z.name}
+          </option>
+        ))}
+      </select>
+    );
+  };
+
+  const chart = readerZones.length > 0 && data
+    ? regionTrendChart(data, metric, includeBaseline)
+    : (
+      <p style={S.noData}>
+        {zoneOptions ? 'Select up to two regions above to compare.' : 'Loading regions…'}
+      </p>
+    );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        {renderSlot(0)}
+        {renderSlot(1)}
+      </div>
+      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <select
+          value={metric}
+          onChange={(e) => onMetricChange(e.target.value)}
+          style={controlStyle}
+          aria-label="Metric"
+        >
+          <option value="gdd">Growing Degree Days</option>
+          <option value="rain">Rainfall</option>
+          <option value="tmean">Mean Temperature</option>
+          <option value="tmax">Max Temperature</option>
+        </select>
+        <select
+          value={seasonLimit}
+          onChange={(e) => onSeasonLimitChange(Number(e.target.value))}
+          style={controlStyle}
+          aria-label="Time range"
+        >
+          <option value={10}>Last 10 seasons</option>
+          <option value={20}>Last 20 seasons</option>
+          <option value={37}>All seasons</option>
+        </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#374151', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={includeBaseline}
+            onChange={(e) => onIncludeBaselineChange(e.target.checked)}
+          />
+          Show LTA (1986-2005)
+        </label>
+      </div>
+      <div style={S.chartWrap}>{chart}</div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// Projection Outlook (stat block)
+// API shape: ProjectionsResponse from getZoneProjections (filtered by ssp + period)
+// ═════════════════════════════════════════════════════════════
+
+function projectionStatBlock(data, scenario, period) {
+  const projections = data?.projections;
+  if (!projections?.length) return <p style={S.noData}>No projection data available.</p>;
+
+  // Find best match (caller should have filtered, but defend)
+  const match = projections.find(p =>
+    (!scenario || p.scenario?.code === scenario) &&
+    (!period || p.period?.code === period)
+  ) || projections[0];
+
+  if (!match) return <p style={S.noData}>No matching projection scenario.</p>;
+
+  const s = match.season_summary || {};
+  const scenarioLabel = SSP_LABELS[match.scenario?.code] || match.scenario?.name || match.scenario?.code;
+  const periodLabel = PERIOD_LABELS[match.period?.code] || match.period?.name || match.period?.code;
+
+  const cells = [
+    {
+      label: 'Season GDD',
+      baseline: s.gdd_baseline != null ? `${Math.round(Number(s.gdd_baseline))} °C·days` : '—',
+      projected: s.gdd_projected != null ? `${Math.round(Number(s.gdd_projected))} °C·days` : '—',
+      delta: s.gdd_change_pct != null ? `${Number(s.gdd_change_pct) >= 0 ? '+' : ''}${Number(s.gdd_change_pct).toFixed(1)}%` : '—',
+      deltaPositive: s.gdd_change_pct != null ? Number(s.gdd_change_pct) >= 0 : null,
+    },
+    {
+      label: 'Season rainfall',
+      baseline: s.rain_baseline != null ? `${Math.round(Number(s.rain_baseline))} mm` : '—',
+      projected: s.rain_projected != null ? `${Math.round(Number(s.rain_projected))} mm` : '—',
+      delta: s.rain_change_pct != null ? `${Number(s.rain_change_pct) >= 0 ? '+' : ''}${Number(s.rain_change_pct).toFixed(1)}%` : '—',
+      deltaPositive: null, // not coloured — direction is ambiguous for rainfall
+    },
+    {
+      label: 'Mean temperature',
+      baseline: s.tmean_baseline != null ? `${Number(s.tmean_baseline).toFixed(1)} °C` : '—',
+      projected: s.tmean_projected != null ? `${Number(s.tmean_projected).toFixed(1)} °C` : '—',
+      delta: s.tmean_change != null ? `${Number(s.tmean_change) >= 0 ? '+' : ''}${Number(s.tmean_change).toFixed(1)} °C` : '—',
+      deltaPositive: s.tmean_change != null ? Number(s.tmean_change) >= 0 : null,
+    },
+  ];
+
+  return (
+    <div>
+      <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: '#374151' }}>
+        <strong>{scenarioLabel}</strong> · {periodLabel} vs. 1986-2005 baseline
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+        {cells.map((c) => (
+          <div key={c.label} style={{
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            padding: '0.75rem 0.9rem',
+          }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              {c.label}
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginTop: '0.25rem' }}>
+              {c.projected}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.15rem' }}>
+              Baseline: {c.baseline}
+            </div>
+            {c.delta !== '—' && (
+              <div style={{
+                marginTop: '0.4rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                color: c.deltaPositive === null ? '#374151' : (c.deltaPositive ? '#16a34a' : '#dc2626'),
+              }}>
+                {c.delta}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

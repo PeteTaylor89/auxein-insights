@@ -178,12 +178,17 @@ function ArticleDetail() {
               widgetType={node.attrs?.widgetType}
               zoneSlug={node.attrs?.zoneSlug}
               zoneName={node.attrs?.zoneName}
+              zoneSlugs={node.attrs?.zoneSlugs || ''}
+              zoneNames={node.attrs?.zoneNames || ''}
               metric={node.attrs?.metric}
               displayMode={node.attrs?.displayMode || 'chart'}
               title={node.attrs?.title}
               snapshotData={node.attrs?.snapshotData || null}
               vintages={node.attrs?.vintages || ''}
               includeBaseline={node.attrs?.includeBaseline !== false}
+              seasonLimit={node.attrs?.seasonLimit || 10}
+              scenario={node.attrs?.scenario || ''}
+              period={node.attrs?.period || ''}
             />
           </Suspense>
         );

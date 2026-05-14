@@ -11,6 +11,10 @@ const WIDGET_TYPES = [
   { value: 'season_comparison', label: 'Season Comparison', metrics: ['gdd', 'tmean', 'rain'], modes: ['chart', 'table'] },
   { value: 'current_season_summary', label: 'Current Season Summary', metrics: [], modes: ['table'] },
   { value: 'recent_observations', label: 'Recent Observations', metrics: [], modes: ['table'] },
+  { value: 'historical_trend', label: 'Historical Trend (single zone)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
+  { value: 'region_trend_compare', label: 'Region Trend Comparison (fixed)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
+  { value: 'region_trend_compare_interactive', label: 'Region Trend Comparison (reader picks)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
+  { value: 'projection_outlook', label: 'Climate Projection (stat block)', metrics: [], modes: ['chart'] },
 ];
 
 const METRIC_LABELS = {
@@ -21,11 +25,30 @@ const METRIC_LABELS = {
   rain: 'Rainfall',
 };
 
+const SEASON_LIMIT_OPTIONS = [
+  { value: 10, label: 'Last 10 seasons' },
+  { value: 20, label: 'Last 20 seasons' },
+  { value: 37, label: 'All seasons' },
+];
+
+const SSP_OPTIONS = [
+  { value: 'SSP126', label: 'SSP1-2.6 (Low emissions)' },
+  { value: 'SSP245', label: 'SSP2-4.5 (Middle road)' },
+  { value: 'SSP370', label: 'SSP3-7.0 (High emissions)' },
+];
+
+const PERIOD_OPTIONS = [
+  { value: '2021_2040', label: 'Near-term (2021-2040)' },
+  { value: '2041_2060', label: 'Mid-century (2041-2060)' },
+  { value: '2080_2099', label: 'End of century (2080-2099)' },
+];
+
 function ClimateWidgetInserter({ editor, onClose }) {
   const [zones, setZones] = useState([]);
   const [widgetType, setWidgetType] = useState('gdd_progress');
   const [zoneSlug, setZoneSlug] = useState('');
   const [zoneName, setZoneName] = useState('');
+  const [selectedZones, setSelectedZones] = useState([]); // [{slug, name}] for multi-zone widgets
   const [metric, setMetric] = useState('');
   const [displayMode, setDisplayMode] = useState('chart');
   const [title, setTitle] = useState('');
@@ -35,6 +58,9 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const [selectedVintages, setSelectedVintages] = useState([]);
   const [includeBaseline, setIncludeBaseline] = useState(true);
   const [seasonsLoading, setSeasonsLoading] = useState(false);
+  const [seasonLimit, setSeasonLimit] = useState(10);
+  const [scenario, setScenario] = useState('SSP245');
+  const [period, setPeriod] = useState('2041_2060');
 
   useEffect(() => {
     getAllZones().then((data) => {
@@ -52,6 +78,16 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const availableMetrics = selectedType?.metrics || [];
   const availableModes = selectedType?.modes || ['chart'];
   const showSeasonPicker = widgetType === 'season_comparison';
+  const isHistoricalTrend = widgetType === 'historical_trend';
+  const isMultiZoneFixed = widgetType === 'region_trend_compare';
+  const isMultiZoneInteractive = widgetType === 'region_trend_compare_interactive';
+  const isMultiZone = isMultiZoneFixed || isMultiZoneInteractive;
+  const isProjection = widgetType === 'projection_outlook';
+  const showSeasonLimit = isHistoricalTrend || isMultiZone;
+  const showBaselineToggle = isHistoricalTrend || isMultiZone;
+  const showStaticToggle = !isMultiZoneInteractive; // interactive can't be static
+  const showSingleZonePicker = !isMultiZone;
+  const showMultiZonePicker = isMultiZone;
 
   // Load available seasons when zone or widget type changes (only if season_comparison)
   useEffect(() => {
@@ -96,22 +132,47 @@ function ClimateWidgetInserter({ editor, onClose }) {
     setZoneName(zone?.name || '');
   };
 
+  const toggleZoneMulti = (zone) => {
+    const max = isMultiZoneInteractive ? 2 : 5;
+    setSelectedZones((prev) => {
+      const exists = prev.find((z) => z.slug === zone.slug);
+      if (exists) return prev.filter((z) => z.slug !== zone.slug);
+      if (prev.length >= max) return prev;
+      return [...prev, { slug: zone.slug, name: zone.name }];
+    });
+  };
+
+  const canInsert = (() => {
+    if (!editor) return false;
+    if (isMultiZoneFixed) return selectedZones.length >= 2;
+    if (isMultiZoneInteractive) return true; // 0-2 defaults allowed
+    if (!zoneSlug) return false;
+    if (showSeasonPicker && selectedVintages.length === 0) return false;
+    return true;
+  })();
+
   const handleInsert = () => {
-    if (!editor || !zoneSlug) return;
-    if (showSeasonPicker && selectedVintages.length === 0) return;
+    if (!canInsert) return;
     const sortedVintages = [...selectedVintages].sort((a, b) => b - a);
+    const multiSlugs = selectedZones.map((z) => z.slug).join(',');
+    const multiNames = selectedZones.map((z) => z.name).join(', ');
     editor.chain().focus().insertContent({
       type: 'climateWidget',
       attrs: {
         widgetType,
-        zoneSlug,
-        zoneName,
+        zoneSlug: isMultiZone ? '' : zoneSlug,
+        zoneName: isMultiZone ? '' : zoneName,
+        zoneSlugs: isMultiZone ? multiSlugs : '',
+        zoneNames: isMultiZone ? multiNames : '',
         metric: metric || (availableMetrics[0] || ''),
         displayMode,
         title,
-        isStatic,
+        isStatic: showStaticToggle ? isStatic : false,
         vintages: showSeasonPicker ? sortedVintages.join(',') : '',
-        includeBaseline: showSeasonPicker ? includeBaseline : true,
+        includeBaseline: showSeasonPicker || showBaselineToggle ? includeBaseline : true,
+        seasonLimit: showSeasonLimit ? seasonLimit : 10,
+        scenario: isProjection ? scenario : '',
+        period: isProjection ? period : '',
       },
     }).run();
     onClose();
@@ -151,18 +212,108 @@ function ClimateWidgetInserter({ editor, onClose }) {
             </select>
           </div>
 
-          <div>
-            <label style={labelStyle}>Zone</label>
-            {loading ? (
-              <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Loading zones...</p>
-            ) : (
-              <select value={zoneSlug} onChange={(e) => handleZoneChange(e.target.value)} style={fieldStyle}>
-                {zones.map((z) => (
-                  <option key={z.slug} value={z.slug}>{z.name}</option>
+          {showSingleZonePicker && (
+            <div>
+              <label style={labelStyle}>Zone</label>
+              {loading ? (
+                <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Loading zones...</p>
+              ) : (
+                <select value={zoneSlug} onChange={(e) => handleZoneChange(e.target.value)} style={fieldStyle}>
+                  {zones.map((z) => (
+                    <option key={z.slug} value={z.slug}>{z.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {showMultiZonePicker && (
+            <div>
+              <label style={labelStyle}>
+                {isMultiZoneInteractive
+                  ? 'Default regions (up to 2, optional — reader can change)'
+                  : 'Regions to compare (2-5)'}
+              </label>
+              {loading ? (
+                <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Loading zones...</p>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxHeight: '160px', overflowY: 'auto', padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                  {zones.map((z) => {
+                    const checked = selectedZones.some((s) => s.slug === z.slug);
+                    const maxReached = !checked && selectedZones.length >= (isMultiZoneInteractive ? 2 : 5);
+                    return (
+                      <button
+                        key={z.slug}
+                        type="button"
+                        onClick={() => toggleZoneMulti(z)}
+                        disabled={maxReached}
+                        style={{
+                          padding: '0.3rem 0.6rem',
+                          border: '1px solid',
+                          borderColor: checked ? '#16a34a' : '#d1d5db',
+                          background: checked ? '#f0fdf4' : 'white',
+                          color: checked ? '#16a34a' : '#374151',
+                          borderRadius: '999px',
+                          fontSize: '0.75rem',
+                          fontWeight: checked ? 600 : 400,
+                          cursor: maxReached ? 'not-allowed' : 'pointer',
+                          opacity: maxReached ? 0.45 : 1,
+                        }}
+                      >
+                        {z.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.3rem' }}>
+                {selectedZones.length} selected
+              </div>
+            </div>
+          )}
+
+          {showSeasonLimit && (
+            <div>
+              <label style={labelStyle}>Time range</label>
+              <select value={seasonLimit} onChange={(e) => setSeasonLimit(Number(e.target.value))} style={fieldStyle}>
+                {SEASON_LIMIT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-            )}
-          </div>
+            </div>
+          )}
+
+          {isProjection && (
+            <>
+              <div>
+                <label style={labelStyle}>Scenario</label>
+                <select value={scenario} onChange={(e) => setScenario(e.target.value)} style={fieldStyle}>
+                  {SSP_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Time period</label>
+                <select value={period} onChange={(e) => setPeriod(e.target.value)} style={fieldStyle}>
+                  {PERIOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {showBaselineToggle && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}>
+              <input
+                type="checkbox"
+                checked={includeBaseline}
+                onChange={(e) => setIncludeBaseline(e.target.checked)}
+              />
+              Include long-term baseline (1986-2005)
+            </label>
+          )}
 
           {availableMetrics.length > 0 && (
             <div>
@@ -261,28 +412,30 @@ function ClimateWidgetInserter({ editor, onClose }) {
             />
           </div>
 
-          <div>
-            <label
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
-              onClick={() => setIsStatic(!isStatic)}
-            >
-              <span style={{
-                width: '36px', height: '20px', borderRadius: '10px', position: 'relative',
-                background: isStatic ? '#16a34a' : '#d1d5db', transition: 'background 0.2s',
-                display: 'inline-block', flexShrink: 0,
-              }}>
+          {showStaticToggle && (
+            <div>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
+                onClick={() => setIsStatic(!isStatic)}
+              >
                 <span style={{
-                  position: 'absolute', top: '2px', left: isStatic ? '18px' : '2px',
-                  width: '16px', height: '16px', borderRadius: '50%', background: 'white',
-                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                }} />
-              </span>
-              <span style={{ fontWeight: 500 }}>Static snapshot</span>
-            </label>
-            <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '2px', marginLeft: '44px' }}>
-              Freeze data on save — the widget won't update with live data
+                  width: '36px', height: '20px', borderRadius: '10px', position: 'relative',
+                  background: isStatic ? '#16a34a' : '#d1d5db', transition: 'background 0.2s',
+                  display: 'inline-block', flexShrink: 0,
+                }}>
+                  <span style={{
+                    position: 'absolute', top: '2px', left: isStatic ? '18px' : '2px',
+                    width: '16px', height: '16px', borderRadius: '50%', background: 'white',
+                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }} />
+                </span>
+                <span style={{ fontWeight: 500 }}>Static snapshot</span>
+              </label>
+              <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '2px', marginLeft: '44px' }}>
+                Freeze data on save — the widget won't update with live data
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
@@ -291,8 +444,8 @@ function ClimateWidgetInserter({ editor, onClose }) {
           </button>
           <button
             onClick={handleInsert}
-            disabled={!zoneSlug || (showSeasonPicker && selectedVintages.length === 0)}
-            style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: '#16a34a', color: 'white', fontSize: '0.875rem', cursor: 'pointer', opacity: (!zoneSlug || (showSeasonPicker && selectedVintages.length === 0)) ? 0.5 : 1 }}
+            disabled={!canInsert}
+            style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '6px', background: '#16a34a', color: 'white', fontSize: '0.875rem', cursor: 'pointer', opacity: canInsert ? 1 : 0.5 }}
           >
             Insert Widget
           </button>

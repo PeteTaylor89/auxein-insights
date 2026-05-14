@@ -24,7 +24,12 @@
       "Bash(find A:auxein-insights-V0.1/packages/mobile -type f -name *.jsx -o -name *.js -o -name *.ts -o -name *.tsx)",
       "Bash(xargs grep:*)",
       "Bash(grep -A 30 class.*TaskAsset A:/auxein-insights-V0.1/backend/schemas/task_template.py)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(Get-ChildItem -Path . -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"A:\\\\auxein-insights-V0.1\\\\backend\\\\alembic\\\\versions\" -Filter \"*.py\")",
+      "Bash(Sort-Object Name)",
+      "Bash(Get-ChildItem -Path \"A:\\\\auxein-insights-V0.1\" -Directory)"
     ]
   }
 }
