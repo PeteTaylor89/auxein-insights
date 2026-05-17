@@ -8,12 +8,14 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
 import { SectionCard, GpsSection, BottomActionBar, PhotoGrid } from '../components';
 
 export default function SpotCaptureScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const { templateId, blockId, blockName, templateName, planName, companyId, planId,
           runId: existingRunId } = route.params;
 
@@ -129,7 +131,12 @@ export default function SpotCaptureScreen({ route, navigation }) {
     setValues(prev => ({ ...prev, [fieldName]: val }));
   };
 
-  const handleSaveSpot = async () => {
+  // Returns true on success, false on failure. Both action buttons share
+  // this — the difference is what they do AFTER the save (stay vs. finish).
+  // No post-save Alert here: the button choice already conveys the user's
+  // intent ("save and next" vs "save and finish"), so the modal popup just
+  // got in the way.
+  const saveSpotCore = async () => {
     setSaving(true);
     try {
       // Create run on first spot save (deferred creation — avoids orphan empty runs)
@@ -162,38 +169,50 @@ export default function SpotCaptureScreen({ route, navigation }) {
       }
 
       setSpots(prev => [...prev, spot]);
-
-      // Reset form for next spot
-      const defaults = {};
-      fields.forEach(f => {
-        if (f.default !== undefined && f.default !== null) defaults[f.name] = f.default;
-      });
-      setValues(defaults);
-      setNotes('');
-      imageCapture.reset();
-      grabGps(); // refresh GPS for next spot
-
-      Alert.alert('Spot Saved', `Spot #${spots.length + 1} recorded.`, [
-        { text: 'Add Another', style: 'default' },
-        { text: 'Finish Run', onPress: handleCompleteRun },
-      ]);
+      return { ok: true, runId: activeRunId };
     } catch (err) {
       const detail = err.response?.data?.detail;
       Alert.alert('Error', typeof detail === 'string' ? detail : 'Failed to save spot');
+      return { ok: false };
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCompleteRun = async () => {
+  // Reset the form for the next spot in the same run.
+  const resetSpotForm = () => {
+    const defaults = {};
+    fields.forEach(f => {
+      if (f.default !== undefined && f.default !== null) defaults[f.name] = f.default;
+    });
+    setValues(defaults);
+    setNotes('');
+    imageCapture.reset();
+    grabGps(); // refresh GPS for the next spot's location
+  };
+
+  // "Save & next" — primary repetition path. Saves the current spot, clears
+  // the form, stays on screen so the user can capture the next one.
+  const handleSaveAndNext = async () => {
+    const res = await saveSpotCore();
+    if (res.ok) resetSpotForm();
+  };
+
+  // "Save & finish run" — saves the current spot then closes the run. If save
+  // fails (e.g. validation) we don't close the run, so the user can fix and
+  // retry without losing their place.
+  const handleSaveAndFinish = async () => {
+    const res = await saveSpotCore();
+    if (!res.ok) return;
     try {
-      await observationService.completeRun(runId);
-      Alert.alert('Run Complete', `${spots.length + 1} spot${spots.length > 0 ? 's' : ''} recorded.`);
-      navigation.goBack();
+      await observationService.completeRun(res.runId);
     } catch (err) {
-      // If complete fails, still go back
-      navigation.goBack();
+      // Close the screen anyway — the spot has been saved, and the run will
+      // either auto-close server-side or the user can finish from the
+      // observation dashboard.
+      console.warn('[Observation] completeRun failed:', err?.message);
     }
+    navigation.goBack();
   };
 
   // --- Helpers ---
@@ -568,7 +587,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
     return (
       <Modal visible={true} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: spacing.lg + insets.bottom }]}>
             <Text style={styles.modalTitle}>{pickerField.label}</Text>
 
             {/* Search bar */}
@@ -801,15 +820,27 @@ export default function SpotCaptureScreen({ route, navigation }) {
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
 
-      {/* Fixed bottom action bar */}
+      {/* Fixed bottom action bar.
+          Both buttons save the current spot. The difference is what happens
+          AFTER the save:
+            • Secondary "Save & next spot" stays here, clears the form
+            • Primary "Save & finish run" closes the run + leaves the screen
+          The "(N)" counter on the finish button shows how many spots are
+          already in this run, so the user knows what they're completing. */}
       <BottomActionBar
-        primaryLabel={saving ? 'Saving...' : 'Save'}
-        primaryIcon="save"
-        onPrimary={handleSaveSpot}
+        secondaryLabel="Save & next spot"
+        secondaryIcon="plus-circle"
+        onSecondary={handleSaveAndNext}
+        primaryLabel={
+          saving
+            ? 'Saving…'
+            : spots.length > 0
+              ? `Save & finish (${spots.length + 1})`
+              : 'Save & finish run'
+        }
+        primaryIcon="check-circle"
+        onPrimary={handleSaveAndFinish}
         disabled={saving}
-        secondaryLabel={spots.length > 0 ? `Finish (${spots.length})` : 'Add Spot'}
-        secondaryIcon={spots.length > 0 ? 'check-circle' : 'plus'}
-        onSecondary={spots.length > 0 ? handleCompleteRun : handleSaveSpot}
       />
 
       {/* Reference data picker modal */}
@@ -931,7 +962,10 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
-    padding: spacing.lg, maxHeight: '75%',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    // paddingBottom applied inline so we can add the Android gesture-bar inset
+    maxHeight: '75%',
   },
   modalTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
   modalBtn: { paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: 'center' },

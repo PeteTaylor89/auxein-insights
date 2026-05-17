@@ -34,6 +34,12 @@ const propertyService = {
     return response.data;
   },
 
+  // Save (or clear, pass null) a GeoJSON polygon as the property boundary.
+  async updatePropertyGeometry(id, geometry) {
+    const response = await api.patch(`/v1/properties/${id}`, { geometry });
+    return response.data;
+  },
+
   async getPropertyBlocks(id) {
     const response = await api.get(`/v1/properties/${id}/blocks`);
     return response.data;

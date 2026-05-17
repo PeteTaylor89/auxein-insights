@@ -3,9 +3,24 @@
 // Background tracking (expo-task-manager) will be added when we move to dev builds.
 import { useState, useRef, useCallback, useEffect } from 'react';
 import * as Location from 'expo-location';
+import * as KeepAwake from 'expo-keep-awake';
 import { tasksService } from '../api/services';
 import { enqueuePoints, flushQueue } from '../services/gpsQueue';
 import { checkNetwork } from './useNetworkStatus';
+
+// Tag for KeepAwake so multiple concurrent activators (if ever added) don't
+// trample each other. deactivate(tag) only releases this specific lock.
+const KEEP_AWAKE_TAG = 'auxein-gps-tracking';
+
+async function lockScreenAwake() {
+  try { await KeepAwake.activateKeepAwakeAsync(KEEP_AWAKE_TAG); }
+  catch (err) { console.warn('[GPS] KeepAwake activate failed', err?.message); }
+}
+
+function releaseScreenAwake() {
+  try { KeepAwake.deactivateKeepAwake(KEEP_AWAKE_TAG); }
+  catch (err) { console.warn('[GPS] KeepAwake deactivate failed', err?.message); }
+}
 
 const BATCH_INTERVAL_MS = 10000; // Upload every 10s
 const DISTANCE_INTERVAL_M = 1;   // Every 1m movement (row-level resolution)
@@ -153,6 +168,39 @@ let _stationaryAnchor = null;   // { lat, lon, time } — last significant movem
 let _altitudeWindow = [];        // Recent altitude values for median smoothing
 let _filteredCount = 0;          // Points discarded by filters
 let _bestAccuracy = Infinity;    // Best accuracy seen so far (adaptive threshold)
+
+// ─── Live-track subscription API ──────────────────────────────────────────
+// The backend `/track/geojson` endpoint builds the LineString from
+// TaskGPSSummary, which is only populated at stop/reprocess time — so it
+// returns 404 during a live recording. The map needs the trail in real time,
+// so we keep an in-memory copy of every accepted (Kalman-filtered) point in
+// [lon, lat] order and let consumers (MapScreen) subscribe.
+//
+// _trackPoints is separate from _buffer: _buffer drains every 10s on upload,
+// but _trackPoints is retained until the next startTracking() call.
+let _trackPoints = [];          // [[lon, lat], ...] ordered by capture time
+let _trackActive = false;        // Mirrors isTracking but readable outside React
+const _trackSubscribers = new Set();
+const TRACK_MAX_POINTS = 10000;  // ~5h of tracking at 2s cadence — soft cap
+
+function _notifyTrack() {
+  // Snapshot the array so subscribers see an immutable reference per emit.
+  const snapshot = _trackPoints.slice();
+  for (const cb of _trackSubscribers) {
+    try { cb({ coordinates: snapshot, active: _trackActive }); } catch {}
+  }
+}
+
+export function subscribeToLiveTrack(cb) {
+  _trackSubscribers.add(cb);
+  // Push current state immediately so subscribers don't wait for the next point.
+  try { cb({ coordinates: _trackPoints.slice(), active: _trackActive }); } catch {}
+  return () => { _trackSubscribers.delete(cb); };
+}
+
+export function getLiveTrackSnapshot() {
+  return { coordinates: _trackPoints.slice(), active: _trackActive };
+}
 
 function medianAltitude(alt) {
   if (alt == null) return null;
@@ -307,6 +355,15 @@ export function useGpsTracking() {
           _totalPoints++;
           _buffer.push(point);
 
+          // Live polyline source — retained across upload flushes. Capped to
+          // bound memory; oldest points drop first. Coordinate order is
+          // [lon, lat] to match Mapbox LineString expectations.
+          _trackPoints.push([point.longitude, point.latitude]);
+          if (_trackPoints.length > TRACK_MAX_POINTS) {
+            _trackPoints.splice(0, _trackPoints.length - TRACK_MAX_POINTS);
+          }
+          _notifyTrack();
+
           setStats((prev) => ({
             ...prev,
             distance: _totalDistance,
@@ -357,6 +414,10 @@ export function useGpsTracking() {
       _filteredCount = 0;
       _bestAccuracy = Infinity;
       _kalman = null;
+      // Fresh tracking session — clear the live-trail buffer + flip the flag.
+      _trackPoints = [];
+      _trackActive = true;
+      _notifyTrack();
 
       // Get initial position (BestForNavigation for max accuracy)
       const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
@@ -388,6 +449,10 @@ export function useGpsTracking() {
       await startWatcher();
       startBatchInterval();
       startDurationTimer();
+      // Hold the screen awake — watchPositionAsync stops collecting points
+      // the moment the OS auto-locks the screen, so an unattended phone
+      // would drop the trail mid-task. Released on pause/stop.
+      await lockScreenAwake();
 
       setIsTracking(true);
       setIsPaused(false);
@@ -422,6 +487,10 @@ export function useGpsTracking() {
 
       pauseStartRef.current = Date.now();
       setIsPaused(true);
+      // Pause respects the user's preference to put the phone down without
+      // burning battery — the trail is paused anyway, so the screen lock
+      // can come on. Resume re-acquires the lock.
+      releaseScreenAwake();
     } catch (err) {
       console.error('[GPS] Pause error:', err);
       setError(err.message);
@@ -446,6 +515,7 @@ export function useGpsTracking() {
       });
 
       await startWatcher();
+      await lockScreenAwake();
       setIsPaused(false);
     } catch (err) {
       console.error('[GPS] Resume error:', err);
@@ -454,6 +524,9 @@ export function useGpsTracking() {
   }, [startWatcher]);
 
   const stopTracking = useCallback(async () => {
+    const taskId = taskIdRef.current;
+    let stopFailed = false;
+
     try {
       stopWatcher();
       await flushBuffer();
@@ -464,12 +537,27 @@ export function useGpsTracking() {
         timestamp: new Date().toISOString(),
       } : null;
 
-      if (taskIdRef.current) {
-        await tasksService.stopGpsTracking(taskIdRef.current, {
-          final_point: finalPoint,
-        });
+      if (taskId) {
+        try {
+          await tasksService.stopGpsTracking(taskId, { final_point: finalPoint });
+        } catch (stopErr) {
+          // Stop call failed — points are still in the backend from earlier
+          // bulkAddGpsPoints uploads. Fire a best-effort /reprocess so the
+          // backend builds the summary anyway. With the server-side lazy-build
+          // on /track/geojson this is belt-and-braces; either path recovers
+          // the historical view. Don't await — let it run in the background.
+          stopFailed = true;
+          console.warn('[GPS] Stop call failed — firing reprocess fallback:', stopErr?.message);
+          tasksService.reprocessGpsTrack(taskId).catch((reprocessErr) => {
+            console.warn('[GPS] Reprocess fallback also failed:', reprocessErr?.message);
+          });
+        }
       }
-
+    } catch (err) {
+      console.error('[GPS] Stop error (pre-API):', err);
+    } finally {
+      // Local cleanup runs regardless of network outcome — without this, the
+      // app gets stuck in "tracking" state on stop failure.
       if (batchIntervalRef.current) clearInterval(batchIntervalRef.current);
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
       batchIntervalRef.current = null;
@@ -481,13 +569,23 @@ export function useGpsTracking() {
       pauseStartRef.current = null;
       _buffer = [];
       _lastPoint = null;
+      // Live-trail buffer: flip the flag (so the map knows tracking ended) but
+      // retain the polyline so the user can see what they recorded for a few
+      // seconds before navigating away. Next startTracking() resets it.
+      _trackActive = false;
+      _notifyTrack();
 
       setIsTracking(false);
       setIsPaused(false);
       setHasBeenStopped(true);
-    } catch (err) {
-      console.error('[GPS] Stop error:', err);
-      setError(err.message);
+      // Release the screen-awake lock regardless of network outcome —
+      // tracking has fully ended from the user's perspective.
+      releaseScreenAwake();
+      // Surface a soft notice so the user knows recovery is in progress. Not
+      // an error per se — the track will appear when they next open Map.
+      if (stopFailed) {
+        setError('Network hiccup on stop — track will recover automatically.');
+      }
     }
   }, [flushBuffer, stopWatcher]);
 
@@ -497,6 +595,9 @@ export function useGpsTracking() {
       if (batchIntervalRef.current) clearInterval(batchIntervalRef.current);
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
       stopWatcher();
+      // Belt-and-braces — if the screen we held awake unmounts mid-track
+      // (e.g. abrupt logout), make sure the lock doesn't leak.
+      releaseScreenAwake();
     };
   }, [stopWatcher]);
 

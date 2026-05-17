@@ -1,8 +1,8 @@
 // pages/TaskQuickCreate.jsx — 3-step quick task creation flow
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Zap, Settings2 } from 'lucide-react';
-import { tasksService, blocksService, usersService } from '@vineyard/shared';
+import { ArrowLeft, ArrowRight, Check, Zap, Settings2, Star } from 'lucide-react';
+import { tasksService, blocksService, usersService, byNatural, contractorManagementService } from '@vineyard/shared';
 import TemplateSelector from '../components/tasks/TemplateSelector';
 import BlockSelector from '../components/tasks/BlockSelector';
 import './TaskQuickCreate.css';
@@ -24,13 +24,17 @@ function TaskQuickCreate() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [selectedBlocks, setSelectedBlocks] = useState([]);
-  const [assignedUserId, setAssignedUserId] = useState('');
+  // assigned_user_ids: multi-select. Backend accepts an array — one
+  // TaskAssignment row is created per id. Mirrors the mobile flow.
+  const [assignedUserIds, setAssignedUserIds] = useState([]);
+  const [assignedContractorIds, setAssignedContractorIds] = useState([]);
   const [scheduledDate, setScheduledDate] = useState(searchParams.get('date') || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   // Team members
   const [companyUsers, setCompanyUsers] = useState([]);
+  const [contractors, setContractors] = useState([]);
 
   useEffect(() => {
     tasksService.getQuickCreateTemplates()
@@ -39,7 +43,10 @@ function TaskQuickCreate() {
       .finally(() => setLoadingTemplates(false));
 
     blocksService.getCompanyBlocks()
-      .then((data) => setBlocks(data.blocks || data || []))
+      .then((data) => {
+        const list = data.blocks || data || [];
+        setBlocks([...list].sort(byNatural('block_name')));
+      })
       .catch(() => setBlocks([]))
       .finally(() => setLoadingBlocks(false));
 
@@ -51,6 +58,23 @@ function TaskQuickCreate() {
       .catch((err) => {
         console.warn('Could not load company users for assignment:', err.message);
         setCompanyUsers([]);
+      });
+
+    contractorManagementService.listRelationships()
+      .then((rels) => {
+        const assignable = (Array.isArray(rels) ? rels : [])
+          .filter(r => r.status === 'active')
+          .sort((a, b) => {
+            const aPref = a.relationship_type === 'preferred_contractor' ? 0 : 1;
+            const bPref = b.relationship_type === 'preferred_contractor' ? 0 : 1;
+            if (aPref !== bPref) return aPref - bPref;
+            return (a.contractor_name || '').localeCompare(b.contractor_name || '');
+          });
+        setContractors(assignable);
+      })
+      .catch((err) => {
+        console.warn('Could not load contractors for assignment:', err.message);
+        setContractors([]);
       });
   }, []);
 
@@ -93,9 +117,25 @@ function TaskQuickCreate() {
         };
         if (block) payload.block_id = block.id;
         if (scheduledDate) payload.scheduled_start_date = scheduledDate;
-        if (assignedUserId) payload.assigned_user_ids = [parseInt(assignedUserId)];
+        if (assignedUserIds.length > 0) payload.assigned_user_ids = assignedUserIds;
 
-        await tasksService.quickCreateTask(payload);
+        const newTask = await tasksService.quickCreateTask(payload);
+        const newTaskId = newTask?.id || newTask?.task?.id;
+
+        if (newTaskId && assignedContractorIds.length > 0) {
+          // Backend wants one ContractorAssignment per contractor. Sequential keeps
+          // the error path simple — first failure surfaces, the user task itself is created.
+          for (const contractorId of assignedContractorIds) {
+            try {
+              await contractorManagementService.assignToTask(newTaskId, {
+                contractor_id: contractorId,
+                work_description: selectedTemplate.name || 'Task from template',
+              });
+            } catch (err) {
+              console.error(`Failed to assign contractor ${contractorId} to task ${newTaskId}:`, err);
+            }
+          }
+        }
       }
 
       navigate('/');
@@ -199,19 +239,81 @@ function TaskQuickCreate() {
                 </div>
 
                 <div className="quick-create-field">
-                  <label>Assign to (optional)</label>
-                  <select
-                    value={assignedUserId}
-                    onChange={(e) => setAssignedUserId(e.target.value)}
-                    className="quick-create-select"
-                  >
-                    <option value="">— Unassigned —</option>
-                    {companyUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.first_name} {u.last_name}
-                      </option>
-                    ))}
-                  </select>
+                  <label>
+                    Assign to (optional)
+                    {assignedUserIds.length > 0 && (
+                      <span className="quick-create-assignee-count">
+                        {' '}— {assignedUserIds.length} selected
+                      </span>
+                    )}
+                  </label>
+                  {companyUsers.length === 0 ? (
+                    <p className="quick-create-hint">No team members to assign.</p>
+                  ) : (
+                    <div className="quick-create-assignees">
+                      {companyUsers.map((u) => {
+                        const checked = assignedUserIds.includes(u.id);
+                        const toggle = () => {
+                          setAssignedUserIds((prev) =>
+                            checked ? prev.filter((id) => id !== u.id) : [...prev, u.id],
+                          );
+                        };
+                        return (
+                          <label
+                            key={u.id}
+                            className={`quick-create-assignee ${checked ? 'checked' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={toggle}
+                            />
+                            <span>{u.first_name} {u.last_name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="quick-create-field">
+                  <label>
+                    Assign contractors (optional)
+                    {assignedContractorIds.length > 0 && (
+                      <span className="quick-create-assignee-count">
+                        {' '}— {assignedContractorIds.length} selected
+                      </span>
+                    )}
+                  </label>
+                  {contractors.length === 0 ? (
+                    <p className="quick-create-hint">
+                      No active contractor relationships. Add one in Company → Relationships.
+                    </p>
+                  ) : (
+                    <div className="quick-create-assignees">
+                      {contractors.map((c) => {
+                        const checked = assignedContractorIds.includes(c.contractor_id);
+                        const toggle = () => {
+                          setAssignedContractorIds((prev) =>
+                            checked ? prev.filter((id) => id !== c.contractor_id) : [...prev, c.contractor_id],
+                          );
+                        };
+                        const isPreferred = c.relationship_type === 'preferred_contractor';
+                        return (
+                          <label
+                            key={c.id}
+                            className={`quick-create-assignee ${checked ? 'checked' : ''}`}
+                          >
+                            <input type="checkbox" checked={checked} onChange={toggle} />
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              {isPreferred && <Star size={12} fill="#f59e0b" color="#f59e0b" />}
+                              {c.contractor_name}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="quick-create-field">

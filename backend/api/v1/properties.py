@@ -1,16 +1,20 @@
 # api/v1/properties.py - Property CRUD, management relationships, user property scopes (Phase A, Grow V1)
 import logging
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional, Any, Dict
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from geoalchemy2.shape import to_shape, from_shape
+from shapely.geometry import mapping, shape as shapely_shape
 
 from db.session import get_db
 from db.models.user import User
+from db.models.contractor import Contractor
+from db.models.contractor_relationship import ContractorRelationship
 from db.models.property import Property
 from db.models.management_relationship import ManagementRelationship
 from db.models.user_property_scope import UserPropertyScope
 from db.models.block import VineyardBlock
-from api.deps import get_current_user
+from api.deps import get_current_user, get_current_user_or_contractor
 from schemas.property import (
     PropertyCreate, PropertyUpdate, PropertyOut,
     ManagementRelationshipCreate, ManagementRelationshipOut,
@@ -20,6 +24,20 @@ from services.property_service import get_visible_property_ids
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _geometry_to_geojson(geom) -> Optional[Dict[str, Any]]:
+    """Convert a PostGIS geometry column value to a GeoJSON geometry dict.
+    Returns None if the column is empty or conversion fails (we'd rather
+    serve the rest of the property data than 500 the request).
+    """
+    if geom is None:
+        return None
+    try:
+        return mapping(to_shape(geom))
+    except Exception as e:
+        logger.warning(f"Failed to serialise property geometry: {e}")
+        return None
 
 
 # ==================== PROPERTY CRUD ====================
@@ -39,7 +57,7 @@ def list_properties(
 
     properties = db.query(Property).filter(Property.id.in_(visible_ids)).all()
 
-    # Enrich with active managing company id
+    # Enrich with active managing company id + boundary GeoJSON
     result = []
     for prop in properties:
         out = PropertyOut.model_validate(prop)
@@ -48,6 +66,7 @@ def list_properties(
             ManagementRelationship.is_active == True
         ).first()
         out.active_managing_company_id = active_rel.managing_company_id if active_rel else None
+        out.geometry = _geometry_to_geojson(prop.geometry)
         result.append(out)
 
     return result
@@ -70,6 +89,72 @@ def create_property(
 
     logger.info(f"Property {prop.id} created by user {current_user.id}")
     return PropertyOut.model_validate(prop)
+
+
+@router.get("/geojson")
+def list_properties_geojson(
+    contractor_scope: bool = Query(
+        False,
+        description="When the caller is a contractor, scoping is implicit. "
+                    "For company users the flag is currently ignored — visibility uses UserPropertyScope."
+    ),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user_or_contractor),
+):
+    """Return property boundary polygons as a GeoJSON FeatureCollection.
+
+    Scoping:
+      - Company users → properties visible via UserPropertyScope (same as `/properties`).
+      - Contractors  → properties owned by companies they have an *active*
+        relationship with. The `contractor_scope` query flag is implicit for
+        contractors and accepted (but unused) for company users.
+
+    Properties without a boundary polygon are still returned as features with
+    `geometry: null`, so the mobile app can still list them in pickers — only
+    properties with a geometry will trigger geofence prompts.
+
+    NOTE: Declared before `/{property_id}` so FastAPI doesn't try to coerce
+    "geojson" into an int path param.
+    """
+    # Duck-typed identity check — contractor has `contractor_type`, user has `company_id`.
+    is_contractor = isinstance(current_user, Contractor) or hasattr(current_user, "contractor_type")
+
+    if is_contractor:
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == current_user.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if not active_company_ids:
+            return {"type": "FeatureCollection", "features": []}
+        properties = db.query(Property).filter(
+            Property.owner_company_id.in_(active_company_ids)
+        ).all()
+    else:
+        if not current_user.has_permission("properties", "read"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+        visible_ids = get_visible_property_ids(db, current_user)
+        if not visible_ids:
+            return {"type": "FeatureCollection", "features": []}
+        properties = db.query(Property).filter(Property.id.in_(visible_ids)).all()
+
+    features = []
+    for prop in properties:
+        features.append({
+            "type": "Feature",
+            "id": prop.id,
+            "geometry": _geometry_to_geojson(prop.geometry),
+            "properties": {
+                "id": prop.id,
+                "name": prop.name,
+                "owner_company_id": prop.owner_company_id,
+                "region": prop.region,
+                "total_area_ha": float(prop.total_area_ha) if prop.total_area_ha is not None else None,
+            },
+        })
+
+    return {"type": "FeatureCollection", "features": features}
 
 
 @router.get("/{property_id}", response_model=PropertyOut)
@@ -96,6 +181,7 @@ def get_property(
         ManagementRelationship.is_active == True
     ).first()
     out.active_managing_company_id = active_rel.managing_company_id if active_rel else None
+    out.geometry = _geometry_to_geojson(prop.geometry)
     return out
 
 
@@ -119,13 +205,40 @@ def update_property(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
 
     update_data = property_in.model_dump(exclude_unset=True)
+
+    # Geometry needs special handling: convert GeoJSON dict → PostGIS via shapely.
+    # `null` clears the boundary; an omitted field leaves it untouched.
+    if "geometry" in update_data:
+        geom_value = update_data.pop("geometry")
+        if geom_value is None:
+            prop.geometry = None
+        else:
+            try:
+                shp = shapely_shape(geom_value)
+                if shp.geom_type not in ("Polygon", "MultiPolygon"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Property geometry must be Polygon or MultiPolygon, got {shp.geom_type}",
+                    )
+                prop.geometry = from_shape(shp, srid=4326)
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Invalid property geometry for {property_id}: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid GeoJSON geometry: {e}",
+                )
+
     for field, value in update_data.items():
         setattr(prop, field, value)
 
     db.commit()
     db.refresh(prop)
     logger.info(f"Property {prop.id} updated by user {current_user.id}")
-    return PropertyOut.model_validate(prop)
+    out = PropertyOut.model_validate(prop)
+    out.geometry = _geometry_to_geojson(prop.geometry)
+    return out
 
 
 @router.get("/{property_id}/blocks")

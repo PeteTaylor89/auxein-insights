@@ -120,7 +120,7 @@ Out of scope for v0 — same as web:
 - **Tap asset pin**: bottom-sheet (or direct nav) → existing `AssetDetail` screen
 - **Tap risk pin**: bottom-sheet — title, category, inherent + residual level chips (coloured), owner, location notes, "View risk" CTA (deep-links into web for now, or a future mobile RiskDetailScreen)
 - **Tap user location button** (FAB-style, bottom-right): re-centre on user, zoom to 17
-- **Active task banner** (top of map, if any task has `gps_tracking_active=true`): "Recording: <task name>" → tap goes to TaskDetail. Polyline auto-shows for that task
+- ~~**Active task banner** (top of map): dropped — the "is anything tracking?" surface lives on TaskDetail. MapScreen still renders the live polyline when a task is tracking, but doesn't surface a separate banner.~~
 - **Long-press** on map: deferred to v0.1.1 (would let user drop a pin → "Create incident here" / "Create asset here")
 
 ---

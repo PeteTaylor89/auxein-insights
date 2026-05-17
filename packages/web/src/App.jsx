@@ -31,8 +31,8 @@ import PlanEdit from './pages/PlanEdit';
 import RunStart from './pages/RunStart';
 import AdhocObservationCreate from './pages/AdhocObservationCreate';
 import AssetsDashboard from './pages/AssetsDashboard';
-import Calibrations from './pages/Calibrations';
 import AssetForm from './pages/AssetForm';
+import ContractorMobileOnly from './pages/ContractorMobileOnly';
 import ConsumableForm from './pages/ConsumableForm';
 import ContractorManagement from './pages/ContractorManagement';
 import Notifications from './pages/Notifications';
@@ -50,9 +50,11 @@ const MapsPage = lazy(() => import('./pages/maps-v2/MapsPage'));
 const Admin = lazy(() => import('./pages/Admin'));
 const CompanyAdmin = lazy(() => import('./pages/CompanyAdmin'));
 
-// Protected route component
+// Protected route — auth + non-contractor.
+// Contractors are mobile-only in V1; they get bounced to the landing page so
+// they never see the manager-oriented web surface.
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading, initialLoading } = useAuth();
+  const { isAuthenticated, loading, initialLoading, userTypeRole } = useAuth();
 
   if (loading || initialLoading) {
     return <div className="loading-screen">Loading...</div>;
@@ -62,19 +64,45 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
+  if (userTypeRole === 'contractor') {
+    return <Navigate to="/contractor-mobile-only" replace />;
+  }
+
   return children;
 }
 
-// Auth route component - redirects to home if already authenticated
+// Contractor-only guard for /contractor-mobile-only. Non-contractors hitting
+// this route get bounced home — they have no business there.
+function ContractorOnlyRoute({ children }) {
+  const { isAuthenticated, loading, initialLoading, userTypeRole } = useAuth();
+
+  if (loading || initialLoading) {
+    return <div className="loading-screen">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (userTypeRole !== 'contractor') {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+// Auth route — redirects post-auth users away from /login. Contractors go
+// straight to their landing page so the AppLayout chrome never flashes.
 function AuthRoute({ children }) {
-  const { isAuthenticated, loading, initialLoading } = useAuth();
+  const { isAuthenticated, loading, initialLoading, userTypeRole } = useAuth();
 
   if (loading || initialLoading) {
     return <div className="loading-screen">Loading...</div>;
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    const dest = userTypeRole === 'contractor' ? '/contractor-mobile-only' : '/';
+    return <Navigate to={dest} replace />;
   }
 
   return children;
@@ -264,11 +292,9 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/calibrations" element={
-          <ProtectedRoute>
-            <Calibrations  />
-          </ProtectedRoute>
-        } />
+        {/* Legacy route — Calibrations folded into /assets as a tab.
+            Kept as a redirect so old bookmarks / external links still land users in the right place. */}
+        <Route path="/calibrations" element={<Navigate to="/assets?tab=calibrations" replace />} />
 
         <Route path="/assets/equipment/new" element={
           <ProtectedRoute>
@@ -349,6 +375,11 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPasswordForm />} />
       <Route path="/reset-password" element={<ResetPasswordForm />} />
       <Route path="/accept-invitation" element={<AcceptInvitation />} />
+      <Route path="/contractor-mobile-only" element={
+        <ContractorOnlyRoute>
+          <ContractorMobileOnly />
+        </ContractorOnlyRoute>
+      } />
     </Routes>
   );
 }

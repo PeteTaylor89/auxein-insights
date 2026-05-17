@@ -202,6 +202,22 @@
   white-space: nowrap;
 }
 
+/* Per-row audit chip — "by Sarah · 10:43". Replaces the old rp-time when we
+   have a resolved user. Slightly more prominent than rp-time but still
+   subordinate to the row name + status. */
+.rp-audit {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  margin-left: auto;
+  padding-left: var(--space-sm);
+}
+
+.rp-audit strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 .rp-has-notes {
   color: var(--color-info);
   flex-shrink: 0;

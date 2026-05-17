@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { PropertyProvider } from './src/contexts/PropertyContext';
 import { initMobileApi } from './src/api/setup';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -56,10 +57,12 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <AuthProvider>
-          <ToastProvider>
-            <StatusBar style="auto" />
-            <RootNavigator />
-          </ToastProvider>
+          <PropertyProvider>
+            <ToastProvider>
+              <StatusBar style="auto" />
+              <RootNavigator />
+            </ToastProvider>
+          </PropertyProvider>
         </AuthProvider>
       </NavigationContainer>
     </SafeAreaProvider>

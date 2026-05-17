@@ -48,7 +48,7 @@ Thumbs.db
 .env.production.local
 
 # Mobile store credentials (NEVER commit)
-packages/mobile/google-play-service-account.json
+packages/mobile/auxein-gro-play-be8c6a8059a4.json
 packages/mobile/*.keystore
 packages/mobile/*.p8
 packages/mobile/AuthKey_*.p8

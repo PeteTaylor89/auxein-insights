@@ -16,6 +16,16 @@ const contractorManagementService = {
     return res.data;
   },
 
+  lookupContractorByEmail: async (email) => {
+    const res = await api.get(`${BASE}/contractors/lookup`, { params: { email } });
+    return res.data;
+  },
+
+  getDirectory: async (params = {}) => {
+    const res = await api.get(`${BASE}/contractors/directory`, { params });
+    return res.data;
+  },
+
   listRelationships: async () => {
     const res = await api.get(`${BASE}/contractor-relationships`);
     return res.data;

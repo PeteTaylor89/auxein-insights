@@ -1,11 +1,40 @@
 // pages/TaskDetail.jsx — Task detail view with row progress, equipment check, consumable completion
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation } from 'lucide-react';
 import { tasksService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
 import '../pages/vineyard-pages.css';
+
+function friendlyName(user) {
+  if (!user) return null;
+  const first = (user.first_name || '').trim();
+  const last = (user.last_name || '').trim();
+  if (first && last) return `${first} ${last}`;
+  if (first) return first;
+  const email = (user.email || '').trim();
+  if (email && email.includes('@')) {
+    const local = email.split('@')[0];
+    return local.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return user.full_name || user.username || `User #${user.id}`;
+}
+
+function fmtDateTime(d) {
+  if (!d) return null;
+  try { return new Date(d).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  catch { return d; }
+}
+
+function InfoItem({ label, children }) {
+  return (
+    <div>
+      <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontWeight: 500 }}>{children}</div>
+    </div>
+  );
+}
 
 function TaskDetail() {
   const { taskId } = useParams();
@@ -24,6 +53,12 @@ function TaskDetail() {
   const [completionNotes, setCompletionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
+
+  // Edit modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const canEdit = userTypeRole === 'company_admin' || userTypeRole === 'company_manager' || userTypeRole === 'auxein_admin';
 
@@ -80,6 +115,48 @@ function TaskDetail() {
       }
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // ── Edit Task Flow ───────────────────────────────────────────────
+  const openEdit = () => {
+    setEditForm({
+      title: task.title || '',
+      description: task.description || '',
+      priority: task.priority || 'medium',
+      scheduled_start_date: task.scheduled_start_date || '',
+      scheduled_end_date: task.scheduled_end_date || '',
+      estimated_hours: task.estimated_hours ?? '',
+      location_notes: task.location_notes || '',
+      requires_gps_tracking: !!task.requires_gps_tracking,
+    });
+    setEditError(null);
+    setShowEdit(true);
+  };
+
+  const doSaveEdit = async () => {
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const payload = {
+        title: editForm.title.trim() || null,
+        description: editForm.description || null,
+        priority: editForm.priority || null,
+        scheduled_start_date: editForm.scheduled_start_date || null,
+        scheduled_end_date: editForm.scheduled_end_date || null,
+        estimated_hours: editForm.estimated_hours === '' ? null : Number(editForm.estimated_hours),
+        location_notes: editForm.location_notes || null,
+        requires_gps_tracking: !!editForm.requires_gps_tracking,
+      };
+      await tasksService.updateTask(taskId, payload);
+      setShowEdit(false);
+      await loadTask();
+    } catch (err) {
+      console.error('Update failed:', err);
+      const detail = err.response?.data?.detail;
+      setEditError(typeof detail === 'string' ? detail : 'Failed to save changes.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -172,58 +249,155 @@ function TaskDetail() {
   return (
     <div className="page-container">
       <div className="vp-page">
-        {/* Back + title + status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+        {/* Back + title + status + edit */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
           <button className="btn-ghost" onClick={() => navigate(-1)} style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
             <ArrowLeft size={16} />
           </button>
-          <h1 className="section-title" style={{ flex: 1 }}>{task.title || `Task #${task.id}`}</h1>
+          <h1 className="section-title" style={{ flex: 1, margin: 0 }}>{task.title || `Task #${task.id}`}</h1>
           {statusBadge(task.status)}
+          {canEdit && !isFinished && (
+            <button className="btn-ghost" onClick={openEdit} style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
+              <Edit2 size={14} /> Edit
+            </button>
+          )}
         </div>
 
-        {/* Task info card */}
+        {/* Task number subtitle */}
+        {task.task_number && (
+          <div style={{ marginTop: '-8px', marginBottom: 'var(--space-md)', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+            {task.task_number}
+          </div>
+        )}
+
+        {/* Overview card */}
         <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-md)' }}>
+          <h3 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Overview</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-md)' }}>
             {task.task_category && (
-              <div>
-                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>Category</div>
-                <div style={{ fontWeight: 500 }}>{task.task_category.replace(/_/g, ' ')}</div>
-              </div>
+              <InfoItem label="Category">{task.task_category.replace(/_/g, ' ')}</InfoItem>
             )}
             {task.priority && (
-              <div>
-                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>Priority</div>
-                <div style={{ fontWeight: 500, color: task.priority === 'high' || task.priority === 'urgent' ? 'var(--color-danger)' : 'var(--color-text)' }}>
+              <InfoItem label="Priority">
+                <span style={{ color: task.priority === 'high' || task.priority === 'urgent' ? 'var(--color-danger)' : 'inherit', fontWeight: 500 }}>
                   {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                </div>
-              </div>
+                </span>
+              </InfoItem>
             )}
-            <div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>
-                <Calendar size={12} style={{ verticalAlign: -2 }} /> Scheduled
-              </div>
-              <div>{fmtDate(task.scheduled_start_date)}{task.scheduled_end_date ? ` — ${fmtDate(task.scheduled_end_date)}` : ''}</div>
-            </div>
+            <InfoItem label={<><Calendar size={12} style={{ verticalAlign: -2 }} /> Scheduled</>}>
+              {task.scheduled_start_date
+                ? `${fmtDate(task.scheduled_start_date)}${task.scheduled_end_date ? ` — ${fmtDate(task.scheduled_end_date)}` : ''}`
+                : '—'}
+            </InfoItem>
             {(task.block_name || task.block?.block_name || task.block_id) && (
-              <div>
-                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>
-                  <MapPin size={12} style={{ verticalAlign: -2 }} /> Block
-                </div>
-                <div>{task.block_name || task.block?.block_name || `Block #${task.block_id}`}</div>
-              </div>
+              <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Block</>}>
+                {task.block_name || task.block?.block_name || `Block #${task.block_id}`}
+              </InfoItem>
             )}
-            {task.actual_hours > 0 && (
-              <div>
-                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>
-                  <Clock size={12} style={{ verticalAlign: -2 }} /> Hours
-                </div>
-                <div>{task.actual_hours}h{task.estimated_hours ? ` / ${task.estimated_hours}h est.` : ''}</div>
-              </div>
+            {(task.spatial_area?.name || task.spatial_area_name) && (
+              <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Spatial area</>}>
+                {task.spatial_area?.name || task.spatial_area_name}
+              </InfoItem>
+            )}
+            <InfoItem label={<><Clock size={12} style={{ verticalAlign: -2 }} /> Hours</>}>
+              {task.actual_hours > 0 ? `${task.actual_hours}h` : '—'}
+              {task.estimated_hours ? ` / ${task.estimated_hours}h est.` : ''}
+            </InfoItem>
+            {task.requires_gps_tracking && (
+              <InfoItem label={<><Navigation size={12} style={{ verticalAlign: -2 }} /> GPS tracking</>}>
+                Enabled
+              </InfoItem>
+            )}
+            {Array.isArray(task.tags) && task.tags.length > 0 && (
+              <InfoItem label={<><Tag size={12} style={{ verticalAlign: -2 }} /> Tags</>}>
+                <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
+                  {task.tags.map(t => (
+                    <span key={t} style={{ padding: '1px 8px', background: 'var(--color-surface-warm)', borderRadius: 999, fontSize: 'var(--font-size-xs)' }}>{t}</span>
+                  ))}
+                </span>
+              </InfoItem>
             )}
           </div>
-          {task.description && (
-            <div style={{ marginTop: 'var(--space-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-              {task.description}
+          {task.location_notes && (
+            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>Location notes</div>
+              <div style={{ fontSize: 'var(--font-size-sm)' }}>{task.location_notes}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Assignments card */}
+        <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
+          <h3 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Assignments</h3>
+          <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-xs)' }}>
+                <Users size={12} style={{ verticalAlign: -2 }} /> Users
+              </div>
+              {Array.isArray(task.assignee_names) && task.assignee_names.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {task.assignee_names.map((n, i) => <div key={i}>{n}</div>)}
+                </div>
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>None</div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-xs)' }}>
+                <Wrench size={12} style={{ verticalAlign: -2 }} /> Contractors
+              </div>
+              {Array.isArray(task.contractor_names) && task.contractor_names.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {task.contractor_names.map((n, i) => <div key={i}>{n}</div>)}
+                </div>
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>None</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Description */}
+        {task.description && (
+          <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
+            <h3 style={{ margin: '0 0 var(--space-sm)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>
+              <FileText size={14} style={{ verticalAlign: -2 }} /> Description
+            </h3>
+            <div style={{ fontSize: 'var(--font-size-sm)', whiteSpace: 'pre-wrap' }}>{task.description}</div>
+          </div>
+        )}
+
+        {/* Audit trail */}
+        <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
+          <h3 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Activity</h3>
+          <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <InfoItem label="Created">
+              {fmtDateTime(task.created_at) || '—'}
+              {task.creator && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>by {friendlyName(task.creator)}</div>}
+            </InfoItem>
+            {task.actual_start_time && (
+              <InfoItem label="Started">{fmtDateTime(task.actual_start_time)}</InfoItem>
+            )}
+            {task.completed_at && (
+              <InfoItem label="Completed">
+                {fmtDateTime(task.completed_at)}
+                {task.completer && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>by {friendlyName(task.completer)}</div>}
+              </InfoItem>
+            )}
+            {task.cancelled_at && (
+              <InfoItem label="Cancelled">{fmtDateTime(task.cancelled_at)}</InfoItem>
+            )}
+          </div>
+          {task.completion_notes && (
+            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>Completion notes</div>
+              <div style={{ fontSize: 'var(--font-size-sm)', whiteSpace: 'pre-wrap' }}>{task.completion_notes}</div>
+            </div>
+          )}
+          {task.cancellation_reason && (
+            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>Cancellation reason</div>
+              <div style={{ fontSize: 'var(--font-size-sm)' }}>{task.cancellation_reason}</div>
             </div>
           )}
         </div>
@@ -285,6 +459,116 @@ function TaskDetail() {
                 )}
                 <button className="btn-primary" onClick={() => doStart(false)} disabled={actionLoading}>
                   {actionLoading ? 'Starting...' : 'Confirm & Start'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Edit Task Modal ──────────────────────────────────────── */}
+        {showEdit && (
+          <>
+            <div className="td-overlay" onClick={() => setShowEdit(false)} />
+            <div className="td-modal">
+              <h3><Edit2 size={16} /> Edit Task</h3>
+              {editError && <div className="td-error">{editError}</div>}
+
+              <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Title</label>
+                  <input
+                    className="td-input"
+                    style={{ width: '100%' }}
+                    value={editForm.title}
+                    onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: '1fr 1fr' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Priority</label>
+                    <select
+                      className="td-input"
+                      style={{ width: '100%' }}
+                      value={editForm.priority}
+                      onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Estimated hours</label>
+                    <input
+                      className="td-input"
+                      style={{ width: '100%' }}
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      value={editForm.estimated_hours}
+                      onChange={e => setEditForm(f => ({ ...f, estimated_hours: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Scheduled start</label>
+                    <input
+                      className="td-input"
+                      style={{ width: '100%' }}
+                      type="date"
+                      value={editForm.scheduled_start_date}
+                      onChange={e => setEditForm(f => ({ ...f, scheduled_start_date: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Scheduled end</label>
+                    <input
+                      className="td-input"
+                      style={{ width: '100%' }}
+                      type="date"
+                      value={editForm.scheduled_end_date}
+                      onChange={e => setEditForm(f => ({ ...f, scheduled_end_date: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Description</label>
+                  <textarea
+                    className="td-textarea"
+                    rows={4}
+                    value={editForm.description}
+                    onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Location notes</label>
+                  <textarea
+                    className="td-textarea"
+                    rows={2}
+                    value={editForm.location_notes}
+                    onChange={e => setEditForm(f => ({ ...f, location_notes: e.target.value }))}
+                  />
+                </div>
+
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.requires_gps_tracking}
+                    onChange={e => setEditForm(f => ({ ...f, requires_gps_tracking: e.target.checked }))}
+                  />
+                  <Navigation size={14} /> Require GPS tracking
+                </label>
+              </div>
+
+              <div className="td-modal-actions">
+                <button className="btn-ghost" onClick={() => setShowEdit(false)} disabled={editSaving}>
+                  <X size={14} /> Cancel
+                </button>
+                <button className="btn-primary" onClick={doSaveEdit} disabled={editSaving || !editForm.title?.trim()}>
+                  <Save size={14} /> {editSaving ? 'Saving...' : 'Save changes'}
                 </button>
               </div>
             </div>

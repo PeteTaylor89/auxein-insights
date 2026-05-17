@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks } from 'lucide-react';
-import { observationService, usersService, authService, tasksService } from '@vineyard/shared';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench } from 'lucide-react';
+import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import './ObservationDashboard.css';
 import BlockSelectionModal from '../components/BlockSelectionModal';
@@ -21,7 +21,7 @@ const VALID_TABS = ['plans', 'runs', 'templates', 'tasks', 'task-templates'];
 export default function ObservationDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'plans';
+  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'tasks';
   const [tab, setTab] = useState(initialTab);
 
   // Keep tab in sync with URL (back button + deep links)
@@ -34,7 +34,7 @@ export default function ObservationDashboard() {
 
   const switchTab = (next) => {
     setTab(next);
-    setSearchParams(next === 'plans' ? {} : { tab: next }, { replace: true });
+    setSearchParams(next === 'tasks' ? {} : { tab: next }, { replace: true });
   };
 
   const StatusBadge = ({ status }) => {
@@ -69,78 +69,62 @@ export default function ObservationDashboard() {
   return (
     <div className="page-container" style={{ paddingTop: 'var(--space-base)' }}>
 
-      {/* Dashboard Overview Stats */}
-      <div className="stats-container">
-        <div className="container-title">
-          <span>Vineyard Management</span>
-        </div>
-        <div className="stats-grid">
-          {['Active Plans', 'Runs In Progress', 'Submitted Today', 'Overdue Plans'].map(label => (
-            <div key={label} className="stat-card" style={{ textAlign: 'center' }}>
-              <div className="stat-value">—</div>
-              <div className="stat-label">{label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Quick Actions */}
       <div className="stats-container">
         <div className="container-title">
           <span>Quick Actions</span>
         </div>
         <div className="stats-grid">
+          <Link to="/tasks/new" className="stat-card">
+            <div className="icon-wrapper"><Zap size={24} /></div>
+            <div className="actions-title">Quick Create Task</div>
+          </Link>
+          <Link to="/tasks/templates/new" className="stat-card">
+            <div className="icon-wrapper"><FileText size={24} /></div>
+            <div className="actions-title">Create Task Template</div>
+          </Link>
           <Link to="/observations/quick" className="stat-card">
             <div className="icon-wrapper"><Eye size={24} /></div>
             <div className="actions-title">Quick Observation</div>
           </Link>
-          <Link to="/tasks/new" className="stat-card">
-            <div className="icon-wrapper"><Zap size={24} /></div>
-            <div className="actions-title">Create / Assign Task</div>
-          </Link>
           <Link to="/planobservation" className="stat-card">
             <div className="icon-wrapper"><ClipboardList size={24} /></div>
-            <div className="actions-title">Schedule Observation</div>
+            <div className="actions-title">Schedule Obs Plan</div>
           </Link>
-          <div className="stat-card" style={{ opacity: 0.45, cursor: 'default' }}>
-            <div className="icon-wrapper"><ListChecks size={24} /></div>
-            <div className="actions-title">Assign Observation (coming soon)</div>
-          </div>
         </div>
       </div>
 
-      {/* Tab Navigation — grouped: Obs tabs then Task tabs */}
-      <div className="stats-container" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="obs-tab-bar">
-          <TabButton label="Scheduled" active={tab === 'plans'} onClick={() => switchTab('plans')} />
-          <TabButton label="Runs" active={tab === 'runs'} onClick={() => switchTab('runs')} />
-          <TabButton label="Obs Templates" active={tab === 'templates'} onClick={() => switchTab('templates')} />
-          <TabButton label="Task Management" active={tab === 'tasks'} onClick={() => switchTab('tasks')} />
-          <TabButton label="Task Templates" active={tab === 'task-templates'} onClick={() => switchTab('task-templates')} />
+      {/* Tab Navigation — Asset-style button tabs */}
+      <div className="od-tab-card">
+        <div className="od-tab-bar">
+          <button className={`od-tab ${tab === 'tasks' ? 'active' : ''}`} onClick={() => switchTab('tasks')}>
+            <ClipboardList size={16} /> Task Management
+          </button>
+          <button className={`od-tab ${tab === 'task-templates' ? 'active' : ''}`} onClick={() => switchTab('task-templates')}>
+            <FileText size={16} /> Task Templates
+          </button>
+          <button className={`od-tab ${tab === 'templates' ? 'active' : ''}`} onClick={() => switchTab('templates')}>
+            <ListChecks size={16} /> Observation Templates
+          </button>
+          <button className={`od-tab ${tab === 'runs' ? 'active' : ''}`} onClick={() => switchTab('runs')}>
+            <Rocket size={16} /> Observation Management
+          </button>
+          <button className={`od-tab ${tab === 'plans' ? 'active' : ''}`} onClick={() => switchTab('plans')}>
+            <Calendar size={16} /> Observation Scheduling
+          </button>
         </div>
 
-        <div style={{ padding: 'var(--space-lg)' }}>
-          {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
-          {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
-          {tab === 'templates' && <TemplatesTab />}
+        <div className="od-tab-content">
           {tab === 'tasks' && <TasksTab StatusBadge={StatusBadge} />}
           {tab === 'task-templates' && <TaskTemplatesTab />}
+          {tab === 'templates' && <TemplatesTab />}
+          {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
+          {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
         </div>
       </div>
 
       <MobileNavigation />
     </div>
-  );
-}
-
-function TabButton({ label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`obs-tab-btn ${active ? 'obs-tab-btn--active' : ''}`}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -650,9 +634,6 @@ function TaskTemplatesTab() {
     <div>
       <div className="od-tab-header">
         <h2>Task Templates ({filteredTemplates.length})</h2>
-        <button className="btn-primary" onClick={() => navigate('/tasks/templates/new')}>
-          <Plus size={14} /> New Template
-        </button>
       </div>
 
       <div className="od-filters">
@@ -738,23 +719,139 @@ function TemplateCard({ template, onView, onEdit, onUse }) {
   );
 }
 
-// OPTIONAL CHANGE 5: Add TasksTab component (for task list view - can be done later)
-// TasksTab — table view (drop-in replacement)
+// Multi-select filter chip group
+function FilterChipGroup({ label, options, selected, onToggle }) {
+  return (
+    <div className="od-chip-group">
+      <span className="od-chip-group-label">{label}</span>
+      <div className="od-chip-row">
+        {options.map(opt => {
+          const isActive = selected.has(opt.value);
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onToggle(opt.value)}
+              className={`od-chip ${isActive ? 'active' : ''}`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TaskFilters({
+  searchQuery, setSearchQuery,
+  statusFilter, setStatusFilter,
+  categoryFilter, setCategoryFilter,
+  priorityFilter, setPriorityFilter,
+  locationFilter, setLocationFilter,
+  assigneeFilter, setAssigneeFilter,
+  contractorFilter, setContractorFilter,
+  locationOptions, assigneeOptions, contractorOptions,
+  totalActive, onClear,
+}) {
+  const toggleIn = (setter) => (value) => {
+    setter(prev => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value); else next.add(value);
+      return next;
+    });
+  };
+
+  const statusOptions = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'scheduled', label: 'Scheduled' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ];
+
+  const categoryOptions = [
+    { value: 'vineyard', label: 'Vineyard' },
+    { value: 'land_management', label: 'Land Mgmt' },
+    { value: 'asset_management', label: 'Assets' },
+    { value: 'compliance', label: 'Compliance' },
+    { value: 'general', label: 'General' },
+  ];
+
+  const priorityOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'urgent', label: 'Urgent' },
+  ];
+
+  const locationChipOptions = locationOptions.map(loc => ({ value: loc, label: loc }));
+  const assigneeChipOptions = [
+    { value: 0, label: 'Unassigned' },
+    ...assigneeOptions.map(u => ({ value: u.id, label: u.displayName })),
+  ];
+  const contractorChipOptions = (contractorOptions || []).map(c => ({
+    value: c.contractor_id,
+    label: c.contractor_name,
+  }));
+
+  return (
+    <div className="od-filters-panel">
+      <div className="od-filters-top">
+        <div className="od-filters-title">
+          <Filter size={14} /> Filters
+          {totalActive > 0 && <span className="od-filters-badge">{totalActive}</span>}
+        </div>
+        <input
+          className="od-filter-input"
+          type="text"
+          placeholder="Search by task name or description..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {(totalActive > 0 || searchQuery) && (
+          <button type="button" className="od-btn od-btn--ghost" onClick={onClear}>
+            <X size={12} /> Clear
+          </button>
+        )}
+      </div>
+
+      <FilterChipGroup label="Status"   options={statusOptions}        selected={statusFilter}   onToggle={toggleIn(setStatusFilter)} />
+      <FilterChipGroup label="Category" options={categoryOptions}      selected={categoryFilter} onToggle={toggleIn(setCategoryFilter)} />
+      <FilterChipGroup label="Priority" options={priorityOptions}      selected={priorityFilter} onToggle={toggleIn(setPriorityFilter)} />
+      {locationChipOptions.length > 0 && (
+        <FilterChipGroup label="Location" options={locationChipOptions} selected={locationFilter} onToggle={toggleIn(setLocationFilter)} />
+      )}
+      {assigneeChipOptions.length > 1 && (
+        <FilterChipGroup label="Assignee" options={assigneeChipOptions} selected={assigneeFilter} onToggle={toggleIn(setAssigneeFilter)} />
+      )}
+      {contractorChipOptions.length > 0 && (
+        <FilterChipGroup label="Contractor" options={contractorChipOptions} selected={contractorFilter} onToggle={toggleIn(setContractorFilter)} />
+      )}
+    </div>
+  );
+}
+
+// TasksTab — table view with multi-select filters and assignee resolution
 function TasksTab() {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
 
   const [tasks, setTasks] = useState([]);
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [contractors, setContractors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Client-side filters (do NOT refetch on change)
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
+  // Client-side filters: each is a Set so multi-select toggles cleanly.
+  const [statusFilter, setStatusFilter] = useState(() => new Set());
+  const [categoryFilter, setCategoryFilter] = useState(() => new Set());
+  const [priorityFilter, setPriorityFilter] = useState(() => new Set());
+  const [locationFilter, setLocationFilter] = useState(() => new Set());
+  const [assigneeFilter, setAssigneeFilter] = useState(() => new Set());
+  const [contractorFilter, setContractorFilter] = useState(() => new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch once per company (no infinite loop)
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -762,16 +859,20 @@ function TasksTab() {
         setLoading(true);
         setError(null);
 
-        // Prefer listTasks; fall back to list/getTasks if needed.
-        const res =
-          (await tasksService.listTasks?.({ company_id: companyId, limit: 500 }).catch(() => null)) ??
-          (await tasksService.list?.({ company_id: companyId, limit: 500 }).catch(() => null)) ??
-          (await tasksService.getTasks?.({ company_id: companyId, limit: 500 }).catch(() => null)) ??
-          [];
+        const [tasksRes, usersRes, relsRes] = await Promise.all([
+          (tasksService.listTasks?.({ company_id: companyId, limit: 500 })
+            ?? tasksService.list?.({ company_id: companyId, limit: 500 })
+            ?? tasksService.getTasks?.({ company_id: companyId, limit: 500 })
+            ?? Promise.resolve([])).catch(() => []),
+          usersService.getCompanyUsers().catch(() => []),
+          contractorManagementService.listRelationships().catch(() => []),
+        ]);
 
         if (!mounted) return;
-        const items = Array.isArray(res) ? res : (res?.items ?? res?.data ?? res?.tasks ?? []);
+        const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes?.items ?? tasksRes?.data ?? tasksRes?.tasks ?? []);
         setTasks(Array.isArray(items) ? items : []);
+        setCompanyUsers(Array.isArray(usersRes) ? usersRes : []);
+        setContractors(Array.isArray(relsRes) ? relsRes : []);
       } catch (err) {
         console.error('Failed to load tasks:', err);
         setError('Failed to load tasks');
@@ -790,24 +891,65 @@ function TasksTab() {
   };
 
   const fmtLocation = (t) => {
-    if (t.block?.name || t.block_name) return t.block?.name ?? t.block_name;
-    if (t.spatial_area?.name || t.spatial_area_name) return t.spatial_area?.name ?? t.spatial_area_name;
+    const blockName = t.block?.block_name || t.block?.name || t.block_name;
+    if (blockName) return blockName;
+    const areaName = t.spatial_area?.name || t.spatial_area_name;
+    if (areaName) return areaName;
     if (t.block_id) return `Block #${t.block_id}`;
     if (t.spatial_area_id) return `Area #${t.spatial_area_id}`;
     return t.location_type === 'point' ? '📍 Pin' : '—';
   };
 
+  const getLocationKey = (t) => {
+    const blockName = t.block?.block_name || t.block?.name || t.block_name;
+    if (blockName) return blockName;
+    const areaName = t.spatial_area?.name || t.spatial_area_name;
+    if (areaName) return areaName;
+    return '__none__';
+  };
+
   const fmtAssignees = (t) => {
-    // Prefer embedded assignments if present
-    if (Array.isArray(t.assignments) && t.assignments.length > 0) {
-      const names = t.assignments
-        .map(a => a.user_name || a.user?.full_name || a.user?.name || a.user?.email)
-        .filter(Boolean);
-      if (names.length <= 2) return names.join(', ');
-      return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+    const users = Array.isArray(t.assignee_names) && t.assignee_names.length > 0
+      ? t.assignee_names
+      : (Array.isArray(t.assignments) ? t.assignments.map(a => a.user_name || a.user?.full_name || a.user?.name).filter(Boolean) : []);
+    const contractorNames = Array.isArray(t.contractor_names) ? t.contractor_names : [];
+    if (users.length === 0 && contractorNames.length === 0) {
+      return <span style={{ color: 'var(--color-text-muted)' }}>Unassigned</span>;
     }
-    if (typeof t.assigned_user_count === 'number') return `${t.assigned_user_count} user(s)`;
-    return '—';
+    const tooltip = [
+      ...users,
+      ...contractorNames.map(n => `${n} (contractor)`),
+    ].join(', ');
+    return (
+      <span title={tooltip} style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
+        {users.map((n, i) => (
+          <span key={`u-${i}`} style={{ display: 'inline-flex', alignItems: 'center' }}>{n}</span>
+        ))}
+        {contractorNames.map((n, i) => (
+          <span key={`c-${i}`} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            padding: '0 6px', borderRadius: 999,
+            background: 'var(--color-surface-warm)',
+            fontSize: 'var(--font-size-xs)',
+          }} title={`Contractor: ${n}`}>
+            <Wrench size={10} /> {n}
+          </span>
+        ))}
+      </span>
+    );
+  };
+
+  const friendlyUserLabel = (u) => {
+    const first = (u.first_name || '').trim();
+    const last = (u.last_name || '').trim();
+    if (first && last) return `${first} ${last}`;
+    if (first) return first;
+    const email = (u.email || '').trim();
+    if (email && email.includes('@')) {
+      const local = email.split('@')[0];
+      return local.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+    return u.full_name || u.name || u.username || `User #${u.id}`;
   };
 
   const badge = (s) => {
@@ -841,36 +983,80 @@ function TasksTab() {
     return <span style={{ color, fontWeight: 600 }}>{label}</span>;
   };
 
-  // Client-side filtering
-  const filteredTasks = (Array.isArray(tasks) ? tasks : []).filter(task => {
-    if (statusFilter !== 'all') {
-      const k = String(task.status || '').toLowerCase().replace(/\s+/g, '_');
-      const wanted = statusFilter;
-      const norm = (s) => {
-        if (['pending','not_started'].includes(s)) return 'pending';
-        if (['in_progress','active','started','ongoing'].includes(s)) return 'in_progress';
-        if (['completed','complete','done'].includes(s)) return 'completed';
-        if (['cancelled','canceled'].includes(s)) return 'cancelled';
-        if (['scheduled','planning'].includes(s)) return 'scheduled';
-        return 'other';
-      };
-      if (norm(k) !== wanted) return false;
+  const normStatus = (s) => {
+    const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
+    if (['pending','not_started','draft'].includes(k)) return 'pending';
+    if (['in_progress','active','started','ongoing','paused'].includes(k)) return 'in_progress';
+    if (['completed','complete','done'].includes(k)) return 'completed';
+    if (['cancelled','canceled'].includes(k)) return 'cancelled';
+    if (['scheduled','planning','ready'].includes(k)) return 'scheduled';
+    return 'other';
+  };
+
+  // Distinct option lists derived from the dataset
+  const locationOptions = useMemo(() => {
+    const set = new Set();
+    tasks.forEach(t => {
+      const key = getLocationKey(t);
+      if (key !== '__none__') set.add(key);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b, 'en-NZ', { numeric: true }));
+  }, [tasks]);
+
+  const assigneeOptions = useMemo(() => {
+    // Build from the company users list so it stays stable as tasks change
+    return [...companyUsers]
+      .filter(u => u.is_active !== false && !u.is_suspended)
+      .map(u => ({ ...u, displayName: friendlyUserLabel(u) }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [companyUsers]);
+
+  const contractorOptions = useMemo(() => {
+    return [...contractors]
+      .filter(c => c.status === 'active')
+      .sort((a, b) => (a.contractor_name || '').localeCompare(b.contractor_name || ''));
+  }, [contractors]);
+
+  const filteredTasks = useMemo(() => (Array.isArray(tasks) ? tasks : []).filter(task => {
+    if (statusFilter.size > 0 && !statusFilter.has(normStatus(task.status))) return false;
+    if (categoryFilter.size > 0 && !categoryFilter.has(String(task.task_category || ''))) return false;
+    if (priorityFilter.size > 0 && !priorityFilter.has(String(task.priority || '').toLowerCase())) return false;
+    if (locationFilter.size > 0 && !locationFilter.has(getLocationKey(task))) return false;
+    if (assigneeFilter.size > 0) {
+      const ids = Array.isArray(task.assigned_user_ids) ? task.assigned_user_ids : [];
+      const unassignedSelected = assigneeFilter.has(0);
+      const anyMatch = ids.some(id => assigneeFilter.has(id));
+      if (!anyMatch && !(unassignedSelected && ids.length === 0)) return false;
     }
-    if (categoryFilter !== 'all' && String(task.task_category || '') !== categoryFilter) return false;
-    if (priorityFilter !== 'all' && String(task.priority || '').toLowerCase() !== priorityFilter) return false;
+    if (contractorFilter.size > 0) {
+      const ids = Array.isArray(task.assigned_contractor_ids) ? task.assigned_contractor_ids : [];
+      if (!ids.some(id => contractorFilter.has(id))) return false;
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const hay =
-        (task.title || '') + ' ' +
-        (task.description || '') + ' ' +
-        (task.task_category || '') + ' ' +
-        (task.block_name || '') + ' ' +
-        (task.spatial_area_name || '');
-      if (!hay.toLowerCase().includes(q)) return false;
+      const hay = [
+        task.title, task.description, task.task_category,
+        task.block?.block_name, task.block?.name, task.block_name,
+        task.spatial_area?.name, task.spatial_area_name,
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
-  });
+  }), [tasks, statusFilter, categoryFilter, priorityFilter, locationFilter, assigneeFilter, contractorFilter, searchQuery]);
+
+  const totalActiveFilters =
+    statusFilter.size + categoryFilter.size + priorityFilter.size + locationFilter.size + assigneeFilter.size + contractorFilter.size;
+
+  const clearAllFilters = () => {
+    setStatusFilter(new Set());
+    setCategoryFilter(new Set());
+    setPriorityFilter(new Set());
+    setLocationFilter(new Set());
+    setAssigneeFilter(new Set());
+    setContractorFilter(new Set());
+    setSearchQuery('');
+  };
 
   const handleDeleteTask = async (taskId) => {
     if (!window.confirm('Are you sure you want to delete this task?')) return;
@@ -897,72 +1083,49 @@ function TasksTab() {
         </button>
       </div>
 
-      <div className="od-filters">
-        <details>
-          <summary><Filter size={14} /> Filters</summary>
-          <div className="od-filter-row">
-            <input className="od-filter-input" type="text" placeholder="Search tasks..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-            <select className="od-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <select className="od-filter-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-              <option value="all">All Categories</option>
-              <option value="vineyard">Vineyard</option>
-              <option value="land_management">Land Management</option>
-              <option value="asset_management">Asset Management</option>
-              <option value="compliance">Compliance</option>
-              <option value="general">General</option>
-            </select>
-            <select className="od-filter-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
-              <option value="all">All Priorities</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
-        </details>
-      </div>
+      <TaskFilters
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+        categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
+        priorityFilter={priorityFilter} setPriorityFilter={setPriorityFilter}
+        locationFilter={locationFilter} setLocationFilter={setLocationFilter}
+        assigneeFilter={assigneeFilter} setAssigneeFilter={setAssigneeFilter}
+        contractorFilter={contractorFilter} setContractorFilter={setContractorFilter}
+        locationOptions={locationOptions} assigneeOptions={assigneeOptions} contractorOptions={contractorOptions}
+        totalActive={totalActiveFilters} onClear={clearAllFilters}
+      />
 
       {filteredTasks.length > 0 ? (
         <div className="od-table-wrap">
-          <table className="od-table">
+          <table className="od-table od-task-table">
             <thead>
               <tr>
                 <th>Task</th>
                 <th>Category</th>
                 <th>Location</th>
-                <th className="center">Start</th>
-                <th className="center">End</th>
+                <th>Schedule</th>
                 <th className="center">Priority</th>
                 <th>Assignees</th>
-                <th className="right">Status</th>
+                <th>Status</th>
                 <th className="right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredTasks.map(t => (
-                <tr key={t.id}>
-                  <td className="bold">
-                    {t.title || `Task #${t.id}`}
-                    {t.description && <div className="od-desc">{t.description}</div>}
-                  </td>
+                <tr key={t.id} className="od-clickable-row" onClick={() => navigate(`/tasks/${t.id}`)}>
+                  <td className="bold">{t.title || `Task #${t.id}`}</td>
                   <td><span className="od-category-tag">{(t.task_category || '').replace(/_/g,' ') || '—'}</span></td>
                   <td>{fmtLocation(t)}</td>
-                  <td className="center">{fmtDate(t.scheduled_start_date || t.scheduled_date)}</td>
-                  <td className="center">{fmtDate(t.scheduled_end_date)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {fmtDate(t.scheduled_start_date || t.scheduled_date)}
+                    {t.scheduled_end_date ? ` – ${fmtDate(t.scheduled_end_date)}` : ''}
+                  </td>
                   <td className="center">{fmtPriority(t.priority)}</td>
                   <td>{fmtAssignees(t)}</td>
-                  <td className="right">{badge(t.status)}</td>
-                  <td className="right">
+                  <td>{badge(t.status)}</td>
+                  <td className="right" onClick={(e) => e.stopPropagation()}>
                     <div className="od-actions">
-                      <button className="od-btn od-btn--primary" onClick={() => navigate(`/tasks/${t.id}`)} title="View"><Eye size={12}/> View</button>
-                      <button className="od-btn od-btn--ghost" onClick={() => navigate(`/tasks/${t.id}/edit`)} title="Edit"><Edit size={12}/></button>
+                      <button className="od-btn od-btn--primary" onClick={() => navigate(`/tasks/${t.id}`)} title="Open"><Eye size={12}/> Open</button>
                       <button className="od-btn od-btn--danger" onClick={() => handleDeleteTask(t.id)} title="Delete"><Trash2 size={12}/></button>
                     </div>
                   </td>

@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3 } from 'lucide-react';
-import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService } from '@vineyard/shared';
+import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService, byNatural } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
+import ContractorRelationships from '../components/admin/ContractorRelationships';
 import ForecastPointPicker from '../components/ForecastPointPicker';
 import './CompanyAdmin.css';
 
@@ -221,7 +222,8 @@ function PropertiesTab() {
 
       setUsers(userList);
       setProperties(propList);
-      setBlocks(blockList);
+      // Natural sort blocks so "Block 2" < "Block 10" instead of lex order.
+      setBlocks([...blockList].sort(byNatural('block_name')));
 
       const scopeMap = {};
       for (const u of userList) {
@@ -552,33 +554,28 @@ function PropertiesTab() {
 function RelationshipsTab() {
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Relationships</h2>
+      <h2 className="ca-section-title">
+        <Handshake size={18} style={{ verticalAlign: 'middle', marginRight: 'var(--space-xs)' }} />
+        Contractor Relationships
+      </h2>
       <p className="ca-section-desc">
-        Manage external relationships — who owns and manages your properties, and who you contract work to.
+        Manage the contractors who work for your company. Add a relationship to make a contractor assignable to tasks.
       </p>
+      <ContractorRelationships />
 
+      <h2 className="ca-section-title" style={{ marginTop: 'var(--space-xl, 32px)' }}>
+        <MapPinned size={18} style={{ verticalAlign: 'middle', marginRight: 'var(--space-xs)' }} />
+        Property Management
+      </h2>
       <div className="ca-relationships-grid">
         <div className="ca-relationship-card">
           <div className="ca-relationship-icon">
             <MapPinned size={28} />
           </div>
           <div className="ca-relationship-body">
-            <h3 className="ca-relationship-title">Property Management</h3>
+            <h3 className="ca-relationship-title">Transfer property management</h3>
             <p className="ca-relationship-desc">
-              Transfer day-to-day management of a property to another company, or take over management of a property you don't own. Backed by an audit trail and blockchain-logged transfers.
-            </p>
-            <span className="ca-relationship-status">Coming soon</span>
-          </div>
-        </div>
-
-        <div className="ca-relationship-card">
-          <div className="ca-relationship-icon">
-            <Handshake size={28} />
-          </div>
-          <div className="ca-relationship-body">
-            <h3 className="ca-relationship-title">Contractor Relationships</h3>
-            <p className="ca-relationship-desc">
-              Invite contractors to take on tasks for your company. Manage active engagements, scope of work, and historical assignments.
+              Transfer day-to-day management of a property to another company, or take over management of a property you don't own. Backed by an audit trail.
             </p>
             <span className="ca-relationship-status">Coming soon</span>
           </div>

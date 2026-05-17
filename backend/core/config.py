@@ -185,6 +185,15 @@ class Settings(BaseSettings):
     INSIGHTS_FRONTEND_URL: str = os.getenv("INSIGHTS_FRONTEND_URL", "http://localhost:5174")
     INSIGHTS_SUPPORT_EMAIL: str = os.getenv("INSIGHTS_SUPPORT_EMAIL", "insights@auxein.co.nz")
 
+    # MetOcean forecast API. Replaces the previous client-side direct call (key
+    # was leaking in the web bundle). Backend proxies + caches so mobile + web
+    # share one provider. TTL matches the previous browser-cache TTL (3 h).
+    METOCEAN_API_KEY: Optional[str] = os.getenv("METOCEAN_API_KEY")
+    METOCEAN_BASE_URL: str = os.getenv(
+        "METOCEAN_BASE_URL", "https://forecast-v2.metoceanapi.com"
+    )
+    FORECAST_CACHE_TTL_SECONDS: int = int(os.getenv("FORECAST_CACHE_TTL_SECONDS", "10800"))
+
     @property
     def api_base_url(self) -> str:
         """Public-facing API base URL, always includes /api/v1 prefix."""

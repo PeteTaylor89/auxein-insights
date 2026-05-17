@@ -138,23 +138,31 @@
   color: var(--color-text);
 }
 
-/* Filters */
+/* Filters
+   Visual look mirrors the calibrations tab's filter bar (`.cal-filter-bar`):
+   a white card with a thin border + 10px radius, search + selects inline. */
 .ad-filters {
   display: flex;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-base);
+  gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  border-radius: 10px;
 }
 
 .ad-search {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  font-size: var(--font-size-base);
+  flex: 1 1 280px;
+  min-width: 200px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
   font-family: var(--font-family);
   color: var(--color-text);
-  flex: 1;
-  min-width: 200px;
+  background: #fff;
 }
 
 .ad-search:focus {
@@ -163,13 +171,14 @@
 }
 
 .ad-filter-select {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  font-size: var(--font-size-base);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
   font-family: var(--font-family);
   color: var(--color-text);
-  background: var(--color-surface);
+  background: #fff;
+  min-width: 140px;
 }
 
 .ad-filter-select:focus {
@@ -177,39 +186,43 @@
   border-color: var(--color-primary);
 }
 
-/* Tables */
+/* Tables
+   Visual look mirrors `.cal-table-wrap` + `.cal-table`: a self-contained white
+   card with a thin border + 10px radius, uppercase 12px header on a light-grey
+   strip, hairline row separators, light-grey hover. */
 .ad-table-wrap {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   overflow-x: auto;
 }
 
 .ad-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-base);
+  font-size: 14px;
 }
 
-.ad-table thead tr {
-  background: var(--color-surface-warm);
-}
-
-.ad-table th {
-  padding: var(--space-md);
+.ad-table thead th {
   text-align: left;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
   font-weight: 600;
-  color: var(--color-primary);
-  font-size: var(--font-size-xs);
+  color: #4b5563;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  border-bottom: 2px solid var(--color-olive-border);
+  letter-spacing: 0.04em;
 }
 
 .ad-table th.center { text-align: center; }
 .ad-table th.right { text-align: right; }
 
 .ad-table td {
-  padding: var(--space-md);
+  padding: 10px 12px;
   color: var(--color-text);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
 }
 
 .ad-table td.center { text-align: center; }
@@ -225,7 +238,7 @@
 }
 
 .ad-table tbody tr:hover {
-  background: var(--color-olive-light);
+  background: #f9fafb;
 }
 
 /* Buttons */
@@ -444,15 +457,37 @@
 
   .ad-filters {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .ad-search {
-    min-width: 100%;
+  .ad-search,
+  .ad-filter-select {
+    min-width: 0;
+    width: 100%;
   }
 
   .ad-section-header {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-sm);
+  }
+
+  /* Stacked card layout — mirrors `.cal-table` mobile rules. */
+  .ad-table thead { display: none; }
+  .ad-table tbody td {
+    display: block;
+    border-bottom: none;
+    padding: 4px 12px;
+    text-align: left;
+  }
+  .ad-table tbody td.center,
+  .ad-table tbody td.right { text-align: left; }
+  .ad-table tbody td:first-child {
+    padding-top: 12px;
+    font-weight: 600;
+  }
+  .ad-table tbody td:last-child {
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
   }
 }

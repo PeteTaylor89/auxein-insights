@@ -6,9 +6,9 @@ import { useAuth } from '@vineyard/shared';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
-  Wrench, Package, FileText, AlertCircle, Plus, Settings
+  Wrench, Package, FileText, AlertCircle, Plus, Settings, Star
 } from 'lucide-react';
-import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService } from '@vineyard/shared';
+import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService, contractorManagementService, byNatural } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
 import './vineyard-pages.css';
 
@@ -18,6 +18,7 @@ function TaskCreationWizard() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [companyUsers, setCompanyUsers] = useState([]);
+  const [contractors, setContractors] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const templateFromState = location.state?.template;
   const templateIdFromQuery = searchParams.get('template');
@@ -90,6 +91,7 @@ function TaskCreationWizard() {
   // Task assignments - SEPARATE from formData
   const [taskAssignments, setTaskAssignments] = useState({
     assigned_users: [],
+    assigned_contractors: [],
     assigned_teams: []
   });
 
@@ -115,7 +117,9 @@ function TaskCreationWizard() {
         if (formData.task_category === 'vineyard') {
           const res = await blocksService.getCompanyBlocks?.()
             ?? await blocksService.getAllBlocks?.();
-          setBlocks(Array.isArray(res) ? res : (res.blocks || res.items || []));
+          const list = Array.isArray(res) ? res : (res.blocks || res.items || []);
+          // Natural sort — "Block 2" < "Block 10".
+          setBlocks([...list].sort(byNatural('block_name')));
           setSpatialAreas([]);
         } else if (formData.task_category === 'land_management') {
           const res = await spatialAreasService.getCompanySpatialAreas?.();
@@ -177,23 +181,35 @@ function TaskCreationWizard() {
   };
 
   useEffect(() => {
-    const fetchCompanyUsers = async () => {
+    const fetchAssignables = async () => {
       try {
         setLoadingUsers(true);
-        const users = await usersService.getCompanyUsers();
+        const [users, rels] = await Promise.all([
+          usersService.getCompanyUsers().catch(() => []),
+          contractorManagementService.listRelationships().catch(() => []),
+        ]);
         const activeUsers = (Array.isArray(users) ? users : [])
           .filter(u => u.is_active !== false && !u.is_suspended);
         setCompanyUsers(activeUsers);
+
+        const activeContractors = (Array.isArray(rels) ? rels : [])
+          .filter(r => r.status === 'active')
+          .sort((a, b) => {
+            const aPref = a.relationship_type === 'preferred_contractor' ? 0 : 1;
+            const bPref = b.relationship_type === 'preferred_contractor' ? 0 : 1;
+            if (aPref !== bPref) return aPref - bPref;
+            return (a.contractor_name || '').localeCompare(b.contractor_name || '');
+          });
+        setContractors(activeContractors);
       } catch (error) {
-        console.error('Failed to load company users:', error);
-        setCompanyUsers([]);
+        console.error('Failed to load assignable users/contractors:', error);
       } finally {
         setLoadingUsers(false);
       }
     };
 
     if (user?.company_id) {
-      fetchCompanyUsers();
+      fetchAssignables();
     }
   }, [user?.company_id]);
 
@@ -313,6 +329,23 @@ function TaskCreationWizard() {
       ...prev,
       assigned_users: prev.assigned_users.filter(id => id !== userId)
     }));
+  };
+
+  const handleToggleContractor = (contractorId) => {
+    setTaskAssignments(prev => {
+      const already = prev.assigned_contractors.includes(contractorId);
+      return {
+        ...prev,
+        assigned_contractors: already
+          ? prev.assigned_contractors.filter(id => id !== contractorId)
+          : [...prev.assigned_contractors, contractorId],
+      };
+    });
+  };
+
+  const getContractorName = (contractorId) => {
+    const rel = contractors.find(c => c.contractor_id === contractorId);
+    return rel ? rel.contractor_name : `Contractor #${contractorId}`;
   };
 
   // Helper functions
@@ -507,7 +540,21 @@ function TaskCreationWizard() {
         });
       }
 
-      // 5) Navigate to the new task
+      // 5) Assign contractors (one ContractorAssignment per pick)
+      if (taskAssignments.assigned_contractors.length > 0) {
+        for (const contractorId of taskAssignments.assigned_contractors) {
+          try {
+            await contractorManagementService.assignToTask(newTask.id, {
+              contractor_id: contractorId,
+              work_description: formData.title || 'Task assignment',
+            });
+          } catch (err) {
+            console.error(`Failed to assign contractor ${contractorId}:`, err);
+          }
+        }
+      }
+
+      // 6) Navigate to the new task
       navigate(`/tasks/${newTask.id}`);
     } catch (err) {
       console.error('Failed to create task:', err);
@@ -850,6 +897,48 @@ function TaskCreationWizard() {
                   </div>
                 ) : (
                   <p className="vp-empty-state">No users assigned</p>
+                )}
+              </FormField>
+
+              <FormField label="Assign Contractors">
+                {contractors.length === 0 ? (
+                  <p className="vp-empty-state">
+                    No active contractor relationships. Add one in Company → Relationships.
+                  </p>
+                ) : (
+                  <div className="vp-flex-col" style={{ gap: 'var(--space-xs)' }}>
+                    {contractors.map((c) => {
+                      const checked = taskAssignments.assigned_contractors.includes(c.contractor_id);
+                      const isPreferred = c.relationship_type === 'preferred_contractor';
+                      return (
+                        <label
+                          key={c.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-sm)',
+                            padding: 'var(--space-xs) var(--space-sm)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: checked ? 'var(--color-surface-warm)' : 'transparent',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleToggleContractor(c.contractor_id)}
+                          />
+                          {isPreferred && <Star size={12} fill="#f59e0b" color="#f59e0b" />}
+                          <span style={{ flex: 1 }}>{c.contractor_name}</span>
+                          {c.contact_person && (
+                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                              {c.contact_person}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
                 )}
               </FormField>
 

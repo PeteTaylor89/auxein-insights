@@ -9,7 +9,7 @@ import {
   Target,
   Edit3
 } from 'lucide-react';
-import { observationService, authService, blocksService } from '@vineyard/shared';
+import { observationService, authService, blocksService, byNatural } from '@vineyard/shared';
 import './vineyard-pages.css';
 
 const asArray = (v) => (Array.isArray(v) ? v : v?.blocks ?? v?.items ?? v?.results ?? v?.data ?? []);
@@ -52,7 +52,7 @@ export default function AdhocObservationCreate() {
 
         setPlans(asArray(plansRes));
         setTemplates(asArray(templatesRes));
-        setBlocks(asArray(blocksRes));
+        setBlocks([...asArray(blocksRes)].sort(byNatural('block_name')));
 
         console.log('Loaded data:', {
           plans: asArray(plansRes).length,

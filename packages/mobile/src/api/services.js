@@ -23,6 +23,17 @@ export const authApi = {
   },
 };
 
+// --- Users (admin-scoped: /admin/users) ---
+// Used for the assignee picker on task create. Same endpoint the web hits via
+// usersService.getCompanyUsers — returns the caller's company's user list.
+export const usersService = {
+  getCompanyUsers: async () => {
+    const res = await api.get('/admin/users', { params: { skip: 0, limit: 200 } });
+    const list = Array.isArray(res.data) ? res.data : (res.data?.users || []);
+    return list.filter((u) => u.is_active !== false && !u.is_suspended);
+  },
+};
+
 // --- Tasks (prefix: /tasks) ---
 export const tasksService = {
   getMyTasks: async (userId, params = {}) => {
@@ -53,6 +64,20 @@ export const tasksService = {
     const res = await api.post('/tasks/tasks', data);
     return res.data;
   },
+  listTaskTemplates: async (params = {}) => {
+    const res = await api.get('/tasks/task-templates', { params });
+    return res.data;
+  },
+  getTaskTemplate: async (templateId) => {
+    const res = await api.get(`/tasks/task-templates/${templateId}`);
+    return res.data;
+  },
+  quickCreateTask: async (data) => {
+    // template_id is required server-side. assigned_user_ids creates one
+    // TaskAssignment per user (multi-assign supported).
+    const res = await api.post('/tasks/tasks/quick-create', data);
+    return res.data;
+  },
   // GPS tracking
   startGpsTracking: async (taskId, payload = {}) => {
     const res = await api.post(`/tasks/tasks/${taskId}/gps/start`, payload);
@@ -74,8 +99,16 @@ export const tasksService = {
     const res = await api.post(`/tasks/tasks/${taskId}/gps/stop`, payload);
     return res.data;
   },
+  reprocessGpsTrack: async (taskId) => {
+    const res = await api.post(`/tasks/tasks/${taskId}/gps/reprocess`);
+    return res.data;
+  },
   getGpsTrack: async (taskId, params = {}) => {
     const res = await api.get(`/tasks/tasks/${taskId}/gps/track`, { params });
+    return res.data;
+  },
+  getGpsTrackGeojson: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/gps/track/geojson`);
     return res.data;
   },
   getGpsStats: async (taskId) => {
@@ -194,8 +227,9 @@ export const blocksService = {
     const res = await api.get('/blocks/company');
     return res.data?.blocks || res.data || [];
   },
-  getBlocksGeoJson: async () => {
-    const res = await api.get('/blocks/geojson');
+  getBlocksGeoJson: async (propertyId = null) => {
+    const params = propertyId ? { property_id: propertyId } : undefined;
+    const res = await api.get('/blocks/geojson', { params });
     return res.data;
   },
 };
@@ -385,8 +419,39 @@ export const assetService = {
     const res = await api.post('/assets', data);
     return res.data;
   },
-  getAssetsGeoJson: async () => {
-    const res = await api.get('/assets/geojson');
+  getAssetsGeoJson: async (category = null, propertyId = null) => {
+    const params = {};
+    if (category) params.category = category;
+    if (propertyId) params.property_id = propertyId;
+    const res = await api.get('/assets/geojson', {
+      params: Object.keys(params).length ? params : undefined,
+    });
+    return res.data;
+  },
+};
+
+// --- Forecast (prefix: /v1/forecast) ---
+// Backend proxies MetOcean and returns a normalised flat shape:
+//   {
+//     location: { lat, lon },
+//     current:  { timestamp, temperature_c, humidity_pct, ... },
+//     forecast: [ ...same-shape items at interval_h spacing ]
+//   }
+export const forecastService = {
+  current: async (lat, lon) => {
+    const res = await api.get('/v1/forecast/current', { params: { lat, lon } });
+    return res.data;
+  },
+  forecast: async (lat, lon, { hours = 24, intervalH = 3 } = {}) => {
+    const res = await api.get('/v1/forecast/forecast', {
+      params: { lat, lon, hours, interval_h: intervalH },
+    });
+    return res.data;
+  },
+  property: async (propertyId, { hours = 24, intervalH = 3 } = {}) => {
+    const res = await api.get(`/v1/forecast/property/${propertyId}`, {
+      params: { hours, interval_h: intervalH },
+    });
     return res.data;
   },
 };
@@ -395,6 +460,10 @@ export const assetService = {
 export const riskService = {
   getRisks: async (params = {}) => {
     const res = await api.get('/risk-management/risks/', { params });
+    return res.data;
+  },
+  getRisk: async (id) => {
+    const res = await api.get(`/risk-management/risks/${id}`);
     return res.data;
   },
   create: async (data) => {

@@ -13,6 +13,7 @@ import useAssetsLayer from './hooks/useAssetsLayer';
 import useDrawingController from './hooks/useDrawingController';
 import useBlockSplit from './hooks/useBlockSplit';
 import useFlyoverAnimation from './hooks/useFlyoverAnimation';
+import usePropertiesLayer from './hooks/usePropertiesLayer';
 import FlyoverPanel from './components/flyover/FlyoverPanel';
 import MapContainer from './components/MapContainer';
 import Sidebar from './components/Sidebar';
@@ -138,10 +139,15 @@ function MapsPageInner() {
   }, [fetchProperties]);
 
   // Drawing state
-  const [drawMode, setDrawMode] = useState('idle'); // idle | draw_polygon | draw_spatial | split | edit
+  const [drawMode, setDrawMode] = useState('idle'); // idle | draw_polygon | draw_spatial | split | edit | draw_property | edit_property_geometry
   const [drawGeometry, setDrawGeometry] = useState(null);
   const [drawArea, setDrawArea] = useState(0);
   const [drawCentroid, setDrawCentroid] = useState(null);
+
+  // Property boundary draw/edit state
+  const [activePropertyForBoundary, setActivePropertyForBoundary] = useState(null);
+  const [propertyDrawGeometry, setPropertyDrawGeometry] = useState(null);
+  const propertyEditFeatureIdRef = useRef(null);
 
   // Form state
   const [showBlockCreate, setShowBlockCreate] = useState(false);
@@ -208,6 +214,10 @@ function MapsPageInner() {
   const { assetsData, assetCount, loading: assetsLoading, error: assetsError } =
     useAssetsLayer(map, mapReady, showAssets);
 
+  // Property boundaries — admin-only subtle dashed-outline layer.
+  // Refresh trigger is the `properties` array, which already reloads on demand.
+  usePropertiesLayer(map, mapReady, properties, isAdmin);
+
   // Block split state machine
   const {
     isSplitting, isProcessing, isConfirming, isDrawingLine, isSelecting,
@@ -254,8 +264,82 @@ function MapsPageInner() {
     setShowBlockCreate(false);
     setShowSpatialCreate(false);
     setStatus(null);
+    setActivePropertyForBoundary(null);
+    setPropertyDrawGeometry(null);
+    propertyEditFeatureIdRef.current = null;
     if (isSplitting) cancelSplit();
   }, [drawing, isSplitting, cancelSplit]);
+
+  // ── Property boundary draw/edit ─────────────────────────────────────────
+  const handleDrawPropertyBoundary = useCallback((prop) => {
+    if (!prop) return;
+    setActivePropertyForBoundary(prop);
+    setPropertyDrawGeometry(null);
+    setDrawMode('draw_property');
+    drawing.freeze();
+    drawing.clearDraft();
+    drawing.startDrawPolygon();
+    setStatus(`Click on the map to draw the boundary of ${prop.name}. Double-click to finish.`);
+  }, [drawing]);
+
+  const handleEditPropertyBoundary = useCallback((prop) => {
+    if (!prop || !prop.geometry || !drawing.isDrawActive) return;
+
+    const editId = `edit-property-${prop.id}`;
+    const editFeature = {
+      id: editId,
+      type: 'Feature',
+      properties: { source: 'property-edit', property_id: prop.id },
+      geometry: prop.geometry,
+    };
+
+    setActivePropertyForBoundary(prop);
+    setPropertyDrawGeometry(prop.geometry);  // pre-populate so Save is enabled
+    drawing.freeze();
+    drawing.addFeature(editFeature);
+    drawing.startDirectSelect(editId);
+    propertyEditFeatureIdRef.current = editId;
+    setDrawMode('edit_property_geometry');
+    setStatus(`Drag vertices to reshape the boundary of ${prop.name}. Click Save when done.`);
+  }, [drawing]);
+
+  const handleSavePropertyBoundary = useCallback(async () => {
+    if (!activePropertyForBoundary) return;
+
+    // In edit mode, pull the latest from MapboxDraw; in draw mode, use the
+    // captured geometry from the draw.create handler.
+    let geometryToSave = propertyDrawGeometry;
+    if (drawMode === 'edit_property_geometry' && propertyEditFeatureIdRef.current) {
+      const edited = drawing.getFeature(propertyEditFeatureIdRef.current);
+      if (edited?.geometry) geometryToSave = edited.geometry;
+    }
+
+    if (!geometryToSave) {
+      setStatus('Draw a polygon first.');
+      return;
+    }
+    if (geometryToSave.type !== 'Polygon' && geometryToSave.type !== 'MultiPolygon') {
+      setStatus(`Boundary must be a Polygon (got ${geometryToSave.type}).`);
+      return;
+    }
+
+    try {
+      await propertyService.updatePropertyGeometry(activePropertyForBoundary.id, geometryToSave);
+      setStatus(`Boundary saved for ${activePropertyForBoundary.name}.`);
+      // Reset draw state; refresh the panel so the new geometry shows on the map.
+      drawing.freeze();
+      drawing.clearDraft();
+      setDrawMode('idle');
+      setActivePropertyForBoundary(null);
+      setPropertyDrawGeometry(null);
+      propertyEditFeatureIdRef.current = null;
+      await fetchProperties();
+      setTimeout(() => setStatus(null), 3000);
+    } catch (err) {
+      console.error('Failed to save property boundary:', err);
+      setStatus(`Error: ${err.response?.data?.detail || err.message || 'Failed to save'}`);
+    }
+  }, [activePropertyForBoundary, propertyDrawGeometry, drawMode, drawing, fetchProperties]);
 
   // Listen for draw.create events
   useEffect(() => {
@@ -295,6 +379,15 @@ function MapsPageInner() {
           setShowSpatialCreate(true);
           setStatus(null);
         }
+      }
+
+      if (drawMode === 'draw_property' && geom.type === 'Polygon') {
+        // Capture geometry, show static preview, keep the toolbar in draw_property
+        // mode so the Save button stays available.
+        setPropertyDrawGeometry(geom);
+        drawing.freeze();
+        drawing.showDraft(geom);
+        setStatus('Click Save to commit the boundary, or Cancel to discard.');
       }
     };
 
@@ -618,11 +711,43 @@ function MapsPageInner() {
               <PropertiesPanel
                 properties={properties}
                 blocksData={blocksData}
-                onFlyTo={(coords) => {
-                  if (map && coords) {
-                    map.flyTo({ center: coords, zoom: 14, duration: 1500 });
+                onFlyTo={(prop) => {
+                  if (!map || !prop) return;
+                  // Prefer the property's boundary bbox when drawn — gives a
+                  // tight, accurate view regardless of property size. Falls back
+                  // to averaged block centroids when no boundary exists yet.
+                  if (prop.geometry) {
+                    try {
+                      const [minLng, minLat, maxLng, maxLat] = turf.bbox(prop.geometry);
+                      map.fitBounds(
+                        [[minLng, minLat], [maxLng, maxLat]],
+                        { padding: 60, duration: 1500, maxZoom: 17 },
+                      );
+                      return;
+                    } catch (err) {
+                      console.warn('Failed to compute property bbox, falling back:', err);
+                    }
+                  }
+                  // Fallback: centroid of associated blocks
+                  const blocks = (blocksData?.features || []).filter(
+                    (f) => f.properties?.property_id === prop.id,
+                  );
+                  let totalLng = 0, totalLat = 0, count = 0;
+                  for (const f of blocks) {
+                    const lng = f.properties?.centroid_longitude;
+                    const lat = f.properties?.centroid_latitude;
+                    if (lng && lat) { totalLng += lng; totalLat += lat; count++; }
+                  }
+                  if (count > 0) {
+                    map.flyTo({
+                      center: [totalLng / count, totalLat / count],
+                      zoom: 14,
+                      duration: 1500,
+                    });
                   }
                 }}
+                onDrawBoundary={handleDrawPropertyBoundary}
+                onEditBoundary={handleEditPropertyBoundary}
               />
             )}
 
@@ -811,10 +936,13 @@ function MapsPageInner() {
         {/* Drawing toolbar */}
         <DrawingToolbar
           activeMode={drawMode}
+          activePropertyName={activePropertyForBoundary?.name || null}
           onDrawBlock={handleDrawBlock}
           onDrawSpatial={handleDrawSpatial}
           onSplit={handleStartSplit}
           onCancel={handleCancelDraw}
+          onSaveProperty={handleSavePropertyBoundary}
+          canSaveProperty={!!propertyDrawGeometry}
           disabled={!drawing.isDrawActive}
         />
 

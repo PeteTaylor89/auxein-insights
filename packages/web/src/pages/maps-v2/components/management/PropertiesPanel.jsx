@@ -1,8 +1,8 @@
 // maps-v2/components/management/PropertiesPanel.jsx — Properties sidebar panel (admin only)
 import { useState, useMemo } from 'react';
-import { MapPinned, ChevronDown, ChevronRight, Navigation } from 'lucide-react';
+import { MapPinned, ChevronDown, ChevronRight, Navigation, Pentagon, Pencil } from 'lucide-react';
 
-export default function PropertiesPanel({ properties, blocksData, onFlyTo }) {
+export default function PropertiesPanel({ properties, blocksData, onFlyTo, onDrawBoundary, onEditBoundary }) {
   const [expanded, setExpanded] = useState(true);
   const [expandedPropertyId, setExpandedPropertyId] = useState(null);
 
@@ -29,29 +29,11 @@ export default function PropertiesPanel({ properties, blocksData, onFlyTo }) {
     return features.filter((f) => f.properties?.property_id === propertyId);
   };
 
-  // Fly to centroid of property blocks
-  const handleFlyToProperty = (propertyId) => {
-    const blocks = getPropertyBlocks(propertyId);
-    if (!blocks.length || !onFlyTo) return;
-
-    // Compute average centroid from block centroids
-    let totalLng = 0;
-    let totalLat = 0;
-    let count = 0;
-
-    for (const f of blocks) {
-      const lng = f.properties?.centroid_longitude;
-      const lat = f.properties?.centroid_latitude;
-      if (lng && lat) {
-        totalLng += lng;
-        totalLat += lat;
-        count++;
-      }
-    }
-
-    if (count > 0) {
-      onFlyTo([totalLng / count, totalLat / count]);
-    }
+  // Hand the whole property to the parent so it can decide between fitting
+  // the boundary polygon's bbox or falling back to a block-centroid average.
+  const handleFlyToProperty = (prop) => {
+    if (!prop || !onFlyTo) return;
+    onFlyTo(prop);
   };
 
   return (
@@ -88,6 +70,7 @@ export default function PropertiesPanel({ properties, blocksData, onFlyTo }) {
                 const blockCount = propertyBlockMap[prop.id] || 0;
                 const isExpanded = expandedPropertyId === prop.id;
                 const blocks = isExpanded ? getPropertyBlocks(prop.id) : [];
+                const hasBoundary = !!prop.geometry;
 
                 return (
                   <div key={prop.id}>
@@ -116,10 +99,31 @@ export default function PropertiesPanel({ properties, blocksData, onFlyTo }) {
                       }}>
                         {blockCount}
                       </span>
+                      {(onDrawBoundary || onEditBoundary) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasBoundary && onEditBoundary) onEditBoundary(prop);
+                            else if (!hasBoundary && onDrawBoundary) onDrawBoundary(prop);
+                          }}
+                          title={hasBoundary ? 'Edit property boundary' : 'Draw property boundary'}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: hasBoundary ? 'var(--color-olive)' : 'var(--color-terracotta)',
+                            padding: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          {hasBoundary ? <Pencil size={12} /> : <Pentagon size={12} />}
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleFlyToProperty(prop.id);
+                          handleFlyToProperty(prop);
                         }}
                         title="Fly to property"
                         style={{

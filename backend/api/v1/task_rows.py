@@ -3,6 +3,7 @@ import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import cast, Integer, func
 from sqlalchemy.orm import Session
 
 from db.session import get_db
@@ -67,7 +68,21 @@ def list_task_rows(
     if status_filter:
         query = query.filter(TaskRow.status == status_filter)
 
-    return query.order_by(TaskRow.row_number, TaskRow.id).all()
+    # Natural sort. row_number is stored as String(20) — plain ORDER BY treats
+    # "10" < "2", which surfaces in the client as the wrong visual order.
+    # Extract the leading run of digits and cast to int for the primary sort
+    # key, then fall back to the raw string (handles "A1"/"A2"/"A10" suffixes
+    # with the same numeric weight) and finally id for stability.
+    #   substring(row_number from '^[0-9]+') -> "10" from "10A", "" from "A1"
+    #   NULLIF + COALESCE so non-numeric prefixes don't break the cast.
+    leading_int = cast(
+        func.coalesce(
+            func.nullif(func.substring(TaskRow.row_number, r'^[0-9]+'), ''),
+            '0',
+        ),
+        Integer,
+    )
+    return query.order_by(leading_int, TaskRow.row_number, TaskRow.id).all()
 
 
 # ============================================================================

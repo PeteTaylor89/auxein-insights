@@ -8,7 +8,7 @@ import {
   Target,
   PlayCircle
 } from 'lucide-react';
-import { observationService, authService, blocksService } from '@vineyard/shared';
+import { observationService, authService, blocksService, byNatural } from '@vineyard/shared';
 import TemplateUsageWarning from '../components/TemplateUsageWarning';
 import './vineyard-pages.css';
 
@@ -60,7 +60,7 @@ export default function PlanNew() {
         if (!mounted) return;
 
         setTemplates(asArray(tplRes));
-        setBlocks(asArray(blkRes));
+        setBlocks([...asArray(blkRes)].sort(byNatural('block_name')));
 
         console.log('Loaded data:', {
           templates: asArray(tplRes).length,

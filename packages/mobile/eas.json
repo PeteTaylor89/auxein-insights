@@ -5,37 +5,29 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
-      "environment": "development",
-      "android": {
-        "buildType": "apk"
-      },
-      "ios": {
-        "simulator": false
-      },
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": false },
       "env": {
-        "API_URL": "http://192.168.1.144:8000/api"
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
       }
     },
     "preview": {
-      "distribution": "internal",
       "environment": "preview",
-      "android": {
-        "buildType": "apk"
-      },
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
       "env": {
-        "API_URL": "https://api.auxein.co.nz/api"
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
       }
     },
     "production": {
-      "autoIncrement": true,
       "environment": "production",
-      "android": {
-        "buildType": "app-bundle"
-      },
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
       "env": {
-        "API_URL": "https://api.auxein.co.nz/api"
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
       }
     }
   },

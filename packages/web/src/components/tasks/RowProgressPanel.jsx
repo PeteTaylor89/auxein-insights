@@ -1,7 +1,7 @@
 // components/tasks/RowProgressPanel.jsx — Row-level task progress panel (Grow V1, R7)
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, ChevronRight, RotateCw, Check, SkipForward, Star, MessageSquare, Save, X } from 'lucide-react';
-import { taskRowService } from '@vineyard/shared';
+import { taskRowService, usersService, byNatural } from '@vineyard/shared';
 import './RowProgressPanel.css';
 
 const STATUS_LABELS = {
@@ -51,13 +51,45 @@ function RowProgressPanel({ taskId, canEdit }) {
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // Company users — fetched once for the row audit display ("Completed by
+  // Sarah · 10:43"). Backend returns completed_by as a user id only, so we
+  // resolve names client-side. Failure is non-fatal: we fall back to "User #N"
+  // so the time still renders.
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    usersService.getCompanyUsers()
+      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .catch(() => setUsers([]));
+  }, []);
+  const userById = useMemo(() => {
+    const m = new Map();
+    for (const u of users) m.set(u.id, u);
+    return m;
+  }, [users]);
+  const labelFor = useCallback((userId) => {
+    if (!userId) return null;
+    const u = userById.get(userId);
+    if (!u) return `User #${userId}`;
+    const full = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
+    return full || u.email || `User #${userId}`;
+  }, [userById]);
+
   const load = useCallback(async () => {
     try {
       const [rowData, progressData] = await Promise.all([
         taskRowService.listRows(taskId),
         taskRowService.getProgress(taskId),
       ]);
-      setRows(Array.isArray(rowData) ? rowData : []);
+      // Natural sort by row_number — backend ORDER BY treats row_number as a
+      // string ("1", "10", "2"...), so we re-sort client-side. Falls through
+      // to id as a stable tiebreaker for rows missing a row_number.
+      const list = Array.isArray(rowData) ? [...rowData] : [];
+      list.sort((a, b) => {
+        const cmp = byNatural('row_number')(a, b);
+        if (cmp !== 0) return cmp;
+        return (a.id ?? 0) - (b.id ?? 0);
+      });
+      setRows(list);
       setProgress(progressData);
     } catch (err) {
       console.error('Failed to load rows', err);
@@ -206,6 +238,17 @@ function RowProgressPanel({ taskId, canEdit }) {
     catch { return ''; }
   };
 
+  const fmtDateTime = (dt) => {
+    if (!dt) return '';
+    try {
+      const d = new Date(dt);
+      const today = new Date();
+      const sameDay = d.toDateString() === today.toDateString();
+      if (sameDay) return fmtTime(dt);
+      return d.toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
+  };
+
   return (
     <div className="rp-panel">
       <button className="rp-header" onClick={() => setExpanded(!expanded)}>
@@ -318,7 +361,18 @@ function RowProgressPanel({ taskId, canEdit }) {
                           {STATUS_LABELS[row.status] || row.status}
                         </span>
                         {row.quality_rating && <StarRating value={row.quality_rating} readOnly />}
-                        {row.completed_at && <span className="rp-time">{fmtTime(row.completed_at)}</span>}
+                        {/* Per-row audit: shows who closed the row + when.
+                            Same field (completed_by) is stamped for completed
+                            and skipped rows, so both surface here. Falls back
+                            to time-only if the user isn't in the company list
+                            (deactivated, removed, etc.). */}
+                        {row.completed_at && (
+                          <span className="rp-audit">
+                            {labelFor(row.completed_by)
+                              ? <>by <strong>{labelFor(row.completed_by)}</strong> · {fmtTime(row.completed_at)}</>
+                              : fmtTime(row.completed_at)}
+                          </span>
+                        )}
                         {row.notes && <MessageSquare size={12} className="rp-has-notes" />}
 
                         {/* Inline action buttons */}
@@ -383,6 +437,21 @@ function RowProgressPanel({ taskId, canEdit }) {
                               <div className="rp-detail-field rp-detail-field--wide">
                                 <label>Skip Reason</label>
                                 <p className="rp-detail-text rp-skip-reason">{row.skip_reason}</p>
+                              </div>
+                            )}
+
+                            {/* Full audit line — visible in the expanded view
+                                even on multi-day-old rows so a manager can see
+                                "Completed by Sarah · 14 May 10:43" without
+                                hunting through logs. */}
+                            {row.completed_at && (
+                              <div className="rp-detail-field rp-detail-field--wide">
+                                <label>{row.status === 'skipped' ? 'Skipped by' : 'Completed by'}</label>
+                                <p className="rp-detail-text">
+                                  {labelFor(row.completed_by) || 'Unknown user'}
+                                  {' · '}
+                                  {fmtDateTime(row.completed_at)}
+                                </p>
                               </div>
                             )}
 

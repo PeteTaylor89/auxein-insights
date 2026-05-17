@@ -28,11 +28,19 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
+      // iOS: 'padding' pushes the centred form up by the keyboard height.
+      // Android: undefined — let the platform's adjustResize softInputMode
+      // shrink the window naturally. We pair this with a top-aligned scroll
+      // layout (styles.scrollAndroid) so the form sits at the top and the
+      // ScrollView can scroll the Sign in button into view under tall
+      // Samsung keyboards. With centred content the bottom of the form was
+      // clipped regardless of KAV behaviour.
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={Platform.OS === 'ios' ? styles.scroll : styles.scrollAndroid}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -53,13 +61,13 @@ export default function LoginScreen() {
           ) : null}
 
           <View style={styles.form}>
-            <Text style={styles.label}>Username or Email</Text>
+            <Text style={styles.label}>Email</Text>
             <View style={[
               styles.inputWrap,
               focused === 'id' && styles.inputWrapFocus,
               !!identifier && styles.inputWrapFilled,
             ]}>
-              <Feather name="user" size={18} color={colors.textMuted} />
+              <Feather name="mail" size={18} color={colors.textMuted} />
               <TextInput
                 style={styles.input}
                 value={identifier}
@@ -68,6 +76,12 @@ export default function LoginScreen() {
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
+                // email-address keyboard surfaces "@" and "." on the primary
+                // layer so the user doesn't have to switch keyboard pages.
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                autoComplete="email"
+                inputMode="email"
                 returnKeyType="next"
                 onFocus={() => setFocused('id')}
                 onBlur={() => setFocused(null)}
@@ -129,6 +143,10 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.primary },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
+  // Android: top-aligned with generous bottom padding so the Sign in button
+  // is always reachable by scroll even when a tall keyboard (e.g. Samsung)
+  // shrinks the visible area below the form's natural height.
+  scrollAndroid: { flexGrow: 1, padding: spacing.lg, paddingTop: spacing.xxl, paddingBottom: 280 },
 
   // Hero
   hero: { alignItems: 'center', marginBottom: spacing.xl },

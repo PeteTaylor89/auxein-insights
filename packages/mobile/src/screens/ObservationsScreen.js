@@ -6,7 +6,9 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
+import { byNatural } from '../utils/naturalSort';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService, blocksService } from '../api/services';
 import { OBS_CATEGORY_ICONS, SkeletonCard } from '../components';
@@ -21,6 +23,7 @@ const TEMPLATE_CATEGORIES = [
 ];
 
 export default function ObservationsScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -45,7 +48,10 @@ export default function ObservationsScreen({ navigation }) {
       setTemplates(Array.isArray(tpl) ? tpl : []);
       setPlans(Array.isArray(pln) ? pln : []);
       setActiveRuns(Array.isArray(runs) ? runs : []);
-      setBlocks(Array.isArray(blk) ? blk : []);
+      // Natural sort blocks alphanumerically — "Block 2" < "Block 10".
+      const blockList = Array.isArray(blk) ? [...blk] : [];
+      blockList.sort(byNatural('block_name'));
+      setBlocks(blockList);
     } catch (err) {
       console.log('Failed to load observation data:', err.message);
     } finally {
@@ -254,7 +260,7 @@ export default function ObservationsScreen({ navigation }) {
       {/* Template Picker — bottom sheet */}
       <Modal visible={showTemplatePicker} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTemplatePicker(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { paddingBottom: spacing.lg + insets.bottom }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View style={[styles.categoryIconBox, { marginBottom: 0 }]}>
@@ -297,7 +303,7 @@ export default function ObservationsScreen({ navigation }) {
       {/* Block Picker — bottom sheet */}
       <Modal visible={showBlockPicker} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowBlockPicker(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { paddingBottom: spacing.lg + insets.bottom }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <View style={[styles.categoryIconBox, { marginBottom: 0, backgroundColor: colors.primary + '18' }]}>
@@ -434,7 +440,9 @@ const styles = StyleSheet.create({
   modalSheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xxl, borderTopRightRadius: radius.xxl,
-    padding: spacing.lg, paddingTop: spacing.md, maxHeight: '75%',
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md,
+    // paddingBottom applied inline so we can add the Android gesture-bar inset
+    maxHeight: '75%',
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border,

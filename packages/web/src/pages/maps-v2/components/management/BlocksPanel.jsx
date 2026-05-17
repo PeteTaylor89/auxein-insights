@@ -1,18 +1,26 @@
 // maps-v2/components/management/BlocksPanel.jsx — Block list with search + fly-to
 import { useState, useMemo } from 'react';
 import { Search, MapPin, Grape, Loader2 } from 'lucide-react';
+import { byNatural } from '@vineyard/shared';
 
 export default function BlocksPanel({ blocksData, blockCount, loading, error, flyToBlock, headerless }) {
   const [search, setSearch] = useState('');
 
   const blocks = useMemo(() => {
     const features = blocksData?.features || [];
-    if (!search.trim()) return features;
-    const q = search.toLowerCase();
-    return features.filter((f) => {
-      const p = f.properties || {};
-      return (p.block_name || '').toLowerCase().includes(q) || (p.variety || '').toLowerCase().includes(q);
-    });
+    let list = features;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = features.filter((f) => {
+        const p = f.properties || {};
+        return (p.block_name || '').toLowerCase().includes(q) || (p.variety || '').toLowerCase().includes(q);
+      });
+    }
+    // Natural sort on the GeoJSON feature's properties.block_name —
+    // "Block 2" < "Block 10" instead of lex order.
+    return [...list].sort((a, b) =>
+      byNatural((f) => f?.properties?.block_name)(a, b),
+    );
   }, [blocksData, search]);
 
   const content = (

@@ -234,6 +234,7 @@ def list_assets(
 @router.get("/geojson", response_model=dict)
 def get_assets_geojson(
     category: Optional[str] = None,
+    property_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -251,6 +252,13 @@ def get_assets_geojson(
         query = query.filter(scope)
     if category:
         query = query.filter(Asset.category == category)
+    # Property scoping for the mobile map. Includes company-wide assets (NULL
+    # property_id) so unscoped equipment still appears when one property is
+    # selected — they're visible regardless.
+    if property_id is not None:
+        query = query.filter(
+            or_(Asset.property_id == property_id, Asset.property_id.is_(None))
+        )
 
     features = []
     for asset in query.all():
@@ -273,6 +281,7 @@ def get_assets_geojson(
                     "subcategory": asset.subcategory,
                     "status": asset.status,
                     "location_label": asset.location_label,
+                    "property_id": asset.property_id,
                 }
             })
         except Exception as e:

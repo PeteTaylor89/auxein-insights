@@ -12,6 +12,8 @@ from db.session import get_db
 from db.models.task_template import TaskTemplate, TaskCategory
 from db.models.task import Task, TaskStatus
 from db.models.task_assignment import TaskAssignment
+from db.models.contractor_assignment import ContractorAssignment
+from db.models.contractor import Contractor
 from db.models.task_row import TaskRow
 from db.models.task_gps_track import TaskGPSTrack
 from db.models.user import User
@@ -60,6 +62,27 @@ from db.models.notification import NotificationType
 from api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
+
+
+def _display_name(user) -> str:
+    """Friendlier name fallback than User.full_name: avoid showing raw email.
+    Prefer first+last, then first, then a title-cased local part of the email,
+    finally username/id as a last resort.
+    """
+    if not user:
+        return "Unknown"
+    first = (getattr(user, "first_name", None) or "").strip()
+    last = (getattr(user, "last_name", None) or "").strip()
+    if first and last:
+        return f"{first} {last}"
+    if first:
+        return first
+    email = (getattr(user, "email", None) or "").strip()
+    if email and "@" in email:
+        local = email.split("@", 1)[0]
+        cleaned = local.replace(".", " ").replace("_", " ").replace("-", " ")
+        return cleaned.title() or local
+    return (getattr(user, "username", None) or f"User #{getattr(user, 'id', '?')}").strip()
 router = APIRouter()
 
 
@@ -605,7 +628,7 @@ def _build_unified_feed(db, current_user, days_ahead, include_completed):
     return feed
 
 
-@router.get("/tasks", response_model=List[TaskResponse])
+@router.get("/tasks", response_model=List[TaskWithRelations])
 def list_tasks(
     status: Optional[TaskStatus] = None,
     task_category: Optional[TaskCategory] = None,
@@ -622,8 +645,14 @@ def list_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List tasks with comprehensive filtering"""
-    query = db.query(Task).filter(
+    """List tasks with comprehensive filtering. Eagerly loads block + assignees so the
+    web Task Management table can render block name and assignee names without a follow-up call.
+    """
+    query = db.query(Task).options(
+        joinedload(Task.block),
+        joinedload(Task.spatial_area),
+        joinedload(Task.assignments).joinedload(TaskAssignment.user),
+    ).filter(
         Task.company_id == current_user.company_id
     )
     scope_filter = build_task_scope_filter(db, current_user)
@@ -675,6 +704,30 @@ def list_tasks(
     )
     
     tasks = query.offset(skip).limit(limit).all()
+
+    # Bulk-fetch contractor assignments for these tasks to keep the response cheap.
+    task_ids = [t.id for t in tasks]
+    contractor_rows = []
+    if task_ids:
+        contractor_rows = (
+            db.query(ContractorAssignment, Contractor)
+            .join(Contractor, ContractorAssignment.contractor_id == Contractor.id)
+            .filter(ContractorAssignment.task_id.in_(task_ids))
+            .all()
+        )
+    by_task = {}
+    for ca, c in contractor_rows:
+        by_task.setdefault(ca.task_id, []).append(c)
+
+    # Populate computed fields the response model expects.
+    for t in tasks:
+        t.assignment_count = len(t.assignments)
+        t.assignee_names = [_display_name(a.user) for a in t.assignments if a.user]
+        t.assigned_user_ids = [a.user_id for a in t.assignments if a.user_id]
+        t_contractors = by_task.get(t.id, [])
+        t.contractor_names = [c.business_name for c in t_contractors]
+        t.assigned_contractor_ids = [c.id for c in t_contractors]
+
     return tasks
 
 
@@ -708,7 +761,18 @@ def get_task(
 
     # Add computed fields
     task.assignment_count = len(task.assignments)
-    task.assignee_names = [a.user.full_name for a in task.assignments if a.user]
+    task.assignee_names = [_display_name(a.user) for a in task.assignments if a.user]
+    task.assigned_user_ids = [a.user_id for a in task.assignments if a.user_id]
+
+    # Contractor assignments for this task
+    contractor_rows = (
+        db.query(ContractorAssignment, Contractor)
+        .join(Contractor, ContractorAssignment.contractor_id == Contractor.id)
+        .filter(ContractorAssignment.task_id == task.id)
+        .all()
+    )
+    task.contractor_names = [c.business_name for _, c in contractor_rows]
+    task.assigned_contractor_ids = [c.id for _, c in contractor_rows]
     
     # Get files (if file integration is ready)
     # task.files = get_task_files(db, task_id)
@@ -2234,13 +2298,31 @@ def get_gps_track_geojson(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get GPS track as GeoJSON Feature"""
+    """Get GPS track as GeoJSON Feature.
+
+    Lazy-build path: if no summary exists but raw GPS points do, build it
+    inline before returning. Covers the case where a stop call failed mid-flight
+    (network error after points were uploaded) — the historical viewer still
+    shows the track instead of 404'ing forever. Idempotent + cheap once built.
+    """
     task = check_task_access(db, task_id, current_user)
     from db.models.task_gps_summary import TaskGPSSummary
     from geoalchemy2.shape import to_shape
     from shapely.geometry import mapping as shapely_mapping
 
     summary = db.query(TaskGPSSummary).filter(TaskGPSSummary.task_id == task_id).first()
+
+    # Lazy build — summary missing but raw points may exist (stop failed). Try
+    # to recover transparently before giving up with a 404.
+    if not summary or not summary.track_geometry:
+        has_points = db.query(TaskGPSTrack.id).filter(TaskGPSTrack.task_id == task_id).first()
+        if has_points:
+            try:
+                summary = process_gps_track(task_id, db)
+            except Exception as e:
+                logger.warning(f"Lazy GPS summary build failed for task {task_id}: {e}")
+                summary = None
+
     if not summary or not summary.track_geometry:
         raise HTTPException(status_code=404, detail="No GPS track geometry available")
 
@@ -2340,10 +2422,27 @@ def get_my_tasks(
     tasks = query.order_by(desc(Task.priority), Task.scheduled_start_date).all()
     
     # Add computed fields
+    task_ids = [t.id for t in tasks]
+    contractor_rows = []
+    if task_ids:
+        contractor_rows = (
+            db.query(ContractorAssignment, Contractor)
+            .join(Contractor, ContractorAssignment.contractor_id == Contractor.id)
+            .filter(ContractorAssignment.task_id.in_(task_ids))
+            .all()
+        )
+    by_task = {}
+    for ca, c in contractor_rows:
+        by_task.setdefault(ca.task_id, []).append(c)
+
     for task in tasks:
         task.assignment_count = len(task.assignments)
-        task.assignee_names = [a.user.full_name for a in task.assignments if a.user]
-    
+        task.assignee_names = [_display_name(a.user) for a in task.assignments if a.user]
+        task.assigned_user_ids = [a.user_id for a in task.assignments if a.user_id]
+        t_contractors = by_task.get(task.id, [])
+        task.contractor_names = [c.business_name for c in t_contractors]
+        task.assigned_contractor_ids = [c.id for c in t_contractors]
+
     return tasks
 
 

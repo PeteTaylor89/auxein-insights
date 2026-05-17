@@ -86,6 +86,112 @@ def list_contractors(
     return result
 
 
+@router.get("/contractors/directory")
+def list_contractor_directory(
+    search: Optional[str] = Query(None, max_length=200),
+    specialization: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all Auxein-provisioned contractors so an admin can pick one to engage.
+
+    Marks contractors the caller's company already has a live relationship with via
+    `existing_relationship_status`. Returns only public-ish fields (no contact details
+    beyond business name / contact person, no insurance amounts).
+    """
+    if not current_user.has_permission("contractors", "create"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    query = db.query(Contractor).filter(Contractor.is_active == True)
+
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter(
+            (Contractor.business_name.ilike(like)) |
+            (Contractor.contact_person.ilike(like)) |
+            (Contractor.email.ilike(like))
+        )
+
+    contractors = query.order_by(Contractor.business_name.asc()).limit(500).all()
+
+    # Pull existing relationships for this company in one shot
+    contractor_ids = [c.id for c in contractors]
+    existing = {}
+    if contractor_ids:
+        rels = db.query(ContractorRelationship).filter(
+            ContractorRelationship.contractor_id.in_(contractor_ids),
+            ContractorRelationship.company_id == current_user.company_id,
+            ContractorRelationship.status.in_(["active", "suspended", "inactive", "pending"]),
+        ).all()
+        existing = {r.contractor_id: r.status for r in rels}
+
+    result = []
+    for c in contractors:
+        specs = c.specializations or []
+        if specialization and specialization not in specs:
+            continue
+        result.append({
+            "id": c.id,
+            "business_name": c.business_name,
+            "contact_person": c.contact_person,
+            "contractor_type": c.contractor_type,
+            "specializations": specs,
+            "is_verified": c.is_verified,
+            "verification_level": c.verification_level,
+            "insurance_status": c.insurance_status,
+            "existing_relationship_status": existing.get(c.id),
+        })
+    return result
+
+
+@router.get("/contractors/lookup")
+def lookup_contractor_by_email(
+    email: str = Query(..., min_length=3),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Look up an existing contractor by email so an admin can create a relationship.
+
+    Returns a minimal summary if found (regardless of whether a relationship already
+    exists with the caller's company — the create endpoint enforces the no-duplicate rule).
+    Returns 404 if no contractor exists with that email — V1 has no self-signup, so the
+    admin would need to contact Auxein to provision the account.
+    """
+    if not current_user.has_permission("contractors", "create"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    contractor = db.query(Contractor).filter(
+        Contractor.email == email.strip().lower()
+    ).first()
+    if not contractor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No contractor account found with that email. Ask Auxein to provision one.",
+        )
+
+    existing_rel = db.query(ContractorRelationship).filter(
+        ContractorRelationship.contractor_id == contractor.id,
+        ContractorRelationship.company_id == current_user.company_id,
+        ContractorRelationship.status.in_(["active", "suspended"]),
+    ).first()
+
+    return {
+        "id": contractor.id,
+        "business_name": contractor.business_name,
+        "contact_person": contractor.contact_person,
+        "email": contractor.email,
+        "phone": contractor.phone,
+        "contractor_type": contractor.contractor_type,
+        "specializations": contractor.specializations or [],
+        "is_verified": contractor.is_verified,
+        "insurance_status": contractor.insurance_status,
+        "existing_relationship": {
+            "id": existing_rel.id,
+            "status": existing_rel.status,
+        } if existing_rel else None,
+    }
+
+
 @router.get("/contractors/{contractor_id}")
 def get_contractor_detail(
     contractor_id: int,
@@ -188,6 +294,8 @@ def list_contractor_relationships(
             "contractor_id": rel.contractor_id,
             "contractor_name": contractor.business_name if contractor else "Unknown",
             "contact_person": contractor.contact_person if contractor else None,
+            "email": contractor.email if contractor else None,
+            "phone": contractor.phone if contractor else None,
             "status": rel.status,
             "relationship_type": rel.relationship_type,
             "contract_start": str(rel.contract_start) if rel.contract_start else None,
@@ -195,6 +303,8 @@ def list_contractor_relationships(
             "hourly_rate": float(rel.hourly_rate) if rel.hourly_rate else None,
             "daily_rate": float(rel.daily_rate) if rel.daily_rate else None,
             "jobs_completed_for_company": rel.jobs_completed_for_company,
+            "last_worked_date": str(rel.last_worked_date) if rel.last_worked_date else None,
+            "company_notes": rel.company_notes,
             "created_at": str(rel.created_at) if rel.created_at else None,
         })
 
@@ -216,19 +326,23 @@ def create_contractor_relationship(
     if not contractor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
 
-    # Check for existing relationship
+    # Block creating a duplicate if a live relationship already exists. Terminated
+    # ones are historical and don't block a fresh engagement.
     existing = db.query(ContractorRelationship).filter(
         ContractorRelationship.contractor_id == rel_in.contractor_id,
         ContractorRelationship.company_id == current_user.company_id,
-        ContractorRelationship.status.in_(["active", "pending"])
+        ContractorRelationship.status.in_(["active", "suspended", "inactive", "pending"])
     ).first()
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Active or pending relationship already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A {existing.status} relationship with this contractor already exists",
+        )
 
     rel_data = rel_in.model_dump()
     rel_data["company_id"] = current_user.company_id
     rel_data["created_by"] = current_user.id
-    rel_data["status"] = "pending"
+    rel_data["status"] = "active"
 
     rel = ContractorRelationship(**rel_data)
     db.add(rel)

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, MapPin, ArrowLeft, ArrowRight } from 'lucide-react';
-import { observationService, authService, blocksService, usersService } from '@vineyard/shared';
+import { observationService, authService, blocksService, usersService, byNatural } from '@vineyard/shared';
 import BlockSelectionModal from '../components/BlockSelectionModal';
 import './vineyard-pages.css';
 
@@ -37,7 +37,7 @@ export default function PlanDetail() {
       ]);
       setPlan(p);
       setRuns(asArray(r));
-      setBlocks(asArray(blks));
+      setBlocks([...asArray(blks)].sort(byNatural('block_name')));
       setUsers(asArray(usrs));
       console.log('Plan loaded:', p);
       console.log('Runs loaded:', asArray(r));

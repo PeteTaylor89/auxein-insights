@@ -61,30 +61,38 @@
   4. The `6fbc24f09e13` file is always safe to delete regardless (its placeholder revision string can't be in `alembic_version`).
 - **Reported:** 2026-05-09. Discovered while adding `add_banner_audience` migration.
 
+### [BUG-006] Backend — Gunicorn workers OOM-killed ~60-90 min after each deploy
+- **Priority:** P1 (recurring production outage)
+- **Area:** Backend / AWS EB
+- **Env:** `auxein-api-prod-lb`, instance i-0c3f1c8061eba0733 (t3.small, 2 GB RAM, **no swap**)
+- **Symptom:** API serves traffic fine for ~1 hour after each deploy, then becomes completely offline. Replacement workers OOM as soon as they boot, cascading.
+- **Smoking gun (from `/var/log/messages` 2026-05-15 00:52:33):**
+  ```
+  kernel: Out of memory: Killed process 220455 (gunicorn) total-vm:1851380kB, anon-rss:933016kB
+  kernel: oom-kill: ... task=gunicorn, pid=220455
+  ```
+  Worker 220455 = 911 MB RSS; worker 220454 = 612 MB RSS. Combined ~1.5 GB on a 2 GB box leaves no headroom.
+- **Memory growth pattern:** Workers boot at ~250 MB. 72 minutes later they're at 612 + 911 MB. **~14 MB/min growth on essentially idle traffic** → leak signature, not load.
+- **Suspected root cause:** SQLAlchemy session leak. Hot suspect is the `Article.tags.overlap` `AttributeError` in `backend/api/v1/articles.py:175` — it throws on every call to `/api/v1/articles/related/{slug}` (and prerender/bot traffic hits this regularly). Exception path likely bypasses the `get_db` dependency teardown, leaving sessions open with cached ORM objects.
+- **Contributing factors:**
+  - 2 GB instance + 2 gunicorn workers + zero swap is genuinely tight for FastAPI + SQLAlchemy + PostGIS baseline (~250 MB/worker fresh).
+  - `utils.seo_prerender` runs every ~5-15 min, potentially loading full article bodies into memory (Tiptap JSON can be 50+ KB each).
+- **Immediate mitigation:** `eb restart auxein-api-prod-lb` returns service. Does not fix the leak.
+- **Recommended fixes (ranked):**
+  1. **Fix `Article.tags.overlap` at `backend/api/v1/articles.py:175`** — switch to `Article.tags.op('&&')(article.tags)` (Postgres ARRAY overlap operator) or cast to `ARRAY(String)`. Eliminates the AttributeError AND the suspected session leak.
+  2. **Add gunicorn `--max-requests 500 --max-requests-jitter 50`** in whatever launches gunicorn (Procfile / `.platform/hooks/`). Recycles workers periodically — reclaims leaked memory as a belt-and-braces measure.
+  3. **Verify `get_db` teardown.** Confirm `backend/db/session.py` (or wherever `get_db` lives) uses a `try/finally` with `db.close()` so dependency teardown can't leak sessions even on exceptions.
+  4. **Audit other endpoints loading PostGIS geometries.** Any `joinedload` on `WineRegion.geometry`, `Block.geometry`, `Property.geometry` pulls 50-500 KB WKB into the session — if the session leaks, that compounds.
+  5. **Longer term:** bump to t3.medium (4 GB) or drop to 1 worker. Add swap as a safety net.
+- **Verification next session:** SSH to instance, run `watch -n 30 "ps -e -o pid,rss,cmd | grep gunicorn"` while tailing `web.stdout.log`. If RSS climbs while the app is idle → leak confirmed. If it only climbs against specific endpoints → narrow to that endpoint.
+- **Logs preserved:** `backend/.elasticbeanstalk/logs/260515_125238/i-0c3f1c8061eba0733/`
+- **Reported:** 2026-05-15. Surfaced after Phase A climate-history deploy; the deploy reset workers to clean memory and the hourly leak cycle restarted, making the symptom newly visible. Deploy itself is **not** the cause — the new `/compare/zones/seasons` endpoint returns ~5 KB JSON and was not under load when the OOM fired.
+
 ---
 
 ## Blockers
 
-### [BLOCKER-001] Mobile — Cannot create Google Play service account JSON (GCP org policy)
-- **Priority:** P1 (blocks v0.1.1 mobile launch to Play internal testing)
-- **Area:** Mobile / Infra
-- **Reported:** 2026-05-08
-- **Symptom:** Cannot generate the service account JSON key required by `eas submit --platform android`. Every workaround attempted hits another GCP permission wall.
-- **What was tried:**
-  1. Create JSON key in existing project → blocked by `iam.disableServiceAccountKeyCreation` org policy
-  2. Override the policy at the project level → blocked, requires `roles/orgpolicy.policyAdmin` on the auxein.co.nz org
-  3. Simulate policy override → blocked, requires `policysimulator.*` permissions on the org
-  4. Create a new project outside the org ("No organisation") → blocked, requires `resourcemanager.projects.create` which the auxein.co.nz Workspace org also restricts
-- **Root cause:** `pete.taylor@auxein.co.nz` does not hold any org-level GCP admin role on the auxein.co.nz Google Workspace organisation. All escalation paths require a role that account does not have.
-- **Unblock paths (next session):**
-  - **A. Reclaim Workspace super-admin** — sign in to `admin.google.com` with the auxein.co.nz super-admin account, grant `pete.taylor@auxein.co.nz` the `Organization Administrator` role at the GCP org level, then any of the workarounds above succeeds. Cleanest but requires tracking down the super-admin login.
-  - **B. Personal Google account** — create the GCP project + service account under a personal Gmail (no org constraints), then invite the SA email to the auxein.co.nz Play Console with App Admin permissions. Cross-org SA invite is supported by Play Console. Faster but the SA lives outside the org's audit/billing.
-- **Other v0.1.1 mobile work is unaffected:** preview APK build via `eas build --profile preview --platform android` does NOT need the SA JSON (only `eas submit` does). Sideload testing can proceed independently.
-- **Files / config already in place** waiting for the JSON:
-  - `packages/mobile/eas.json` — `submit.production.android.serviceAccountKeyPath: "./google-play-service-account.json"`
-  - `.gitignore` — JSON path already excluded
-  - `packages/mobile/app.json` — version 0.1.1, package name `co.nz.auxein.grow`
-  - Privacy URL live at `https://auxein.co.nz/grow/privacy`
+<!-- BLOCKER-001 moved to Resolved 2026-05-17 -->
 
 ---
 
@@ -97,6 +105,13 @@
 ## Resolved
 
 <!-- Move fixed bugs here with resolution notes -->
+
+### ~~[BLOCKER-001] Mobile — Cannot create Google Play service account JSON (GCP org policy)~~
+- **Priority:** P1
+- **Area:** Mobile / Infra
+- **Resolved:** 2026-05-16 (per `docs/plans/MOBILE_DEPLOYMENT_STATUS.md`)
+- **Resolution:** Org policy `iam.disableServiceAccountKeyCreation` disabled at the org level once super-admin access was reclaimed. Service account `auxein-grow-play` created with JSON key, JSON stored in AWS Secrets Manager (`auxein/grow/play-console-service-account`, ap-southeast-2). First production .aab uploaded to Play Console internal testing track manually; `eas submit` pipeline wiring still tech-debt (see MOBILE_DEPLOYMENT_STATUS.md §Tech Debt #1).
+- **Files / config:** `packages/mobile/eas.json` still references `./google-play-service-account.json` — refactor to EAS file secret pending.
 
 ### ~~[BUG-004] Backend — Insights article links resolve to localhost~~
 - **Priority:** P2

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
   Wrench,
@@ -20,11 +20,26 @@ import {
 import { assetService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import QuickStockAdjustment from '../components/QuickStockAdjustment';
+import CalibrationsTab from './Calibrations';
 import './AssetsDashboard.css';
+
+const VALID_TABS = new Set(['equipment', 'consumables', 'maintenance', 'calibrations']);
 
 export default function AssetsDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('equipment');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const tab = VALID_TABS.has(urlTab) ? urlTab : 'equipment';
+  const setTab = (next) => {
+    if (next === 'equipment') {
+      // Drop the query param for the default tab so /assets stays the clean URL.
+      const sp = new URLSearchParams(searchParams);
+      sp.delete('tab');
+      setSearchParams(sp, { replace: false });
+    } else {
+      setSearchParams({ ...Object.fromEntries(searchParams), tab: next }, { replace: false });
+    }
+  };
   const [showQuickAdjustment, setShowQuickAdjustment] = useState(false);
   const [selectedConsumableId, setSelectedConsumableId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -54,12 +69,8 @@ export default function AssetsDashboard() {
             <button className={`ad-tab ${tab === 'maintenance' ? 'active' : ''}`} onClick={() => setTab('maintenance')}>
               <Calendar size={16} /> Maintenance
             </button>
-            <button
-              className="ad-tab ad-tab--link"
-              onClick={() => navigate('/calibrations')}
-              title="Open the calibrations table"
-            >
-              <Sliders size={16} /> Calibrations <ArrowRight size={12} style={{ marginLeft: 2, opacity: 0.6 }} />
+            <button className={`ad-tab ${tab === 'calibrations' ? 'active' : ''}`} onClick={() => setTab('calibrations')}>
+              <Sliders size={16} /> Calibrations
             </button>
           </div>
 
@@ -76,6 +87,7 @@ export default function AssetsDashboard() {
               />
             )}
             {tab === 'maintenance' && <MaintenanceTab StatusBadge={StatusBadge} />}
+            {tab === 'calibrations' && <CalibrationsTab />}
           </div>
         </div>
 

@@ -4,10 +4,13 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList, Modal, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { blocksService } from '../api/services';
+import { byNatural } from '../utils/naturalSort';
 
 export default function BlockPickerModal({ visible, onClose, onSelect, propertyId = null, selectedBlockId = null }) {
+  const insets = useSafeAreaInsets();
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -35,7 +38,8 @@ export default function BlockPickerModal({ visible, onClose, onSelect, propertyI
         (b.variety || '').toLowerCase().includes(q)
       );
     }
-    return list;
+    // Natural sort on block_name so "Block 2" < "Block 10".
+    return [...list].sort(byNatural('block_name'));
   }, [blocks, propertyId, search]);
 
   const handleSelect = (block) => {
@@ -53,7 +57,10 @@ export default function BlockPickerModal({ visible, onClose, onSelect, propertyI
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={styles.sheet}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.sheet, { paddingBottom: spacing.lg + insets.bottom }]}
+        >
           <View style={styles.handle} />
 
           <View style={styles.headerRow}>
@@ -137,7 +144,8 @@ const styles = StyleSheet.create({
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xxl, borderTopRightRadius: radius.xxl,
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md,
+    // paddingBottom applied inline so we can add the Android gesture-bar inset
     maxHeight: '80%',
   },
   handle: {

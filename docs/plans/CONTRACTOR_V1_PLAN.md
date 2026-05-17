@@ -1,0 +1,203 @@
+# Contractor V1 — Web + Mobile + Geofencing
+
+**Created:** 2026-05-17
+**Status:** Approved, not started
+**Supersedes:** [CONTRACTOR_MOBILE_PLAN.md](./CONTRACTOR_MOBILE_PLAN.md) — that doc only covered mobile UI hiding; this one covers the full web + mobile + property-geofence stack.
+**Related:**
+- `GROW_COMMERCIAL_RELEASE_PLAN.md` Phase 3 (Relationships card) — this plan executes it
+- `MANAGEMENT_RELATIONSHIP_UI_PLAN.md` — separate plan for property-management transfer (different relationship type)
+- `VISITOR_REGISTER_SCOPING.md` — the visitor sign-in/out UX that informs the contractor check-in flow
+
+---
+
+## Why this plan exists
+
+Contractors are the only V1 user type that's **mobile-only**. The web app already gates them off (`/contractor-mobile-only` landing). But two things are missing:
+
+1. **Companies have no way to invite contractors or assign them work.** The Relationships tab in `CompanyAdmin` is a placeholder. Tasks can only be assigned to users.
+2. **The mobile app shows them the same UI as a regular user.** No property-aware filtering, no check-in flow, no dedicated relationships view.
+
+We also want contractors to be **property-aware**. A contractor with relationships across three vineyards shouldn't see all their blocks/risks/tasks at once on the map — they should see only the property they're currently working on. Geofencing solves this.
+
+---
+
+## What's already in place — verified 2026-05-17
+
+### Backend (do not rebuild)
+
+| Model | Purpose |
+|---|---|
+| `Contractor` | Independent auth (email + password), own JWT, own login flow |
+| `ContractorRelationship` | Company ↔ contractor link with rates, contract dates, training requirements, block access lists, status |
+| `ContractorAssignment` | Contractor assigned to a specific task or general work, with scope, scheduling, completion tracking, rate/cost fields |
+| `ContractorMovement` | Check-in / check-out with timestamps, blocks visited, equipment cleaning, biosecurity, work summary, hours worked |
+
+### Backend endpoints (do not rebuild)
+- `GET/POST/PATCH /api/v1/contractor-management/contractor-relationships`
+- `GET /api/v1/contractor-management/contractors/{id}/assignments`
+- `POST /api/v1/contractor-management/tasks/{task_id}/contractor-assignments`
+- `POST /api/v1/contractor-management/contractor-movements/check-in`
+- `POST /api/v1/contractor-management/contractor-movements/{id}/check-out`
+- `GET /api/v1/contractor-management/contractor-movements`
+- `get_current_user_or_contractor` auth dep handles both token types
+
+### Web (partial)
+- `/contractor-mobile-only` landing page exists
+- `ProtectedRoute` bounces contractors to it
+- `CompanyAdmin.RelationshipsTab` exists as a placeholder with two "Coming soon" cards
+
+### Mobile (partial)
+- `LoginScreen` works for contractors
+- `AuthContext` exposes `isContractor`, `userTypeRole`
+- `MapScreen` partially gates contractor risk creation
+- Existing screens (Tasks, Observations, CreateIncident) work for contractors via `get_current_user_or_contractor`
+
+---
+
+## What needs building
+
+### A. Web — Relationships UI (currently placeholder)
+The two "Coming soon" cards in `CompanyAdmin:553` become functional:
+
+**Contractor Relationships card** → wire to existing `/contractor-relationships` endpoints:
+- List view: status pill, current hourly rate, last worked date, contract end date
+- Create modal: search/invite by email, set scope (block access, work types), rates, contract dates
+- Detail screen: relationship history, assignment list, suspend/terminate buttons
+
+**Property Management card** — separate plan, defer.
+
+### B. Web — Contractor task assignment
+
+Decision: **two pickers, side by side** — separate user assignment from contractor assignment because the underlying data models are different (TaskAssignment vs ContractorAssignment) and contractor assignments have richer fields (rate, work scope) we may want to surface inline later.
+
+Affects:
+- `TaskQuickCreate` — add a multi-select contractor picker beneath the existing user picker. Only shows contractors with active relationships to this company.
+- `TaskCreationWizard` — same, in the relevant step.
+- On submit, POST to `/tasks/{id}/contractor-assignments` per selected contractor (parallel to the existing user TaskAssignment creation).
+
+### C. Property polygon (the missing primitive)
+
+Currently `properties` table has no geometry. Required for geofencing AND for visually showing the boundary on the mobile map.
+
+- **Alembic migration**: add nullable `geometry: Geometry('POLYGON', srid=4326)` to `properties`
+- **Backend**: extend `/properties` responses to include polygon GeoJSON; new endpoint `GET /api/v1/properties/geojson?contractor_scope=true` returns polygons for properties the caller can see
+- **Web**: Maps V2 polygon drawing UI on property edit page (Mapbox Draw plugin, snap + undo, save as GeoJSON)
+
+### D. Mobile — contractor-specific shell
+
+Tab navigator branches on `useAuth().isContractor`. Contractor layout = 6 tabs:
+
+| Tab | Behaviour |
+|---|---|
+| **Home** | NO `ConditionsHero`. Replaced with: active check-in card (or "Not checked in" CTA), today's assigned tasks (top 3), FAB → Observation / Incident only |
+| **Tasks** | List of contractor's `ContractorAssignment`s. Each row: company badge, property badge, task title, due date. Tap → TaskDetail (existing screen). No create button. |
+| **Map** | Property-aware filtering (§E). Contractor only sees blocks/risks/tasks for their `currentProperty`. Manual override via property pill is still available. |
+| **Observe** | Unchanged. Observation creation works the same. |
+| **Relationships** (NEW) | List of company relationships: company name, status, rate, last worked. Tap → detail with permitted blocks, recent assignments, contract info. |
+| **Profile** | The contractor's portal: contact info, password change, training records (read), insurance status (read), notification prefs, recent movements (last 10). |
+
+### E. Property-aware map — geofencing
+
+**UX (per Pete's call): prompt-style sign-in, mirrors the visitor sign-in flow.**
+
+1. On mount, fetch all property polygons the contractor has active relationships with.
+2. On GPS update, run an inline point-in-polygon test against each polygon.
+3. If exactly one match AND no active check-in for that property → toast/banner *"You're at Smith Vineyard — sign in?"* with a single Confirm button.
+4. Confirm → opens a quick check-in form (purpose, equipment, biosecurity if enabled) → POSTs `ContractorMovement`. Pattern follows the existing visitor sign-in UX, but uses the richer contractor model.
+5. Once signed in, `currentProperty` is set. Map auto-filters blocks/risks/tasks. Home shows the active check-in card.
+6. **Sign-out is contractor-initiated**: tap the active check-in card → "Sign out" CTA → POSTs `/contractor-movements/{id}/check-out`. Same flow as the visitor "Sign out" the visitor register already supports.
+
+**Geofence math** — a small inline ray-casting function (~30 lines, no `turf.js` dep needed for V1). Property polygons are simple enough.
+
+**Rate-limiting the prompt** — once dismissed, don't re-prompt for the same property within 30 minutes (AsyncStorage timestamp per property). Re-prompts if GPS exits and re-enters the polygon.
+
+**Buffer for GPS jitter** — apply a 5 m inward buffer when running the polygon test, so a contractor near a boundary doesn't bounce between properties.
+
+---
+
+## Order of work
+
+Three sprints, each independently shippable. ~12–15 dev days total.
+
+### Sprint 1 — Web foundation (~3 days)
+**Goal: a company admin can create relationships and assign tasks to contractors.**
+
+| # | What | Effort | Files |
+|---|---|---|---|
+| 1.1 | Web Relationships UI — Contractor card (list + create + edit + suspend) | 1.5 d | `CompanyAdmin.jsx` RelationshipsTab, new `ContractorRelationshipsList.jsx`, `CreateRelationshipModal.jsx` |
+| 1.2 | Task-create UI: multi-select contractor picker beside user picker | 0.5 d | `TaskQuickCreate.jsx`, `TaskCreationWizard.jsx` |
+| 1.3 | Task-create handler: POST `/tasks/{id}/contractor-assignments` per selected contractor | 0.5 d | Same files; backend already exists |
+| 1.4 | Property polygon — Alembic migration + property model update + `/properties/geojson` endpoint | 0.5 d | `alembic/versions/`, `db/models/property.py`, `api/v1/properties.py` |
+
+After Sprint 1: web admins can fully set up contractor relationships and assign work. Mobile is unchanged — contractors still see the regular shell.
+
+### Sprint 2 — Mobile contractor shell (~4 days)
+**Goal: contractors get a purpose-built mobile app.**
+
+| # | What | Effort | Files |
+|---|---|---|---|
+| 2.1 | Tab navigator branching on `isContractor` — 6-tab layout, no Assets | 0.5 d | `AppNavigator.js` |
+| 2.2 | Contractor Home screen — no hero, check-in card, today's tasks, FAB → Observation/Incident | 1 d | new `ContractorHomeScreen.js`, or branch inside `HomeScreen.js` |
+| 2.3 | Relationships tab — list + detail | 1 d | new `RelationshipsScreen.js`, `RelationshipDetailScreen.js`, `contractorService.js` |
+| 2.4 | Enhanced Profile — training, insurance, emergency contact, recent movements | 1 d | `ProfileScreen.js` expansion |
+| 2.5 | Tasks tab — contractor-scoped fetch, company/property badges on rows | 0.5 d | `TasksScreen.js` |
+
+After Sprint 2: contractor logs in, sees a tailored shell. No check-in or geofencing yet — the map still shows everything they have access to.
+
+### Sprint 3 — Property polygon drawing + check-in + geofencing (~5 days)
+**Goal: the mobile app is property-aware. Check-in lifecycle works.**
+
+| # | What | Effort | Files |
+|---|---|---|---|
+| 3.1 | Web Maps V2 — property polygon drawing UI | 1 d | `maps-v2/components/drawing/` new component |
+| 3.2 | Backend `/properties/geojson?contractor_scope=true` | 0.5 d | `api/v1/properties.py` |
+| 3.3 | Mobile `useContractorProperties` hook + point-in-polygon util | 0.5 d | new `hooks/useContractorProperties.js`, `utils/pointInPolygon.js` |
+| 3.4 | Mobile check-in screen wired to `/contractor-movements` | 1 d | new `CheckInScreen.js`, `contractorService.js` |
+| 3.5 | Geofence detection on GPS update — derive `currentProperty`, surface chip on Map + Home | 1 d | `ContractorHomeScreen.js`, `MapScreen.js`, new `useGeofence.js` |
+| 3.6 | Auto-prompt sign-in when entering a property polygon (rate-limited, dismissable) | 0.5 d | `useGeofence.js` + toast |
+| 3.7 | Property-aware map: when `currentProperty` set, filter blocks/risks/tasks to that property | 0.5 d | `MapScreen.js` — re-use the existing property scoping pattern |
+
+After Sprint 3: contractor opens the app at the gate of Smith Vineyard, gets prompted to sign in, sees only Smith's data, signs out at end of day.
+
+---
+
+## Permission edge cases — decided
+
+1. **Contractor sees other contractors' tasks?** No. Only their own `ContractorAssignment` records.
+2. **Relationship suspended/terminated mid-assignment?** Existing assignments continue (so work-in-progress isn't lost), but no new assignments can be created. Already supported via `ContractorRelationship.status`.
+3. **Multi-company contractor?** Relationships list shows all active companies. Check-in disambiguates which company. Geofence detects which property, which implies which company. Already supported in the data model.
+4. **Contractor checks in to property A but is assigned task on property B?** Show the task in the Tasks tab but with a warning chip "You're checked in to a different property." Don't block them — there are legitimate cross-property reasons (driving between, picking up equipment).
+
+---
+
+## Out of scope for V1 (defer)
+
+- **Contractor self-signup** — Auxein admin creates accounts manually. Confirmed by Pete.
+- **Biosecurity workflow on check-in** — model has fields, basic UI in V1 (equipment cleaned y/n + notes), full biosecurity workflow is v0.2
+- **Contractor invoicing / billing** — rates + cost tracking already in the model, invoicing UI is a separate epic
+- **Training-required gates on task assignment** — model supports it, but blocking work without training is v0.2
+- **Contractor ↔ company messaging** — separate epic
+- **Multi-property concurrent check-ins** — one at a time. If geofence detects multiple polygons (unlikely but possible at boundaries), fall back to manual pick.
+- **Web admin view of contractor's current location** — privacy-sensitive; defer until contractors have explicit consent flow.
+
+---
+
+## Open questions resolved 2026-05-17 (Pete)
+
+| Question | Decision |
+|---|---|
+| Relationships as tab or under Profile? | **Top-level tab (6 tabs)** |
+| Geofence trigger UX? | **Prompt-style sign-in mirroring visitor flow. Sign-out is contractor-initiated.** |
+| One picker or two for task assignment? | **Two pickers (Users + Contractors)** |
+
+---
+
+## Acceptance (end of Sprint 3)
+
+1. Company admin can invite a contractor by email, set rates and contract dates, suspend or terminate.
+2. Company admin can create a task and assign it to one or more contractors alongside (or instead of) users.
+3. Contractor logs into mobile and sees the dedicated 6-tab shell — no Assets, no hero, contractor-specific Home.
+4. Contractor walks onto a property → prompted to sign in → confirms → ContractorMovement recorded.
+5. Once signed in, Map shows only the active property's blocks, risks, tasks. Home shows active check-in chip.
+6. Contractor can sign out from the Home check-in card → ContractorMovement check_out_datetime stamped.
+7. Manager / admin / user mobile flows are byte-for-byte unchanged.

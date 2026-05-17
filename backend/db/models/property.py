@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from geoalchemy2 import Geometry
 from db.base_class import Base
 
 
@@ -22,6 +23,10 @@ class Property(Base):
     climate_zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=True, index=True)
     forecast_latitude = Column(Numeric(10, 7), nullable=True)
     forecast_longitude = Column(Numeric(10, 7), nullable=True)
+
+    # Boundary polygon for contractor geofencing (Grow V1, Revision 3).
+    # POLYGON or MULTIPOLYGON in WGS84 (SRID 4326). NULL until an admin draws one.
+    geometry = Column(Geometry('GEOMETRY', srid=4326), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

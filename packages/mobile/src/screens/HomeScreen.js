@@ -4,22 +4,25 @@ import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   TouchableOpacity, Modal, FlatList, StatusBar, Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
+import { useProperty } from '../contexts/PropertyContext';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { tasksService, propertyService, observationService, notificationService, visitorService } from '../api/services';
+import { tasksService, observationService, notificationService, visitorService } from '../api/services';
 import { SOURCE_ICONS, SkeletonCard } from '../components';
+import ConditionsHero from '../components/ConditionsHero';
 
 const LOGO_MARK = require('../../assets/brand/logo-mark.png');
 
 export default function HomeScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, isManagerOrAbove } = useAuth();
+  const { properties, selectedPropertyId, selectedProperty, setSelectedPropertyId } = useProperty();
+  const insets = useSafeAreaInsets();
+  const firstName = user?.first_name || user?.name?.split(' ')?.[0] || 'there';
   const [upcomingTasks, setUpcomingTasks] = useState([]);
   const [activeRuns, setActiveRuns] = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [showPropertyPicker, setShowPropertyPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
@@ -29,20 +32,14 @@ export default function HomeScreen({ navigation }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, runsRes, propsRes, unreadRes, visitorsRes] = await Promise.all([
+      const [tasksRes, runsRes, unreadRes, visitorsRes] = await Promise.all([
         tasksService.getUnifiedFeed({ days_ahead: 7 }).catch(() => []),
         observationService.listRuns({ active_only: true }).catch(() => []),
-        propertyService.listProperties().catch(() => []),
         notificationService.getUnreadCount().catch(() => null),
         visitorService.listActive().catch(() => []),
       ]);
       setUpcomingTasks(Array.isArray(tasksRes) ? tasksRes.slice(0, 6) : []);
       setActiveRuns(Array.isArray(runsRes) ? runsRes : []);
-      const props = Array.isArray(propsRes) ? propsRes : [];
-      setProperties(props);
-      if (props.length > 0 && !selectedPropertyId) {
-        setSelectedPropertyId(props[0].id);
-      }
       setUnreadCount(unreadRes?.count ?? 0);
       setActiveVisitorCount(Array.isArray(visitorsRes) ? visitorsRes.length : 0);
     } catch (err) {
@@ -50,14 +47,9 @@ export default function HomeScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedPropertyId]);
+  }, []);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
-
-  const selectedProperty = useMemo(
-    () => properties.find(p => p.id === selectedPropertyId),
-    [properties, selectedPropertyId]
-  );
 
   // Tile counts
   const counts = useMemo(() => {
@@ -115,19 +107,25 @@ export default function HomeScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      {/* Property switcher + onsite chip — context bar below header */}
+      {/* Property switcher + onsite chip — context bar below header.
+          Manager+ users get an "All properties" option (handled in the picker
+          modal below) which surfaces unscoped data across all visible properties. */}
       {properties.length > 0 && (
         <View style={styles.contextBar}>
           <TouchableOpacity
             style={styles.propertyPill}
-            onPress={() => properties.length > 1 && setShowPropertyPicker(true)}
-            activeOpacity={properties.length > 1 ? 0.7 : 1}
+            onPress={() => (properties.length > 1 || isManagerOrAbove) && setShowPropertyPicker(true)}
+            activeOpacity={(properties.length > 1 || isManagerOrAbove) ? 0.7 : 1}
           >
-            <Feather name="map-pin" size={16} color={colors.primary} />
+            <Feather
+              name={selectedPropertyId === null ? 'globe' : 'map-pin'}
+              size={16}
+              color={colors.primary}
+            />
             <Text style={styles.propertyName} numberOfLines={1}>
-              {selectedProperty?.name || 'All properties'}
+              {selectedPropertyId === null ? 'All properties' : (selectedProperty?.name || '—')}
             </Text>
-            {properties.length > 1 && (
+            {(properties.length > 1 || isManagerOrAbove) && (
               <Feather name="chevron-down" size={16} color={colors.textMuted} />
             )}
           </TouchableOpacity>
@@ -157,6 +155,12 @@ export default function HomeScreen({ navigation }) {
           />
         }
       >
+        {/* Conditions hero — static satellite-map preview of the active property
+            (blocks + task badges) + greeting + status badge + weather strip.
+            Purely informational — no tap behaviour. Weather is null-tolerant so
+            an offline / unconfigured property still renders cleanly. */}
+        <ConditionsHero firstName={firstName} />
+
         {/* At-a-glance tiles */}
         <View style={styles.tileGrid}>
           <StatTile
@@ -350,9 +354,28 @@ export default function HomeScreen({ navigation }) {
           activeOpacity={1}
           onPress={() => setShowPropertyPicker(false)}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.modalSheet, { paddingBottom: spacing.lg + insets.bottom }]}
+          >
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Switch property</Text>
+            {isManagerOrAbove && (
+              <TouchableOpacity
+                style={styles.propertyItem}
+                onPress={() => {
+                  setSelectedPropertyId(null);
+                  setShowPropertyPicker(false);
+                }}
+              >
+                <Feather
+                  name={selectedPropertyId === null ? 'check-circle' : 'globe'}
+                  size={18}
+                  color={selectedPropertyId === null ? colors.success : colors.textMuted}
+                />
+                <Text style={styles.propertyItemName}>All properties</Text>
+              </TouchableOpacity>
+            )}
             <FlatList
               data={properties}
               keyExtractor={p => String(p.id)}
@@ -564,7 +587,10 @@ const styles = StyleSheet.create({
   modalSheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xxl, borderTopRightRadius: radius.xxl,
-    padding: spacing.lg, paddingTop: spacing.md, maxHeight: '60%',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    // paddingBottom is applied inline so we can add the Android gesture-bar inset
+    maxHeight: '60%',
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border,

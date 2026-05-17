@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Play, X, MapPin } from 'lucide-react';
-import { observationService, blocksService } from '@vineyard/shared';
+import { observationService, blocksService, byNatural } from '@vineyard/shared';
+
+// Single source of truth for the natural-sort comparator across the file —
+// every setBlocks/setAllBlocks call routes through this to keep "Block 2" <
+// "Block 10" instead of lex order.
+const sortBlocks = (list) => [...(list || [])].sort(byNatural('block_name'));
 
 export default function BlockSelectionModal({ open, plan, onClose, onStartRun }) {
   const [blocks, setBlocks] = useState([]);
@@ -38,15 +43,17 @@ export default function BlockSelectionModal({ open, plan, onClose, onStartRun })
         const blocksRes = await blocksService.getCompanyBlocks();
         if (!mounted) return;
         
-        const blocksList = Array.isArray(blocksRes) ? blocksRes : blocksRes?.blocks ?? blocksRes?.items ?? [];
+        const blocksList = sortBlocks(
+          Array.isArray(blocksRes) ? blocksRes : blocksRes?.blocks ?? blocksRes?.items ?? [],
+        );
         setAllBlocks(blocksList);
-        
+
         // Initially show only plan targets if they exist
         const planBlockIds = (plan.targets || []).map(t => t.block_id).filter(Boolean);
-        const targetBlocks = planBlockIds.length > 0 
+        const targetBlocks = planBlockIds.length > 0
           ? blocksList.filter(b => planBlockIds.includes(b.id || b.block_id))
           : [];
-        
+
         // If no targets defined or user wants all blocks, show all
         const initialBlocks = targetBlocks.length > 0 ? targetBlocks : blocksList;
         setBlocks(initialBlocks);

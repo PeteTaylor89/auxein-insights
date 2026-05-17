@@ -8,6 +8,7 @@ export { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 
 // Utils
 export { hasPermission, getPermissionsForUserType, isAdminType, isManagerOrAbove, UserType } from './utils/permissions.js';
+export { compareNatural, byNatural } from './utils/naturalSort.js';
 
 // Hooks
 export { default as usePullToRefresh } from './hooks/usePullToRefresh.js';

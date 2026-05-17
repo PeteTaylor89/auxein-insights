@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Linking, Platform,
+  ActivityIndicator,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { assetService } from '../api/services';
 
@@ -34,14 +35,15 @@ export default function AssetDetailScreen({ route, navigation }) {
     })();
   }, [assetId]);
 
-  const openInMaps = () => {
+  // Jump to the in-app Map tab centred on this asset. MapScreen reads the
+  // viewAssetId param, centres the camera using the lat/lng, and opens the
+  // summary sheet once it has the asset detail.
+  const viewOnMap = () => {
     if (!asset?.latitude || !asset?.longitude) return;
-    const url = Platform.select({
-      ios: `maps:?q=${asset.name}&ll=${asset.latitude},${asset.longitude}`,
-      android: `geo:${asset.latitude},${asset.longitude}?q=${asset.latitude},${asset.longitude}(${asset.name})`,
-    });
-    Linking.openURL(url).catch(() => {
-      Linking.openURL(`https://www.google.com/maps?q=${asset.latitude},${asset.longitude}`);
+    navigation.navigate('Map', {
+      viewAssetId: asset.id,
+      viewAssetLat: Number(asset.latitude),
+      viewAssetLng: Number(asset.longitude),
     });
   };
 
@@ -88,8 +90,9 @@ export default function AssetDetailScreen({ route, navigation }) {
           {asset.latitude && asset.longitude && (
             <>
               <Field label="Coordinates" value={`${Number(asset.latitude).toFixed(5)}, ${Number(asset.longitude).toFixed(5)}`} />
-              <TouchableOpacity style={styles.mapBtn} onPress={openInMaps}>
-                <Text style={styles.mapBtnText}>Open in Maps</Text>
+              <TouchableOpacity style={styles.mapBtn} onPress={viewOnMap}>
+                <Feather name="map" size={16} color={colors.white} />
+                <Text style={styles.mapBtnText}>View on Map</Text>
               </TouchableOpacity>
             </>
           )}
@@ -175,8 +178,10 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
   fieldValue: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text, flex: 1, textAlign: 'right' },
   mapBtn: {
-    marginTop: spacing.sm, backgroundColor: colors.info, borderRadius: radius.md,
-    padding: spacing.sm, alignItems: 'center',
+    marginTop: spacing.sm, backgroundColor: colors.primary, borderRadius: radius.md,
+    padding: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.xs,
   },
   mapBtnText: { color: colors.white, fontSize: fontSize.sm, fontWeight: '600' },
   banner: {

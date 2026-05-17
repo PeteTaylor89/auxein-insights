@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { maintenanceService, calibrationService, calibrationScheduleService, riskActionService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
@@ -20,6 +21,7 @@ const SOURCE_CONFIG = {
 
 export default function FeedItemModal({ visible, item, onClose, onComplete }) {
   const toast = useToast();
+  const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -165,7 +167,10 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.content}>
-            <ScrollView keyboardShouldPersistTaps="handled">
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: insets.bottom }}
+            >
               {/* Header */}
               <View style={[styles.header, { borderBottomColor: src.accent }]}>
                 <View style={[styles.headerIconBox, { backgroundColor: src.accent + '18' }]}>

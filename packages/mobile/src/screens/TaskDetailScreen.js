@@ -6,14 +6,21 @@ import {
   KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, taskRowService } from '../api/services';
 import { getTaskCached, listRowsCached, getRowProgressCached } from '../services/tasksCache';
+import { byNatural } from '../utils/naturalSort';
 import { useGpsTracking } from '../hooks/useGpsTracking';
 import GpsTrackingOverlay from './GpsTrackingScreen';
 
 export default function TaskDetailScreen({ route, navigation }) {
   const { taskId } = route.params;
+  const insets = useSafeAreaInsets();
+  // Bottom-sheet modals (Row Completion, Equipment Check, Complete Task) all
+  // anchor to the bottom of the screen. Apply the inset so their content +
+  // action buttons stay clear of the Android gesture bar.
+  const sheetPad = { paddingBottom: spacing.lg + insets.bottom };
   const [task, setTask] = useState(null);
   const [rows, setRows] = useState([]);
   const [progress, setProgress] = useState(null);
@@ -62,22 +69,36 @@ export default function TaskDetailScreen({ route, navigation }) {
     }
   }, [taskId, navigation]);
 
+  // Natural-sort rows by row_number ("1", "2", "10") rather than the
+  // lexicographic order the backend returns. id is a stable tiebreaker for
+  // rows without a row_number. Same util the web RowProgressPanel uses.
+  const sortRows = useCallback((data) => {
+    if (!Array.isArray(data)) return [];
+    const list = [...data];
+    list.sort((a, b) => {
+      const cmp = byNatural('row_number')(a, b);
+      if (cmp !== 0) return cmp;
+      return (a.id ?? 0) - (b.id ?? 0);
+    });
+    return list;
+  }, []);
+
   const loadRows = useCallback(async () => {
     try {
       const [rowData, progressData] = await Promise.all([
         listRowsCached(taskId, {
-          onCached: (cached) => { if (Array.isArray(cached?.data)) setRows(cached.data); },
+          onCached: (cached) => { if (Array.isArray(cached?.data)) setRows(sortRows(cached.data)); },
         }).catch(() => []),
         getRowProgressCached(taskId, {
           onCached: (cached) => { if (cached?.data) setProgress(cached.data); },
         }).catch(() => null),
       ]);
-      setRows(Array.isArray(rowData) ? rowData : []);
+      setRows(sortRows(rowData));
       setProgress(progressData);
     } catch (err) {
       console.log('Failed to load rows:', err.message);
     }
-  }, [taskId]);
+  }, [taskId, sortRows]);
 
   const loadGpsCommitted = useCallback(async () => {
     // Only check if not actively tracking — avoids hitting endpoint mid-flight.
@@ -107,15 +128,48 @@ export default function TaskDetailScreen({ route, navigation }) {
 
   useEffect(() => {
     navigation.setOptions({
+      headerBackVisible: false, // hide the default tiny chevron — we render a clearer one
       headerLeft: () => (
-        <TouchableOpacity onPress={() => navigation.navigate('TaskList')} style={{ paddingRight: spacing.md }}>
-          <Text style={{ color: colors.primary, fontSize: fontSize.base }}>← Tasks</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('TaskList')}
+          hitSlop={12}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            marginLeft: -6,
+            borderRadius: 8,
+          }}
+          accessibilityLabel="Back to tasks"
+        >
+          <Feather name="chevron-left" size={22} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: fontSize.base, fontWeight: '600', marginLeft: 2 }}>
+            Tasks
+          </Text>
         </TouchableOpacity>
       ),
     });
   }, [navigation]);
 
   // --- Actions ---
+
+  // Confirmation prompt fired before any flow that will kick off live GPS
+  // recording. Surfaces what's about to happen so users don't accidentally
+  // start tracking and burn battery / sit in foreground when they didn't intend.
+  const confirmStartGps = (proceed) => {
+    Alert.alert(
+      'Start GPS recording?',
+      'This task records your location continuously while it\'s in progress.\n\n' +
+      '• Keep the app open and your device awake — backgrounding may pause recording.\n' +
+      '• Recording continues until you tap Stop.\n' +
+      '• Pause when taking a break to save battery.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Start recording', onPress: proceed },
+      ],
+    );
+  };
 
   const handleStartTask = async () => {
     setActionLoading(true);
@@ -131,6 +185,13 @@ export default function TaskDetailScreen({ route, navigation }) {
         return;
       }
 
+      // If GPS will auto-start with the task, confirm first. Non-GPS tasks
+      // skip the prompt entirely — no behaviour change for them.
+      if (task?.requires_gps_tracking === true) {
+        setActionLoading(false);
+        confirmStartGps(() => doStartTask(false));
+        return;
+      }
       await doStartTask(false);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to start task');
@@ -148,10 +209,15 @@ export default function TaskDetailScreen({ route, navigation }) {
         start_gps_tracking: gpsRequired,
       });
       setShowEquipmentModal(false);
-      // Start GPS tracking only if task requires it
+      // Start GPS tracking only if task requires it. On success, jump straight
+      // into the full-screen GPS overlay — that's where Pause/Stop + live
+      // stats live, and on a fresh start the user expects to see the
+      // recording state, not the task detail page.
       if (gpsRequired) {
         const gpsStarted = await gps.startTracking(taskId);
-        if (!gpsStarted) {
+        if (gpsStarted) {
+          setShowGpsOverlay(true);
+        } else {
           Alert.alert('GPS Note', 'Task started but GPS tracking could not be enabled. You can continue without tracking.');
         }
       }
@@ -352,6 +418,16 @@ export default function TaskDetailScreen({ route, navigation }) {
                 )}
               </View>
             )}
+
+            {/* View completed track on Map. Cross-tab nav with viewTaskId
+                param; MapScreen fetches the locked track + fits camera. */}
+            <TouchableOpacity
+              style={styles.gpsMapBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('Map', { viewTaskId: taskId })}
+            >
+              <Text style={styles.gpsMapBtnText}>View track on Map →</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -369,14 +445,14 @@ export default function TaskDetailScreen({ route, navigation }) {
             </Text>
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnPrimary, { marginTop: spacing.md }]}
-              onPress={async () => {
+              onPress={() => confirmStartGps(async () => {
                 const ok = await gps.startTracking(taskId);
                 if (!ok) {
                   Alert.alert('GPS', 'Could not start tracking. Check location permission and try again.');
                 } else {
                   setShowGpsOverlay(true);
                 }
-              }}
+              })}
             >
               <Feather name="play-circle" size={18} color={colors.white} />
               <Text style={[styles.actionBtnText, { marginLeft: spacing.xs }]}>Start GPS Tracking</Text>
@@ -427,6 +503,17 @@ export default function TaskDetailScreen({ route, navigation }) {
                 <Text style={styles.gpsStatLabel}>km/h</Text>
               </View>
             </View>
+
+            {/* View live track on Map. Cross-tab nav (parent tab navigator
+                resolves the 'Map' tab name). MapScreen is already polling
+                for any active task and renders the polyline automatically. */}
+            <TouchableOpacity
+              style={styles.gpsMapBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('Map')}
+            >
+              <Text style={styles.gpsMapBtnText}>View live track on Map →</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
 
@@ -497,7 +584,7 @@ export default function TaskDetailScreen({ route, navigation }) {
       <Modal visible={showRowModal} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, sheetPad]}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>
                   Complete Row {activeRow?.row_identifier || activeRow?.vineyard_row?.row_number || activeRow?.id}
@@ -578,7 +665,7 @@ export default function TaskDetailScreen({ route, navigation }) {
       <Modal visible={showCompleteModal} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, sheetPad]}>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalTitle}>Complete Task</Text>
 
@@ -683,6 +770,13 @@ export default function TaskDetailScreen({ route, navigation }) {
           taskTitle={task.title || `Task #${task.id}`}
           taskNumber={task.task_number}
           onClose={() => setShowGpsOverlay(false)}
+          onViewMap={() => {
+            // Close the overlay then jump to the Map tab. The live polyline
+            // reads from the same useGpsTracking buffer the overlay shows,
+            // so the trail appears immediately.
+            setShowGpsOverlay(false);
+            navigation.navigate('Map');
+          }}
         />
       </Modal>
     </View>
@@ -775,7 +869,10 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
-    padding: spacing.lg, maxHeight: '80%',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    // paddingBottom applied inline (sheetPad) so we can add the Android gesture-bar inset
+    maxHeight: '80%',
   },
   modalTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   modalSubtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.md },
@@ -827,6 +924,15 @@ const styles = StyleSheet.create({
   gpsStat: { alignItems: 'center' },
   gpsStatValue: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
   gpsStatLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  gpsMapBtn: {
+    alignSelf: 'stretch',
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.trackBlueDark || '#2563eb',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+  },
+  gpsMapBtnText: { color: '#FFFFFF', fontSize: fontSize.sm, fontWeight: '600' },
   gpsActions: { flexDirection: 'row', gap: spacing.sm },
   gpsBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: 'center' },
   gpsBtnResume: { backgroundColor: colors.success },

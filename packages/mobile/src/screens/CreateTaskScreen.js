@@ -12,6 +12,8 @@ import { tasksService, propertyService } from '../api/services';
 import {
   SectionCard, FilledInput, BottomActionBar, BlockPickerModal, useToast,
 } from '../components';
+import TaskTemplatePickerModal from '../components/TaskTemplatePickerModal';
+import AssigneePickerModal from '../components/AssigneePickerModal';
 
 const CATEGORIES = [
   { value: 'vineyard',         label: 'Vineyard',        icon: 'grid' },
@@ -45,6 +47,47 @@ export default function CreateTaskScreen({ navigation }) {
   const [estimatedHours, setEstimatedHours] = useState('');
   const [requiresGps, setRequiresGps] = useState(false);
 
+  // Template state — when a template is picked, the form collapses to the
+  // web-app quick-create flow: block + date + assignees. Title/category/
+  // description/priority/hours/GPS all come from the template (server-side),
+  // so the user only chooses where + when + who.
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templateId, setTemplateId] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+
+  // Assignees — only surfaced in template mode (mirrors web TaskQuickCreate).
+  // Backend accepts assigned_user_ids: List[int] for multi-assign.
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState([]);
+  const [assigneeUsers, setAssigneeUsers] = useState([]); // for label rendering
+
+  const handleTemplateSelect = (tpl) => {
+    setTemplateId(tpl.id);
+    setSelectedTemplate(tpl);
+  };
+
+  const clearTemplate = () => {
+    setTemplateId(null);
+    setSelectedTemplate(null);
+    setAssigneeIds([]);
+    setAssigneeUsers([]);
+  };
+
+  const handleAssigneesConfirm = (ids, allUsers) => {
+    setAssigneeIds(ids);
+    if (Array.isArray(allUsers)) {
+      const map = new Map(allUsers.map((u) => [u.id, u]));
+      setAssigneeUsers(ids.map((id) => map.get(id)).filter(Boolean));
+    }
+  };
+
+  const inTemplateMode = !!templateId;
+  const assigneeSummary = assigneeIds.length === 0
+    ? 'Unassigned'
+    : assigneeUsers.length > 0
+      ? assigneeUsers.map((u) => `${u.first_name || ''} ${u.last_name || ''}`.trim()).filter(Boolean).join(', ')
+      : `${assigneeIds.length} selected`;
+
   useEffect(() => {
     propertyService.listProperties()
       .then(data => {
@@ -55,7 +98,12 @@ export default function CreateTaskScreen({ navigation }) {
       .catch(() => {});
   }, []);
 
-  const canSubmit = title.trim().length > 0 && !!category;
+  // Template mode submits via /quick-create (only block/date/assignees needed —
+  // template_id expands the rest server-side). Manual mode submits via /tasks
+  // and requires title + category. Mirrors the web TaskQuickCreate flow.
+  const canSubmit = inTemplateMode
+    ? true
+    : title.trim().length > 0 && !!category;
 
   const handleSubmit = async () => {
     if (!canSubmit) {
@@ -64,22 +112,35 @@ export default function CreateTaskScreen({ navigation }) {
     }
     setSubmitting(true);
     try {
-      const payload = {
-        title: title.trim(),
-        task_category: category,
-        description: description.trim() || undefined,
-        block_id: block?.id || undefined,
-        scheduled_start_date: scheduledDate
-          ? scheduledDate.toISOString().split('T')[0]
-          : undefined,
-        priority,
-        requires_gps_tracking: requiresGps,
-      };
-      const hrs = parseFloat(estimatedHours);
-      if (!isNaN(hrs) && hrs > 0) {
-        payload.estimated_hours = Math.round(hrs * 4) / 4;
+      let created;
+      if (inTemplateMode) {
+        const payload = {
+          template_id: templateId,
+          block_id: block?.id || undefined,
+          scheduled_start_date: scheduledDate
+            ? scheduledDate.toISOString().split('T')[0]
+            : undefined,
+          assigned_user_ids: assigneeIds.length > 0 ? assigneeIds : undefined,
+        };
+        created = await tasksService.quickCreateTask(payload);
+      } else {
+        const payload = {
+          title: title.trim(),
+          task_category: category,
+          description: description.trim() || undefined,
+          block_id: block?.id || undefined,
+          scheduled_start_date: scheduledDate
+            ? scheduledDate.toISOString().split('T')[0]
+            : undefined,
+          priority,
+          requires_gps_tracking: requiresGps,
+        };
+        const hrs = parseFloat(estimatedHours);
+        if (!isNaN(hrs) && hrs > 0) {
+          payload.estimated_hours = Math.round(hrs * 4) / 4;
+        }
+        created = await tasksService.createTask(payload);
       }
-      const created = await tasksService.createTask(payload);
       toast.show('Task created', 'success');
       navigation.replace('TaskDetail', { taskId: created.id });
     } catch (err) {
@@ -124,6 +185,49 @@ export default function CreateTaskScreen({ navigation }) {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Start-from-template entry. When a template is picked, the form
+              collapses to block + date + assignees (template defines the rest
+              server-side via /quick-create). Tap × to clear and return to the
+              full manual form. */}
+          <SectionCard
+            icon="layers"
+            title={inTemplateMode ? 'Template' : 'Start from template (optional)'}
+          >
+            <TouchableOpacity
+              style={styles.pickerRow}
+              onPress={() => setShowTemplatePicker(true)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.pickerIconBox, inTemplateMode && styles.pickerIconBoxActive]}>
+                <Feather
+                  name="layers"
+                  size={16}
+                  color={inTemplateMode ? colors.success : colors.textMuted}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pickerLabel}>Template</Text>
+                <Text style={[styles.pickerValue, !selectedTemplate && styles.pickerValueEmpty]}>
+                  {selectedTemplate?.name || 'Pick a template to skip the long form'}
+                </Text>
+              </View>
+              {inTemplateMode ? (
+                <TouchableOpacity onPress={clearTemplate} hitSlop={12}>
+                  <Feather name="x" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : (
+                <Feather name="chevron-right" size={18} color={colors.textMuted} />
+              )}
+            </TouchableOpacity>
+            {inTemplateMode && (
+              <Text style={styles.templateHint}>
+                Template sets category, priority, hours, GPS and description.
+                Just choose where, when, and who.
+              </Text>
+            )}
+          </SectionCard>
+
+          {!inTemplateMode && (
           <SectionCard icon="edit-3" title="Basics">
             <FilledInput
               label="Task title"
@@ -157,6 +261,7 @@ export default function CreateTaskScreen({ navigation }) {
               })}
             </View>
           </SectionCard>
+          )}
 
           <SectionCard icon="map-pin" title="Location (optional)">
             <TouchableOpacity
@@ -199,28 +304,63 @@ export default function CreateTaskScreen({ navigation }) {
               )}
             </TouchableOpacity>
 
-            <Text style={styles.fieldLabel}>Priority</Text>
-            <View style={styles.chipRow}>
-              {PRIORITIES.map(p => {
-                const selected = priority === p.value;
-                return (
-                  <TouchableOpacity
-                    key={p.value}
-                    style={[
-                      styles.chip,
-                      selected && { backgroundColor: p.color, borderColor: p.color },
-                    ]}
-                    onPress={() => setPriority(p.value)}
-                  >
-                    <Text style={[styles.chipText, selected && styles.chipTextActive]}>
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {!inTemplateMode && (
+              <>
+                <Text style={styles.fieldLabel}>Priority</Text>
+                <View style={styles.chipRow}>
+                  {PRIORITIES.map(p => {
+                    const selected = priority === p.value;
+                    return (
+                      <TouchableOpacity
+                        key={p.value}
+                        style={[
+                          styles.chip,
+                          selected && { backgroundColor: p.color, borderColor: p.color },
+                        ]}
+                        onPress={() => setPriority(p.value)}
+                      >
+                        <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                          {p.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
           </SectionCard>
 
+          {inTemplateMode && (
+          <SectionCard icon="users" title="Assign to (optional)">
+            <TouchableOpacity
+              style={styles.pickerRow}
+              onPress={() => setShowAssigneePicker(true)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.pickerIconBox, assigneeIds.length > 0 && styles.pickerIconBoxActive]}>
+                <Feather
+                  name="users"
+                  size={16}
+                  color={assigneeIds.length > 0 ? colors.success : colors.textMuted}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pickerLabel}>
+                  Assignees{assigneeIds.length > 0 ? ` (${assigneeIds.length})` : ''}
+                </Text>
+                <Text
+                  style={[styles.pickerValue, assigneeIds.length === 0 && styles.pickerValueEmpty]}
+                  numberOfLines={2}
+                >
+                  {assigneeSummary}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </SectionCard>
+          )}
+
+          {!inTemplateMode && (
           <SectionCard icon="clock" title="Effort & tracking">
             <Text style={styles.fieldLabel}>Estimated hours (optional)</Text>
             <View style={styles.hoursRow}>
@@ -257,6 +397,9 @@ export default function CreateTaskScreen({ navigation }) {
             </View>
           </SectionCard>
 
+          )}
+
+          {!inTemplateMode && (
           <SectionCard icon="align-left" title="Description (optional)">
             <FilledInput
               value={description}
@@ -266,6 +409,7 @@ export default function CreateTaskScreen({ navigation }) {
               numberOfLines={4}
             />
           </SectionCard>
+          )}
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
@@ -288,6 +432,19 @@ export default function CreateTaskScreen({ navigation }) {
         onSelect={setBlock}
         propertyId={propertyId}
         selectedBlockId={block?.id}
+      />
+
+      <TaskTemplatePickerModal
+        visible={showTemplatePicker}
+        onClose={() => setShowTemplatePicker(false)}
+        onSelect={handleTemplateSelect}
+      />
+
+      <AssigneePickerModal
+        visible={showAssigneePicker}
+        selectedIds={assigneeIds}
+        onClose={() => setShowAssigneePicker(false)}
+        onConfirm={handleAssigneesConfirm}
       />
 
       {showDatePicker && (
@@ -381,4 +538,13 @@ const styles = StyleSheet.create({
   },
   toggleLabel: { fontSize: fontSize.sm, color: colors.text, fontWeight: '500' },
   toggleHint: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+
+  templateHint: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    lineHeight: 16,
+    fontStyle: 'italic',
+  },
 });

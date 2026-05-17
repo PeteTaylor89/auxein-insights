@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Auxein Grow · Hero Home — directions</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #f0eee9;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  #root { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="brand.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="hero-a.jsx"></script>
+<script type="text/babel" src="hero-b.jsx"></script>
+<script type="text/babel" src="hero-c.jsx"></script>
+<script type="text/babel" src="hero-d.jsx"></script>
+
+<script type="text/babel">
+  const W = 390;
+  const H = 844;
+
+  function Phone({ children }) {
+    return (
+      <IOSDevice width={W} height={H} dark={false}>
+        {children}
+      </IOSDevice>
+    );
+  }
+
+  function App() {
+    return (
+      <DesignCanvas
+        title="Auxein Grow — hero home screen"
+        subtitle="Four directions, most conservative → most novel"
+      >
+        <DCSection
+          id="hero"
+          title="Hero home — directions"
+          subtitle="Same chrome, four front pages. Drag to reorder; double-tap to focus."
+        >
+          <DCArtboard id="a" label="A · Field & Forecast" width={W} height={H}>
+            <Phone><HeroA /></Phone>
+          </DCArtboard>
+          <DCArtboard id="b" label="B · Map-led" width={W} height={H}>
+            <Phone><HeroB /></Phone>
+          </DCArtboard>
+          <DCArtboard id="c" label="C · Field log" width={W} height={H}>
+            <Phone><HeroC /></Phone>
+          </DCArtboard>
+          <DCArtboard id="d" label="D · Block pulse" width={W} height={H}>
+            <Phone><HeroD /></Phone>
+          </DCArtboard>
+        </DCSection>
+
+        <DCPostIt top={40} left={40} width={220} rotate={-3}>
+          <b>Design system kept:</b> olive header, terracotta accent, sand body,
+          property pill + on-site chip, Feather icons, FAB Log, same tab bar.
+          Only the area above the agenda changes between directions.
+        </DCPostIt>
+      </DesignCanvas>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>

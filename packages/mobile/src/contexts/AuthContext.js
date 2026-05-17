@@ -89,6 +89,13 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   }, []);
 
+  // Role helpers. Mirrors the shared web AuthContext API so screens can branch
+  // on permissions without duplicating role-string checks. The 5-tier hierarchy
+  // is: auxein_admin > company_admin > company_manager > company_user > contractor.
+  const isContractor = userTypeRole === 'contractor';
+  const isManagerOrAbove = ['auxein_admin', 'company_admin', 'company_manager'].includes(userTypeRole);
+  const isAdmin = ['auxein_admin', 'company_admin'].includes(userTypeRole);
+
   const value = {
     user,
     loading,
@@ -96,6 +103,9 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     initialLoading,
     userTypeRole,
+    isContractor,
+    isManagerOrAbove,
+    isAdmin,
     login,
     logout,
   };

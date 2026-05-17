@@ -219,6 +219,9 @@ class TaskWithRelations(TaskResponse):
     # Assignment count
     assignment_count: int = 0
     assignee_names: List[str] = Field(default_factory=list)
+    assigned_user_ids: List[int] = Field(default_factory=list)
+    contractor_names: List[str] = Field(default_factory=list)
+    assigned_contractor_ids: List[int] = Field(default_factory=list)
     
     # File attachments
     files: List[FileSummary] = Field(default_factory=list)

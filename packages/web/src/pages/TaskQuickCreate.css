@@ -166,6 +166,54 @@
   margin-top: var(--space-md);
 }
 
+/* Multi-select assignee list — replaces the old single <select>. Each row is
+   a clickable label; checked rows get a primary-tinted background. Backend
+   accepts assigned_user_ids: List[int] so any number can be assigned. */
+.quick-create-assignees {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--space-xs);
+  background: var(--color-surface-warm, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.quick-create-assignee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.quick-create-assignee:hover {
+  background: rgba(91, 104, 48, 0.06);
+}
+
+.quick-create-assignee.checked {
+  background: rgba(91, 104, 48, 0.10);
+  font-weight: 600;
+}
+
+.quick-create-assignee input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.quick-create-assignee-count {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .quick-create-steps {
     gap: var(--space-sm);

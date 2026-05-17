@@ -47,7 +47,7 @@ function useScrollDirection() {
 const baseNavItems = [
   { path: '/', label: 'Home', icon: Home },
   { path: '/maps', label: 'Map', icon: MapPin },
-  { path: '/observations', label: 'Vineyard', icon: Grape },
+  { path: '/observations', label: 'Field Work', icon: Grape },
   { path: '/assets', label: 'Assets', icon: Tractor },
   { path: '/calendar', label: 'Calendar', icon: Calendar },
   { path: '/RiskDashboard', label: 'Risks', icon: TriangleAlert },

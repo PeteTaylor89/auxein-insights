@@ -1,9 +1,12 @@
 // screens/GpsTrackingScreen.js — Full-screen GPS tracking overlay (rendered as Modal)
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Alert } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 
-export default function GpsTrackingScreen({ gps, taskTitle, taskNumber, onClose }) {
+export default function GpsTrackingScreen({ gps, taskTitle, taskNumber, onClose, onViewMap }) {
+  const insets = useSafeAreaInsets();
   // Flashing dot animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -59,8 +62,9 @@ export default function GpsTrackingScreen({ gps, taskTitle, taskNumber, onClose 
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back to Task</Text>
+        <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={12} accessibilityLabel="Back to task">
+          <Feather name="chevron-left" size={20} color={colors.white} />
+          <Text style={styles.backText}>Back to task</Text>
         </TouchableOpacity>
         {taskNumber && <Text style={styles.taskNumber}>{taskNumber}</Text>}
       </View>
@@ -123,8 +127,17 @@ export default function GpsTrackingScreen({ gps, taskTitle, taskNumber, onClose 
         <Text style={styles.accuracyText}>GPS Signal: High Accuracy</Text>
       </View>
 
+      {/* View live track on map — slides into the Map tab with the polyline
+          already drawn from the local buffer. Recording continues uninterrupted. */}
+      {onViewMap && (
+        <TouchableOpacity style={styles.viewMapBtn} onPress={onViewMap} activeOpacity={0.8}>
+          <Feather name="map" size={16} color={colors.white} />
+          <Text style={styles.viewMapBtnText}>View live track on Map</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Controls */}
-      <View style={styles.controls}>
+      <View style={[styles.controls, { paddingBottom: spacing.xl + insets.bottom }]}>
         {isPaused ? (
           <TouchableOpacity
             style={[styles.controlBtn, styles.controlBtnResume]}
@@ -162,8 +175,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  backBtn: { paddingVertical: spacing.xs },
-  backText: { color: '#8892b0', fontSize: fontSize.sm, fontWeight: '500' },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  backText: { color: colors.white, fontSize: fontSize.base, fontWeight: '600' },
   taskNumber: { color: '#8892b0', fontSize: fontSize.xs, fontWeight: '500' },
   statusSection: { alignItems: 'center', marginBottom: spacing.md },
   statusDot: { width: 24, height: 24, borderRadius: 12, marginBottom: spacing.sm },
@@ -212,7 +235,22 @@ const styles = StyleSheet.create({
   },
   accuracyDot: { width: 8, height: 8, borderRadius: 4 },
   accuracyText: { color: '#8892b0', fontSize: fontSize.xs },
-  controls: { gap: spacing.md, marginTop: 'auto', paddingBottom: spacing.xl },
+  viewMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    marginBottom: spacing.lg,
+  },
+  viewMapBtnText: { color: colors.white, fontSize: fontSize.sm, fontWeight: '600' },
+  controls: { gap: spacing.md, marginTop: 'auto' /* paddingBottom inline */ },
   controlBtn: { paddingVertical: spacing.base, borderRadius: radius.md, alignItems: 'center' },
   controlBtnPause: { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1.5, borderColor: colors.warning },
   controlBtnPauseText: { color: colors.warning, fontSize: fontSize.base, fontWeight: '600' },

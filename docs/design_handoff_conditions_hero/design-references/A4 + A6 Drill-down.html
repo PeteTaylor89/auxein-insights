@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Auxein · A4 time-of-day + A6 silhouette</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #f0eee9;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  #root { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="brand.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="hero-visuals.jsx"></script>
+<script type="text/babel" src="hero-drill.jsx"></script>
+
+<script type="text/babel">
+  const W = 390;
+  const H = 540;
+
+  // Live scrubber: drag through the day on a single hero card.
+  function TimeScrubber() {
+    const tods = ['dawn', 'morning', 'midday', 'dusk'];
+    const [idx, setIdx] = React.useState(1);
+    return (
+      <HeroPreview
+        treatmentName={`Drag the scrubber — currently ${TIME_OF_DAY[tods[idx]].label}`}
+        blurb="Hooked to time client-side, the overlay shifts continuously through the day."
+      >
+        <PhotoTimedHero tod={tods[idx]} />
+        <div style={{
+          marginTop: 14, padding: '12px 14px',
+          background: AX.surface, border: `1px solid ${AX.border}`,
+          borderRadius: 12,
+        }}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            fontSize: 10, color: AX.textMuted, fontWeight: 600,
+            letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6,
+          }}>
+            {tods.map((t, i) => (
+              <span key={t} style={{ color: i === idx ? AX.olive : AX.textMuted }}>
+                {TIME_OF_DAY[t].label}
+              </span>
+            ))}
+          </div>
+          <input
+            type="range" min={0} max={3} value={idx} step={1}
+            onChange={(e) => setIdx(+e.target.value)}
+            style={{ width: '100%', accentColor: AX.olive }}
+          />
+        </div>
+      </HeroPreview>
+    );
+  }
+
+  function App() {
+    return (
+      <DesignCanvas
+        title="Drill-down · A4 time-of-day overlays + A6 silhouette stylings"
+        subtitle="Neutral base photo + CSS overlay = one hero, four moods. Silhouette: four ways to draw your blocks."
+      >
+        <DCSection
+          id="tod"
+          title="A4 · Time-of-day overlays"
+          subtitle="Same neutral vineyard photo. Only the CSS overlay + greeting + status badge change."
+        >
+          <DCArtboard id="dawn"    label="4a · Dawn"    width={W} height={H}><PhotoDawn /></DCArtboard>
+          <DCArtboard id="morning" label="4b · Morning" width={W} height={H}><PhotoMorning /></DCArtboard>
+          <DCArtboard id="midday"  label="4c · Midday"  width={W} height={H}><PhotoMidday /></DCArtboard>
+          <DCArtboard id="dusk"    label="4d · Dusk"    width={W} height={H}><PhotoDusk /></DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="scrubber"
+          title="A4 · Interactive — scrub through the day"
+          subtitle="Drag the slider to see overlays transition. This is what the home screen would do automatically."
+        >
+          <DCArtboard id="scrub" label="Scrub" width={W} height={H + 80}>
+            <TimeScrubber />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="sil"
+          title="A6 · Property silhouette stylings"
+          subtitle="Same content card, four ways to render your blocks as the hero visual."
+        >
+          <DCArtboard id="6a" label="6a · Filled abstract" width={W} height={H}><SilA /></DCArtboard>
+          <DCArtboard id="6b" label="6b · Outline · labelled" width={W} height={H}><SilB /></DCArtboard>
+          <DCArtboard id="6c" label="6c · Health-tinted" width={W} height={H}><SilC /></DCArtboard>
+          <DCArtboard id="6d" label="6d · Topo + GPS" width={W} height={H}><SilD /></DCArtboard>
+        </DCSection>
+
+        <DCPostIt top={30} left={30} width={260} rotate={-3}>
+          <b>How time-of-day works:</b> a single neutral photo is the base. Four CSS gradient stacks (dawn/morning/midday/dusk) are blended on top, swapped client-side based on the device clock. No image swap, no asset cost — and the greeting + status badge ride along.
+        </DCPostIt>
+        <DCPostIt top={30} right={30} width={240} rotate={2}>
+          <b>Silhouette take:</b> 6c (health-tinted) is the most actionable — your blocks turn amber/red without anyone reading a number. 6d (topo+GPS) is the most "wow." 6b is the safest if we want it to feel quiet.
+        </DCPostIt>
+      </DesignCanvas>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>
