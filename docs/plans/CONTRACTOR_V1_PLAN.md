@@ -1,7 +1,7 @@
 # Contractor V1 — Web + Mobile + Geofencing
 
 **Created:** 2026-05-17
-**Status:** Sprint 1 DONE 2026-05-17. Sprints 2 + 3 pending.
+**Status:** Sprint 1 DONE 2026-05-17. Sprint 2 DONE 2026-05-18. Sprint 3.4 (CheckInScreen) DONE 2026-05-18. Sprint 3.3 + 3.5–3.7 (geofencing) PENDING — convenience features, not V1 blocker.
 **Supersedes:** [CONTRACTOR_MOBILE_PLAN.md](./CONTRACTOR_MOBILE_PLAN.md) — that doc only covered mobile UI hiding; this one covers the full web + mobile + property-geofence stack.
 **Related:**
 - `GROW_COMMERCIAL_RELEASE_PLAN.md` Phase 3 (Relationships card) — this plan executes it
@@ -148,18 +148,22 @@ Three sprints, each independently shippable. ~12–15 dev days total.
 
 After Sprint 1: web admins can set up contractor relationships, assign work, and draw property boundaries on the map. Mobile shell still unchanged — contractors see regular UI.
 
-### Sprint 2 — Mobile contractor shell (~4 days)
+### Sprint 2 — Mobile contractor shell — DONE 2026-05-18
 **Goal: contractors get a purpose-built mobile app.**
 
-| # | What | Effort | Files |
+| # | What | Status | Files |
 |---|---|---|---|
-| 2.1 | Tab navigator branching on `isContractor` — **5-tab layout** (Home / Tasks / Map / Relationships / Profile), no Assets, no Observe | 0.5 d | `AppNavigator.js`, new `RelationshipsScreen.js` placeholder — DONE 2026-05-18 |
-| 2.2 | Contractor Home screen — no hero, check-in card, **today's tasks (deferred to 2.5 — needs `/contractors/me/assignments`)**, FAB → Task / Observation / Incident / Visit. Visit + Observation FAB options are coming-soon toasts; Task + Incident route to existing create screens. | 1 d | new `ContractorHomeScreen.js`, `AppNavigator.js` — DONE 2026-05-18 |
-| 2.3 | Contracts tab — list + detail. New backend `/contractor-management/me/relationships` (list) + `/me/relationships/{id}` (detail), gated on `get_current_contractor`. Mobile `contractorService.js` with `listMyRelationships` / `getMyRelationship`. Stack-wrapped tab so list → detail nav works. | 1 d | NEW backend section in `contractor_management.py`, NEW `contractorService` in mobile `services.js`, NEW `RelationshipsScreen.js` (replaced placeholder) + `RelationshipDetailScreen.js`, `AppNavigator.js` stack wiring — DONE 2026-05-18 |
-| 2.4 | Enhanced Profile — training, insurance, emergency contact, recent movements | 1 d | `ProfileScreen.js` expansion |
-| 2.5 | Tasks tab — contractor-scoped fetch, company/property badges on rows | 0.5 d | `TasksScreen.js` |
+| 2.1 | Tab navigator branching on `isContractor` — **5-tab layout** (Home / Tasks / Map / Contracts / Profile), no Assets, no Observe. Contracts label, route name `Relationships`. | ✅ | `AppNavigator.js`, `RelationshipsScreen.js` placeholder |
+| 2.2 | Contractor Home screen — no hero, check-in card (live state: shows On site + Sign out when active), FAB → Task / Observation / Incident / Visit. | ✅ | `ContractorHomeScreen.js`, `AppNavigator.js` |
+| 2.3 | Contracts tab — list + detail. Backend `/me/relationships` (list) + `/me/relationships/{id}` (detail), gated on `get_current_contractor`. Stack-wrapped tab. | ✅ | `contractor_management.py`, `contractorService` in mobile `services.js`, `RelationshipsScreen.js`, `RelationshipDetailScreen.js`, `AppNavigator.js` |
+| 2.4a | Backend contractor self-service: `/me/profile` (GET/PATCH), `/me/insurance` (PATCH), `/me/password` (POST), `/me/movements` (GET), `/me/insurance/docs` (POST/GET/DELETE/download). S3-backed docs stored against `Contractor.verification_documents` JSON column. | ✅ | `contractor_management.py` |
+| 2.4b | ContractorProfileScreen — hero with verification + insurance status pills; sections for contact, per-policy insurance, docs, biosecurity, recent visits, app info, sign out. | ✅ | `ContractorProfileScreen.js`, `AppNavigator.js` ProfileStack branch |
+| 2.4c | Edit profile + per-policy insurance + change password screens. `FilledInput` gained `secureTextEntry` / `autoCapitalize` / `autoCorrect` pass-through. | ✅ | `EditContractorProfileScreen.js`, `EditContractorInsuranceScreen.js`, `ChangeContractorPasswordScreen.js`, `FilledInput.js` |
+| 2.4d | Insurance doc upload via `expo-document-picker` + delete with native confirm. Section header gained `rightAction` prop alongside existing `onEdit`. | ✅ | `UploadInsuranceDocScreen.js`, `ContractorProfileScreen.js` |
+| 2.5 | Tasks tab — `GET /me/assignments` (joins Company + optionally Task → Block → Property). Contractor branch of TasksScreen with company/property/block badges, filter chips (Active / All), overdue counts, status pills, priority indicator, progress bar. Tap → existing TaskDetail. | ✅ | `contractor_management.py`, `ContractorTasksScreen.js`, `AppNavigator.js` TaskStack branch |
+| 2.5b | **Property-aware contractor self-create flows (Task + Incident + Visit).** Backend: `/me/companies`, `/me/properties?company_id`, `/me/blocks?property_id`, `/me/assignments` POST, `/me/incidents` POST. Migration `add_contractor_incident_reporter` (incidents.reported_by nullable + reported_by_contractor_id FK + CHECK constraint). Mobile: `CheckInScreen`, `CreateContractorAssignmentScreen`, `ContractorCreateIncidentScreen`. Self-logged assignments use the first active company admin/manager as `assigned_by` to satisfy FK. ContractorHomeScreen check-in card now reflects active `ContractorMovement` state with destructive Sign out. | ✅ | `contractor_management.py`, `db/models/incident.py`, `alembic/versions/add_contractor_incident_reporter.py`, three new mobile screens, `services.js` (8 new methods), `AppNavigator.js` HomeStack |
 
-After Sprint 2: contractor logs in, sees a tailored shell. No check-in or geofencing yet — the map still shows everything they have access to.
+After Sprint 2: contractor logs in, sees a tailored shell, can edit profile + insurance + change password + upload insurance docs, view their assigned work, self-log ad-hoc work + incidents, and check in/out of properties manually. Property-aware geofence detection (auto-prompt) is Sprint 3.
 
 ### Sprint 3 — Property polygon drawing + check-in + geofencing (~5 days)
 **Goal: the mobile app is property-aware. Check-in lifecycle works.**
@@ -169,12 +173,17 @@ After Sprint 2: contractor logs in, sees a tailored shell. No check-in or geofen
 | 3.1 | ~~Web Maps V2 — property polygon drawing UI~~ — PULLED FORWARD into Sprint 1.4 (done 2026-05-17) | ✅ | `MapsPage.jsx`, `usePropertiesLayer.js` (new), `PropertiesPanel.jsx`, `DrawingToolbar.jsx` |
 | 3.2 | ~~Backend `/properties/geojson?contractor_scope=true`~~ — PULLED FORWARD into Sprint 1.4 (done 2026-05-17) | ✅ | `api/v1/properties.py` |
 | 3.3 | Mobile `useContractorProperties` hook + point-in-polygon util | 0.5 d | new `hooks/useContractorProperties.js`, `utils/pointInPolygon.js` |
-| 3.4 | Mobile check-in screen wired to `/contractor-movements` | 1 d | new `CheckInScreen.js`, `contractorService.js` |
+| 3.4 | ~~Mobile check-in screen wired to `/contractor-movements`~~ — PULLED FORWARD into Sprint 2.5b (done 2026-05-18). Manual check-in / check-out works. Geofence auto-prompt still pending. | ✅ | `CheckInScreen.js`, `ContractorHomeScreen.js` |
 | 3.5 | Geofence detection on GPS update — derive `currentProperty`, surface chip on Map + Home | 1 d | `ContractorHomeScreen.js`, `MapScreen.js`, new `useGeofence.js` |
 | 3.6 | Auto-prompt sign-in when entering a property polygon (rate-limited, dismissable) | 0.5 d | `useGeofence.js` + toast |
 | 3.7 | Property-aware map: when `currentProperty` set, filter blocks/risks/tasks to that property | 0.5 d | `MapScreen.js` — re-use the existing property scoping pattern |
 
-After Sprint 3: contractor opens the app at the gate of Smith Vineyard, gets prompted to sign in, sees only Smith's data, signs out at end of day.
+After Sprint 3: contractor opens the app at the gate of Smith Vineyard, gets prompted to sign in, sees only Smith's data, signs out at end of day. Currently (post Sprint 2.5b) they still need to manually open the Sign in screen, but the lifecycle works end-to-end.
+
+### Deferred follow-ups (out of Sprint 2 + 3, separate phase)
+- **Quick observation create** (Observation FAB) — needs a new ad-hoc spot create flow. Currently a coming-soon toast.
+- **Property-aware Quick Observation** when the above lands — same scope-picker pattern as Task / Incident.
+- **BUG-001 follow-up** — single-photo 404 on calibration download if it recurs.
 
 ---
 

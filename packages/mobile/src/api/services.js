@@ -359,6 +359,14 @@ export const visitorService = {
   },
 };
 
+// --- Site (prefix: /site) — unified who's on site (visitors + contractors) ---
+export const siteService = {
+  listActive: async () => {
+    const res = await api.get('/site/active');
+    return res.data;
+  },
+};
+
 // --- Risk Actions (prefix: /risk-management) ---
 export const riskActionService = {
   get: async (id) => {

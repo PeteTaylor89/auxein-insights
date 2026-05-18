@@ -10,7 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useProperty } from '../contexts/PropertyContext';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { tasksService, observationService, notificationService, visitorService } from '../api/services';
+import { tasksService, observationService, notificationService, siteService } from '../api/services';
 import { SOURCE_ICONS, SkeletonCard } from '../components';
 import ConditionsHero from '../components/ConditionsHero';
 
@@ -27,21 +27,21 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [activeVisitorCount, setActiveVisitorCount] = useState(0);
+  const [activeOnSiteCount, setActiveOnSiteCount] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, runsRes, unreadRes, visitorsRes] = await Promise.all([
+      const [tasksRes, runsRes, unreadRes, onSiteRes] = await Promise.all([
         tasksService.getUnifiedFeed({ days_ahead: 7 }).catch(() => []),
         observationService.listRuns({ active_only: true }).catch(() => []),
         notificationService.getUnreadCount().catch(() => null),
-        visitorService.listActive().catch(() => []),
+        siteService.listActive().catch(() => null),
       ]);
       setUpcomingTasks(Array.isArray(tasksRes) ? tasksRes.slice(0, 6) : []);
       setActiveRuns(Array.isArray(runsRes) ? runsRes : []);
       setUnreadCount(unreadRes?.count ?? 0);
-      setActiveVisitorCount(Array.isArray(visitorsRes) ? visitorsRes.length : 0);
+      setActiveOnSiteCount(onSiteRes?.total ?? 0);
     } catch (err) {
       console.log('Home load failed:', err.message);
     } finally {
@@ -137,7 +137,7 @@ export default function HomeScreen({ navigation }) {
           >
             <Feather name="users" size={14} color={colors.primary} />
             <Text style={styles.onsiteText}>
-              {activeVisitorCount > 0 ? `${activeVisitorCount} on site` : 'On site'}
+              {activeOnSiteCount > 0 ? `${activeOnSiteCount} on site` : 'On site'}
             </Text>
           </TouchableOpacity>
         </View>

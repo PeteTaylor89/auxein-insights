@@ -66,36 +66,44 @@ class ContractorMovement(Base):
     incidents_occurred = Column(JSON, default=list, nullable=False)  # Any incidents during visit
     emergency_contacts_updated = Column(Boolean, default=False, nullable=False)
     
-    # Check-in/out tracking
-    checked_in_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # Check-in/out tracking — either a user (host-led check-in) OR a contractor
+    # (self-check-in) populates the *_by columns. CHECK constraint at the DB
+    # level enforces that one side is always set for checked_in_by / logged_by.
+    checked_in_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     checked_out_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    checked_in_by_contractor_id = Column(Integer, ForeignKey("contractors.id"), nullable=True)
+    checked_out_by_contractor_id = Column(Integer, ForeignKey("contractors.id"), nullable=True)
     check_in_notes = Column(Text, nullable=True)
     check_out_notes = Column(Text, nullable=True)
-    
+
     # Movement status
     status = Column(String(20), default="in_progress", nullable=False)  # in_progress, completed, incomplete
     completion_notes = Column(Text, nullable=True)
-    
+
     # Metadata
-    logged_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # Who created the record
+    logged_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who created the record (host-led)
+    logged_by_contractor_id = Column(Integer, ForeignKey("contractors.id"), nullable=True)  # Contractor who self-logged
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
-    contractor = relationship("Contractor", back_populates="movements")    
+    contractor = relationship("Contractor", foreign_keys=[contractor_id], back_populates="movements")
     company = relationship(
-        "Company", 
+        "Company",
         foreign_keys=[company_id],  # Use square brackets for column reference
         back_populates="contractor_movements"
     )
     previous_company = relationship(
-        "Company", 
+        "Company",
         foreign_keys=[previous_company_id]  # Use square brackets for column reference
     )
     checked_in_by_user = relationship("User", foreign_keys=[checked_in_by])
     checked_out_by_user = relationship("User", foreign_keys=[checked_out_by])
+    checked_in_by_contractor = relationship("Contractor", foreign_keys=[checked_in_by_contractor_id])
+    checked_out_by_contractor = relationship("Contractor", foreign_keys=[checked_out_by_contractor_id])
     cleaning_verifier = relationship("User", foreign_keys=[cleaning_verified_by])
     logger = relationship("User", foreign_keys=[logged_by])
+    logger_contractor = relationship("Contractor", foreign_keys=[logged_by_contractor_id])
     
     def __repr__(self):
         return f"<ContractorMovement(id={self.id}, contractor_id={self.contractor_id}, company_id={self.company_id}, arrival={self.arrival_datetime})>"

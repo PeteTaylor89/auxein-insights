@@ -383,9 +383,11 @@ class ContractorMovementInDB(ContractorMovementBase):
     visit_duration_hours: Optional[float]
     visit_duration_minutes: Optional[int]
     
-    # Check-in/out tracking
-    checked_in_by: int
-    checked_out_by: Optional[int]
+    # Check-in/out tracking — exactly one of user / contractor side will be set
+    checked_in_by: Optional[int] = None
+    checked_out_by: Optional[int] = None
+    checked_in_by_contractor_id: Optional[int] = None
+    checked_out_by_contractor_id: Optional[int] = None
     check_in_notes: Optional[str]
     check_out_notes: Optional[str]
     

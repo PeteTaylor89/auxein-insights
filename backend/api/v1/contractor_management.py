@@ -1462,6 +1462,7 @@ def contractor_check_in(
         if not contractor_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="contractor_id is required")
 
+    is_contractor_actor = hasattr(current_user, 'contractor_type')
     movement = ContractorMovement(
         contractor_id=contractor_id,
         company_id=company_id,
@@ -1472,8 +1473,10 @@ def contractor_check_in(
         vehicle_registration=check_in.vehicle_registration,
         check_in_notes=check_in.notes,
         status="in_progress",
-        checked_in_by=current_user.id if hasattr(current_user, 'company_id') else None,
-        logged_by=current_user.id if hasattr(current_user, 'company_id') else None,
+        checked_in_by=None if is_contractor_actor else current_user.id,
+        logged_by=None if is_contractor_actor else current_user.id,
+        checked_in_by_contractor_id=current_user.id if is_contractor_actor else None,
+        logged_by_contractor_id=current_user.id if is_contractor_actor else None,
     )
     db.add(movement)
     db.commit()
@@ -1509,7 +1512,10 @@ def contractor_check_out(
     movement.equipment_cleaned = check_out.equipment_cleaned
     movement.check_out_notes = check_out.notes
     movement.status = "completed"
-    movement.checked_out_by = current_user.id if is_company_user else None
+    if is_company_user:
+        movement.checked_out_by = current_user.id
+    elif is_contractor:
+        movement.checked_out_by_contractor_id = current_user.id
 
     db.commit()
     db.refresh(movement)

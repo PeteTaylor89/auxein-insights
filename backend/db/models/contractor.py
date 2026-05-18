@@ -122,7 +122,12 @@ class Contractor(Base):
     
     # Relationships
     company_relationships = relationship("ContractorRelationship", back_populates="contractor", cascade="all, delete-orphan")
-    movements = relationship("ContractorMovement", back_populates="contractor", cascade="all, delete-orphan")
+    movements = relationship(
+        "ContractorMovement",
+        foreign_keys="ContractorMovement.contractor_id",
+        back_populates="contractor",
+        cascade="all, delete-orphan",
+    )
     assignments = relationship("ContractorAssignment", back_populates="contractor", cascade="all, delete-orphan")
     training_records = relationship("ContractorTraining", back_populates="contractor", cascade="all, delete-orphan")
     maintenance_performed = relationship("AssetMaintenance", foreign_keys="AssetMaintenance.performed_by_contractor_id")
