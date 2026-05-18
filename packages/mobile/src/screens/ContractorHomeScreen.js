@@ -14,14 +14,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, StatusBar, Image,
+  TouchableOpacity, StatusBar, Image, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { notificationService } from '../api/services';
+import { notificationService, contractorService } from '../api/services';
 import { useToast } from '../components';
 
 const LOGO_MARK = require('../../assets/brand/logo-mark.png');
@@ -38,12 +38,20 @@ export default function ContractorHomeScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeCheckIn, setActiveCheckIn] = useState(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const unread = await notificationService.getUnreadCount().catch(() => null);
+      const [unread, movements] = await Promise.all([
+        notificationService.getUnreadCount().catch(() => null),
+        contractorService.listMyRecentCheckIns(5).catch(() => []),
+      ]);
       setUnreadCount(unread?.count ?? 0);
+      const active = (Array.isArray(movements) ? movements : [])
+        .find(m => !m.departure_datetime);
+      setActiveCheckIn(active || null);
     } finally {
       setLoading(false);
     }
@@ -51,7 +59,37 @@ export default function ContractorHomeScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  const comingSoon = (label) => toast.show(`${label} arrives in Sprint 3`, 'info');
+  const confirmSignOut = () => {
+    if (!activeCheckIn) return;
+    Alert.alert(
+      'Sign out?',
+      `End your visit to ${activeCheckIn.company_name} now?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            setSigningOut(true);
+            try {
+              await contractorService.checkOut(activeCheckIn.id, {
+                movement_id: activeCheckIn.id,
+              });
+              toast.show('Signed out', 'success');
+              loadData();
+            } catch (err) {
+              const detail = err.response?.data?.detail;
+              toast.show(typeof detail === 'string' ? detail : 'Could not sign out', 'error');
+            } finally {
+              setSigningOut(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const observationComingSoon = () => toast.show('Quick observation arrives in a follow-up', 'info');
 
   return (
     <View style={styles.container}>
@@ -93,26 +131,50 @@ export default function ContractorHomeScreen({ navigation }) {
           />
         }
       >
-        {/* Check-in card — Sprint 3.4 turns this into a real active-check-in
-            card when the geofence + CheckInScreen land. Today it's a CTA stub. */}
-        <View style={styles.checkInCard}>
-          <View style={styles.checkInIconWrap}>
-            <Feather name="map-pin" size={22} color={colors.primary} />
+        {/* Check-in card — reflects active ContractorMovement state. */}
+        {activeCheckIn ? (
+          <View style={[styles.checkInCard, styles.checkInCardActive]}>
+            <View style={[styles.checkInIconWrap, { backgroundColor: colors.success + '18' }]}>
+              <Feather name="check-circle" size={22} color={colors.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkInTitle}>On site</Text>
+              <Text style={styles.checkInBody} numberOfLines={1}>
+                {activeCheckIn.company_name}
+                {activeCheckIn.purpose ? ` · ${activeCheckIn.purpose}` : ''}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.checkInBtn, { backgroundColor: colors.accent }]}
+              onPress={confirmSignOut}
+              disabled={signingOut}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.checkInBtnText}>
+                {signingOut ? '…' : 'Sign out'}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.checkInTitle}>Not checked in</Text>
-            <Text style={styles.checkInBody}>
-              Sign in to a property when you arrive on site.
-            </Text>
+        ) : (
+          <View style={styles.checkInCard}>
+            <View style={styles.checkInIconWrap}>
+              <Feather name="map-pin" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.checkInTitle}>Not checked in</Text>
+              <Text style={styles.checkInBody}>
+                Sign in to a property when you arrive on site.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.checkInBtn}
+              onPress={() => navigation.navigate('CheckIn')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.checkInBtnText}>Sign in</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.checkInBtn}
-            onPress={() => comingSoon('Property check-in')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.checkInBtnText}>Sign in</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Today's work — empty state until Sprint 2.5 wires the contractor
             assignments fetch. */}
@@ -146,28 +208,25 @@ export default function ContractorHomeScreen({ navigation }) {
               icon="map-pin"
               label="Visit"
               color={colors.primary}
-              onPress={() => { setFabOpen(false); comingSoon('Property check-in'); }}
+              onPress={() => { setFabOpen(false); navigation.navigate('CheckIn'); }}
             />
             <FabOption
               icon="alert-octagon"
               label="Incident"
               color={colors.danger}
-              onPress={() => { setFabOpen(false); navigation.navigate('CreateIncident'); }}
+              onPress={() => { setFabOpen(false); navigation.navigate('ContractorCreateIncident'); }}
             />
             <FabOption
               icon="search"
               label="Observation"
               color={colors.success}
-              onPress={() => { setFabOpen(false); toast.show('Quick observation arrives in a follow-up', 'info'); }}
+              onPress={() => { setFabOpen(false); observationComingSoon(); }}
             />
             <FabOption
               icon="clipboard"
               label="Task"
               color={colors.primary}
-              onPress={() => {
-                setFabOpen(false);
-                navigation.navigate('Tasks', { screen: 'CreateTask' });
-              }}
+              onPress={() => { setFabOpen(false); navigation.navigate('CreateContractorAssignment'); }}
             />
           </>
         )}
@@ -241,6 +300,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.border,
     borderLeftWidth: 3, borderLeftColor: colors.primary,
+  },
+  checkInCardActive: {
+    borderLeftColor: colors.success,
+    backgroundColor: colors.successBg,
+    borderColor: colors.successBorder,
   },
   checkInIconWrap: {
     width: 40, height: 40, borderRadius: radius.md,

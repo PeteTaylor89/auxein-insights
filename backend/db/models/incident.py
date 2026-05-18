@@ -35,8 +35,10 @@ class Incident(Base):
     location_description = Column(String(500), nullable=False)
     location = Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)  # GPS coordinates
     
-    # People involved
-    reported_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # People involved — reporter is one of: a company user OR a contractor.
+    # The DB constraint `ck_incidents_reporter_set` ensures at least one is set.
+    reported_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reported_by_contractor_id = Column(Integer, ForeignKey("contractors.id", ondelete="SET NULL"), nullable=True, index=True)
     injured_person_name = Column(String(200), nullable=True)  # May not be a system user
     injured_person_role = Column(String(100), nullable=True)
     injured_person_company = Column(String(200), nullable=True)  # For contractors

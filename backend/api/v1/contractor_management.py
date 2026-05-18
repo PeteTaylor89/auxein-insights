@@ -17,6 +17,10 @@ from db.models.contractor_assignment import ContractorAssignment
 from db.models.contractor_movement import ContractorMovement
 from db.models.contractor_training import ContractorTraining
 from db.models.company import Company
+from db.models.task import Task
+from db.models.block import VineyardBlock
+from db.models.property import Property
+from db.models.incident import Incident
 from api.deps import get_current_user, get_current_user_or_contractor, get_current_contractor
 from core.security.password import get_password_hash, verify_password, is_password_strong
 from services import file_storage
@@ -744,7 +748,357 @@ def list_my_movements(
     } for m, company in rows]
 
 
-# ---- Insurance documents (upload / list / delete / download) ----
+# ---- Assignments (work the contractor is scheduled to do) ----
+
+_ACTIVE_ASSIGNMENT_STATUSES = ("assigned", "accepted", "in_progress", "paused")
+
+
+@router.get("/me/assignments")
+def list_my_assignments(
+    include_completed: bool = Query(False, description="Include completed/cancelled/rejected"),
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """All ContractorAssignments for the authenticated contractor across every
+    company they have a relationship with. Used by the mobile Tasks tab.
+
+    Joins to Company (always) and optionally to Task → Block → Property when
+    the assignment is tied to a specific task. General-work assignments
+    (`task_id IS NULL`) won't have block/property context — that's fine, the
+    work_description is the title in that case."""
+    query = (
+        db.query(ContractorAssignment, Company, Task, VineyardBlock, Property)
+        .join(Company, Company.id == ContractorAssignment.company_id)
+        .outerjoin(Task, Task.id == ContractorAssignment.task_id)
+        .outerjoin(VineyardBlock, VineyardBlock.id == Task.block_id)
+        .outerjoin(Property, Property.id == VineyardBlock.property_id)
+        .filter(ContractorAssignment.contractor_id == current_contractor.id)
+    )
+    if not include_completed:
+        query = query.filter(ContractorAssignment.status.in_(_ACTIVE_ASSIGNMENT_STATUSES))
+
+    # Active first, then by soonest scheduled start (nulls last)
+    rows = query.order_by(
+        ContractorAssignment.status.in_(_ACTIVE_ASSIGNMENT_STATUSES).desc(),
+        ContractorAssignment.scheduled_start.asc().nulls_last(),
+        ContractorAssignment.created_at.desc(),
+    ).all()
+
+    return [{
+        "id": a.id,
+        "task_id": a.task_id,
+        "title": task.title if task else (a.work_description[:80] if a.work_description else 'Untitled work'),
+        "work_description": a.work_description,
+        "assignment_type": a.assignment_type,
+        "status": a.status,
+        "priority": a.priority,
+        "is_overdue": a.is_overdue,
+        "days_overdue": a.days_overdue,
+        "completion_percentage": a.completion_percentage,
+        "scheduled_start": str(a.scheduled_start) if a.scheduled_start else None,
+        "scheduled_end": str(a.scheduled_end) if a.scheduled_end else None,
+        "estimated_hours": float(a.estimated_hours) if a.estimated_hours else None,
+        "actual_hours_worked": float(a.actual_hours_worked) if a.actual_hours_worked else None,
+        # Context badges for the mobile row
+        "company_id": company.id,
+        "company_name": company.name,
+        "block_id": block.id if block else None,
+        "block_name": block.block_name if block else None,
+        "property_id": prop.id if prop else None,
+        "property_name": prop.name if prop else None,
+        # Useful for the warning-chip case: assigned task on a different property
+        # than the contractor is currently checked into (Sprint 3 wires this).
+        "blocks_involved_count": len(a.blocks_involved or []),
+    } for a, company, task, block, prop in rows]
+
+
+# ---- Scope pickers (companies / properties / blocks) ----
+# Surface only the slice of company-side data the contractor can legitimately
+# touch. Used by mobile create-pickers (Task FAB, Incident FAB, Visit FAB).
+
+def _contractor_active_company_ids(db: Session, contractor_id: int) -> List[int]:
+    """List of company_ids the contractor has an active relationship with."""
+    return [
+        r.company_id for r in db.query(ContractorRelationship).filter(
+            ContractorRelationship.contractor_id == contractor_id,
+            ContractorRelationship.status == "active",
+        ).all()
+    ]
+
+
+def _ensure_contractor_can_use_company(db: Session, contractor: Contractor, company_id: int) -> None:
+    """403 if the contractor has no active relationship with the given company."""
+    if company_id not in _contractor_active_company_ids(db, contractor.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No active relationship with this company",
+        )
+
+
+@router.get("/me/companies")
+def list_my_companies(
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """Lightweight company list for mobile pickers (Task/Incident/Visit FABs).
+    Only active relationships."""
+    rows = (
+        db.query(ContractorRelationship, Company)
+        .join(Company, Company.id == ContractorRelationship.company_id)
+        .filter(
+            ContractorRelationship.contractor_id == current_contractor.id,
+            ContractorRelationship.status == "active",
+        )
+        .order_by(
+            (ContractorRelationship.relationship_type == "preferred_contractor").desc(),
+            Company.name.asc(),
+        )
+        .all()
+    )
+    return [{
+        "id": company.id,
+        "name": company.name,
+        "is_preferred": rel.relationship_type == "preferred_contractor",
+        "blocks_access": rel.blocks_access or [],
+    } for rel, company in rows]
+
+
+@router.get("/me/properties")
+def list_my_properties(
+    company_id: Optional[int] = Query(None, description="Restrict to this company's properties"),
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """Properties the contractor can access. Defaults to all properties across
+    every active relationship; pass company_id to scope to a single company."""
+    active_company_ids = _contractor_active_company_ids(db, current_contractor.id)
+    if not active_company_ids:
+        return []
+
+    if company_id is not None:
+        if company_id not in active_company_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No active relationship with this company",
+            )
+        target_company_ids = [company_id]
+    else:
+        target_company_ids = active_company_ids
+
+    properties = (
+        db.query(Property)
+        .filter(Property.owner_company_id.in_(target_company_ids))
+        .order_by(Property.name.asc())
+        .all()
+    )
+    return [{
+        "id": p.id,
+        "name": p.name,
+        "owner_company_id": p.owner_company_id,
+        "region": p.region,
+        "total_area_ha": float(p.total_area_ha) if p.total_area_ha is not None else None,
+    } for p in properties]
+
+
+@router.get("/me/blocks")
+def list_my_blocks(
+    property_id: int = Query(..., description="Property to list blocks for"),
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """Blocks within a property the contractor can access. Validates the
+    property's owner is one of the contractor's active companies."""
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+    if prop.owner_company_id not in _contractor_active_company_ids(db, current_contractor.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No active relationship with this property's owner",
+        )
+
+    blocks = (
+        db.query(VineyardBlock)
+        .filter(VineyardBlock.property_id == property_id)
+        .order_by(VineyardBlock.block_name.asc())
+        .all()
+    )
+    return [{
+        "id": b.id,
+        "block_name": b.block_name,
+        "property_id": b.property_id,
+    } for b in blocks]
+
+
+# ---- Self-create: assignment (Task FAB) and incident (Incident FAB) ----
+
+class ContractorAssignmentSelfCreate(BaseModel):
+    company_id: int
+    work_description: str = Field(min_length=1, max_length=2000)
+    block_id: Optional[int] = None
+    priority: Optional[str] = Field(None, max_length=20)
+    estimated_hours: Optional[float] = None
+    scheduled_start: Optional[datetime] = None
+    scheduled_end: Optional[datetime] = None
+    assignment_type: Optional[str] = Field("general_work", max_length=30)
+
+
+@router.post("/me/assignments", status_code=status.HTTP_201_CREATED)
+def create_my_assignment(
+    payload: ContractorAssignmentSelfCreate,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Contractor self-logs work they're doing for a company. Creates a
+    ContractorAssignment with task_id=NULL — work_description is the title."""
+    _ensure_contractor_can_use_company(db, current_contractor, payload.company_id)
+
+    # The blocks_involved JSON list scopes the assignment to specific blocks.
+    blocks_involved = [payload.block_id] if payload.block_id is not None else []
+
+    # assigned_by is required on the model (FK to users.id). For self-logged work
+    # there is no company user assigner — but we can't use 0/NULL because of FK
+    # constraints. Use the first active manager/admin from that company as a
+    # synthetic assigner so the audit trail still resolves.
+    assigner = (
+        db.query(User)
+        .filter(
+            User.company_id == payload.company_id,
+            User.is_active == True,
+            User.user_type.in_(["company_admin", "company_manager"]),
+        )
+        .order_by(User.id.asc())
+        .first()
+    )
+    if not assigner:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Company has no active admin or manager to record this assignment against",
+        )
+
+    assignment = ContractorAssignment(
+        contractor_id=current_contractor.id,
+        company_id=payload.company_id,
+        task_id=None,
+        assignment_type=payload.assignment_type or "general_work",
+        work_description=payload.work_description,
+        priority=payload.priority or "medium",
+        estimated_hours=payload.estimated_hours,
+        scheduled_start=payload.scheduled_start,
+        scheduled_end=payload.scheduled_end,
+        blocks_involved=blocks_involved,
+        status="in_progress" if payload.scheduled_start is None else "assigned",
+        assigned_by=assigner.id,
+    )
+    if payload.scheduled_start is None:
+        # Self-log of work happening now
+        assignment.actual_start = datetime.now(timezone.utc)
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+
+    return {
+        "id": assignment.id,
+        "status": assignment.status,
+        "company_id": assignment.company_id,
+        "work_description": assignment.work_description,
+    }
+
+
+class ContractorIncidentSelfCreate(BaseModel):
+    company_id: int
+    property_id: Optional[int] = None
+    incident_title: str = Field(min_length=1, max_length=200)
+    incident_description: str = Field(min_length=1)
+    incident_type: str = Field(max_length=50)
+    severity: str = Field(max_length=30)
+    category: str = Field(max_length=50)
+    incident_date: datetime
+    location_description: str = Field(min_length=1, max_length=500)
+    location: Optional[Dict[str, Any]] = None  # GeoJSON Point
+    injured_person_name: Optional[str] = None
+    injured_person_role: Optional[str] = None
+    witness_details: Optional[str] = None
+    immediate_actions_taken: Optional[str] = None
+    is_notifiable: bool = False
+
+
+@router.post("/me/incidents", status_code=status.HTTP_201_CREATED)
+def create_my_incident(
+    payload: ContractorIncidentSelfCreate,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Contractor files an incident at a company they have a relationship with."""
+    _ensure_contractor_can_use_company(db, current_contractor, payload.company_id)
+
+    # Validate the property (if supplied) belongs to that company
+    if payload.property_id is not None:
+        prop = db.query(Property).filter(Property.id == payload.property_id).first()
+        if not prop or prop.owner_company_id != payload.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property does not belong to the selected company",
+            )
+
+    # Generate incident number using the same year-sequence pattern as
+    # backend/api/v1/risk_management.py::create_incident.
+    current_year = datetime.now().year
+    last_in_year = (
+        db.query(Incident)
+        .filter(Incident.incident_number.like(f"INC-{current_year}-%"))
+        .order_by(Incident.id.desc())
+        .first()
+    )
+    if last_in_year and last_in_year.incident_number:
+        try:
+            last_seq = int(last_in_year.incident_number.split("-")[-1])
+        except (ValueError, IndexError):
+            last_seq = 0
+    else:
+        last_seq = 0
+    incident_number = f"INC-{current_year}-{last_seq + 1:04d}"
+
+    # GeoJSON Point → PostGIS WKT
+    location_wkt = None
+    if payload.location and payload.location.get("type") == "Point":
+        coords = payload.location.get("coordinates") or []
+        if len(coords) >= 2:
+            location_wkt = f"SRID=4326;POINT({coords[0]} {coords[1]})"
+
+    incident = Incident(
+        company_id=payload.company_id,
+        property_id=payload.property_id,
+        incident_number=incident_number,
+        incident_title=payload.incident_title,
+        incident_description=payload.incident_description,
+        incident_type=payload.incident_type,
+        severity=payload.severity,
+        category=payload.category,
+        incident_date=payload.incident_date,
+        location_description=payload.location_description,
+        location=location_wkt,
+        injured_person_name=payload.injured_person_name,
+        injured_person_role=payload.injured_person_role,
+        injured_person_company=current_contractor.business_name,
+        witness_details=payload.witness_details,
+        immediate_actions_taken=payload.immediate_actions_taken,
+        is_notifiable=payload.is_notifiable,
+        reported_by=None,
+        reported_by_contractor_id=current_contractor.id,
+    )
+    db.add(incident)
+    db.commit()
+    db.refresh(incident)
+
+    return {
+        "id": incident.id,
+        "incident_number": incident.incident_number,
+        "company_id": incident.company_id,
+        "status": incident.status,
+    }
+
+
 # Stored in Contractor.verification_documents JSON column. Binary content lives
 # in S3 under contractors/{id}/insurance/... (see _make_contractor_doc_s3_key).
 

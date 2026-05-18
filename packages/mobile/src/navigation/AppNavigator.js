@@ -9,6 +9,10 @@ import { useAuth } from '../contexts/AuthContext';
 import HomeScreen from '../screens/HomeScreen';
 import ContractorHomeScreen from '../screens/ContractorHomeScreen';
 import ContractorProfileScreen from '../screens/ContractorProfileScreen';
+import ContractorTasksScreen from '../screens/ContractorTasksScreen';
+import CheckInScreen from '../screens/CheckInScreen';
+import CreateContractorAssignmentScreen from '../screens/CreateContractorAssignmentScreen';
+import ContractorCreateIncidentScreen from '../screens/ContractorCreateIncidentScreen';
 import EditContractorProfileScreen from '../screens/EditContractorProfileScreen';
 import EditContractorInsuranceScreen from '../screens/EditContractorInsuranceScreen';
 import ChangeContractorPasswordScreen from '../screens/ChangeContractorPasswordScreen';
@@ -69,14 +73,34 @@ function HomeStackNavigator() {
       <HomeStack.Screen name="CreateRisk" component={CreateRiskScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="CreateVisitor" component={CreateVisitorScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Visitors" component={VisitorsScreen} options={{ headerShown: false }} />
+      {isContractor && (
+        <>
+          <HomeStack.Screen name="CheckIn" component={CheckInScreen} options={{ title: 'Sign in' }} />
+          <HomeStack.Screen
+            name="CreateContractorAssignment"
+            component={CreateContractorAssignmentScreen}
+            options={{ title: 'Log work' }}
+          />
+          <HomeStack.Screen
+            name="ContractorCreateIncident"
+            component={ContractorCreateIncidentScreen}
+            options={{ title: 'Report incident' }}
+          />
+        </>
+      )}
     </HomeStack.Navigator>
   );
 }
 
 function TasksStackNavigator() {
+  const { isContractor } = useAuth();
   return (
     <TaskStack.Navigator screenOptions={stackScreenOptions}>
-      <TaskStack.Screen name="TaskList" component={TasksScreen} options={{ title: 'My Tasks' }} />
+      <TaskStack.Screen
+        name="TaskList"
+        component={isContractor ? ContractorTasksScreen : TasksScreen}
+        options={{ title: isContractor ? 'My Work' : 'My Tasks' }}
+      />
       <TaskStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task Detail' }} />
       <TaskStack.Screen name="CreateTask" component={CreateTaskScreen} options={{ headerShown: false }} />
     </TaskStack.Navigator>

@@ -506,6 +506,49 @@ export const contractorService = {
     const res = await api.get('/v1/contractor-management/me/movements', { params: { limit } });
     return res.data;
   },
+  listMyAssignments: async (params = {}) => {
+    const res = await api.get('/v1/contractor-management/me/assignments', { params });
+    return res.data;
+  },
+  // Scope pickers for the create flows
+  listMyCompanies: async () => {
+    const res = await api.get('/v1/contractor-management/me/companies');
+    return res.data;
+  },
+  listMyScopedProperties: async (companyId) => {
+    const params = companyId != null ? { company_id: companyId } : {};
+    const res = await api.get('/v1/contractor-management/me/properties', { params });
+    return res.data;
+  },
+  listMyScopedBlocks: async (propertyId) => {
+    const res = await api.get('/v1/contractor-management/me/blocks', { params: { property_id: propertyId } });
+    return res.data;
+  },
+  // Self-create flows
+  createMyAssignment: async (payload) => {
+    const res = await api.post('/v1/contractor-management/me/assignments', payload);
+    return res.data;
+  },
+  createMyIncident: async (payload) => {
+    const res = await api.post('/v1/contractor-management/me/incidents', payload);
+    return res.data;
+  },
+  // Check-in (Visit FAB) — router is mounted at /api/v1/contractor-management,
+  // so paths need the /v1/ segment just like the /me/* endpoints.
+  checkIn: async (payload) => {
+    const res = await api.post('/v1/contractor-management/contractor-movements/check-in', payload);
+    return res.data;
+  },
+  checkOut: async (movementId, payload = {}) => {
+    const res = await api.post(`/v1/contractor-management/contractor-movements/${movementId}/check-out`, payload);
+    return res.data;
+  },
+  listMyRecentCheckIns: async (limit = 5) => {
+    // /me/movements returns the contractor's own movements ordered by arrival
+    // desc; mobile filters for the active one (no departure_datetime) client-side.
+    const res = await api.get('/v1/contractor-management/me/movements', { params: { limit } });
+    return res.data;
+  },
   // Insurance documents
   listMyInsuranceDocs: async () => {
     const res = await api.get('/v1/contractor-management/me/insurance/docs');
