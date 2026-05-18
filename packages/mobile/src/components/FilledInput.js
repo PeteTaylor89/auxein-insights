@@ -1,7 +1,7 @@
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 
-export default function FilledInput({ label, required, value, onChangeText, placeholder, multiline, numberOfLines, keyboardType, editable = true, style }) {
+export default function FilledInput({ label, required, value, onChangeText, placeholder, multiline, numberOfLines, keyboardType, editable = true, style, secureTextEntry, autoCapitalize, autoCorrect }) {
   const isFilled = value != null && String(value).trim().length > 0;
 
   return (
@@ -26,6 +26,9 @@ export default function FilledInput({ label, required, value, onChangeText, plac
         numberOfLines={numberOfLines}
         keyboardType={keyboardType}
         editable={editable}
+        secureTextEntry={secureTextEntry}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
       />
     </View>
   );

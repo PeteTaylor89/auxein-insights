@@ -1,7 +1,7 @@
 # Contractor V1 — Web + Mobile + Geofencing
 
 **Created:** 2026-05-17
-**Status:** Approved, not started
+**Status:** Sprint 1 DONE 2026-05-17. Sprints 2 + 3 pending.
 **Supersedes:** [CONTRACTOR_MOBILE_PLAN.md](./CONTRACTOR_MOBILE_PLAN.md) — that doc only covered mobile UI hiding; this one covers the full web + mobile + property-geofence stack.
 **Related:**
 - `GROW_COMMERCIAL_RELEASE_PLAN.md` Phase 3 (Relationships card) — this plan executes it
@@ -85,16 +85,25 @@ Currently `properties` table has no geometry. Required for geofencing AND for vi
 
 ### D. Mobile — contractor-specific shell
 
-Tab navigator branches on `useAuth().isContractor`. Contractor layout = 6 tabs:
+Tab navigator branches on `useAuth().isContractor`. Contractor layout = **5 tabs** (no Observe — contractors do ad-hoc observations from the FAB, not planned runs; no Assets):
 
 | Tab | Behaviour |
 |---|---|
-| **Home** | NO `ConditionsHero`. Replaced with: active check-in card (or "Not checked in" CTA), today's assigned tasks (top 3), FAB → Observation / Incident only |
-| **Tasks** | List of contractor's `ContractorAssignment`s. Each row: company badge, property badge, task title, due date. Tap → TaskDetail (existing screen). No create button. |
+| **Home** | NO `ConditionsHero`. Replaced with: active check-in card (or "Not checked in" CTA), today's assigned tasks (top 3), **FAB → Task / Observation / Incident / Visit**. |
+| **Tasks** | List of contractor's `ContractorAssignment`s. Each row: company badge, property badge, task title, due date. Tap → TaskDetail (existing screen). No create button on the tab — ad-hoc task self-logging happens via the Home FAB. |
 | **Map** | Property-aware filtering (§E). Contractor only sees blocks/risks/tasks for their `currentProperty`. Manual override via property pill is still available. |
-| **Observe** | Unchanged. Observation creation works the same. |
-| **Relationships** (NEW) | List of company relationships: company name, status, rate, last worked. Tap → detail with permitted blocks, recent assignments, contract info. |
+| **Contracts** (NEW, route name `Relationships`) | List of company relationships: company name, status, rate, last worked. Tap → detail with permitted blocks, recent assignments, contract info. Label is "Contracts" (shorter, renders better on small screens — decided 2026-05-18); internal route + data model keep the `Relationship` naming. |
 | **Profile** | The contractor's portal: contact info, password change, training records (read), insurance status (read), notification prefs, recent movements (last 10). |
+
+**FAB lock (decided 2026-05-18):**
+- **Task** — ad-hoc self-log of work done (for the case where they undertake work on behalf of a company that wasn't pre-assigned). Routes to a contractor variant of `CreateTaskScreen` or a simplified self-log.
+- **Observation** — ad-hoc one-off observation (NOT an observation run). Reuses existing single-observation create path.
+- **Incident** — existing `CreateIncidentScreen`, no changes.
+- **Visit** — contractor property check-in. **NOT the visitor register** — reuses the `ContractorMovement` model from §E / Sprint 3. Contractors cannot sign in other visitors; they can only check themselves in. This means the Sprint 3 `CheckInScreen` needs to be reachable from the FAB even before the geofence trigger lands (cross-sprint dependency — Sprint 2.2 will stub if necessary).
+- **Risk — explicitly NOT in the FAB.** Contractors cannot create risks.
+
+**Property-aware contractor create flows (decided 2026-05-18):**
+When a contractor uses the FAB to log a **Task** or **Incident**, the create screens must let them pick which **company** (from active relationships) and which **property/block** (within that company's permitted set) the record belongs to — otherwise these rows have no `company_id` / `property_id` / `block_id` and can't be reported on or filtered. For company-user callers these fields are implicit; for contractor callers they're an explicit choice. Sprint 3.5 wires `currentProperty` from check-in, so once a contractor is checked in the picker pre-fills; before check-in (or when logging from off-site), the picker is mandatory. Same pattern applies to ad-hoc Observation when that screen lands. This is a follow-up tracked against Sprint 2.5 (Task) and a new cross-cutting ticket (Incident + Observation).
 
 ### E. Property-aware map — geofencing
 
@@ -119,26 +128,34 @@ Tab navigator branches on `useAuth().isContractor`. Contractor layout = 6 tabs:
 
 Three sprints, each independently shippable. ~12–15 dev days total.
 
-### Sprint 1 — Web foundation (~3 days)
+### Sprint 1 — Web foundation (~3 days) — DONE 2026-05-17
+
 **Goal: a company admin can create relationships and assign tasks to contractors.**
 
-| # | What | Effort | Files |
+| # | What | Status | Files |
 |---|---|---|---|
-| 1.1 | Web Relationships UI — Contractor card (list + create + edit + suspend) | 1.5 d | `CompanyAdmin.jsx` RelationshipsTab, new `ContractorRelationshipsList.jsx`, `CreateRelationshipModal.jsx` |
-| 1.2 | Task-create UI: multi-select contractor picker beside user picker | 0.5 d | `TaskQuickCreate.jsx`, `TaskCreationWizard.jsx` |
-| 1.3 | Task-create handler: POST `/tasks/{id}/contractor-assignments` per selected contractor | 0.5 d | Same files; backend already exists |
-| 1.4 | Property polygon — Alembic migration + property model update + `/properties/geojson` endpoint | 0.5 d | `alembic/versions/`, `db/models/property.py`, `api/v1/properties.py` |
+| 1.1 | Web Relationships UI — directory picker, two-step Create modal, list with preferred sort, suspend/reactivate/terminate | ✅ | `ContractorRelationships.jsx` (new), `CompanyAdmin.jsx` RelationshipsTab |
+| 1.2 | Task-create UI: multi-select contractor picker beside user picker (sorted preferred-first with star indicator) | ✅ | `TaskQuickCreate.jsx`, `TaskCreationWizard.jsx` |
+| 1.3 | Task-create handler: loops POST `/tasks/{id}/contractor-assignments` per selected contractor | ✅ | Folded into 1.2 |
+| 1.4 | Property polygon — Alembic migration + model + `/properties/geojson` endpoint + drawing UI on /maps (pulled forward from Sprint 3) | ✅ | `add_property_geometry.py`, `db/models/property.py`, `schemas/property.py`, `api/v1/properties.py`, `usePropertiesLayer.js` (new), `MapsPage.jsx`, `PropertiesPanel.jsx`, `DrawingToolbar.jsx` |
 
-After Sprint 1: web admins can fully set up contractor relationships and assign work. Mobile is unchanged — contractors still see the regular shell.
+**Extras shipped in same window (not Sprint 1 scope but adjacent):**
+- Backend `_display_name` helper + friendlier assignee names on task list responses
+- `TaskWithRelations` schema gained `contractor_names`, `assigned_contractor_ids`, `assigned_user_ids`
+- `/observations` restructure → "Field Work" with asset-style tabs, default tab = Task Management
+- Task Management table: always-visible multi-select chip filters (Status / Category / Priority / Location / Assignee / Contractor), tightened columns, clickable rows
+- Task Detail expansion: Overview / Assignments / Description / Activity sections + Edit modal
+
+After Sprint 1: web admins can set up contractor relationships, assign work, and draw property boundaries on the map. Mobile shell still unchanged — contractors see regular UI.
 
 ### Sprint 2 — Mobile contractor shell (~4 days)
 **Goal: contractors get a purpose-built mobile app.**
 
 | # | What | Effort | Files |
 |---|---|---|---|
-| 2.1 | Tab navigator branching on `isContractor` — 6-tab layout, no Assets | 0.5 d | `AppNavigator.js` |
-| 2.2 | Contractor Home screen — no hero, check-in card, today's tasks, FAB → Observation/Incident | 1 d | new `ContractorHomeScreen.js`, or branch inside `HomeScreen.js` |
-| 2.3 | Relationships tab — list + detail | 1 d | new `RelationshipsScreen.js`, `RelationshipDetailScreen.js`, `contractorService.js` |
+| 2.1 | Tab navigator branching on `isContractor` — **5-tab layout** (Home / Tasks / Map / Relationships / Profile), no Assets, no Observe | 0.5 d | `AppNavigator.js`, new `RelationshipsScreen.js` placeholder — DONE 2026-05-18 |
+| 2.2 | Contractor Home screen — no hero, check-in card, **today's tasks (deferred to 2.5 — needs `/contractors/me/assignments`)**, FAB → Task / Observation / Incident / Visit. Visit + Observation FAB options are coming-soon toasts; Task + Incident route to existing create screens. | 1 d | new `ContractorHomeScreen.js`, `AppNavigator.js` — DONE 2026-05-18 |
+| 2.3 | Contracts tab — list + detail. New backend `/contractor-management/me/relationships` (list) + `/me/relationships/{id}` (detail), gated on `get_current_contractor`. Mobile `contractorService.js` with `listMyRelationships` / `getMyRelationship`. Stack-wrapped tab so list → detail nav works. | 1 d | NEW backend section in `contractor_management.py`, NEW `contractorService` in mobile `services.js`, NEW `RelationshipsScreen.js` (replaced placeholder) + `RelationshipDetailScreen.js`, `AppNavigator.js` stack wiring — DONE 2026-05-18 |
 | 2.4 | Enhanced Profile — training, insurance, emergency contact, recent movements | 1 d | `ProfileScreen.js` expansion |
 | 2.5 | Tasks tab — contractor-scoped fetch, company/property badges on rows | 0.5 d | `TasksScreen.js` |
 
@@ -149,8 +166,8 @@ After Sprint 2: contractor logs in, sees a tailored shell. No check-in or geofen
 
 | # | What | Effort | Files |
 |---|---|---|---|
-| 3.1 | Web Maps V2 — property polygon drawing UI | 1 d | `maps-v2/components/drawing/` new component |
-| 3.2 | Backend `/properties/geojson?contractor_scope=true` | 0.5 d | `api/v1/properties.py` |
+| 3.1 | ~~Web Maps V2 — property polygon drawing UI~~ — PULLED FORWARD into Sprint 1.4 (done 2026-05-17) | ✅ | `MapsPage.jsx`, `usePropertiesLayer.js` (new), `PropertiesPanel.jsx`, `DrawingToolbar.jsx` |
+| 3.2 | ~~Backend `/properties/geojson?contractor_scope=true`~~ — PULLED FORWARD into Sprint 1.4 (done 2026-05-17) | ✅ | `api/v1/properties.py` |
 | 3.3 | Mobile `useContractorProperties` hook + point-in-polygon util | 0.5 d | new `hooks/useContractorProperties.js`, `utils/pointInPolygon.js` |
 | 3.4 | Mobile check-in screen wired to `/contractor-movements` | 1 d | new `CheckInScreen.js`, `contractorService.js` |
 | 3.5 | Geofence detection on GPS update — derive `currentProperty`, surface chip on Map + Home | 1 d | `ContractorHomeScreen.js`, `MapScreen.js`, new `useGeofence.js` |
@@ -173,6 +190,9 @@ After Sprint 3: contractor opens the app at the gate of Smith Vineyard, gets pro
 ## Out of scope for V1 (defer)
 
 - **Contractor self-signup** — Auxein admin creates accounts manually. Confirmed by Pete.
+- **Contractor logging other visitors** — decided 2026-05-18. Contractors cannot use the visitor sign-in flow to register anyone else. They can only check themselves into a property via the ContractorMovement check-in.
+- **Contractor creating risks** — decided 2026-05-18. Risk creation is for company users/managers/admins. Contractors can still flag issues via Observation or Incident.
+- **Planned observation runs for contractors** — decided 2026-05-18. Contractors do not get the Observe tab. They log ad-hoc one-off observations via the Home FAB. Multi-spot observation runs remain a company-user feature.
 - **Biosecurity workflow on check-in** — model has fields, basic UI in V1 (equipment cleaned y/n + notes), full biosecurity workflow is v0.2
 - **Contractor invoicing / billing** — rates + cost tracking already in the model, invoicing UI is a separate epic
 - **Training-required gates on task assignment** — model supports it, but blocking work without training is v0.2

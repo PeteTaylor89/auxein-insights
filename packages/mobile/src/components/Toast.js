@@ -1,5 +1,5 @@
 // components/Toast.js — Lightweight in-app toast (no external deps)
-import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
@@ -37,8 +37,14 @@ export function ToastProvider({ children }) {
 
   const v = toast ? VARIANTS[toast.variant] || VARIANTS.info : null;
 
+  // Memoise the context value so screens that consume `useToast()` in their
+  // hook dependency arrays (e.g. useFocusEffect → useCallback([toast])) don't
+  // re-fire on every provider re-render. Without this, a toast triggered from
+  // a failing fetch can cascade into an infinite re-fetch loop.
+  const ctxValue = useMemo(() => ({ show, hide }), [show, hide]);
+
   return (
-    <ToastContext.Provider value={{ show, hide }}>
+    <ToastContext.Provider value={ctxValue}>
       {children}
       {toast && v && (
         <Animated.View style={[styles.wrap, { transform: [{ translateY }] }]} pointerEvents="box-none">

@@ -471,3 +471,57 @@ export const riskService = {
     return res.data;
   },
 };
+
+// --- Contractor self-service (prefix: /v1/contractor-management/me) ---
+// Only callable when signed in as a contractor — backend enforces via
+// get_current_contractor on /me/* endpoints. Router is mounted at
+// /api/v1/contractor-management, so paths need the /v1/ segment.
+export const contractorService = {
+  listMyRelationships: async () => {
+    const res = await api.get('/v1/contractor-management/me/relationships');
+    return res.data;
+  },
+  getMyRelationship: async (relationshipId) => {
+    const res = await api.get(`/v1/contractor-management/me/relationships/${relationshipId}`);
+    return res.data;
+  },
+  // Profile + insurance + biosecurity (full record)
+  getMyProfile: async () => {
+    const res = await api.get('/v1/contractor-management/me/profile');
+    return res.data;
+  },
+  updateMyProfile: async (patch) => {
+    const res = await api.patch('/v1/contractor-management/me/profile', patch);
+    return res.data;
+  },
+  updateMyInsurance: async (patch) => {
+    const res = await api.patch('/v1/contractor-management/me/insurance', patch);
+    return res.data;
+  },
+  changeMyPassword: async (current_password, new_password) => {
+    const res = await api.post('/v1/contractor-management/me/password', { current_password, new_password });
+    return res.data;
+  },
+  listMyMovements: async (limit = 10) => {
+    const res = await api.get('/v1/contractor-management/me/movements', { params: { limit } });
+    return res.data;
+  },
+  // Insurance documents
+  listMyInsuranceDocs: async () => {
+    const res = await api.get('/v1/contractor-management/me/insurance/docs');
+    return res.data;
+  },
+  uploadMyInsuranceDoc: async ({ uri, name, mime, policy_type, expires_at }) => {
+    const form = new FormData();
+    form.append('policy_type', policy_type);
+    if (expires_at) form.append('expires_at', expires_at);
+    form.append('file', { uri, name, type: mime });
+    const res = await api.post('/v1/contractor-management/me/insurance/docs', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+  deleteMyInsuranceDoc: async (docId) => {
+    await api.delete(`/v1/contractor-management/me/insurance/docs/${docId}`);
+  },
+};

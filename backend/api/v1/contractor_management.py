@@ -1,9 +1,13 @@
 # api/v1/contractor_management.py - Contractor management endpoints (Phase B, Grow V1)
 import logging
-from datetime import datetime, timezone
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+import uuid
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File as FastAPIFile, Form
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from db.session import get_db
 from db.models.user import User
@@ -12,7 +16,10 @@ from db.models.contractor_relationship import ContractorRelationship
 from db.models.contractor_assignment import ContractorAssignment
 from db.models.contractor_movement import ContractorMovement
 from db.models.contractor_training import ContractorTraining
-from api.deps import get_current_user, get_current_user_or_contractor
+from db.models.company import Company
+from api.deps import get_current_user, get_current_user_or_contractor, get_current_contractor
+from core.security.password import get_password_hash, verify_password, is_password_strong
+from services import file_storage
 from schemas.contractor import (
     ContractorRelationshipCreate, ContractorRelationshipUpdate,
     ContractorAssignmentCreate, ContractorAssignmentUpdate,
@@ -21,6 +28,115 @@ from schemas.contractor import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ---- Self-service payload schemas (inline — only used by /me/* endpoints) ----
+
+class ContractorProfileUpdate(BaseModel):
+    business_name: Optional[str] = Field(None, max_length=200)
+    business_number: Optional[str] = Field(None, max_length=50)
+    contact_person: Optional[str] = Field(None, max_length=100)
+    phone: Optional[str] = Field(None, max_length=20)
+    mobile: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = None
+    contractor_type: Optional[str] = Field(None, max_length=50)
+    specializations: Optional[List[str]] = None
+    equipment_owned: Optional[List[str]] = None
+    has_cleaning_protocols: Optional[bool] = None
+    cleaning_equipment_owned: Optional[List[str]] = None
+    uses_approved_disinfectants: Optional[bool] = None
+
+
+class ContractorInsuranceUpdate(BaseModel):
+    public_liability_insurer: Optional[str] = Field(None, max_length=100)
+    public_liability_policy_number: Optional[str] = Field(None, max_length=100)
+    public_liability_coverage_amount: Optional[float] = None
+    public_liability_expiry: Optional[date] = None
+    professional_indemnity_insurer: Optional[str] = Field(None, max_length=100)
+    professional_indemnity_policy_number: Optional[str] = Field(None, max_length=100)
+    professional_indemnity_coverage_amount: Optional[float] = None
+    professional_indemnity_expiry: Optional[date] = None
+    workers_comp_required: Optional[bool] = None
+    workers_comp_insurer: Optional[str] = Field(None, max_length=100)
+    workers_comp_policy_number: Optional[str] = Field(None, max_length=100)
+    workers_comp_expiry: Optional[date] = None
+    equipment_insurance_insurer: Optional[str] = Field(None, max_length=100)
+    equipment_insurance_coverage_amount: Optional[float] = None
+    equipment_insurance_expiry: Optional[date] = None
+    vehicle_insurance_insurer: Optional[str] = Field(None, max_length=100)
+    vehicle_insurance_policy_number: Optional[str] = Field(None, max_length=100)
+    vehicle_insurance_expiry: Optional[date] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+POLICY_TYPES = {
+    "public_liability",
+    "professional_indemnity",
+    "workers_comp",
+    "equipment_insurance",
+    "vehicle_insurance",
+    "other",
+}
+
+
+def _contractor_profile_dict(c: Contractor) -> Dict[str, Any]:
+    """Full contractor profile payload used by /me/profile GET + write responses."""
+    return {
+        "id": c.id,
+        "business_name": c.business_name,
+        "business_number": c.business_number,
+        "contact_person": c.contact_person,
+        "email": c.email,
+        "phone": c.phone,
+        "mobile": c.mobile,
+        "address": c.address,
+        "contractor_type": c.contractor_type,
+        "specializations": c.specializations or [],
+        "equipment_owned": c.equipment_owned or [],
+        # Insurance — all five policies surfaced flat
+        "public_liability_insurer": c.public_liability_insurer,
+        "public_liability_policy_number": c.public_liability_policy_number,
+        "public_liability_coverage_amount": float(c.public_liability_coverage_amount) if c.public_liability_coverage_amount else None,
+        "public_liability_expiry": str(c.public_liability_expiry) if c.public_liability_expiry else None,
+        "professional_indemnity_insurer": c.professional_indemnity_insurer,
+        "professional_indemnity_policy_number": c.professional_indemnity_policy_number,
+        "professional_indemnity_coverage_amount": float(c.professional_indemnity_coverage_amount) if c.professional_indemnity_coverage_amount else None,
+        "professional_indemnity_expiry": str(c.professional_indemnity_expiry) if c.professional_indemnity_expiry else None,
+        "workers_comp_required": c.workers_comp_required,
+        "workers_comp_insurer": c.workers_comp_insurer,
+        "workers_comp_policy_number": c.workers_comp_policy_number,
+        "workers_comp_expiry": str(c.workers_comp_expiry) if c.workers_comp_expiry else None,
+        "equipment_insurance_insurer": c.equipment_insurance_insurer,
+        "equipment_insurance_coverage_amount": float(c.equipment_insurance_coverage_amount) if c.equipment_insurance_coverage_amount else None,
+        "equipment_insurance_expiry": str(c.equipment_insurance_expiry) if c.equipment_insurance_expiry else None,
+        "vehicle_insurance_insurer": c.vehicle_insurance_insurer,
+        "vehicle_insurance_policy_number": c.vehicle_insurance_policy_number,
+        "vehicle_insurance_expiry": str(c.vehicle_insurance_expiry) if c.vehicle_insurance_expiry else None,
+        "insurance_status": c.insurance_status,
+        # Biosecurity
+        "has_cleaning_protocols": c.has_cleaning_protocols,
+        "cleaning_equipment_owned": c.cleaning_equipment_owned or [],
+        "uses_approved_disinfectants": c.uses_approved_disinfectants,
+        "biosecurity_risk_level": c.biosecurity_risk_level,
+        # Verification + status
+        "is_active": c.is_active,
+        "is_verified": c.is_verified,
+        "verification_level": c.verification_level,
+        "registration_status": c.registration_status,
+        "total_jobs_completed": c.total_jobs_completed,
+        "average_rating": float(c.average_rating) if c.average_rating else 0.0,
+    }
+
+
+def _make_contractor_doc_s3_key(contractor_id: int, stored_filename: str, on_date: Optional[date] = None) -> str:
+    """Contractor-scoped S3 key — NOT under a company prefix because contractor
+    insurance docs belong to the contractor, not any single company they work for."""
+    today = on_date or date.today()
+    return f"contractors/{contractor_id}/insurance/{today.year}/{today.month:02d}/{stored_filename}"
 
 
 # ==================== B1: CONTRACTOR MANAGEMENT ====================
@@ -416,6 +532,353 @@ def verify_contractor_insurance(
     db.commit()
 
     return {"message": "Insurance verified", "verification_level": contractor.verification_level}
+
+
+# ==================== CONTRACTOR SELF-SERVICE ====================
+# Endpoints a contractor calls against THEIR OWN data, across all companies they
+# have relationships with. Gated on get_current_contractor (rejects user tokens).
+
+@router.get("/me/relationships")
+def list_my_relationships(
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+):
+    """Return every contractor relationship for the authenticated contractor,
+    joined with company name. Used by mobile Contracts tab."""
+    rows = (
+        db.query(ContractorRelationship, Company)
+        .join(Company, Company.id == ContractorRelationship.company_id)
+        .filter(ContractorRelationship.contractor_id == current_contractor.id)
+        .order_by(
+            # preferred contractors first, then active before everything else,
+            # then most-recently-worked
+            (ContractorRelationship.relationship_type == "preferred_contractor").desc(),
+            (ContractorRelationship.status == "active").desc(),
+            ContractorRelationship.last_worked_date.desc().nulls_last(),
+        )
+        .all()
+    )
+
+    return [{
+        "id": rel.id,
+        "company_id": company.id,
+        "company_name": company.name,
+        "status": rel.status,
+        "relationship_type": rel.relationship_type,
+        "is_preferred": rel.relationship_type == "preferred_contractor",
+        "hourly_rate": float(rel.hourly_rate) if rel.hourly_rate else None,
+        "daily_rate": float(rel.daily_rate) if rel.daily_rate else None,
+        "currency": rel.currency,
+        "contract_start": str(rel.contract_start) if rel.contract_start else None,
+        "contract_end": str(rel.contract_end) if rel.contract_end else None,
+        "contract_status": rel.contract_status,
+        "last_worked_date": str(rel.last_worked_date) if rel.last_worked_date else None,
+        "jobs_completed_for_company": rel.jobs_completed_for_company,
+        "total_hours_worked": float(rel.total_hours_worked or 0),
+        "blocks_access": rel.blocks_access or [],
+        "required_training_modules": rel.required_training_modules or [],
+        "completed_training_modules": rel.completed_training_modules or [],
+        "has_required_training": rel.has_required_training(),
+        "contractor_notes": rel.contractor_notes,
+        "can_work_today": rel.can_work_today,
+    } for rel, company in rows]
+
+
+@router.get("/me/relationships/{relationship_id}")
+def get_my_relationship(
+    relationship_id: int,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+):
+    """Detail view for a single relationship the authenticated contractor owns."""
+    rel = db.query(ContractorRelationship).filter(
+        ContractorRelationship.id == relationship_id,
+        ContractorRelationship.contractor_id == current_contractor.id,
+    ).first()
+    if not rel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relationship not found")
+
+    company = db.query(Company).filter(Company.id == rel.company_id).first()
+
+    return {
+        "id": rel.id,
+        "company_id": rel.company_id,
+        "company_name": company.name if company else "Unknown",
+        "status": rel.status,
+        "relationship_type": rel.relationship_type,
+        "is_preferred": rel.relationship_type == "preferred_contractor",
+        "hourly_rate": float(rel.hourly_rate) if rel.hourly_rate else None,
+        "daily_rate": float(rel.daily_rate) if rel.daily_rate else None,
+        "currency": rel.currency,
+        "preferred_payment_terms": rel.preferred_payment_terms,
+        "contract_start": str(rel.contract_start) if rel.contract_start else None,
+        "contract_end": str(rel.contract_end) if rel.contract_end else None,
+        "contract_status": rel.contract_status,
+        "days_until_contract_end": rel.days_until_contract_end,
+        "last_worked_date": str(rel.last_worked_date) if rel.last_worked_date else None,
+        "jobs_completed_for_company": rel.jobs_completed_for_company,
+        "total_hours_worked": float(rel.total_hours_worked or 0),
+        "total_amount_paid": float(rel.total_amount_paid or 0),
+        "company_rating": float(rel.company_rating or 0),
+        "blocks_access": rel.blocks_access or [],
+        "areas_restricted": rel.areas_restricted or [],
+        "preferred_work_types": rel.preferred_work_types or [],
+        "work_restrictions": rel.work_restrictions or [],
+        "required_training_modules": rel.required_training_modules or [],
+        "completed_training_modules": rel.completed_training_modules or [],
+        "missing_training": rel.get_missing_training(),
+        "has_required_training": rel.has_required_training(),
+        "requires_supervision": rel.requires_supervision,
+        "can_create_observations": rel.can_create_observations,
+        "can_update_tasks": rel.can_update_tasks,
+        "contractor_notes": rel.contractor_notes,
+        "emergency_contact_name": rel.emergency_contact_name,
+        "emergency_contact_phone": rel.emergency_contact_phone,
+        "can_work_today": rel.can_work_today,
+    }
+
+
+# ---- Profile (self) ----
+
+@router.get("/me/profile")
+def get_my_profile(
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Full contractor profile + insurance + biosecurity. Used by mobile Profile tab."""
+    return _contractor_profile_dict(current_contractor)
+
+
+@router.patch("/me/profile")
+def update_my_profile(
+    payload: ContractorProfileUpdate,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Update editable profile fields. Email is intentionally not editable here —
+    it's the login identifier and would need a separate verification flow.
+
+    Re-queries `contractor` via this request's `db` because the instance
+    returned by `get_current_contractor` is attached to a different session
+    in some setups (FastAPI dep caching subtleties around yielded deps).
+    Mutating the re-queried object guarantees commit + refresh work."""
+    contractor = db.query(Contractor).filter(Contractor.id == current_contractor.id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(contractor, field, value)
+    db.commit()
+    db.refresh(contractor)
+    return _contractor_profile_dict(contractor)
+
+
+@router.patch("/me/insurance")
+def update_my_insurance(
+    payload: ContractorInsuranceUpdate,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Update insurance policy fields. PATCH so the mobile can submit one
+    policy section at a time without clobbering the others."""
+    contractor = db.query(Contractor).filter(Contractor.id == current_contractor.id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(contractor, field, value)
+    db.commit()
+    db.refresh(contractor)
+    return _contractor_profile_dict(contractor)
+
+
+@router.post("/me/password")
+def change_my_password(
+    payload: PasswordChange,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, str]:
+    """Change password. Requires current password to authorise."""
+    contractor = db.query(Contractor).filter(Contractor.id == current_contractor.id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+
+    if not verify_password(payload.current_password, contractor.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    strong, issues = is_password_strong(payload.new_password)
+    if not strong:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="; ".join(issues))
+
+    contractor.hashed_password = get_password_hash(payload.new_password)
+    db.commit()
+    return {"message": "Password updated"}
+
+
+# ---- Movements (recent check-ins) ----
+
+@router.get("/me/movements")
+def list_my_movements(
+    limit: int = Query(10, le=50),
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """Recent ContractorMovement records (any company) — for the Profile timeline."""
+    rows = (
+        db.query(ContractorMovement, Company)
+        .join(Company, Company.id == ContractorMovement.company_id)
+        .filter(ContractorMovement.contractor_id == current_contractor.id)
+        .order_by(ContractorMovement.arrival_datetime.desc())
+        .limit(limit)
+        .all()
+    )
+    return [{
+        "id": m.id,
+        "company_id": m.company_id,
+        "company_name": company.name,
+        "arrival_datetime": str(m.arrival_datetime) if m.arrival_datetime else None,
+        "departure_datetime": str(m.departure_datetime) if m.departure_datetime else None,
+        "purpose": m.purpose,
+        "blocks_visited_count": len(m.blocks_visited or []),
+        "biosecurity_risk_level": m.biosecurity_risk_level,
+        "equipment_cleaned": m.equipment_cleaned,
+    } for m, company in rows]
+
+
+# ---- Insurance documents (upload / list / delete / download) ----
+# Stored in Contractor.verification_documents JSON column. Binary content lives
+# in S3 under contractors/{id}/insurance/... (see _make_contractor_doc_s3_key).
+
+@router.post("/me/insurance/docs")
+async def upload_my_insurance_doc(
+    policy_type: str = Form(...),
+    expires_at: Optional[date] = Form(None),
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Upload an insurance certificate. Writes to S3 + appends to JSON column."""
+    if policy_type not in POLICY_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"policy_type must be one of {sorted(POLICY_TYPES)}",
+        )
+    if not file_storage.is_enabled():
+        # Local dev hasn't been wired for contractor uploads (no UPLOAD_DIR
+        # equivalent for /contractors/... path). Fail loudly rather than silently
+        # losing the file.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="File storage is not configured on this environment",
+        )
+
+    file_ext = ""
+    if file.filename and "." in file.filename:
+        file_ext = "." + file.filename.split(".")[-1].lower()
+    doc_id = str(uuid.uuid4())
+    stored_filename = f"{policy_type}_{doc_id[:8]}{file_ext}"
+    s3_key = _make_contractor_doc_s3_key(current_contractor.id, stored_filename)
+
+    try:
+        file_storage.upload_fileobj(file.file, s3_key, content_type=file.content_type)
+    except Exception:
+        logger.exception("Contractor insurance doc S3 upload failed for contractor.id=%s", current_contractor.id)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed")
+
+    doc = {
+        "id": doc_id,
+        "type": "insurance_certificate",
+        "policy_type": policy_type,
+        "s3_key": s3_key,
+        "original_filename": file.filename,
+        "file_size": file.size,
+        "mime_type": file.content_type,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": str(expires_at) if expires_at else None,
+        "verified_by": None,
+        "verified_at": None,
+        "status": "pending",
+    }
+
+    # Re-query so the mutation happens on an instance attached to this request's
+    # db session (mirrors the pattern in /me/profile + /me/insurance above).
+    contractor = db.query(Contractor).filter(Contractor.id == current_contractor.id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+    if contractor.verification_documents is None:
+        contractor.verification_documents = []
+    contractor.verification_documents.append(doc)
+    # JSON columns need an explicit dirty flag — in-place list mutation isn't tracked
+    flag_modified(contractor, "verification_documents")
+    db.commit()
+    return doc
+
+
+@router.get("/me/insurance/docs")
+def list_my_insurance_docs(
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """List all insurance docs for the contractor. Soft-deleted entries (status='deleted')
+    are filtered out. s3_key is omitted from the response (clients hit /download instead)."""
+    docs = current_contractor.verification_documents or []
+    out = []
+    for d in docs:
+        if d.get("status") == "deleted":
+            continue
+        out.append({k: v for k, v in d.items() if k != "s3_key"})
+    return out
+
+
+@router.delete("/me/insurance/docs/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_insurance_doc(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+):
+    """Soft-delete (status='deleted') + best-effort S3 delete. Soft delete preserves
+    history for audit even after the binary is gone."""
+    contractor = db.query(Contractor).filter(Contractor.id == current_contractor.id).first()
+    if not contractor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contractor not found")
+    docs = contractor.verification_documents or []
+    target = next((d for d in docs if d.get("id") == doc_id), None)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    s3_key = target.get("s3_key")
+    if s3_key and file_storage.is_enabled():
+        try:
+            file_storage.delete_object(s3_key)
+        except Exception:
+            # Don't block the soft-delete on S3 failure — log and continue.
+            logger.warning("S3 delete failed for contractor doc s3_key=%s", s3_key)
+
+    target["status"] = "deleted"
+    target["deleted_at"] = datetime.now(timezone.utc).isoformat()
+    flag_modified(contractor, "verification_documents")
+    db.commit()
+
+
+@router.get("/me/insurance/docs/{doc_id}/download")
+def download_my_insurance_doc(
+    doc_id: str,
+    current_contractor: Contractor = Depends(get_current_contractor),
+):
+    """Stream the binary back. Bucket is private so we go through the backend."""
+    docs = current_contractor.verification_documents or []
+    target = next((d for d in docs if d.get("id") == doc_id and d.get("status") != "deleted"), None)
+    if not target or not target.get("s3_key"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    if not file_storage.is_enabled():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="File storage is not configured")
+
+    return StreamingResponse(
+        file_storage.stream_object(target["s3_key"]),
+        media_type=target.get("mime_type") or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'inline; filename="{target.get("original_filename", "document")}"',
+        },
+    )
 
 
 @router.get("/contractors/{contractor_id}/assignments")
