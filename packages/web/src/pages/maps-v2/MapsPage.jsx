@@ -8,6 +8,7 @@ import useRisksLayer from './hooks/useRisksLayer';
 import useSpatialAreasLayer from './hooks/useSpatialAreasLayer';
 import useParcelsLayer from './hooks/useParcelsLayer';
 import useTasksLayer from './hooks/useTasksLayer';
+import useGpsTracksLayer from './hooks/useGpsTracksLayer';
 import useObservationsLayer from './hooks/useObservationsLayer';
 import useAssetsLayer from './hooks/useAssetsLayer';
 import useDrawingController from './hooks/useDrawingController';
@@ -21,6 +22,7 @@ import BlocksPanel from './components/management/BlocksPanel';
 import RisksPanel from './components/management/RisksPanel';
 import SpatialAreasPanel from './components/management/SpatialAreasPanel';
 import TasksPanel from './components/management/TasksPanel';
+import GpsTracksPanel from './components/management/GpsTracksPanel';
 import ObservationsPanel from './components/management/ObservationsPanel';
 import PropertiesPanel from './components/management/PropertiesPanel';
 import MapBuilder from './components/builder/MapBuilder';
@@ -38,13 +40,13 @@ import {
   showReactPopup,
   BlockPopupContent,
   ObservationPopupContent,
-  TaskPopupContent,
   RiskPopupContent,
   AssetPopupContent,
   ParcelPopupContent,
 } from './components/shared/MapPopup';
 import ParcelAssignmentModal from './components/drawing/ParcelAssignmentModal';
 import BlockCompanyAssignModal from './components/drawing/BlockCompanyAssignModal';
+import TaskDetailModal from './components/TaskDetailModal';
 import useAvailableCompanies from './hooks/useAvailableCompanies';
 import './MapsPage.css';
 
@@ -103,6 +105,7 @@ function MapsPageInner() {
   const [showSpatialAreas, setShowSpatialAreas] = useState(false);
   const [showParcels, setShowParcels] = useState(false);
   const [showTasks, setShowTasks] = useState(true);
+  const [showGpsTracks, setShowGpsTracks] = useState(false);
   const [showObservations, setShowObservations] = useState(true);
   const [showAssets, setShowAssets] = useState(false);
 
@@ -113,6 +116,7 @@ function MapsPageInner() {
     spatialAreas: true,
     parcels: true,
     tasks: true,
+    gpsTracks: true,
     observations: true,
     assets: true,
   });
@@ -167,6 +171,14 @@ function MapsPageInner() {
   const [showBlockCompanyAssign, setShowBlockCompanyAssign] = useState(false);
   const [selectedBlockForAssign, setSelectedBlockForAssign] = useState(null);
 
+  // Unified task detail modal — opened from task symbol or GPS track click.
+  // taskDetail.tasks is set for block-symbol clicks (N tasks for that block);
+  // taskDetail.taskId is set for direct GPS track clicks.
+  const [taskDetail, setTaskDetail] = useState({ open: false, taskId: null, tasks: null });
+  const closeTaskDetail = useCallback(() => {
+    setTaskDetail({ open: false, taskId: null, tasks: null });
+  }, []);
+
   // Map instance
   const { map, mapRef, mapReady, activeStyle, is3D, setStyle, containerRef } =
     useMapbox();
@@ -205,6 +217,14 @@ function MapsPageInner() {
     tasks, taskCount, loading: tasksLoading, error: tasksError,
     activeTrackId, showTrack, hideTrack,
   } = useTasksLayer(map, mapReady, showTasks, blocksData);
+
+  // GPS Tracks (recent, all tasks)
+  const {
+    tracksData: gpsTracksData,
+    trackCount: gpsTrackCount,
+    loading: gpsTracksLoading,
+    error: gpsTracksError,
+  } = useGpsTracksLayer(map, mapReady, showGpsTracks);
 
   // Observations
   const { observations, obsCount, loading: obsLoading, error: obsError } =
@@ -604,14 +624,21 @@ function MapsPageInner() {
   handleRemoveParcelAssignmentRef.current = handleRemoveParcelAssignment;
   const handleOpenBlockCompanyAssignRef = useRef(handleOpenBlockCompanyAssign);
   handleOpenBlockCompanyAssignRef.current = handleOpenBlockCompanyAssign;
+  const setTaskDetailRef = useRef(setTaskDetail);
+  setTaskDetailRef.current = setTaskDetail;
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
 
   useEffect(() => {
     if (!map || !mapReady) return;
 
     // Priority order: first = highest priority. Point layers beat fill layers.
+    // GPS track lines sit just above blocks/spatial so a track segment can be
+    // clicked through the block fill but is still below point markers.
     const INTERACTIVE_LAYERS = [
       'v2-assets-points', 'v2-risks-circles', 'v2-observations-symbol',
-      'v2-tasks-symbol', 'v2-spatial-fill', 'v2-parcels-fill', 'v2-blocks-fill',
+      'v2-tasks-symbol', 'v2-gps-tracks-line', 'v2-spatial-fill',
+      'v2-parcels-fill', 'v2-blocks-fill',
     ];
 
     const handleClick = (e) => {
@@ -653,7 +680,18 @@ function MapsPageInner() {
       } else if (layerId === 'v2-observations-symbol') {
         showReactPopup(map, { lngLat, content: <ObservationPopupContent properties={p} onNavigate={() => nav('/observations')} /> });
       } else if (layerId === 'v2-tasks-symbol') {
-        showReactPopup(map, { lngLat, content: <TaskPopupContent properties={p} onNavigate={() => nav('/observations')} /> });
+        const blockId = p.block_id != null ? Number(p.block_id) : null;
+        const blockTasks = (tasksRef.current || []).filter((t) => t.block_id === blockId);
+        if (blockTasks.length === 0) return;
+        setTaskDetailRef.current({
+          open: true,
+          taskId: blockTasks.length === 1 ? blockTasks[0].id : null,
+          tasks: blockTasks,
+        });
+      } else if (layerId === 'v2-gps-tracks-line') {
+        const tid = p.task_id != null ? Number(p.task_id) : null;
+        if (!tid) return;
+        setTaskDetailRef.current({ open: true, taskId: tid, tasks: null });
       } else if (layerId === 'v2-spatial-fill') {
         showReactPopup(map, { lngLat, content: (
           <div className="v2-popup">
@@ -845,6 +883,29 @@ function MapsPageInner() {
               )}
             </div>
 
+            {/* GPS Tracks — collapsible when visible */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showGpsTracks && toggleCollapse('gpsTracks')}>
+                  {showGpsTracks && !collapsed.gpsTracks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  GPS Tracks
+                  <span className="v2-panel-count">{gpsTrackCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowGpsTracks((v) => !v); }} title={showGpsTracks ? 'Hide GPS tracks' : 'Show GPS tracks'}>
+                    {showGpsTracks ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {showGpsTracks && !collapsed.gpsTracks && (
+                <GpsTracksPanel
+                  tracksData={gpsTracksData}
+                  trackCount={gpsTrackCount}
+                  loading={gpsTracksLoading}
+                  error={gpsTracksError}
+                  visible={showGpsTracks}
+                />
+              )}
+            </div>
+
             {/* Observations — collapsible when visible */}
             <div className="v2-panel">
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
@@ -1028,6 +1089,14 @@ function MapsPageInner() {
         companiesLoading={companiesLoading}
         onSubmit={handleBlockAssignSuccess}
         onCancel={() => { setShowBlockCompanyAssign(false); setSelectedBlockForAssign(null); }}
+      />
+
+      {/* Unified task detail modal (task symbol + GPS track click) */}
+      <TaskDetailModal
+        open={taskDetail.open}
+        taskId={taskDetail.taskId}
+        tasks={taskDetail.tasks}
+        onClose={closeTaskDetail}
       />
     </div>
   );

@@ -362,6 +362,16 @@ button:hover {
   border-color: var(--color-olive-border);
 }
 
+/* When .stat-card is rendered on a <button>, strip browser defaults so it
+ * matches its <Link> siblings visually. */
+button.stat-card,
+.stat-card--button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
 .stat-value {
   font-size: 20px;
   font-weight: bold;

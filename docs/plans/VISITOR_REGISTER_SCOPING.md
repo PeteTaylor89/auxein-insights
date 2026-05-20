@@ -1,7 +1,20 @@
 # Visitor Register — Scoping
 
 **Created:** 2026-04-19
-**Status:** Not started — scoping doc for next product conversation
+**Status:** Partially shipped 2026-05-18 (Scope A). Scope B/C still open.
+
+## Update 2026-05-18 — Scope A shipped
+- Mobile visitor sign-in flow shipped 2026-05-07 (TODO-001 resolved in BUGS.md).
+- Today the contractor self check-in went live (Contractor V1 Sprint 2.5b) and the
+  separately-stored `contractor_movements` table now also feeds a unified
+  **"Who's on site"** view: `GET /api/site/active` returns visitors + contractors in
+  one normalised list, and `VisitorsScreen` renders both with filter pills
+  (All / Visitors / Contractors). HomeScreen on-site chip reflects the unified total.
+- Scope B (walk-up visitor pre-registration, host-notification, QR self-check-in) and
+  Scope C (hazard ack broadcast, "X high-risk jobs" badge, popover overrides) remain
+  open. Use this doc as the scoping reference if/when picking them up.
+
+---
 
 ## Why this doc
 

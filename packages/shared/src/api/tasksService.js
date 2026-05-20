@@ -242,6 +242,16 @@ const tasksService = {
     return res.data;
   },
 
+  /**
+   * Fetch every GPS track for the user's company over the last N days as a
+   * GeoJSON FeatureCollection. Used by the Maps V2 GPS Tracks layer.
+   * @param {number} days - Look-back window (default 30, max 365)
+   */
+  getRecentGpsTracksGeoJSON: async (days = 30) => {
+    const res = await api.get('/tasks/tasks/gps-tracks/geojson', { params: { days } });
+    return res.data;
+  },
+
   // ============================================================================
   // TASK VIEWS & REPORTS
   // ============================================================================

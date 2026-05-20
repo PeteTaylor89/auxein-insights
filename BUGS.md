@@ -106,6 +106,15 @@
 
 <!-- Move fixed bugs here with resolution notes -->
 
+### ~~[BUG-006] Backend — Contractor self check-in violates `contractor_movements.checked_in_by` NOT NULL~~
+- **Priority:** P0 (blocks contractor V1 field testing)
+- **Area:** Backend / Mobile
+- **Resolved:** 2026-05-18
+- **Steps to reproduce:** Contractor logs in on mobile, taps Visit FAB, selects a property, completes the check-in form. Backend hits `psycopg2.errors.NotNullViolation` on `contractor_movements.checked_in_by`.
+- **Root cause:** `contractor_movements.checked_in_by` + `logged_by` were NOT NULL FKs to `users.id`, but a contractor self-check-in has no user actor. Endpoint already attempted to pass `None` (`checked_in_by=current_user.id if hasattr(current_user, 'company_id') else None`) but the column rejected it. Same shape as the recently-fixed incident reporter bug.
+- **Resolution:** Migration `add_movement_self_checkin` drops NOT NULL on the two columns and adds parallel nullable contractor FKs (`checked_in_by_contractor_id`, `checked_out_by_contractor_id`, `logged_by_contractor_id`) with CHECK constraints ensuring at least one side of each pair is populated. `contractor_check_in` / `contractor_check_out` route to the matching FK based on `hasattr(current_user, 'contractor_type')`. `Contractor.movements` and `ContractorMovement.contractor` relationships gained explicit `foreign_keys` to disambiguate the new columns.
+- **Files:** `alembic/versions/add_movement_self_checkin.py` (new), `backend/db/models/contractor_movement.py`, `backend/db/models/contractor.py`, `backend/api/v1/contractor_management.py`, `backend/schemas/contractor.py`.
+
 ### ~~[BLOCKER-001] Mobile — Cannot create Google Play service account JSON (GCP org policy)~~
 - **Priority:** P1
 - **Area:** Mobile / Infra

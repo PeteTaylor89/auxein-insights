@@ -40,39 +40,64 @@ class UnifiedEmailService:
         logger.info(f"  - Send emails: {self.send_emails}")
     
     def _send_email(
-        self, 
-        to_email: str, 
-        subject: str, 
+        self,
+        to_email: str,
+        subject: str,
         html_content: str,
-        text_content: Optional[str] = None
+        text_content: Optional[str] = None,
+        attachments: Optional[list] = None,
     ) -> bool:
-        """Internal method to send email"""
-        
+        """Internal method to send email.
+
+        attachments is an optional list of dicts with keys
+        {filename, content (bytes), content_type}. When present the message is
+        wrapped in a multipart/mixed envelope so the body still renders inline.
+        """
+
         if not self.send_emails:
             # Development mode - just log
             logger.info(f"\n{'='*60}")
             logger.info(f"[DEV MODE] Email would be sent to: {to_email}")
             logger.info(f"Subject: {subject}")
             logger.info(f"From: {self.from_name} <{self.from_email}>")
+            if attachments:
+                names = ", ".join(a.get("filename", "?") for a in attachments)
+                logger.info(f"Attachments: {names}")
             logger.info(f"{'='*60}\n")
             print(f"\n📧 [DEV] Email to {to_email}: {subject}")
             return True
-        
+
         try:
-            # Create message
-            message = MIMEMultipart('alternative')
+            body = MIMEMultipart('alternative')
+            if text_content:
+                body.attach(MIMEText(text_content, 'plain'))
+            body.attach(MIMEText(html_content, 'html'))
+
+            if attachments:
+                from email.mime.base import MIMEBase
+                from email import encoders
+                message = MIMEMultipart('mixed')
+                message.attach(body)
+                for att in attachments:
+                    filename = att.get("filename") or "attachment"
+                    content = att.get("content") or b""
+                    ctype = att.get("content_type") or "application/octet-stream"
+                    maintype, _, subtype = ctype.partition('/')
+                    part = MIMEBase(maintype or "application", subtype or "octet-stream")
+                    part.set_payload(content)
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        "Content-Disposition",
+                        f'attachment; filename="{filename}"',
+                    )
+                    message.attach(part)
+            else:
+                message = body
+
             message['Subject'] = subject
             message['From'] = f"{self.from_name} <{self.from_email}>"
             message['To'] = to_email
-            
-            # Add text and HTML parts
-            if text_content:
-                part1 = MIMEText(text_content, 'plain')
-                message.attach(part1)
-            
-            part2 = MIMEText(html_content, 'html')
-            message.attach(part2)
-            
+
             # Send email
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                 server.starttls()
@@ -189,7 +214,76 @@ The Auxein Team
         """
         
         return self._send_email(email, subject, html_content, text_content)
-    
+
+    # ============================================
+    # PRODUCT FEEDBACK
+    # ============================================
+
+    def send_feedback_email(
+        self,
+        category: str,
+        subject_text: str,
+        message: str,
+        from_user_email: str,
+        from_user_name: str,
+        company_name: Optional[str] = None,
+        page_url: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        to_email: Optional[str] = None,
+        attachments: Optional[list] = None,
+    ) -> bool:
+        """Forward in-app feedback to the product inbox.
+
+        Defaults the recipient to grow@auxein.co.nz; overrideable via
+        FEEDBACK_INBOX env var or the to_email argument.
+        """
+        recipient = to_email or os.getenv("FEEDBACK_INBOX", "grow@auxein.co.nz")
+        cat_label = (category or "feedback").replace("_", " ").title()
+        subject = f"[Grow {cat_label}] {subject_text or '(no subject)'}"
+
+        # Escape message for HTML — keep newlines.
+        def esc(s: str) -> str:
+            return (
+                (s or "")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+
+        message_html = esc(message).replace("\n", "<br/>")
+        company_line = f"Company: {esc(company_name)}<br/>" if company_name else ""
+        url_line = f"Page: <a href=\"{esc(page_url)}\">{esc(page_url)}</a><br/>" if page_url else ""
+        ua_line = f"User agent: {esc(user_agent)}<br/>" if user_agent else ""
+
+        html_content = f"""
+<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1f2937; max-width: 640px;\">
+  <h2 style=\"color: #5B6830; margin: 0 0 16px 0;\">{esc(cat_label)} from Grow</h2>
+  <p style=\"margin: 0 0 12px 0; font-weight: 600;\">{esc(subject_text or '(no subject)')}</p>
+  <div style=\"background: #f7f7f5; border-left: 3px solid #5B6830; padding: 12px 16px; margin: 12px 0; white-space: pre-wrap;\">
+    {message_html}
+  </div>
+  <hr style=\"border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;\"/>
+  <div style=\"font-size: 13px; color: #6b7280;\">
+    From: {esc(from_user_name)} &lt;{esc(from_user_email)}&gt;<br/>
+    {company_line}{url_line}{ua_line}
+  </div>
+</div>
+"""
+        text_content = (
+            f"{cat_label} from Grow\n"
+            f"{subject_text or '(no subject)'}\n\n"
+            f"{message}\n\n"
+            f"---\n"
+            f"From: {from_user_name} <{from_user_email}>\n"
+            + (f"Company: {company_name}\n" if company_name else "")
+            + (f"Page: {page_url}\n" if page_url else "")
+            + (f"User agent: {user_agent}\n" if user_agent else "")
+        )
+
+        return self._send_email(
+            recipient, subject, html_content, text_content, attachments=attachments
+        )
+
     # ============================================
     # CAMPAIGN EMAIL TEMPLATES
     # ============================================

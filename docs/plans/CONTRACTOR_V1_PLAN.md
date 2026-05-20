@@ -1,7 +1,7 @@
 # Contractor V1 — Web + Mobile + Geofencing
 
 **Created:** 2026-05-17
-**Status:** Sprint 1 DONE 2026-05-17. Sprint 2 DONE 2026-05-18. Sprint 3.4 (CheckInScreen) DONE 2026-05-18. Sprint 3.3 + 3.5–3.7 (geofencing) PENDING — convenience features, not V1 blocker.
+**Status:** Sprint 1 DONE 2026-05-17. Sprint 2 DONE 2026-05-18. Sprint 3.4 (CheckInScreen) DONE 2026-05-18. Sprint 2.6 (self check-in NULL fix + unified Who's on site) DONE 2026-05-18. Sprint 3.3 + 3.5–3.7 (geofencing) PENDING — convenience features, not V1 blocker.
 **Supersedes:** [CONTRACTOR_MOBILE_PLAN.md](./CONTRACTOR_MOBILE_PLAN.md) — that doc only covered mobile UI hiding; this one covers the full web + mobile + property-geofence stack.
 **Related:**
 - `GROW_COMMERCIAL_RELEASE_PLAN.md` Phase 3 (Relationships card) — this plan executes it
@@ -164,6 +164,17 @@ After Sprint 1: web admins can set up contractor relationships, assign work, and
 | 2.5b | **Property-aware contractor self-create flows (Task + Incident + Visit).** Backend: `/me/companies`, `/me/properties?company_id`, `/me/blocks?property_id`, `/me/assignments` POST, `/me/incidents` POST. Migration `add_contractor_incident_reporter` (incidents.reported_by nullable + reported_by_contractor_id FK + CHECK constraint). Mobile: `CheckInScreen`, `CreateContractorAssignmentScreen`, `ContractorCreateIncidentScreen`. Self-logged assignments use the first active company admin/manager as `assigned_by` to satisfy FK. ContractorHomeScreen check-in card now reflects active `ContractorMovement` state with destructive Sign out. | ✅ | `contractor_management.py`, `db/models/incident.py`, `alembic/versions/add_contractor_incident_reporter.py`, three new mobile screens, `services.js` (8 new methods), `AppNavigator.js` HomeStack |
 
 After Sprint 2: contractor logs in, sees a tailored shell, can edit profile + insurance + change password + upload insurance docs, view their assigned work, self-log ad-hoc work + incidents, and check in/out of properties manually. Property-aware geofence detection (auto-prompt) is Sprint 3.
+
+### Sprint 2.6 — Contractor self check-in NULL fix + unified Who's on site — DONE 2026-05-18
+**Goal: contractor self-check-in works against a hardened schema, and one screen shows everyone on site.**
+
+| # | What | Status | Files |
+|---|---|---|---|
+| 2.6a | Schema/endpoint NULL fix. Field-testing 2026-05-18 hit `checked_in_by NOT NULL` when a contractor self-checked-in. Migration `add_movement_self_checkin` drops NOT NULL on `checked_in_by` + `logged_by` and adds parallel contractor FKs (`checked_in_by_contractor_id`, `checked_out_by_contractor_id`, `logged_by_contractor_id`) with CHECK constraints ensuring exactly one side is populated. `contractor_check_in` / `contractor_check_out` branch on actor type and write to the matching FK pair. Schema gains Optional fields + the three contractor FK columns. | ✅ | `alembic/versions/add_movement_self_checkin.py`, `backend/db/models/contractor_movement.py`, `backend/db/models/contractor.py` (disambiguated `movements` FK), `backend/api/v1/contractor_management.py`, `backend/schemas/contractor.py` |
+| 2.6b | Unified `/api/site/active` endpoint — single GET that fans out to active `visitor_visits` + active `contractor_movements`, returns `{ total, visitors_count, contractors_count, items: [...] }` with type=visitor\|contractor. Discriminated rows preserve table-specific fields (host on visitors, biosecurity on contractors). Same storage tables — visitor flow + contractor biosecurity tracking both stay intact. | ✅ | `backend/api/v1/site.py` (new), `backend/main.py` |
+| 2.6c | Mobile "Who's on site" rewrite — `VisitorsScreen` now consumes `siteService.listActive`. Filter pills (All · N / Visitors · N / Contractors · N), stat bar (total / visitors / contractors / overdue), type chips per row, biosecurity row + self-checked-in note for contractors. Sign-out branches by `item.type`. HomeScreen on-site chip now shows unified total. | ✅ | `packages/mobile/src/api/services.js` (new `siteService`), `packages/mobile/src/screens/VisitorsScreen.js` (rewrite), `packages/mobile/src/screens/HomeScreen.js` |
+
+**Alembic gotcha hit in flight:** initial revision slug `add_contractor_movement_self_checkin` (36 chars) exceeded `alembic_version.version_num VARCHAR(32)` — DDL applied then the version row update failed, rolling the whole batch back. Renamed to `add_movement_self_checkin` (25 chars) and made the upgrade body idempotent (PG has no `ADD CONSTRAINT IF NOT EXISTS`, used a `DO` block on `pg_constraint`). Memory: `feedback_alembic_version_slug_limit.md`.
 
 ### Sprint 3 — Property polygon drawing + check-in + geofencing (~5 days)
 **Goal: the mobile app is property-aware. Check-in lifecycle works.**

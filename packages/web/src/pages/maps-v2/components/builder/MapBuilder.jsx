@@ -4,6 +4,7 @@ import { Search, Layers } from 'lucide-react';
 import { getAvailableLayers, getLayerDef, getCategories } from './layerRegistry';
 import { getLayerModule } from './layers/index';
 import LayerCard from './LayerCard';
+import BuilderBetaModal from './BuilderBetaModal';
 
 /**
  * Main builder panel shown in the sidebar when mode === 'builder'.
@@ -23,6 +24,9 @@ export default function MapBuilder({ map, mapReady, isAdmin, builderState }) {
   const [search, setSearch] = useState('');
   const [layerErrors, setLayerErrors] = useState({});
   const [layerLoading, setLayerLoading] = useState({});
+  // Show every time the user enters builder mode — MapBuilder unmounts on tab
+  // switch, so a fresh `true` here re-opens the modal each entry.
+  const [showBetaModal, setShowBetaModal] = useState(true);
   const mountedLayersRef = useRef(new Set());
 
   const allLayers = getAvailableLayers(isAdmin);
@@ -124,6 +128,8 @@ export default function MapBuilder({ map, mapReady, isAdmin, builderState }) {
 
   return (
     <div className="v2-builder">
+      <BuilderBetaModal open={showBetaModal} onClose={() => setShowBetaModal(false)} />
+
       {/* Active layers */}
       {activeLayerDefs.length > 0 && (
         <div className="v2-builder-section">

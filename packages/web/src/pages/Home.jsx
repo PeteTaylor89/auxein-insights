@@ -1,11 +1,12 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from 'react';
 import { useAuth } from '@vineyard/shared';
-import { companiesService, tasksService, notificationService, propertyService, api } from '@vineyard/shared';
+import { companiesService, propertyService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget';
 import SiteBanner from '../components/SiteBanner';
+import FeedbackModal from '../components/FeedbackModal';
 import { Link } from 'react-router-dom';
-import { ClipboardList, Calendar, Shield, Map, Zap, Eye, BarChart3, Bell, ArrowRight } from "lucide-react";
+import { Calendar, Shield, Map, Zap, Eye, BarChart3, MessageSquare } from "lucide-react";
 
 const INSIGHTS_URL = import.meta.env.VITE_INSIGHTS_URL || 'https://insights.auxein.co.nz';
 
@@ -17,8 +18,7 @@ function Home() {
   const [weatherLocations, setWeatherLocations] = useState([]); // [{id, name, lat, lon}]
   const [selectedWeatherId, setSelectedWeatherId] = useState(null);
   const [latestArticles, setLatestArticles] = useState([]);
-  const [upcomingTasks, setUpcomingTasks] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Derived: the location object passed to WeatherWidget
   const weatherLocation = weatherLocations.find(l => l.id === selectedWeatherId) || weatherLocations[0] || null;
@@ -117,20 +117,6 @@ function Home() {
       .catch(() => {});
   }, []);
 
-  // Fetch upcoming tasks and notification count
-  useEffect(() => {
-    if (!user) return;
-    tasksService.getMyTasks?.({ status: 'scheduled' })
-      .then((data) => {
-        const tasks = Array.isArray(data) ? data : data?.items || data?.tasks || [];
-        setUpcomingTasks(tasks.slice(0, 3));
-      })
-      .catch(() => {});
-    notificationService.getUnreadCount()
-      .then((data) => setUnreadCount(data.count ?? 0))
-      .catch(() => {});
-  }, [user]);
-
   const renderStatValue = (value) => {
     if (loading) return <span className="stat-skeleton" aria-hidden="true" />;
     return value ?? 0;
@@ -192,6 +178,14 @@ function Home() {
                 <div className="icon-wrapper"><Map size={24} /></div>
                 <div className="actions-title">Map</div>
               </Link>
+              <button
+                type="button"
+                className="stat-card stat-card--button"
+                onClick={() => setFeedbackOpen(true)}
+              >
+                <div className="icon-wrapper"><MessageSquare size={24} /></div>
+                <div className="actions-title">Submit Feedback</div>
+              </button>
               {userTypeRole === 'auxein_admin' && (
                 <Link to="/admin" className="stat-card">
                   <div className="icon-wrapper"><Shield size={24} /></div>
@@ -219,52 +213,6 @@ function Home() {
             <WeatherWidget location={weatherLocation} />
           </div>
 
-        </div>
-
-        {/* Upcoming */}
-        <div className="stats-container upcoming-section">
-          <div className="container-title">
-            <span>Upcoming</span>
-            {unreadCount > 0 && (
-              <Link to="/notifications" className="badge badge--accent" style={{ textDecoration: 'none' }}>
-                <Bell size={12} /> {unreadCount} notification{unreadCount !== 1 ? 's' : ''}
-              </Link>
-            )}
-          </div>
-          <ul className="upcoming-list">
-            {upcomingTasks.length > 0 ? (
-              upcomingTasks.map((task) => (
-                <li key={task.id} className="upcoming-item">
-                  <div className="upcoming-icon"><ClipboardList size={18} /></div>
-                  <div className="upcoming-details">
-                    <div className="upcoming-title">{task.title || task.task_number}</div>
-                    <div className="upcoming-meta">
-                      {task.scheduled_start_date
-                        ? new Date(task.scheduled_start_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
-                        : 'No date'
-                      }
-                      {task.status && ` — ${task.status.replace('_', ' ')}`}
-                    </div>
-                  </div>
-                </li>
-              ))
-            ) : (
-              <li className="upcoming-item upcoming-item--empty">
-                <div className="upcoming-icon"><ClipboardList size={18} /></div>
-                <div className="upcoming-details">
-                  <div className="upcoming-title">No upcoming tasks</div>
-                  <div className="upcoming-meta">Scheduled tasks will appear here</div>
-                </div>
-              </li>
-            )}
-          </ul>
-          <div className="upcoming-footer">
-            <Link to="/calendar" className="btn-ghost">
-              <Calendar size={16} />
-              View full calendar
-              <ArrowRight size={14} />
-            </Link>
-          </div>
         </div>
 
         {/* Latest Articles Carousel */}
@@ -329,6 +277,8 @@ function Home() {
           </div>
         )}
       </div>
+
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }

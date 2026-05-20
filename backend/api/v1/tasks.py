@@ -2292,6 +2292,74 @@ def get_gps_summary(
     }
 
 
+@router.get("/tasks/gps-tracks/geojson")
+def get_recent_gps_tracks_geojson(
+    days: int = Query(30, ge=1, le=365, description="Look-back window in days"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """All GPS tracks for the user's company over the last N days, as a
+    GeoJSON FeatureCollection.
+
+    Used by the Maps V2 GPS Tracks layer to draw every recent track at once
+    without N round-trips. Property-scoped: respects UserPropertyScope when set.
+    """
+    from db.models.task_gps_summary import TaskGPSSummary
+    from geoalchemy2.shape import to_shape
+    from shapely.geometry import mapping as shapely_mapping
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    query = (
+        db.query(TaskGPSSummary, Task)
+        .join(Task, Task.id == TaskGPSSummary.task_id)
+        .filter(TaskGPSSummary.company_id == current_user.company_id)
+        .filter(TaskGPSSummary.track_geometry.isnot(None))
+        .filter(Task.created_at >= cutoff)
+    )
+
+    # Property scoping. auxein_admin and unscoped company users get all blocks;
+    # scoped users see only their visible properties (plus tasks with no block).
+    if current_user.user_type not in ("auxein_admin", "contractor"):
+        visible_property_ids = get_visible_property_ids(db, current_user)
+        if visible_property_ids is not None and current_user.user_type != "company_admin":
+            # company_admin gets everything; manager/user with explicit scopes
+            # are gated to those properties.
+            query = query.outerjoin(VineyardBlock, VineyardBlock.id == Task.block_id)
+            query = query.filter(
+                or_(
+                    Task.block_id.is_(None),
+                    VineyardBlock.property_id.in_(visible_property_ids),
+                )
+            )
+
+    features = []
+    for summary, task in query.all():
+        try:
+            track_shape = to_shape(summary.track_geometry)
+            status_val = task.status.value if hasattr(task.status, "value") else task.status
+            features.append({
+                "type": "Feature",
+                "geometry": shapely_mapping(track_shape),
+                "properties": {
+                    "task_id": task.id,
+                    "task_number": task.task_number,
+                    "title": task.title,
+                    "status": status_val,
+                    "block_id": task.block_id,
+                    "distance_km": float(summary.total_distance_km or 0),
+                    "duration_minutes": summary.active_duration_minutes,
+                    "total_points": summary.total_points,
+                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                },
+            })
+        except Exception as e:
+            logger.error(f"Error serializing GPS track for task {task.id}: {e}")
+            continue
+
+    return {"type": "FeatureCollection", "features": features}
+
+
 @router.get("/tasks/{task_id}/gps/track/geojson")
 def get_gps_track_geojson(
     task_id: int,

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { PanelLeftClose, PanelLeft } from 'lucide-react';
 import './Sidebar.css';
+import './builder/BuilderBetaModal.css';
 
 export default function Sidebar({ mode, onModeChange, children }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -33,6 +34,7 @@ export default function Sidebar({ mode, onModeChange, children }) {
               onClick={() => onModeChange('builder')}
             >
               Map Builder
+              <span className="v2-beta-pill">Beta</span>
             </button>
           </div>
           <button
