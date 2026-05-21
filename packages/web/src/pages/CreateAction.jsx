@@ -34,7 +34,8 @@ function CreateAction() {
     priority: existingActionData?.priority || 'medium',
     urgency: existingActionData?.urgency || 'medium',
     assigned_to: existingActionData?.assigned_to || '',
-    target_completion_date: existingActionData?.target_completion_date || '',
+    target_start_date: existingActionData?.target_start_date ? String(existingActionData.target_start_date).slice(0, 10) : '',
+    target_completion_date: existingActionData?.target_completion_date ? String(existingActionData.target_completion_date).slice(0, 10) : '',
     estimated_cost: existingActionData?.estimated_cost || '',
     currency: existingActionData?.currency || 'NZD',
     expected_likelihood_reduction: existingActionData?.expected_likelihood_reduction || '',
@@ -61,14 +62,21 @@ function CreateAction() {
     if (!formData.action_title.trim()) errors.action_title = 'Action title is required';
     if (!formData.action_description.trim()) errors.action_description = 'Action description is required';
     if (!formData.target_completion_date) errors.target_completion_date = 'Target completion date is required';
-    
+
     // Business logic validations
     const completionDate = new Date(formData.target_completion_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    if (completionDate < today) {
+
+    if (formData.target_completion_date && completionDate < today) {
       errors.target_completion_date = 'Target completion date cannot be in the past';
+    }
+
+    if (formData.target_start_date && formData.target_completion_date) {
+      const startDate = new Date(formData.target_start_date);
+      if (startDate > completionDate) {
+        errors.target_start_date = 'Target start date cannot be after the completion date';
+      }
     }
     
     // Progress validation
@@ -461,6 +469,7 @@ function CreateAction() {
         expected_severity_reduction: formData.expected_severity_reduction && formData.expected_severity_reduction !== '' ? parseInt(formData.expected_severity_reduction) : null,
         
         // FIXED: Ensure dates are properly formatted or null
+        target_start_date: formData.target_start_date || null,
         target_completion_date: formData.target_completion_date || null,
         actual_start_date: formData.actual_start_date || null,
         actual_completion_date: formData.actual_completion_date || null,
@@ -1020,8 +1029,56 @@ function CreateAction() {
               </div>
             </div>
 
-            {/* Date Tracking */}
-            {(formData.status === 'in_progress' || formData.actual_start_date || 
+            {/* Target dates — always visible. Both optional; the calendar shows
+                whichever is set (start fills back to completion if missing). */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Target Start Date
+                </label>
+                <input
+                  type="date"
+                  name="target_start_date"
+                  value={formData.target_start_date}
+                  onChange={handleChange}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '0.875rem'
+                  }}
+                />
+                {validationErrors.target_start_date && (
+                  <small style={{ display: 'block', marginTop: '0.25rem', color: '#dc2626' }}>{validationErrors.target_start_date}</small>
+                )}
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Target Completion Date *
+                </label>
+                <input
+                  type="date"
+                  name="target_completion_date"
+                  value={formData.target_completion_date}
+                  onChange={handleChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '0.875rem'
+                  }}
+                />
+                {validationErrors.target_completion_date && (
+                  <small style={{ display: 'block', marginTop: '0.25rem', color: '#dc2626' }}>{validationErrors.target_completion_date}</small>
+                )}
+              </div>
+            </div>
+
+            {/* Actual dates — only show when relevant */}
+            {(formData.status === 'in_progress' || formData.actual_start_date ||
               formData.status === 'completed' || formData.actual_completion_date) && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 {(formData.status === 'in_progress' || formData.actual_start_date) && (
@@ -1044,25 +1101,6 @@ function CreateAction() {
                     />
                   </div>
                 )}
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Target Completion Date *
-                </label>
-                <input
-                  type="date"
-                  name="target_completion_date"
-                  value={formData.target_completion_date}
-                  onChange={handleChange}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
                 {(formData.status === 'completed' || formData.actual_completion_date) && (
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>

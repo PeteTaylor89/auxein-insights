@@ -1,582 +1,357 @@
-// src/pages/Profile.jsx - Updated with Company Admin Panel
-import { useState, useEffect } from 'react';
-import { useAuth } from '@vineyard/shared';
-import {companiesService, subscriptionService, trainingService, api} from '@vineyard/shared';
-import MobileNavigation from '../components/MobileNavigation';
+// src/pages/Profile.jsx — V1 rebuild
+// Removed: subscription/pricing block + training assignments + monthly-cost
+//          line on company info.
+// Added:   avatar upload, edit-mode for personal details
+//          (phone, job_title, bio, emergency contact),
+//          re-syncs the global user via AuthContext.refreshProfile().
+import { useState, useEffect, useRef } from 'react';
+import { useAuth, companiesService, usersService } from '@vineyard/shared';
 import { useNavigate } from 'react-router-dom';
+import { Camera, Pencil, X, Check, Loader2, Trash2, User as UserIcon } from 'lucide-react';
+import MobileNavigation from '../components/MobileNavigation';
+
+const EDITABLE_FIELDS = [
+  'first_name',
+  'last_name',
+  'phone',
+  'job_title',
+  'bio',
+  'emergency_contact_name',
+  'emergency_contact_phone',
+];
+
+function initialFormFromUser(user) {
+  const out = {};
+  EDITABLE_FIELDS.forEach((k) => {
+    out[k] = user?.[k] ?? '';
+  });
+  return out;
+}
 
 function Profile() {
-  const { user, logout } = useAuth();
-  const [company, setCompany] = useState(null);
-  const [subscription, setSubscription] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { user, logout, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [trainingAssignments, setTrainingAssignments] = useState([]);
+  const fileRef = useRef(null);
 
-  const fetchTrainingAssignments = async () => {
-    try {
-      const assignmentsData = await trainingService.assignments.getAssignments({
-        entity_type: 'user',
-        entity_id: user?.id,
-        status: null // Get both assigned and in_progress
-      });
-      // Filter for assigned and in_progress only
-      const activeAssignments = assignmentsData.filter(assignment => 
-        assignment.status === 'assigned' || assignment.status === 'in_progress'
-      );
-      setTrainingAssignments(activeAssignments);
-    } catch (err) {
-      console.error('Error fetching training assignments:', err);
-    }
-  };
+  const [company, setCompany] = useState(null);
+  const [companyLoading, setCompanyLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Edit mode for personal info
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(initialFormFromUser(user));
+  const [saving, setSaving] = useState(false);
+
+  // Avatar
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  // Re-hydrate form whenever the user object changes (initial load,
+  // after refreshProfile, after avatar change).
+  useEffect(() => {
+    if (!editing) setForm(initialFormFromUser(user));
+  }, [user, editing]);
 
   useEffect(() => {
-    const fetchCompanyData = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        setLoading(true);
+        setCompanyLoading(true);
         setError(null);
-        
-        // Get company with subscription details
-        const companyData = await companiesService.getCurrentCompany();
-        console.log('Company data:', companyData);
-        setCompany(companyData);
-        
-        // Try to get subscription pricing details
-        let subscriptionData = null;
-        
-        try {
-          const subscriptionPricing = await subscriptionService.getCurrentSubscriptionPricing();
-          console.log('Subscription pricing data:', subscriptionPricing);
-          subscriptionData = subscriptionPricing;
-        } catch (err) {
-          console.warn('Could not fetch subscription pricing:', err);
-          
-          // Try to get basic subscription data if company has subscription
-          if (companyData.subscription) {
-            console.log('Using basic subscription data from company');
-            subscriptionData = companyData.subscription;
-          } else {
-            // Fallback: try to get subscription by ID from company
-            try {
-              console.log('Trying to fetch subscription by ID:', companyData.subscription_id);
-              const basicSubscription = await subscriptionService.getSubscriptionById(companyData.subscription_id);
-              console.log('Retrieved subscription by ID:', basicSubscription);
-              subscriptionData = basicSubscription;
-            } catch (subErr) {
-              console.warn('Could not fetch subscription by ID:', subErr);
-            }
-          }
-        }
-        
-        // If we have subscription data, calculate pricing if needed
-        if (subscriptionData) {
-          const hectares = parseFloat(companyData.total_hectares) || 0;
-          
-          // If we don't have calculated prices, compute them
-          if (!subscriptionData.calculated_monthly_price) {
-            const calculatedMonthly = parseFloat(subscriptionData.base_price_monthly || 0) + 
-                                    (parseFloat(subscriptionData.price_per_ha_monthly || 0) * hectares);
-            
-            const calculatedYearly = subscriptionData.price_per_ha_yearly ? 
-              (parseFloat(subscriptionData.base_price_monthly || 0) * 12) + 
-              (parseFloat(subscriptionData.price_per_ha_yearly) * hectares) :
-              calculatedMonthly * 12;
-            
-            subscriptionData = {
-              ...subscriptionData,
-              calculated_monthly_price: calculatedMonthly,
-              calculated_yearly_price: calculatedYearly,
-              hectares_used_for_calculation: hectares
-            };
-          }
-          
-          console.log('Final subscription data:', subscriptionData);
-          setSubscription(subscriptionData);
-        } else {
-          console.warn('No subscription data available');
-        }
-
-        // Fetch company statistics
-        const statsData = await companiesService.getCurrentCompanyStats();
-        console.log('Stats data:', statsData);
-        setStats(statsData);
-        
-        // If we still don't have subscription data, create a minimal one from stats
-        if (!subscriptionData && statsData.subscription_name) {
-          console.log('Creating minimal subscription from stats data');
-          subscriptionData = {
-            name: statsData.subscription_name,
-            display_name: statsData.subscription_display_name,
-            base_price_monthly: 0,
-            price_per_ha_monthly: 0,
-            price_per_ha_yearly: 0,
-            calculated_monthly_price: 0,
-            calculated_yearly_price: 0,
-            hectares_used_for_calculation: parseFloat(companyData.total_hectares) || 0,
-            currency: companyData.currency || 'USD',
-            max_users: statsData.max_users,
-            max_storage_gb: statsData.max_storage_gb,
-            features: {
-              enabled_features: statsData.enabled_features || []
-            }
-          };
-          console.log('Minimal subscription from stats:', subscriptionData);
-          setSubscription(subscriptionData);
-        }
+        const data = await companiesService.getCurrentCompany();
+        if (!cancelled) setCompany(data);
       } catch (err) {
-        console.error('Error fetching company data:', err);
-        setError('Failed to load company information');
+        console.error('Failed to load company:', err);
+        if (!cancelled) setError('Could not load company info.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setCompanyLoading(false);
       }
-      
-      // Fetch training assignments for all users
-      await fetchTrainingAssignments();
-    };
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-    if (user) {
-      fetchCompanyData();
-    }
-    
-  }, [user]);
+  const handleField = (key) => (e) => {
+    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  };
 
-  const handleLogout = async () => {
+  const handleCancelEdit = () => {
+    setForm(initialFormFromUser(user));
+    setEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
     try {
-      await logout();
+      setSaving(true);
+      setError(null);
+      // Send only the editable fields — server ignores unknown keys but this
+      // keeps the payload tight and prevents accidental drift if other fields
+      // sneak into local state.
+      const payload = EDITABLE_FIELDS.reduce((acc, k) => {
+        acc[k] = form[k] === '' ? null : form[k];
+        return acc;
+      }, {});
+      await usersService.updateMyProfile(payload);
+      await refreshProfile();
+      setEditing(false);
     } catch (err) {
-      console.error('Logout error:', err);
+      console.error('Profile save failed:', err);
+      setError(err?.response?.data?.detail || 'Failed to save changes.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const formatPrice = (amount) => {
-    if (amount === undefined || amount === null || isNaN(amount)) return '$0.00';
-    return `$${Number(amount).toFixed(2)}`;
+  const handleAvatarPick = () => {
+    if (avatarBusy) return;
+    fileRef.current?.click();
   };
 
-  const formatSubscriptionName = (subscription) => {
-    if (!subscription) return 'Unknown';
-    return subscription.display_name || subscription.name;
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so picking the same file again re-fires
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Profile photo must be an image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Profile photo must be 5 MB or smaller.');
+      return;
+    }
+    try {
+      setAvatarBusy(true);
+      setError(null);
+      await usersService.uploadMyAvatar(file);
+      await refreshProfile();
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+      setError(err?.response?.data?.detail || 'Failed to upload photo.');
+    } finally {
+      setAvatarBusy(false);
+    }
   };
 
-  // Helper function to safely get subscription values
-  const getSubscriptionValue = (field, defaultValue = 0) => {
-    if (!subscription) return defaultValue;
-    const value = subscription[field];
-    return value !== undefined && value !== null ? value : defaultValue;
+  const handleAvatarDelete = async () => {
+    if (!user?.avatar_url || avatarBusy) return;
+    if (!window.confirm('Remove your profile photo?')) return;
+    try {
+      setAvatarBusy(true);
+      setError(null);
+      await usersService.deleteMyAvatar();
+      await refreshProfile();
+    } catch (err) {
+      console.error('Avatar delete failed:', err);
+      setError(err?.response?.data?.detail || 'Failed to remove photo.');
+    } finally {
+      setAvatarBusy(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div>
-        <div className="profile-container">
-          <div className="loading-message">Loading profile...</div>
-        </div>
-        <MobileNavigation />
-      </div>
-    );
-  }
+  const initials = (() => {
+    const f = (user?.first_name || '').trim();
+    const l = (user?.last_name || '').trim();
+    if (f || l) return `${f[0] || ''}${l[0] || ''}`.toUpperCase();
+    return (user?.email || '?')[0].toUpperCase();
+  })();
+
+  const fullName = user?.first_name && user?.last_name
+    ? `${user.first_name} ${user.last_name}`
+    : user?.first_name || user?.username || '—';
 
   return (
-    <div>      
+    <div>
       <div className="profile-container">
         <div className="profile-header">
           <h1>Profile</h1>
         </div>
 
-        {error && (
-          <div className="error-message">
-            {error}
-          </div>
-        )}
+        {error && <div className="profile-error">{error}</div>}
 
         <div className="profile-content">
-          {/* User Information */}
+
+          {/* Identity card — avatar + name + role */}
+          <div className="profile-section profile-identity">
+            <div className="profile-avatar-wrap">
+              <div className="profile-avatar" onClick={handleAvatarPick} title="Change profile photo">
+                {avatarBusy ? (
+                  <Loader2 size={28} className="profile-spin" />
+                ) : user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="Profile" />
+                ) : (
+                  <span className="profile-avatar-initials">{initials}</span>
+                )}
+                <span className="profile-avatar-overlay">
+                  <Camera size={18} />
+                </span>
+              </div>
+              {user?.avatar_url && (
+                <button
+                  type="button"
+                  className="profile-avatar-remove"
+                  onClick={handleAvatarDelete}
+                  disabled={avatarBusy}
+                  title="Remove photo"
+                >
+                  <Trash2 size={13} /> Remove
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarChange}
+              />
+            </div>
+
+            <div className="profile-identity-text">
+              <h2>{fullName}</h2>
+              <div className="profile-identity-meta">
+                <span className="profile-pill">{user?.role || 'User'}</span>
+                {user?.is_active && <span className="profile-pill profile-pill--ok">Active</span>}
+                {user?.is_verified
+                  ? <span className="profile-pill profile-pill--ok">Verified</span>
+                  : <span className="profile-pill profile-pill--warn">Email unverified</span>}
+              </div>
+              <div className="profile-identity-email">{user?.email}</div>
+            </div>
+          </div>
+
+          {/* Personal details — edit-aware */}
           <div className="profile-section">
-            <h2>User Information</h2>
-            <div className="profile-card">
-              <div className="profile-field">
-                <label>Name</label>
-                <span>{user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : 'Not provided'}</span>
-              </div>
-              <div className="profile-field">
-                <label>Email</label>
-                <span>{user?.email}</span>
-              </div>
-              {user?.phone && (
-                <div className="profile-field">
-                  <label>Phone</label>
-                  <span>{user.phone}</span>
+            <div className="profile-section-head">
+              <h2>Personal Details</h2>
+              {!editing ? (
+                <button className="profile-btn profile-btn-ghost" onClick={() => setEditing(true)}>
+                  <Pencil size={14} /> Edit
+                </button>
+              ) : (
+                <div className="profile-edit-actions">
+                  <button className="profile-btn profile-btn-ghost" onClick={handleCancelEdit} disabled={saving}>
+                    <X size={14} /> Cancel
+                  </button>
+                  <button className="profile-btn profile-btn-primary" onClick={handleSaveEdit} disabled={saving}>
+                    {saving ? <Loader2 size={14} className="profile-spin" /> : <Check size={14} />} Save
+                  </button>
                 </div>
               )}
-              <div className="profile-field">
-                <label>Username</label>
-                <span>{user?.username}</span>
-              </div>
-              <div className="profile-field">
-                <label>Role</label>
-                <span className={`role-badge ${user?.role || 'user'}`}>
-                  {user?.role || 'User'}
-                </span>
-              </div>
-              <div className="profile-field">
-                <label>Account Status</label>
-                <span className={`status-badge ${user?.is_active ? 'active' : 'inactive'}`}>
-                  {user?.is_active ? '✅ Active' : '❌ Inactive'}
-                </span>
-              </div>
-              <div className="profile-field">
-                <label>Email Verified</label>
-                <span className={`status-badge ${user?.is_verified ? 'verified' : 'unverified'}`}>
-                  {user?.is_verified ? '✅ Verified' : '⚠️ Unverified'}
-                </span>
-              </div>
-              <div className="profile-field">
-                <label>Last Login</label>
-                <span>
-                  {user?.last_login 
-                    ? new Date(user.last_login).toLocaleDateString('en-NZ', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
-                    : 'Never'
-                  }
-                </span>
-              </div>
-              <div className="profile-field">
-                <label>Member Since</label>
-                <span>
-                  {user?.created_at 
-                    ? new Date(user.created_at).toLocaleDateString('en-NZ', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })
-                    : 'Not available'
-                  }
-                </span>
-              </div>
+            </div>
+
+            <div className="profile-card">
+              <ProfileRow label="First name" editing={editing} value={form.first_name}
+                onChange={handleField('first_name')} />
+              <ProfileRow label="Last name" editing={editing} value={form.last_name}
+                onChange={handleField('last_name')} />
+              <ProfileRow label="Phone" editing={editing} value={form.phone}
+                onChange={handleField('phone')} placeholder="+64 ..." />
+              <ProfileRow label="Job title" editing={editing} value={form.job_title}
+                onChange={handleField('job_title')} placeholder="e.g. Vineyard Manager" />
+              <ProfileRow label="Bio" editing={editing} value={form.bio}
+                onChange={handleField('bio')} placeholder="A short blurb about you (optional)" multiline />
+              <ProfileRow label="Emergency contact name" editing={editing}
+                value={form.emergency_contact_name} onChange={handleField('emergency_contact_name')} />
+              <ProfileRow label="Emergency contact phone" editing={editing}
+                value={form.emergency_contact_phone} onChange={handleField('emergency_contact_phone')} />
+            </div>
+          </div>
+
+          {/* Account — read-only */}
+          <div className="profile-section">
+            <h2>Account</h2>
+            <div className="profile-card">
+              <ReadRow label="Email" value={user?.email} />
+              <ReadRow label="Username" value={user?.username} />
+              <ReadRow label="Role" value={user?.role || 'User'} />
+              <ReadRow label="Last login"
+                value={user?.last_login
+                  ? new Date(user.last_login).toLocaleDateString('en-NZ', {
+                      year: 'numeric', month: 'long', day: 'numeric',
+                      hour: '2-digit', minute: '2-digit'
+                    })
+                  : 'Never'} />
+              <ReadRow label="Member since"
+                value={user?.created_at
+                  ? new Date(user.created_at).toLocaleDateString('en-NZ', {
+                      year: 'numeric', month: 'long', day: 'numeric'
+                    })
+                  : 'Not available'} />
               <div className="profile-field">
                 <label>Timesheet</label>
                 <span>
-                  <button 
-                    className="change-password-button subtle-secondary"
-                    onClick={() => navigate('/timesheets')}
-                  >
-                    Open My TimeSheet
+                  <button className="profile-btn profile-btn-ghost" onClick={() => navigate('/timesheets')}>
+                    Open My Timesheet
                   </button>
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Company Information */}
-          {company && stats && (
+          {/* Company — read-only, no subscription/pricing */}
+          {!companyLoading && company && (
             <div className="profile-section">
-              <h2>Company Information</h2>
+              <h2>Company</h2>
               <div className="profile-card">
-                <div className="profile-field">
-                  <label>Company Name</label>
-                  <span>{company.name}</span>
-                </div>
-                {company.address && (
-                  <div className="profile-field">
-                    <label>Address</label>
-                    <span>{company.address}</span>
-                  </div>
+                <ReadRow label="Name" value={company.name} />
+                {company.address && <ReadRow label="Address" value={company.address} />}
+                <ReadRow label="Total hectares"
+                  value={company.total_hectares ? `${company.total_hectares} ha` : '0 ha'} />
+                {company.company_number && (
+                  <ReadRow label="Company number" value={company.company_number} />
                 )}
-                <div className="profile-field">
-                  <label>Total Hectares</label>
-                  <span>{company.total_hectares ? `${company.total_hectares} ha` : '0 ha'}</span>
-                </div>
-                <div className="profile-field">
-                  <label>Subscription</label>
-                  <span>{stats.subscription_display_name || formatSubscriptionName(subscription)}</span>
-                </div>
-                <div className="profile-field">
-                  <label>Subscription Status</label>
-                  <span className={`status-badge ${company.subscription_status}`}>
-                    {company.subscription_status?.charAt(0).toUpperCase() + company.subscription_status?.slice(1)}
-                  </span>
-                </div>
-                <div className="profile-field">
-                  <label>Company Number</label>
-                  <span>{company.company_number || 'Not provided'}</span>
-                </div>
-                {subscription && (
-                  <div className="profile-field">
-                    <label>Monthly Cost</label>
-                    <span className="pricing-info">
-                      {formatPrice(getSubscriptionValue('calculated_monthly_price'))}
-                      {getSubscriptionValue('base_price_monthly') > 0 && getSubscriptionValue('price_per_ha_monthly') > 0 && (
-                        <span className="pricing-breakdown">
-                          ({formatPrice(getSubscriptionValue('base_price_monthly'))} base + {formatPrice(getSubscriptionValue('price_per_ha_monthly') * getSubscriptionValue('hectares_used_for_calculation'))} for {getSubscriptionValue('hectares_used_for_calculation')} ha)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                )}
-                {company.is_trial && (
-                  <div className="profile-field">
-                    <label>Trial Status</label>
-                    <span className="trial-badge">
-                      🎯 Trial Active {company.trial_end && `(expires ${new Date(company.trial_end).toLocaleDateString()})`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Subscription & Pricing Information */}
-          {subscription && (
-            <div className="profile-section">
-              <h2>Subscription & Pricing</h2>
-              <div className="profile-card">
-                <div className="profile-field">
-                  <label>Current Plan</label>
-                  <span>{formatSubscriptionName(subscription)}</span>
-                </div>
-                <div className="profile-field">
-                  <label>Monthly Price</label>
-                  <span>{formatPrice(getSubscriptionValue('calculated_monthly_price'))}</span>
-                </div>
-                <div className="profile-field">
-                  <label>Yearly Price</label>
-                  <span>{formatPrice(getSubscriptionValue('calculated_yearly_price'))}</span>
-                </div>
-                {getSubscriptionValue('calculated_yearly_price') < (getSubscriptionValue('calculated_monthly_price') * 12) && getSubscriptionValue('calculated_yearly_price') > 0 && (
-                  <div className="profile-field">
-                    <label>Yearly Savings</label>
-                    <span className="savings-highlight">
-                      Save {formatPrice((getSubscriptionValue('calculated_monthly_price') * 12) - getSubscriptionValue('calculated_yearly_price'))} per year!
-                    </span>
-                  </div>
-                )}
-                <div className="profile-field">
-                  <label>Base Monthly Fee</label>
-                  <span>{formatPrice(getSubscriptionValue('base_price_monthly'))}</span>
-                </div>
-                <div className="profile-field">
-                  <label>Per Hectare Rate</label>
-                  <span>{formatPrice(getSubscriptionValue('price_per_ha_monthly'))}/ha/month</span>
-                </div>
-                <div className="profile-field">
-                  <label>Hectares Calculated</label>
-                  <span>{getSubscriptionValue('hectares_used_for_calculation')} ha</span>
-                </div>
-                <div className="profile-field">
-                  <label>Currency</label>
-                  <span>{getSubscriptionValue('currency', 'USD')}</span>
-                </div>
-                {subscription.description && (
-                  <div className="profile-field">
-                    <label>Plan Description</label>
-                    <span>{subscription.description}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Training Assignments */}
-          {trainingAssignments.length > 0 && (
-            <div className="profile-section">
-              <h2>My Training</h2>
-              <div className="training-grid">
-                {trainingAssignments.map(assignment => (
-                  <div 
-                    key={assignment.id} 
-                    className="training-card"
-                    onClick={() => navigate(`/training/take/${assignment.id}`)}
-                  >
-                    <div className="training-header">
-                      <h3>{assignment.module?.title || 'Training Module'}</h3>
-                      <span className={`training-status ${assignment.status}`}>
-                        {assignment.status === 'assigned' ? 'New' : 'In Progress'}
-                      </span>
-                    </div>
-                    <div className="training-details">
-                      {assignment.module?.description && (
-                        <p className="training-description">{assignment.module.description}</p>
-                      )}
-                      <div className="training-meta">
-                        <span className="training-duration">
-                          ⏱️ {assignment.module?.estimated_duration_minutes || 15} min
-                        </span>
-                        {assignment.module?.category && (
-                          <span className="training-category">
-                            📚 {assignment.module.category}
-                          </span>
-                        )}
-                      </div>
-                      {assignment.expires_at && (
-                        <div className="training-expiry">
-                          <span className="expiry-label">Due:</span>
-                          <span className="expiry-date">
-                            {new Date(assignment.expires_at).toLocaleDateString('en-NZ')}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="training-action">
-                      <span className="action-text">
-                        {assignment.status === 'assigned' ? 'Start Training' : 'Continue Training'}
-                      </span>
-                      <span className="action-arrow">→</span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}
 
           {/* Actions */}
           <div className="profile-actions">
-            <button 
-              className="change-password-button"
-              onClick={() => navigate('/change-password')}
-            >
+            <button className="profile-btn profile-btn-ghost"
+              onClick={() => navigate('/change-password')}>
               Change Password
             </button>
-            <button 
-              className="logout-button"
-              onClick={handleLogout}
-            >
+            <button className="profile-btn profile-btn-danger" onClick={logout}>
               Logout
             </button>
           </div>
         </div>
       </div>
-      
+
       <MobileNavigation />
+
       <style jsx>{`
         :global(body) {
           font-family: Calibri, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
           color: #2F2F2F;
         }
-
         .profile-container {
           width: 100%;
-          max-width: 1200px;
+          max-width: 960px;
           margin: 0 auto;
           padding: 28px;
         }
-
         .profile-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
           margin-bottom: 24px;
-          border-bottom: 2px solid #FDF6E3; /* Warm Sand */
+          border-bottom: 2px solid #FDF6E3;
           padding-bottom: 8px;
         }
-
         .profile-header h1 {
           margin: 0;
-          font-size: 20pt;           /* Primary heading */
+          font-size: 20pt;
           font-weight: bold;
-          color: #2F2F2F;            /* Charcoal */
+          color: #2F2F2F;
         }
-
-        .profile-content {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-
-        .loading-message {
-          font-size: 14pt;
-          color: #5B6830; /* Olive */
-        }
-
-        .error-message {
+        .profile-error {
           background: #FBE4DE;
           border: 1px solid #D1583B;
           color: #D1583B;
-          padding: 12px 16px;
+          padding: 10px 14px;
           border-radius: 8px;
           margin-bottom: 16px;
-          font-size: 0.95rem;
-        }
-
-        /* Admin panels */
-
-        .admin-panel {
-          background: #FDF6E3; /* Warm Sand */
-          border: 1px solid #5B6830; /* Olive */
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 8px;
-        }
-
-        .admin-panel h2 {
-          margin: 0 0 16px 0;
-          font-size: 16pt; /* Secondary heading */
-          font-weight: bold;
-          color: #D1583B;  /* Terracotta */
-        }
-
-        .admin-badge {
-          background: #D1583B; /* Terracotta */
-          color: #FFFFFF;
-          padding: 6px 14px;
-          border-radius: 20px;
           font-size: 0.9rem;
-          font-weight: 600;
-          display: inline-block;
         }
-
-        .admin-tabs {
+        .profile-content {
           display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 16px;
-          border-bottom: 1px solid rgba(91, 104, 48, 0.25);
-          padding-bottom: 8px;
+          flex-direction: column;
+          gap: 20px;
         }
-
-        .tab-button {
-          padding: 8px 14px;
-          border-radius: 8px;
-          border: 1px solid transparent;
-          background: #FDF6E3;      /* Warm Sand */
-          color: #5B6830;           /* Olive */
-          cursor: pointer;
-          font-weight: 500;
-          font-size: 0.9rem;
-          transition: all 0.2s ease;
-        }
-
-        .tab-button.subtle {
-          background: #FFFFFF;
-          border-color: rgba(91,104,48,0.25);
-          color: #2F2F2F;
-        }
-
-        .tab-button:hover {
-          background: #F5EBD5;      /* slightly deeper Warm Sand */
-        }
-
-        .tab-button.active {
-          background: #D1583B;      /* Terracotta */
-          color: #FFFFFF;
-          border-color: #D1583B;
-        }
-
-        .admin-content {
-          background: #FFFFFF;
-          border-radius: 8px;
-          padding: 16px;
-          box-shadow: 0 2px 6px rgba(47, 47, 47, 0.12);
-        }
-
-        /* Generic sections & cards */
-
         .profile-section {
           background: #FFFFFF;
           border-radius: 12px;
@@ -584,404 +359,277 @@ function Profile() {
           box-shadow: 0 2px 6px rgba(47, 47, 47, 0.08);
           border: 1px solid rgba(91, 104, 48, 0.2);
         }
-
         .profile-section h2 {
           margin: 0 0 16px 0;
-          font-size: 16pt;      /* Secondary heading */
+          font-size: 14pt;
           font-weight: bold;
-          color: #D1583B;       /* Terracotta */
-        }
-
-        .profile-section h3 {
-          margin: 0 0 8px 0;
-          font-size: 14pt;      /* Tertiary heading */
-          font-weight: bold;
-          color: #5B6830;       /* Olive */
-        }
-
-        .profile-card {
-          border-radius: 10px;
-          padding: 16px 18px;
-          background: #FDF6E3; /* Warm Sand */
-        }
-
-        .profile-field {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          padding: 6px 0;
-          border-bottom: 1px solid rgba(91, 104, 48, 0.12);
-        }
-
-        .profile-field:last-child {
-          border-bottom: none;
-        }
-
-        .profile-field label {
-          font-size: 11pt;              /* Subheading style-ish */
-          font-weight: bold;
-          font-style: italic;
-          color: #2F2F2F;
-        }
-
-        .profile-field span {
-          font-size: 0.95rem;
-          text-align: right;
-        }
-
-        .pricing-info {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 3px;
-        }
-
-        .pricing-breakdown {
-          font-size: 0.8rem;
-          color: #5B6830;
-        }
-
-        .savings-highlight {
-          color: #5B6830;
-          font-weight: 600;
-        }
-
-        .trial-badge {
-          padding: 4px 10px;
-          border-radius: 12px;
-          background: #FBE4DE;
-          color: #D1583B;
-          font-size: 0.85rem;
-          font-weight: 600;
-        }
-
-        /* Badges */
-
-        .role-badge,
-        .status-badge {
-          padding: 4px 10px;
-          border-radius: 14px;
-          font-size: 0.85rem;
-          font-weight: 600;
-        }
-
-        .role-badge.admin,
-        .role-badge.manager {
-          background: #FDF6E3;
-          color: #5B6830;
-        }
-
-        .role-badge.user {
-          background: #FFFFFF;
-          color: #2F2F2F;
-          border: 1px solid rgba(91, 104, 48, 0.3);
-        }
-
-        .status-badge.active,
-        .status-badge.verified {
-          background: #E4F2DC;   /* soft green-ish from olive */
-          color: #5B6830;
-        }
-
-        .status-badge.inactive,
-        .status-badge.unverified {
-          background: #FBE4DE;   /* soft Terracotta tint */
           color: #D1583B;
         }
-
-        .status-badge.trial,
-        .status-badge.pending {
-          background: #FDF6E3;
-          color: #D1583B;
-        }
-
-        /* Team / invitations */
-
-        .section-header {
+        .profile-section-head {
           display: flex;
           justify-content: space-between;
           align-items: center;
           margin-bottom: 12px;
         }
-
-        .toggle-form-button {
-          background: #5B6830;        /* Olive */
-          color: #FFFFFF;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-weight: 500;
-          font-size: 0.9rem;
-          transition: all 0.2s ease;
+        .profile-section-head h2 {
+          margin: 0;
         }
-
-        .toggle-form-button:hover {
-          background: #495425;
-        }
-
-        .toggle-form-button.active {
-          background: #D1583B;        /* Terracotta */
-        }
-
-        .invitations-list {
-          margin-top: 12px;
-          background: #FFFFFF;
-          border-radius: 8px;
-          padding: 14px 16px;
-          box-shadow: 0 2px 4px rgba(47, 47, 47, 0.12);
-        }
-
-        .invitation-item {
+        .profile-edit-actions {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 10px 0;
-          border-bottom: 1px solid rgba(91, 104, 48, 0.12);
-        }
-
-        .invitation-item:last-child {
-          border-bottom: none;
-        }
-
-        .invitation-info {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-
-        .invitation-role {
-          background: #FDF6E3;
-          color: #2F2F2F;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.8rem;
-        }
-
-        .invitation-status {
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.8rem;
-          font-weight: 500;
-        }
-
-        .invitation-status.pending {
-          background: #FBE4DE;
-          color: #D1583B;
-        }
-
-        .invitation-status.accepted {
-          background: #E4F2DC;
-          color: #5B6830;
-        }
-
-        .invitation-status.expired {
-          background: #FBE4DE;
-          color: #D1583B;
-          opacity: 0.8;
-        }
-
-        .invitation-date {
-          color: #6B7280;
-          font-size: 0.85rem;
-        }
-
-        /* Training */
-
-        .training-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 16px;
-          margin-top: 8px;
-        }
-
-        .training-card {
-          background: #FFFFFF;
-          border-radius: 12px;
-          padding: 16px;
-          box-shadow: 0 2px 6px rgba(47, 47, 47, 0.08);
-          cursor: pointer;
-          transition: all 0.2s ease;
-          border: 1px solid rgba(91, 104, 48, 0.35);
-        }
-
-        .training-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(47, 47, 47, 0.15);
-          border-color: #D1583B;
-        }
-
-        .training-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 10px;
           gap: 8px;
         }
 
-        .training-header h3 {
-          margin: 0;
-          font-size: 14pt;       /* Tertiary heading */
-          font-weight: bold;
-          color: #5B6830;
-          flex: 1;
+        /* Identity */
+        .profile-identity {
+          display: flex;
+          align-items: center;
+          gap: 20px;
         }
-
-        .training-status {
-          padding: 4px 10px;
-          border-radius: 12px;
-          font-size: 0.8rem;
+        .profile-avatar-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+        }
+        .profile-avatar {
+          width: 88px;
+          height: 88px;
+          border-radius: 50%;
+          background: #5B6830;
+          color: #FFFFFF;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          overflow: hidden;
+          cursor: pointer;
+          flex-shrink: 0;
+          border: 2px solid rgba(91, 104, 48, 0.2);
+        }
+        .profile-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .profile-avatar-initials {
+          font-size: 28px;
           font-weight: 600;
         }
+        .profile-avatar-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.15s ease;
+        }
+        .profile-avatar:hover .profile-avatar-overlay {
+          opacity: 1;
+        }
+        .profile-spin {
+          animation: profile-spin 0.9s linear infinite;
+        }
+        @keyframes profile-spin {
+          to { transform: rotate(360deg); }
+        }
+        .profile-avatar-remove {
+          background: none;
+          border: none;
+          color: #D1583B;
+          font-size: 11px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          padding: 2px 6px;
+        }
+        .profile-avatar-remove:hover { text-decoration: underline; }
+        .profile-avatar-remove:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .training-status.assigned {
-          background: #FDF6E3;
-          color: #5B6830;
+        .profile-identity-text { flex: 1; min-width: 0; }
+        .profile-identity-text h2 {
+          margin: 0 0 6px 0;
+          font-size: 18pt;
+          color: #2F2F2F;
+        }
+        .profile-identity-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 6px;
+        }
+        .profile-identity-email {
+          color: #6b7280;
+          font-size: 0.9rem;
         }
 
-        .training-status.in_progress {
+        .profile-pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 10px;
+          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          background: #FDF6E3;
+          color: #5B6830;
+          text-transform: capitalize;
+        }
+        .profile-pill--ok {
+          background: #E4F2DC;
+          color: #5B6830;
+        }
+        .profile-pill--warn {
           background: #FBE4DE;
           color: #D1583B;
         }
 
-        .training-details {
-          margin-bottom: 10px;
+        /* Cards / rows */
+        .profile-card {
+          background: #FDF6E3;
+          border-radius: 10px;
+          padding: 12px 16px;
         }
-
-        .training-description {
-          color: #4B5563;
-          font-size: 0.9rem;
-          margin: 0 0 8px 0;
-          line-height: 1.4;
-        }
-
-        .training-meta {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          margin-bottom: 6px;
-        }
-
-        .training-duration,
-        .training-category {
-          color: #6B7280;
-          font-size: 0.85rem;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .training-expiry {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.85rem;
-        }
-
-        .expiry-label {
-          color: #6B7280;
-        }
-
-        .expiry-date {
-          color: #D1583B;
-          font-weight: 500;
-        }
-
-        .training-action {
+        .profile-field {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          padding-top: 8px;
-          border-top: 1px solid rgba(91, 104, 48, 0.18);
+          align-items: flex-start;
+          gap: 16px;
+          padding: 8px 0;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.12);
         }
-
-        .action-text {
-          color: #D1583B;
-          font-weight: 500;
-          font-size: 0.9rem;
-        }
-
-        .action-arrow {
-          color: #D1583B;
+        .profile-field:last-child { border-bottom: none; }
+        .profile-field > label {
+          font-size: 0.85rem;
           font-weight: 600;
-          transition: transform 0.2s ease;
+          color: #2F2F2F;
+          min-width: 180px;
+          padding-top: 4px;
+        }
+        .profile-field-value {
+          flex: 1;
+          text-align: right;
+          color: #2F2F2F;
+          word-break: break-word;
+        }
+        .profile-field-value.empty {
+          color: #9ca3af;
+          font-style: italic;
+        }
+        .profile-input,
+        .profile-textarea {
+          flex: 1;
+          padding: 6px 10px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-family: inherit;
+          background: #FFFFFF;
+        }
+        .profile-input:focus,
+        .profile-textarea:focus {
+          outline: none;
+          border-color: #5B6830;
+          box-shadow: 0 0 0 2px rgba(91, 104, 48, 0.15);
+        }
+        .profile-textarea {
+          min-height: 70px;
+          resize: vertical;
         }
 
-        .training-card:hover .action-arrow {
-          transform: translateX(4px);
+        /* Buttons */
+        .profile-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          border-radius: 6px;
+          font-size: 0.85rem;
+          font-weight: 500;
+          font-family: inherit;
+          cursor: pointer;
+          border: 1px solid transparent;
+          transition: all 0.15s ease;
         }
-
-        /* Profile actions */
+        .profile-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .profile-btn-primary {
+          background: #5B6830;
+          color: #FFFFFF;
+        }
+        .profile-btn-primary:hover:not(:disabled) { background: #495425; }
+        .profile-btn-ghost {
+          background: #FFFFFF;
+          color: #5B6830;
+          border-color: rgba(91, 104, 48, 0.3);
+        }
+        .profile-btn-ghost:hover:not(:disabled) { background: #FDF6E3; }
+        .profile-btn-danger {
+          background: #D1583B;
+          color: #FFFFFF;
+        }
+        .profile-btn-danger:hover:not(:disabled) { background: #B04A30; }
 
         .profile-actions {
           display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          justify-content: center;
-          margin-top: 4px;
-          margin-bottom: 80px;
+          gap: 12px;
+          justify-content: flex-end;
         }
 
-        .profile-actions button {
-          padding: 10px 20px;
-          border-radius: 8px;
-          border: none;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          font-size: 0.95rem;
-        }
-
-        .change-password-button {
-          background: #5B6830;    /* Olive */
-          color: #FFFFFF;
-        }
-
-        .change-password-button.subtle-secondary {
-          background: #FDF6E3;
-          color: #5B6830;
-          border: 1px solid rgba(91,104,48,0.4);
-          padding: 6px 14px;
-          font-size: 0.85rem;
-        }
-
-        .logout-button {
-          background: #D1583B;    /* Terracotta */
-          color: #FFFFFF;
-        }
-
-        .profile-actions button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(47, 47, 47, 0.18);
-        }
-
-        /* Responsiveness */
-
-        @media (max-width: 768px) {
-          .profile-container {
-            padding: 16px;
-          }
-
-          .admin-tabs {
-            flex-direction: column;
-          }
-
-          .profile-field {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-
-          .profile-field span {
-            text-align: left;
-          }
-
-          .training-grid {
-            grid-template-columns: 1fr;
-          }
+        @media (max-width: 640px) {
+          .profile-container { padding: 16px; }
+          .profile-identity { flex-direction: column; text-align: center; align-items: center; }
+          .profile-identity-meta { justify-content: center; }
+          .profile-field { flex-direction: column; align-items: stretch; }
+          .profile-field > label { min-width: 0; }
+          .profile-field-value { text-align: left; }
         }
       `}</style>
+    </div>
+  );
+}
+
+function ReadRow({ label, value }) {
+  return (
+    <div className="profile-field">
+      <label>{label}</label>
+      <span className={`profile-field-value ${value ? '' : 'empty'}`}>
+        {value || 'Not provided'}
+      </span>
+    </div>
+  );
+}
+
+function ProfileRow({ label, value, editing, onChange, placeholder, multiline }) {
+  if (!editing) {
+    return (
+      <div className="profile-field">
+        <label>{label}</label>
+        <span className={`profile-field-value ${value ? '' : 'empty'}`}>
+          {value || 'Not provided'}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="profile-field">
+      <label>{label}</label>
+      {multiline ? (
+        <textarea
+          className="profile-textarea"
+          value={value || ''}
+          onChange={onChange}
+          placeholder={placeholder}
+        />
+      ) : (
+        <input
+          className="profile-input"
+          type="text"
+          value={value || ''}
+          onChange={onChange}
+          placeholder={placeholder}
+        />
+      )}
     </div>
   );
 }

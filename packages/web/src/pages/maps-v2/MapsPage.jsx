@@ -35,7 +35,10 @@ import BlockEditForm from './components/drawing/BlockEditForm';
 import BlockSplitFlow from './components/drawing/BlockSplitFlow';
 import SpatialAreaForm from './components/drawing/SpatialAreaForm';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Eye, EyeOff, ChevronDown, ChevronRight,
+  ClipboardList, AlertTriangle, Binoculars, Wrench, Activity, Layers, LandPlot,
+} from 'lucide-react';
 import {
   showReactPopup,
   BlockPopupContent,
@@ -202,8 +205,19 @@ function MapsPageInner() {
     useRisksLayer(map, mapReady, showRisks);
 
   // Spatial areas
-  const { areaCount, loading: areasLoading, error: areasError } =
+  const { spatialData, areaCount, loading: areasLoading, error: areasError } =
     useSpatialAreasLayer(map, mapReady, showSpatialAreas);
+
+  // Fly to a spatial-area feature using its bbox.
+  const flyToSpatialArea = useCallback((feature) => {
+    if (!map || !feature?.geometry) return;
+    try {
+      const bbox = turf.bbox(feature);
+      map.fitBounds(bbox, { padding: 60, maxZoom: 17, duration: 1000 });
+    } catch (err) {
+      console.warn('flyToSpatialArea failed:', err);
+    }
+  }, [map]);
 
   // Parcels (admin only)
   const { parcelCount, loading: parcelsLoading, error: parcelsError, refresh: refreshParcels } =
@@ -815,6 +829,7 @@ function MapsPageInner() {
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                 <h3 className="v2-panel-title" onClick={() => showRisks && toggleCollapse('risks')}>
                   {showRisks && !collapsed.risks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
                   Risks
                   <span className="v2-panel-count">{riskCount}</span>
                   <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowRisks((v) => !v); }} title={showRisks ? 'Hide risks' : 'Show risks'}>
@@ -832,6 +847,7 @@ function MapsPageInner() {
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                 <h3 className="v2-panel-title" onClick={() => showSpatialAreas && toggleCollapse('spatialAreas')}>
                   {showSpatialAreas && !collapsed.spatialAreas ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <Layers size={16} style={{ color: '#5B6830' }} />
                   Spatial Areas
                   <span className="v2-panel-count">{areaCount}</span>
                   <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowSpatialAreas((v) => !v); }} title={showSpatialAreas ? 'Hide areas' : 'Show areas'}>
@@ -839,8 +855,17 @@ function MapsPageInner() {
                   </button>
                 </h3>
               </div>
-              {areasLoading && <div className="v2-panel-loading">Loading areas...</div>}
-              {areasError && <div className="v2-panel-error">{areasError}</div>}
+              {showSpatialAreas && !collapsed.spatialAreas && (
+                <SpatialAreasPanel
+                  spatialData={spatialData}
+                  loading={areasLoading}
+                  error={areasError}
+                  visible={showSpatialAreas}
+                  onFlyTo={flyToSpatialArea}
+                  onEditArea={handleOpenSpatialEdit}
+                  contentOnly
+                />
+              )}
             </div>
 
             {/* Land Parcels */}
@@ -849,6 +874,7 @@ function MapsPageInner() {
                 <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                   <h3 className="v2-panel-title" onClick={() => showParcels && toggleCollapse('parcels')}>
                     {showParcels && !collapsed.parcels ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <LandPlot size={16} style={{ color: '#6b7280' }} />
                     Land Parcels
                     <span className="v2-panel-count">{parcelCount}</span>
                     <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowParcels((v) => !v); }} title={showParcels ? 'Hide parcels' : 'Show parcels'}>
@@ -871,6 +897,7 @@ function MapsPageInner() {
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                 <h3 className="v2-panel-title" onClick={() => showTasks && toggleCollapse('tasks')}>
                   {showTasks && !collapsed.tasks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <ClipboardList size={16} style={{ color: '#D1583B' }} />
                   Tasks
                   <span className="v2-panel-count">{taskCount}</span>
                   <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowTasks((v) => !v); }} title={showTasks ? 'Hide tasks' : 'Show tasks'}>
@@ -888,6 +915,7 @@ function MapsPageInner() {
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                 <h3 className="v2-panel-title" onClick={() => showGpsTracks && toggleCollapse('gpsTracks')}>
                   {showGpsTracks && !collapsed.gpsTracks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <Activity size={16} style={{ color: '#5B6830' }} />
                   GPS Tracks
                   <span className="v2-panel-count">{gpsTrackCount}</span>
                   <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowGpsTracks((v) => !v); }} title={showGpsTracks ? 'Hide GPS tracks' : 'Show GPS tracks'}>
@@ -911,6 +939,7 @@ function MapsPageInner() {
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                 <h3 className="v2-panel-title" onClick={() => showObservations && toggleCollapse('observations')}>
                   {showObservations && !collapsed.observations ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <Binoculars size={16} style={{ color: '#5B6830' }} />
                   Observations
                   <span className="v2-panel-count">{obsCount}</span>
                   <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowObservations((v) => !v); }} title={showObservations ? 'Hide obs' : 'Show obs'}>
@@ -928,7 +957,7 @@ function MapsPageInner() {
               <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
                 <h3 className="v2-panel-title" onClick={() => showAssets && toggleCollapse('assets')}>
                   {showAssets && !collapsed.assets ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  <Settings size={16} />
+                  <Wrench size={16} style={{ color: '#5B6830' }} />
                   Assets
                   <span className="v2-panel-count">{assetCount}</span>
                   <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowAssets((v) => !v); }} title={showAssets ? 'Hide assets' : 'Show assets'}>

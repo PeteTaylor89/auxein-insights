@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, time
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func, cast, Integer
@@ -340,14 +340,19 @@ def check_template_usage(
 # -----------------------------
 @router.post("/observation-plans", response_model=ObservationPlanOut, status_code=status.HTTP_201_CREATED)
 def create_plan(payload: ObservationPlanCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    # PlanNew UI sends scheduled_for as a single date — store as both
+    # due_start_at and due_end_at so the plan renders on the calendar.
+    sched_start = datetime.combine(payload.scheduled_for, time.min) if payload.scheduled_for else None
+    sched_end = datetime.combine(payload.scheduled_for, time.max) if payload.scheduled_for else None
+
     plan = ObservationPlan(
         company_id=user.company_id,
         template_id=payload.template_id,
         template_version=1,  # you can resolve the current version here
         name=payload.name,
         instructions=payload.instructions,
-        due_start_at=None,
-        due_end_at=None,
+        due_start_at=sched_start,
+        due_end_at=sched_end,
         priority="normal",
         status="scheduled",
         created_by=getattr(user, "id", None),

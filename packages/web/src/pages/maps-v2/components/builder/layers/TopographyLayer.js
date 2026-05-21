@@ -35,14 +35,14 @@ export function addToMap(map, opacity = 0.5) {
     source: SOURCE_ID,
     'source-layer': 'contour',
     paint: {
-      'line-color': '#5B6830',
+      'line-color': '#000000',
       'line-width': [
         'match',
         ['%', ['get', 'ele'], 100],
         0, 1.2,  // major contours (every 100m)
         0.5,      // minor contours
       ],
-      'line-opacity': opacity * 0.6,
+      'line-opacity': opacity,
     },
     filter: ['>', 'ele', 0],
   });
@@ -62,10 +62,10 @@ export function addToMap(map, opacity = 0.5) {
       'text-padding': 5,
     },
     paint: {
-      'text-color': '#5B6830',
-      'text-halo-color': 'rgba(255,255,255,0.8)',
-      'text-halo-width': 1,
-      'text-opacity': opacity * 0.7,
+      'text-color': '#000000',
+      'text-halo-color': 'rgba(255,255,255,0.9)',
+      'text-halo-width': 1.2,
+      'text-opacity': opacity,
     },
     filter: ['==', ['%', ['get', 'ele'], 100], 0],
   });
@@ -79,9 +79,9 @@ export function removeFromMap(map) {
 
 export function setOpacity(map, opacity) {
   if (map.getLayer(CONTOUR_ID)) {
-    map.setPaintProperty(CONTOUR_ID, 'line-opacity', opacity * 0.6);
+    map.setPaintProperty(CONTOUR_ID, 'line-opacity', opacity);
   }
   if (map.getLayer(CONTOUR_LABEL_ID)) {
-    map.setPaintProperty(CONTOUR_LABEL_ID, 'text-opacity', opacity * 0.7);
+    map.setPaintProperty(CONTOUR_LABEL_ID, 'text-opacity', opacity);
   }
 }

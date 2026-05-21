@@ -23,6 +23,10 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const addedRef = useRef(false);
+  // Track whether we've already fit bounds once for this map instance.
+  // Style swaps re-run this effect (mapReady toggles false→true), but we
+  // don't want to reset the camera every time — only on the genuine first load.
+  const hasFitOnceRef = useRef(false);
 
   // --- Fetch ---
   const fetchBlocks = useCallback(async () => {
@@ -114,22 +118,26 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
 
         addedRef.current = true;
 
-        // Fit bounds to own company blocks on first load
-        const ownFeatures = blocksData.features?.filter(
-          (f) => f.properties?.company_id === companyId,
-        );
-        if (ownFeatures?.length > 0) {
-          const bounds = new mapboxgl.LngLatBounds();
-          ownFeatures.forEach((f) => {
-            if (f.geometry?.coordinates) {
-              const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flat();
-              coords.forEach((c) => {
-                if (Array.isArray(c) && c.length >= 2) bounds.extend(c);
-              });
+        // Fit bounds to own company blocks on first load only.
+        // Subsequent runs (style swaps, block refresh) preserve the user's camera.
+        if (!hasFitOnceRef.current) {
+          const ownFeatures = blocksData.features?.filter(
+            (f) => f.properties?.company_id === companyId,
+          );
+          if (ownFeatures?.length > 0) {
+            const bounds = new mapboxgl.LngLatBounds();
+            ownFeatures.forEach((f) => {
+              if (f.geometry?.coordinates) {
+                const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates.flat();
+                coords.forEach((c) => {
+                  if (Array.isArray(c) && c.length >= 2) bounds.extend(c);
+                });
+              }
+            });
+            if (!bounds.isEmpty()) {
+              map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 1000 });
+              hasFitOnceRef.current = true;
             }
-          });
-          if (!bounds.isEmpty()) {
-            map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 1000 });
           }
         }
       } catch (err) {

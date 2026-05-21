@@ -113,7 +113,6 @@ function ContractorDetailView({ contractor, onBack, onRefresh }) {
   const [detail, setDetail] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [movements, setMovements] = useState([]);
-  const [training, setTraining] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
 
@@ -121,16 +120,14 @@ function ContractorDetailView({ contractor, onBack, onRefresh }) {
     (async () => {
       setLoading(true);
       try {
-        const [d, a, m, t] = await Promise.all([
+        const [d, a, m] = await Promise.all([
           contractorManagementService.getContractor(contractor.id),
           contractorManagementService.getAssignments(contractor.id),
           contractorManagementService.getMovements(contractor.id),
-          contractorManagementService.getTraining(contractor.id),
         ]);
         setDetail(d);
         setAssignments(a);
         setMovements(m);
-        setTraining(t);
       } catch (err) {
         console.error('Failed to load contractor detail:', err);
       } finally {
@@ -169,7 +166,6 @@ function ContractorDetailView({ contractor, onBack, onRefresh }) {
     { key: 'overview', label: 'Overview' },
     { key: 'assignments', label: `Assignments (${assignments.length})` },
     { key: 'movements', label: `Movements (${movements.length})` },
-    { key: 'training', label: `Training (${training.length})` },
   ];
 
   return (
@@ -249,7 +245,6 @@ function ContractorDetailView({ contractor, onBack, onRefresh }) {
       {activeTab === 'overview' && <OverviewTab detail={detail} />}
       {activeTab === 'assignments' && <AssignmentsTab assignments={assignments} />}
       {activeTab === 'movements' && <MovementsTab movements={movements} />}
-      {activeTab === 'training' && <TrainingTab training={training} />}
     </div>
   );
 }

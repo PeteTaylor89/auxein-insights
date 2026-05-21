@@ -1,8 +1,20 @@
 # backend/api/v1/calendar.py — unified calendar endpoint
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from datetime import date, datetime, time
+from sqlalchemy import or_, and_
+from datetime import date, datetime, time, timezone
 from typing import List, Optional
+
+
+def _utc(dt):
+    """Normalise naive datetimes to UTC so we can mix tz-aware (from DB
+    DateTime(timezone=True) cols like risk_actions, observation_plans, training)
+    with naive datetimes (from datetime.combine(date, time.min) on date-only
+    cols like task.scheduled_start_date, maintenance.scheduled_date) in the
+    same sorted list."""
+    if dt is None or dt.tzinfo is not None:
+        return dt
+    return dt.replace(tzinfo=timezone.utc)
 
 from db.session import get_db
 from api.deps import get_current_user
@@ -104,28 +116,43 @@ def get_calendar_events(
             )
 
     # ── Observation Plans / Runs ───────────────────────────────────────
+    # Show plans where at least ONE of due_start_at / due_end_at is set and
+    # the window overlaps the requested range. Some plans only have a target
+    # end date — treat that as a one-day event on that date.
     if show_all or CalendarEventType.observation in event_types:
         plans = (
             db.query(ObservationPlan)
             .filter(
                 ObservationPlan.company_id == company_id,
-                ObservationPlan.due_start_at != None,  # noqa: E711
-                ObservationPlan.due_start_at <= range_end,
+                or_(
+                    ObservationPlan.due_start_at != None,  # noqa: E711
+                    ObservationPlan.due_end_at != None,    # noqa: E711
+                ),
             )
             .filter(
-                (ObservationPlan.due_end_at >= range_start)
-                | (ObservationPlan.due_end_at == None)  # noqa: E711
+                or_(
+                    and_(ObservationPlan.due_start_at != None, ObservationPlan.due_start_at <= range_end),  # noqa: E711
+                    and_(ObservationPlan.due_end_at != None, ObservationPlan.due_end_at <= range_end),      # noqa: E711
+                )
+            )
+            .filter(
+                or_(
+                    and_(ObservationPlan.due_end_at != None, ObservationPlan.due_end_at >= range_start),    # noqa: E711
+                    and_(ObservationPlan.due_start_at != None, ObservationPlan.due_start_at >= range_start),  # noqa: E711
+                )
             )
             .all()
         )
         for p in plans:
+            start = p.due_start_at or p.due_end_at
+            end = p.due_end_at if (p.due_start_at and p.due_end_at and p.due_end_at != p.due_start_at) else None
             events.append(
                 CalendarEvent(
                     id=p.id,
                     event_type=CalendarEventType.observation,
                     title=p.name or f"Observation Plan #{p.id}",
-                    start=p.due_start_at,
-                    end=p.due_end_at,
+                    start=start,
+                    end=end,
                     all_day=True,
                     color=EVENT_TYPE_COLORS[CalendarEventType.observation],
                     status=p.status if hasattr(p, "status") else None,
@@ -134,31 +161,47 @@ def get_calendar_events(
             )
 
     # ── Risk Actions ───────────────────────────────────────────────────
+    # Show actions where at least ONE of target_start_date / target_completion_date
+    # is set. The UI historically only captured the completion date, so most
+    # rows only have that one — render them on the completion date as a single-
+    # day event. Once both dates are set, show as a multi-day bar.
     if show_all or CalendarEventType.risk_action in event_types:
         actions = (
             db.query(RiskAction)
             .filter(
                 RiskAction.company_id == company_id,
-                RiskAction.target_start_date != None,  # noqa: E711
-                RiskAction.target_start_date <= range_end,
+                or_(
+                    RiskAction.target_start_date != None,        # noqa: E711
+                    RiskAction.target_completion_date != None,   # noqa: E711
+                ),
             )
             .filter(
-                (RiskAction.target_completion_date >= range_start)
-                | (RiskAction.target_completion_date == None)  # noqa: E711
+                or_(
+                    and_(RiskAction.target_start_date != None, RiskAction.target_start_date <= range_end),       # noqa: E711
+                    and_(RiskAction.target_completion_date != None, RiskAction.target_completion_date <= range_end),  # noqa: E711
+                )
+            )
+            .filter(
+                or_(
+                    and_(RiskAction.target_completion_date != None, RiskAction.target_completion_date >= range_start),  # noqa: E711
+                    and_(RiskAction.target_start_date != None, RiskAction.target_start_date >= range_start),     # noqa: E711
+                )
             )
             .all()
         )
         for a in actions:
+            start = a.target_start_date or a.target_completion_date
+            end = a.target_completion_date if (a.target_start_date and a.target_completion_date and a.target_completion_date != a.target_start_date) else None
             events.append(
                 CalendarEvent(
                     id=a.id,
                     event_type=CalendarEventType.risk_action,
                     title=a.action_title if hasattr(a, "action_title") else f"Action #{a.id}",
-                    start=a.target_start_date,
-                    end=a.target_completion_date,
+                    start=start,
+                    end=end,
                     all_day=True,
                     color=EVENT_TYPE_COLORS[CalendarEventType.risk_action],
-                    status=a.status.value if hasattr(a, "status") and a.status else None,
+                    status=a.status if hasattr(a, "status") and a.status else None,
                     url=f"/RiskDashboard",
                 )
             )
@@ -245,5 +288,5 @@ def get_calendar_events(
                 )
             )
 
-    events.sort(key=lambda e: e.start)
+    events.sort(key=lambda e: _utc(e.start))
     return events

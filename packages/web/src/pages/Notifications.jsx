@@ -9,7 +9,6 @@ const NOTIFICATION_TYPES = [
   { value: 'task', label: 'Tasks' },
   { value: 'incident', label: 'Incidents' },
   { value: 'action', label: 'Actions' },
-  { value: 'training', label: 'Training' },
   { value: 'visitor', label: 'Visitors' },
   { value: 'timesheet', label: 'Timesheets' },
   { value: 'system', label: 'System' },

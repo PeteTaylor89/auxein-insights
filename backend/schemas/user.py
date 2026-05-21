@@ -93,6 +93,9 @@ class UserProfileUpdate(BaseModel):
     last_name: Optional[str] = None
     phone: Optional[str] = None
     bio: Optional[str] = None
+    job_title: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
     timezone: Optional[str] = None
     language: Optional[str] = None
     avatar_url: Optional[str] = None

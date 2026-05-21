@@ -80,6 +80,22 @@ function computeSpanningBars(weekDays, multiDayEvents) {
       continuesRight: evEnd > weekEnd,
     });
   }
+
+  // Greedy interval packing → assign each bar a deterministic `track`.
+  // Sort earliest-start-first, then longest-span-first so chunky bars get a
+  // lower track and short bars slot in around them.
+  bars.sort((a, b) => a.startCol - b.startCol || b.span - a.span);
+  const trackEnds = []; // index = track, value = next free column
+  for (const bar of bars) {
+    let track = trackEnds.findIndex((endCol) => endCol <= bar.startCol);
+    if (track === -1) {
+      track = trackEnds.length;
+      trackEnds.push(0);
+    }
+    trackEnds[track] = bar.startCol + bar.span;
+    bar.track = track;
+  }
+
   return bars;
 }
 
@@ -125,7 +141,7 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
   // Drag handlers — no useCallback to avoid stale closure issues with dragData
   const handleDragStart = (e, ev) => {
     if (!canEdit) return;
-    if (ev.event_type !== 'task') { e.preventDefault(); return; }
+    if (ev.event_type !== 'task' && ev.event_type !== 'risk_action') { e.preventDefault(); return; }
     if (ev.status === 'completed' || ev.status === 'cancelled') { e.preventDefault(); return; }
     setDragData(ev);
     e.dataTransfer.effectAllowed = 'move';
@@ -162,14 +178,21 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
     const newDate = stripTime(dayDate);
     const deltaDays = Math.round((newDate - origDate) / 86400000);
 
-    const dates = { scheduled_start_date: newStartDate };
+    // Field names differ per event type so the caller can route to the right endpoint.
+    // For risk_action single-day events (no `.end`) we set both target dates to the
+    // new date so the deadline moves with the drag — not just a phantom "start".
+    const isTask = dragData.event_type === 'task';
+    const dates = isTask
+      ? { scheduled_start_date: newStartDate }
+      : { target_start_date: newStartDate, target_completion_date: newStartDate };
     if (dragData.end) {
       const newEnd = new Date(stripTime(new Date(dragData.end)));
       newEnd.setDate(newEnd.getDate() + deltaDays);
-      dates.scheduled_end_date = dateKey(newEnd);
+      if (isTask) dates.scheduled_end_date = dateKey(newEnd);
+      else dates.target_completion_date = dateKey(newEnd);
     }
 
-    onReschedule(dragData.id, dates);
+    onReschedule(dragData, dates);
     setDragData(null);
   };
 
@@ -187,36 +210,72 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
         ))}
       </div>
 
-      {/* Week rows */}
+      {/* Week rows — three stacked layers per week:
+            1. date-strip       (date numbers per day)
+            2. span-layer       (multi-day bars, packed into deterministic tracks)
+            3. events-row       (single-day events per day, also the drop targets)
+          All events thus sit UNDER the date numbers, with bars between header
+          and single-day events. */}
       {weeks.map((weekDays, wi) => {
         const bars = computeSpanningBars(weekDays, multiDayEvents);
+        const trackCount = bars.reduce((m, b) => Math.max(m, b.track + 1), 0);
 
         return (
           <div key={wi} className="calendar-week-row">
-            {/* Multi-day bar layer */}
-            {bars.length > 0 && (
-              <div className="calendar-span-layer">
-                {bars.map((bar) => (
-                  <button
-                    key={`span-${bar.event.event_type}-${bar.event.id}`}
-                    className={`calendar-span-bar ${bar.continuesLeft ? 'continues-left' : ''} ${bar.continuesRight ? 'continues-right' : ''} ${hoveredEvent === eventUid(bar.event) ? 'span-hover' : ''}`}
-                    style={{
-                      '--event-color': bar.event.color || '#5B6830',
-                      gridColumn: `${bar.startCol + 1} / span ${bar.span}`,
-                    }}
-                    onClick={() => onEventClick?.(bar.event)}
-                    onMouseEnter={() => setHoveredEvent(eventUid(bar.event))}
-                    onMouseLeave={() => setHoveredEvent(null)}
-                    title={bar.event.title}
+            {/* Date strip — one cell per day, just the number + add button */}
+            <div className="calendar-date-strip">
+              {weekDays.map(({ date: d, currentMonth }) => {
+                const key = dateKey(d);
+                return (
+                  <div
+                    key={`hdr-${key}`}
+                    className={`calendar-date-cell ${!currentMonth ? 'other-month' : ''} ${isToday(d) ? 'today' : ''}`}
                   >
-                    <span className="calendar-span-bar-title">{bar.event.title}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+                    <span className="calendar-cell-date">{d.getDate()}</span>
+                    {canEdit && onAddTask && (
+                      <button
+                        className="calendar-add-btn"
+                        onClick={() => onAddTask(dateKey(d))}
+                        title="Create task"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-            {/* Day cells */}
-            <div className="calendar-day-row">
+            {/* Multi-day bar layer — always rendered so every week has
+                consistent vertical rhythm. Bars use explicit gridRow. */}
+            <div
+              className="calendar-span-layer"
+              style={{ gridTemplateRows: trackCount > 0 ? `repeat(${trackCount}, 20px)` : '4px' }}
+            >
+              {bars.map((bar) => (
+                <button
+                  key={`span-${bar.event.event_type}-${bar.event.id}`}
+                  className={`calendar-span-bar ${bar.continuesLeft ? 'continues-left' : ''} ${bar.continuesRight ? 'continues-right' : ''} ${hoveredEvent === eventUid(bar.event) ? 'span-hover' : ''}`}
+                  style={{
+                    '--event-color': bar.event.color || '#5B6830',
+                    gridColumn: `${bar.startCol + 1} / span ${bar.span}`,
+                    gridRow: `${bar.track + 1} / span 1`,
+                  }}
+                  onClick={() => onEventClick?.(bar.event)}
+                  onMouseEnter={() => setHoveredEvent(eventUid(bar.event))}
+                  onMouseLeave={() => setHoveredEvent(null)}
+                  title={bar.event.title}
+                  draggable={canEdit && (bar.event.event_type === 'task' || bar.event.event_type === 'risk_action') && bar.event.status !== 'completed' && bar.event.status !== 'cancelled'}
+                  onDragStart={(e) => handleDragStart(e, bar.event)}
+                  onDragEnd={handleDragEnd}
+                >
+                  <span className="calendar-span-bar-title">{bar.event.title}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Events row — single-day events + drop targets */}
+            <div className="calendar-events-row">
               {weekDays.map(({ date: d, currentMonth }) => {
                 const key = dateKey(d);
                 const dayEvents = singleDayByDate[key] || [];
@@ -224,32 +283,20 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
 
                 return (
                   <div
-                    key={key}
+                    key={`body-${key}`}
                     className={`calendar-cell ${!currentMonth ? 'other-month' : ''} ${isToday(d) ? 'today' : ''} ${isDropHere ? 'drop-target' : ''}`}
                     onDragOver={handleDragOver}
                     onDragEnter={(e) => handleDragEnter(e, d)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, d)}
                   >
-                    <div className="calendar-cell-header">
-                      <span className="calendar-cell-date">{d.getDate()}</span>
-                      {canEdit && onAddTask && (
-                        <button
-                          className="calendar-add-btn"
-                          onClick={() => onAddTask(dateKey(d))}
-                          title="Create task"
-                        >
-                          +
-                        </button>
-                      )}
-                    </div>
                     <div className="calendar-cell-events">
                       {dayEvents.slice(0, 3).map((ev) => (
                         <EventCard
                           key={`${ev.event_type}-${ev.id}`}
                           event={ev}
                           onClick={onEventClick}
-                          draggable={canEdit && ev.event_type === 'task' && ev.status !== 'completed' && ev.status !== 'cancelled'}
+                          draggable={canEdit && (ev.event_type === 'task' || ev.event_type === 'risk_action') && ev.status !== 'completed' && ev.status !== 'cancelled'}
                           onDragStart={handleDragStart}
                           onDragEnd={handleDragEnd}
                         />

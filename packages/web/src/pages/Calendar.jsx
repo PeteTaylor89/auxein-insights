@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { calendarService, propertyService, tasksService } from '@vineyard/shared';
+import { calendarService, propertyService, tasksService, riskManagementService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import CalendarView from '../components/calendar/CalendarView';
 import './Calendar.css';
@@ -10,7 +10,6 @@ import './Calendar.css';
 const EVENT_TYPES = [
   { value: 'task', label: 'Tasks', color: '#5B6830' },
   { value: 'observation', label: 'Observations', color: '#2d5a87' },
-  { value: 'training', label: 'Training', color: '#7c3aed' },
   { value: 'risk_action', label: 'Risk Actions', color: '#D1583B' },
   { value: 'maintenance', label: 'Maintenance', color: '#f59e0b' },
 ];
@@ -94,13 +93,19 @@ function Calendar() {
     if (event.url) navigate(event.url);
   };
 
-  const handleReschedule = async (taskId, dates) => {
+  const handleReschedule = async (event, dates) => {
     try {
-      await tasksService.rescheduleTask(taskId, dates);
+      if (event.event_type === 'task') {
+        await tasksService.rescheduleTask(event.id, dates);
+      } else if (event.event_type === 'risk_action') {
+        await riskManagementService.rescheduleAction(event.id, dates);
+      } else {
+        return;
+      }
       fetchEvents(); // refresh
     } catch (err) {
-      console.error('Failed to reschedule task', err);
-      alert(err.response?.data?.detail || 'Failed to reschedule task');
+      console.error('Failed to reschedule', err);
+      alert(err.response?.data?.detail || 'Failed to reschedule');
     }
   };
 

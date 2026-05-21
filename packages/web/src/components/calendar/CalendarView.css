@@ -27,41 +27,91 @@
 }
 
 /* ── Week row ───────────────────────────────────────────────────────── */
+/* Stacked layout: date strip on top, then bars, then single-day events. */
 .calendar-week-row {
   position: relative;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 2px solid #cbd5e1; /* strong delineation between weeks */
 }
 
 .calendar-week-row:last-child {
   border-bottom: none;
 }
 
-/* Multi-day spanning bar layer */
+/* Date strip — date numbers per day, sits above bars + events. */
+.calendar-date-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: var(--color-surface);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.calendar-date-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px var(--space-xs);
+  border-right: 1px solid #e5e7eb;
+  min-height: 26px;
+}
+
+.calendar-date-cell:last-child {
+  border-right: none;
+}
+
+.calendar-date-cell.other-month {
+  background: #f5f5f5;
+}
+
+.calendar-date-cell.other-month .calendar-cell-date {
+  color: #b5b5b5;
+}
+
+.calendar-date-cell.today {
+  background: rgba(91, 104, 48, 0.12);
+}
+
+.calendar-date-cell.today .calendar-cell-date {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+}
+
+/* Multi-day spanning bar layer — sits below date strip, above events.
+   Always rendered (even when empty) so every week has consistent rhythm.
+   No bottom border — visually merges with the events row below into a single
+   content area per week. */
 .calendar-span-layer {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px 0;
-  padding: 0 2px;
-  margin-bottom: 2px;
+  gap: 2px 1px;
+  padding: 4px 2px 2px;
+  background: var(--color-surface);
 }
 
 .calendar-span-bar {
   display: flex;
   align-items: center;
-  padding: 3px 8px;
+  padding: 2px 8px;
   background: color-mix(in srgb, var(--event-color) 18%, white);
   border: none;
   border-left: 3px solid var(--event-color);
   border-radius: 4px;
+  font-family: inherit;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text);
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 22px;
+  min-height: 20px;
   transition: background var(--transition-fast);
 }
 
@@ -89,16 +139,16 @@
   text-overflow: ellipsis;
 }
 
-/* ── Day cells row ──────────────────────────────────────────────────── */
-.calendar-day-row {
+/* ── Single-day events row ─────────────────────────────────────────── */
+.calendar-events-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
 }
 
 .calendar-cell {
-  min-height: 80px;
+  min-height: 60px;
   padding: var(--space-xs);
-  border-right: 1px solid #f0f0f0;
+  border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -109,33 +159,17 @@
 }
 
 .calendar-cell.other-month {
-  background: #fafafa;
-}
-
-.calendar-cell.other-month .calendar-cell-date {
-  color: #ccc;
+  background: #f5f5f5;
 }
 
 .calendar-cell.today {
-  background: rgba(91, 104, 48, 0.05);
-}
-
-.calendar-cell.today .calendar-cell-date {
-  background: var(--color-primary);
-  color: var(--color-white);
-  border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgba(91, 104, 48, 0.04);
 }
 
 .calendar-cell-date {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 2px;
 }
 
 .calendar-cell-events {
@@ -156,7 +190,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
+  padding: 1px 6px;
   background: color-mix(in srgb, var(--event-color) 12%, white);
   border: none;
   border-left: 3px solid var(--event-color);
@@ -169,6 +203,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-height: 20px;
 }
 
 .calendar-event:hover {
@@ -217,22 +252,15 @@
   border-radius: 50%;
 }
 
-/* ── Cell header (date + add button) ───────────────────────────────── */
-.calendar-cell-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2px;
-}
-
+/* ── Add button (lives in date strip) ──────────────────────────────── */
 .calendar-add-btn {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border: none;
   border-radius: 50%;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
@@ -243,7 +271,7 @@
   transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
 }
 
-.calendar-cell:hover .calendar-add-btn {
+.calendar-date-cell:hover .calendar-add-btn {
   opacity: 1;
 }
 
@@ -273,8 +301,13 @@
 /* ── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .calendar-cell {
-    min-height: 50px;
+    min-height: 40px;
     padding: 2px;
+  }
+
+  .calendar-date-cell {
+    padding: 2px 4px;
+    min-height: 22px;
   }
 
   .calendar-cell-date {

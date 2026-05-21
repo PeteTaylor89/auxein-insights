@@ -1162,33 +1162,20 @@ function TimesheetsTab() {
 
 
 // ============================================================================
-// TAB: Training
+// TAB: Training — placeholder for V1 (modules + routes still live in the
+// codebase, just delinked from the active UI). Restore by replacing this
+// function body with the prior implementation below this marker.
 // ============================================================================
 function TrainingTab() {
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    companyAdminService.getTrainingSummary()
-      .then(res => setSummary(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <p className="ca-loading">Loading training summary...</p>;
-  if (!summary) return <p className="ca-empty">Could not load training data.</p>;
-
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Training Overview</h2>
-      <div className="ca-stats-grid">
-        <div className="stat-card"><div className="stat-value">{summary.total_users}</div><div className="stat-label">Users with Training</div></div>
-        <div className="stat-card"><div className="stat-value">{summary.total_completed}/{summary.total_assigned}</div><div className="stat-label">Completed</div></div>
-        <div className="stat-card"><div className="stat-value">{summary.completion_rate}%</div><div className="stat-label">Completion Rate</div></div>
-        <div className="stat-card"><div className="stat-value">{summary.total_overdue}</div><div className="stat-label">Overdue</div></div>
-      </div>
-      <div className="ca-link-row">
-        <Link to="/training" className="ca-link-btn">Manage Training Modules</Link>
+      <h2 className="ca-section-title">Training</h2>
+      <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+        <GraduationCap size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
+        <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Training modules — coming soon</h3>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+          Module library, assignments, and completion tracking will arrive in a future release.
+        </p>
       </div>
     </div>
   );

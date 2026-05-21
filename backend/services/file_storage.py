@@ -113,6 +113,23 @@ def delete_object(s3_key: str) -> None:
         raise
 
 
+def generate_presigned_url(s3_key: str, expires_in: int = 3600) -> Optional[str]:
+    """Return a time-limited public URL for the object, or None if S3 isn't
+    configured (dev). Default expiry is 1 hour — fine for avatar display where
+    the page refetches the profile (and thus the URL) on every load."""
+    if not is_enabled():
+        return None
+    try:
+        return _get_s3_client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.UPLOADS_S3_BUCKET, "Key": s3_key},
+            ExpiresIn=expires_in,
+        )
+    except Exception:
+        logger.exception("S3 generate_presigned_url failed for key=%s", s3_key)
+        return None
+
+
 def head_object(s3_key: str) -> Optional[dict]:
     """Return S3 HEAD metadata for the object, or None if it doesn't exist.
 

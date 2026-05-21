@@ -115,9 +115,11 @@ export default function useObservationsLayer(map, mapReady, visible, blocksData)
             'text-allow-overlap': true,
           },
           paint: {
+            'icon-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 14, 1],
             'text-color': '#2F2F2F',
             'text-halo-color': '#ffffff',
             'text-halo-width': 1.5,
+            'text-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 14, 1],
           },
         });
 

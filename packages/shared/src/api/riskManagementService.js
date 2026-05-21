@@ -189,6 +189,12 @@ const riskManagementService = {
     const response = await api.put(`/risk-management/actions/${id}`, data);
     return response.data;
   },
+
+  // Reschedule action (date-only update). Used by calendar drag-and-drop.
+  rescheduleAction: async (id, dates) => {
+    const response = await api.patch(`/risk-management/actions/${id}/reschedule`, dates);
+    return response.data;
+  },
   
   // Update action progress
   updateActionProgress: async (id, progressData) => {

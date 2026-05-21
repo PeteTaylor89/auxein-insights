@@ -5,7 +5,7 @@ from typing import Any, Optional, Union
 import secrets
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, BackgroundTasks, Header
+from fastapi import APIRouter, Body, Depends, HTTPException, BackgroundTasks, Header, UploadFile, File, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -678,7 +678,16 @@ def read_current_profile(current_user: Union[User, Contractor] = Depends(get_cur
             "created_at": current_user.created_at
         }
     else:
-        # Return company user profile as dictionary (convert User object)
+        # Return company user profile as dictionary (convert User object).
+        # avatar_url is stored as an S3 key, not a public URL — swap to a
+        # short-lived presigned URL so the frontend can render it directly.
+        avatar_signed = None
+        if current_user.avatar_url:
+            try:
+                from services import file_storage as _fs
+                avatar_signed = _fs.generate_presigned_url(current_user.avatar_url, expires_in=3600) or current_user.avatar_url
+            except Exception:
+                avatar_signed = None
         return {
             "user_type": "company_user",
             "user_type_role": current_user.user_type,
@@ -692,15 +701,139 @@ def read_current_profile(current_user: Union[User, Contractor] = Depends(get_cur
             "company_id": current_user.company_id,
             "is_active": current_user.is_active,
             "is_verified": current_user.is_verified,
-            "avatar_url": current_user.avatar_url,
+            "avatar_url": avatar_signed,
             "phone": current_user.phone,
             "bio": current_user.bio,
+            "job_title": current_user.job_title,
+            "emergency_contact_name": current_user.emergency_contact_name,
+            "emergency_contact_phone": current_user.emergency_contact_phone,
             "timezone": current_user.timezone,
             "language": current_user.language,
             "preferences": current_user.preferences,
             "last_login": current_user.last_login,
             "created_at": getattr(current_user, 'created_at', None)
         }
+
+
+@router.patch("/me")
+def update_current_user_profile(
+    profile: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Update the current user's editable profile fields.
+
+    Self-edit only — admin fields (role, user_type, is_active etc.) live on the
+    admin update path. avatar_url is set via the avatar upload endpoint, not
+    accepted here, so users can't paste arbitrary URLs.
+    """
+    # Re-query to ensure we're on the same session (mirrors the contractor
+    # endpoint pattern from contractor_management.py).
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    data = profile.dict(exclude_unset=True)
+    # avatar_url goes through its own endpoint with file validation —
+    # block direct setting here.
+    data.pop("avatar_url", None)
+    for field, value in data.items():
+        setattr(user, field, value)
+
+    db.commit()
+    db.refresh(user)
+    return {"ok": True, "id": user.id}
+
+
+@router.post("/me/avatar")
+def upload_current_user_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Upload (or replace) the current user's profile photo.
+
+    Limits: image content-type only, 5 MB max. Stored at
+    `avatars/{user_id}/{timestamp}{ext}` in S3. Prior avatar (if any) is
+    deleted from S3 in the same request so we don't accumulate orphans.
+    Frontend receives the new presigned URL in the response so it can swap
+    the displayed image without a separate /me refetch.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+
+    # Read the whole upload to enforce the size cap. Avatars are tiny so
+    # a 5 MB ceiling is generous.
+    MAX_BYTES = 5 * 1024 * 1024
+    content = file.file.read()
+    if len(content) > MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Image must be 5 MB or smaller")
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty upload")
+
+    # Pick an extension from the content-type rather than trusting the filename.
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }
+    ext = ext_map.get(file.content_type, ".bin")
+    ts = int(datetime.now(timezone.utc).timestamp())
+    s3_key = f"avatars/{current_user.id}/{ts}{ext}"
+
+    from services import file_storage as _fs
+    if not _fs.is_enabled():
+        raise HTTPException(status_code=503, detail="File storage is not configured on this environment")
+
+    import io
+    try:
+        _fs.upload_fileobj(io.BytesIO(content), s3_key, content_type=file.content_type)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to upload to storage: {exc}")
+
+    # Re-query for the same-session reason as the PATCH endpoint above.
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prior_key = user.avatar_url
+    user.avatar_url = s3_key
+    db.commit()
+
+    # Clean up the prior avatar object — best-effort, don't fail the request.
+    if prior_key and prior_key != s3_key:
+        try:
+            _fs.delete_object(prior_key)
+        except Exception:
+            pass
+
+    signed = _fs.generate_presigned_url(s3_key, expires_in=3600)
+    return {"ok": True, "avatar_url": signed}
+
+
+@router.delete("/me/avatar")
+def delete_current_user_avatar(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Clear the current user's avatar."""
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prior_key = user.avatar_url
+    user.avatar_url = None
+    db.commit()
+
+    if prior_key:
+        try:
+            from services import file_storage as _fs
+            _fs.delete_object(prior_key)
+        except Exception:
+            pass
+
+    return {"ok": True}
 
 @router.put("/contractor/me", response_model=ContractorProfile)
 def update_contractor_profile(

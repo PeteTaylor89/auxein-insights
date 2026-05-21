@@ -96,9 +96,11 @@ export default function useAssetsLayer(map, mapReady, visible) {
             'text-optional': true,
           },
           paint: {
+            'icon-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 14, 1],
             'text-color': '#2F2F2F',
             'text-halo-color': '#ffffff',
             'text-halo-width': 1.5,
+            'text-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 14, 1],
           },
         });
 

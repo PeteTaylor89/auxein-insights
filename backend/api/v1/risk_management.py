@@ -637,6 +637,49 @@ def update_risk_action(
     action = service.update_risk_action(action_id, action_data.dict(exclude_unset=True), current_user)
     return action
 
+
+@router.patch("/risk-management/actions/{action_id}/reschedule", response_model=RiskActionResponse)
+def reschedule_risk_action(
+    action_id: int,
+    dates: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Date-only update for calendar drag-and-drop.
+
+    Accepts target_start_date and/or target_completion_date as ISO date strings.
+    Both are optional; sending an empty / missing value leaves that field unchanged.
+    """
+    action = (
+        db.query(RiskAction)
+        .filter(RiskAction.id == action_id, RiskAction.company_id == current_user.company_id)
+        .first()
+    )
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.status in ("completed", "cancelled"):
+        raise HTTPException(
+            status_code=400, detail=f"Cannot reschedule {action.status} actions"
+        )
+
+    def _parse(value):
+        if value in (None, ""):
+            return None
+        return datetime.fromisoformat(value)
+
+    if "target_start_date" in dates:
+        parsed = _parse(dates["target_start_date"])
+        if parsed is not None:
+            action.target_start_date = parsed
+    if "target_completion_date" in dates:
+        parsed = _parse(dates["target_completion_date"])
+        if parsed is not None:
+            action.target_completion_date = parsed
+
+    db.commit()
+    db.refresh(action)
+    return action
+
 @router.put("/risk-management/actions/{action_id}/progress", response_model=RiskActionResponse)
 def update_action_progress(
     action_id: int,

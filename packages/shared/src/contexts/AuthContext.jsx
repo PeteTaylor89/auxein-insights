@@ -187,11 +187,11 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError('');
-      
+
       // Call your API to update user profile
       const updatedUser = await authService.updateProfile(updatedData);
       setUser(updatedUser);
-      
+
       return updatedUser;
     } catch (err) {
       console.error('Profile update error:', err);
@@ -205,6 +205,21 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
+
+  // Re-fetch /auth/me and replace the global user. Used after Profile.jsx
+  // mutations (PATCH /auth/me, avatar upload/delete) so the displayed user
+  // — and anything else reading from useAuth — stays in sync without a
+  // page reload.
+  const refreshProfile = useCallback(async () => {
+    try {
+      const fresh = await authService.getProfile();
+      setUser(fresh);
+      return fresh;
+    } catch (err) {
+      console.warn('Failed to refresh profile:', err);
+      throw err;
+    }
+  }, []);
 
   // Permission check helper - stable reference via useCallback
   const hasPermission = useCallback((module, action) => {
@@ -222,6 +237,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshAuthToken,
     updateUserProfile,
+    refreshProfile,
     clearError: () => setError(''),
 
     // Enhanced auth values
