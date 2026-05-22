@@ -131,7 +131,14 @@ PT - lets scope witha  test run and then come up wiht the implementation plan
 
 ## Phase 7 — Profile + unified Insights/Grow auth (Option C — FK + propagation)
 
-**Web tasks:**
+**Update 2026-05-21:** Profile rebuild done early as part of the beta-feedback pass. Diverged from this plan in three ways:
+1. **Subscription section moved to CompanyAdmin Billing tab** (Phase 6 of beta-feedback pass — scoping doc at `docs/plans/COMPANYADMIN_BILLING_SCOPING.md`, not yet implemented), not just stripped from Profile.
+2. **Training assignments removed**, not kept — training is mothballed for V1 (see `project_grow_v1_progress.md` 2026-05-21 session for restore recipe).
+3. **Added** personal-info editing (phone, job_title, bio, emergency contact) + profile photo upload. Backend gained `PATCH /auth/me`, `POST /auth/me/avatar`, `DELETE /auth/me/avatar`. Alembic `add_user_profile_fields` shipped.
+
+Auth FK + propagation work (the actual "unified Insights/Grow auth" scope of this phase) remains TODO — separate effort.
+
+**Web tasks (historic):**
 - **Profile.jsx:** strip Company section + Subscription section; keep individual settings (name, email, password, training assignments, notification prefs)
 
 **Backend tasks (one Alembic migration + auth changes):**

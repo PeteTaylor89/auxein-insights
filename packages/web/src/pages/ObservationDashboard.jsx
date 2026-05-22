@@ -7,7 +7,7 @@ import { observationService, usersService, authService, tasksService, contractor
 import MobileNavigation from '../components/MobileNavigation';
 import './ObservationDashboard.css';
 import BlockSelectionModal from '../components/BlockSelectionModal';
-import { TaskTemplateCard, TaskTemplatePreviewModal  } from '@/components/TaskManagement';
+import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
 
 
 function readTemplateFields(tpl) {
@@ -645,7 +645,6 @@ function TaskTemplatesTab() {
               <option value="all">All Categories</option>
               <option value="vineyard">Vineyard</option>
               <option value="land_management">Land Management</option>
-              <option value="asset_management">Asset Management</option>
               <option value="compliance">Compliance</option>
               <option value="general">General</option>
             </select>
@@ -689,7 +688,7 @@ function TaskTemplatesTab() {
 
 // Template Card Component - Matches observation card styling
 function TemplateCard({ template, onView, onEdit, onUse }) {
-  const categoryLabels = { vineyard: 'Vineyard', land_management: 'Land Management', asset_management: 'Asset Management', compliance: 'Compliance', general: 'General' };
+  const categoryLabels = { vineyard: 'Vineyard', land_management: 'Land Management', compliance: 'Compliance', general: 'General' };
   const categoryLabel = categoryLabels[template.task_category] || template.task_category;
 
   return (
@@ -773,7 +772,6 @@ function TaskFilters({
   const categoryOptions = [
     { value: 'vineyard', label: 'Vineyard' },
     { value: 'land_management', label: 'Land Mgmt' },
-    { value: 'asset_management', label: 'Assets' },
     { value: 'compliance', label: 'Compliance' },
     { value: 'general', label: 'General' },
   ];
@@ -952,27 +950,7 @@ function TasksTab() {
     return u.full_name || u.name || u.username || `User #${u.id}`;
   };
 
-  const badge = (s) => {
-    const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
-    const map = {
-      pending:     { bg:'var(--color-surface-warm)', fg:'var(--color-text-muted)', text:'Pending' },
-      not_started: { bg:'var(--color-surface-warm)', fg:'var(--color-text-muted)', text:'Pending' },
-      draft:       { bg:'var(--color-surface-warm)', fg:'var(--color-text-muted)', text:'Draft' },
-      scheduled:   { bg:'var(--color-info-bg)', fg:'var(--color-info)', text:'Scheduled' },
-      ready:       { bg:'var(--color-info-bg)', fg:'var(--color-info)', text:'Ready' },
-      in_progress: { bg:'var(--color-warning-bg)', fg:'var(--color-warning)', text:'In Progress' },
-      paused:      { bg:'var(--color-warning-bg)', fg:'var(--color-warning)', text:'Paused' },
-      completed:   { bg:'var(--color-success-bg)', fg:'var(--color-success)', text:'Completed' },
-      cancelled:   { bg:'var(--color-danger-bg)', fg:'var(--color-danger)', text:'Cancelled' },
-    };
-    const m = map[k] || { bg:'var(--color-olive-light)', fg:'var(--color-primary)', text:(s || 'Other') };
-    return (
-      <span style={{
-        background: m.bg, color: m.fg, padding: '2px 10px', borderRadius: 'var(--radius-pill)',
-        fontSize: 'var(--font-size-xs)', fontWeight: 600
-      }}>{m.text}</span>
-    );
-  };
+  const badge = (s) => <TaskStatusBadge status={s} size="sm" />;
 
   const fmtPriority = (p) => {
     const v = String(p || '').toLowerCase();

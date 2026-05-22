@@ -18,7 +18,6 @@ import AssigneePickerModal from '../components/AssigneePickerModal';
 const CATEGORIES = [
   { value: 'vineyard',         label: 'Vineyard',        icon: 'grid' },
   { value: 'land_management',  label: 'Land mgmt',       icon: 'map' },
-  { value: 'asset_management', label: 'Asset mgmt',      icon: 'package' },
   { value: 'compliance',       label: 'Compliance',      icon: 'shield' },
   { value: 'general',          label: 'General',         icon: 'clipboard' },
 ];

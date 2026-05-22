@@ -1,4 +1,5 @@
 # db/models/block.py - Updated version
+import enum
 from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, func, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
@@ -6,6 +7,18 @@ from db.base_class import Base
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from db.models.climate_historical import ClimateHistoricalData
+
+
+class BlockStatus(str, enum.Enum):
+    """Lifecycle status for a vineyard block. Drives insights/reporting filters
+    (e.g. exclude non-producing blocks from yield rollups)."""
+    developing = "developing"
+    pre_production = "pre_production"
+    producing = "producing"
+    redeveloping = "redeveloping"
+    replanting = "replanting"
+    mothballed = "mothballed"
+    retired = "retired"
 
 class VineyardBlock(Base):
     __tablename__ = "vineyard_blocks"
@@ -35,6 +48,7 @@ class VineyardBlock(Base):
     row_end = Column(String, nullable=True)
     row_count = Column(Integer, nullable=True)
     training_system = Column(String, nullable=True)
+    status = Column(String(20), nullable=False, server_default="producing", index=True)
     company_id = Column(Integer, ForeignKey("companies.id"))
     property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
 

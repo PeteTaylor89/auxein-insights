@@ -13,6 +13,7 @@ import { getTaskCached, listRowsCached, getRowProgressCached } from '../services
 import { byNatural } from '../utils/naturalSort';
 import { useGpsTracking } from '../hooks/useGpsTracking';
 import GpsTrackingOverlay from './GpsTrackingScreen';
+import { TaskStatusBadge } from '../components';
 
 export default function TaskDetailScreen({ route, navigation }) {
   const { taskId } = route.params;
@@ -361,7 +362,7 @@ export default function TaskDetailScreen({ route, navigation }) {
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <Text style={styles.taskNumber}>{task.task_number}</Text>
-            <Badge label={task.status} color={statusColor(task.status)} />
+            <TaskStatusBadge status={task.status} />
           </View>
           <Text style={styles.title}>{task.title || `Task #${task.id}`}</Text>
           {task.description ? <Text style={styles.description}>{task.description}</Text> : null}

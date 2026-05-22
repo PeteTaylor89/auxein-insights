@@ -15,7 +15,6 @@ import { tasksService } from '../api/services';
 const CATEGORY_ICONS = {
   vineyard: 'grid',
   land_management: 'map',
-  asset_management: 'package',
   compliance: 'shield',
   general: 'clipboard',
 };

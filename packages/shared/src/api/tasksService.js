@@ -400,7 +400,6 @@ const tasksService = {
     const labels = {
       vineyard: 'Vineyard',
       land_management: 'Land Management',
-      asset_management: 'Asset Management',
       compliance: 'Compliance',
       general: 'General'
     };

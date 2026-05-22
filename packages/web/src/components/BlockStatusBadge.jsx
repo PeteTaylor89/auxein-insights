@@ -1,5 +1,5 @@
+import { getBlockStatusMeta, BLOCK_STATUS_VALUES } from '@vineyard/shared';
 import PropTypes from 'prop-types';
-import { getTaskStatusMeta, TASK_STATUS_VALUES } from '@vineyard/shared';
 
 const TONE_VARS = {
   muted:   { bg: 'var(--color-surface-warm)', fg: 'var(--color-text-muted)' },
@@ -15,8 +15,8 @@ const SIZE_STYLES = {
   lg: { padding: '4px 12px', fontSize: 'var(--font-size-sm)' },
 };
 
-export default function TaskStatusBadge({ status, size = 'md' }) {
-  const meta = getTaskStatusMeta(status);
+export default function BlockStatusBadge({ status, size = 'md' }) {
+  const meta = getBlockStatusMeta(status);
   const tone = TONE_VARS[meta.tone] || TONE_VARS.muted;
   const sizing = SIZE_STYLES[size] || SIZE_STYLES.md;
   return (
@@ -34,7 +34,7 @@ export default function TaskStatusBadge({ status, size = 'md' }) {
   );
 }
 
-TaskStatusBadge.propTypes = {
-  status: PropTypes.oneOf([...TASK_STATUS_VALUES, '', null, undefined]),
+BlockStatusBadge.propTypes = {
+  status: PropTypes.oneOf([...BLOCK_STATUS_VALUES, '', null, undefined]),
   size: PropTypes.oneOf(['sm', 'md', 'lg']),
 };

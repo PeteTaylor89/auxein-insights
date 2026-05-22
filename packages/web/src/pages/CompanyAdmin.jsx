@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3 } from 'lucide-react';
-import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService, byNatural } from '@vineyard/shared';
+import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService, byNatural, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
 import ContractorRelationships from '../components/admin/ContractorRelationships';
 import ForecastPointPicker from '../components/ForecastPointPicker';
+import BlockStatusBadge from '../components/BlockStatusBadge';
 import './CompanyAdmin.css';
 
 const TABS = [
@@ -596,6 +597,7 @@ function BlocksTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [propertyFilter, setPropertyFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [editingBlockId, setEditingBlockId] = useState(null);
 
   const canManage = userTypeRole === 'company_admin' || userTypeRole === 'auxein_admin';
@@ -624,6 +626,7 @@ function BlocksTab() {
   const filteredBlocks = blocks.filter(b => {
     if (propertyFilter === 'unassigned' && b.property_id) return false;
     if (propertyFilter !== 'all' && propertyFilter !== 'unassigned' && b.property_id !== parseInt(propertyFilter)) return false;
+    if (statusFilter !== 'all' && (b.status || BLOCK_STATUS_DEFAULT) !== statusFilter) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       return (b.block_name || '').toLowerCase().includes(q) || (b.variety || '').toLowerCase().includes(q);
@@ -661,6 +664,15 @@ function BlocksTab() {
           <option value="unassigned">Unassigned</option>
           {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <select
+          className="ca-inline-input"
+          style={{ maxWidth: 200 }}
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+        >
+          <option value="all">All statuses</option>
+          {BLOCK_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
         <span className="ca-muted" style={{ fontSize: 'var(--font-size-sm)' }}>
           {filteredBlocks.length} of {blocks.length} blocks
         </span>
@@ -673,6 +685,7 @@ function BlocksTab() {
           <thead>
             <tr>
               <th>Name</th>
+              <th>Status</th>
               <th>Variety</th>
               <th>Property</th>
               <th>Area (ha)</th>
@@ -684,6 +697,7 @@ function BlocksTab() {
             {filteredBlocks.map(b => (
               <tr key={b.id}>
                 <td style={{ fontWeight: 500 }}>{b.block_name || 'Unnamed'}</td>
+                <td><BlockStatusBadge status={b.status || BLOCK_STATUS_DEFAULT} size="sm" /></td>
                 <td>{b.variety || <span className="ca-muted">—</span>}</td>
                 <td>{b.property_id ? propertyName(b.property_id) : <span className="ca-muted">Unassigned</span>}</td>
                 <td>{b.area ? Number(b.area).toFixed(2) : <span className="ca-muted">—</span>}</td>
@@ -740,6 +754,7 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
       setBlock(b);
       setForm({
         block_name: b.block_name || '',
+        status: b.status || BLOCK_STATUS_DEFAULT,
         variety: b.variety || '',
         clone: b.clone || '',
         rootstock: b.rootstock || '',
@@ -783,6 +798,7 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
     try {
       await blocksService.updateBlock(blockId, {
         block_name: form.block_name.trim(),
+        status: form.status || BLOCK_STATUS_DEFAULT,
         variety: form.variety || null,
         clone: form.clone || null,
         rootstock: form.rootstock || null,
@@ -843,6 +859,12 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
                     <select className="ca-inline-input" value={form.property_id} onChange={handleChange('property_id')}>
                       <option value="">Unassigned</option>
                       {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="ca-inline-label">Status</label>
+                    <select className="ca-inline-input" value={form.status} onChange={handleChange('status')}>
+                      {BLOCK_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </div>
                   <div>

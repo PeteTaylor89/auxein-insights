@@ -9,6 +9,23 @@ export { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 // Utils
 export { hasPermission, getPermissionsForUserType, isAdminType, isManagerOrAbove, UserType } from './utils/permissions.js';
 export { compareNatural, byNatural } from './utils/naturalSort.js';
+export {
+  TASK_STATUS_META,
+  TASK_STATUS_VALUES,
+  getTaskStatusMeta,
+  TASK_STATUS_STARTABLE,
+  TASK_STATUS_ACTIVE,
+  TASK_STATUS_FINISHED,
+} from './utils/taskStatus.js';
+export {
+  BLOCK_STATUS_META,
+  BLOCK_STATUS_VALUES,
+  BLOCK_STATUS_OPTIONS,
+  getBlockStatusMeta,
+  BLOCK_STATUS_DEFAULT,
+  BLOCK_STATUS_ACTIVE,
+  BLOCK_STATUS_PRODUCTIVE,
+} from './utils/blockStatus.js';
 
 // Hooks
 export { default as usePullToRefresh } from './hooks/usePullToRefresh.js';

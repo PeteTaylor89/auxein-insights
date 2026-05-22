@@ -662,7 +662,6 @@ function TaskCreationWizard() {
               >
                 <option value="vineyard">🍇 Vineyard</option>
                 <option value="land_management">🌱 Land Management</option>
-                <option value="asset_management">🔧 Asset Management</option>
                 <option value="compliance">📋 Compliance</option>
                 <option value="general">📌 General</option>
               </select>

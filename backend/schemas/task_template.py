@@ -10,7 +10,6 @@ class TaskCategory(str, Enum):
     """Main task categories matching database enum"""
     vineyard = "vineyard"
     land_management = "land_management"
-    asset_management = "asset_management"
     compliance = "compliance"
     general = "general"
 

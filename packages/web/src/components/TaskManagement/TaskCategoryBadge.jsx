@@ -16,12 +16,6 @@ const TaskCategoryBadge = ({ category, size = 'md', variant = 'solid' }) => {
       color: 'bg-green-100 text-green-800 border-green-300',
       outlineColor: 'text-green-700 border-green-400',
     },
-    asset_management: {
-      label: 'Asset Management',
-      icon: '🔧',
-      color: 'bg-blue-100 text-blue-800 border-blue-300',
-      outlineColor: 'text-blue-700 border-blue-400',
-    },
     compliance: {
       label: 'Compliance',
       icon: '📋',
@@ -61,7 +55,6 @@ TaskCategoryBadge.propTypes = {
   category: PropTypes.oneOf([
     'vineyard',
     'land_management',
-    'asset_management',
     'compliance',
     'general',
   ]).isRequired,

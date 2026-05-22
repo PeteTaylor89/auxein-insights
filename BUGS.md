@@ -61,6 +61,18 @@
   4. The `6fbc24f09e13` file is always safe to delete regardless (its placeholder revision string can't be in `alembic_version`).
 - **Reported:** 2026-05-09. Discovered while adding `add_banner_audience` migration.
 
+### [BUG-008] Shared — AuthContext.updateUserProfile calls a non-existent authService.updateProfile
+- **Priority:** P3 (latent — no caller in V1 after 2026-05-21 Profile rebuild)
+- **Area:** Shared package / Auth
+- **File:** `packages/shared/src/contexts/AuthContext.jsx:186` (function `updateUserProfile`)
+- **Symptom:** any caller that invokes `useAuth().updateUserProfile(data)` will throw `TypeError: authService.updateProfile is not a function`. `authService.js` exposes `getProfile`, `login`, `register`, `refreshToken` etc. — there is no `updateProfile` method.
+- **How it lay dormant:** the old Profile.jsx didn't call this method either; it just rendered read-only user data. So no production caller has ever exercised it.
+- **Discovered:** 2026-05-21 while rebuilding Profile.jsx — I wired the new self-edit flow through `usersService.updateMyProfile` + `refreshProfile()` (also new) and intentionally bypassed the broken AuthContext path. The latent bug remains in the codebase.
+- **Fix options (pick one):**
+  1. **Wire it through.** Add `authService.updateProfile = async (data) => api.patch('/auth/me', data).then(r => r.data)` and have `AuthContext.updateUserProfile` call my new `refreshProfile()` instead of `setUser(updatedUser)` (since PATCH returns `{ok:true,id}`, not the full profile).
+  2. **Delete it.** Remove the `updateUserProfile` method from AuthContext and the `updateUserProfile` key from the context value. Callers (none today) should use `usersService.updateMyProfile` + `refreshProfile` instead.
+- **Recommend option 2** — `usersService` + `refreshProfile` is the canonical path going forward; the AuthContext duplicate just creates two ways to do the same thing.
+
 ### [BUG-006] Backend — Gunicorn workers OOM-killed ~60-90 min after each deploy
 - **Priority:** P1 (recurring production outage)
 - **Area:** Backend / AWS EB

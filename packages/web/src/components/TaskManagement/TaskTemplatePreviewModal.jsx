@@ -12,7 +12,6 @@ function TaskTemplatePreviewModal({ open, template, onClose }) {
   const categoryIcons = {
     vineyard: '🍇',
     land_management: '🌱',
-    asset_management: '🔧',
     compliance: '📋',
     general: '📌'
   };
@@ -20,7 +19,6 @@ function TaskTemplatePreviewModal({ open, template, onClose }) {
   const categoryLabels = {
     vineyard: 'Vineyard',
     land_management: 'Land Management',
-    asset_management: 'Asset Management',
     compliance: 'Compliance',
     general: 'General'
   };

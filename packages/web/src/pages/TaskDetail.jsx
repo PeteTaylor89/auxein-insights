@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, P
 import { tasksService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
+import { TaskStatusBadge } from '../components/TaskManagement';
 import '../pages/vineyard-pages.css';
 
 function friendlyName(user) {
@@ -227,24 +228,6 @@ function TaskDetail() {
   const canComplete = ['in_progress', 'paused'].includes(taskStatus);
   const isFinished = ['completed', 'cancelled'].includes(taskStatus);
 
-  const statusBadge = (s) => {
-    const k = String(s || '').toLowerCase().replace(/\s+/g, '_');
-    const map = {
-      draft: { bg: 'var(--color-surface-warm)', fg: 'var(--color-text-muted)' },
-      scheduled: { bg: 'var(--color-info-bg)', fg: 'var(--color-info)' },
-      ready: { bg: 'var(--color-info-bg)', fg: 'var(--color-info)' },
-      in_progress: { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning)' },
-      paused: { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning)' },
-      completed: { bg: 'var(--color-success-bg)', fg: 'var(--color-success)' },
-      cancelled: { bg: 'var(--color-danger-bg)', fg: 'var(--color-danger)' },
-    };
-    const m = map[k] || { bg: 'var(--color-olive-light)', fg: 'var(--color-primary)' };
-    return (
-      <span style={{ background: m.bg, color: m.fg, padding: '2px 12px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
-        {(s || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-      </span>
-    );
-  };
 
   return (
     <div className="page-container">
@@ -255,7 +238,7 @@ function TaskDetail() {
             <ArrowLeft size={16} />
           </button>
           <h1 className="section-title" style={{ flex: 1, margin: 0 }}>{task.title || `Task #${task.id}`}</h1>
-          {statusBadge(task.status)}
+          <TaskStatusBadge status={task.status} size="lg" />
           {canEdit && !isFinished && (
             <button className="btn-ghost" onClick={openEdit} style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
               <Edit2 size={14} /> Edit

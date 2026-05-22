@@ -76,6 +76,7 @@ def get_all_blocks_geojson(
                     "properties": {
                         "id": block.id,
                         "block_name": block.block_name,
+                        "status": block.status,
                         "variety": block.variety,
                         "area": block.area,
                         "region": block.region,
@@ -144,6 +145,7 @@ def get_company_blocks(
         block_dict = {
             "id": block.id,
             "block_name": block.block_name,
+            "status": block.status,
             "variety": block.variety,
             "clone": block.clone,
             "rootstock": block.rootstock,
@@ -188,6 +190,7 @@ def get_block_by_id(
     result = {
         "id": block.id,
         "block_name": block.block_name,
+        "status": block.status,
         "variety": block.variety,
         "clone": block.clone,
         "planted_date": block.planted_date,

@@ -1,8 +1,20 @@
 # app/schemas/block.py - Enhanced version
 from typing import Optional, Dict, Any, Union, List
 from datetime import date
+from enum import Enum
 from pydantic import BaseModel
 from .company import Company
+
+
+class BlockStatus(str, Enum):
+    developing = "developing"
+    pre_production = "pre_production"
+    producing = "producing"
+    redeveloping = "redeveloping"
+    replanting = "replanting"
+    mothballed = "mothballed"
+    retired = "retired"
+
 
 class BlockBase(BaseModel):
     block_name: Optional[str] = None
@@ -28,6 +40,7 @@ class BlockBase(BaseModel):
     row_end: Optional[Union[int, str]] = None
     row_count: Optional[int] = None
     training_system: Optional[str] = None
+    status: Optional[BlockStatus] = None
     company_id: Optional[int] = None
     property_id: Optional[int] = None
 
@@ -63,5 +76,6 @@ class BlockFilter(BaseModel):
     biodynamic: Optional[bool] = None  # NEW
     regenerative: Optional[bool] = None  # NEW
     training_system: Optional[str] = None
+    status: Optional[BlockStatus] = None
     company_id: Optional[int] = None
 

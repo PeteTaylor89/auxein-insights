@@ -6,7 +6,6 @@ import './TaskComponents.css';
 const CATEGORY_COLORS = {
   vineyard: '#5B6830',
   land_management: '#2d5a87',
-  asset_management: '#f59e0b',
   compliance: '#D1583B',
   general: '#666',
 };

@@ -1,7 +1,7 @@
 // maps-v2/components/drawing/BlockEditForm.jsx — Edit block metadata + geometry
 import { useState, useEffect } from 'react';
 import { X, Save, Loader, Pencil, MapPin } from 'lucide-react';
-import { blocksService } from '@vineyard/shared';
+import { blocksService, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
 
 const VARIETY_OPTIONS = [
   'Sauvignon Blanc', 'Pinot Noir', 'Chardonnay', 'Pinot Gris',
@@ -47,6 +47,7 @@ export default function BlockEditForm({
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
     block_name: '',
+    status: BLOCK_STATUS_DEFAULT,
     variety: '',
     clone: '',
     rootstock: '',
@@ -66,6 +67,7 @@ export default function BlockEditForm({
     if (blockData) {
       setForm({
         block_name: blockData.block_name || '',
+        status: blockData.status || BLOCK_STATUS_DEFAULT,
         variety: blockData.variety || '',
         clone: blockData.clone || '',
         rootstock: blockData.rootstock || '',
@@ -104,6 +106,7 @@ export default function BlockEditForm({
     try {
       const updateData = {
         block_name: form.block_name.trim(),
+        status: form.status || BLOCK_STATUS_DEFAULT,
         variety: form.variety || null,
         clone: form.clone || null,
         rootstock: form.rootstock || null,
@@ -222,6 +225,19 @@ export default function BlockEditForm({
                 value={form.block_name}
                 onChange={handleChange('block_name')}
               />
+            </div>
+
+            <div className="v2-form-group">
+              <label className="v2-form-label">Status</label>
+              <select
+                className="v2-form-select"
+                value={form.status}
+                onChange={handleChange('status')}
+              >
+                {BLOCK_STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
 
             <div className="v2-form-group">

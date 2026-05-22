@@ -11,7 +11,16 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
+import { getBlockStatusMeta, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
+
+const STATUS_TONE_COLORS = {
+  muted:   { bg: colors.surfaceWarm, fg: colors.textMuted },
+  info:    { bg: colors.infoBg,      fg: colors.info       },
+  warning: { bg: colors.warningBg,   fg: colors.warningDark },
+  success: { bg: colors.successBg,   fg: colors.success    },
+  danger:  { bg: colors.dangerBg,    fg: colors.danger     },
+};
 
 const PREVIEW_LIMIT = 3;
 const STATUS_LABEL = {
@@ -49,6 +58,8 @@ export default function MapBlockSheet({
 
   const previewTasks = tasks.slice(0, PREVIEW_LIMIT);
   const overflow = Math.max(0, tasks.length - PREVIEW_LIMIT);
+  const statusMeta = getBlockStatusMeta(block.status || BLOCK_STATUS_DEFAULT);
+  const statusTone = STATUS_TONE_COLORS[statusMeta.tone] || STATUS_TONE_COLORS.muted;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -64,9 +75,14 @@ export default function MapBlockSheet({
               <Feather name="grid" size={18} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title} numberOfLines={1}>
-                {block.block_name || `Block #${block.id}`}
-              </Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.title} numberOfLines={1}>
+                  {block.block_name || `Block #${block.id}`}
+                </Text>
+                <View style={[styles.statusPill, { backgroundColor: statusTone.bg }]}>
+                  <Text style={[styles.statusText, { color: statusTone.fg }]}>{statusMeta.label}</Text>
+                </View>
+              </View>
               <Text style={styles.subtitle} numberOfLines={1}>
                 {[
                   block.variety,
@@ -167,8 +183,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary + '14',
     alignItems: 'center', justifyContent: 'center',
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   title: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text },
   subtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
+  statusPill: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
+  statusText: { fontSize: 10, fontWeight: '700' },
 
   tasksHeader: {
     flexDirection: 'row',

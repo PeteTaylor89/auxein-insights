@@ -19,7 +19,6 @@ class TaskCategory(str, enum.Enum):
     """Main task categories"""
     vineyard = "vineyard"
     land_management = "land_management"
-    asset_management = "asset_management"
     compliance = "compliance"
     general = "general"
 

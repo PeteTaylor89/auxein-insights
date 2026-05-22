@@ -8,7 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { getUnifiedFeedCached } from '../services/tasksCache';
 import FeedItemModal from '../components/FeedItemModal';
-import { SOURCE_ICONS, SkeletonCard } from '../components';
+import { SOURCE_ICONS, SkeletonCard, TaskStatusBadge } from '../components';
 
 const SOURCE_LABELS = {
   task: 'Task',
@@ -54,7 +54,7 @@ export default function TasksScreen({ navigation }) {
 
   const statusColor = (s) => {
     const k = String(s || '').toLowerCase();
-    if (k === 'in_progress') return colors.warning;
+    if (k === 'in_progress' || k === 'paused') return colors.warning;
     if (k === 'scheduled' || k === 'ready' || k === 'due') return colors.info;
     if (k === 'completed' || k === 'pass') return colors.success;
     if (k === 'cancelled' || k === 'overdue') return colors.danger;
@@ -145,12 +145,16 @@ export default function TasksScreen({ navigation }) {
           )}
 
           <View style={styles.cardFooter}>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '18' }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor(item.status) }]} />
-              <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
-                {(item.status || 'draft').replace(/_/g, ' ')}
-              </Text>
-            </View>
+            {item.source === 'task' ? (
+              <TaskStatusBadge status={item.status} size="sm" />
+            ) : (
+              <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '18' }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor(item.status) }]} />
+                <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
+                  {(item.status || 'draft').replace(/_/g, ' ')}
+                </Text>
+              </View>
+            )}
             {item.task_number && <Text style={styles.taskNumber}>{item.task_number}</Text>}
           </View>
 
