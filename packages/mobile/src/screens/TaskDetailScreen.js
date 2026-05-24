@@ -14,6 +14,7 @@ import { byNatural } from '../utils/naturalSort';
 import { useGpsTracking } from '../hooks/useGpsTracking';
 import GpsTrackingOverlay from './GpsTrackingScreen';
 import { TaskStatusBadge } from '../components';
+import RiskHazardChips from '../components/RiskHazardChips';
 
 export default function TaskDetailScreen({ route, navigation }) {
   const { taskId } = route.params;
@@ -376,6 +377,11 @@ export default function TaskDetailScreen({ route, navigation }) {
             {(task.block?.block_name || task.block_name) && <Field label="Block" value={task.block?.block_name || task.block_name} />}
             {task.assignee_names?.length > 0 && <Field label="Assigned" value={task.assignee_names.join(', ')} />}
           </View>
+          <RiskHazardChips
+            blockId={task.block_id || null}
+            spatialAreaId={task.spatial_area_id || null}
+            propertyId={task.property_id || task.block?.property_id || null}
+          />
         </View>
 
         {/* GPS — committed/locked. Server has a summary OR this session stopped it. */}

@@ -201,6 +201,7 @@
 .ca-scope-check {
   width: 28px;
   height: 28px;
+  padding: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
@@ -218,15 +219,16 @@
 }
 
 .ca-scope-check.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
+  background: var(--color-surface);
+  border-color: var(--color-success, #16a34a);
+  color: var(--color-success, #16a34a);
 }
 
 .ca-scope-check.default-all {
   background: var(--color-surface);
   border-style: dashed;
-  color: var(--color-text-muted);
+  border-color: var(--color-success, #16a34a);
+  color: var(--color-success, #16a34a);
 }
 
 .ca-scope-all {

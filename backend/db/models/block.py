@@ -59,10 +59,15 @@ class VineyardBlock(Base):
     company = relationship("Company", back_populates="blocks")
     property = relationship("Property", back_populates="blocks")
     tasks = relationship(
-        "Task", 
-        back_populates="block", 
+        "Task",
+        back_populates="block",
         cascade="all, delete-orphan",
         foreign_keys="[Task.block_id]"
+    )
+    risks = relationship(
+        "SiteRisk",
+        back_populates="block",
+        foreign_keys="[SiteRisk.block_id]"
     )
     
     rows = relationship("VineyardRow", back_populates="block", cascade="all, delete-orphan")

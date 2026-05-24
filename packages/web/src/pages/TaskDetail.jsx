@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation } from 'lucide-react';
+import RiskHazardChips from '../components/risks/RiskHazardChips';
 import { tasksService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
@@ -307,6 +308,11 @@ function TaskDetail() {
               <div style={{ fontSize: 'var(--font-size-sm)' }}>{task.location_notes}</div>
             </div>
           )}
+          <RiskHazardChips
+            blockIds={task.block_id ? [task.block_id] : []}
+            spatialAreaId={task.spatial_area_id || null}
+            propertyId={task.property_id || task.block?.property_id || null}
+          />
         </div>
 
         {/* Assignments card */}

@@ -37,7 +37,6 @@ import ConsumableForm from './pages/ConsumableForm';
 import ContractorManagement from './pages/ContractorManagement';
 import Notifications from './pages/Notifications';
 import Calendar from './pages/Calendar';
-import Reports from './pages/Reports';
 import QuickObservation from './pages/QuickObservation';
 
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
@@ -136,12 +135,6 @@ function AppRoutes() {
         <Route path="/calendar" element={
           <ProtectedRoute>
             <Calendar />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/reports" element={
-          <ProtectedRoute>
-            <Reports />
           </ProtectedRoute>
         } />
 

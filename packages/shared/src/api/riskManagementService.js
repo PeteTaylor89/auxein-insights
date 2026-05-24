@@ -126,6 +126,19 @@ const riskManagementService = {
     });
   },
 
+  // Get active risks scoped to a block / spatial area / property. Used by
+  // hazard chips on task surfaces and the contractor warning banner.
+  // Pass any combination of the three — at least one is required.
+  getRisksByLocation: async ({ blockId, spatialAreaId, propertyId } = {}) => {
+    const params = {};
+    if (blockId != null) params.block_id = blockId;
+    if (spatialAreaId != null) params.spatial_area_id = spatialAreaId;
+    if (propertyId != null) params.property_id = propertyId;
+    if (Object.keys(params).length === 0) return [];
+    const response = await api.get('/risk-management/risks/by-location', { params });
+    return response.data;
+  },
+
   // ===== RISK ACTIONS =====
   
   // Get all actions

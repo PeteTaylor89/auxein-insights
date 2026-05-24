@@ -44,8 +44,11 @@ class SiteRiskBase(BaseModel):
     risk_description: str
     risk_category: RiskCategory
     risk_type: RiskType
-    # Removed block_id - risks are company-wide with their own locations
-    
+
+    # Spatial scope FKs — used by hazard chip lookups on task surfaces
+    block_id: Optional[int] = None
+    spatial_area_id: Optional[int] = None
+
     # Location data
     location: Optional[Point] = None
     area: Optional[Polygon] = None
@@ -87,7 +90,9 @@ class SiteRiskUpdate(BaseModel):
     risk_category: Optional[RiskCategory] = None
     risk_type: Optional[RiskType] = None
     property_id: Optional[int] = None
-    
+    block_id: Optional[int] = None
+    spatial_area_id: Optional[int] = None
+
     # Location updates
     location: Optional[Point] = None
     area: Optional[Polygon] = None
@@ -132,7 +137,9 @@ class SiteRiskResponse(BaseModel):
     id: int
     company_id: int
     property_id: Optional[int] = None
-    
+    block_id: Optional[int] = None
+    spatial_area_id: Optional[int] = None
+
     # Risk identification
     risk_title: str
     risk_description: str
@@ -223,6 +230,8 @@ class SiteRiskSummary(BaseModel):
     risk_description: str
     risk_category: RiskCategory
     risk_type: RiskType
+    block_id: Optional[int] = None
+    spatial_area_id: Optional[int] = None
     inherent_risk_level: RiskLevel
     inherent_risk_score: int
     residual_risk_score: Optional [int]
@@ -236,6 +245,27 @@ class SiteRiskSummary(BaseModel):
     
     class Config:
         from_attributes = True
+
+class RiskHazardChip(BaseModel):
+    """Minimal payload for hazard chips on task surfaces + contractor banners.
+
+    Returned by GET /risk-management/risks/by-location. Frontend treats
+    `residual_risk_level or inherent_risk_level` as the current risk level.
+    """
+    id: int
+    risk_title: str
+    risk_category: RiskCategory
+    inherent_risk_level: RiskLevel
+    inherent_risk_score: int
+    residual_risk_level: Optional[RiskLevel] = None
+    residual_risk_score: Optional[int] = None
+    block_id: Optional[int] = None
+    spatial_area_id: Optional[int] = None
+    property_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
 
 class RiskMatrix(BaseModel):
     """Risk matrix configuration and data"""

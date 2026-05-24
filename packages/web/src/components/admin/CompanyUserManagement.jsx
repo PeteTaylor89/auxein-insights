@@ -2,6 +2,40 @@
 import { useState, useEffect } from 'react';
 import {adminService} from '@vineyard/shared';
 
+// Small avatar pill shown beside each user in the team list. Renders the
+// uploaded avatar when present, otherwise initials on an olive disc.
+function UserAvatar({ user }) {
+  const first = user?.first_name?.[0] || '';
+  const last = user?.last_name?.[0] || '';
+  const initials = (first + last) || (user?.username?.[0] || '?').toUpperCase();
+  const size = 36;
+  const baseStyle = {
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'var(--color-primary)',
+    color: '#fff',
+    fontWeight: 600,
+    fontSize: 14,
+    overflow: 'hidden',
+  };
+  if (user?.avatar_url) {
+    return (
+      <img
+        src={user.avatar_url}
+        alt={initials}
+        style={baseStyle}
+        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+      />
+    );
+  }
+  return <span style={baseStyle}>{initials.toUpperCase()}</span>;
+}
+
 function CompanyUserManagement({ companyId }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -188,17 +222,20 @@ function CompanyUserManagement({ companyId }) {
               return (
                 <tr key={user.id}>
                   <td>
-                    <div className="user-info">
-                      <div className="user-name">
-                        {user.first_name && user.last_name 
-                          ? `${user.first_name} ${user.last_name}`
-                          : user.username
-                        }
-                      </div>
-                      <div className="user-details">
-                        {user.email}
-                        <br />
-                        @{user.username} | ID: {user.id}
+                    <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <UserAvatar user={user} />
+                      <div>
+                        <div className="user-name">
+                          {user.first_name && user.last_name
+                            ? `${user.first_name} ${user.last_name}`
+                            : user.username
+                          }
+                        </div>
+                        <div className="user-details">
+                          {user.email}
+                          <br />
+                          @{user.username} | ID: {user.id}
+                        </div>
                       </div>
                     </div>
                   </td>

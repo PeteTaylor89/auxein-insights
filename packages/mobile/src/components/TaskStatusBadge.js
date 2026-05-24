@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { getTaskStatusMeta } from '@vineyard/shared';
+import { getTaskStatusMeta } from '../utils/taskStatus';
 import { colors, fontSize, radius, spacing } from '../styles/theme';
 
 const TONE_COLORS = {

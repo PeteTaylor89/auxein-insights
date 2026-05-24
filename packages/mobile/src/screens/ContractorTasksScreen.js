@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { contractorService } from '../api/services';
 import { SkeletonCard, useToast } from '../components';
+import RiskHazardChips from '../components/RiskHazardChips';
 
 const STATUS_STYLE = {
   assigned:    { bg: colors.info + '20',    fg: colors.info,    label: 'Assigned' },
@@ -212,6 +213,13 @@ function AssignmentRow({ a, navigation }) {
           </Text>
         </View>
       )}
+
+      <RiskHazardChips
+        blockId={a.block_id || null}
+        propertyId={a.property_id || null}
+        variant="banner"
+      />
+
 
       {a.completion_percentage > 0 && a.completion_percentage < 100 && (
         <View style={styles.progressTrack}>

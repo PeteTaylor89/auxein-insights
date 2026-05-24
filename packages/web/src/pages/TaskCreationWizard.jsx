@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService, contractorManagementService, byNatural } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
+import RiskHazardChips from '../components/risks/RiskHazardChips';
 import './vineyard-pages.css';
 
 function TaskCreationWizard() {
@@ -838,6 +839,21 @@ function TaskCreationWizard() {
                   className="vp-textarea"
                 />
               </FormField>
+
+              {(() => {
+                const blockIds = multiMode
+                  ? blockRows.filter((r) => r.selected).map((r) => r.block_id)
+                  : (formData.block_id ? [formData.block_id] : []);
+                const firstBlock = blocks.find((b) => b.id === blockIds[0]);
+                const propertyId = firstBlock?.property_id ?? null;
+                return (
+                  <RiskHazardChips
+                    blockIds={blockIds}
+                    spatialAreaId={formData.spatial_area_id || null}
+                    propertyId={propertyId}
+                  />
+                );
+              })()}
             </FormSection>
           )}
 

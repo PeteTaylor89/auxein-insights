@@ -24,6 +24,41 @@ from core.email_utils import send_admin_welcome_email
 
 router = APIRouter()
 
+
+def _presign_avatar_urls(users):
+    """Replace each user's `avatar_url` S3 key with a short-lived presigned URL.
+
+    `avatar_url` is stored on the User row as a raw S3 key (e.g.
+    `avatars/123/167...png`). The bucket is OAC-locked so raw keys can't be
+    fetched directly — the frontend needs a presigned URL to render the image.
+    `/auth/me` already does this for the current user; list endpoints need it
+    too or the team UI shows broken `<img>` tags.
+
+    Mutates each User attribute in-place. Safe because the request commits
+    nothing after these list endpoints — SQLAlchemy's autoflush doesn't fire
+    on attribute change, only on the next query. Users that lack an avatar or
+    fail presigning fall through to None so the frontend renders initials.
+    """
+    if not users:
+        return users
+    try:
+        from services import file_storage as _fs
+    except Exception:
+        return users
+    for u in users:
+        key = getattr(u, "avatar_url", None)
+        if not key:
+            continue
+        try:
+            signed = _fs.generate_presigned_url(key, expires_in=3600)
+            if signed:
+                u.avatar_url = signed
+        except Exception:
+            # Best effort — leave the raw key; frontend will fall back to initials.
+            continue
+    return users
+
+
 class CompanyAdminCreate(BaseModel):
     """Schema for creating a company with admin user"""
     
@@ -334,7 +369,7 @@ def list_company_users(
         )
     
     users = db.query(User).filter(User.company_id == company_id).offset(skip).limit(limit).all()
-    return users
+    return _presign_avatar_urls(users)
 
 @router.put("/companies/{company_id}/subscription")
 def update_company_subscription(
@@ -510,7 +545,7 @@ def list_all_users(
             query = query.filter(User.is_verified == False)
     
     users = query.offset(skip).limit(limit).all()
-    return users
+    return _presign_avatar_urls(users)
 
 @router.put("/users/{user_id}/role")
 def update_user_role_admin(

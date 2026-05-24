@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import dayjs from 'dayjs';
-import { getBlockStatusMeta, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
+import { getBlockStatusMeta, BLOCK_STATUS_DEFAULT } from '../utils/blockStatus';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 
 const STATUS_TONE_COLORS = {

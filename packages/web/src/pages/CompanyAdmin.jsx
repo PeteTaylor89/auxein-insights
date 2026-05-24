@@ -1,7 +1,7 @@
 // pages/CompanyAdmin.jsx — Company admin management page (Grow V1, Revision 2)
 // Tabs: Users & Properties, Timesheets, Training, Aliases, GrapeLink, Weather, Calendar Sync, Reports
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3 } from 'lucide-react';
 import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService, byNatural, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
@@ -10,7 +10,13 @@ import InvitationForm from '../components/admin/InvitationForm';
 import ContractorRelationships from '../components/admin/ContractorRelationships';
 import ForecastPointPicker from '../components/ForecastPointPicker';
 import BlockStatusBadge from '../components/BlockStatusBadge';
+import FeedbackModal from '../components/FeedbackModal';
+import TaskReport from '../components/reports/TaskReport';
+import ObservationReport from '../components/reports/ObservationReport';
+import TimesheetReport from '../components/reports/TimesheetReport';
+import AssetReport from '../components/reports/AssetReport';
 import './CompanyAdmin.css';
+import './Reports.css';
 
 const TABS = [
   { key: 'users', label: 'Team', icon: Users },
@@ -29,7 +35,29 @@ const TABS = [
 
 function CompanyAdmin() {
   const { userTypeRole } = useAuth();
-  const [activeTab, setActiveTab] = useState('users');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Sync activeTab with ?tab= URL param so deep-links like
+  // /company-admin?tab=reports (from Home Quick Actions) land on the right tab
+  // and the back button restores state correctly.
+  const initialTab = searchParams.get('tab');
+  const isValidTab = (k) => TABS.some(t => t.key === k);
+  const [activeTab, setActiveTab] = useState(isValidTab(initialTab) ? initialTab : 'users');
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (isValidTab(t) && t !== activeTab) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleTabClick = (key) => {
+    setActiveTab(key);
+    // Keep the URL in sync; preserve other query params, drop the param when
+    // landing on the default tab to keep clean URLs.
+    const next = new URLSearchParams(searchParams);
+    if (key === 'users') next.delete('tab');
+    else next.set('tab', key);
+    setSearchParams(next, { replace: true });
+  };
 
   if (userTypeRole !== 'company_admin' && userTypeRole !== 'auxein_admin') {
     return (
@@ -61,7 +89,7 @@ function CompanyAdmin() {
               <button
                 key={tab.key}
                 className={`ca-tab ${activeTab === tab.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabClick(tab.key)}
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
@@ -443,7 +471,7 @@ function PropertiesTab() {
                         </td>
                         {canManage && (
                           <td>
-                            <button className="ca-btn-icon" onClick={() => startEdit(p)} title="Edit"><MapPin size={14} /></button>
+                            <button className="ca-chip-btn" onClick={() => startEdit(p)} title="Edit"><Pencil size={12} /> Edit</button>
                           </td>
                         )}
                       </>
@@ -529,9 +557,15 @@ function PropertiesTab() {
                             <button
                               className={`ca-scope-check ${userScopes.includes(p.id) ? 'active' : ''} ${userScopes.length === 0 ? 'default-all' : ''}`}
                               onClick={() => toggleScope(u.id, p.id)}
-                              title={userScopes.includes(p.id) ? 'Remove access' : 'Grant access'}
+                              title={
+                                userScopes.length === 0
+                                  ? 'Default: sees all properties (click to limit)'
+                                  : userScopes.includes(p.id) ? 'Remove access' : 'Grant access'
+                              }
                             >
-                              {userScopes.length === 0 ? '~' : userScopes.includes(p.id) ? <Check size={14} /> : ''}
+                              {(userScopes.length === 0 || userScopes.includes(p.id)) && (
+                                <Check size={16} color="#16a34a" strokeWidth={3} />
+                              )}
                             </button>
                           )}
                         </td>
@@ -632,6 +666,13 @@ function BlocksTab() {
       return (b.block_name || '').toLowerCase().includes(q) || (b.variety || '').toLowerCase().includes(q);
     }
     return true;
+  }).sort((a, b) => {
+    // Sort by property name first, then natural block_name within property.
+    // Without this rows render in API order, which is effectively random.
+    const pa = a.property_id ? (propertyName(a.property_id) || '') : '~~unassigned';
+    const pb = b.property_id ? (propertyName(b.property_id) || '') : '~~unassigned';
+    if (pa !== pb) return pa.localeCompare(pb);
+    return byNatural('block_name')(a, b);
   });
 
   if (loading) return <p className="ca-loading">Loading blocks...</p>;
@@ -704,8 +745,8 @@ function BlocksTab() {
                 <td>{b.row_count ?? <span className="ca-muted">—</span>}</td>
                 {canManage && (
                   <td>
-                    <button className="ca-btn-icon" onClick={() => setEditingBlockId(b.id)} title="Edit block">
-                      <Pencil size={14} />
+                    <button className="ca-chip-btn" onClick={() => setEditingBlockId(b.id)} title="Edit block">
+                      <Pencil size={12} /> Edit
                     </button>
                   </td>
                 )}
@@ -1090,6 +1131,10 @@ function RowsTable({ rows, onChange }) {
 
   const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
+  // Natural-sort rows so 1, 2, 10, 11 instead of 1, 10, 11, 2. Without this
+  // the API returns insertion order and rows look randomised.
+  const sortedRows = [...(rows || [])].sort(byNatural('row_number'));
+
   return (
     <div style={{ maxHeight: 420, overflowY: 'auto' }}>
       <table className="ca-table">
@@ -1106,7 +1151,7 @@ function RowsTable({ rows, onChange }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => {
+          {sortedRows.map(r => {
             const isEditing = editingRowId === r.id;
             return (
               <tr key={r.id}>
@@ -1176,7 +1221,17 @@ function TimesheetsTab() {
         <div className="stat-card"><div className="stat-value">{summary.total_hours}</div><div className="stat-label">Total Hours</div></div>
       </div>
       <div className="ca-link-row">
-        <Link to="/timesheets" className="ca-link-btn">View Full Timesheets</Link>
+        <Link to="/timesheets" className="ca-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)', padding: '8px 18px', borderRadius: 999 }}>
+          <Clock size={14} /> View full timesheets
+        </Link>
+      </div>
+
+      <div style={{ marginTop: 'var(--space-lg)', padding: 'var(--space-base)', background: 'var(--color-surface-warm)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)', textAlign: 'center' }}>
+        <BarChart3 size={28} style={{ opacity: 0.4, marginBottom: 8 }} />
+        <h3 style={{ margin: '0 0 6px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Timesheet analysis — coming soon</h3>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+          Hours by block, by task category, by user. Trend lines, productivity benchmarks, and overtime flags.
+        </p>
       </div>
     </div>
   );
@@ -1212,6 +1267,10 @@ function AliasesTab() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ entity_type: 'block', entity_id: '', system_name: '', external_id: '', external_label: '' });
+  // Source lists for the entity_id dropdown. Loaded once per tab open.
+  const [blockOpts, setBlockOpts] = useState([]);
+  const [propertyOpts, setPropertyOpts] = useState([]);
+  const [userOpts, setUserOpts] = useState([]);
 
   const load = useCallback(() => {
     companyAdminService.getAliases()
@@ -1221,6 +1280,21 @@ function AliasesTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Pre-fetch the dropdown source lists so the entity_id selector is instant
+  // when a user opens the create form.
+  useEffect(() => {
+    blocksService.getCompanyBlocks().then(res => {
+      const list = res?.blocks || (Array.isArray(res) ? res : []);
+      setBlockOpts([...list].sort(byNatural('block_name')));
+    }).catch(() => setBlockOpts([]));
+    propertyService.listProperties().then(list => {
+      setPropertyOpts(Array.isArray(list) ? list : []);
+    }).catch(() => setPropertyOpts([]));
+    usersService.listCompanyUsers().then(list => {
+      setUserOpts(Array.isArray(list) ? list : []);
+    }).catch(() => setUserOpts([]));
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -1261,14 +1335,41 @@ function AliasesTab() {
 
       {showForm && (
         <form className="ca-alias-form" onSubmit={handleCreate}>
-          <select value={form.entity_type} onChange={e => setForm(f => ({ ...f, entity_type: e.target.value }))}>
+          <select value={form.entity_type} onChange={e => setForm(f => ({ ...f, entity_type: e.target.value, entity_id: '' }))}>
             <option value="block">Block</option>
             <option value="property">Property</option>
             <option value="asset">Asset</option>
             <option value="user">User</option>
             <option value="station">Station</option>
           </select>
-          <input type="number" placeholder="Entity ID" value={form.entity_id} onChange={e => setForm(f => ({ ...f, entity_id: e.target.value }))} required />
+          {/* Dropdown for known entity types so users don't have to remember
+              numeric IDs. Asset + Station fall back to a number input. */}
+          {form.entity_type === 'block' ? (
+            <select value={form.entity_id} onChange={e => setForm(f => ({ ...f, entity_id: e.target.value }))} required>
+              <option value="">Select block...</option>
+              {blockOpts.map(b => (
+                <option key={b.id} value={b.id}>{b.block_name || `Block #${b.id}`}</option>
+              ))}
+            </select>
+          ) : form.entity_type === 'property' ? (
+            <select value={form.entity_id} onChange={e => setForm(f => ({ ...f, entity_id: e.target.value }))} required>
+              <option value="">Select property...</option>
+              {propertyOpts.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          ) : form.entity_type === 'user' ? (
+            <select value={form.entity_id} onChange={e => setForm(f => ({ ...f, entity_id: e.target.value }))} required>
+              <option value="">Select user...</option>
+              {userOpts.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u.username || u.email}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input type="number" placeholder={`${form.entity_type} ID`} value={form.entity_id} onChange={e => setForm(f => ({ ...f, entity_id: e.target.value }))} required />
+          )}
           <input type="text" placeholder="System (grapelink, swnz, acvm...)" value={form.system_name} onChange={e => setForm(f => ({ ...f, system_name: e.target.value }))} required />
           <input type="text" placeholder="External ID" value={form.external_id} onChange={e => setForm(f => ({ ...f, external_id: e.target.value }))} required />
           <input type="text" placeholder="Label (optional)" value={form.external_label} onChange={e => setForm(f => ({ ...f, external_label: e.target.value }))} />
@@ -1354,6 +1455,9 @@ function GrapeLinkTab() {
     <div className="ca-section">
       <h2 className="ca-section-title">GrapeLink Setup</h2>
       <p className="ca-section-desc">Set GrapeLink grower IDs and property codes for compliance exports.</p>
+      <div style={{ padding: 'var(--space-md)', background: 'var(--color-info-bg, #dbeafe)', borderLeft: '3px solid var(--color-info, #2d5a87)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-base)', fontSize: 'var(--font-size-sm)' }}>
+        <strong>Full integration coming.</strong> For now you can record your GrapeLink identifiers here so Auxein can match them up when the live export pipeline ships. Spray diary, harvest, and compliance push-through are on the roadmap.
+      </div>
       <table className="ca-table">
         <thead>
           <tr><th>Property</th><th>Grower ID</th><th>Property Code</th><th></th></tr>
@@ -1547,7 +1651,14 @@ function WeatherTab() {
       />
 
       <h3 className="ca-section-title" style={{ marginTop: 'var(--space-lg)' }}>Harvest Stations</h3>
-      <p className="ca-section-desc">Station management coming in a future update.</p>
+      <div style={{ padding: 'var(--space-base)', background: 'var(--color-surface-warm)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+        <p style={{ margin: '0 0 var(--space-sm)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text)' }}>
+          <strong>Already running Harvest weather stations?</strong> Auxein can integrate them so your readings flow straight into Grow alongside your forecast and regional climate data.
+        </p>
+        <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
+          Email <a href="mailto:grow@auxein.co.nz?subject=Harvest%20station%20integration" style={{ color: 'var(--color-primary)', fontWeight: 500 }}>grow@auxein.co.nz</a> with your station IDs or login details and we'll wire them up for you.
+        </p>
+      </div>
     </div>
   );
 }
@@ -1556,62 +1667,18 @@ function WeatherTab() {
 // ============================================================================
 // TAB: Calendar Sync
 // ============================================================================
+// Placeholder for V1 — full implementation (feed token + iCal subscription URL)
+// still lives in git history; restore by reverting this block.
 function CalendarSyncTab() {
-  const { user } = useAuth();
-  const [feedToken, setFeedToken] = useState(user?.calendar_feed_token || null);
-  const [copied, setCopied] = useState(false);
-
-  const baseUrl = window.location.origin.replace(/:\d+$/, ':8000'); // API origin
-  const feedUrl = feedToken ? `${baseUrl}/api/v1/company-admin/calendar/feed/${feedToken}.ics` : null;
-
-  const generate = async () => {
-    try {
-      const res = await companyAdminService.generateFeedToken();
-      setFeedToken(res.data.feed_token);
-    } catch (err) {
-      console.error('Failed to generate feed token', err);
-    }
-  };
-
-  const copyUrl = () => {
-    if (feedUrl) {
-      navigator.clipboard.writeText(feedUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Calendar Subscription</h2>
-      <p className="ca-section-desc">
-        Subscribe to your Auxein calendar from Google Calendar, Apple Calendar, or Outlook.
-        Your feed shows tasks assigned to you (or your full team if you're an admin/manager).
-      </p>
-
-      {feedUrl ? (
-        <div className="ca-feed-url-box">
-          <code className="ca-feed-url">{feedUrl}</code>
-          <button className="ca-btn-icon" onClick={copyUrl} title="Copy URL">
-            {copied ? <Check size={16} /> : <Copy size={16} />}
-          </button>
-          <button className="ca-btn-icon" onClick={generate} title="Regenerate URL">
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      ) : (
-        <button className="ca-btn-primary" onClick={generate}>
-          <Calendar size={14} /> Generate Calendar URL
-        </button>
-      )}
-
-      <div className="ca-instructions">
-        <h3>How to subscribe:</h3>
-        <ul>
-          <li><strong>Google Calendar:</strong> Settings → Add calendar → From URL → paste the URL above</li>
-          <li><strong>Apple Calendar:</strong> File → New Calendar Subscription → paste the URL</li>
-          <li><strong>Outlook:</strong> Add calendar → Subscribe from web → paste the URL</li>
-        </ul>
+      <h2 className="ca-section-title">Calendar Sync</h2>
+      <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+        <Calendar size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
+        <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Calendar sync — coming soon</h3>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+          Subscribe to your Auxein calendar from Google, Apple, or Outlook. Re-enabling once the iCal feed is hardened.
+        </p>
       </div>
     </div>
   );
@@ -1619,37 +1686,109 @@ function CalendarSyncTab() {
 
 
 // ============================================================================
-// TAB: Reports (quick stats)
+// TAB: Reports — full reporting dashboard absorbed from the old /reports page.
+// 4 sub-tabs (Tasks, Observations, Timesheets, Assets) + date + property filters.
+// CTA at the bottom opens FeedbackModal so users can request new reports.
 // ============================================================================
+const REPORT_TABS = [
+  { key: 'tasks', label: 'Tasks' },
+  { key: 'observations', label: 'Observations' },
+  { key: 'timesheets', label: 'Timesheets' },
+  { key: 'assets', label: 'Assets' },
+];
+
 function ReportsTab() {
-  const [taskSummary, setTaskSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [reportTab, setReportTab] = useState('tasks');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [propertyId, setPropertyId] = useState('');
+  const [properties, setProperties] = useState([]);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
-    reportService.getTaskSummary()
-      .then(res => setTaskSummary(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    propertyService.listProperties()
+      .then(data => setProperties(Array.isArray(data) ? data : []))
+      .catch(() => setProperties([]));
   }, []);
 
-  if (loading) return <p className="ca-loading">Loading report summary...</p>;
+  const propFilter = propertyId || undefined;
 
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Quick Stats</h2>
-      {taskSummary ? (
-        <div className="ca-stats-grid">
-          <div className="stat-card"><div className="stat-value">{taskSummary.total}</div><div className="stat-label">Total Tasks</div></div>
-          <div className="stat-card"><div className="stat-value">{taskSummary.completion_rate?.toFixed(0) || 0}%</div><div className="stat-label">Completion Rate</div></div>
-          <div className="stat-card"><div className="stat-value">{taskSummary.total_hours?.toFixed(1) || 0}</div><div className="stat-label">Total Hours</div></div>
-          <div className="stat-card"><div className="stat-value">{taskSummary.overdue_count || 0}</div><div className="stat-label">Overdue</div></div>
+      <div className="reports-page">
+        <div className="reports-header">
+          <h2 className="ca-section-title" style={{ margin: 0 }}>Reports</h2>
+          <div className="reports-filters">
+            {properties.length > 0 && (
+              <label>
+                Property
+                <select
+                  value={propertyId}
+                  onChange={(e) => setPropertyId(e.target.value)}
+                  className="reports-date-input"
+                >
+                  <option value="">All Properties</option>
+                  {properties.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              From
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="reports-date-input"
+              />
+            </label>
+            <label>
+              To
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="reports-date-input"
+              />
+            </label>
+          </div>
         </div>
-      ) : (
-        <p className="ca-empty">No task data available.</p>
-      )}
-      <div className="ca-link-row">
-        <Link to="/reports" className="ca-link-btn">View Full Reports</Link>
+
+        <div className="reports-tabs">
+          {REPORT_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={`reports-tab ${reportTab === tab.key ? 'active' : ''}`}
+              onClick={() => setReportTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="reports-content">
+          {reportTab === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
+          {reportTab === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
+          {reportTab === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
+          {reportTab === 'assets' && <AssetReport />}
+        </div>
+
+        {/* CTA — opens FeedbackModal preset to feedback category. */}
+        <div style={{ marginTop: 'var(--space-lg)', padding: 'var(--space-base)', background: 'var(--color-surface-warm)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Want a report we don't have?</h3>
+            <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+              Tell us what you'd find useful — spray diary, yield rollups, contractor hours, anything. We're building this list now.
+            </p>
+          </div>
+          <button className="ca-btn-primary" onClick={() => setFeedbackOpen(true)} style={{ flexShrink: 0 }}>
+            <BarChart3 size={14} /> Request a report
+          </button>
+        </div>
       </div>
+
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }

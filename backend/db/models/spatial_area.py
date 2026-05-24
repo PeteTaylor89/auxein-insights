@@ -26,10 +26,15 @@ class SpatialArea(Base):
     parent_area = relationship("SpatialArea", remote_side=[id], back_populates="child_areas")
     child_areas = relationship("SpatialArea", back_populates="parent_area")
     tasks = relationship(
-        "Task", 
-        back_populates="spatial_area", 
+        "Task",
+        back_populates="spatial_area",
         cascade="all, delete-orphan",
         foreign_keys="[Task.spatial_area_id]"
+    )
+    risks = relationship(
+        "SiteRisk",
+        back_populates="spatial_area",
+        foreign_keys="[SiteRisk.spatial_area_id]"
     )
     
     @property

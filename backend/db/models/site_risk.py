@@ -10,7 +10,9 @@ class SiteRisk(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
-    
+    block_id = Column(Integer, ForeignKey("vineyard_blocks.id", ondelete="SET NULL"), nullable=True, index=True)
+    spatial_area_id = Column(Integer, ForeignKey("spatial_areas.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Risk identification
     risk_title = Column(String(200), nullable=False)
     risk_description = Column(Text, nullable=False)
@@ -60,6 +62,8 @@ class SiteRisk(Base):
     # Relationships
     company = relationship("Company", back_populates="site_risks")
     assigned_property = relationship("Property", foreign_keys=[property_id])
+    block = relationship("VineyardBlock", foreign_keys=[block_id], back_populates="risks")
+    spatial_area = relationship("SpatialArea", foreign_keys=[spatial_area_id], back_populates="risks")
     owner = relationship("User", foreign_keys=[owner_id], back_populates="owned_risks")
     creator = relationship("User", foreign_keys=[created_by], back_populates="created_risks")
     risk_actions = relationship("RiskAction", back_populates="risk", cascade="all, delete-orphan")

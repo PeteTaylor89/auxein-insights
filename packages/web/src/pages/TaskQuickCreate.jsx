@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, Zap, Settings2, Star } from 'lucide-react
 import { tasksService, blocksService, usersService, byNatural, contractorManagementService } from '@vineyard/shared';
 import TemplateSelector from '../components/tasks/TemplateSelector';
 import BlockSelector from '../components/tasks/BlockSelector';
+import RiskHazardChips from '../components/risks/RiskHazardChips';
 import './TaskQuickCreate.css';
 
 const STEPS = ['Pick Template', 'Pick Block', 'Review & Create'];
@@ -237,6 +238,11 @@ function TaskQuickCreate() {
                       : selectedBlocks[0]?.block_name || selectedBlock?.block_name || 'None'}
                   </span>
                 </div>
+
+                <RiskHazardChips
+                  blockIds={selectedBlocks.map((b) => b.id)}
+                  propertyId={selectedBlocks[0]?.property_id ?? selectedBlock?.property_id ?? null}
+                />
 
                 <div className="quick-create-field">
                   <label>

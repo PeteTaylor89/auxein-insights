@@ -28,6 +28,21 @@
 
 <!-- Add new bugs here -->
 
+### [BUG-009] Backend — `/risks/by-location` 403s for contractor tokens
+- **Priority:** P2
+- **Area:** Backend / Mobile
+- **Page/Screen:** ContractorTasksScreen banner
+- **Steps to reproduce:**
+  1. Sign in as a contractor on mobile.
+  2. Open the Tasks tab — each assignment card calls `GET /risk-management/risks/by-location`.
+  3. Backend returns 403 because the endpoint depends on `get_current_user`, not `get_current_user_or_contractor`.
+- **Expected:** Active high/critical hazards for the task's block/property surface as a red banner on each assignment card.
+- **Actual:** Component silently catches the 403 and renders nothing — banner never appears for contractors.
+- **Notes:** Frontend wiring is already in place (commit landing alongside T3a/T3b). Fix paths:
+  1. Switch the endpoint's auth dep to `get_current_user_or_contractor` and gate property scoping by `relationship_company_ids` for contractors (mirror `properties/geojson` pattern from 2026-05-17 session).
+  2. OR mirror to a new `/v1/contractor-management/me/risks/by-location` endpoint behind `get_current_contractor`, scoped to companies with active relationships.
+  Option 1 is preferred (single source of truth, no duplication). Same class of issue as the `/tasks/tasks` 403 noted in 2026-05-16 lurking-issues memory.
+
 ### [BUG-001] Web — Calibration attached photos not viewable
 - **Priority:** P2
 - **Area:** Web

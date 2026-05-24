@@ -21,10 +21,12 @@ from services.property_service import get_visible_property_ids
 from db.models.site_risk import SiteRisk
 from db.models.risk_action import RiskAction
 from db.models.incident import Incident
+from db.models.block import VineyardBlock
+from db.models.spatial_area import SpatialArea
 
 from schemas.site_risk import (
     SiteRiskCreate, SiteRiskUpdate, SiteRiskResponse, SiteRiskSummary,
-    ResidualRiskUpdate, RiskMatrix, RiskAssessment
+    ResidualRiskUpdate, RiskMatrix, RiskAssessment, RiskHazardChip
 )
 from schemas.risk_action import (
     RiskActionCreate, RiskActionUpdate, RiskActionResponse, RiskActionSummary,
@@ -113,6 +115,32 @@ def _validate_property_id(db, user, property_id):
         raise HTTPException(status_code=403, detail="Property not accessible")
 
 
+def _validate_block_id(db, user, block_id):
+    """Validate block_id belongs to caller's company. Allows None."""
+    if block_id is None:
+        return
+    block = db.query(VineyardBlock).filter(
+        VineyardBlock.id == block_id,
+        VineyardBlock.company_id == user.company_id,
+    ).first()
+    if not block:
+        raise HTTPException(status_code=400, detail="Block not found in your company")
+    if block.property_id is not None:
+        _validate_property_id(db, user, block.property_id)
+
+
+def _validate_spatial_area_id(db, user, spatial_area_id):
+    """Validate spatial_area_id belongs to caller's company. Allows None."""
+    if spatial_area_id is None:
+        return
+    area = db.query(SpatialArea).filter(
+        SpatialArea.id == spatial_area_id,
+        SpatialArea.company_id == user.company_id,
+    ).first()
+    if not area:
+        raise HTTPException(status_code=400, detail="Spatial area not found in your company")
+
+
 # ===== SITE RISKS ENDPOINTS =====
 
 @router.get("/risk-management/risks/", response_model=List[SiteRiskSummary])
@@ -152,6 +180,8 @@ def create_risk(
         raise HTTPException(status_code=403, detail="Insufficient permissions to create risks")
 
     _validate_property_id(db, current_user, risk_data.property_id)
+    _validate_block_id(db, current_user, risk_data.block_id)
+    _validate_spatial_area_id(db, current_user, risk_data.spatial_area_id)
 
     try:
         # Prepare risk data
@@ -231,6 +261,82 @@ def create_risk(
         logger.error(f"Error creating risk: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Error creating risk: {str(e)}")
 
+@router.get("/risk-management/risks/by-location", response_model=List[RiskHazardChip])
+def get_risks_by_location(
+    block_id: Optional[int] = Query(None),
+    spatial_area_id: Optional[int] = Query(None),
+    property_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Active risks matching any of: block, spatial area, or property-wide.
+
+    Powers hazard chips on task create/edit + the contractor warning banner.
+    Property-scoped via `get_visible_property_ids` for non-admin callers.
+
+    Filter semantics:
+      - `block_id`         → risks with that exact FK
+      - `spatial_area_id`  → risks with that exact FK
+      - `property_id`      → property-wide risks ONLY (block_id IS NULL AND
+        spatial_area_id IS NULL) so block-scoped risks for sibling blocks
+        don't leak into a different block's task surface
+
+    Combined with OR — pass `block_id` + `property_id` to surface both
+    block-tied risks and property-wide risks for one task. At least one
+    filter is required.
+    """
+    if not any([block_id, spatial_area_id, property_id]):
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of block_id, spatial_area_id, or property_id required",
+        )
+
+    if block_id is not None:
+        _validate_block_id(db, current_user, block_id)
+    if spatial_area_id is not None:
+        _validate_spatial_area_id(db, current_user, spatial_area_id)
+    if property_id is not None:
+        _validate_property_id(db, current_user, property_id)
+
+    query = db.query(SiteRisk).filter(
+        SiteRisk.company_id == current_user.company_id,
+        SiteRisk.status == "active",
+    )
+
+    # Property scoping defence-in-depth — even though _validate_property_id
+    # already gated the request, also gate the returned rows so a task on a
+    # property the user can see can't pull risks tied to one they can't.
+    if current_user.user_type != "auxein_admin":
+        visible = get_visible_property_ids(db, current_user)
+        if visible:
+            query = query.filter(
+                or_(SiteRisk.property_id.in_(visible), SiteRisk.property_id.is_(None))
+            )
+        else:
+            query = query.filter(SiteRisk.property_id.is_(None))
+
+    clauses = []
+    if block_id is not None:
+        clauses.append(SiteRisk.block_id == block_id)
+    if spatial_area_id is not None:
+        clauses.append(SiteRisk.spatial_area_id == spatial_area_id)
+    if property_id is not None:
+        clauses.append(
+            and_(
+                SiteRisk.property_id == property_id,
+                SiteRisk.block_id.is_(None),
+                SiteRisk.spatial_area_id.is_(None),
+            )
+        )
+
+    risks = (
+        query.filter(or_(*clauses))
+        .order_by(SiteRisk.inherent_risk_score.desc())
+        .all()
+    )
+    return risks
+
+
 @router.get("/risk-management/risks/{risk_id}", response_model=SiteRiskResponse)
 def get_risk(
     risk_id: int,
@@ -292,7 +398,11 @@ def update_risk(
     update_data = risk_data.dict(exclude_unset=True)
     if 'property_id' in update_data and update_data['property_id'] is not None:
         _validate_property_id(db, current_user, update_data['property_id'])
-    
+    if 'block_id' in update_data:
+        _validate_block_id(db, current_user, update_data['block_id'])
+    if 'spatial_area_id' in update_data:
+        _validate_spatial_area_id(db, current_user, update_data['spatial_area_id'])
+
     # Convert location data using your existing utilities
     if 'location' in update_data and update_data['location']:
         update_data['location'] = convert_location_data(update_data['location'], 'location')

@@ -478,6 +478,17 @@ export const riskService = {
     const res = await api.post('/risk-management/risks/', data);
     return res.data;
   },
+  // Active risks scoped to a block / spatial area / property. Powers hazard
+  // chips on TaskDetailScreen + the contractor task warning banner.
+  byLocation: async ({ blockId, spatialAreaId, propertyId } = {}) => {
+    const params = {};
+    if (blockId != null) params.block_id = blockId;
+    if (spatialAreaId != null) params.spatial_area_id = spatialAreaId;
+    if (propertyId != null) params.property_id = propertyId;
+    if (Object.keys(params).length === 0) return [];
+    const res = await api.get('/risk-management/risks/by-location', { params });
+    return res.data;
+  },
 };
 
 // --- Contractor self-service (prefix: /v1/contractor-management/me) ---
