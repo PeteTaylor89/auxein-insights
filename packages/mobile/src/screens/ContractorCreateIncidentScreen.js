@@ -11,6 +11,7 @@ import * as Location from 'expo-location';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
 import { FilledInput, SeveritySelector, useToast } from '../components';
+import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
 const TYPES = [
   { value: 'injury',               label: 'Injury',               icon: 'user-x' },
@@ -39,10 +40,13 @@ const CATEGORIES = [
 
 export default function ContractorCreateIncidentScreen({ navigation }) {
   const toast = useToast();
+  const checkIn = useActiveCheckIn();
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(null);
   const [properties, setProperties] = useState([]);
   const [propertyId, setPropertyId] = useState(null);
+  // Pre-fill scope only once so manual edits aren't clobbered on focus refresh.
+  const [didPrefill, setDidPrefill] = useState(false);
 
   const [incidentType, setIncidentType] = useState('');
   const [severity, setSeverity] = useState('');
@@ -63,10 +67,14 @@ export default function ContractorCreateIncidentScreen({ navigation }) {
       .then(data => {
         const list = Array.isArray(data) ? data : [];
         setCompanies(list);
-        if (list.length === 1) setCompanyId(list[0].id);
+        if (checkIn.companyId && list.some(c => c.id === checkIn.companyId)) {
+          setCompanyId(checkIn.companyId);
+        } else if (list.length === 1) {
+          setCompanyId(list[0].id);
+        }
       })
       .catch(() => toast.show('Could not load companies', 'error'));
-  }, [navigation, toast]);
+  }, [navigation, toast, checkIn.companyId]);
 
   useEffect(() => {
     setPropertyId(null);
@@ -76,10 +84,20 @@ export default function ContractorCreateIncidentScreen({ navigation }) {
       .then(data => {
         const list = Array.isArray(data) ? data : [];
         setProperties(list);
-        if (list.length === 1) setPropertyId(list[0].id);
+        if (
+          !didPrefill
+          && checkIn.companyId === companyId
+          && checkIn.propertyId
+          && list.some(p => p.id === checkIn.propertyId)
+        ) {
+          setPropertyId(checkIn.propertyId);
+          setDidPrefill(true);
+        } else if (list.length === 1) {
+          setPropertyId(list[0].id);
+        }
       })
       .catch(() => toast.show('Could not load properties', 'error'));
-  }, [companyId, toast]);
+  }, [companyId, toast, checkIn.companyId, checkIn.propertyId, didPrefill]);
 
   const captureGps = async () => {
     setGpsLoading(true);

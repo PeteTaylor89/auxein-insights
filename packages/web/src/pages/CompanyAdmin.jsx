@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3 } from 'lucide-react';
+import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3, CreditCard, ShieldCheck } from 'lucide-react';
 import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService, byNatural, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
@@ -30,6 +30,8 @@ const TABS = [
   { key: 'grapelink', label: 'GrapeLink', icon: Grape },
   { key: 'weather', label: 'Weather', icon: CloudSun },
   { key: 'calendar', label: 'Calendar Sync', icon: Calendar },
+  { key: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+  { key: 'compliance', label: 'Plans / Compliance', icon: ShieldCheck },
   { key: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
@@ -110,6 +112,8 @@ function CompanyAdmin() {
           {activeTab === 'grapelink' && <GrapeLinkTab />}
           {activeTab === 'weather' && <WeatherTab />}
           {activeTab === 'calendar' && <CalendarSyncTab />}
+          {activeTab === 'subscriptions' && <SubscriptionsTab />}
+          {activeTab === 'compliance' && <CompliancePlansTab />}
           {activeTab === 'reports' && <ReportsTab />}
         </div>
       </div>
@@ -1252,6 +1256,48 @@ function TrainingTab() {
         <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Training modules — coming soon</h3>
         <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
           Module library, assignments, and completion tracking will arrive in a future release.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// TAB: Subscriptions (placeholder — Xero owns invoicing, this surface will
+// summarise plan, seat usage, trial status, and a Contact CTA. See
+// docs/plans/COMPANYADMIN_BILLING_SCOPING.md.)
+// ============================================================================
+function SubscriptionsTab() {
+  return (
+    <div className="ca-section">
+      <h2 className="ca-section-title">Subscriptions</h2>
+      <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+        <CreditCard size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
+        <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Subscriptions — coming soon</h3>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+          Current plan, commitment term, billing cadence, seat usage, and a Contact link for changes. Invoicing stays in Xero.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================================
+// TAB: Plans / Compliance (placeholder — will generate management plans like
+// SWNZ, BioGro, Organics, Biodynamic from data already held in Grow.)
+// ============================================================================
+function CompliancePlansTab() {
+  return (
+    <div className="ca-section">
+      <h2 className="ca-section-title">Plans / Compliance</h2>
+      <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+        <ShieldCheck size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
+        <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Plans &amp; Compliance — coming soon</h3>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
+          Generate management plans for SWNZ, BioGro, Organics and Biodynamic directly from the blocks, tasks, calibrations,
+          observations and risks already captured in Grow.
         </p>
       </div>
     </div>

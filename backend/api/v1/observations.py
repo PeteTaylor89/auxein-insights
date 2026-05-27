@@ -702,6 +702,7 @@ def list_runs(
     for r in rows:
         r.plan_name = r.plan.name if r.plan else None
         r.template_name = r.template.name if r.template else None
+        r.template_type = r.template.type if r.template else None
         if r.creator:
             r.creator_name = f"{r.creator.first_name} {r.creator.last_name}".strip()
         else:
@@ -727,6 +728,7 @@ def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current
     check_run_access(db, user, run)
     run.plan_name = run.plan.name if run.plan else None
     run.template_name = run.template.name if run.template else None
+    run.template_type = run.template.type if run.template else None
     if run.creator:
         run.creator_name = f"{run.creator.first_name} {run.creator.last_name}".strip()
     else:

@@ -356,19 +356,6 @@ export default function BlockEditForm({
           </div>
 
           <div className="v2-form-actions">
-            {onDelete && (
-              <button
-                type="button"
-                className="v2-form-btn v2-form-btn--danger"
-                onClick={() => {
-                  if (window.confirm(`Delete block "${blockData.block_name}"? This cannot be undone.`)) {
-                    onDelete(blockData.id);
-                  }
-                }}
-              >
-                Delete
-              </button>
-            )}
             <div style={{ flex: 1 }} />
             <button
               type="button"

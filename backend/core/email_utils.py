@@ -312,50 +312,42 @@ def get_password_reset_email_template(username: str, reset_link: str, brand: Bra
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Reset Your Password - {brand.display_name}</title>
+        <title>Reset your password - {brand.display_name}</title>
         {get_base_email_styles()}
     </head>
     <body>
         <div style="background-color: #FDF6E3; padding: 20px;">
             <div class="container">
-                <div class="header" style="background-color: #D1583B;">
+                <div class="header" style="background: linear-gradient(135deg, #5B6830, #6B7840);">
                     <div class="logo">
-                        <h1 style="color: #FDF6E3;">{brand.display_name}</h1>
+                        <h1>{brand.display_name}</h1>
                     </div>
-                    <p style="margin: 0; font-size: 18px; opacity: 0.9; color: #FDF6E3;">Password Reset Request</p>
+                    <p style="margin: 0; font-size: 18px; opacity: 0.9;">Password reset request</p>
                 </div>
                 <div class="content">
                     <h2>Hi {username},</h2>
                     <p>We received a request to reset your password for your <strong class="brand-primary">{brand.display_name}</strong> account.</p>
-                    
+
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="{reset_link}" class="button accent-button">Reset Password</a>
+                        <a href="{reset_link}" class="button accent-button">Reset password</a>
                     </div>
-                    
-                    <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+
+                    <p>If the button doesn't work, copy and paste this link into your browser:</p>
                     <div class="link-box">{reset_link}</div>
-                    
+
                     <div class="warning-box">
-                        <strong>🔒 Important:</strong> This password reset link will expire in 24 hours for security reasons.
+                        <strong>Important:</strong> This link expires in 24 hours.
                     </div>
-                    
-                    <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
-                    
-                    <div class="highlight-box">
-                        <h4>🛡️ Security Recommendations:</h4>
-                        <ul style="margin: 10px 0; padding-left: 20px;">
-                            <li>Use a strong, unique password</li>
-                            <li>Don't share your password with anyone</li>
-                            <li>Enable two-factor authentication if available</li>
-                            <li>Regularly update your password</li>
-                        </ul>
-                    </div>
-                    
+
+                    <p>If you didn't request a password reset, ignore this email — your password stays as it is.</p>
+
+                    <p>Questions? Reach us at <a href="mailto:{brand.support_email}">{brand.support_email}</a>.</p>
+
                     <p>Best regards,<br><strong class="brand-primary">The {brand.display_name} Team</strong></p>
                 </div>
                 <div class="footer">
                     <p>© 2025 {brand.display_name}. All rights reserved.</p>
-                    <p>Protecting your vineyard data with enterprise-grade security</p>
+                    <p>Empowering New Zealand winegrowers with intelligent vineyard management</p>
                 </div>
             </div>
         </div>

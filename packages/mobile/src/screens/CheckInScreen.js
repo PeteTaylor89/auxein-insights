@@ -80,6 +80,7 @@ export default function CheckInScreen({ navigation }) {
       }
       await contractorService.checkIn({
         company_id: companyId,
+        property_id: propertyId,
         purpose: purpose.trim(),
         equipment_brought: arrayFromCsv(equipment),
         previous_location_name: previousLocation.trim() || null,

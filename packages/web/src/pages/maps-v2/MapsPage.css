@@ -3,10 +3,32 @@
 /* ---- Page layout ---- */
 .v2-maps-page {
   display: flex;
-  height: calc(100vh - 100px); /* account for SiteHeader */
+  height: calc(100vh - 60px); /* SiteHeader = 60px desktop */
   overflow: hidden;
   position: relative;
   font-family: var(--font-family);
+}
+
+@media (max-width: 768px) {
+  .v2-maps-page {
+    height: calc(100vh - 44px); /* SiteHeader = 44px on mobile */
+  }
+}
+
+/* Fullscreen mode — applied to body while MapsPage is mounted.
+   Hides the SiteFooter and locks page scrolling so the map fills the viewport
+   under the header. */
+body.maps-fullscreen {
+  overflow: hidden;
+}
+body.maps-fullscreen .site-footer,
+body.maps-fullscreen footer.site-footer {
+  display: none;
+}
+body.maps-fullscreen .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .v2-map-area {

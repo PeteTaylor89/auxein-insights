@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, date
-from pydantic import BaseModel, Field, conint, confloat, computed_field
+from pydantic import BaseModel, Field, conint, confloat, computed_field, model_validator
 try:
     from pydantic import ConfigDict
     _CFG = {"from_attributes": True}
@@ -159,6 +159,7 @@ class ObservationRunOut(ObservationRunBase):
     created_by: Optional[int] = None  # Keep as user ID
     plan_name: Optional[str] = None
     template_name: Optional[str] = None
+    template_type: Optional[str] = None  # e.g. phenology, bud_count, bunch_count — gates the Insights link
     creator_name: Optional[str] = None  # This will contain "FirstName LastName"
     
     # Pass through the observation dates
@@ -235,7 +236,45 @@ class ObservationSpotOut(ObservationSpotBase):
     updated_at: Optional[datetime]
     created_by: Optional[int] = None
     values: Dict[str, Any] = Field(default_factory=dict, alias="data_json")
-    
+
+    @model_validator(mode='before')
+    @classmethod
+    def _project_gps_to_latlng(cls, data: Any) -> Any:
+        # ORM stores location in `gps` POINT column; pydantic expects scalar lat/lng.
+        # Without this, from_attributes reads non-existent attrs and returns None.
+        gps = None
+        if hasattr(data, 'gps'):
+            gps = getattr(data, 'gps')
+        elif isinstance(data, dict):
+            gps = data.get('gps')
+
+        if gps is None:
+            return data
+
+        try:
+            from geoalchemy2.shape import to_shape
+            pt = to_shape(gps)
+            lat = pt.y
+            lng = pt.x
+        except Exception:
+            return data
+
+        if isinstance(data, dict):
+            data.setdefault('latitude', lat)
+            data.setdefault('longitude', lng)
+            return data
+
+        # ORM instance — build dict so pydantic can fill both gps-derived + other attrs
+        try:
+            from sqlalchemy import inspect as sa_inspect
+            mapper = sa_inspect(data).mapper
+            payload = {c.key: getattr(data, c.key) for c in mapper.column_attrs}
+        except Exception:
+            return data
+        payload['latitude'] = lat
+        payload['longitude'] = lng
+        return payload
+
     class Config:
         from_attributes = True
         allow_population_by_field_name = True

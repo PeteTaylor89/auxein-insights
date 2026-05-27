@@ -3,16 +3,17 @@ import { useState, useEffect } from 'react';
 import { X, Save, Loader } from 'lucide-react';
 import { spatialAreasService } from '@vineyard/shared';
 
+// Values must match backend `AreaType` enum in schemas/spatial_area.py.
 const AREA_TYPES = [
   { value: 'paddock', label: 'Paddock' },
   { value: 'orchard', label: 'Orchard' },
-  { value: 'forestry', label: 'Forestry' },
+  { value: 'plantation_forestry', label: 'Plantation Forestry' },
+  { value: 'native_forest', label: 'Native Forest' },
   { value: 'wetland', label: 'Wetland' },
-  { value: 'riparian', label: 'Riparian' },
-  { value: 'native_bush', label: 'Native Bush' },
-  { value: 'building', label: 'Building Area' },
-  { value: 'dam', label: 'Dam/Water' },
-  { value: 'other', label: 'Other' },
+  { value: 'waterway', label: 'Waterway' },
+  { value: 'conservation_area', label: 'Conservation Area' },
+  { value: 'infrastructure_zone', label: 'Infrastructure / Building' },
+  { value: 'waste_management', label: 'Waste Management' },
 ];
 
 /**

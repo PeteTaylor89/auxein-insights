@@ -14,7 +14,10 @@ from pydantic import BaseModel
 # Your existing imports
 
 from db.models.user import User
-from api.deps import get_db, get_current_user
+from db.models.contractor import Contractor
+from db.models.contractor_relationship import ContractorRelationship
+from db.models.property import Property
+from api.deps import get_db, get_current_user, get_current_user_or_contractor
 from services.property_service import get_visible_property_ids
 
 # New risk management imports
@@ -146,18 +149,48 @@ def _validate_spatial_area_id(db, user, spatial_area_id):
 @router.get("/risk-management/risks/", response_model=List[SiteRiskSummary])
 def get_company_risks(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    actor=Depends(get_current_user_or_contractor),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, le=100),
     risk_type: Optional[str] = Query(None),
     risk_level: Optional[str] = Query(None),
-    status: Optional[str] = Query(None)
+    status: Optional[str] = Query(None),
+    property_id: Optional[int] = Query(None, description="Restrict to this property (required-ish for contractors)"),
 ):
-    """Get all risks for the current user's company"""
-    query = db.query(SiteRisk).filter(SiteRisk.company_id == current_user.company_id)
-    scope = _property_scope_filter(SiteRisk, db, current_user)
-    if scope is not None:
-        query = query.filter(scope)
+    """Get all risks visible to the actor.
+
+    Company users: scoped to their company via property scope filter.
+    Contractors: scoped to companies they have an active relationship with.
+    Adding property_id narrows further (validated against accessible properties).
+    """
+    is_contractor = isinstance(actor, Contractor)
+
+    if is_contractor:
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == actor.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if not active_company_ids:
+            return []
+        query = db.query(SiteRisk).filter(SiteRisk.company_id.in_(active_company_ids))
+
+        if property_id is not None:
+            prop = db.query(Property).filter(Property.id == property_id).first()
+            if not prop or prop.owner_company_id not in active_company_ids:
+                raise HTTPException(status_code=403, detail="No active relationship with this property's owner")
+            # Property-tied risks + company-wide (property_id IS NULL) for the right company
+            query = query.filter(
+                (SiteRisk.property_id == property_id)
+                | (SiteRisk.property_id.is_(None) & (SiteRisk.company_id == prop.owner_company_id))
+            )
+    else:
+        current_user = actor
+        query = db.query(SiteRisk).filter(SiteRisk.company_id == current_user.company_id)
+        scope = _property_scope_filter(SiteRisk, db, current_user)
+        if scope is not None:
+            query = query.filter(scope)
 
     if risk_type:
         query = query.filter(SiteRisk.risk_type == risk_type)
@@ -165,7 +198,7 @@ def get_company_risks(
         query = query.filter(SiteRisk.inherent_risk_level == risk_level)
     if status:
         query = query.filter(SiteRisk.status == status)
-    
+
     risks = query.order_by(SiteRisk.inherent_risk_score.desc()).offset(skip).limit(limit).all()
     return risks
 
@@ -267,12 +300,13 @@ def get_risks_by_location(
     spatial_area_id: Optional[int] = Query(None),
     property_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user_or_contractor),
 ):
     """Active risks matching any of: block, spatial area, or property-wide.
 
     Powers hazard chips on task create/edit + the contractor warning banner.
-    Property-scoped via `get_visible_property_ids` for non-admin callers.
+    For users: property-scoped via `get_visible_property_ids`.
+    For contractors: scoped to companies with active ContractorRelationships.
 
     Filter semantics:
       - `block_id`         → risks with that exact FK
@@ -291,29 +325,68 @@ def get_risks_by_location(
             detail="At least one of block_id, spatial_area_id, or property_id required",
         )
 
-    if block_id is not None:
-        _validate_block_id(db, current_user, block_id)
-    if spatial_area_id is not None:
-        _validate_spatial_area_id(db, current_user, spatial_area_id)
-    if property_id is not None:
-        _validate_property_id(db, current_user, property_id)
+    is_contractor = isinstance(current_user, Contractor) or hasattr(current_user, "contractor_type")
 
-    query = db.query(SiteRisk).filter(
-        SiteRisk.company_id == current_user.company_id,
-        SiteRisk.status == "active",
-    )
+    if is_contractor:
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == current_user.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if not active_company_ids:
+            return []
 
-    # Property scoping defence-in-depth — even though _validate_property_id
-    # already gated the request, also gate the returned rows so a task on a
-    # property the user can see can't pull risks tied to one they can't.
-    if current_user.user_type != "auxein_admin":
-        visible = get_visible_property_ids(db, current_user)
-        if visible:
-            query = query.filter(
-                or_(SiteRisk.property_id.in_(visible), SiteRisk.property_id.is_(None))
-            )
-        else:
-            query = query.filter(SiteRisk.property_id.is_(None))
+        if block_id is not None:
+            block = db.query(VineyardBlock).filter(
+                VineyardBlock.id == block_id,
+                VineyardBlock.company_id.in_(active_company_ids),
+            ).first()
+            if not block:
+                raise HTTPException(status_code=400, detail="Block not accessible")
+        if spatial_area_id is not None:
+            area = db.query(SpatialArea).filter(
+                SpatialArea.id == spatial_area_id,
+                SpatialArea.company_id.in_(active_company_ids),
+            ).first()
+            if not area:
+                raise HTTPException(status_code=400, detail="Spatial area not accessible")
+        if property_id is not None:
+            prop = db.query(Property).filter(
+                Property.id == property_id,
+                Property.owner_company_id.in_(active_company_ids),
+            ).first()
+            if not prop:
+                raise HTTPException(status_code=403, detail="Property not accessible")
+
+        query = db.query(SiteRisk).filter(
+            SiteRisk.company_id.in_(active_company_ids),
+            SiteRisk.status == "active",
+        )
+    else:
+        if block_id is not None:
+            _validate_block_id(db, current_user, block_id)
+        if spatial_area_id is not None:
+            _validate_spatial_area_id(db, current_user, spatial_area_id)
+        if property_id is not None:
+            _validate_property_id(db, current_user, property_id)
+
+        query = db.query(SiteRisk).filter(
+            SiteRisk.company_id == current_user.company_id,
+            SiteRisk.status == "active",
+        )
+
+        # Property scoping defence-in-depth — even though _validate_property_id
+        # already gated the request, also gate the returned rows so a task on a
+        # property the user can see can't pull risks tied to one they can't.
+        if current_user.user_type != "auxein_admin":
+            visible = get_visible_property_ids(db, current_user)
+            if visible:
+                query = query.filter(
+                    or_(SiteRisk.property_id.in_(visible), SiteRisk.property_id.is_(None))
+                )
+            else:
+                query = query.filter(SiteRisk.property_id.is_(None))
 
     clauses = []
     if block_id is not None:
@@ -341,37 +414,40 @@ def get_risks_by_location(
 def get_risk(
     risk_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
-    """Get a specific risk"""
-    risk = db.query(SiteRisk).filter(
-        SiteRisk.id == risk_id,
-        SiteRisk.company_id == current_user.company_id
-    ).first()
-    
+    """Get a specific risk.
+
+    Company users: scoped to company + UserPropertyScope.
+    Contractors: must have an active relationship with the risk's owning company.
+    """
+    risk = db.query(SiteRisk).filter(SiteRisk.id == risk_id).first()
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
-    _check_property_scope(db, current_user, risk)
 
-    # CRITICAL: Debug and fix None values
-    print(f" Before fix - custom_fields: {risk.custom_fields}")
-    print(f"Before fix - custom_fields type: {type(risk.custom_fields)}")
-    
-    # Ensure custom_fields is not None before returning
+    if isinstance(actor, Contractor):
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == actor.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if risk.company_id not in active_company_ids:
+            raise HTTPException(status_code=403, detail="Risk not accessible")
+    else:
+        if risk.company_id != actor.company_id:
+            raise HTTPException(status_code=404, detail="Risk not found")
+        _check_property_scope(db, actor, risk)
+
+    # Ensure custom_fields is not None before returning (legacy rows may have NULL)
     if risk.custom_fields is None:
-        print("Found None custom_fields, fixing...")
         risk.custom_fields = {}
         db.commit()
         db.refresh(risk)
-        print(f"After fix - custom_fields: {risk.custom_fields}")
-    
-    # Also check other potentially problematic fields
+
     if not hasattr(risk, 'tags') or risk.tags is None:
         risk.tags = []
-    
-    print(f"Final custom_fields before return: {risk.custom_fields}")
-    print(f"Final custom_fields type: {type(risk.custom_fields)}")
-    
+
     return risk
 
 @router.put("/risk-management/risks/{risk_id}", response_model=SiteRiskResponse)

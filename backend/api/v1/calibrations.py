@@ -9,7 +9,7 @@ from decimal import Decimal
 import logging
 
 from db.session import get_db
-from db.models.asset import Asset, AssetCalibration, AssetCalibrationSchedule
+from db.models.asset import Asset, AssetCalibration, AssetCalibrationSchedule, AssetCalibrationSpec
 from db.models.user import User
 from db.models.contractor import Contractor
 from db.models.notification import NotificationType
@@ -25,6 +25,18 @@ router = APIRouter()
 # When a calibration fails (out_of_tolerance), schedule the recheck this many days out.
 # Hard-coded for v0.1; promote to Asset.calibration_failure_recheck_days if per-asset config needed.
 CALIBRATION_FAILURE_RECHECK_DAYS = 7
+
+
+def _resolve_spec(db: Session, asset: Asset, calibration_type: str) -> Optional[AssetCalibrationSpec]:
+    """Look up the active per-type spec for an asset. Returns None for legacy assets
+    that still rely on the inline columns on the Asset row."""
+    if not calibration_type:
+        return None
+    return db.query(AssetCalibrationSpec).filter(
+        AssetCalibrationSpec.asset_id == asset.id,
+        AssetCalibrationSpec.calibration_type == calibration_type,
+        AssetCalibrationSpec.is_active.is_(True),
+    ).first()
 
 
 def create_pending_schedule(
@@ -155,14 +167,24 @@ def create_calibration_record(
         calibration.status = "pass"  # Default to pass, can be updated
         calibration.within_tolerance = True
     
+    # Resolve the per-type spec (multi-spec path). Falls back to the asset's inline
+    # columns when no spec row exists (legacy assets).
+    spec = _resolve_spec(db, asset, calibration.calibration_type)
+
     # Calculate next due date.
-    # pass → schedule next at asset's normal interval
+    # pass → schedule next at the spec's (or asset's) normal interval
     # out_of_tolerance → schedule a recheck in CALIBRATION_FAILURE_RECHECK_DAYS days
-    #   regardless of asset interval (the asset is suspect, recheck soon)
+    #   regardless of interval (the asset is suspect, recheck soon)
     if calibration.status == "out_of_tolerance":
         calibration.next_due_date = calibration.calibration_date + timedelta(days=CALIBRATION_FAILURE_RECHECK_DAYS)
-    elif asset.calibration_interval_days:
-        calibration.next_due_date = calibration.calibration_date + timedelta(days=asset.calibration_interval_days)
+    else:
+        interval_days = None
+        if spec and spec.interval_days:
+            interval_days = spec.interval_days
+        elif asset.calibration_interval_days:
+            interval_days = asset.calibration_interval_days
+        if interval_days:
+            calibration.next_due_date = calibration.calibration_date + timedelta(days=interval_days)
 
     db.add(calibration)
     db.flush()  # so calibration.id is available for the schedule link below
@@ -179,20 +201,37 @@ def create_calibration_record(
         db.flush()
 
     if calibration.next_due_date and asset.requires_calibration:
-        # The new event already computed next_due_date above (pass → asset interval, fail → 7d).
-        # Mirror that to a fresh pending schedule so the feed surfaces it. Prefer the Asset's
-        # persistent spec — falls back to the just-completed event's spec if the asset's
-        # fields are NULL (e.g. legacy asset that hasn't had spec captured yet).
+        # Mirror the next-due date to a fresh pending schedule so the feed surfaces it.
+        # Preference order for the spec snapshot, per field:
+        #   1. The per-type spec row (multi-spec path)
+        #   2. The asset's inline column (legacy single-spec)
+        #   3. The just-completed event's value (last-resort fallback)
+        # calibration_type stays the same — auto-respawn never crosses types.
+        if spec:
+            spec_type = spec.calibration_type
+            spec_param = spec.parameter_name
+            spec_unit = spec.unit_of_measure
+            spec_target = spec.target_value
+            spec_tmin = spec.tolerance_min
+            spec_tmax = spec.tolerance_max
+        else:
+            spec_type = asset.calibration_type or calibration.calibration_type
+            spec_param = asset.calibration_parameter_name or calibration.parameter_name
+            spec_unit = asset.calibration_unit_of_measure or calibration.unit_of_measure
+            spec_target = asset.calibration_target_value if asset.calibration_target_value is not None else calibration.target_value
+            spec_tmin = asset.calibration_tolerance_min if asset.calibration_tolerance_min is not None else calibration.tolerance_min
+            spec_tmax = asset.calibration_tolerance_max if asset.calibration_tolerance_max is not None else calibration.tolerance_max
+
         create_pending_schedule(
             db,
             asset,
             due_date=calibration.next_due_date,
-            calibration_type=asset.calibration_type or calibration.calibration_type,
-            parameter_name=asset.calibration_parameter_name or calibration.parameter_name,
-            unit_of_measure=asset.calibration_unit_of_measure or calibration.unit_of_measure,
-            target_value=asset.calibration_target_value if asset.calibration_target_value is not None else calibration.target_value,
-            tolerance_min=asset.calibration_tolerance_min if asset.calibration_tolerance_min is not None else calibration.tolerance_min,
-            tolerance_max=asset.calibration_tolerance_max if asset.calibration_tolerance_max is not None else calibration.tolerance_max,
+            calibration_type=spec_type,
+            parameter_name=spec_param,
+            unit_of_measure=spec_unit,
+            target_value=spec_target,
+            tolerance_min=spec_tmin,
+            tolerance_max=spec_tmax,
             created_by=created_by,
         )
 

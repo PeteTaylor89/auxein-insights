@@ -5,8 +5,11 @@ from sqlalchemy.orm import Session
 from geoalchemy2.shape import to_shape, from_shape
 from shapely.geometry import mapping, shape, LineString, Polygon, MultiPolygon
 from shapely.ops import split
-from api.deps import get_db, get_current_user
+from api.deps import get_db, get_current_user, get_current_user_or_contractor
 from db.models.user import User
+from db.models.contractor import Contractor
+from db.models.contractor_relationship import ContractorRelationship
+from db.models.property import Property
 from db.models.block import VineyardBlock
 from db.models.vineyard_row import VineyardRow
 from schemas.block import Block, BlockCreate, BlockUpdate
@@ -39,30 +42,72 @@ def area_ha(geom) -> float:
 @router.get("/geojson", response_model=dict)
 def get_all_blocks_geojson(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    actor=Depends(get_current_user_or_contractor),
     property_id: Optional[int] = Query(None),
     limit: int = 1000
 ):
     """
     Get all blocks as GeoJSON FeatureCollection for map display.
-    Scoped by visible properties, with company_id fallback for unassigned blocks.
+
+    Company users: scoped by visible properties with company_id fallback for
+    unassigned blocks. Auxein admin sees everything.
+
+    Contractors: scoped to blocks under properties owned by companies they
+    have an active ContractorRelationship with. property_id is enforced to be
+    one of those properties (rejected if the contractor has no claim on it),
+    so the contractor map can't be coerced to leak a different property's data.
     """
-    is_admin = current_user.user_type == "auxein_admin"
-    if is_admin:
-        query = db.query(VineyardBlock)
+    is_contractor = isinstance(actor, Contractor)
+
+    if is_contractor:
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == actor.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if not active_company_ids:
+            return {"type": "FeatureCollection", "features": []}
+
+        if property_id is not None:
+            # Verify the contractor has access to this property
+            prop = db.query(Property).filter(Property.id == property_id).first()
+            if not prop or prop.owner_company_id not in active_company_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="No active relationship with this property's owner",
+                )
+            query = db.query(VineyardBlock).filter(VineyardBlock.property_id == property_id)
+        else:
+            # No specific property — return blocks across all accessible properties
+            accessible_property_ids = [
+                p.id for p in db.query(Property.id).filter(
+                    Property.owner_company_id.in_(active_company_ids)
+                ).all()
+            ]
+            if not accessible_property_ids:
+                return {"type": "FeatureCollection", "features": []}
+            query = db.query(VineyardBlock).filter(
+                VineyardBlock.property_id.in_(accessible_property_ids)
+            )
     else:
-        visible_ids = get_visible_property_ids(db, current_user)
-        query = db.query(VineyardBlock).filter(
-            or_(
-                VineyardBlock.property_id.in_(visible_ids) if visible_ids else False,
-                and_(
-                    VineyardBlock.property_id.is_(None),
-                    VineyardBlock.company_id == current_user.company_id
+        current_user = actor
+        is_admin = current_user.user_type == "auxein_admin"
+        if is_admin:
+            query = db.query(VineyardBlock)
+        else:
+            visible_ids = get_visible_property_ids(db, current_user)
+            query = db.query(VineyardBlock).filter(
+                or_(
+                    VineyardBlock.property_id.in_(visible_ids) if visible_ids else False,
+                    and_(
+                        VineyardBlock.property_id.is_(None),
+                        VineyardBlock.company_id == current_user.company_id
+                    )
                 )
             )
-        )
-    if property_id is not None:
-        query = query.filter(VineyardBlock.property_id == property_id)
+        if property_id is not None:
+            query = query.filter(VineyardBlock.property_id == property_id)
     blocks = query.all()
 
     features = []

@@ -13,16 +13,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { riskService } from '../api/services';
 
-export default function useRiskGeojson({ status = 'active', propertyId = null } = {}) {
+export default function useRiskGeojson({ status = 'active', propertyId = null, enabled = true } = {}) {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setData({ type: 'FeatureCollection', features: [] });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const params = status ? { status } : {};
+      const params = {};
+      if (status) params.status = status;
+      // Backend list endpoint accepts property_id — pushing the filter down
+      // gives contractors a smaller, scoped payload and works for them too
+      // (the endpoint was contractor-aware as of phase 4).
+      if (propertyId) params.property_id = propertyId;
       const list = await riskService.getRisks(params);
       if (!Array.isArray(list) || list.length === 0) {
         setData({ type: 'FeatureCollection', features: [] });
@@ -81,7 +91,7 @@ export default function useRiskGeojson({ status = 'active', propertyId = null } 
     } finally {
       setLoading(false);
     }
-  }, [status, propertyId]);
+  }, [status, propertyId, enabled]);
 
   useEffect(() => { load(); }, [load]);
 

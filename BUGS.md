@@ -28,21 +28,6 @@
 
 <!-- Add new bugs here -->
 
-### [BUG-009] Backend — `/risks/by-location` 403s for contractor tokens
-- **Priority:** P2
-- **Area:** Backend / Mobile
-- **Page/Screen:** ContractorTasksScreen banner
-- **Steps to reproduce:**
-  1. Sign in as a contractor on mobile.
-  2. Open the Tasks tab — each assignment card calls `GET /risk-management/risks/by-location`.
-  3. Backend returns 403 because the endpoint depends on `get_current_user`, not `get_current_user_or_contractor`.
-- **Expected:** Active high/critical hazards for the task's block/property surface as a red banner on each assignment card.
-- **Actual:** Component silently catches the 403 and renders nothing — banner never appears for contractors.
-- **Notes:** Frontend wiring is already in place (commit landing alongside T3a/T3b). Fix paths:
-  1. Switch the endpoint's auth dep to `get_current_user_or_contractor` and gate property scoping by `relationship_company_ids` for contractors (mirror `properties/geojson` pattern from 2026-05-17 session).
-  2. OR mirror to a new `/v1/contractor-management/me/risks/by-location` endpoint behind `get_current_contractor`, scoped to companies with active relationships.
-  Option 1 is preferred (single source of truth, no duplication). Same class of issue as the `/tasks/tasks` 403 noted in 2026-05-16 lurking-issues memory.
-
 ### [BUG-001] Web — Calibration attached photos not viewable
 - **Priority:** P2
 - **Area:** Web
@@ -75,18 +60,6 @@
   3. If two rows (one being `abc123456789`) → either keep `abc123456789_add_token_blacklist_only.py` and properly chain it into the live history with a merge migration, OR delete the `abc123456789` row from `alembic_version` first, then delete the file.
   4. The `6fbc24f09e13` file is always safe to delete regardless (its placeholder revision string can't be in `alembic_version`).
 - **Reported:** 2026-05-09. Discovered while adding `add_banner_audience` migration.
-
-### [BUG-008] Shared — AuthContext.updateUserProfile calls a non-existent authService.updateProfile
-- **Priority:** P3 (latent — no caller in V1 after 2026-05-21 Profile rebuild)
-- **Area:** Shared package / Auth
-- **File:** `packages/shared/src/contexts/AuthContext.jsx:186` (function `updateUserProfile`)
-- **Symptom:** any caller that invokes `useAuth().updateUserProfile(data)` will throw `TypeError: authService.updateProfile is not a function`. `authService.js` exposes `getProfile`, `login`, `register`, `refreshToken` etc. — there is no `updateProfile` method.
-- **How it lay dormant:** the old Profile.jsx didn't call this method either; it just rendered read-only user data. So no production caller has ever exercised it.
-- **Discovered:** 2026-05-21 while rebuilding Profile.jsx — I wired the new self-edit flow through `usersService.updateMyProfile` + `refreshProfile()` (also new) and intentionally bypassed the broken AuthContext path. The latent bug remains in the codebase.
-- **Fix options (pick one):**
-  1. **Wire it through.** Add `authService.updateProfile = async (data) => api.patch('/auth/me', data).then(r => r.data)` and have `AuthContext.updateUserProfile` call my new `refreshProfile()` instead of `setUser(updatedUser)` (since PATCH returns `{ok:true,id}`, not the full profile).
-  2. **Delete it.** Remove the `updateUserProfile` method from AuthContext and the `updateUserProfile` key from the context value. Callers (none today) should use `usersService.updateMyProfile` + `refreshProfile` instead.
-- **Recommend option 2** — `usersService` + `refreshProfile` is the canonical path going forward; the AuthContext duplicate just creates two ways to do the same thing.
 
 ### [BUG-006] Backend — Gunicorn workers OOM-killed ~60-90 min after each deploy
 - **Priority:** P1 (recurring production outage)
@@ -132,6 +105,20 @@
 ## Resolved
 
 <!-- Move fixed bugs here with resolution notes -->
+
+### ~~[BUG-009] Backend — `/risks/by-location` 403s for contractor tokens~~
+- **Priority:** P2
+- **Area:** Backend / Mobile
+- **Resolved:** 2026-05-26
+- **Resolution:** Switched the endpoint's auth dep from `get_current_user` to `get_current_user_or_contractor` and added a contractor branch that scopes by `ContractorRelationship.status == "active"` companies (mirrors the `properties/geojson` pattern from the 2026-05-17 session). Contractor branch inlines FK validation against `active_company_ids` rather than using the User-only `_validate_*` helpers (which dereference `current_user.company_id`). Returns `[]` early when the contractor has no active relationships. Now the mobile `ContractorTasksScreen` banner surfaces high/critical hazards for the task's block/property without the silent 403.
+- **Files:** `backend/api/v1/risk_management.py` (imports + endpoint body). Needs backend EB deploy to land in prod — no migration.
+
+### ~~[BUG-008] Shared — AuthContext.updateUserProfile calls a non-existent authService.updateProfile~~
+- **Priority:** P3 (latent — no caller in V1 after 2026-05-21 Profile rebuild)
+- **Area:** Shared package / Auth
+- **Resolved:** 2026-05-26
+- **Resolution:** Picked option 2 — deleted the `updateUserProfile` function from `AuthContext.jsx` and removed the `updateUserProfile` key from the context value object. Canonical self-edit path remains `usersService.updateMyProfile` + `refreshProfile()`. No callers existed, so safe pure-delete.
+- **Files:** `packages/shared/src/contexts/AuthContext.jsx`. Picks up on next web rebuild.
 
 ### ~~[BUG-006] Backend — Contractor self check-in violates `contractor_movements.checked_in_by` NOT NULL~~
 - **Priority:** P0 (blocks contractor V1 field testing)

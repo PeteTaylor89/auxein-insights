@@ -467,6 +467,7 @@ export const forecastService = {
 // --- Risk Management (prefix: /risk-management) ---
 export const riskService = {
   getRisks: async (params = {}) => {
+    // Accepts status/risk_type/risk_level/property_id — backend filters server-side.
     const res = await api.get('/risk-management/risks/', { params });
     return res.data;
   },
@@ -550,6 +551,13 @@ export const contractorService = {
   },
   createMyIncident: async (payload) => {
     const res = await api.post('/v1/contractor-management/me/incidents', payload);
+    return res.data;
+  },
+  // Ad-hoc one-shot observation. Backend creates a hidden ObservationRun +
+  // single Spot under a per-company ad-hoc template; the company-user obs
+  // tab won't show it as a planned run (filtered by template type).
+  createMyObservation: async (payload) => {
+    const res = await api.post('/v1/contractor-management/me/observations', payload);
     return res.data;
   },
   // Check-in (Visit FAB) — router is mounted at /api/v1/contractor-management,

@@ -25,6 +25,7 @@ function TaskCreationWizard() {
   const templateIdFromQuery = searchParams.get('template');
   const [multiMode, setMultiMode] = useState(false);
   const [blockRows, setBlockRows] = useState([]);
+  const [scheduleIsRange, setScheduleIsRange] = useState(false);
 
   // Form state
   const [loading, setLoading] = useState(false);
@@ -409,14 +410,17 @@ function TaskCreationWizard() {
         const created = [];
         for (const row of rowsToCreate) {
           // build payload per-row using row dates & block id
+          // End-date defaults to start-date when blank → single-day task. Empty
+          // string would 422 the Pydantic date parser.
+          const rowStart = row.start_date || formData.scheduled_start_date || null;
+          const rowEnd = row.end_date || rowStart;
           const perTaskPayload = {
             ...formData,
             block_id: row.block_id,
             spatial_area_id: null,
             location_type: null,
-            // per row schedule (allow empty end date)
-            scheduled_start_date: row.start_date || formData.scheduled_start_date || '',
-            scheduled_end_date: row.end_date || '',
+            scheduled_start_date: rowStart,
+            scheduled_end_date: rowEnd,
             // type coercions
             estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null,
             rows_total: formData.rows_total ? parseInt(formData.rows_total) : null,
@@ -481,8 +485,14 @@ function TaskCreationWizard() {
 
       // ----- SINGLE MODE (your existing path) -----
       // Prepare main task payload (same as you had, with category-driven location)
+      // Default end_date to start_date when the schedule isn't a range — a single-day
+      // task. Empty string would 422 the Pydantic date parser.
+      const startDate = formData.scheduled_start_date || null;
+      const endDate = formData.scheduled_end_date || startDate;
       const taskPayload = {
         ...formData,
+        scheduled_start_date: startDate,
+        scheduled_end_date: endDate,
         block_id: formData.task_category === 'vineyard'
           ? (formData.block_id ? parseInt(formData.block_id) : null)
           : null,
@@ -1082,23 +1092,38 @@ function TaskCreationWizard() {
                     {/* Scheduling */}
           {!multiMode && (
           <FormSection title="Scheduling" icon={<Calendar size={18} />}>
-            <FormField label="Start Date" required>
+            <FormField label="Schedule">
               <input
                 type="date"
                 value={formData.scheduled_start_date}
                 onChange={(e) => handleInputChange('scheduled_start_date', e.target.value)}
                 className="vp-input"
               />
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={scheduleIsRange}
+                  onChange={(e) => {
+                    setScheduleIsRange(e.target.checked);
+                    if (!e.target.checked) {
+                      handleInputChange('scheduled_end_date', '');
+                    }
+                  }}
+                />
+                Spans a date range
+              </label>
             </FormField>
 
-            <FormField label="End Date">
-              <input
-                type="date"
-                value={formData.scheduled_end_date}
-                onChange={(e) => handleInputChange('scheduled_end_date', e.target.value)}
-                className="vp-input"
-              />
-            </FormField>
+            {scheduleIsRange && (
+              <FormField label="End Date">
+                <input
+                  type="date"
+                  value={formData.scheduled_end_date}
+                  onChange={(e) => handleInputChange('scheduled_end_date', e.target.value)}
+                  className="vp-input"
+                />
+              </FormField>
+            )}
 
             <FormField label="Start Time">
               <input

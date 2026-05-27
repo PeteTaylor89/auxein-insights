@@ -7,13 +7,14 @@ from datetime import date, datetime, timedelta
 import logging
 
 from db.session import get_db
-from db.models.asset import Asset, AssetMaintenance, AssetCalibration, StockMovement
+from db.models.asset import Asset, AssetMaintenance, AssetCalibration, AssetCalibrationSpec, StockMovement
 from db.models.user import User
 from db.models.contractor import Contractor
 from db.models.company import Company
 from schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetSummary, AssetStats,
-    MaintenanceDue, CalibrationDue, ComplianceAlert, StockAlert, CertificationScheme
+    MaintenanceDue, CalibrationDue, ComplianceAlert, StockAlert, CertificationScheme,
+    CalibrationSpecCreate, CalibrationSpecUpdate, CalibrationSpecResponse
 )
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
 from services.property_service import get_visible_property_ids
@@ -82,8 +83,8 @@ def create_asset(
         if asset_in.property_id not in visible:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Property not accessible")
 
-    # Create asset — extract spatial fields before passing to ORM
-    asset_data = asset_in.dict(exclude={'latitude', 'longitude', 'location_geojson'})
+    # Create asset — extract spatial + non-column fields before passing to ORM
+    asset_data = asset_in.dict(exclude={'latitude', 'longitude', 'location_geojson', 'first_calibration_date', 'calibration_specs'})
     asset = Asset(
         **asset_data,
         company_id=current_user.company_id,
@@ -111,11 +112,49 @@ def create_asset(
     # The user will see it as "due now" in the unified feed and can perform the baseline
     # calibration; that POST consumes this schedule and rolls forward by asset interval.
     # Spec fields (parameter, units, target, tolerances) are inherited from the Asset.
-    if asset.requires_calibration:
+    # Seed calibration specs + initial schedules.
+    # New path: caller supplies `calibration_specs` array → one spec row + one initial
+    # schedule per entry. Legacy path: requires_calibration=True with no array → fall
+    # back to the asset's inline columns (single spec).
+    if asset_in.calibration_specs:
         try:
             from api.v1.calibrations import create_pending_schedule
+            for spec_in in asset_in.calibration_specs:
+                spec_row = AssetCalibrationSpec(
+                    asset_id=asset.id,
+                    company_id=current_user.company_id,
+                    calibration_type=spec_in.calibration_type,
+                    parameter_name=spec_in.parameter_name,
+                    unit_of_measure=spec_in.unit_of_measure,
+                    target_value=spec_in.target_value,
+                    tolerance_min=spec_in.tolerance_min,
+                    tolerance_max=spec_in.tolerance_max,
+                    interval_days=spec_in.interval_days,
+                    notes=spec_in.notes,
+                    is_active=True,
+                )
+                db.add(spec_row)
+                db.flush()  # need spec_row.id before scheduling
+                create_pending_schedule(
+                    db, asset, due_date=(spec_in.first_due_date or date.today()),
+                    calibration_type=spec_in.calibration_type,
+                    parameter_name=spec_in.parameter_name,
+                    unit_of_measure=spec_in.unit_of_measure,
+                    target_value=spec_in.target_value,
+                    tolerance_min=spec_in.tolerance_min,
+                    tolerance_max=spec_in.tolerance_max,
+                    created_by=current_user.id,
+                    notes="Initial calibration on asset registration",
+                )
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Multi-spec calibration setup failed for asset {asset.id}: {e}")
+    elif asset.requires_calibration:
+        try:
+            from api.v1.calibrations import create_pending_schedule
+            initial_due = asset_in.first_calibration_date or date.today()
             create_pending_schedule(
-                db, asset, due_date=date.today(),
+                db, asset, due_date=initial_due,
                 calibration_type=asset.calibration_type or "general",
                 parameter_name=asset.calibration_parameter_name,
                 unit_of_measure=asset.calibration_unit_of_measure,
@@ -236,20 +275,54 @@ def get_assets_geojson(
     category: Optional[str] = None,
     property_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
-    """Return company assets as GeoJSON FeatureCollection for map display."""
+    """Return company assets as GeoJSON FeatureCollection for map display.
+
+    Company users: company-scoped + property visibility via UserPropertyScope.
+    Contractors: scoped to active relationship companies. property_id must be
+    one of the contractor's accessible properties.
+    """
+    from db.models.contractor_relationship import ContractorRelationship
+    from db.models.property import Property
     from geoalchemy2.shape import to_shape
     from shapely.geometry import mapping
 
-    query = db.query(Asset).filter(
-        Asset.company_id == current_user.company_id,
-        Asset.is_active == True,
-        or_(Asset.location_point.isnot(None), Asset.location_geometry.isnot(None))
-    )
-    scope = build_asset_scope_filter(db, current_user)
-    if scope is not None:
-        query = query.filter(scope)
+    is_contractor = isinstance(actor, Contractor)
+
+    if is_contractor:
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == actor.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if not active_company_ids:
+            return {"type": "FeatureCollection", "features": []}
+
+        if property_id is not None:
+            prop = db.query(Property).filter(Property.id == property_id).first()
+            if not prop or prop.owner_company_id not in active_company_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No active relationship with this property's owner",
+                )
+
+        query = db.query(Asset).filter(
+            Asset.company_id.in_(active_company_ids),
+            Asset.is_active == True,
+            or_(Asset.location_point.isnot(None), Asset.location_geometry.isnot(None)),
+        )
+    else:
+        current_user = actor
+        query = db.query(Asset).filter(
+            Asset.company_id == current_user.company_id,
+            Asset.is_active == True,
+            or_(Asset.location_point.isnot(None), Asset.location_geometry.isnot(None))
+        )
+        scope = build_asset_scope_filter(db, current_user)
+        if scope is not None:
+            query = query.filter(scope)
     if category:
         query = query.filter(Asset.category == category)
     # Property scoping for the mobile map. Includes company-wide assets (NULL
@@ -892,8 +965,152 @@ def remove_file_from_asset(
     
     # Remove file reference
     asset.remove_file_reference(file_id)
-    
+
     db.commit()
     logger.info(f"File {file_id} removed from asset {asset_id}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Calibration Specs — per-(asset, calibration_type) spec rows.
+# Replaces the single-spec inline columns on the Asset row by normalising into
+# their own table so one asset can hold multiple independently-managed
+# calibration types (e.g. a sprayer with both `pressure` and `spray_output_rate`).
+# Each spec drives the schedule auto-spawn loop in create_calibration_record.
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/{asset_id}/calibration-specs", response_model=List[CalibrationSpecResponse])
+def list_calibration_specs(
+    asset_id: int,
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List calibration specs for an asset."""
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    check_asset_scope(db, current_user, asset)
+
+    q = db.query(AssetCalibrationSpec).filter(AssetCalibrationSpec.asset_id == asset_id)
+    if not include_inactive:
+        q = q.filter(AssetCalibrationSpec.is_active.is_(True))
+    return q.order_by(AssetCalibrationSpec.calibration_type.asc()).all()
+
+
+@router.post("/{asset_id}/calibration-specs", response_model=CalibrationSpecResponse, status_code=status.HTTP_201_CREATED)
+def create_calibration_spec(
+    asset_id: int,
+    spec_in: CalibrationSpecCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a new calibration spec to an asset, and seed its initial pending schedule."""
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not current_user.has_permission("assets", "update"):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    check_asset_scope(db, current_user, asset)
+
+    # Reject duplicates — partial unique index would reject anyway but a cleaner 400 here.
+    existing = db.query(AssetCalibrationSpec).filter(
+        AssetCalibrationSpec.asset_id == asset_id,
+        AssetCalibrationSpec.calibration_type == spec_in.calibration_type,
+        AssetCalibrationSpec.is_active.is_(True),
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"An active spec for {spec_in.calibration_type} already exists on this asset",
+        )
+
+    spec = AssetCalibrationSpec(
+        asset_id=asset.id,
+        company_id=asset.company_id,
+        calibration_type=spec_in.calibration_type,
+        parameter_name=spec_in.parameter_name,
+        unit_of_measure=spec_in.unit_of_measure,
+        target_value=spec_in.target_value,
+        tolerance_min=spec_in.tolerance_min,
+        tolerance_max=spec_in.tolerance_max,
+        interval_days=spec_in.interval_days,
+        notes=spec_in.notes,
+        is_active=True,
+    )
+    db.add(spec)
+    db.flush()
+
+    # Seed initial schedule. Only spawn one if no pending schedule exists for this type
+    # (in case the user is replacing a deactivated spec — leave the existing schedule alone).
+    from api.v1.calibrations import create_pending_schedule
+    create_pending_schedule(
+        db, asset, due_date=(spec_in.first_due_date or date.today()),
+        calibration_type=spec_in.calibration_type,
+        parameter_name=spec_in.parameter_name,
+        unit_of_measure=spec_in.unit_of_measure,
+        target_value=spec_in.target_value,
+        tolerance_min=spec_in.tolerance_min,
+        tolerance_max=spec_in.tolerance_max,
+        created_by=current_user.id,
+        notes="Initial calibration on spec creation",
+    )
+    # Make sure the parent asset still has `requires_calibration` set so the auto-respawn
+    # loop fires on subsequent completions.
+    if not asset.requires_calibration:
+        asset.requires_calibration = True
+    db.commit()
+    db.refresh(spec)
+    return spec
+
+
+@router.patch("/calibration-specs/{spec_id}", response_model=CalibrationSpecResponse)
+def update_calibration_spec(
+    spec_id: int,
+    update_in: CalibrationSpecUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Edit a calibration spec. New values apply to future auto-respawned schedules.
+    Existing pending schedule for this type is NOT auto-edited (keeps history stable)."""
+    spec = db.query(AssetCalibrationSpec).filter(AssetCalibrationSpec.id == spec_id).first()
+    if not spec:
+        raise HTTPException(status_code=404, detail="Spec not found")
+    if not current_user.is_auxein_admin and spec.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not current_user.has_permission("assets", "update"):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
+    payload = update_in.dict(exclude_unset=True)
+    for field, value in payload.items():
+        setattr(spec, field, value)
+
+    db.add(spec)
+    db.commit()
+    db.refresh(spec)
+    return spec
+
+
+@router.delete("/calibration-specs/{spec_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_calibration_spec(
+    spec_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete via is_active=False. Existing schedule/event history is preserved
+    and the auto-respawn loop stops on next completion for this type."""
+    spec = db.query(AssetCalibrationSpec).filter(AssetCalibrationSpec.id == spec_id).first()
+    if not spec:
+        return
+    if not current_user.is_auxein_admin and spec.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not current_user.has_permission("assets", "update"):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    spec.is_active = False
+    db.add(spec)
+    db.commit()
     
     return {"message": "File association removed successfully"}

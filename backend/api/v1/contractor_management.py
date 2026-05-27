@@ -21,6 +21,8 @@ from db.models.task import Task
 from db.models.block import VineyardBlock
 from db.models.property import Property
 from db.models.incident import Incident
+from db.models.observation_template import ObservationTemplate
+from db.models.observation_run import ObservationRun, ObservationSpot
 from api.deps import get_current_user, get_current_user_or_contractor, get_current_contractor
 from core.security.password import get_password_hash, verify_password, is_password_strong
 from services import file_storage
@@ -728,8 +730,9 @@ def list_my_movements(
 ) -> List[Dict[str, Any]]:
     """Recent ContractorMovement records (any company) — for the Profile timeline."""
     rows = (
-        db.query(ContractorMovement, Company)
+        db.query(ContractorMovement, Company, Property)
         .join(Company, Company.id == ContractorMovement.company_id)
+        .outerjoin(Property, Property.id == ContractorMovement.property_id)
         .filter(ContractorMovement.contractor_id == current_contractor.id)
         .order_by(ContractorMovement.arrival_datetime.desc())
         .limit(limit)
@@ -739,13 +742,15 @@ def list_my_movements(
         "id": m.id,
         "company_id": m.company_id,
         "company_name": company.name,
+        "property_id": m.property_id,
+        "property_name": prop.name if prop else None,
         "arrival_datetime": str(m.arrival_datetime) if m.arrival_datetime else None,
         "departure_datetime": str(m.departure_datetime) if m.departure_datetime else None,
         "purpose": m.purpose,
         "blocks_visited_count": len(m.blocks_visited or []),
         "biosecurity_risk_level": m.biosecurity_risk_level,
         "equipment_cleaned": m.equipment_cleaned,
-    } for m, company in rows]
+    } for m, company, prop in rows]
 
 
 # ---- Assignments (work the contractor is scheduled to do) ----
@@ -1096,6 +1101,146 @@ def create_my_incident(
         "incident_number": incident.incident_number,
         "company_id": incident.company_id,
         "status": incident.status,
+    }
+
+
+# ---- Self-create: ad-hoc observation (Observation FAB) ----
+# Contractors don't run multi-spot observation runs; the FAB is a one-shot
+# "I noticed something" record. We back it with the same ObservationRun + Spot
+# model the company-user flow uses, but auto-attach to a per-company ad-hoc
+# template so the schema stays consistent.
+
+_ADHOC_OBSERVATION_TEMPLATE_TYPE = "adhoc"
+
+
+def _get_or_create_adhoc_template(db: Session, company_id: int) -> ObservationTemplate:
+    """Find or create the per-company ad-hoc observation template.
+
+    Single notes field — runs/spots created this way carry the contractor's
+    free-text in `data_json.notes`. The template never appears in the company's
+    template list (filtered by type) but is a real row so the FK lights up.
+    """
+    template = db.query(ObservationTemplate).filter(
+        ObservationTemplate.company_id == company_id,
+        ObservationTemplate.type == _ADHOC_OBSERVATION_TEMPLATE_TYPE,
+        ObservationTemplate.is_active == True,
+    ).first()
+    if template:
+        return template
+
+    template = ObservationTemplate(
+        company_id=company_id,
+        name="Ad-hoc observation",
+        type=_ADHOC_OBSERVATION_TEMPLATE_TYPE,
+        version=1,
+        is_active=True,
+        fields_json=[
+            {"key": "title", "label": "Title", "type": "string", "required": True},
+            {"key": "notes", "label": "Notes", "type": "text", "required": False},
+        ],
+        defaults_json={},
+        validations_json={},
+    )
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    return template
+
+
+class ContractorObservationSelfCreate(BaseModel):
+    company_id: int
+    block_id: Optional[int] = None
+    property_id: Optional[int] = None
+    title: str = Field(min_length=1, max_length=160)
+    notes: Optional[str] = Field(None, max_length=4000)
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    photo_file_ids: List[str] = Field(default_factory=list)
+    observed_at: Optional[datetime] = None
+
+
+@router.post("/me/observations", status_code=status.HTTP_201_CREATED)
+def create_my_observation(
+    payload: ContractorObservationSelfCreate,
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> Dict[str, Any]:
+    """Contractor logs a single ad-hoc observation. Creates an ObservationRun
+    (one-spot) tied to a per-company ad-hoc template + an ObservationSpot
+    holding the free-text title/notes + GPS + photos."""
+    _ensure_contractor_can_use_company(db, current_contractor, payload.company_id)
+
+    # Validate property + block belong to the company before any writes
+    if payload.property_id is not None:
+        prop = db.query(Property).filter(Property.id == payload.property_id).first()
+        if not prop or prop.owner_company_id != payload.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property does not belong to the selected company",
+            )
+    if payload.block_id is not None:
+        block = db.query(VineyardBlock).filter(VineyardBlock.id == payload.block_id).first()
+        if not block or block.company_id != payload.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Block does not belong to the selected company",
+            )
+
+    template = _get_or_create_adhoc_template(db, payload.company_id)
+    observed_at = payload.observed_at or datetime.now(timezone.utc)
+
+    run = ObservationRun(
+        company_id=payload.company_id,
+        plan_id=None,
+        template_id=template.id,
+        template_version=template.version,
+        block_id=payload.block_id,
+        name=payload.title[:160],
+        observed_at_start=observed_at,
+        observed_at_end=observed_at,
+        photo_file_ids=payload.photo_file_ids or [],
+        document_file_ids=[],
+        tags=[],
+        summary_json={"adhoc": True, "contractor_id": current_contractor.id},
+        created_by=None,  # No User actor for contractor-authored ad-hoc obs
+    )
+    db.add(run)
+    db.flush()
+
+    gps_wkt = None
+    if payload.latitude is not None and payload.longitude is not None:
+        gps_wkt = f"SRID=4326;POINT({payload.longitude} {payload.latitude})"
+
+    spot = ObservationSpot(
+        company_id=payload.company_id,
+        run_id=run.id,
+        observed_at=observed_at,
+        block_id=payload.block_id,
+        row_id=None,
+        gps=gps_wkt,
+        data_json={
+            "title": payload.title,
+            "notes": payload.notes,
+            "contractor_id": current_contractor.id,
+        },
+        photo_file_ids=payload.photo_file_ids or [],
+        video_file_ids=[],
+        document_file_ids=[],
+        created_by=None,
+    )
+    db.add(spot)
+    db.commit()
+    db.refresh(run)
+    db.refresh(spot)
+
+    return {
+        "id": run.id,
+        "run_id": run.id,
+        "spot_id": spot.id,
+        "company_id": payload.company_id,
+        "block_id": payload.block_id,
+        "title": payload.title,
+        "observed_at": observed_at.isoformat(),
     }
 
 
@@ -1463,9 +1608,24 @@ def contractor_check_in(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="contractor_id is required")
 
     is_contractor_actor = hasattr(current_user, 'contractor_type')
+
+    # Validate property_id when supplied: must exist and belong to the company
+    # the contractor is checking in to. Reject mismatched IDs rather than
+    # silently dropping the field — pinning to the wrong property would break
+    # downstream map scoping.
+    property_id = check_in.property_id
+    if property_id is not None:
+        prop = db.query(Property).filter(Property.id == property_id).first()
+        if not prop or prop.owner_company_id != company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="property_id does not belong to the selected company",
+            )
+
     movement = ContractorMovement(
         contractor_id=contractor_id,
         company_id=company_id,
+        property_id=property_id,
         arrival_datetime=datetime.now(timezone.utc),
         purpose=check_in.purpose,
         equipment_brought=check_in.equipment_brought or [],

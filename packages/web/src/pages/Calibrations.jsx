@@ -5,11 +5,12 @@
 // The legacy /calibrations route is preserved as a redirect (App.jsx).
 // Owns: tab body + filter bar + detail modal + photo thumbnail.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { Sliders, Search, AlertTriangle, CheckCircle, XCircle, Clock, ExternalLink, X, Camera, Thermometer, User, FileText, Wrench } from 'lucide-react';
-import { assetService } from '@vineyard/shared';
+import { Sliders, Search, AlertTriangle, CheckCircle, XCircle, Clock, ExternalLink, X, Camera, Thermometer, User, FileText, Wrench, Save, Upload } from 'lucide-react';
+import { assetService, useAuth } from '@vineyard/shared';
 import './Calibrations.css';
 import '../components/asset-components.css';
 
@@ -34,6 +35,9 @@ export default function CalibrationsTab() {
 
   // Detail modal
   const [selectedEvent, setSelectedEvent] = useState(null);
+  // Complete-pending modal
+  const [pendingToComplete, setPendingToComplete] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +62,7 @@ export default function CalibrationsTab() {
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   // Build a unified list. Each row carries a `kind` discriminator and a `sortDate`
   // (due_date for pending, calibration_date for completed) for sorting.
@@ -201,16 +205,20 @@ export default function CalibrationsTab() {
             ) : rows.length === 0 ? (
               <tr><td colSpan={8} className="cal-empty">No calibrations match.</td></tr>
             ) : rows.map(r => {
-              const isClickable = r.kind === 'completed';
-              const handleRowClick = isClickable
+              const isCompleted = r.kind === 'completed';
+              const isPending = r.kind === 'pending';
+              const isClickable = isCompleted || isPending;
+              const handleRowClick = isCompleted
                 ? () => setSelectedEvent(events.find(e => e.id === r.eventId) || null)
-                : undefined;
+                : isPending
+                  ? () => setPendingToComplete(schedules.find(s => s.id === r.scheduleId) || null)
+                  : undefined;
               return (
               <tr
                 key={r.id}
                 className={`cal-row cal-row--${r.status}${isClickable ? ' cal-row--clickable' : ''}`}
                 onClick={handleRowClick}
-                title={isClickable ? 'View calibration details' : undefined}
+                title={isCompleted ? 'View calibration details' : isPending ? 'Complete this calibration' : undefined}
               >
                 <td>
                   <Link
@@ -244,7 +252,7 @@ export default function CalibrationsTab() {
                 </td>
                 <td>
                   {r.kind === 'pending'
-                    ? <span className="cal-hint">Field worker action</span>
+                    ? <span className="cal-hint">Click to complete</span>
                     : <span className="cal-hint">Click to view</span>}
                 </td>
               </tr>
@@ -261,10 +269,21 @@ export default function CalibrationsTab() {
         />
       )}
 
+      {pendingToComplete && (
+        <CompleteCalibrationModal
+          schedule={pendingToComplete}
+          onClose={() => setPendingToComplete(null)}
+          onSaved={() => {
+            setPendingToComplete(null);
+            setReloadKey(k => k + 1);
+          }}
+        />
+      )}
+
       <p className="cal-footnote">
         Pending rows come from scheduled calibration tickets. Completed rows are immutable event history.
-        Field workers complete pending calibrations from the mobile app — that consumes the schedule and
-        auto-spawns the next one (asset interval on pass, 7-day recheck on fail).
+        Click a pending row to complete on desktop, or use the mobile app — either path consumes the
+        schedule and auto-spawns the next one (asset interval on pass, 7-day recheck on fail).
       </p>
     </div>
   );
@@ -513,5 +532,243 @@ function CalPhotoThumbnail({ photo }) {
         </div>
       )}
     </>
+  );
+}
+
+// Modal to complete a pending calibration on desktop. Mirrors the mobile
+// FeedItemModal flow: reading + auto pass/fail from tolerance + notes +
+// optional photo upload. POSTs to /calibrations with schedule_id, which
+// consumes the schedule and auto-spawns the next pending one server-side.
+function CompleteCalibrationModal({ schedule, onClose, onSaved }) {
+  const { user } = useAuth();
+  const [reading, setReading] = useState('');
+  const [notes, setNotes] = useState('');
+  const [photos, setPhotos] = useState([]); // Array<File>
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !saving) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, saving]);
+
+  const unit = schedule.unit_of_measure || '';
+  const target = schedule.target_value;
+  const tMin = schedule.tolerance_min;
+  const tMax = schedule.tolerance_max;
+
+  // Live pass/fail derivation matching backend logic (tolerance_min <= reading <= tolerance_max)
+  const readingNum = reading === '' ? null : Number(reading);
+  const readingValid = readingNum != null && !Number.isNaN(readingNum);
+  let withinTolerance = null;
+  if (readingValid && tMin != null && tMax != null) {
+    withinTolerance = readingNum >= Number(tMin) && readingNum <= Number(tMax);
+  }
+
+  const callerName = (() => {
+    if (!user) return 'Unknown';
+    const fn = (user.first_name || '').trim();
+    const ln = (user.last_name || '').trim();
+    const combined = `${fn} ${ln}`.trim();
+    return combined || user.email || 'Unknown';
+  })();
+
+  const onPickPhotos = (files) => {
+    setPhotos((prev) => [...prev, ...Array.from(files || [])]);
+  };
+
+  const removePhoto = (idx) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async () => {
+    if (!readingValid) {
+      setError('Reading is required');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        asset_id: schedule.asset_id,
+        schedule_id: schedule.id,
+        calibration_type: schedule.calibration_type || 'general',
+        parameter_name: schedule.parameter_name || '',
+        unit_of_measure: schedule.unit_of_measure || '',
+        target_value: target != null ? Number(target) : null,
+        measured_value: readingNum,
+        tolerance_min: tMin != null ? Number(tMin) : null,
+        tolerance_max: tMax != null ? Number(tMax) : null,
+        calibrated_by: callerName,
+        calibrated_by_user_id: user?.id || null,
+        calibration_date: dayjs().format('YYYY-MM-DD'),
+        notes: notes || null,
+      };
+      const saved = await assetService.calibration.createCalibration(payload);
+      const eventId = saved?.id;
+      // Upload photos against the new event row id
+      if (eventId && photos.length) {
+        for (const file of photos) {
+          try {
+            await assetService.files.uploadCalibrationFile({
+              calibrationId: eventId,
+              file,
+              fileCategory: 'photo',
+              description: `Photo: ${file.name}`
+            });
+          } catch (uploadErr) {
+            console.warn('Photo upload failed:', uploadErr);
+          }
+        }
+      }
+      onSaved?.();
+    } catch (err) {
+      console.error('Failed to save calibration:', err);
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to save calibration';
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div className="ac-overlay" onClick={() => !saving && onClose()}>
+      <div className="ac-modal ac-modal--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="ac-modal-header">
+          <h3>
+            <Sliders size={18} />
+            Complete calibration — {schedule.asset_name || `Asset #${schedule.asset_id}`}
+          </h3>
+          <button className="ac-modal-close" onClick={onClose} disabled={saving} aria-label="Close">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="ac-modal-body">
+          {error && (
+            <div className="ac-error" style={{ marginBottom: 'var(--space-base)' }}>
+              <AlertTriangle size={16} /> {error}
+            </div>
+          )}
+
+          {/* Spec snapshot */}
+          <div className="cal-detail-summary" style={{ marginBottom: 'var(--space-base)' }}>
+            <span className="cal-badge cal-badge--warning">Due {dayjs(schedule.due_date).format('DD MMM YYYY')}</span>
+            <span>
+              <strong>{(schedule.calibration_type || '').replace(/_/g, ' ') || 'General'}</strong>
+              {schedule.parameter_name && <> · {schedule.parameter_name}</>}
+            </span>
+            {target != null && (
+              <span>Target: <strong>{target} {unit}</strong></span>
+            )}
+            {tMin != null && tMax != null && (
+              <span>Tolerance: <strong>{tMin} – {tMax} {unit}</strong></span>
+            )}
+          </div>
+
+          {/* Reading + auto pass/fail */}
+          <div className="ac-form-grid">
+            <label>
+              <div className="ac-field-label">Measured value <span className="ac-required">*</span></div>
+              <div className="ac-input-with-unit">
+                <input
+                  className="ac-input"
+                  type="number"
+                  step="0.0001"
+                  value={reading}
+                  onChange={(e) => setReading(e.target.value)}
+                  placeholder={target != null ? String(target) : '0.00'}
+                  disabled={saving}
+                  autoFocus
+                />
+                <span className="ac-unit-label">{unit || 'units'}</span>
+              </div>
+              {readingValid && withinTolerance != null && (
+                <div style={{ marginTop: 6 }}>
+                  {withinTolerance ? (
+                    <span className="cal-badge cal-badge--success" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <CheckCircle size={12} /> Within tolerance — will record as Pass
+                    </span>
+                  ) : (
+                    <span className="cal-badge cal-badge--danger" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <XCircle size={12} /> Out of tolerance — will record as Fail (7-day recheck auto-spawned)
+                    </span>
+                  )}
+                </div>
+              )}
+            </label>
+
+            <label>
+              <div className="ac-field-label">Notes</div>
+              <textarea
+                className="ac-textarea"
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Conditions, adjustments made, anything worth noting…"
+                disabled={saving}
+              />
+            </label>
+
+            {/* Photo dropzone */}
+            <div>
+              <div className="ac-field-label">Photos (optional)</div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => { onPickPhotos(e.target.files); e.target.value = ''; }}
+              />
+              <button
+                type="button"
+                className="ac-btn-cancel"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={saving}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Upload size={14} /> Add photos
+              </button>
+              {photos.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {photos.map((file, i) => (
+                    <div key={`${file.name}-${i}`} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface-warm)', fontSize: 'var(--font-size-xs)' }}>
+                      <Camera size={12} /> {file.name.length > 24 ? file.name.slice(0, 21) + '…' : file.name}
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        disabled={saving}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--color-danger)', display: 'inline-flex' }}
+                        title="Remove"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+              Recorded by <strong>{callerName}</strong> on {dayjs().format('DD MMM YYYY')}
+            </div>
+          </div>
+        </div>
+
+        <div className="ac-modal-footer">
+          <button className="ac-btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button
+            className="ac-btn-success"
+            onClick={handleSubmit}
+            disabled={saving || !readingValid}
+          >
+            <Save size={14} /> {saving ? 'Saving…' : 'Save calibration'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }

@@ -89,7 +89,6 @@ export default function ContractorHomeScreen({ navigation }) {
     );
   };
 
-  const observationComingSoon = () => toast.show('Quick observation arrives in a follow-up', 'info');
 
   return (
     <View style={styles.container}>
@@ -141,6 +140,7 @@ export default function ContractorHomeScreen({ navigation }) {
               <Text style={styles.checkInTitle}>On site</Text>
               <Text style={styles.checkInBody} numberOfLines={1}>
                 {activeCheckIn.company_name}
+                {activeCheckIn.property_name ? ` · ${activeCheckIn.property_name}` : ''}
                 {activeCheckIn.purpose ? ` · ${activeCheckIn.purpose}` : ''}
               </Text>
             </View>
@@ -220,7 +220,7 @@ export default function ContractorHomeScreen({ navigation }) {
               icon="search"
               label="Observation"
               color={colors.success}
-              onPress={() => { setFabOpen(false); observationComingSoon(); }}
+              onPress={() => { setFabOpen(false); navigation.navigate('ContractorCreateObservation'); }}
             />
             <FabOption
               icon="clipboard"

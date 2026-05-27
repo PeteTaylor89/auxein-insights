@@ -5,6 +5,7 @@
 //          (phone, job_title, bio, emergency contact),
 //          re-syncs the global user via AuthContext.refreshProfile().
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth, companiesService, usersService } from '@vineyard/shared';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Pencil, X, Check, Loader2, Trash2, User as UserIcon } from 'lucide-react';
@@ -44,6 +45,19 @@ function Profile() {
 
   // Avatar
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarEnlarged, setAvatarEnlarged] = useState(false);
+
+  useEffect(() => {
+    if (!avatarEnlarged) return;
+    const onKey = (e) => { if (e.key === 'Escape') setAvatarEnlarged(false); };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [avatarEnlarged]);
 
   // Re-hydrate form whenever the user object changes (initial load,
   // after refreshProfile, after avatar change).
@@ -171,7 +185,11 @@ function Profile() {
           {/* Identity card — avatar + name + role */}
           <div className="profile-section profile-identity">
             <div className="profile-avatar-wrap">
-              <div className="profile-avatar" onClick={handleAvatarPick} title="Change profile photo">
+              <div
+                className="profile-avatar"
+                onClick={user?.avatar_url ? () => setAvatarEnlarged(true) : handleAvatarPick}
+                title={user?.avatar_url ? 'Click to enlarge' : 'Add profile photo'}
+              >
                 {avatarBusy ? (
                   <Loader2 size={28} className="profile-spin" />
                 ) : user?.avatar_url ? (
@@ -179,9 +197,16 @@ function Profile() {
                 ) : (
                   <span className="profile-avatar-initials">{initials}</span>
                 )}
-                <span className="profile-avatar-overlay">
+                <button
+                  type="button"
+                  className="profile-avatar-overlay"
+                  onClick={(e) => { e.stopPropagation(); handleAvatarPick(); }}
+                  title="Change profile photo"
+                  aria-label="Change profile photo"
+                  style={{ padding: 0, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
                   <Camera size={18} />
-                </span>
+                </button>
               </div>
               {user?.avatar_url && (
                 <button
@@ -315,6 +340,47 @@ function Profile() {
       </div>
 
       <MobileNavigation />
+
+      {avatarEnlarged && user?.avatar_url && createPortal(
+        <div
+          onClick={() => setAvatarEnlarged(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setAvatarEnlarged(false)}
+          tabIndex={-1}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 10000, padding: 24, cursor: 'zoom-out'
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Profile photo"
+        >
+          <img
+            src={user.avatar_url}
+            alt="Profile"
+            style={{
+              maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain',
+              borderRadius: 12, boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setAvatarEnlarged(false)}
+            aria-label="Close"
+            style={{
+              position: 'fixed', top: 20, right: 20,
+              background: 'rgba(255, 255, 255, 0.15)', color: '#fff',
+              border: 'none', borderRadius: '50%', width: 40, height: 40,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', backdropFilter: 'blur(4px)'
+            }}
+          >
+            <X size={20} />
+          </button>
+        </div>,
+        document.body
+      )}
 
       <style jsx>{`
         :global(body) {

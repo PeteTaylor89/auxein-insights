@@ -21,6 +21,7 @@ import useRiskGeojson from '../hooks/useRiskGeojson';
 import useLayerVisibility from '../hooks/useLayerVisibility';
 import useLiveLocalTrack from '../hooks/useLiveLocalTrack';
 import useTaskTrackOnce from '../hooks/useTaskTrackOnce';
+import useActiveCheckIn from '../hooks/useActiveCheckIn';
 import { useAuth } from '../contexts/AuthContext';
 import { useProperty } from '../contexts/PropertyContext';
 import { geojsonBbox, bboxToCameraBounds } from '../utils/geoBounds';
@@ -123,9 +124,25 @@ export default function MapScreen({ navigation, route }) {
   // polling it during a live recording yields 404. The local buffer carries
   // every accepted (Kalman-filtered) point and updates as they arrive.
   // Also works for contractors (no /tasks list call required).
-  const { isManagerOrAbove } = useAuth();
+  const { isManagerOrAbove, isContractor } = useAuth();
+  const checkIn = useActiveCheckIn();
   const { feature: liveTrack, active: liveActive, lastCoord: liveLastCoord } = useLiveLocalTrack();
   const { track: historicalTrack, task: viewingTask, loading: viewingLoading } = useTaskTrackOnce(viewTaskId);
+
+  // Contractors are gated to the property they're currently checked into.
+  // If no active check-in: render an empty state instead of any layer fetches.
+  // If checked in: force the selected property so the layer hooks below use it.
+  const contractorPropertyId = isContractor ? checkIn.propertyId : null;
+  useEffect(() => {
+    if (isContractor && contractorPropertyId && selectedPropertyId !== contractorPropertyId) {
+      setSelectedPropertyId(contractorPropertyId);
+    }
+  }, [isContractor, contractorPropertyId, selectedPropertyId, setSelectedPropertyId]);
+
+  // The scope-id used by the layer hooks below. For contractors this is
+  // always the check-in's property (or null = render nothing). For users it's
+  // whatever PropertyContext returns.
+  const layerPropertyId = isContractor ? contractorPropertyId : selectedPropertyId;
 
   // Historical (explicit user intent — TaskDetail "View on Map") wins. Live
   // suppressed while a historical track is being viewed to avoid two lines.
@@ -162,14 +179,16 @@ export default function MapScreen({ navigation, route }) {
     });
   };
 
-  // Block / asset / risk layers — all scoped by the active property from
-  // PropertyContext. Selecting a different property re-fetches each layer and
-  // refits the camera to the new property's blocks (see didFitBlocks reset
-  // effect below).
-  const { data: blocksGeojson, loading: blocksLoading, error: blocksError } = useBlockGeojson(selectedPropertyId);
-  const { tasksByBlock, getBlockTasks } = useTasksByBlock();
-  const { data: assetsGeojson, loading: assetsLoading, error: assetsError } = useAssetGeojson({ propertyId: selectedPropertyId });
-  const { data: risksGeojson, loading: risksLoading, error: risksError } = useRiskGeojson({ propertyId: selectedPropertyId });
+  // Block / asset / risk layers — all scoped by `layerPropertyId`. For users
+  // that follows PropertyContext; for contractors it's pinned to the active
+  // check-in. When a contractor has no active check-in, layer hooks are
+  // disabled so we don't fire requests that would 403/empty anyway.
+  const contractorBlocked = isContractor && !contractorPropertyId;
+  const layersEnabled = !contractorBlocked;
+  const { data: blocksGeojson, loading: blocksLoading, error: blocksError } = useBlockGeojson(layerPropertyId, { enabled: layersEnabled });
+  const { tasksByBlock, getBlockTasks } = useTasksByBlock({ enabled: layersEnabled });
+  const { data: assetsGeojson, loading: assetsLoading, error: assetsError } = useAssetGeojson({ propertyId: layerPropertyId, enabled: layersEnabled });
+  const { data: risksGeojson, loading: risksLoading, error: risksError } = useRiskGeojson({ propertyId: layerPropertyId, enabled: layersEnabled });
 
   // Refit the camera when the property changes. Without this, switching
   // property leaves the camera on the previous polygons until the user pans.
@@ -419,6 +438,34 @@ export default function MapScreen({ navigation, route }) {
     );
   }
 
+  // Contractor with no active check-in: short-circuit before mounting the
+  // Mapbox view. Sign-in CTA is the only path forward — once they're checked
+  // in the focus-refresh in useActiveCheckIn flips this back on.
+  if (contractorBlocked) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Feather name="map-pin" size={32} color={colors.primary} style={{ marginBottom: 12 }} />
+        <Text style={styles.bootText}>Sign in to a property to see the map.</Text>
+        <Text style={styles.bootHint}>
+          Map data is scoped to wherever you're checked in. Once you sign in,
+          blocks, assets and risks for that property appear here.
+        </Text>
+        <TouchableOpacity
+          style={[styles.recenter, {
+            position: 'relative', right: 0, bottom: 0, marginTop: 20,
+            paddingHorizontal: 18, width: 'auto', borderRadius: 999,
+            flexDirection: 'row', gap: 8,
+          }]}
+          onPress={() => navigation?.navigate?.('Home', { screen: 'CheckIn' })}
+          activeOpacity={0.85}
+        >
+          <Feather name="log-in" size={16} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>Sign in</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const tokenMissing = !MAPBOX_TOKEN;
 
   return (
@@ -657,11 +704,19 @@ export default function MapScreen({ navigation, route }) {
       )}
 
       {/* Property pill — top-left, matches Home's pill style + behaviour.
-          Renders when a property is selected; tap opens the picker if there's
-          more than one property to choose from (or one + the All option for
-          managers/admins). Suppressed while the historical-track viewing pill
-          takes the same slot. */}
-      {!tokenMissing && !viewTaskId && properties.length > 0 && (
+          For company users: tap opens the picker (managers/admins also see an
+          "All properties" option). For contractors: the pill is a static
+          read-only chip showing the active check-in property — contractors
+          can't switch the map's scope without re-signing-in elsewhere. */}
+      {!tokenMissing && !viewTaskId && isContractor && checkIn.propertyName && (
+        <View style={styles.propertyPill} accessibilityLabel="Checked in to property">
+          <Feather name="map-pin" size={15} color={colors.primary} />
+          <Text style={styles.propertyPillName} numberOfLines={1}>
+            {checkIn.propertyName}
+          </Text>
+        </View>
+      )}
+      {!tokenMissing && !viewTaskId && !isContractor && properties.length > 0 && (
         <TouchableOpacity
           style={styles.propertyPill}
           onPress={() => (properties.length > 1 || isManagerOrAbove) && setPropertyPickerOpen(true)}

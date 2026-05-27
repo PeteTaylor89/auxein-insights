@@ -13,6 +13,7 @@ import ContractorTasksScreen from '../screens/ContractorTasksScreen';
 import CheckInScreen from '../screens/CheckInScreen';
 import CreateContractorAssignmentScreen from '../screens/CreateContractorAssignmentScreen';
 import ContractorCreateIncidentScreen from '../screens/ContractorCreateIncidentScreen';
+import ContractorCreateObservationScreen from '../screens/ContractorCreateObservationScreen';
 import EditContractorProfileScreen from '../screens/EditContractorProfileScreen';
 import EditContractorInsuranceScreen from '../screens/EditContractorInsuranceScreen';
 import ChangeContractorPasswordScreen from '../screens/ChangeContractorPasswordScreen';
@@ -85,6 +86,11 @@ function HomeStackNavigator() {
             name="ContractorCreateIncident"
             component={ContractorCreateIncidentScreen}
             options={{ title: 'Report incident' }}
+          />
+          <HomeStack.Screen
+            name="ContractorCreateObservation"
+            component={ContractorCreateObservationScreen}
+            options={{ title: 'Log observation' }}
           />
         </>
       )}

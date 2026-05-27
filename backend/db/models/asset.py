@@ -5,7 +5,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey,
-    JSON, Numeric, Index
+    JSON, Numeric, Index, text as sql_text
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
@@ -81,6 +81,9 @@ class Asset(Base):
     calibration_target_value = Column(Numeric(12, 4))
     calibration_tolerance_min = Column(Numeric(12, 4))
     calibration_tolerance_max = Column(Numeric(12, 4))
+    # Effective application width in metres. Paired with calibrated output rate (L/s)
+    # and task GPS speed (m/s) to compute application rate per m² for coverage maps.
+    swath_width_m = Column(Numeric(6, 2), nullable=True)
     
     # Maintenance scheduling (for equipment)
     requires_maintenance = Column(Boolean, default=False)
@@ -121,6 +124,7 @@ class Asset(Base):
     assigned_property = relationship("Property", foreign_keys=[property_id])
     maintenance_records = relationship("AssetMaintenance", back_populates="asset", cascade="all, delete-orphan")
     calibration_records = relationship("AssetCalibration", back_populates="asset", cascade="all, delete-orphan")
+    calibration_specs = relationship("AssetCalibrationSpec", back_populates="asset", cascade="all, delete-orphan")
     stock_movements = relationship("StockMovement", back_populates="asset", cascade="all, delete-orphan")
     task_usage = relationship("TaskAsset", back_populates="asset")
     
@@ -408,6 +412,60 @@ class AssetCalibration(Base):
         if category:
             query = query.filter(File.file_category == category)
         return query.all()
+
+
+class AssetCalibrationSpec(Base):
+    """
+    Per-(asset, calibration_type) calibration spec. Replaces the inline spec columns
+    on the Asset table by normalising them into their own rows so one asset can have
+    multiple independently-managed calibration types (e.g. a sprayer with both
+    `pressure` and `spray_output_rate`).
+
+    Each spec drives the schedule auto-spawn loop:
+      - On asset create / spec create → spawn an initial pending schedule due today
+        (or `first_due_date` if supplied) for that spec's type.
+      - After a calibration completion of a given type, the auto-respawn helper looks
+        up the spec by (asset_id, calibration_type) to read the interval + snapshot
+        values for the next schedule.
+
+    Partial unique index on (asset_id, calibration_type) WHERE is_active enforces
+    one active spec per type per asset. Deactivating (is_active=False) is the soft-
+    delete path so historical event/schedule snapshots stay readable.
+
+    Legacy: the Asset's inline calibration_* columns remain populated for one
+    release as a fallback so untouched assets keep working.
+    """
+    __tablename__ = "asset_calibration_specs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+
+    calibration_type = Column(String(50), nullable=False)
+    parameter_name = Column(String(100))
+    unit_of_measure = Column(String(20))
+    target_value = Column(Numeric(12, 4))
+    tolerance_min = Column(Numeric(12, 4))
+    tolerance_max = Column(Numeric(12, 4))
+    interval_days = Column(Integer)
+
+    is_active = Column(Boolean, nullable=False, default=True, server_default=sql_text('true'))
+    notes = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    asset = relationship("Asset", back_populates="calibration_specs")
+    company = relationship("Company")
+
+    __table_args__ = (
+        Index(
+            "ix_asset_calibration_specs_active_unique",
+            "asset_id", "calibration_type",
+            unique=True,
+            postgresql_where=Column("is_active"),
+        ),
+    )
 
 
 class AssetCalibrationSchedule(Base):

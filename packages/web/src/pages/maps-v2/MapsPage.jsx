@@ -114,7 +114,7 @@ function MapsPageInner() {
 
   // Panel collapse state (for sidebar cleanliness)
   const [collapsed, setCollapsed] = useState({
-    blocks: false,
+    blocks: true,
     risks: true,
     spatialAreas: true,
     parcels: true,
@@ -185,6 +185,28 @@ function MapsPageInner() {
   // Map instance
   const { map, mapRef, mapReady, activeStyle, is3D, setStyle, containerRef } =
     useMapbox();
+
+  // Fullscreen the map page: hide site footer + lock body scroll while mounted.
+  // Restored on unmount so other pages keep their normal layout.
+  useEffect(() => {
+    document.body.classList.add('maps-fullscreen');
+    return () => {
+      document.body.classList.remove('maps-fullscreen');
+    };
+  }, []);
+
+  // Keep Mapbox sized to its container — sidebar collapse animates width over
+  // 200ms, so a ResizeObserver on the container fires continuously through
+  // the transition and avoids the canvas-stuck-at-old-width white-strip bug.
+  useEffect(() => {
+    if (!map || !containerRef?.current) return;
+    const el = containerRef.current;
+    const ro = new ResizeObserver(() => {
+      try { map.resize(); } catch (_) { /* map disposed */ }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [map, containerRef]);
 
   // Drawing controller (MapboxDraw lifecycle)
   const drawing = useDrawingController(map, mapReady);
@@ -651,8 +673,8 @@ function MapsPageInner() {
     // clicked through the block fill but is still below point markers.
     const INTERACTIVE_LAYERS = [
       'v2-assets-points', 'v2-risks-circles', 'v2-observations-symbol',
-      'v2-tasks-symbol', 'v2-gps-tracks-line', 'v2-spatial-fill',
-      'v2-parcels-fill', 'v2-blocks-fill',
+      'v2-tasks-symbol', 'v2-gps-tracks-line', 'v2-assets-lines',
+      'v2-spatial-fill', 'v2-parcels-fill', 'v2-blocks-fill',
     ];
 
     const handleClick = (e) => {
@@ -687,7 +709,7 @@ function MapsPageInner() {
       const nav = navigateRef.current;
       const lngLat = [e.lngLat.lng, e.lngLat.lat];
 
-      if (layerId === 'v2-assets-points') {
+      if (layerId === 'v2-assets-points' || layerId === 'v2-assets-lines') {
         showReactPopup(map, { lngLat, content: <AssetPopupContent properties={p} onNavigate={() => { const t = p.asset_type === 'consumable' ? 'consumables' : 'equipment'; nav(`/assets/${t}/${p.id}/edit`); }} /> });
       } else if (layerId === 'v2-risks-circles') {
         showReactPopup(map, { lngLat, content: <RiskPopupContent properties={p} onNavigate={() => nav('/riskdashboard')} /> });

@@ -10,7 +10,9 @@ import {
   AlertCircle,
   Settings,
   Wrench,
-  Calendar
+  Calendar,
+  Plus,
+  X
 } from 'lucide-react';
 import { assetService, authService, propertyService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
@@ -21,6 +23,201 @@ import RiskLocationMap from '../components/RiskLocationMap';
 import './AssetForm.css';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50MB
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+const CALIBRATION_TYPE_OPTIONS = [
+  { value: '', label: 'Select type...' },
+  { value: 'flow_rate', label: 'Flow rate' },
+  { value: 'pressure', label: 'Pressure' },
+  { value: 'spray_output_rate', label: 'Spray output rate (L/s)' },
+  { value: 'fert_output_rate', label: 'Fert output rate (L/s)' },
+  { value: 'fuel_efficiency', label: 'Fuel efficiency' },
+  { value: 'temperature', label: 'Temperature' },
+  { value: 'weight', label: 'Weight' },
+  { value: 'general', label: 'General' },
+];
+
+const L_PER_S_TYPES = new Set(['spray_output_rate', 'fert_output_rate']);
+
+function makeBlankSpec() {
+  return {
+    _localId: `new-${Math.random().toString(36).slice(2, 9)}`,
+    id: null,
+    calibration_type: '',
+    parameter_name: '',
+    unit_of_measure: '',
+    target_value: '',
+    tolerance_min: '',
+    tolerance_max: '',
+    interval_days: '',
+    first_due_date: todayISO(),
+    notes: '',
+    _dirty: false,
+    _isNew: true,
+    _toDelete: false,
+  };
+}
+
+function normalizeSpec(s) {
+  return {
+    _localId: `srv-${s.id}`,
+    id: s.id,
+    calibration_type: s.calibration_type || '',
+    parameter_name: s.parameter_name || '',
+    unit_of_measure: s.unit_of_measure || '',
+    target_value: s.target_value ?? '',
+    tolerance_min: s.tolerance_min ?? '',
+    tolerance_max: s.tolerance_max ?? '',
+    interval_days: s.interval_days ?? '',
+    first_due_date: '', // only relevant for new specs
+    notes: s.notes || '',
+    _dirty: false,
+    _isNew: false,
+    _toDelete: false,
+  };
+}
+
+function toApiSpecCreate(s) {
+  return {
+    calibration_type: s.calibration_type,
+    parameter_name: s.parameter_name || null,
+    unit_of_measure: s.unit_of_measure || null,
+    target_value: s.target_value !== '' ? Number(s.target_value) : null,
+    tolerance_min: s.tolerance_min !== '' ? Number(s.tolerance_min) : null,
+    tolerance_max: s.tolerance_max !== '' ? Number(s.tolerance_max) : null,
+    interval_days: s.interval_days !== '' ? Number(s.interval_days) : null,
+    first_due_date: s.first_due_date || null,
+    notes: s.notes || null,
+  };
+}
+
+function toApiSpecUpdate(s) {
+  return {
+    calibration_type: s.calibration_type,
+    parameter_name: s.parameter_name || null,
+    unit_of_measure: s.unit_of_measure || null,
+    target_value: s.target_value !== '' ? Number(s.target_value) : null,
+    tolerance_min: s.tolerance_min !== '' ? Number(s.tolerance_min) : null,
+    tolerance_max: s.tolerance_max !== '' ? Number(s.tolerance_max) : null,
+    interval_days: s.interval_days !== '' ? Number(s.interval_days) : null,
+    notes: s.notes || null,
+  };
+}
+
+// Module-scope component so it doesn't get redefined on every parent render
+// (that's the focus-loss antipattern we fixed in MaintenanceInlineManager).
+function CalibrationSpecCard({ spec, isEditMode, onPatch, onRemove }) {
+  if (spec._toDelete) return null;
+
+  const onTypeChange = (next) => {
+    const patch = { calibration_type: next };
+    // Auto-default the unit to L/s for output-rate types when none is set —
+    // these calibrations are paired with tractor speed at task time to build
+    // coverage maps, so the canonical unit is litres per second.
+    if (L_PER_S_TYPES.has(next) && !spec.unit_of_measure) {
+      patch.unit_of_measure = 'L/s';
+    }
+    onPatch(patch);
+  };
+
+  return (
+    <div style={{
+      border: '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-md)',
+      padding: 'var(--space-md)',
+      marginBottom: 'var(--space-sm)',
+      background: 'var(--color-surface)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+          <Settings size={14} style={{ color: 'var(--color-text-muted)' }} />
+          <strong style={{ fontSize: 'var(--font-size-sm)' }}>
+            {spec.calibration_type
+              ? (CALIBRATION_TYPE_OPTIONS.find(o => o.value === spec.calibration_type)?.label || spec.calibration_type)
+              : 'New spec'}
+          </strong>
+          {spec._isNew && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>(unsaved)</span>}
+          {!spec._isNew && spec._dirty && <span style={{ fontSize: 11, color: 'var(--color-warning)' }}>(edited)</span>}
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove spec"
+          style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            padding: 4, color: 'var(--color-danger)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontSize: 12
+          }}
+        >
+          <X size={14} /> Remove
+        </button>
+      </div>
+
+      <div className="af-form-grid">
+        <FormField label="Calibration Type" required>
+          <select className="af-input" value={spec.calibration_type} onChange={(e) => onTypeChange(e.target.value)}>
+            {CALIBRATION_TYPE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Interval (days)" hint="How often this calibration recurs after a pass.">
+          <input className="af-input" type="number" value={spec.interval_days} onChange={(e) => onPatch({ interval_days: e.target.value })} placeholder="e.g., 30" />
+        </FormField>
+        {(spec._isNew || !isEditMode) && (
+          <FormField label="First Due Date" hint="When the initial calibration is due.">
+            <input className="af-input" type="date" value={spec.first_due_date} onChange={(e) => onPatch({ first_due_date: e.target.value })} />
+          </FormField>
+        )}
+        <FormField label="Parameter Name">
+          <input className="af-input" value={spec.parameter_name} onChange={(e) => onPatch({ parameter_name: e.target.value })} placeholder="e.g., Nozzle output" />
+        </FormField>
+        <FormField label="Unit of Measure">
+          <input className="af-input" value={spec.unit_of_measure} onChange={(e) => onPatch({ unit_of_measure: e.target.value })} placeholder="e.g., L/s" />
+        </FormField>
+        <FormField label="Target Value">
+          <input className="af-input" type="number" step="0.0001" value={spec.target_value} onChange={(e) => onPatch({ target_value: e.target.value })} placeholder="e.g., 2.0" />
+        </FormField>
+        <FormField label="Tolerance Min">
+          <input className="af-input" type="number" step="0.0001" value={spec.tolerance_min} onChange={(e) => onPatch({ tolerance_min: e.target.value })} placeholder="e.g., 1.8" />
+        </FormField>
+        <FormField label="Tolerance Max">
+          <input className="af-input" type="number" step="0.0001" value={spec.tolerance_max} onChange={(e) => onPatch({ tolerance_max: e.target.value })} placeholder="e.g., 2.2" />
+        </FormField>
+      </div>
+    </div>
+  );
+}
+
+// Dispatch local spec edits to the backend in edit mode. POSTs new specs,
+// PATCHes dirty existing ones, DELETEs anything marked _toDelete. Errors are
+// collected so the user sees the first failure rather than getting silent half-saves.
+async function syncCalibrationSpecs(assetId, specs) {
+  const errors = [];
+  for (const s of specs || []) {
+    try {
+      if (s._toDelete) {
+        if (s.id) await assetService.calibration.deleteSpec(s.id);
+        continue;
+      }
+      if (!s.calibration_type) continue; // skip empty drafts
+      if (s._isNew) {
+        await assetService.calibration.createSpec(assetId, toApiSpecCreate(s));
+      } else if (s._dirty) {
+        await assetService.calibration.updateSpec(s.id, toApiSpecUpdate(s));
+      }
+    } catch (err) {
+      errors.push(err?.response?.data?.detail || err?.message || 'spec save failed');
+    }
+  }
+  if (errors.length) {
+    throw new Error(errors.join('; '));
+  }
+}
 
 export default function AssetForm() {
   const navigate = useNavigate();
@@ -35,9 +232,8 @@ export default function AssetForm() {
     purchase_date: '', purchase_price: '', current_value: '',
     status: 'active', location_label: '', latitude: '', longitude: '',
     location_geojson: null, requires_calibration: false,
-    calibration_interval_days: '',
-    calibration_type: '', calibration_parameter_name: '', calibration_unit_of_measure: '',
-    calibration_target_value: '', calibration_tolerance_min: '', calibration_tolerance_max: '',
+    calibration_specs: [],  // multi-spec list editor; each entry has its own type/parameter/unit/target/tolerance/interval
+    swath_width_m: '',
     requires_maintenance: false,
     maintenance_interval_days: '', maintenance_interval_hours: '',
     current_hours: '', current_kilometers: '', insurance_expiry: '',
@@ -90,13 +286,8 @@ export default function AssetForm() {
         latitude: asset.latitude || '', longitude: asset.longitude || '',
         location_geojson: asset.location_geojson || null,
         requires_calibration: asset.requires_calibration || false,
-        calibration_interval_days: asset.calibration_interval_days || '',
-        calibration_type: asset.calibration_type || '',
-        calibration_parameter_name: asset.calibration_parameter_name || '',
-        calibration_unit_of_measure: asset.calibration_unit_of_measure || '',
-        calibration_target_value: asset.calibration_target_value ?? '',
-        calibration_tolerance_min: asset.calibration_tolerance_min ?? '',
-        calibration_tolerance_max: asset.calibration_tolerance_max ?? '',
+        calibration_specs: [],  // loaded separately via assetService.calibration.listSpecs below
+        swath_width_m: asset.swath_width_m ?? '',
         requires_maintenance: asset.requires_maintenance || false,
         maintenance_interval_days: asset.maintenance_interval_days || '',
         maintenance_interval_hours: asset.maintenance_interval_hours || '',
@@ -110,12 +301,17 @@ export default function AssetForm() {
         property_id: asset.property_id ?? ''
       });
       if (asset.id) {
-        const [photoFiles, docFiles] = await Promise.all([
+        const [photoFiles, docFiles, specs] = await Promise.all([
           assetService.files.listAssetPhotos(asset.id).catch(() => []),
-          assetService.files.listAssetDocuments(asset.id).catch(() => [])
+          assetService.files.listAssetDocuments(asset.id).catch(() => []),
+          assetService.calibration.listSpecs(asset.id).catch(() => [])
         ]);
         setPhotos(photoFiles || []);
         setDocuments(docFiles || []);
+        setFormData(prev => ({
+          ...prev,
+          calibration_specs: Array.isArray(specs) ? specs.map(normalizeSpec) : []
+        }));
       }
     } catch (e) {
       console.error('Failed to load asset:', e);
@@ -123,6 +319,40 @@ export default function AssetForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Multi-spec list helpers — mutate `formData.calibration_specs` immutably.
+  // Existing specs get _dirty marks so the save handler knows to PATCH them;
+  // brand-new specs carry _isNew and POST on save; removed-existing rows are
+  // marked _toDelete (still rendered hidden until save) so save can DELETE them.
+  const addSpec = () => {
+    setFormData(prev => ({
+      ...prev,
+      requires_calibration: true,
+      calibration_specs: [...prev.calibration_specs, makeBlankSpec()]
+    }));
+  };
+
+  const patchSpec = (localId, patch) => {
+    setFormData(prev => ({
+      ...prev,
+      calibration_specs: prev.calibration_specs.map(s =>
+        s._localId === localId ? { ...s, ...patch, _dirty: !s._isNew || s._dirty } : s
+      )
+    }));
+  };
+
+  const removeSpec = (localId) => {
+    setFormData(prev => ({
+      ...prev,
+      calibration_specs: prev.calibration_specs
+        .map(s => {
+          if (s._localId !== localId) return s;
+          if (s._isNew) return null;       // unsaved → splice out
+          return { ...s, _toDelete: true };  // existing → mark for DELETE on save
+        })
+        .filter(Boolean)
+    }));
   };
 
   const handleChange = (field, value) => {
@@ -139,19 +369,18 @@ export default function AssetForm() {
       const sanitizePayload = (data) =>
         Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v === '' ? null : v]));
 
+      // Strip the multi-spec list from the asset payload — the asset endpoint
+      // doesn't accept per-spec fields. Create-mode adds it back as a properly
+      // shaped array below; edit-mode dispatches per-spec endpoints after PUT.
+      const { calibration_specs, ...formDataForPayload } = formData;
+
       const payload = sanitizePayload({
-        ...formData,
+        ...formDataForPayload,
         property_id: formData.property_id ? Number(formData.property_id) : null,
         year_manufactured: formData.year_manufactured ? Number(formData.year_manufactured) : null,
         purchase_price: formData.purchase_price ? Number(formData.purchase_price) : null,
         current_value: formData.current_value ? Number(formData.current_value) : null,
-        calibration_interval_days: formData.calibration_interval_days ? Number(formData.calibration_interval_days) : null,
-        calibration_type: formData.calibration_type || null,
-        calibration_parameter_name: formData.calibration_parameter_name || null,
-        calibration_unit_of_measure: formData.calibration_unit_of_measure || null,
-        calibration_target_value: formData.calibration_target_value !== '' ? Number(formData.calibration_target_value) : null,
-        calibration_tolerance_min: formData.calibration_tolerance_min !== '' ? Number(formData.calibration_tolerance_min) : null,
-        calibration_tolerance_max: formData.calibration_tolerance_max !== '' ? Number(formData.calibration_tolerance_max) : null,
+        swath_width_m: formData.swath_width_m !== '' ? Number(formData.swath_width_m) : null,
         maintenance_interval_days: formData.maintenance_interval_days ? Number(formData.maintenance_interval_days) : null,
         maintenance_interval_hours: formData.maintenance_interval_hours ? Number(formData.maintenance_interval_hours) : null,
         current_hours: formData.current_hours ? Number(formData.current_hours) : null,
@@ -163,7 +392,22 @@ export default function AssetForm() {
 
       if (isEditMode) {
         await assetService.updateAsset(id, payload);
+        // Only dispatch spec edits when the user actually wants calibration. When
+        // they untick requires_calibration the existing specs are left as-is on
+        // the server — the auto-respawn loop already short-circuits on the flag,
+        // and re-ticking later resumes management cleanly.
+        if (formData.requires_calibration) {
+          await syncCalibrationSpecs(id, calibration_specs);
+        }
       } else {
+        // On create, ship specs in the AssetCreate payload — backend seeds rows
+        // + initial schedules atomically.
+        if (formData.requires_calibration) {
+          const validSpecs = (calibration_specs || []).filter(s => !s._toDelete && s.calibration_type);
+          if (validSpecs.length > 0) {
+            payload.calibration_specs = validSpecs.map(toApiSpecCreate);
+          }
+        }
         await assetService.createAsset(payload);
       }
       navigate(`/assets`);
@@ -396,51 +640,59 @@ export default function AssetForm() {
                 <input type="checkbox" id="requires_calibration" checked={formData.requires_calibration} onChange={(e) => handleChange('requires_calibration', e.target.checked)} />
                 <label htmlFor="requires_calibration">This equipment requires calibration</label>
               </div>
+
               {formData.requires_calibration && (
                 <>
-                  <div className="af-form-grid">
-                    <FormField label="Calibration Interval (days)">
-                      <input className="af-input" type="number" value={formData.calibration_interval_days} onChange={(e) => handleChange('calibration_interval_days', e.target.value)} placeholder="e.g., 30" />
+                  {/* Swath width is asset-level (not per-spec) — sits above the spec list */}
+                  <div className="af-form-grid" style={{ marginBottom: 'var(--space-base)' }}>
+                    <FormField label="Swath Width (m)" hint="Effective application width. Paired with output rate + GPS speed at task time to build coverage maps.">
+                      <input className="af-input" type="number" step="0.01" min="0" value={formData.swath_width_m} onChange={(e) => handleChange('swath_width_m', e.target.value)} placeholder="e.g., 1.8" />
                     </FormField>
                     {isEditMode && (
                       <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                        <button className="af-btn-success" onClick={() => setShowCalibrationManager(true)}>
-                          <Settings size={16} /> Manage Calibrations
+                        <button type="button" className="af-btn-success" onClick={() => setShowCalibrationManager(true)}>
+                          <Settings size={16} /> View calibration history
                         </button>
                       </div>
                     )}
                   </div>
+
                   <h4 style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 600, color: '#666' }}>
-                    Calibration Spec — applied to every scheduled calibration for this asset
+                    Calibration Specs — one per type (e.g. pressure + spray output rate). Each spec drives its own recurring schedule.
                   </h4>
-                  <div className="af-form-grid">
-                    <FormField label="Calibration Type">
-                      <select className="af-input" value={formData.calibration_type} onChange={(e) => handleChange('calibration_type', e.target.value)}>
-                        <option value="">Select type...</option>
-                        <option value="flow_rate">Flow rate</option>
-                        <option value="pressure">Pressure</option>
-                        <option value="fuel_efficiency">Fuel efficiency</option>
-                        <option value="temperature">Temperature</option>
-                        <option value="weight">Weight</option>
-                        <option value="general">General</option>
-                      </select>
-                    </FormField>
-                    <FormField label="Parameter Name">
-                      <input className="af-input" value={formData.calibration_parameter_name} onChange={(e) => handleChange('calibration_parameter_name', e.target.value)} placeholder="e.g., Nozzle output" />
-                    </FormField>
-                    <FormField label="Unit of Measure">
-                      <input className="af-input" value={formData.calibration_unit_of_measure} onChange={(e) => handleChange('calibration_unit_of_measure', e.target.value)} placeholder="e.g., L/min" />
-                    </FormField>
-                    <FormField label="Target Value">
-                      <input className="af-input" type="number" step="0.0001" value={formData.calibration_target_value} onChange={(e) => handleChange('calibration_target_value', e.target.value)} placeholder="e.g., 2.0" />
-                    </FormField>
-                    <FormField label="Tolerance Min">
-                      <input className="af-input" type="number" step="0.0001" value={formData.calibration_tolerance_min} onChange={(e) => handleChange('calibration_tolerance_min', e.target.value)} placeholder="e.g., 1.8" />
-                    </FormField>
-                    <FormField label="Tolerance Max">
-                      <input className="af-input" type="number" step="0.0001" value={formData.calibration_tolerance_max} onChange={(e) => handleChange('calibration_tolerance_max', e.target.value)} placeholder="e.g., 2.2" />
-                    </FormField>
-                  </div>
+
+                  {formData.calibration_specs.filter(s => !s._toDelete).length === 0 && (
+                    <div style={{
+                      padding: 'var(--space-md)',
+                      border: '1px dashed var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--color-text-muted)',
+                      fontSize: 'var(--font-size-sm)',
+                      marginBottom: 'var(--space-sm)',
+                      textAlign: 'center'
+                    }}>
+                      No calibration specs yet. Add one to start tracking.
+                    </div>
+                  )}
+
+                  {formData.calibration_specs.map(spec => (
+                    <CalibrationSpecCard
+                      key={spec._localId}
+                      spec={spec}
+                      isEditMode={isEditMode}
+                      onPatch={(patch) => patchSpec(spec._localId, patch)}
+                      onRemove={() => removeSpec(spec._localId)}
+                    />
+                  ))}
+
+                  <button
+                    type="button"
+                    className="af-btn-success"
+                    onClick={addSpec}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 'var(--space-sm)' }}
+                  >
+                    <Plus size={16} /> Add calibration spec
+                  </button>
                 </>
               )}
             </FormSection>
@@ -584,7 +836,7 @@ function FormSection({ title, icon, action, children }) {
   );
 }
 
-function FormField({ label, required, children }) {
+function FormField({ label, required, hint, children }) {
   return (
     <label className="af-field">
       <div className="af-field-label">
@@ -592,6 +844,11 @@ function FormField({ label, required, children }) {
         {required && <span className="af-required">*</span>}
       </div>
       {children}
+      {hint && (
+        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: 4 }}>
+          {hint}
+        </div>
+      )}
     </label>
   );
 }

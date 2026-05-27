@@ -315,6 +315,44 @@ const calibrationOperations = {
   },
 
   /**
+   * List calibration specs for an asset. Each entry is one (asset_id, calibration_type)
+   * row from asset_calibration_specs — drives the auto-respawn loop after completions.
+   */
+  listSpecs: async (assetId, { include_inactive = false } = {}) => {
+    const res = await api.get(`/assets/${assetId}/calibration-specs`, {
+      params: { include_inactive }
+    });
+    return res.data;
+  },
+
+  /**
+   * Create a new calibration spec on an asset. Backend also seeds an initial
+   * pending schedule due `first_due_date` (or today).
+   */
+  createSpec: async (assetId, payload) => {
+    const res = await api.post(`/assets/${assetId}/calibration-specs`, payload);
+    return res.data;
+  },
+
+  /**
+   * Edit an existing spec. New values apply to future auto-respawns; existing
+   * pending schedule of this type is NOT auto-rewritten.
+   */
+  updateSpec: async (specId, payload) => {
+    const res = await api.patch(`/calibration-specs/${specId}`, payload);
+    return res.data;
+  },
+
+  /**
+   * Soft-delete a spec via is_active=false. History stays readable; auto-respawn
+   * stops on next completion of this type.
+   */
+  deleteSpec: async (specId) => {
+    const res = await api.delete(`/calibration-specs/${specId}`);
+    return res.data;
+  },
+
+  /**
    * Get valid calibrations for spray events
    * @param {number} asset_id - Asset ID
    * @param {string} calibration_type - Type of calibration needed
@@ -992,7 +1030,11 @@ const assetHelpers = {
     return [
       { value: 'flow_rate', label: 'Flow Rate', description: 'Nozzle flow rate calibration' },
       { value: 'pressure', label: 'Pressure', description: 'System pressure calibration' },
-      { value: 'application_rate', label: 'Application Rate', description: 'Total application rate' },
+      // Output-rate calibrations measured in L/s — paired with tractor speed at task time
+      // to compute application rate per hectare and build coverage maps.
+      { value: 'spray_output_rate', label: 'Spray Output Rate (L/s)', description: 'Sprayer output in litres/second — paired with tractor speed for coverage maps' },
+      { value: 'fert_output_rate', label: 'Fert Output Rate (L/s)', description: 'Fertiliser output in litres/second — paired with tractor speed for coverage maps' },
+      { value: 'application_rate', label: 'Application Rate (generic)', description: 'Total application rate' },
       { value: 'pattern_uniformity', label: 'Pattern Uniformity', description: 'Spray pattern distribution' },
       { value: 'speed', label: 'Speed Calibration', description: 'Travel speed accuracy' },
       { value: 'fuel_efficiency', label: 'Fuel Efficiency', description: 'Fuel consumption rate' },

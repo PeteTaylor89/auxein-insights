@@ -1,649 +1,431 @@
-// frontend/src/components/widgets/WeatherWidget.jsx
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import 'chart.js/auto';
+import { Chart } from 'react-chartjs-2';
 import { weatherCacheService } from '@vineyard/shared';
+import { RefreshCcw, AlertTriangle } from 'lucide-react';
+
+const DEFAULT_LOCATION = { lat: -43.5320, lon: 172.3103, name: 'Christchurch, NZ' };
+
+const formatHour = (ts) => {
+  const d = new Date(ts);
+  const h = d.getHours();
+  return `${h === 0 ? 12 : h % 12 || 12}${h >= 12 ? 'p' : 'a'}`;
+};
+
+const baseChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(47,47,47,0.92)',
+      titleColor: '#fdf6e3',
+      bodyColor: '#fdf6e3',
+      padding: 10,
+      cornerRadius: 6,
+    },
+  },
+  scales: {
+    x: {
+      grid: { display: false },
+      ticks: { color: '#666', font: { size: 11 }, maxRotation: 0, autoSkipPadding: 12 },
+    },
+  },
+};
 
 const WeatherWidget = ({ location = null, className = '' }) => {
-  const [weather, setWeather] = useState(null);
+  const [current, setCurrent] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [showForecast, setShowForecast] = useState(false);
-  const [cacheInfo, setCacheInfo] = useState(null);
 
-  // Default location (Christchurch, Canterbury, NZ - your location)
-  const defaultLocation = {
-    lat: -43.5320,
-    lon: 172.3103,
-    name: 'Christchurch, NZ'
-  };
+  const loc = location || DEFAULT_LOCATION;
 
   const fetchWeather = async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const loc = location || defaultLocation;
-      
-      const [weatherData, forecastData] = await Promise.all([
+      const [w, f] = await Promise.all([
         weatherCacheService.getCachedCurrentWeather(loc.lat, loc.lon, forceRefresh),
-        weatherCacheService.getCachedWeatherForecast(loc.lat, loc.lon, forceRefresh)
+        weatherCacheService.getCachedWeatherForecast(loc.lat, loc.lon, forceRefresh),
       ]);
-
-      const cacheStatus = weatherCacheService.getCacheStatus();
-      setCacheInfo(cacheStatus);
-      
-      setWeather(weatherData);
-      setForecast(forecastData);
+      setCurrent(w);
+      setForecast(f);
       setLastUpdated(new Date());
     } catch (err) {
-      console.error('Error fetching weather:', err);
-      setError(`Failed to fetch weather data: ${err.message}`);
+      console.error('Weather fetch failed:', err);
+      setError(err.message || 'Could not load weather');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (location || !location) {
-      fetchWeather(false);
-    }
-  }, [location]);
+    fetchWeather(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loc.lat, loc.lon]);
 
-  const formatTemperature = (temp) => {
-    if (temp?.value === null || temp?.value === undefined || isNaN(temp?.value)) {
-      return 'N/A';
-    }
-    return `${Math.round(temp.value)}°C`;
+  const series = useMemo(() => {
+    const rows = forecast?.forecast || [];
+    return {
+      labels: rows.map((r) => formatHour(r.timestamp)),
+      temp: rows.map((r) => r.weather?.temperature?.value ?? null),
+      rain: rows.map((r) => r.weather?.precipitation?.value ?? 0),
+      humidity: rows.map((r) => r.weather?.humidity?.value ?? null),
+      wind: rows.map((r) => {
+        const ws = r.weather?.windSpeed;
+        if (!ws) return null;
+        return ws.kmh ?? (ws.value != null ? ws.value * 3.6 : null);
+      }),
+      gust: rows.map((r) => {
+        const wg = r.weather?.windGust;
+        if (!wg) return null;
+        return wg.kmh ?? (wg.value != null ? wg.value * 3.6 : null);
+      }),
+    };
+  }, [forecast]);
+
+  const tempRainData = {
+    labels: series.labels,
+    datasets: [
+      {
+        type: 'bar',
+        label: 'Rain (mm)',
+        data: series.rain,
+        backgroundColor: 'rgba(59, 130, 246, 0.55)',
+        borderColor: 'rgba(59, 130, 246, 0.85)',
+        borderWidth: 1,
+        yAxisID: 'yRain',
+        order: 2,
+      },
+      {
+        type: 'line',
+        label: 'Temp (°C)',
+        data: series.temp,
+        borderColor: '#D1583B',
+        backgroundColor: 'rgba(209, 88, 59, 0.12)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.35,
+        fill: true,
+        yAxisID: 'yTemp',
+        order: 1,
+      },
+    ],
   };
 
-  const formatPercentage = (val) => {
-    if (val?.value === null || val?.value === undefined || isNaN(val?.value)) {
-      return 'N/A';
-    }
-    return `${Math.round(val.value)}%`;
+  const tempRainOptions = {
+    ...baseChartOptions,
+    scales: {
+      ...baseChartOptions.scales,
+      yTemp: {
+        position: 'left',
+        grid: { color: 'rgba(91, 104, 48, 0.08)' },
+        ticks: { color: '#D1583B', font: { size: 11 }, callback: (v) => `${v}°` },
+        title: { display: false },
+      },
+      yRain: {
+        position: 'right',
+        grid: { display: false },
+        beginAtZero: true,
+        suggestedMax: 2,
+        ticks: { color: '#3b82f6', font: { size: 11 }, callback: (v) => `${v}mm` },
+      },
+    },
   };
 
-  const formatRadiation = (rad) => {
-    if (rad?.value === null || rad?.value === undefined || isNaN(rad?.value)) {
-      return 'N/A';
-    }
-    return `${Math.round(rad.value)} W/m²`;
+  const humidityData = {
+    labels: series.labels,
+    datasets: [
+      {
+        type: 'line',
+        label: 'Humidity (%)',
+        data: series.humidity,
+        borderColor: '#5B6830',
+        backgroundColor: 'rgba(91, 104, 48, 0.15)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.35,
+        fill: true,
+      },
+    ],
   };
 
-  const formatPrecipitation = (precip) => {
-    if (precip?.value === null || precip?.value === undefined || isNaN(precip?.value)) {
-      return 'N/A';
-    }
-    return `${precip.value.toFixed(1)} mm/h`;
+  const humidityOptions = {
+    ...baseChartOptions,
+    scales: {
+      ...baseChartOptions.scales,
+      y: {
+        min: 0,
+        max: 100,
+        grid: { color: 'rgba(91, 104, 48, 0.08)' },
+        ticks: { color: '#5B6830', font: { size: 11 }, callback: (v) => `${v}%` },
+      },
+    },
   };
 
-  const formatWindSpeed = (speed) => {
-    if (speed?.value === null || speed?.value === undefined || isNaN(speed?.value)) {
-      return 'N/A';
-    }
-    const kmh = speed.kmh || (speed.value * 3.6);
-    return `${Math.round(kmh * 10) / 10} km/h`;
+  const windData = {
+    labels: series.labels,
+    datasets: [
+      {
+        type: 'line',
+        label: 'Gusts (km/h)',
+        data: series.gust,
+        borderColor: 'rgba(120, 113, 108, 0.6)',
+        backgroundColor: 'rgba(120, 113, 108, 0.18)',
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        tension: 0.35,
+        fill: true,
+      },
+      {
+        type: 'line',
+        label: 'Wind (km/h)',
+        data: series.wind,
+        borderColor: '#0f766e',
+        backgroundColor: 'rgba(15, 118, 110, 0.15)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.35,
+        fill: true,
+      },
+    ],
   };
 
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    const hours = date.getHours();
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}${period}`;
+  const windOptions = {
+    ...baseChartOptions,
+    scales: {
+      ...baseChartOptions.scales,
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(91, 104, 48, 0.08)' },
+        ticks: { color: '#0f766e', font: { size: 11 }, callback: (v) => `${v} km/h` },
+      },
+    },
   };
 
-  const getWeatherIcon = (condition, timestamp = null) => {
-    if (!condition) return '🌤️';
-    
-    let isNight = false;
-    if (timestamp) {
-      const hour = new Date(timestamp).getHours();
-      isNight = hour >= 18 || hour < 6;
-    } else {
-      const currentHour = new Date().getHours();
-      isNight = currentHour >= 18 || currentHour < 6;
-    }
-    
-    switch (condition.toLowerCase()) {
-      case 'clear':
-        return isNight ? '🌙' : '☀️';
-      case 'mostly sunny':
-        return isNight ? '🌙' : '🌤️';
-      case 'partly cloudy':
-        return isNight ? '☁️' : '⛅';
-      case 'overcast':
-        return '☁️';
-      case 'rainy':
-        return '🌧️';
-      default:
-        return isNight ? '🌙' : '🌤️';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className={`weather-widget loading ${className}`}>
-        <div className="widget-header">
-          <div className="location-info">Weather</div>
-        </div>
-        <div className="widget-content">
-          <div className="loading-spinner">
-            <div className="spinner"></div>
-            <span>Loading weather data...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={`weather-widget error ${className}`}>
-        <div className="widget-header">
-          <div className="location-info">Weather</div>
-        </div>
-        <div className="widget-content">
-          <div className="error-message">
-            <span className="error-icon">⚠️</span>
-            <span>{error}</span>
-            <button onClick={fetchWeather} className="retry-button">
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!weather || !weather.weather) {
-    return (
-      <div className={`weather-widget error ${className}`}>
-        <div className="widget-header">
-          <div className="location-info">Weather</div>
-        </div>
-        <div className="widget-content">
-          <div className="error-message">
-            <span className="error-icon">❌</span>
-            <span>No weather data available</span>
-            <button onClick={() => fetchWeather(true)} className="retry-button">
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const weatherData = weather.weather;
-  const condition = weatherData.condition || 'Unknown';
-  const windDir = weatherData.windDirection?.compass || 'N/A';
-  const locationName = location?.name || defaultLocation.name;
-  const showDebug = process.env.NODE_ENV === 'development' && weather.debug?.hasNullValues;
+  const cw = current?.weather;
+  const currentTemp = cw?.temperature?.value;
+  const currentCondition = cw?.condition;
+  const locationName = location?.name || DEFAULT_LOCATION.name;
+  const hasForecast = series.labels.length > 0;
 
   return (
-    <div className={`weather-widget ${className}`}>
-      <div className="widget-header">
-        <div className="location-info">
-          {location ? location.name : locationName}
+    <div className={`ww ${className}`}>
+      <div className="ww-header">
+        <div>
+          <div className="ww-loc">{locationName}</div>
+          {current?.location && (
+            <div className="ww-coords">
+              {current.location.lat?.toFixed(3)}, {current.location.lon?.toFixed(3)}
+            </div>
+          )}
         </div>
-        {weather.location && (
-          <div className="coordinates">
-            {weather.location.lat?.toFixed(3)}, {weather.location.lon?.toFixed(3)}
-          </div>
-        )}
+        <button
+          type="button"
+          className="ww-refresh"
+          onClick={() => fetchWeather(true)}
+          disabled={loading}
+          title="Refresh"
+        >
+          <RefreshCcw size={14} />
+        </button>
       </div>
-      
-      <div className="widget-content">
-        {showDebug && (
-          <div className="debug-info">
-            <span>⚠️ Some data missing: {weather.debug.nullFields.join(', ')}</span>
+
+      <div className="ww-body">
+        {loading && !current && (
+          <div className="ww-skeleton">Loading weather…</div>
+        )}
+
+        {error && (
+          <div className="ww-error">
+            <AlertTriangle size={16} />
+            <span>{error}</span>
+            <button type="button" onClick={() => fetchWeather(true)}>Retry</button>
           </div>
         )}
 
-        <div className="view-toggle">
-          <button 
-            className={`toggle-button ${!showForecast ? 'active' : ''}`}
-            onClick={() => setShowForecast(false)}
-          >
-            Current
-          </button>
-          <button 
-            className={`toggle-button ${showForecast ? 'active' : ''}`}
-            onClick={() => setShowForecast(true)}
-          >
-            24hr Forecast
-          </button>
-        </div>
-
-        {!showForecast ? (
+        {!loading && !error && (
           <>
-            <div className="weather-main">
-              <div className="weather-condition">
-                <span className="weather-icon">{getWeatherIcon(condition)}</span>
-                <span className="condition-text">{condition}</span>
-              </div>
-              <div className="temperature-display">
-                {formatTemperature(weatherData.temperature)}
-              </div>
-            </div>
-
-            <div className="weather-details">
-              <div className="weather-item">
-                <span className="label">Humidity</span>
-                <span className="value">{formatPercentage(weatherData.humidity)}</span>
-              </div>
-              
-              <div className="weather-item">
-                <span className="label">Cloud Cover</span>
-                <span className="value">{formatPercentage(weatherData.cloudCover)}</span>
-              </div>
-              
-              <div className="weather-item">
-                <span className="label">Wind</span>
-                <span className="value">
-                  {formatWindSpeed(weatherData.windSpeed)} {windDir}
-                </span>
-              </div>
-              
-              <div className="weather-item">
-                <span className="label">Gusts</span>
-                <span className="value">{formatWindSpeed(weatherData.windGust)}</span>
-              </div>
-              
-              <div className="weather-item">
-                <span className="label">Precipitation</span>
-                <span className="value">{formatPrecipitation(weatherData.precipitation)}</span>
-              </div>
-              
-              <div className="weather-item">
-                <span className="label">Solar Radiation</span>
-                <span className="value">{formatRadiation(weatherData.shortwaveRadiation)}</span>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="forecast-container">
-            {forecast && forecast.forecast ? (
-              <div className="forecast-grid">
-                {forecast.forecast.map((item, index) => (
-                  <div key={index} className="forecast-item">
-                    <div className="forecast-time">{formatTime(item.timestamp)}</div>
-                    <div className="forecast-icon">
-                      {getWeatherIcon(item.weather.condition, item.timestamp)}
-                    </div>
-                    <div className="forecast-temp">
-                      {formatTemperature(item.weather.temperature)}
-                    </div>
-                    <div className="forecast-details">
-                      <div className="forecast-detail">
-                        💧 {formatPercentage(item.weather.humidity)}
-                      </div>
-                      <div className="forecast-detail">
-                        🌧️ {formatPrecipitation(item.weather.precipitation)}
-                      </div>
-                      <div className="forecast-detail">
-                        💨 {formatWindSpeed(item.weather.windSpeed)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="no-forecast">
-                <span>Forecast data not available</span>
+            {(currentTemp != null || currentCondition) && (
+              <div className="ww-now">
+                <div className="ww-now-temp">
+                  {currentTemp != null ? `${Math.round(currentTemp)}°C` : '—'}
+                </div>
+                {currentCondition && <div className="ww-now-cond">{currentCondition}</div>}
               </div>
             )}
-          </div>
-        )}
 
-        <div className="weather-footer">
-          <div className="last-updated">
-            <div>Last updated: {lastUpdated?.toLocaleTimeString()}</div>
-          </div>
-          <button 
-            onClick={() => fetchWeather(true)} 
-            className="refresh-button" 
-            title="Force refresh weather data"
-            disabled={loading}
-          >
-            🔄
-          </button>
-        </div>
+            {hasForecast ? (
+              <div className="ww-charts">
+                <div className="ww-chart-block">
+                  <div className="ww-chart-title">
+                    <span className="ww-dot ww-dot-temp" /> Temperature
+                    <span className="ww-sep">·</span>
+                    <span className="ww-dot ww-dot-rain" /> Rainfall
+                    <span className="ww-chart-window">next 24h</span>
+                  </div>
+                  <div className="ww-chart">
+                    <Chart type="bar" data={tempRainData} options={tempRainOptions} />
+                  </div>
+                </div>
+
+                <div className="ww-chart-block">
+                  <div className="ww-chart-title">
+                    <span className="ww-dot ww-dot-humidity" /> Humidity
+                  </div>
+                  <div className="ww-chart ww-chart-sm">
+                    <Chart type="line" data={humidityData} options={humidityOptions} />
+                  </div>
+                </div>
+
+                <div className="ww-chart-block">
+                  <div className="ww-chart-title">
+                    <span className="ww-dot ww-dot-wind" /> Wind
+                    <span className="ww-sep">·</span>
+                    <span className="ww-dot ww-dot-gust" /> Gusts
+                  </div>
+                  <div className="ww-chart ww-chart-sm">
+                    <Chart type="line" data={windData} options={windOptions} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="ww-skeleton">Forecast not available</div>
+            )}
+
+            {lastUpdated && (
+              <div className="ww-foot">
+                Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      <style jsx>{`
-        .weather-widget {
-          background: #FFFFFF;
+      <style>{`
+        .ww {
+          background: #fff;
           border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(47, 47, 47, 0.1);
-          overflow: hidden;
-          border: 1px solid rgba(91, 104, 48, 0.25); /* Olive */
-          transition: box-shadow 0.3s ease;
+          border: 1px solid rgba(91, 104, 48, 0.25);
+          box-shadow: 0 2px 8px rgba(47, 47, 47, 0.08);
           font-family: Calibri, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-          color: #2F2F2F; /* Charcoal */
+          color: #2F2F2F;
+          overflow: hidden;
         }
-
-        .weather-widget:hover {
-          box-shadow: 0 4px 12px rgba(47, 47, 47, 0.18);
-        }
-
-        .widget-header {
-          background: #FDF6E3; /* Warm Sand */
+        .ww-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           padding: 12px 16px;
-          text-align: left;
+          background: #FDF6E3;
           border-bottom: 1px solid rgba(91, 104, 48, 0.25);
         }
-
-        .location-info {
-          font-size: 16px;
-          font-weight: bold;
-          color: #2F2F2F; /* Charcoal */
-          margin-bottom: 2px;
-        }
-
-        .coordinates {
-          font-size: 12px;
-          color: #5B6830; /* Olive */
-          opacity: 0.9;
-        }
-
-        .widget-content {
-          padding: 12px 14px;
-          background: #FFFFFF;
-        }
-
-        .view-toggle {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 10px;
-          background: #FDF6E3; /* Warm Sand */
-          padding: 4px;
-          border-radius: 8px;
-        }
-
-        .toggle-button {
-          flex: 1;
-          padding: 8px 16px;
-          border: none;
+        .ww-loc { font-size: 15px; font-weight: 600; color: #2F2F2F; }
+        .ww-coords { font-size: 11px; color: #5B6830; margin-top: 2px; }
+        .ww-refresh {
           background: transparent;
+          border: 1px solid rgba(91, 104, 48, 0.35);
+          color: #5B6830;
+          width: 28px; height: 28px;
           border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: #5B6830; /* Olive */
-        }
-
-        .toggle-button.active {
-          background: #D1583B; /* Terracotta */
-          color: #FFFFFF;
-          box-shadow: 0 1px 3px rgba(47, 47, 47, 0.25);
-        }
-
-        .toggle-button:hover:not(.active) {
-          background: rgba(209, 88, 59, 0.12); /* light Terracotta tint */
-        }
-
-        .debug-info {
-          background: #FDF6E3;
-          border: 1px solid #D1583B;
-          border-radius: 6px;
-          padding: 8px 12px;
-          margin-bottom: 12px;
-          font-size: 12px;
-          color: #2F2F2F;
-        }
-
-        .weather-main {
-          text-align: center;
-          margin-bottom: 16px;
-          padding-bottom: 14px;
-          border-bottom: 1px solid rgba(91, 104, 48, 0.18);
-        }
-
-        .weather-condition {
-          display: flex;
+          padding: 0;
+          display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          margin-bottom: 6px;
+          cursor: pointer;
         }
+        .ww-refresh:hover:not(:disabled) { background: #fff; }
+        .ww-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .weather-icon {
-          font-size: 26px;
-        }
+        .ww-body { padding: 14px 16px 12px; }
 
-        .condition-text {
-          font-size: 16px;
-          font-weight: 500;
-          color: #2F2F2F;
-        }
-
-        .temperature-display {
-          font-size: 28px;
-          font-weight: 700;
-          color: #5B6830; /* Olive */
-          margin-bottom: 4px;
-        }
-
-        .weather-details {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-bottom: 12px;
-        }
-
-        .weather-item {
+        .ww-now {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 4px 0;
-        }
-
-        .weather-item .label {
-          font-size: 13px;
-          color: #5B6830;
-          font-weight: 500;
-        }
-
-        .weather-item .value {
-          font-size: 13px;
-          color: #2F2F2F;
-          font-weight: 600;
-        }
-
-        .forecast-container {
-          max-height: 400px;
-          overflow-y: auto;
-          padding-right: 6px;
-        }
-
-        .forecast-grid {
-          display: grid;
-          gap: 10px;
-        }
-
-        .forecast-item {
-          display: grid;
-          grid-template-columns: 60px 40px 1fr auto;
-          align-items: center;
-          gap: 10px;
-          padding: 10px;
-          background: #FDF6E3; /* Warm Sand */
-          border-radius: 8px;
-          border: 1px solid rgba(91, 104, 48, 0.18);
-          transition: background-color 0.2s, box-shadow 0.2s;
-        }
-
-        .forecast-item:hover {
-          background: #F5EBD5;
-          box-shadow: 0 2px 4px rgba(47, 47, 47, 0.15);
-        }
-
-        .forecast-time {
-          font-size: 13px;
-          font-weight: 600;
-          color: #2F2F2F;
-        }
-
-        .forecast-icon {
-          font-size: 22px;
-          text-align: center;
-        }
-
-        .forecast-temp {
-          font-size: 16px;
-          font-weight: 600;
-          color: #5B6830;
-        }
-
-        .forecast-details {
-          display: flex;
+          align-items: baseline;
           gap: 12px;
-          flex-wrap: wrap;
+          margin-bottom: 14px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid rgba(91, 104, 48, 0.15);
         }
+        .ww-now-temp { font-size: 30px; font-weight: 700; color: #5B6830; line-height: 1; }
+        .ww-now-cond { font-size: 14px; color: #2F2F2F; opacity: 0.85; }
 
-        .forecast-detail {
+        .ww-charts { display: flex; flex-direction: column; gap: 14px; }
+        .ww-chart-block { display: flex; flex-direction: column; gap: 6px; }
+        .ww-chart-title {
+          display: flex;
+          align-items: center;
+          gap: 6px;
           font-size: 12px;
-          color: #2F2F2F;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .no-forecast {
-          text-align: center;
-          padding: 32px 16px;
-          color: #2F2F2F;
-        }
-
-        .weather-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-top: 10px;
-          border-top: 1px solid rgba(91, 104, 48, 0.18);
-        }
-
-        .last-updated {
-          font-size: 11px;
-          color: #2F2F2F;
-          opacity: 0.8;
-        }
-
-        .refresh-button {
-          background: none;
-          border: 1px solid rgba(91, 104, 48, 0.6);
-          font-size: 16px;
-          cursor: pointer;
-          padding: 4px 8px;
-          border-radius: 6px;
-          transition: all 0.2s;
+          font-weight: 600;
           color: #5B6830;
+          letter-spacing: 0.02em;
         }
-
-        .refresh-button:hover:not(:disabled) {
-          background-color: #FDF6E3;
+        .ww-chart-window {
+          margin-left: auto;
+          font-size: 11px;
+          color: #666;
+          font-weight: 500;
+          text-transform: none;
         }
-
-        .refresh-button:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .loading-spinner {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 10px;
-          color: #2F2F2F;
-          padding: 18px;
-        }
-
-        .spinner {
-          width: 24px;
-          height: 24px;
-          border: 2px solid #FDF6E3;
-          border-top: 2px solid #D1583B; /* Terracotta */
+        .ww-sep { color: #ccc; margin: 0 2px; }
+        .ww-dot {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
           border-radius: 50%;
-          animation: spin 1s linear infinite;
+        }
+        .ww-dot-temp { background: #D1583B; }
+        .ww-dot-rain { background: #3b82f6; }
+        .ww-dot-humidity { background: #5B6830; }
+        .ww-dot-wind { background: #0f766e; }
+        .ww-dot-gust { background: rgba(120, 113, 108, 0.6); }
+
+        .ww-chart { height: 150px; position: relative; }
+        .ww-chart-sm { height: 100px; }
+
+        .ww-foot {
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(91, 104, 48, 0.15);
+          font-size: 11px;
+          color: #666;
         }
 
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        .ww-skeleton {
+          padding: 24px 0;
+          text-align: center;
+          color: #666;
+          font-size: 13px;
         }
 
-        .error-message {
+        .ww-error {
           display: flex;
-          flex-direction: column;
           align-items: center;
           gap: 8px;
-          text-align: center;
-          color: #D1583B;
-          padding: 20px;
-        }
-
-        .error-icon {
-          font-size: 22px;
-        }
-
-        .retry-button {
-          background: #D1583B; /* Terracotta */
-          color: white;
-          border: none;
-          padding: 8px 16px;
+          padding: 12px;
+          background: rgba(209, 88, 59, 0.08);
+          border: 1px solid rgba(209, 88, 59, 0.3);
           border-radius: 6px;
-          font-size: 14px;
+          color: #D1583B;
+          font-size: 13px;
+        }
+        .ww-error button {
+          margin-left: auto;
+          background: #D1583B;
+          color: #fff;
+          border: none;
+          padding: 4px 10px;
+          border-radius: 4px;
           cursor: pointer;
-          transition: background-color 0.2s;
-        }
-
-        .retry-button:hover {
-          background: #b1462f;
-        }
-
-        .forecast-container::-webkit-scrollbar {
-          width: 6px;
-        }
-
-        .forecast-container::-webkit-scrollbar-track {
-          background: #FDF6E3;
-          border-radius: 3px;
-        }
-
-        .forecast-container::-webkit-scrollbar-thumb {
-          background: #D1D5DB;
-          border-radius: 3px;
-        }
-
-        .forecast-container::-webkit-scrollbar-thumb:hover {
-          background: #9CA3AF;
-        }
-
-        @media (max-width: 768px) {
-          .weather-details {
-            grid-template-columns: 1fr;
-          }
-          
-          .temperature-display {
-            font-size: 26px;
-          }
-          
-          .weather-icon {
-            font-size: 24px;
-          }
-
-          .forecast-item {
-            grid-template-columns: 60px 40px 1fr;
-          }
-
-          .forecast-details {
-            grid-column: 1 / -1;
-            margin-top: 6px;
-          }
+          font-size: 12px;
         }
       `}</style>
     </div>

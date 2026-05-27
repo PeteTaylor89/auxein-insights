@@ -256,6 +256,48 @@
   font-size: var(--font-size-sm);
 }
 
+.od-filters-toggle {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.od-filters-toggle:hover {
+  background: var(--color-surface-warm, #f5ebd5);
+  color: var(--color-text);
+}
+
+.od-filters-chevron {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.od-th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.od-th-sortable:hover {
+  color: var(--color-primary);
+}
+
+.od-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+}
+
+.od-pagination-info {
+  color: var(--color-text-muted);
+}
+
 .od-filters-badge {
   background: var(--color-primary);
   color: white;
@@ -333,6 +375,55 @@
   display: flex;
   gap: var(--space-xs);
   justify-content: flex-end;
+}
+
+/* Fixed 3-slot grid for runs-table row actions: Open | Insights | Complete.
+   Each slot has a fixed minimum so columns line up across rows whether or not
+   the optional buttons are rendered. */
+.od-actions-runs {
+  display: inline-grid;
+  grid-template-columns: 76px 92px 96px;
+  gap: 4px;
+  justify-content: end;
+  align-items: center;
+}
+
+.od-actions-runs .od-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.od-actions-runs .od-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.od-actions-slot-empty {
+  /* keeps the grid column reserved when a button is hidden */
+  display: block;
+}
+
+/* Runs table specific tightening — consistent padding across all columns.
+   Fixed-content columns (status, dates, actions) collapse to natural width via
+   the `width: 0 / white-space: nowrap` trick, leaving Template/Plan/Block to
+   absorb any slack. Removes the dead space that previously appeared to the
+   left of the action grid. */
+.od-runs-table th,
+.od-runs-table td {
+  padding: var(--space-sm) var(--space-sm);
+}
+
+.od-runs-table .od-runs-fit {
+  width: 0;
+  white-space: nowrap;
+}
+
+.od-runs-table .od-runs-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
 }
 
 .od-btn {

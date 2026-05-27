@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles } from 'lucide-react';
 import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import './ObservationDashboard.css';
 import BlockSelectionModal from '../components/BlockSelectionModal';
 import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
+import { getInsightKind } from '../utils/observationInsight';
 
 
 function readTemplateFields(tpl) {
@@ -451,35 +452,58 @@ function RunsTab({ StatusBadge }) {
 
       {runs.length > 0 ? (
         <div className="od-table-wrap">
-          <table className="od-table">
+          <table className="od-table od-runs-table">
             <thead>
               <tr>
-                <th>Run</th>
+                <th>Template</th>
                 <th>Plan</th>
                 <th>Block</th>
-                <th className="center">Status</th>
-                <th className="center">Started</th>
-                <th className="center">Completed</th>
-                <th className="right">Actions</th>
+                <th className="center od-runs-fit">Status</th>
+                <th className="center od-runs-fit">Started</th>
+                <th className="center od-runs-fit">Completed</th>
+                <th className="od-runs-fit">Actions</th>
               </tr>
             </thead>
             <tbody>
               {runs.map(r => (
                 <tr key={r.id}>
-                  <td className="bold">{r.name || `Run #${r.id}`}</td>
-                  <td>{r.plan_name || (r.plan_id ? `Plan ${r.plan_id}` : '—')}</td>
+                  <td className="bold">{r.template_name || r.observation_template?.name || '—'}</td>
+                  <td>{r.plan_name || (r.plan_id ? `Plan #${r.plan_id}` : '—')}</td>
                   <td>{r.block_name || '—'}</td>
                   <td className="center"><StatusBadge status={r.status || 'active'} /></td>
-                  <td className="center">{r.observed_at_start ? dayjs(r.observed_at_start).format('YYYY-MM-DD HH:mm') : '—'}</td>
-                  <td className="center">{r.observed_at_end ? dayjs(r.observed_at_end).format('YYYY-MM-DD HH:mm') : '—'}</td>
+                  <td className="center od-runs-date">{r.observed_at_start ? dayjs(r.observed_at_start).format('DD MMM HH:mm') : '—'}</td>
+                  <td className="center od-runs-date">{r.observed_at_end ? dayjs(r.observed_at_end).format('DD MMM HH:mm') : '—'}</td>
                   <td className="right">
-                    <div className="od-actions">
+                    <div className="od-actions od-actions-runs">
                       <button className="od-btn od-btn--primary" onClick={() => navigate(`/observations/runcapture/${r.id}`)}>
                         Open <ArrowRight size={14} />
                       </button>
-                      <button className="od-btn od-btn--accent" onClick={() => completeRun(r.id)} disabled={busyId === r.id} title="Complete this run">
-                        <CheckCircle size={14} /> Complete
-                      </button>
+                      {(() => {
+                        const kind = getInsightKind(r.template_type);
+                        if (!kind) return <span className="od-actions-slot-empty" />;
+                        const params = new URLSearchParams({
+                          kind,
+                          runId: String(r.id),
+                          templateType: r.template_type || ''
+                        });
+                        if (r.block_id) params.set('blockId', String(r.block_id));
+                        return (
+                          <button
+                            className="od-btn od-btn--ghost"
+                            onClick={() => navigate(`/Insights?${params.toString()}`)}
+                            title="Open Insights"
+                          >
+                            <Sparkles size={14} /> Insights
+                          </button>
+                        );
+                      })()}
+                      {r.observed_at_end ? (
+                        <span className="od-actions-slot-empty" />
+                      ) : (
+                        <button className="od-btn od-btn--accent" onClick={() => completeRun(r.id)} disabled={busyId === r.id} title="Complete this run">
+                          <CheckCircle size={14} /> Complete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -665,6 +689,18 @@ function TaskTemplatesTab() {
               onView={onViewTemplate}
               onEdit={(tpl) => navigate(`/tasks/templates/${tpl.id}/edit`)}
               onUse={(tpl) => navigate(`/tasks/new?template=${tpl.id}`)}
+              onToggleActive={async (tpl) => {
+                const next = !tpl.is_active;
+                const verb = next ? 'reactivate' : 'retire';
+                if (!window.confirm(`${verb[0].toUpperCase() + verb.slice(1)} template "${tpl.name}"?`)) return;
+                try {
+                  await tasksService.updateTemplate?.(tpl.id, { is_active: next });
+                  setTemplates(prev => prev.map(x => x.id === tpl.id ? { ...x, is_active: next } : x));
+                } catch (err) {
+                  console.error('Toggle template active failed:', err);
+                  alert(err.response?.data?.detail || `Failed to ${verb} template`);
+                }
+              }}
             />
           ))}
         </div>
@@ -687,9 +723,11 @@ function TaskTemplatesTab() {
 }
 
 // Template Card Component - Matches observation card styling
-function TemplateCard({ template, onView, onEdit, onUse }) {
+function TemplateCard({ template, onView, onEdit, onUse, onToggleActive }) {
   const categoryLabels = { vineyard: 'Vineyard', land_management: 'Land Management', compliance: 'Compliance', general: 'General' };
   const categoryLabel = categoryLabels[template.task_category] || template.task_category;
+  const equipCount = template.required_equipment_ids?.length || 0;
+  const consumCount = template.required_consumables?.length || 0;
 
   return (
     <div className="od-card">
@@ -702,17 +740,31 @@ function TemplateCard({ template, onView, onEdit, onUse }) {
         {categoryLabel}{template.task_subcategory && ` · ${template.task_subcategory}`}
       </div>
       {template.description && <div className="od-task-card-desc">{template.description}</div>}
-      <div className="od-task-card-meta">
-        <span style={{ textTransform: 'capitalize' }}>{template.default_priority}</span>
-        {template.requires_gps_tracking && <span><MapPin size={12} /> GPS</span>}
-        {template.required_equipment_ids?.length > 0 && <span>Equipment: {template.required_equipment_ids.length}</span>}
-        <span style={{ marginLeft: 'auto' }}>Used: {template.task_count || 0}×</span>
-      </div>
+      {(equipCount > 0 || consumCount > 0) && (
+        <div className="od-task-card-meta">
+          {equipCount > 0 && (
+            <span title="Required equipment"><Wrench size={12} /> {equipCount} equipment</span>
+          )}
+          {consumCount > 0 && (
+            <span title="Required consumables">{consumCount} consumable{consumCount === 1 ? '' : 's'}</span>
+          )}
+        </div>
+      )}
       <div className="od-card-actions">
         <button className="od-btn od-btn--primary" onClick={() => onUse(template)} disabled={!template.is_active} style={{ opacity: template.is_active ? 1 : 0.5 }}>
           <Plus size={14} /> Use Template
         </button>
         <button className="od-btn od-btn--ghost" onClick={() => onView(template)}>View</button>
+        <button className="od-btn od-btn--ghost" onClick={() => onEdit(template)} title="Edit template"><Edit size={12} /></button>
+        {onToggleActive && (
+          <button
+            className="od-btn od-btn--ghost"
+            onClick={() => onToggleActive(template)}
+            title={template.is_active ? 'Retire template' : 'Reactivate template'}
+          >
+            {template.is_active ? <><XCircle size={12} /> Retire</> : <><CheckCircle size={12} /> Reactivate</>}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -753,6 +805,13 @@ function TaskFilters({
   locationOptions, assigneeOptions, contractorOptions,
   totalActive, onClear,
 }) {
+  // Collapsed by default; auto-expand when any chip filter is active so users
+  // never lose sight of why the table is filtered.
+  const [open, setOpen] = useState(totalActive > 0);
+  useEffect(() => {
+    if (totalActive > 0) setOpen(true);
+  }, [totalActive]);
+
   const toggleIn = (setter) => (value) => {
     setter(prev => {
       const next = new Set(prev);
@@ -796,10 +855,16 @@ function TaskFilters({
   return (
     <div className="od-filters-panel">
       <div className="od-filters-top">
-        <div className="od-filters-title">
+        <button
+          type="button"
+          className="od-filters-title od-filters-toggle"
+          onClick={() => setOpen(o => !o)}
+          aria-expanded={open}
+        >
           <Filter size={14} /> Filters
           {totalActive > 0 && <span className="od-filters-badge">{totalActive}</span>}
-        </div>
+          <span className="od-filters-chevron">{open ? '▾' : '▸'}</span>
+        </button>
         <input
           className="od-filter-input"
           type="text"
@@ -814,17 +879,21 @@ function TaskFilters({
         )}
       </div>
 
-      <FilterChipGroup label="Status"   options={statusOptions}        selected={statusFilter}   onToggle={toggleIn(setStatusFilter)} />
-      <FilterChipGroup label="Category" options={categoryOptions}      selected={categoryFilter} onToggle={toggleIn(setCategoryFilter)} />
-      <FilterChipGroup label="Priority" options={priorityOptions}      selected={priorityFilter} onToggle={toggleIn(setPriorityFilter)} />
-      {locationChipOptions.length > 0 && (
-        <FilterChipGroup label="Location" options={locationChipOptions} selected={locationFilter} onToggle={toggleIn(setLocationFilter)} />
-      )}
-      {assigneeChipOptions.length > 1 && (
-        <FilterChipGroup label="Assignee" options={assigneeChipOptions} selected={assigneeFilter} onToggle={toggleIn(setAssigneeFilter)} />
-      )}
-      {contractorChipOptions.length > 0 && (
-        <FilterChipGroup label="Contractor" options={contractorChipOptions} selected={contractorFilter} onToggle={toggleIn(setContractorFilter)} />
+      {open && (
+        <>
+          <FilterChipGroup label="Status"   options={statusOptions}        selected={statusFilter}   onToggle={toggleIn(setStatusFilter)} />
+          <FilterChipGroup label="Category" options={categoryOptions}      selected={categoryFilter} onToggle={toggleIn(setCategoryFilter)} />
+          <FilterChipGroup label="Priority" options={priorityOptions}      selected={priorityFilter} onToggle={toggleIn(setPriorityFilter)} />
+          {locationChipOptions.length > 0 && (
+            <FilterChipGroup label="Location" options={locationChipOptions} selected={locationFilter} onToggle={toggleIn(setLocationFilter)} />
+          )}
+          {assigneeChipOptions.length > 1 && (
+            <FilterChipGroup label="Assignee" options={assigneeChipOptions} selected={assigneeFilter} onToggle={toggleIn(setAssigneeFilter)} />
+          )}
+          {contractorChipOptions.length > 0 && (
+            <FilterChipGroup label="Contractor" options={contractorChipOptions} selected={contractorFilter} onToggle={toggleIn(setContractorFilter)} />
+          )}
+        </>
       )}
     </div>
   );
@@ -849,6 +918,22 @@ function TasksTab() {
   const [assigneeFilter, setAssigneeFilter] = useState(() => new Set());
   const [contractorFilter, setContractorFilter] = useState(() => new Set());
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Sort + paginate. Default sort matches backend: earliest scheduled first.
+  // Click a sortable header to toggle direction.
+  const [sortKey, setSortKey] = useState('date'); // 'date' | 'location'
+  const [sortDir, setSortDir] = useState('asc');  // 'asc' | 'desc'
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -1023,6 +1108,30 @@ function TasksTab() {
     return true;
   }), [tasks, statusFilter, categoryFilter, priorityFilter, locationFilter, assigneeFilter, contractorFilter, searchQuery]);
 
+  const sortedTasks = useMemo(() => {
+    const arr = [...filteredTasks];
+    const cmp = (a, b) => {
+      if (sortKey === 'location') {
+        const av = getLocationKey(a);
+        const bv = getLocationKey(b);
+        return av.localeCompare(bv, 'en-NZ', { numeric: true });
+      }
+      // date
+      const av = new Date(a.scheduled_start_date || a.scheduled_date || 0).getTime() || 0;
+      const bv = new Date(b.scheduled_start_date || b.scheduled_date || 0).getTime() || 0;
+      return av - bv;
+    };
+    arr.sort((a, b) => (sortDir === 'asc' ? cmp(a, b) : -cmp(a, b)));
+    return arr;
+  }, [filteredTasks, sortKey, sortDir]);
+
+  // Reset to page 1 whenever filters / sort / search change the visible set.
+  useEffect(() => { setPage(1); }, [searchQuery, statusFilter, categoryFilter, priorityFilter, locationFilter, assigneeFilter, contractorFilter, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedTasks.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedTasks = sortedTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   const totalActiveFilters =
     statusFilter.size + categoryFilter.size + priorityFilter.size + locationFilter.size + assigneeFilter.size + contractorFilter.size;
 
@@ -1052,13 +1161,12 @@ function TasksTab() {
   if (loading) return <div className="od-loading">Loading tasks...</div>;
   if (error) return <div className="od-error">{error}</div>;
 
+  const sortIndicator = (key) => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+
   return (
     <div>
       <div className="od-tab-header">
-        <h2>Tasks ({filteredTasks.length})</h2>
-        <button className="btn-primary" onClick={() => navigate('/tasks/new')}>
-          <Plus size={14} /> New Task
-        </button>
+        <h2>Tasks ({sortedTasks.length})</h2>
       </div>
 
       <TaskFilters
@@ -1073,15 +1181,15 @@ function TasksTab() {
         totalActive={totalActiveFilters} onClear={clearAllFilters}
       />
 
-      {filteredTasks.length > 0 ? (
+      {sortedTasks.length > 0 ? (
         <div className="od-table-wrap">
           <table className="od-table od-task-table">
             <thead>
               <tr>
                 <th>Task</th>
                 <th>Category</th>
-                <th>Location</th>
-                <th>Schedule</th>
+                <th className="od-th-sortable" onClick={() => toggleSort('location')}>Location{sortIndicator('location')}</th>
+                <th className="od-th-sortable" onClick={() => toggleSort('date')}>Schedule{sortIndicator('date')}</th>
                 <th className="center">Priority</th>
                 <th>Assignees</th>
                 <th>Status</th>
@@ -1089,7 +1197,7 @@ function TasksTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredTasks.map(t => (
+              {pagedTasks.map(t => (
                 <tr key={t.id} className="od-clickable-row" onClick={() => navigate(`/tasks/${t.id}`)}>
                   <td className="bold">{t.title || `Task #${t.id}`}</td>
                   <td><span className="od-category-tag">{(t.task_category || '').replace(/_/g,' ') || '—'}</span></td>
@@ -1111,6 +1219,29 @@ function TasksTab() {
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="od-pagination">
+              <button
+                type="button"
+                className="od-btn od-btn--ghost"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                ← Prev
+              </button>
+              <span className="od-pagination-info">
+                Page {currentPage} of {totalPages} · {sortedTasks.length} task{sortedTasks.length === 1 ? '' : 's'}
+              </span>
+              <button
+                type="button"
+                className="od-btn od-btn--ghost"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="od-empty">

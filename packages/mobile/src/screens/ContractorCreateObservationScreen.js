@@ -1,31 +1,25 @@
-// screens/CreateContractorAssignmentScreen.js — Contractor self-logs work via
-// the Task FAB. Creates a ContractorAssignment (no Task row) — appears in the
-// Tasks tab via /me/assignments.
+// screens/ContractorCreateObservationScreen.js — Contractor one-shot ad-hoc
+// observation. Single page form: company/property/block scope (pre-filled
+// from active check-in), title, notes, GPS, photos. Backend creates a hidden
+// ObservationRun + single Spot under a per-company ad-hoc template.
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
-import { contractorService } from '../api/services';
-import { FilledInput, useToast } from '../components';
+import { contractorService, fileService } from '../api/services';
+import { FilledInput, PhotoGrid, useToast } from '../components';
+import useImageCapture from '../hooks/useImageCapture';
 import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
-const PRIORITIES = [
-  { value: 'low',    label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high',   label: 'High' },
-  { value: 'urgent', label: 'Urgent' },
-];
-
-const formatDate = (d) =>
-  d ? d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Today (in progress)';
-
-export default function CreateContractorAssignmentScreen({ navigation }) {
+export default function ContractorCreateObservationScreen({ navigation }) {
   const toast = useToast();
   const checkIn = useActiveCheckIn();
+  const imageCapture = useImageCapture('observation_spot', null);
+
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(null);
   const [properties, setProperties] = useState([]);
@@ -35,26 +29,21 @@ export default function CreateContractorAssignmentScreen({ navigation }) {
 
   const [propertiesLoading, setPropertiesLoading] = useState(false);
   const [blocksLoading, setBlocksLoading] = useState(false);
-  // One-shot: only pre-fill scope on the first load. Without this gate, every
-  // useFocusEffect-driven check-in refresh would clobber the user's manual
-  // override.
+  // One-shot pre-fill so manual overrides survive focus refreshes.
   const [didPrefill, setDidPrefill] = useState(false);
 
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState('medium');
-  const [estimatedHours, setEstimatedHours] = useState('');
-  const [scheduledDate, setScheduledDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [coords, setCoords] = useState(null); // [lng, lat]
+  const [gpsLoading, setGpsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    navigation.setOptions({ title: 'Log work' });
+    navigation.setOptions({ title: 'Log observation' });
     contractorService.listMyCompanies()
       .then(data => {
         const list = Array.isArray(data) ? data : [];
         setCompanies(list);
-        // Prefer the active check-in's company over auto-defaulting to a sole
-        // relationship — the contractor is on site somewhere specific.
         if (checkIn.companyId && list.some(c => c.id === checkIn.companyId)) {
           setCompanyId(checkIn.companyId);
         } else if (list.length === 1) {
@@ -75,8 +64,6 @@ export default function CreateContractorAssignmentScreen({ navigation }) {
       .then(data => {
         const list = Array.isArray(data) ? data : [];
         setProperties(list);
-        // Pre-fill property from check-in when we haven't yet, and the check-in
-        // is for the company we're now creating against.
         if (
           !didPrefill
           && checkIn.companyId === companyId
@@ -104,40 +91,55 @@ export default function CreateContractorAssignmentScreen({ navigation }) {
       .finally(() => setBlocksLoading(false));
   }, [propertyId, toast]);
 
-  const onDateChange = (_, selected) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selected) setScheduledDate(selected);
+  const captureGps = async () => {
+    setGpsLoading(true);
+    try {
+      const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
+      if (permStatus !== 'granted') {
+        toast.show('Location permission denied', 'error');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setCoords([pos.coords.longitude, pos.coords.latitude]);
+      toast.show('GPS captured', 'success');
+    } catch {
+      toast.show('Could not get GPS', 'error');
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   const submit = async () => {
-    if (companyId == null) {
-      toast.show('Pick a company first', 'error');
-      return;
-    }
-    if (!description.trim()) {
-      toast.show('Describe the work', 'error');
-      return;
-    }
-    let hours = null;
-    if (estimatedHours.trim()) {
-      const n = Number(estimatedHours.replace(/,/g, ''));
-      if (isNaN(n) || n < 0) {
-        toast.show('Hours must be a positive number', 'error');
-        return;
-      }
-      hours = n;
-    }
+    if (companyId == null) return toast.show('Pick a company', 'error');
+    if (!title.trim()) return toast.show('Add a title', 'error');
+
     setSubmitting(true);
     try {
-      await contractorService.createMyAssignment({
+      const created = await contractorService.createMyObservation({
         company_id: companyId,
-        work_description: description.trim(),
+        property_id: propertyId,
         block_id: blockId,
-        priority,
-        estimated_hours: hours,
-        scheduled_start: scheduledDate ? scheduledDate.toISOString() : null,
+        title: title.trim(),
+        notes: notes.trim() || null,
+        latitude: coords ? coords[1] : null,
+        longitude: coords ? coords[0] : null,
+        observed_at: new Date().toISOString(),
       });
-      toast.show('Work logged', 'success');
+
+      // Photos upload against the spot row id (not the run). Failures are
+      // non-fatal — the observation itself is saved; photos can be re-attached
+      // by reopening the spot if it surfaces in the UI.
+      if (imageCapture.images.length > 0 && created?.spot_id) {
+        for (const uri of imageCapture.images) {
+          try {
+            await fileService.upload('observation_spot', created.spot_id, uri, 'photo');
+          } catch (err) {
+            console.log('Photo upload failed:', err.message);
+          }
+        }
+      }
+
+      toast.show('Observation logged', 'success');
       navigation.goBack();
     } catch (err) {
       const detail = err.response?.data?.detail;
@@ -233,62 +235,42 @@ export default function CreateContractorAssignmentScreen({ navigation }) {
         )}
 
         <FilledInput
-          label="Work description"
+          label="Title"
           required
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          numberOfLines={4}
-          placeholder="What are you doing / did you do?"
+          value={title}
+          onChangeText={setTitle}
+          placeholder="What did you observe?"
           style={{ marginTop: spacing.lg }}
         />
 
-        <Text style={styles.label}>Priority</Text>
-        <View style={styles.pillRow}>
-          {PRIORITIES.map(p => (
-            <TouchableOpacity
-              key={p.value}
-              style={[styles.pill, priority === p.value && styles.pillActive]}
-              onPress={() => setPriority(p.value)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pillText, priority === p.value && styles.pillTextActive]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         <FilledInput
-          label="Estimated hours"
-          value={estimatedHours}
-          onChangeText={setEstimatedHours}
-          keyboardType="numeric"
-          placeholder="e.g. 3.5"
-          style={{ marginTop: spacing.base }}
+          label="Notes"
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          numberOfLines={4}
+          placeholder="Details, context, what you saw…"
         />
 
-        <Text style={styles.label}>Scheduled date</Text>
-        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
-          <Feather name="calendar" size={16} color={colors.primary} />
-          <Text style={styles.dateText}>{formatDate(scheduledDate)}</Text>
-          {scheduledDate && (
-            <TouchableOpacity onPress={() => setScheduledDate(null)} hitSlop={8}>
-              <Feather name="x" size={14} color={colors.textMuted} />
+        <TouchableOpacity style={styles.gpsBtn} onPress={captureGps} disabled={gpsLoading} activeOpacity={0.7}>
+          <Feather name="map-pin" size={14} color={coords ? colors.success : colors.primary} />
+          <Text style={[styles.gpsText, coords && { color: colors.success }]}>
+            {coords ? 'GPS captured' : (gpsLoading ? 'Locating…' : 'Capture GPS')}
+          </Text>
+          {coords && (
+            <TouchableOpacity onPress={() => setCoords(null)} hitSlop={8}>
+              <Feather name="x" size={12} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </TouchableOpacity>
-        <Text style={styles.helpText}>Leave blank to mark the work as in progress now.</Text>
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={scheduledDate || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={onDateChange}
-            minimumDate={new Date(2020, 0, 1)}
-          />
-        )}
+        <Text style={[styles.label, { marginTop: spacing.lg }]}>Photos</Text>
+        <PhotoGrid
+          photos={imageCapture.images}
+          maxPhotos={3}
+          onAddPhoto={imageCapture.showPicker}
+          onRemovePhoto={imageCapture.removeImage}
+        />
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={styles.barWrap}>
@@ -319,7 +301,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceWarm },
   label: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6, marginTop: spacing.sm },
   hintText: { fontSize: fontSize.xs, color: colors.textMuted, paddingVertical: spacing.sm },
-  helpText: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
 
   emptyHint: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -339,14 +320,15 @@ const styles = StyleSheet.create({
   pillText: { fontSize: fontSize.sm, color: colors.text, fontWeight: '500' },
   pillTextActive: { color: colors.white, fontWeight: '700' },
 
-  dateBtn: {
+  gpsBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingVertical: 12, paddingHorizontal: 12,
+    paddingVertical: 10, paddingHorizontal: 12,
     backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border,
     borderRadius: radius.md,
+    marginTop: spacing.sm,
   },
-  dateText: { flex: 1, fontSize: fontSize.base, color: colors.text },
+  gpsText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: '600', flex: 1 },
 
   barWrap: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   bar: { flexDirection: 'row', gap: spacing.sm, padding: spacing.base },

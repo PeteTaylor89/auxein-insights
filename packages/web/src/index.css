@@ -1763,8 +1763,67 @@ button.stat-card,
   }
 }
 
+/* Change Password — centered tight card inside AppLayout */
+.change-password-page {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-base);
+}
 
+.change-password-page .login-form-wrapper {
+  max-width: 440px;
+}
 
+.change-password-page .login-brand {
+  margin-bottom: var(--space-lg);
+}
+
+.change-password-page .login-brand h1 {
+  margin: 0;
+  font-size: 20pt;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.cpw-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.cpw-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.cpw-cancel {
+  flex: 0 0 auto;
+  padding: 13px 20px;
+  background: var(--color-white);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.cpw-cancel:hover:not(:disabled) {
+  background: var(--color-surface-alt, #f4ede0);
+}
+
+.cpw-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cpw-submit {
+  flex: 1 1 auto;
+}
 
 
 

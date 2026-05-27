@@ -183,29 +183,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateUserProfile = async (updatedData) => {
-    try {
-      setLoading(true);
-      setError('');
-
-      // Call your API to update user profile
-      const updatedUser = await authService.updateProfile(updatedData);
-      setUser(updatedUser);
-
-      return updatedUser;
-    } catch (err) {
-      console.error('Profile update error:', err);
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError('Failed to update profile');
-      }
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Re-fetch /auth/me and replace the global user. Used after Profile.jsx
   // mutations (PATCH /auth/me, avatar upload/delete) so the displayed user
   // — and anything else reading from useAuth — stays in sync without a
@@ -236,7 +213,6 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     refreshAuthToken,
-    updateUserProfile,
     refreshProfile,
     clearError: () => setError(''),
 

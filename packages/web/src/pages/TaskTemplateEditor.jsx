@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, X, Plus, Trash2, Info, Settings,
-  Wrench, Package, Palette
+  Wrench, Package
 } from 'lucide-react';
 import { tasksService, assetService } from '@vineyard/shared';
 import './TaskTemplateEditor.css';
@@ -225,25 +225,6 @@ function TaskTemplateEditor() {
             <div className="te-field">
               <label className="te-field-label">Description</label>
               <textarea className="te-textarea" rows={4} value={formData.description} onChange={(e) => set('description', e.target.value)} placeholder="Describe this task template..." />
-            </div>
-          </div>
-
-          {/* Display */}
-          <div className="te-section">
-            <div className="te-section-header"><Palette size={18} /><h3>Display Settings</h3></div>
-
-            <div className="te-field">
-              <label className="te-field-label">Icon (Emoji)</label>
-              <input className="te-input" value={formData.icon} onChange={(e) => set('icon', e.target.value)} placeholder="e.g. leaf, tractor" maxLength={30} />
-              <p className="te-hint">A short label or emoji to represent this template</p>
-            </div>
-
-            <div className="te-field">
-              <label className="te-field-label">Colour</label>
-              <div className="te-color-row">
-                <input type="color" className="te-color-swatch" value={formData.color} onChange={(e) => set('color', e.target.value)} />
-                <input className="te-input" value={formData.color} onChange={(e) => set('color', e.target.value)} placeholder="#5B6830" style={{ fontFamily: 'monospace' }} />
-              </div>
             </div>
           </div>
 

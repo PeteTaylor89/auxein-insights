@@ -136,7 +136,7 @@ function Home() {
               <div className="stat-value">{renderStatValue(stats?.block_count)}</div>
               <div className="stat-label">Vineyard Blocks</div>
             </Link>
-            <Link to="/observations" className="stat-card">
+            <Link to="/observations?tab=runs" className="stat-card">
               <div className="stat-value">{renderStatValue(stats?.observation_count)}</div>
               <div className="stat-label">Observations</div>
             </Link>
@@ -144,10 +144,10 @@ function Home() {
               <div className="stat-value">{renderStatValue(stats?.task_count)}</div>
               <div className="stat-label">Tasks</div>
             </Link>
-            <div className="stat-card stat-card--static">
+            <Link to="/company-admin" className="stat-card">
               <div className="stat-value">{renderStatValue(stats?.user_count)}</div>
               <div className="stat-label">Team Members</div>
-            </div>
+            </Link>
           </div>
         </div>
 

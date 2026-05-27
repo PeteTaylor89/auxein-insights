@@ -31,6 +31,10 @@ class Contractor(Base):
     verification_token = Column(String(255), nullable=True)
     verification_sent_at = Column(DateTime(timezone=True), nullable=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Password reset
+    reset_token = Column(String(255), nullable=True)
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
     
     # Business details
     contractor_type = Column(String(50), nullable=False, default="individual")  # individual, company, partnership

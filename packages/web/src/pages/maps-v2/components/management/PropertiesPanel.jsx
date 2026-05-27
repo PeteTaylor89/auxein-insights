@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { MapPinned, ChevronDown, ChevronRight, Navigation, Pentagon, Pencil } from 'lucide-react';
 
 export default function PropertiesPanel({ properties, blocksData, onFlyTo, onDrawBoundary, onEditBoundary }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [expandedPropertyId, setExpandedPropertyId] = useState(null);
 
   // Count blocks per property + unassigned

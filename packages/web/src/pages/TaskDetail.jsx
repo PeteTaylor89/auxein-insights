@@ -232,180 +232,183 @@ function TaskDetail() {
 
   return (
     <div className="page-container">
-      <div className="vp-page">
-        {/* Back + title + status + edit */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
-          <button className="btn-ghost" onClick={() => navigate(-1)} style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
-            <ArrowLeft size={16} />
+      <div className="vp-page td-page">
+        {/* Toolbar — back left, actions right */}
+        <div className="td-toolbar">
+          <button className="td-back" onClick={() => navigate(-1)}>
+            <ArrowLeft size={14} /> Back
           </button>
-          <h1 className="section-title" style={{ flex: 1, margin: 0 }}>{task.title || `Task #${task.id}`}</h1>
-          <TaskStatusBadge status={task.status} size="lg" />
-          {canEdit && !isFinished && (
-            <button className="btn-ghost" onClick={openEdit} style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
-              <Edit2 size={14} /> Edit
-            </button>
-          )}
-        </div>
-
-        {/* Task number subtitle */}
-        {task.task_number && (
-          <div style={{ marginTop: '-8px', marginBottom: 'var(--space-md)', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
-            {task.task_number}
-          </div>
-        )}
-
-        {/* Overview card */}
-        <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
-          <h3 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Overview</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-md)' }}>
-            {task.task_category && (
-              <InfoItem label="Category">{task.task_category.replace(/_/g, ' ')}</InfoItem>
-            )}
-            {task.priority && (
-              <InfoItem label="Priority">
-                <span style={{ color: task.priority === 'high' || task.priority === 'urgent' ? 'var(--color-danger)' : 'inherit', fontWeight: 500 }}>
-                  {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                </span>
-              </InfoItem>
-            )}
-            <InfoItem label={<><Calendar size={12} style={{ verticalAlign: -2 }} /> Scheduled</>}>
-              {task.scheduled_start_date
-                ? `${fmtDate(task.scheduled_start_date)}${task.scheduled_end_date ? ` — ${fmtDate(task.scheduled_end_date)}` : ''}`
-                : '—'}
-            </InfoItem>
-            {(task.block_name || task.block?.block_name || task.block_id) && (
-              <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Block</>}>
-                {task.block_name || task.block?.block_name || `Block #${task.block_id}`}
-              </InfoItem>
-            )}
-            {(task.spatial_area?.name || task.spatial_area_name) && (
-              <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Spatial area</>}>
-                {task.spatial_area?.name || task.spatial_area_name}
-              </InfoItem>
-            )}
-            <InfoItem label={<><Clock size={12} style={{ verticalAlign: -2 }} /> Hours</>}>
-              {task.actual_hours > 0 ? `${task.actual_hours}h` : '—'}
-              {task.estimated_hours ? ` / ${task.estimated_hours}h est.` : ''}
-            </InfoItem>
-            {task.requires_gps_tracking && (
-              <InfoItem label={<><Navigation size={12} style={{ verticalAlign: -2 }} /> GPS tracking</>}>
-                Enabled
-              </InfoItem>
-            )}
-            {Array.isArray(task.tags) && task.tags.length > 0 && (
-              <InfoItem label={<><Tag size={12} style={{ verticalAlign: -2 }} /> Tags</>}>
-                <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
-                  {task.tags.map(t => (
-                    <span key={t} style={{ padding: '1px 8px', background: 'var(--color-surface-warm)', borderRadius: 999, fontSize: 'var(--font-size-xs)' }}>{t}</span>
-                  ))}
-                </span>
-              </InfoItem>
-            )}
-          </div>
-          {task.location_notes && (
-            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>Location notes</div>
-              <div style={{ fontSize: 'var(--font-size-sm)' }}>{task.location_notes}</div>
-            </div>
-          )}
-          <RiskHazardChips
-            blockIds={task.block_id ? [task.block_id] : []}
-            spatialAreaId={task.spatial_area_id || null}
-            propertyId={task.property_id || task.block?.property_id || null}
-          />
-        </div>
-
-        {/* Assignments card */}
-        <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
-          <h3 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Assignments</h3>
-          <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-xs)' }}>
-                <Users size={12} style={{ verticalAlign: -2 }} /> Users
-              </div>
-              {Array.isArray(task.assignee_names) && task.assignee_names.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {task.assignee_names.map((n, i) => <div key={i}>{n}</div>)}
-                </div>
-              ) : (
-                <div style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>None</div>
-              )}
-            </div>
-            <div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-xs)' }}>
-                <Wrench size={12} style={{ verticalAlign: -2 }} /> Contractors
-              </div>
-              {Array.isArray(task.contractor_names) && task.contractor_names.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {task.contractor_names.map((n, i) => <div key={i}>{n}</div>)}
-                </div>
-              ) : (
-                <div style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>None</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Description */}
-        {task.description && (
-          <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
-            <h3 style={{ margin: '0 0 var(--space-sm)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>
-              <FileText size={14} style={{ verticalAlign: -2 }} /> Description
-            </h3>
-            <div style={{ fontSize: 'var(--font-size-sm)', whiteSpace: 'pre-wrap' }}>{task.description}</div>
-          </div>
-        )}
-
-        {/* Audit trail */}
-        <div className="vp-card" style={{ marginBottom: 'var(--space-base)' }}>
-          <h3 style={{ margin: '0 0 var(--space-md)', fontSize: 'var(--font-size-base)', color: 'var(--color-primary)' }}>Activity</h3>
-          <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <InfoItem label="Created">
-              {fmtDateTime(task.created_at) || '—'}
-              {task.creator && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>by {friendlyName(task.creator)}</div>}
-            </InfoItem>
-            {task.actual_start_time && (
-              <InfoItem label="Started">{fmtDateTime(task.actual_start_time)}</InfoItem>
-            )}
-            {task.completed_at && (
-              <InfoItem label="Completed">
-                {fmtDateTime(task.completed_at)}
-                {task.completer && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>by {friendlyName(task.completer)}</div>}
-              </InfoItem>
-            )}
-            {task.cancelled_at && (
-              <InfoItem label="Cancelled">{fmtDateTime(task.cancelled_at)}</InfoItem>
-            )}
-          </div>
-          {task.completion_notes && (
-            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>Completion notes</div>
-              <div style={{ fontSize: 'var(--font-size-sm)', whiteSpace: 'pre-wrap' }}>{task.completion_notes}</div>
-            </div>
-          )}
-          {task.cancellation_reason && (
-            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>Cancellation reason</div>
-              <div style={{ fontSize: 'var(--font-size-sm)' }}>{task.cancellation_reason}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        {canEdit && !isFinished && (
-          <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-base)' }}>
-            {canStart && (
-              <button className="btn-primary" onClick={handleStartClick} disabled={actionLoading}>
-                <Play size={14} /> Start Task
+          <div className="td-toolbar-actions">
+            {canEdit && !isFinished && (
+              <button className="td-tool-btn" onClick={openEdit}>
+                <Edit2 size={14} /> Edit
               </button>
             )}
-            {canComplete && (
-              <button className="btn-accent" onClick={handleCompleteClick} disabled={actionLoading}>
-                <CheckCircle size={14} /> Complete Task
+            {canEdit && !isFinished && canStart && (
+              <button className="td-tool-btn td-tool-btn--primary" onClick={handleStartClick} disabled={actionLoading}>
+                <Play size={14} /> Start
+              </button>
+            )}
+            {canEdit && !isFinished && canComplete && (
+              <button className="td-tool-btn td-tool-btn--accent" onClick={handleCompleteClick} disabled={actionLoading}>
+                <CheckCircle size={14} /> Complete
               </button>
             )}
           </div>
-        )}
+        </div>
+
+        {/* Hero — title + task number + status */}
+        <div className="td-hero">
+          <div className="td-hero-main">
+            <h1 className="td-hero-title">{task.title || `Task #${task.id}`}</h1>
+            {task.task_number && (
+              <div className="td-hero-subtitle">{task.task_number}</div>
+            )}
+          </div>
+          <div className="td-hero-status">
+            <TaskStatusBadge status={task.status} size="lg" />
+          </div>
+        </div>
+
+        {/* Hazards strip — full width above the two-column body when present */}
+        <RiskHazardChips
+          blockIds={task.block_id ? [task.block_id] : []}
+          spatialAreaId={task.spatial_area_id || null}
+          propertyId={task.property_id || task.block?.property_id || null}
+        />
+
+        {/* Two-column body */}
+        <div className="td-grid">
+          {/* Left column — Overview + Description */}
+          <div className="td-col td-col--main">
+            <div className="vp-card td-card">
+              <h3 className="td-card-title">Overview</h3>
+              <div className="td-overview-grid">
+                {task.task_category && (
+                  <InfoItem label="Category">
+                    <span className="td-pill td-pill--sand">{task.task_category.replace(/_/g, ' ')}</span>
+                  </InfoItem>
+                )}
+                {task.priority && (
+                  <InfoItem label="Priority">
+                    <span className={`td-pill td-pill--priority-${String(task.priority).toLowerCase()}`}>
+                      {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                    </span>
+                  </InfoItem>
+                )}
+                <InfoItem label={<><Calendar size={12} style={{ verticalAlign: -2 }} /> Scheduled</>}>
+                  {task.scheduled_start_date
+                    ? `${fmtDate(task.scheduled_start_date)}${task.scheduled_end_date && task.scheduled_end_date !== task.scheduled_start_date ? ` — ${fmtDate(task.scheduled_end_date)}` : ''}`
+                    : '—'}
+                </InfoItem>
+                {(task.block_name || task.block?.block_name || task.block_id) && (
+                  <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Block</>}>
+                    <span className="td-pill td-pill--sand">{task.block_name || task.block?.block_name || `Block #${task.block_id}`}</span>
+                  </InfoItem>
+                )}
+                {(task.spatial_area?.name || task.spatial_area_name) && (
+                  <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Spatial area</>}>
+                    <span className="td-pill td-pill--sand">{task.spatial_area?.name || task.spatial_area_name}</span>
+                  </InfoItem>
+                )}
+                <InfoItem label={<><Clock size={12} style={{ verticalAlign: -2 }} /> Hours</>}>
+                  {task.actual_hours > 0 ? `${task.actual_hours}h` : '—'}
+                  {task.estimated_hours ? ` / ${task.estimated_hours}h est.` : ''}
+                </InfoItem>
+                {task.requires_gps_tracking && (
+                  <InfoItem label={<><Navigation size={12} style={{ verticalAlign: -2 }} /> GPS tracking</>}>
+                    <span className="td-pill td-pill--olive">Enabled</span>
+                  </InfoItem>
+                )}
+                {Array.isArray(task.tags) && task.tags.length > 0 && (
+                  <InfoItem label={<><Tag size={12} style={{ verticalAlign: -2 }} /> Tags</>}>
+                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
+                      {task.tags.map(t => (
+                        <span key={t} className="td-pill td-pill--sand">{t}</span>
+                      ))}
+                    </span>
+                  </InfoItem>
+                )}
+              </div>
+              {task.location_notes && (
+                <div className="td-card-footer">
+                  <div className="td-footer-label">Location notes</div>
+                  <div className="td-footer-body">{task.location_notes}</div>
+                </div>
+              )}
+            </div>
+
+            {task.description && (
+              <div className="vp-card td-card">
+                <h3 className="td-card-title">
+                  <FileText size={14} style={{ verticalAlign: -2 }} /> Description
+                </h3>
+                <div className="td-description">{task.description}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Right column — Assignments + Activity */}
+          <div className="td-col td-col--side">
+            <div className="vp-card td-card">
+              <h3 className="td-card-title">Assignments</h3>
+              <div className="td-assignment-section">
+                <div className="td-assignment-label"><Users size={12} style={{ verticalAlign: -2 }} /> Users</div>
+                {Array.isArray(task.assignee_names) && task.assignee_names.length > 0 ? (
+                  <div className="td-assignment-list">
+                    {task.assignee_names.map((n, i) => <div key={i}>{n}</div>)}
+                  </div>
+                ) : (
+                  <div className="td-assignment-empty">None</div>
+                )}
+              </div>
+              <div className="td-assignment-section">
+                <div className="td-assignment-label"><Wrench size={12} style={{ verticalAlign: -2 }} /> Contractors</div>
+                {Array.isArray(task.contractor_names) && task.contractor_names.length > 0 ? (
+                  <div className="td-assignment-list">
+                    {task.contractor_names.map((n, i) => <div key={i}>{n}</div>)}
+                  </div>
+                ) : (
+                  <div className="td-assignment-empty">None</div>
+                )}
+              </div>
+            </div>
+
+            <div className="vp-card td-card">
+              <h3 className="td-card-title">Activity</h3>
+              <div className="td-activity-grid">
+                <InfoItem label="Created">
+                  {fmtDateTime(task.created_at) || '—'}
+                  {task.creator && <div className="td-meta-sub">by {friendlyName(task.creator)}</div>}
+                </InfoItem>
+                {task.actual_start_time && (
+                  <InfoItem label="Started">{fmtDateTime(task.actual_start_time)}</InfoItem>
+                )}
+                {task.completed_at && (
+                  <InfoItem label="Completed">
+                    {fmtDateTime(task.completed_at)}
+                    {task.completer && <div className="td-meta-sub">by {friendlyName(task.completer)}</div>}
+                  </InfoItem>
+                )}
+                {task.cancelled_at && (
+                  <InfoItem label="Cancelled">{fmtDateTime(task.cancelled_at)}</InfoItem>
+                )}
+              </div>
+              {task.completion_notes && (
+                <div className="td-card-footer">
+                  <div className="td-footer-label">Completion notes</div>
+                  <div className="td-footer-body">{task.completion_notes}</div>
+                </div>
+              )}
+              {task.cancellation_reason && (
+                <div className="td-card-footer">
+                  <div className="td-footer-label">Cancellation reason</div>
+                  <div className="td-footer-body">{task.cancellation_reason}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Row Progress Panel */}
         {task.block_id && (

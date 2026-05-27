@@ -45,17 +45,35 @@ def _geometry_to_geojson(geom) -> Optional[Dict[str, Any]]:
 @router.get("/", response_model=List[PropertyOut])
 def list_properties(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    actor=Depends(get_current_user_or_contractor),
 ):
-    """List properties visible to the current user."""
-    if not current_user.has_permission("properties", "read"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    """List properties visible to the current actor.
 
-    visible_ids = get_visible_property_ids(db, current_user)
-    if not visible_ids:
-        return []
+    Company users: properties scoped via UserPropertyScope (same as /geojson).
+    Contractors: properties owned by companies with an active relationship.
+    """
+    is_contractor = isinstance(actor, Contractor)
 
-    properties = db.query(Property).filter(Property.id.in_(visible_ids)).all()
+    if is_contractor:
+        active_company_ids = [
+            r.company_id for r in db.query(ContractorRelationship).filter(
+                ContractorRelationship.contractor_id == actor.id,
+                ContractorRelationship.status == "active",
+            ).all()
+        ]
+        if not active_company_ids:
+            return []
+        properties = db.query(Property).filter(
+            Property.owner_company_id.in_(active_company_ids)
+        ).all()
+    else:
+        current_user = actor
+        if not current_user.has_permission("properties", "read"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+        visible_ids = get_visible_property_ids(db, current_user)
+        if not visible_ids:
+            return []
+        properties = db.query(Property).filter(Property.id.in_(visible_ids)).all()
 
     # Enrich with active managing company id + boundary GeoJSON
     result = []

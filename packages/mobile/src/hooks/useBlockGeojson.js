@@ -6,12 +6,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { blocksService } from '../api/services';
 
-export default function useBlockGeojson(propertyId = null) {
+export default function useBlockGeojson(propertyId = null, { enabled = true } = {}) {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setData({ type: 'FeatureCollection', features: [] });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -27,7 +32,7 @@ export default function useBlockGeojson(propertyId = null) {
     } finally {
       setLoading(false);
     }
-  }, [propertyId]);
+  }, [propertyId, enabled]);
 
   useEffect(() => { load(); }, [load]);
 

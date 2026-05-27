@@ -1,7 +1,7 @@
 # Contractor V1 — Web + Mobile + Geofencing
 
 **Created:** 2026-05-17
-**Status:** Sprint 1 DONE 2026-05-17. Sprint 2 DONE 2026-05-18. Sprint 3.4 (CheckInScreen) DONE 2026-05-18. Sprint 2.6 (self check-in NULL fix + unified Who's on site) DONE 2026-05-18. Sprint 3.3 + 3.5–3.7 (geofencing) PENDING — convenience features, not V1 blocker.
+**Status:** Sprint 1 DONE 2026-05-17. Sprint 2 DONE 2026-05-18. Sprint 3.4 (CheckInScreen) DONE 2026-05-18. Sprint 2.6 (self check-in NULL fix + unified Who's on site) DONE 2026-05-18. Sprint 4 (mobile loop closure) DONE 2026-05-27 — contractor task lifecycle endpoints, geojson contractor access, ContractorMovement.property_id, MapScreen scoped to active check-in, ad-hoc observation FAB. Sprint 3.7 effectively done via active-check-in scoping rather than geofence. Sprint 3.5/3.6 (geofence auto-prompt) still PENDING — convenience features, not V1 blocker. **2026-05-27 batch UNTESTED — full field test pending.**
 **Supersedes:** [CONTRACTOR_MOBILE_PLAN.md](./CONTRACTOR_MOBILE_PLAN.md) — that doc only covered mobile UI hiding; this one covers the full web + mobile + property-geofence stack.
 **Related:**
 - `GROW_COMMERCIAL_RELEASE_PLAN.md` Phase 3 (Relationships card) — this plan executes it
@@ -187,13 +187,26 @@ After Sprint 2: contractor logs in, sees a tailored shell, can edit profile + in
 | 3.4 | ~~Mobile check-in screen wired to `/contractor-movements`~~ — PULLED FORWARD into Sprint 2.5b (done 2026-05-18). Manual check-in / check-out works. Geofence auto-prompt still pending. | ✅ | `CheckInScreen.js`, `ContractorHomeScreen.js` |
 | 3.5 | Geofence detection on GPS update — derive `currentProperty`, surface chip on Map + Home | 1 d | `ContractorHomeScreen.js`, `MapScreen.js`, new `useGeofence.js` |
 | 3.6 | Auto-prompt sign-in when entering a property polygon (rate-limited, dismissable) | 0.5 d | `useGeofence.js` + toast |
-| 3.7 | Property-aware map: when `currentProperty` set, filter blocks/risks/tasks to that property | 0.5 d | `MapScreen.js` — re-use the existing property scoping pattern |
+| 3.7 | ~~Property-aware map: when `currentProperty` set, filter blocks/risks/tasks to that property~~ — REPLACED 2026-05-27. Active-check-in drives the same scoping. `MapScreen` short-circuits to a sign-in CTA when contractor isn't checked in; otherwise locks `selectedPropertyId` to the check-in's property + filters all layer hooks. | ✅ | `MapScreen.js`, hooks `useBlockGeojson` / `useAssetGeojson` / `useRiskGeojson` / `useTasksByBlock` (gained `enabled` flag) |
 
 After Sprint 3: contractor opens the app at the gate of Smith Vineyard, gets prompted to sign in, sees only Smith's data, signs out at end of day. Currently (post Sprint 2.5b) they still need to manually open the Sign in screen, but the lifecycle works end-to-end.
 
-### Deferred follow-ups (out of Sprint 2 + 3, separate phase)
-- **Quick observation create** (Observation FAB) — needs a new ad-hoc spot create flow. Currently a coming-soon toast.
-- **Property-aware Quick Observation** when the above lands — same scope-picker pattern as Task / Incident.
+### Sprint 4 — Mobile loop closure (DONE 2026-05-27, UNTESTED)
+**Goal: contractor can actually drive an assigned task to completion, see scoped map layers, and log ad-hoc observations.**
+
+| # | What | Status | Files |
+|---|---|---|---|
+| 4.1 | Backend contractor task lifecycle — `get_current_user_or_contractor` on GET task / equipment-check / consumables / start / complete / rows / rows progress / row complete / row skip / all GPS endpoints. `check_task_access_for_actor` gates contractor calls on active ContractorAssignment. `attribution_user_id` resolves the `task_gps_tracks.user_id` NOT NULL FK by falling back to task creator → first active company manager/admin. ContractorAssignment status mirrored alongside task transitions; `actual_hours_worked` lands on assignment instead of user Timesheet. | ✅ | `backend/api/v1/tasks.py` |
+| 4.2 | Backend geojson + property list contractor branches — `/blocks/geojson`, `/assets/geojson`, `/v1/properties/`, plus `/risk-management/risks/` (list) + `/risks/{id}` (detail). All scoped to active relationship companies + enforced `property_id` query. | ✅ | `backend/api/v1/{blocks,assets,properties,risk_management}.py` |
+| 4.3 | `ContractorMovement.property_id` migration + endpoint + response wiring — alembic `add_movement_property_fk` (chained off `add_calibration_specs`), `ContractorCheckIn` schema gains `property_id`, `contractor_check_in` validates against company, `/me/movements` + `/api/site/active` expose `property_id` + `property_name`. | ✅ | `alembic/versions/add_movement_property_fk.py`, `backend/db/models/contractor_movement.py`, `backend/schemas/contractor.py`, `backend/api/v1/{contractor_management,site}.py` |
+| 4.4 | Mobile active check-in context + scope pre-fill — new `useActiveCheckIn` hook (focus-refresh). `CheckInScreen` sends `property_id`; `CreateContractorAssignmentScreen` + `ContractorCreateIncidentScreen` pre-fill company/property from check-in with one-shot `didPrefill` gate. Home check-in card shows `company · property · purpose`. | ✅ | `packages/mobile/src/hooks/useActiveCheckIn.js` (new), `packages/mobile/src/screens/{CheckInScreen,CreateContractorAssignmentScreen,ContractorCreateIncidentScreen,ContractorHomeScreen}.js` |
+| 4.5 | MapScreen scoped to active check-in — empty state CTA when contractor not checked in; otherwise locked property + hidden picker. Layer hooks gained `enabled` flag. `useTasksByBlock` switches to `/me/assignments` for contractors. `useRiskGeojson` pushes `property_id` to backend filter. | ✅ | `packages/mobile/src/screens/MapScreen.js`, hooks `useBlockGeojson` / `useAssetGeojson` / `useRiskGeojson` / `useTasksByBlock` |
+| 4.6 | Contractor ad-hoc observation FAB — backend `POST /me/observations` with per-company `_get_or_create_adhoc_template`, mobile `ContractorCreateObservationScreen` (scope pre-fill + GPS + photo upload via `entity_type=observation_spot`). FAB toast replaced with navigation. | ✅ | `backend/api/v1/contractor_management.py`, `packages/mobile/src/api/services.js`, `packages/mobile/src/screens/{ContractorCreateObservationScreen,ContractorHomeScreen}.js`, `packages/mobile/src/navigation/AppNavigator.js` |
+
+### Deferred follow-ups
+- ~~**Quick observation create**~~ — done as Sprint 4.6 2026-05-27.
+- ~~**Property-aware Quick Observation**~~ — done as Sprint 4.6 (same scope pre-fill pattern).
+- **Geofence auto-prompt (3.5/3.6)** — still deferred. The Sprint 4 work makes manual check-in the gating UX; geofence is a future convenience.
 - **BUG-001 follow-up** — single-photo 404 on calibration download if it recurs.
 
 ---

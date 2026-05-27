@@ -14,6 +14,7 @@ from db.models.user import User
 from db.models.visitor import Visitor, VisitorVisit
 from db.models.contractor import Contractor
 from db.models.contractor_movement import ContractorMovement
+from db.models.property import Property
 
 
 router = APIRouter()
@@ -86,8 +87,9 @@ def list_on_site(
 
     # --- Contractors: active movements (no departure yet) ---
     movement_rows = (
-        db.query(ContractorMovement, Contractor)
+        db.query(ContractorMovement, Contractor, Property)
         .join(Contractor, Contractor.id == ContractorMovement.contractor_id)
+        .outerjoin(Property, Property.id == ContractorMovement.property_id)
         .filter(
             ContractorMovement.company_id == company_id,
             ContractorMovement.departure_datetime.is_(None),
@@ -96,7 +98,7 @@ def list_on_site(
         .all()
     )
 
-    for movement, contractor in movement_rows:
+    for movement, contractor, prop in movement_rows:
         items.append({
             'type': 'contractor',
             'id': movement.id,
@@ -111,6 +113,8 @@ def list_on_site(
             'biosecurity_risk_level': movement.biosecurity_risk_level,
             'equipment_cleaned': movement.equipment_cleaned,
             'self_checked_in': movement.checked_in_by is None,
+            'property_id': movement.property_id,
+            'property_name': prop.name if prop else None,
         })
 
     items.sort(key=lambda x: x.get('signed_in_at') or '', reverse=True)

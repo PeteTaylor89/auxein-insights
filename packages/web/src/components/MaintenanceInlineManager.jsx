@@ -10,6 +10,18 @@ import './asset-components.css';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
+// Lifted out of the parent component — defining it inline was creating a new
+// component reference on every render, causing React to unmount/remount the
+// inputs inside and dropping focus on every keypress.
+function FormSubSection({ title, children }) {
+  return (
+    <div className="ac-inline" style={{ padding: 'var(--space-md)', marginBottom: 0 }}>
+      <h5 style={{ margin: '0 0 var(--space-md) 0', fontSize: 'var(--font-size-base)', fontWeight: 600, color: 'var(--color-text-muted)' }}>{title}</h5>
+      {children}
+    </div>
+  );
+}
+
 export default function MaintenanceInlineManager({ assetId, inline = false }) {
   const [maintenance, setMaintenance] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -194,13 +206,6 @@ export default function MaintenanceInlineManager({ assetId, inline = false }) {
 
   const maintenanceTypes = assetService.helpers.getMaintenanceTypes();
   const maintenanceStatuses = assetService.helpers.getMaintenanceStatuses();
-
-  const FormSubSection = ({ title, children }) => (
-    <div className="ac-inline" style={{ padding: 'var(--space-md)', marginBottom: 0 }}>
-      <h5 style={{ margin: '0 0 var(--space-md) 0', fontSize: 'var(--font-size-base)', fontWeight: 600, color: 'var(--color-text-muted)' }}>{title}</h5>
-      {children}
-    </div>
-  );
 
   const content = (
     <div className={inline ? '' : 'ac-inline'}>

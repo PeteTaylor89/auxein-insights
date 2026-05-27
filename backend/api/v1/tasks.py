@@ -14,6 +14,7 @@ from db.models.task import Task, TaskStatus
 from db.models.task_assignment import TaskAssignment
 from db.models.contractor_assignment import ContractorAssignment
 from db.models.contractor import Contractor
+from db.models.contractor_relationship import ContractorRelationship
 from db.models.task_row import TaskRow
 from db.models.task_gps_track import TaskGPSTrack
 from db.models.user import User
@@ -59,7 +60,7 @@ from schemas.task_gps_track import (
 from services.notification_service import NotificationService
 from db.models.notification import NotificationType
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_current_user_or_contractor
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,69 @@ def check_task_access(db: Session, task_id: int, user: User) -> Task:
         verify_block_access(db, user, task.block_id)
 
     return task
+
+
+_CONTRACTOR_ACTIVE_ASSIGNMENT_STATUSES = ("assigned", "accepted", "in_progress", "paused")
+
+
+def check_task_access_for_actor(db: Session, task_id: int, actor) -> Task:
+    """Resolve task access for either a User or a Contractor.
+
+    User path: identical to check_task_access (company match + property scope).
+    Contractor path: contractor must have a ContractorAssignment for this task
+    in a non-terminal status. Plain relationship-to-company is NOT enough —
+    contractors only see tasks they're actually on the hook for.
+    """
+    if isinstance(actor, User):
+        return check_task_access(db, task_id, actor)
+
+    if isinstance(actor, Contractor):
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+        assignment = db.query(ContractorAssignment).filter(
+            ContractorAssignment.task_id == task_id,
+            ContractorAssignment.contractor_id == actor.id,
+            ContractorAssignment.status.in_(_CONTRACTOR_ACTIVE_ASSIGNMENT_STATUSES),
+        ).first()
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No active assignment for this task",
+            )
+        return task
+
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth principal")
+
+
+def attribution_user_id(db: Session, task: Task, actor) -> int:
+    """Return a real users.id to satisfy NOT NULL FKs on rows the actor creates.
+
+    For a User actor that's just actor.id. For a Contractor actor we fall back
+    to the task's creator, then to any active company_admin/manager at the
+    task's company — same shape as create_my_assignment.assigner.
+    """
+    if isinstance(actor, User):
+        return actor.id
+    if task.created_by:
+        return task.created_by
+    fallback = (
+        db.query(User)
+        .filter(
+            User.company_id == task.company_id,
+            User.is_active == True,
+            User.user_type.in_(["company_admin", "company_manager"]),
+        )
+        .order_by(User.id.asc())
+        .first()
+    )
+    if not fallback:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot attribute action — task company has no active admin/manager",
+        )
+    return fallback.id
 
 
 def check_template_access(db: Session, template_id: int, user: User) -> TaskTemplate:
@@ -735,29 +799,29 @@ def list_tasks(
 def get_task(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
-    """Get a specific task with all relations"""
+    """Get a specific task with all relations.
+
+    Contractor branch: must have an active ContractorAssignment for this task.
+    """
+    # check_task_access_for_actor enforces company-match + property scope (User)
+    # or active-assignment (Contractor); raises 403/404 if unauthorized.
+    check_task_access_for_actor(db, task_id, actor)
+
     task = db.query(Task).options(
         joinedload(Task.block),
         joinedload(Task.spatial_area),
         joinedload(Task.creator),
         joinedload(Task.completer),
         joinedload(Task.assignments).joinedload(TaskAssignment.user)
-    ).filter(
-        Task.id == task_id,
-        Task.company_id == current_user.company_id
-    ).first()
+    ).filter(Task.id == task_id).first()
 
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found"
         )
-
-    # Property scope check
-    if current_user.user_type != "auxein_admin" and task.block_id is not None:
-        verify_block_access(db, current_user, task.block_id)
 
     # Add computed fields
     task.assignment_count = len(task.assignments)
@@ -893,10 +957,10 @@ def reschedule_task(
 def get_equipment_check(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """P1: Get pre-task equipment check status for a task's assets."""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     checks = []
     for ta in task.task_assets:
         asset = ta.asset
@@ -941,10 +1005,10 @@ def start_task(
     task_id: int,
     start_request: TaskStartRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Start a task. P1: checks equipment calibration status before starting."""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
 
     # Check if task can be started
     if not task.can_start:
@@ -1001,10 +1065,21 @@ def start_task(
     if start_request.start_gps_tracking and task.requires_gps_tracking:
         task.gps_tracking_active = True
 
+    # Move the contractor's assignment to in_progress so the Tasks tab + admin
+    # views reflect that the contractor is actually working it.
+    if isinstance(actor, Contractor):
+        ca = db.query(ContractorAssignment).filter(
+            ContractorAssignment.task_id == task_id,
+            ContractorAssignment.contractor_id == actor.id,
+        ).first()
+        if ca and ca.status in ("assigned", "accepted"):
+            ca.status = "in_progress"
+            ca.actual_start = now
+
     db.commit()
     db.refresh(task)
 
-    logger.info(f"Task {task_id} started by user {current_user.id}")
+    logger.info(f"Task {task_id} started by actor {type(actor).__name__}:{actor.id}")
     return task
 
 
@@ -1012,10 +1087,10 @@ def start_task(
 def get_task_consumables(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """P0: Get consumable TaskAssets for the completion UI (pre-fill actual quantities)."""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     consumables = []
     for ta in task.task_assets:
         asset = ta.asset
@@ -1106,22 +1181,27 @@ def complete_task(
     task_id: int,
     complete_request: TaskCompleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Complete a task"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+    is_contractor = isinstance(actor, Contractor)
+    # tasks.completed_by FK is to users.id (nullable); for contractor completions
+    # leave it null. Stock movements / timesheets / notifications all need a real
+    # User, so derive one only when we need to write those rows.
+    completer_user_id = actor.id if not is_contractor else None
+
     if task.status in [TaskStatus.completed, TaskStatus.cancelled]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Task is already {task.status}"
         )
-    
+
     # Update task
     task.status = TaskStatus.completed
     task.actual_end_time = datetime.now()
     task.completed_at = datetime.now()
-    task.completed_by = current_user.id
+    task.completed_by = completer_user_id
     task.completion_notes = complete_request.completion_notes
     task.progress_percentage = 100
     
@@ -1174,7 +1254,7 @@ def complete_task(
                 stock_before=stock_before,
                 stock_after=stock_after,
                 notes=f"Auto-deducted on task {task.task_number} completion",
-                created_by=current_user.id,
+                created_by=completer_user_id,
             )
             db.add(movement)
 
@@ -1188,19 +1268,43 @@ def complete_task(
         if assignment.status in ["assigned", "accepted"]:
             assignment.status = "completed"
 
-    # Log hours to today's timesheet if provided
+    # Move the contractor's own assignment(s) to completed too. Hours land on
+    # ContractorAssignment.actual_hours_worked rather than a user Timesheet.
+    if is_contractor:
+        contractor_assignments = db.query(ContractorAssignment).filter(
+            ContractorAssignment.task_id == task.id,
+            ContractorAssignment.contractor_id == actor.id,
+        ).all()
+        now = datetime.now()
+        for ca_row in contractor_assignments:
+            if ca_row.status != "completed":
+                ca_row.status = "completed"
+                ca_row.actual_end = now
+                ca_row.completion_percentage = 100
+                if complete_request.hours_worked and complete_request.hours_worked > 0:
+                    # If multiple assignments cover this task (rare) only the first
+                    # gets hours so we don't double-count. Subsequent rows leave
+                    # actual_hours_worked untouched.
+                    if ca_row.actual_hours_worked is None:
+                        ca_row.actual_hours_worked = complete_request.hours_worked
+
+    # Log hours to today's timesheet (User actor only — contractors aren't on the timesheet)
     hours_entry_created = False
-    if complete_request.hours_worked and complete_request.hours_worked > 0:
+    if (
+        not is_contractor
+        and complete_request.hours_worked
+        and complete_request.hours_worked > 0
+    ):
         work_date = date.today()
         day = db.query(TimesheetDay).filter(
             TimesheetDay.company_id == task.company_id,
-            TimesheetDay.user_id == current_user.id,
+            TimesheetDay.user_id == actor.id,
             TimesheetDay.work_date == work_date,
         ).first()
         if not day:
             day = TimesheetDay(
                 company_id=task.company_id,
-                user_id=current_user.id,
+                user_id=actor.id,
                 work_date=work_date,
                 status=TimesheetStatus.draft,
             )
@@ -1217,8 +1321,8 @@ def complete_task(
     db.commit()
     db.refresh(task)
 
-    # Notify task creator (if different from completer)
-    if task.created_by and task.created_by != current_user.id:
+    # Notify task creator (if different from completer — and we have a user completer)
+    if task.created_by and task.created_by != completer_user_id:
         notification_service = NotificationService(db)
         creator = db.query(User).filter(User.id == task.created_by).first()
         if creator:
@@ -1231,11 +1335,12 @@ def complete_task(
             )
             db.commit()
 
-    # Notify the user themselves if hours were logged (so the timesheet update is visible)
-    if hours_entry_created:
+    # Notify the user themselves if hours were logged (so the timesheet update is visible).
+    # Contractor actors have no timesheet, so this branch only fires for User actors.
+    if hours_entry_created and not is_contractor:
         notification_service = NotificationService(db)
         notification_service.notify_user(
-            user=current_user,
+            user=actor,
             notification_type=NotificationType.timesheet,
             title=f"{complete_request.hours_worked}h added to today's timesheet",
             body=f"From task {task.task_number}: {task.title}",
@@ -1250,7 +1355,7 @@ def complete_task(
         except Exception as e:
             logger.warning(f"GPS summary processing failed for task {task_id}: {e}")
 
-    logger.info(f"Task {task_id} completed by user {current_user.id}")
+    logger.info(f"Task {task_id} completed by actor {type(actor).__name__}:{actor.id}")
 
     return task
 
@@ -1698,10 +1803,10 @@ def list_task_rows(
     task_id: int,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """List all rows for a task"""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     
     query = db.query(TaskRow).options(
         joinedload(TaskRow.vineyard_row)
@@ -1722,32 +1827,32 @@ def complete_task_row(
     row_id: int,
     complete_data: TaskRowCompleteRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Mark a row as completed"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+
     task_row = db.query(TaskRow).filter(
         TaskRow.id == row_id,
         TaskRow.task_id == task_id
     ).first()
-    
+
     if not task_row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task row not found"
         )
-    
+
     if task_row.status == "completed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Row is already completed"
         )
-    
-    # Update row
+
+    # Update row. completed_by FK is nullable — leave null on contractor completions.
     task_row.status = "completed"
     task_row.completed_at = datetime.now()
-    task_row.completed_by = current_user.id
+    task_row.completed_by = actor.id if isinstance(actor, User) else None
     task_row.percentage_complete = 100
     
     if complete_data.notes:
@@ -1781,10 +1886,10 @@ def skip_task_row(
     row_id: int,
     skip_data: TaskRowSkipRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Mark a row as skipped"""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     
     task_row = db.query(TaskRow).filter(
         TaskRow.id == row_id,
@@ -1818,10 +1923,10 @@ def skip_task_row(
 def get_task_row_progress(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Get progress summary for task rows"""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     
     # Count rows by status
     total_rows = db.query(func.count(TaskRow.id)).filter(
@@ -1904,32 +2009,35 @@ def start_gps_tracking(
     task_id: int,
     start_data: TaskGPSTrackStartRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Start GPS tracking for a task"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+    # task_gps_tracks.user_id is NOT NULL FK to users.id — for contractor actors
+    # we attribute to task creator (or first active company manager/admin).
+    actor_user_id = attribution_user_id(db, task, actor)
+
     if not task.requires_gps_tracking:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This task does not require GPS tracking"
         )
-    
+
     if task.gps_tracking_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GPS tracking is already active"
         )
-    
+
     # Activate GPS tracking
     task.gps_tracking_active = True
-    
+
     # Add initial point if provided
     if start_data.initial_point:
         point_dict = start_data.initial_point.model_dump(exclude={'device_id'})
         gps_point = TaskGPSTrack(
             task_id=task_id,
-            user_id=current_user.id,
+            user_id=actor_user_id,
             device_id=start_data.device_id or start_data.initial_point.device_id,
             **point_dict,
         )
@@ -1986,25 +2094,26 @@ def add_bulk_gps_points(
     task_id: int,
     bulk_data: TaskGPSTrackBulkCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Bulk add GPS tracking points (for offline sync)"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+    actor_user_id = attribution_user_id(db, task, actor)
+
     # Get current segment ID
     last_point = db.query(TaskGPSTrack).filter(
         TaskGPSTrack.task_id == task_id
     ).order_by(desc(TaskGPSTrack.timestamp)).first()
-    
+
     base_segment_id = last_point.segment_id if last_point else 1
-    
+
     # Create GPS points
     gps_points = []
     for point_data in bulk_data.points:
         point_dict = point_data.model_dump(exclude={'segment_id', 'device_id'})
         gps_point = TaskGPSTrack(
             task_id=task_id,
-            user_id=current_user.id,
+            user_id=actor_user_id,
             segment_id=point_data.segment_id or base_segment_id,
             device_id=point_data.device_id,
             **point_dict,
@@ -2025,29 +2134,29 @@ def pause_gps_tracking(
     task_id: int,
     pause_data: TaskGPSTrackPauseRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Pause GPS tracking"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+
     if not task.gps_tracking_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GPS tracking is not active"
         )
-    
+
     # Add final point if provided
     if pause_data.final_point:
         last_point = db.query(TaskGPSTrack).filter(
             TaskGPSTrack.task_id == task_id
         ).order_by(desc(TaskGPSTrack.timestamp)).first()
-        
+
         segment_id = last_point.segment_id if last_point else 1
-        
+
         point_dict = pause_data.final_point.model_dump(exclude_none=True)
         gps_point = TaskGPSTrack(
             task_id=task_id,
-            user_id=current_user.id,
+            user_id=attribution_user_id(db, task, actor),
             segment_id=segment_id,
             timestamp=point_dict.pop('timestamp', None) or datetime.now(),
             **point_dict,
@@ -2069,30 +2178,30 @@ def resume_gps_tracking(
     task_id: int,
     resume_data: TaskGPSTrackResumeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Resume GPS tracking (increments segment ID)"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+
     if task.gps_tracking_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GPS tracking is already active"
         )
-    
+
     # Get last segment ID and increment
     last_point = db.query(TaskGPSTrack).filter(
         TaskGPSTrack.task_id == task_id
     ).order_by(desc(TaskGPSTrack.timestamp)).first()
-    
+
     new_segment_id = (last_point.segment_id + 1) if last_point else 1
-    
+
     # Add initial point for new segment if provided
     if resume_data.initial_point:
         point_dict = resume_data.initial_point.model_dump(exclude_none=True)
         gps_point = TaskGPSTrack(
             task_id=task_id,
-            user_id=current_user.id,
+            user_id=attribution_user_id(db, task, actor),
             segment_id=new_segment_id,
             timestamp=point_dict.pop('timestamp', None) or datetime.now(),
             **point_dict,
@@ -2114,23 +2223,23 @@ def stop_gps_tracking(
     task_id: int,
     stop_data: TaskGPSTrackStopRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Stop GPS tracking"""
-    task = check_task_access(db, task_id, current_user)
-    
+    task = check_task_access_for_actor(db, task_id, actor)
+
     # Add final point if provided
     if stop_data.final_point:
         last_point = db.query(TaskGPSTrack).filter(
             TaskGPSTrack.task_id == task_id
         ).order_by(desc(TaskGPSTrack.timestamp)).first()
-        
+
         segment_id = last_point.segment_id if last_point else 1
-        
+
         point_dict = stop_data.final_point.model_dump(exclude_none=True)
         gps_point = TaskGPSTrack(
             task_id=task_id,
-            user_id=current_user.id,
+            user_id=attribution_user_id(db, task, actor),
             segment_id=segment_id,
             timestamp=point_dict.pop('timestamp', None) or datetime.now(),
             **point_dict,
@@ -2160,10 +2269,10 @@ def get_gps_track(
     skip: int = 0,
     limit: int = 1000,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Get GPS track points for a task"""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     
     query = db.query(TaskGPSTrack).filter(
         TaskGPSTrack.task_id == task_id
@@ -2180,10 +2289,10 @@ def get_gps_track(
 def get_gps_track_stats(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Get summary statistics for GPS track — uses pre-computed summary if available"""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
 
     # Try pre-computed summary first
     from db.models.task_gps_summary import TaskGPSSummary
@@ -2264,10 +2373,10 @@ def get_gps_track_stats(
 def get_gps_summary(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Get processed GPS summary for a completed task"""
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     from db.models.task_gps_summary import TaskGPSSummary
     summary = db.query(TaskGPSSummary).filter(TaskGPSSummary.task_id == task_id).first()
     if not summary:
@@ -2364,7 +2473,7 @@ def get_recent_gps_tracks_geojson(
 def get_gps_track_geojson(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    actor=Depends(get_current_user_or_contractor),
 ):
     """Get GPS track as GeoJSON Feature.
 
@@ -2373,7 +2482,7 @@ def get_gps_track_geojson(
     (network error after points were uploaded) — the historical viewer still
     shows the track instead of 404'ing forever. Idempotent + cheap once built.
     """
-    task = check_task_access(db, task_id, current_user)
+    task = check_task_access_for_actor(db, task_id, actor)
     from db.models.task_gps_summary import TaskGPSSummary
     from geoalchemy2.shape import to_shape
     from shapely.geometry import mapping as shapely_mapping

@@ -23,7 +23,9 @@
   width: 90vw;
   max-width: 500px;
   max-height: 90vh;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
@@ -43,6 +45,7 @@
   justify-content: space-between;
   align-items: center;
   background: var(--color-surface-warm);
+  flex-shrink: 0;
 }
 
 .ac-modal-header h3 {
@@ -73,9 +76,12 @@
   color: var(--color-text);
 }
 
-/* Modal body */
+/* Modal body — scrolls internally while header/footer stay pinned */
 .ac-modal-body {
   padding: var(--space-lg);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Modal footer */
@@ -86,6 +92,7 @@
   justify-content: flex-end;
   gap: var(--space-md);
   background: var(--color-surface-warm);
+  flex-shrink: 0;
 }
 
 /* Inline section (non-modal mode) */

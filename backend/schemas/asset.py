@@ -108,6 +108,9 @@ class AssetBase(BaseModel):
     calibration_target_value: Optional[Decimal] = None
     calibration_tolerance_min: Optional[Decimal] = None
     calibration_tolerance_max: Optional[Decimal] = None
+    # Effective application width (metres) for tractor-mounted implements.
+    # Paired with calibrated output rate at task time for coverage maps.
+    swath_width_m: Optional[Decimal] = None
     requires_maintenance: bool = False
     maintenance_interval_hours: Optional[int] = None
     maintenance_interval_days: Optional[int] = None
@@ -118,6 +121,15 @@ class AssetCreate(AssetBase):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     location_geojson: Optional[Dict[str, Any]] = None  # GeoJSON for lines/polygons
+    # When requires_calibration is True AND no `calibration_specs` array is
+    # supplied, the legacy single-spec flow runs and an initial schedule is
+    # spawned using the asset's inline calibration_* columns + this date
+    # (defaults to today server-side).
+    first_calibration_date: Optional[date] = None
+    # New multi-spec path. When supplied, each entry becomes an asset_calibration_specs
+    # row and an initial pending schedule is spawned per spec. Inline calibration_*
+    # columns on the asset are ignored.
+    calibration_specs: Optional[List["CalibrationSpecCreate"]] = None
 
     @validator("asset_number")
     def validate_asset_number(cls, v):
@@ -154,6 +166,7 @@ class AssetUpdate(BaseModel):
     calibration_target_value: Optional[Decimal] = None
     calibration_tolerance_min: Optional[Decimal] = None
     calibration_tolerance_max: Optional[Decimal] = None
+    swath_width_m: Optional[Decimal] = None
     active_ingredient: Optional[str] = None
     concentration: Optional[str] = None
     application_rate_min: Optional[Decimal] = None
@@ -376,6 +389,56 @@ class MaintenanceResponse(MaintenanceBase):
     class Config:
         from_attributes = True
 
+# Calibration Spec Schemas (per-type spec stored in asset_calibration_specs)
+class CalibrationSpecBase(BaseModel):
+    calibration_type: str
+    parameter_name: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    target_value: Optional[Decimal] = None
+    tolerance_min: Optional[Decimal] = None
+    tolerance_max: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class CalibrationSpecCreate(CalibrationSpecBase):
+    # Optional — defaults to today server-side. Lets the user stagger the first
+    # calibration date per spec (e.g. pressure due immediately, output rate in 7d).
+    first_due_date: Optional[date] = None
+
+
+class CalibrationSpecUpdate(BaseModel):
+    calibration_type: Optional[str] = None
+    parameter_name: Optional[str] = None
+    unit_of_measure: Optional[str] = None
+    target_value: Optional[Decimal] = None
+    tolerance_min: Optional[Decimal] = None
+    tolerance_max: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CalibrationSpecResponse(CalibrationSpecBase):
+    id: int
+    asset_id: int
+    company_id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# Resolve the forward reference on AssetCreate (declared earlier with
+# `Optional[List["CalibrationSpecCreate"]]`) now that CalibrationSpecCreate exists.
+try:
+    AssetCreate.model_rebuild()
+except Exception:
+    pass
+
+
 # Calibration Schemas
 class CalibrationBase(BaseModel):
     calibration_type: str
@@ -392,6 +455,7 @@ class CalibrationBase(BaseModel):
 class CalibrationCreate(CalibrationBase):
     asset_id: int
     calibration_date: Optional[date] = None
+    notes: Optional[str] = None
     # When set, this calibration event resolves the given pending schedule. The endpoint
     # will mark that schedule as completed and auto-create a new pending schedule for the
     # next cycle (asset interval on pass, 7-day recheck on fail).

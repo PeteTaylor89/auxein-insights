@@ -669,6 +669,7 @@ class ContractorTrainingWithDetails(ContractorTraining):
 class ContractorCheckIn(BaseModel):
     contractor_id: Optional[int] = None  # Set from auth
     company_id: Optional[int] = None  # Set from current user
+    property_id: Optional[int] = None  # Pins the contractor to a specific property at the company
     purpose: str = Field(..., min_length=4)
     equipment_brought: List[str] = Field(default_factory=list)
     previous_location_name: Optional[str] = None

@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { X, FileText, Info, Settings, Package, Wrench, MapPin } from 'lucide-react';
+import { X, FileText, Info, Package, Wrench, MapPin } from 'lucide-react';
 
 function TaskTemplatePreviewModal({ open, template, onClose }) {
   if (!open || !template) return null;
@@ -173,34 +173,6 @@ function TaskTemplatePreviewModal({ open, template, onClose }) {
               />
             )}
           </Section>
-
-          {/* Display Settings */}
-          {(template.icon || template.color) && (
-            <Section title="Display Settings" icon={<Settings size={16} />}>
-              {template.icon && (
-                <InfoRow label="Icon" value={<span style={{ fontSize: '1.5rem' }}>{template.icon}</span>} />
-              )}
-              {template.color && (
-                <InfoRow 
-                  label="Color" 
-                  value={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '4px',
-                        background: template.color,
-                        border: '1px solid #e5e7eb'
-                      }} />
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                        {template.color}
-                      </span>
-                    </div>
-                  }
-                />
-              )}
-            </Section>
-          )}
 
           {/* GPS & Tracking */}
           <Section title="Tracking Options" icon={<MapPin size={16} />}>

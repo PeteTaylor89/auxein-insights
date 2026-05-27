@@ -11,7 +11,8 @@ class ContractorMovement(Base):
     id = Column(Integer, primary_key=True, index=True)
     contractor_id = Column(Integer, ForeignKey("contractors.id"), nullable=False)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
-    
+    property_id = Column(Integer, ForeignKey("properties.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Movement details
     arrival_datetime = Column(DateTime(timezone=True), nullable=False)
     departure_datetime = Column(DateTime(timezone=True), nullable=True)
