@@ -1,9 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Users, Clock, CheckCircle2, AlertTriangle, Plus, Trash2, Calendar, Filter, Download, Eye, ChevronRight, Save, ChevronLeft } from 'lucide-react';
+import { Clock, CheckCircle2, AlertTriangle, Plus, Trash2, Download, ChevronRight, Save, ChevronLeft } from 'lucide-react';
 import { useAuth, timesheetsService, tasksService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import './Timesheets.css';
+
+// Build a CSV string from a 2D array and trigger a browser download.
+// BOM prefix keeps Excel happy with UTF-8; values with commas/quotes are escaped.
+const downloadCsv = (filename, rows) => {
+  const csv = rows
+    .map(r => r.map(cell => {
+      const s = cell == null ? '' : String(cell);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(','))
+    .join('\r\n');
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 
 const TimesheetSystem = () => {
   const { user, isAuthenticated } = useAuth();
@@ -74,6 +94,55 @@ const TimesheetSystem = () => {
   const rejectDay = async (dayId, reason) => { try { await timesheetsService.rejectDay(dayId, reason); await loadData(); showNotification('Day rejected'); } catch (err) { setError(err?.response?.data?.detail || err.message || 'Failed to reject day'); } };
   const releaseDay = async (dayId) => { try { await timesheetsService.releaseDay(dayId); await loadData(); showNotification('Day released for editing'); } catch (err) { setError(err?.response?.data?.detail || err.message || 'Failed to release day'); } };
 
+  // Export the current view + visible week to CSV (client-side, no backend round-trip).
+  const handleExport = () => {
+    const weekLabel = selectedWeek.format('YYYY-MM-DD');
+    const dayHeaders = weekDays.map(d => d.format('ddd M/D'));
+
+    if (view === 'my-timesheet') {
+      const rows = [['Task', 'Block', ...dayHeaders, 'Total']];
+      const tasksWithTime = availableTasks.filter(task =>
+        weekDays.some(day => getDayData(day).entries?.some(e => e.task_id === task.id)),
+      );
+      tasksWithTime.forEach(task => {
+        let total = 0;
+        const cells = weekDays.map(day => {
+          const hrs = (getDayData(day).entries || [])
+            .filter(e => e.task_id === task.id)
+            .reduce((s, e) => s + parseFloat(e.hours || 0), 0);
+          total += hrs;
+          return hrs ? hrs : '';
+        });
+        rows.push([task.title, task.block?.block_name || '', ...cells, total]);
+      });
+      rows.push(['Daily total', '', ...weekDays.map(day => getDayData(day).effective_total_hours || 0), '']);
+      downloadCsv(`my-timesheet-${weekLabel}.csv`, rows);
+      showNotification('Timesheet exported');
+      return;
+    }
+
+    // Team dashboard: one row per team member, hours per day + weekly total.
+    const groups = {};
+    timesheetDays.forEach(day => {
+      const uid = day.user_id;
+      if (!groups[uid]) {
+        const u = day.user || {};
+        const name = u.first_name && u.last_name
+          ? `${u.first_name} ${u.last_name}`
+          : u.first_name || u.username || `User ${uid}`;
+        groups[uid] = { name, total: 0, byDate: {} };
+      }
+      if (day.status !== 'rejected') groups[uid].total += parseFloat(day.effective_total_hours || 0);
+      groups[uid].byDate[day.work_date] = day.effective_total_hours || 0;
+    });
+    const rows = [['Team Member', 'Total Hours', ...dayHeaders]];
+    Object.values(groups).forEach(g => {
+      rows.push([g.name, g.total.toFixed(1), ...weekDays.map(d => g.byDate[d.format('YYYY-MM-DD')] ?? '')]);
+    });
+    downloadCsv(`team-timesheet-${weekLabel}.csv`, rows);
+    showNotification('Team timesheet exported');
+  };
+
   if (!isAuthenticated || !user) {
     return <div className="ts-auth-error"><div style={{ textAlign: 'center' }}><AlertTriangle style={{ width: '3rem', height: '3rem', color: 'var(--color-danger)', margin: '0 auto 1rem' }} /><p style={{ color: 'var(--color-text-muted)' }}>Please log in to access timesheets</p></div></div>;
   }
@@ -93,8 +162,8 @@ const TimesheetSystem = () => {
               )}
             </div>
             <div className="ts-header-right">
-              <div className="ts-user-info">Welcome, {user.full_name || user.username}</div>
-              <button className="ts-export-btn"><Download style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} /> Export</button>
+              <div className="ts-user-info">{user.full_name || user.username}</div>
+              <button className="ts-export-btn" onClick={handleExport}><Download style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} /> Export CSV</button>
             </div>
           </div>
         </div>
@@ -117,7 +186,7 @@ const TimesheetSystem = () => {
         {view === 'my-timesheet' ? (
           <MyTimesheetView weekDays={weekDays} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} getDayData={getDayData} availableTasks={availableTasks} updateDayHours={updateDayHours} updateDayNotes={updateDayNotes} addTimeEntry={addTimeEntry} deleteTimeEntry={deleteTimeEntry} submitDay={submitDay} loading={loading} isRejected={isRejected} />
         ) : (
-          <TeamDashboardView timesheetDays={timesheetDays} approveDay={approveDay} rejectDay={rejectDay} releaseDay={releaseDay} loading={loading} />
+          <TeamDashboardView timesheetDays={timesheetDays} approveDay={approveDay} rejectDay={rejectDay} releaseDay={releaseDay} loading={loading} weekDays={weekDays} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} />
         )}
       </div>
       <MobileNavigation />
@@ -127,7 +196,33 @@ const TimesheetSystem = () => {
 
 const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, availableTasks, updateDayHours, updateDayNotes, addTimeEntry, deleteTimeEntry, submitDay, loading, isRejected }) => {
   const [newEntries, setNewEntries] = useState({});
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const weekTotal = weekDays.reduce((total, day) => total + parseFloat(getDayData(day).effective_total_hours || 0), 0);
+
+  // Set of task ids that already have time logged anywhere this week.
+  const touchedTaskIds = useMemo(() => {
+    const ids = new Set();
+    weekDays.forEach(day => getDayData(day).entries?.forEach(e => { if (e.task_id != null) ids.add(e.task_id); }));
+    return ids;
+  }, [weekDays, getDayData]);
+
+  // Only show task rows that actually have time logged this week — keeps the grid
+  // compact. New time is added via the "Add Time Entry" row below.
+  const visibleTasks = availableTasks.filter(task => touchedTaskIds.has(task.id));
+
+  // Tasks selectable in the Add-entry dropdown. Default to those relevant to the
+  // visible week (already touched, scheduled to overlap it, or currently active)
+  // so the list stays short; "Show all" lifts the filter for ad-hoc logging.
+  const weekStart = selectedWeek;
+  const weekEnd = selectedWeek.add(6, 'day');
+  const selectableTasks = showAllTasks ? availableTasks : availableTasks.filter(task => {
+    if (touchedTaskIds.has(task.id)) return true;
+    if (task.is_active || ['in_progress', 'paused'].includes(task.status)) return true;
+    const s = task.scheduled_start_date ? dayjs(task.scheduled_start_date) : null;
+    const e = task.scheduled_end_date ? dayjs(task.scheduled_end_date) : s;
+    return !!(s && e && !s.isAfter(weekEnd, 'day') && !e.isBefore(weekStart, 'day'));
+  });
+  const taskLabel = (task) => (task.block?.block_name ? `${task.title} — ${task.block.block_name}` : task.title);
 
   const addNewEntry = (date) => {
     const dateStr = date.format('YYYY-MM-DD');
@@ -170,12 +265,12 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
           })}
         </div>
 
-        {availableTasks.length > 0 ? (
-          availableTasks.map(task => (
+        {visibleTasks.length > 0 && (
+          visibleTasks.map(task => (
             <div key={task.id} className="ts-task-row">
               <div className="ts-task-info">
                 <div className="ts-task-title">{task.title}</div>
-                <div className="ts-task-subtitle">{task.block?.name} • ID: {task.id}</div>
+                {task.block?.block_name && <div className="ts-task-subtitle">{task.block.block_name}</div>}
               </div>
               {weekDays.map(day => {
                 const dayData = getDayData(day);
@@ -201,15 +296,24 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
               })}
             </div>
           ))
-        ) : (
+        )}
+
+        {availableTasks.length === 0 && (
           <div className="ts-empty"><Clock style={{ width: '3rem', height: '3rem', color: 'var(--color-border)', margin: '0 auto 1rem' }} /><p style={{ margin: 0 }}>No tasks assigned to you</p><p style={{ fontSize: 'var(--font-size-base)', margin: 0 }}>Contact your manager to get tasks assigned</p></div>
+        )}
+
+        {availableTasks.length > 0 && visibleTasks.length === 0 && (
+          <div className="ts-empty-inline">No time logged this week yet — add an entry below.</div>
         )}
 
         {availableTasks.length > 0 && (
           <div className="ts-add-entry-row">
             <div className="ts-add-entry-info">
               <div className="ts-add-entry-title">Add Time Entry</div>
-              <div className="ts-add-entry-subtitle">Select task and enter hours</div>
+              <label className="ts-show-all-toggle">
+                <input type="checkbox" checked={showAllTasks} onChange={(e) => setShowAllTasks(e.target.checked)} />
+                All assigned tasks
+              </label>
             </div>
             {weekDays.map(day => {
               const dateStr = day.format('YYYY-MM-DD');
@@ -220,7 +324,7 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
                   <div className="ts-add-entry-container">
                     <select className="ts-select" value={entry.taskId} onChange={(e) => !rejected && setNewEntries(prev => ({ ...prev, [dateStr]: { ...entry, taskId: e.target.value } }))} disabled={rejected}>
                       <option value="">Select task</option>
-                      {availableTasks.map(task => <option key={task.id} value={task.id}>{task.title}</option>)}
+                      {selectableTasks.map(task => <option key={task.id} value={task.id}>{taskLabel(task)}</option>)}
                     </select>
                     <div className="ts-entry-input-row">
                       <input className="ts-entry-input" type="number" step="0.25" min="0.25" max="24" placeholder="Hours" value={entry.hours} onChange={(e) => !rejected && setNewEntries(prev => ({ ...prev, [dateStr]: { ...entry, hours: e.target.value } }))} disabled={rejected} />
@@ -262,10 +366,7 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
   );
 };
 
-const TeamDashboardView = ({ timesheetDays, approveDay, rejectDay, releaseDay, loading }) => {
-  const [filter, setFilter] = useState('all');
-  const filteredDays = timesheetDays.filter(day => { if (filter === 'submitted') return day.status === 'submitted'; if (filter === 'pending') return ['draft', 'submitted'].includes(day.status); return true; });
-
+const TeamDashboardView = ({ timesheetDays, approveDay, rejectDay, releaseDay, loading, weekDays, selectedWeek, setSelectedWeek }) => {
   const stats = useMemo(() => {
     const totalHours = timesheetDays.filter(d => d.status !== 'rejected').reduce((sum, d) => sum + parseFloat(d.effective_total_hours || 0), 0);
     return { totalHours: totalHours.toFixed(1), submitted: timesheetDays.filter(d => d.status === 'submitted').length, approved: timesheetDays.filter(d => d.status === 'approved').length, rejected: timesheetDays.filter(d => d.status === 'rejected').length };
@@ -295,6 +396,20 @@ const TeamDashboardView = ({ timesheetDays, approveDay, rejectDay, releaseDay, l
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+      <div className="ts-week-card">
+        <div className="ts-week-nav">
+          <div className="ts-week-controls">
+            <button className="ts-week-btn" onClick={() => setSelectedWeek(selectedWeek.subtract(1, 'week'))}><ChevronLeft style={{ width: '1.25rem', height: '1.25rem' }} /></button>
+            <div className="ts-week-info">
+              <h2 className="ts-week-title">Week of {selectedWeek.format('MMM D, YYYY')}</h2>
+              <p className="ts-week-subtitle">{selectedWeek.format('MMM D')} - {selectedWeek.add(6, 'day').format('MMM D, YYYY')}</p>
+            </div>
+            <button className="ts-week-btn" onClick={() => setSelectedWeek(selectedWeek.add(1, 'week'))}><ChevronRight style={{ width: '1.25rem', height: '1.25rem' }} /></button>
+          </div>
+          <button className="ts-week-today-btn" onClick={() => setSelectedWeek(dayjs().startOf('week').add(1, 'day'))}>This week</button>
+        </div>
+      </div>
+
       <div className="ts-stats-grid">
         {[
           { label: 'Total Hours This Week', value: `${stats.totalHours}h`, bg: 'var(--color-info-bg)', icon: <Clock style={{ width: '1.5rem', height: '1.5rem', color: 'var(--color-info)' }} /> },
@@ -315,52 +430,58 @@ const TeamDashboardView = ({ timesheetDays, approveDay, rejectDay, releaseDay, l
         <div className="ts-table-header">
           <div className="ts-table-header-content">
             <h3 className="ts-table-title">Team Weekly Overview</h3>
-            <select style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-sm) var(--space-md)', fontSize: 'var(--font-size-base)', fontFamily: 'var(--font-family)' }} value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="all">All Entries</option><option value="submitted">Awaiting Approval</option><option value="pending">Pending/Draft</option>
-            </select>
           </div>
         </div>
         <div className="ts-table-wrap">
           <table className="ts-table">
-            <thead><tr><th>Team Member</th><th>Total Hours</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Team Member</th>
+                <th>Total Hours</th>
+                {weekDays.map(day => (
+                  <th key={day.format('YYYY-MM-DD')} style={{ textAlign: 'center' }}>
+                    {day.format('ddd')}<br /><span style={{ fontWeight: 400, textTransform: 'none' }}>{day.format('M/D')}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {userWeeklyData.length > 0 ? userWeeklyData.map(ud => (
                 <tr key={ud.user.id}>
-                  <td><div className="ts-employee-name">{ud.user?.first_name && ud.user?.last_name ? `${ud.user.first_name} ${ud.user.last_name}` : ud.user?.first_name || ud.user?.username || `User ${ud.user.id}`}</div></td>
-                  <td><div style={{ fontWeight: 600 }}>{ud.totalHours.toFixed(1)}h</div></td>
-                  {Array.from({ length: 7 }, (_, di) => {
-                    const dd = ud.days.find(d => new Date(d.work_date).getDay() === (di + 1) % 7);
+                  <td>
+                    <div className="ts-employee-name">{ud.user?.first_name && ud.user?.last_name ? `${ud.user.first_name} ${ud.user.last_name}` : ud.user?.first_name || ud.user?.username || `User ${ud.user.id}`}</div>
+                    {ud.statusCounts.submitted > 0 && <span className="ts-badge ts-badge--submitted" style={{ marginTop: 4 }}>{ud.statusCounts.submitted} to review</span>}
+                  </td>
+                  <td><div style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{ud.totalHours.toFixed(1)}h</div></td>
+                  {weekDays.map(day => {
+                    const dd = ud.days.find(d => d.work_date === day.format('YYYY-MM-DD'));
                     return (
-                      <td key={di} style={{ textAlign: 'center' }}>
+                      <td key={day.format('YYYY-MM-DD')} style={{ textAlign: 'center', verticalAlign: 'top' }}>
                         {dd ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                            <div style={{ fontSize: 'var(--font-size-base)', fontWeight: 500 }}>{dd.effective_total_hours}h</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+                          <div className="ts-day-stack">
+                            <div className="ts-day-hours-label">
                               {getStatusIcon(dd.status)}
-                              {dd.status === 'submitted' && (
-                                <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-                                  <button className="ts-action-btn" onClick={() => approveDay(dd.id)} title="Approve" style={{ color: 'var(--color-success)' }}><CheckCircle2 style={{ width: '0.75rem', height: '0.75rem' }} /></button>
-                                  <button className="ts-action-btn" onClick={() => handleReject(dd.id)} title="Reject" style={{ color: 'var(--color-danger)' }}><AlertTriangle style={{ width: '0.75rem', height: '0.75rem' }} /></button>
-                                </div>
-                              )}
-                              {dd.status === 'approved' && (
-                                <button className="ts-action-btn" onClick={() => releaseDay(dd.id)} title="Release" style={{ color: 'var(--color-primary)' }}><Save style={{ width: '0.75rem', height: '0.75rem' }} /></button>
-                              )}
+                              <span>{dd.effective_total_hours}h</span>
                             </div>
+                            {dd.status === 'submitted' && (
+                              <div className="ts-day-actions">
+                                <button className="ts-day-action ts-day-action--approve" onClick={() => approveDay(dd.id)}><CheckCircle2 size={14} /> Accept</button>
+                                <button className="ts-day-action ts-day-action--reject" onClick={() => handleReject(dd.id)}><AlertTriangle size={14} /> Reject</button>
+                              </div>
+                            )}
+                            {dd.status === 'approved' && (
+                              <div className="ts-day-actions">
+                                <button className="ts-day-action ts-day-action--release" onClick={() => releaseDay(dd.id)}><Save size={14} /> Release</button>
+                              </div>
+                            )}
                           </div>
                         ) : <span style={{ color: 'var(--color-border)' }}>-</span>}
                       </td>
                     );
                   })}
-                  <td>
-                    <div className="ts-action-buttons">
-                      <button className="ts-action-btn" title="View Details" style={{ color: 'var(--color-primary)' }}><Eye style={{ width: '1rem', height: '1rem' }} /></button>
-                      {ud.statusCounts.submitted > 0 && <span className="ts-badge ts-badge--submitted">{ud.statusCounts.submitted} pending</span>}
-                    </div>
-                  </td>
                 </tr>
               )) : (
-                <tr><td colSpan="10" className="ts-empty"><Clock style={{ width: '3rem', height: '3rem', color: 'var(--color-border)', margin: '0 auto 1rem' }} /><p style={{ margin: 0 }}>No timesheet entries found</p></td></tr>
+                <tr><td colSpan={9} className="ts-empty"><Clock style={{ width: '3rem', height: '3rem', color: 'var(--color-border)', margin: '0 auto 1rem' }} /><p style={{ margin: 0 }}>No timesheet entries found</p></td></tr>
               )}
             </tbody>
           </table>

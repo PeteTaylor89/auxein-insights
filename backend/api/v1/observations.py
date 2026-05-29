@@ -14,7 +14,6 @@ from services.property_service import get_visible_property_ids, verify_block_acc
 
 from schemas.observations import (
     ObservationTemplateCreate, ObservationTemplateUpdate, ObservationTemplateOut,
-    ObservationPlanCreate, ObservationPlanUpdate, ObservationPlanOut,
     ObservationRunCreate, ObservationRunUpdate, ObservationRunOut,
     ObservationSpotCreate, ObservationSpotUpdate, ObservationSpotOut,
     ObservationTaskLinkCreate, ObservationTaskLinkOut,
@@ -28,12 +27,14 @@ from utils.observation_helpers import basic_confidence_summary
 from utils.el_scale import EL_PHASES
 
 from db.models.observation_template import ObservationTemplate
-from db.models.observation_plan import ObservationPlan, ObservationPlanTarget, ObservationPlanAssignee
 from db.models.observation_run import ObservationRun, ObservationSpot
 from db.models.observation_link import ObservationTaskLink
 from db.models.reference_item import ReferenceItem
 from db.models.reference_item_file import ReferenceItemFile
 from db.models.file import File
+from db.models.user import User
+from db.models.notification import NotificationType
+from services.notification_service import NotificationService
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
@@ -263,239 +264,20 @@ def deactivate_template(template_id: int, db: Session = Depends(get_db), user=De
     db.commit()
     return
 
-@router.get("/observation-templates/{template_id}/usage", response_model=Dict[str, Any])
-def check_template_usage(
-    template_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    """Check existing plans using this template to help users make informed decisions"""
 
-    template = db.get(ObservationTemplate, template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    if template.company_id is not None and template.company_id != user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    # Find existing active plans using this template
-    q = select(ObservationPlan).where(
-        ObservationPlan.template_id == template_id,
-        ObservationPlan.company_id == user.company_id,
-        ObservationPlan.status.in_(["scheduled", "in_progress"])
-    )
-
-    q = q.order_by(ObservationPlan.created_at.desc()).limit(5)
-
-    existing_plans = db.execute(q).scalars().all()
-    
-    # Get run statistics for these plans
-    plan_ids = [p.id for p in existing_plans] if existing_plans else []
-    run_stats = {}
-    
-    if plan_ids:
-        stats_query = db.execute(
-            select(
-                ObservationRun.plan_id,
-                func.count(ObservationRun.id).label("run_count"),
-                func.max(ObservationRun.observed_at_start).label("last_run")
-            )
-            .where(ObservationRun.plan_id.in_(plan_ids))
-            .group_by(ObservationRun.plan_id)
-        ).all()
-        
-        run_stats = {
-            row.plan_id: {
-                "run_count": int(row.run_count),
-                "last_run": row.last_run
-            }
-            for row in stats_query
-        }
-    
-    # Format response
-    plans_data = []
-    for plan in existing_plans:
-        stats = run_stats.get(plan.id, {"run_count": 0, "last_run": None})
-        plans_data.append({
-            "id": plan.id,
-            "name": plan.name,
-            "status": plan.status,
-            "created_at": plan.created_at,
-            "run_count": stats["run_count"],
-            "last_run": stats["last_run"],
-            "instructions": plan.instructions
-        })
-    
-    return {
-        "template_name": template.name,
-        "existing_plans_count": len(existing_plans),
-        "existing_plans": plans_data,
-        "suggestion": {
-            "show_warning": len(existing_plans) > 0,
-            "message": f"You have {len(existing_plans)} active plan(s) using this template. Consider reusing an existing plan or adding targets to it instead of creating a new one." if existing_plans else None
-        }
-    }
-
-# -----------------------------
-# Plans
-# -----------------------------
-@router.post("/observation-plans", response_model=ObservationPlanOut, status_code=status.HTTP_201_CREATED)
-def create_plan(payload: ObservationPlanCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # PlanNew UI sends scheduled_for as a single date — store as both
-    # due_start_at and due_end_at so the plan renders on the calendar.
-    sched_start = datetime.combine(payload.scheduled_for, time.min) if payload.scheduled_for else None
-    sched_end = datetime.combine(payload.scheduled_for, time.max) if payload.scheduled_for else None
-
-    plan = ObservationPlan(
-        company_id=user.company_id,
-        template_id=payload.template_id,
-        template_version=1,  # you can resolve the current version here
-        name=payload.name,
-        instructions=payload.instructions,
-        due_start_at=sched_start,
-        due_end_at=sched_end,
-        priority="normal",
-        status="scheduled",
-        created_by=getattr(user, "id", None),
-    )
-    db.add(plan)
-    db.flush()
-
-    # Targets
-    for t in payload.targets:
-        db.add(ObservationPlanTarget(
-            plan_id=plan.id,
-            block_id=t.block_id,
-            row_labels=[x for x in [t.row_start, t.row_end] if x] if (t.row_start or t.row_end) else [],
-            asset_id=None,
-            sample_size=t.required_spots,
-            notes=(t.extra or {}).get("notes"),
-        ))
-
-    # Assignees
-    for uid in payload.assignee_user_ids:
-        db.add(ObservationPlanAssignee(plan_id=plan.id, user_id=uid))
-
-    db.commit()
-    db.refresh(plan)
-    # hydrate response
-    return plan
-
-@router.get("/observation-plans", response_model=List[ObservationPlanOut])
-def list_plans(
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user),
-    status_in: Optional[List[str]] = Query(None),
-    template_id: Optional[int] = None,
-):
-    base = select(ObservationPlan).options(selectinload(ObservationPlan.template))
-    base = base.where(ObservationPlan.company_id == user.company_id)
-    if template_id:
-        base = base.where(ObservationPlan.template_id == template_id)
-    if status_in:
-        base = base.where(ObservationPlan.status.in_(status_in))
-    base = base.order_by(ObservationPlan.created_at.desc())
-
-    plans = db.execute(base).scalars().all()
-    if not plans:
-        return []
-
-    # Precompute per-plan run stats
-    plan_ids = [p.id for p in plans]
-    agg = db.execute(
-        select(
-            ObservationRun.plan_id.label("pid"),
-            func.count(ObservationRun.id).label("runs_count"),
-            func.max(ObservationRun.observed_at_start).label("latest_run_started_at"),
-        )
-        .where(ObservationRun.plan_id.in_(plan_ids))
-        .group_by(ObservationRun.plan_id)
-    ).all()
-    stats = {
-        row.pid: {
-            "runs_count": int(row.runs_count),
-            "latest_run_started_at": row.latest_run_started_at,
-        }
-        for row in agg
-    }
-
-    # Annotate dynamic fields for the Pydantic response
-    for p in plans:
-        s = stats.get(p.id) or {}
-        p.runs_count = s.get("runs_count", 0)
-        p.latest_run_started_at = s.get("latest_run_started_at")
-        p.template_name = p.template.name if getattr(p, "template", None) else None  # <-- add name
-
-    return plans
-
-@router.get("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
-def get_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
-
-    plan = db.execute(
-        select(ObservationPlan)
-        .options(selectinload(ObservationPlan.template))
-        .options(selectinload(ObservationPlan.targets))
-        .options(selectinload(ObservationPlan.assignees))
-        .where(ObservationPlan.id == plan_id)
-    ).scalar_one_or_none()
-    
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    if plan.company_id != user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    # Add template name for frontend
-    plan.template_name = plan.template.name if plan.template else None
-    return plan
-
-@router.patch("/observation-plans/{plan_id}", response_model=ObservationPlanOut)
-def update_plan(plan_id: int, payload: ObservationPlanUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    plan = db.get(ObservationPlan, plan_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    if plan.company_id != user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    if payload.name is not None: plan.name = payload.name
-    if payload.instructions is not None: plan.instructions = payload.instructions
-    if payload.is_active is not None:
-        plan.status = "cancelled" if not payload.is_active else plan.status
-
-    # Replace targets if provided
-    if payload.targets is not None:
-        # delete existing
-        for t in list(plan.targets):
-            db.delete(t)
-        for t in payload.targets:
-            db.add(ObservationPlanTarget(
-                plan_id=plan.id,
-                block_id=t.block_id,
-                row_labels=[x for x in [t.row_start, t.row_end] if x] if (t.row_start or t.row_end) else [],
-                asset_id=None,
-                sample_size=t.required_spots,
-                notes=(t.extra or {}).get("notes"),
-            ))
-    # Replace assignees if provided
-    if payload.assignee_user_ids is not None:
-        for a in list(plan.assignees):
-            db.delete(a)
-        for uid in payload.assignee_user_ids:
-            db.add(ObservationPlanAssignee(plan_id=plan.id, user_id=uid))
-
-    db.add(plan)
-    db.commit()
-    db.refresh(plan)
-    return plan
-
-@router.delete("/observation-plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    plan = db.get(ObservationPlan, plan_id)
-    if not plan:
-        return
-    if plan.company_id != user.company_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    db.delete(plan)
-    db.commit()
-    return
+def _user_display_name(u: Optional[User]) -> Optional[str]:
+    """Best-effort display name for a User row. Falls back to email-local-part."""
+    if u is None:
+        return None
+    first = (u.first_name or "").strip()
+    last = (u.last_name or "").strip()
+    full = f"{first} {last}".strip()
+    if full:
+        return full
+    email = (u.email or "").strip()
+    if email:
+        return email.split("@", 1)[0].replace(".", " ").title()
+    return f"User {u.id}"
 
 
 # -----------------------------
@@ -503,23 +285,7 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db), user=Depends(get_cu
 # -----------------------------
 @router.post("/observation-runs", response_model=ObservationRunOut, status_code=status.HTTP_201_CREATED)
 def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # Resolve block_id (your existing logic)
     block_id = payload.block_id
-
-    if not block_id and payload.plan_id:
-        plan = db.get(ObservationPlan, payload.plan_id)
-        if not plan:
-            raise HTTPException(status_code=404, detail="Plan not found")
-        target_blocks = [t.block_id for t in plan.targets or [] if t.block_id]
-        unique_blocks = list({b for b in target_blocks})
-        if len(unique_blocks) == 1:
-            block_id = unique_blocks[0]
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="Provide block_id when plan has multiple or zero targets"
-            )
-
     if not block_id:
         raise HTTPException(status_code=400, detail="block_id is required for a run")
 
@@ -564,58 +330,64 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
         
         template_id = freeform_template.id
 
-    # ENHANCED: Check for plan+block conflicts specifically
-    if payload.plan_id:
-        exists_plan_block = db.execute(
+    # Conflict check: only block when an *in-progress* run exists (started but
+    # not ended). Multiple Scheduled runs on the same template+block are fine
+    # — that's how a recurring template per block looks before someone starts
+    # the next one. Conflict surfaces at Start time, not at Schedule time.
+    is_scheduling = payload.scheduled_date is not None and payload.started_at is None
+    if not is_scheduling:
+        exists_template_block = db.execute(
             select(ObservationRun.id).where(
                 ObservationRun.company_id == user.company_id,
-                ObservationRun.plan_id == payload.plan_id,
+                ObservationRun.template_id == template_id,
                 ObservationRun.block_id == block_id,
-                ObservationRun.observed_at_end.is_(None),  # Still active
+                ObservationRun.observed_at_start.is_not(None),
+                ObservationRun.observed_at_end.is_(None),
             ).limit(1)
         ).scalar()
-        
-        if exists_plan_block:
+
+        if exists_template_block:
             raise HTTPException(
                 status_code=409,
-                detail=f"Active run #{exists_plan_block} exists for this plan and block combination. Complete it first or select a different block."
+                detail=f"In-progress run #{exists_template_block} for this template on this block. Complete or cancel it first."
             )
-    
-    # Check same template+block conflicts (allows different observation types concurrently)
-    exists_template_block = db.execute(
-        select(ObservationRun.id).where(
-            ObservationRun.company_id == user.company_id,
-            ObservationRun.template_id == template_id,
-            ObservationRun.block_id == block_id,
-            ObservationRun.observed_at_end.is_(None),
-        ).limit(1)
-    ).scalar()
 
-    if exists_template_block:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Active run #{exists_template_block} for this template on this block. Complete or cancel it first."
-        )
+    # Generate appropriate name. Caller-supplied wins.
+    run_name = payload.name
+    if not run_name:
+        run_name = f"Run — template {template_id}"
+        if is_freeform:
+            run_name = f"Free-form observation — {datetime.utcnow().strftime('%b %d, %H:%M')}"
 
-    # Generate appropriate name
-    run_name = f"Run — template {template_id}"
-    if is_freeform:
-        run_name = f"Free-form observation — {datetime.utcnow().strftime('%b %d, %H:%M')}"
-    elif payload.plan_id:
-        plan = db.get(ObservationPlan, payload.plan_id)
-        if plan:
-            run_name = f"Run — {plan.name}"
+    # Schedule vs immediate execution. If the caller passed scheduled_date and
+    # no started_at, the run lands in the Scheduled state (observed_at_start
+    # NULL). Otherwise it's either explicitly started or defaults to now (the
+    # historic ad-hoc behaviour from Quick Obs).
+    if is_scheduling:
+        observed_at_start = None
+    else:
+        observed_at_start = payload.started_at or datetime.utcnow()
 
-    # Continue with your existing run creation logic...
+    # Default the assignee on ad-hoc runs to whoever's capturing — gives the
+    # Management table's Assignee column "who did what" without making the
+    # field worker pick themselves. Scheduled runs respect the wizard's
+    # explicit choice (including null = truly unassigned, will be picked up
+    # by someone later).
+    assigned_to_user_id = payload.assigned_to_user_id
+    if not is_scheduling and assigned_to_user_id is None:
+        assigned_to_user_id = getattr(user, "id", None)
+
     run = ObservationRun(
         company_id=user.company_id,
-        plan_id=payload.plan_id,
         template_id=template_id,
         template_version=1,
         block_id=block_id,
         name=run_name,
-        observed_at_start=payload.started_at or datetime.utcnow(),
+        observed_at_start=observed_at_start,
         observed_at_end=None,
+        scheduled_date=payload.scheduled_date,
+        assigned_to_user_id=assigned_to_user_id,
+        instructions=payload.instructions,
         photo_file_ids=[],
         document_file_ids=[],
         tags=["freeform"] if is_freeform else [],
@@ -625,68 +397,84 @@ def create_run(payload: ObservationRunCreate, db: Session = Depends(get_db), use
     db.add(run)
     db.commit()
     db.refresh(run)
+
+    # Notify the assignee (skip if assigning to self)
+    if run.assigned_to_user_id and run.assigned_to_user_id != getattr(user, "id", None):
+        recipient = db.query(User).filter(User.id == run.assigned_to_user_id).first()
+        if recipient:
+            NotificationService(db).notify_user(
+                user=recipient,
+                notification_type=NotificationType.task,
+                title=f"Observation assigned: {run.name}",
+                body=run.instructions or None,
+                data={"run_id": run.id, "run_name": run.name},
+            )
+            db.commit()
+
     return run
 
-@router.get("/observation-runs/conflicts", response_model=List[ObservationRunOut])
-def check_run_conflicts(
-    plan_id: int,
-    block_id: Optional[int] = None,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    """Check for active runs that would conflict with starting a new run"""
-    q = select(ObservationRun).where(
-        ObservationRun.observed_at_end.is_(None),  # Only active runs
-    )
 
-    q = q.where(ObservationRun.company_id == user.company_id)
-    scope = build_run_scope_filter(db, user)
-    if scope is not None:
-        q = q.where(scope)
-    
-    if plan_id:
-        q = q.where(ObservationRun.plan_id == plan_id)
-        
-    if block_id:
-        q = q.where(ObservationRun.block_id == block_id)
-    
-    q = q.order_by(ObservationRun.created_at.desc())
-    
-    active_runs = db.execute(q).scalars().all()
-    
-    # Annotate with additional context
-    for r in active_runs:
-        r.plan_name = r.plan.name if r.plan else None
-        r.creator_name = r.creator.full_name if r.creator else None
-    
-    return active_runs
+@router.post("/observation-runs/{run_id}/start", response_model=ObservationRunOut)
+def start_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Flip a Scheduled run into In Progress by stamping observed_at_start.
+    Idempotent — calling on an already-started run is a no-op (returns the
+    existing run). Refuses on completed runs."""
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    check_run_access(db, user, run)
+    if run.observed_at_end is not None:
+        raise HTTPException(status_code=400, detail="Run is already complete")
+    if run.observed_at_start is None:
+        run.observed_at_start = datetime.utcnow()
+        db.commit()
+        db.refresh(run)
+    # Hydrate the response same way list/get does
+    run.template_name = run.template.name if run.template else None
+    run.template_type = run.template.type if run.template else None
+    if run.creator:
+        run.creator_name = f"{run.creator.first_name} {run.creator.last_name}".strip()
+    run.block_name = run.block.block_name if run.block else None
+    run.assigned_to_user_name = _user_display_name(run.assigned_to_user) if run.assigned_to_user_id else None
+    return run
 
 @router.get("/observation-runs", response_model=List[ObservationRunOut])
 def list_runs(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
     template_id: Optional[int] = None,
-    plan_id: Optional[int] = None,
     active_only: bool = False,
+    assigned_to_me: bool = Query(False, description="Only runs assigned to the requesting user"),
+    not_completed: bool = Query(False, description="Hide runs that have an observed_at_end"),
 ):
 
     q = (select(ObservationRun)
-         .options(selectinload(ObservationRun.plan))
          .options(selectinload(ObservationRun.creator))
          .options(selectinload(ObservationRun.block))
          .options(selectinload(ObservationRun.template))
+         .options(selectinload(ObservationRun.assigned_to_user))
          )
     q = q.where(ObservationRun.company_id == user.company_id)
     scope = build_run_scope_filter(db, user)
     if scope is not None:
         q = q.where(scope)
     if template_id: q = q.where(ObservationRun.template_id == template_id)
-    if plan_id: q = q.where(ObservationRun.plan_id == plan_id)
     if active_only: q = q.where(ObservationRun.observed_at_end.is_(None))
-    q = q.order_by(ObservationRun.created_at.desc())
+    if not_completed: q = q.where(ObservationRun.observed_at_end.is_(None))
+    if assigned_to_me:
+        q = q.where(ObservationRun.assigned_to_user_id == user.id)
+    # Scheduled work first (by due date), then most-recently-created. NULLS
+    # LAST so ad-hoc / completed runs without a scheduled_date sink to the
+    # bottom.
+    q = q.order_by(
+        ObservationRun.scheduled_date.asc().nulls_last(),
+        ObservationRun.created_at.desc(),
+    )
     rows = db.execute(q).scalars().all()
 
-    # annotate plan_name, creator_name, block_name, and spots_count for the Pydantic Out
+    # annotate creator_name, block_name, and spots_count for the Pydantic Out
     # Batch-load spot counts
     run_ids = [r.id for r in rows]
     spot_counts = {}
@@ -700,7 +488,6 @@ def list_runs(
         spot_counts = {row[0]: row[1] for row in count_rows}
 
     for r in rows:
-        r.plan_name = r.plan.name if r.plan else None
         r.template_name = r.template.name if r.template else None
         r.template_type = r.template.type if r.template else None
         if r.creator:
@@ -708,6 +495,7 @@ def list_runs(
         else:
             r.creator_name = None
         r.block_name = r.block.block_name if r.block else None
+        r.assigned_to_user_name = _user_display_name(r.assigned_to_user) if r.assigned_to_user_id else None
         r.spots_count = spot_counts.get(r.id, 0)
     return rows
 
@@ -715,10 +503,10 @@ def list_runs(
 def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     run = db.execute(
         select(ObservationRun)
-        .options(selectinload(ObservationRun.plan))
         .options(selectinload(ObservationRun.creator))
         .options(selectinload(ObservationRun.block))
         .options(selectinload(ObservationRun.template))
+        .options(selectinload(ObservationRun.assigned_to_user))
         .where(ObservationRun.id == run_id)
     ).scalar_one_or_none()
     if not run:
@@ -726,7 +514,6 @@ def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current
     if run.company_id != user.company_id:
         raise HTTPException(status_code=403, detail="Access denied")
     check_run_access(db, user, run)
-    run.plan_name = run.plan.name if run.plan else None
     run.template_name = run.template.name if run.template else None
     run.template_type = run.template.type if run.template else None
     if run.creator:
@@ -734,6 +521,7 @@ def get_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_current
     else:
         run.creator_name = None
     run.block_name = run.block.block_name if run.block else None
+    run.assigned_to_user_name = _user_display_name(run.assigned_to_user) if run.assigned_to_user_id else None
     return run
 
 @router.patch("/observation-runs/{run_id}", response_model=ObservationRunOut)
@@ -799,7 +587,6 @@ def complete_run_endpoint(run_id: int, db: Session = Depends(get_db), user=Depen
     db.refresh(run)
     
     # Annotate for response (same as list_runs)
-    run.plan_name = run.plan.name if run.plan else None
     if run.creator:
         run.creator_name = f"{run.creator.first_name} {run.creator.last_name}".strip()
     else:

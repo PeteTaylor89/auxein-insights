@@ -35,12 +35,8 @@ function ObservationReport({ startDate, endDate, propertyId }) {
 
       <div className="report-stats-grid">
         <div className="report-stat">
-          <div className="report-stat-value">{data.total_plans}</div>
-          <div className="report-stat-label">Plans</div>
-        </div>
-        <div className="report-stat">
           <div className="report-stat-value">{data.total_runs}</div>
-          <div className="report-stat-label">Runs</div>
+          <div className="report-stat-label">Observations</div>
         </div>
         <div className="report-stat">
           <div className="report-stat-value">{data.completed_runs}</div>

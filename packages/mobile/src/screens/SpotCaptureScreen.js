@@ -16,7 +16,7 @@ import { SectionCard, GpsSection, BottomActionBar, PhotoGrid } from '../componen
 
 export default function SpotCaptureScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { templateId, blockId, blockName, templateName, planName, companyId, planId,
+  const { templateId, blockId, blockName, templateName, planName, companyId,
           runId: existingRunId } = route.params;
 
   const [template, setTemplate] = useState(null);
@@ -146,7 +146,6 @@ export default function SpotCaptureScreen({ route, navigation }) {
           company_id: companyId || template?.company_id,
           template_id: templateId,
           block_id: blockId || undefined,
-          plan_id: planId || undefined,
         });
         activeRunId = run.id;
         setRunId(activeRunId);

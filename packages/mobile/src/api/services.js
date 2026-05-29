@@ -167,15 +167,6 @@ export const observationService = {
     const res = await api.get(`/observations/api/observation-templates/${id}`);
     return res.data;
   },
-  // Plans
-  getPlans: async (params = {}) => {
-    const res = await api.get('/observations/api/observation-plans', { params });
-    return res.data;
-  },
-  getPlan: async (id) => {
-    const res = await api.get(`/observations/api/observation-plans/${id}`);
-    return res.data;
-  },
   // Runs
   listRuns: async (params = {}) => {
     const res = await api.get('/observations/api/observation-runs', { params });
@@ -183,6 +174,11 @@ export const observationService = {
   },
   createRun: async (payload) => {
     const res = await api.post('/observations/api/observation-runs', payload);
+    return res.data;
+  },
+  // Flip a Scheduled run into In Progress. Idempotent on already-started runs.
+  beginRun: async (runId) => {
+    const res = await api.post(`/observations/api/observation-runs/${runId}/start`);
     return res.data;
   },
   getRun: async (id) => {
@@ -505,6 +501,10 @@ export const contractorService = {
     const res = await api.get(`/v1/contractor-management/me/relationships/${relationshipId}`);
     return res.data;
   },
+  getMyRelationshipWorkHistory: async (relationshipId, limit = 20) => {
+    const res = await api.get(`/v1/contractor-management/me/relationships/${relationshipId}/work-history`, { params: { limit } });
+    return res.data;
+  },
   // Profile + insurance + biosecurity (full record)
   getMyProfile: async () => {
     const res = await api.get('/v1/contractor-management/me/profile');
@@ -593,5 +593,62 @@ export const contractorService = {
   },
   deleteMyInsuranceDoc: async (docId) => {
     await api.delete(`/v1/contractor-management/me/insurance/docs/${docId}`);
+  },
+};
+
+// Timesheet self-management for users/managers/admins (not contractors —
+// contractors track work via ContractorAssignment.actual_hours_worked).
+export const timesheetService = {
+  listMyDays: async ({ userId, year, month, status } = {}) => {
+    // Always pass user_id — backend treats omission as "all company days"
+    // which leaks data for non-managers. Self-scoped is what mobile wants.
+    const params = {};
+    if (userId != null) params.user_id = userId;
+    if (year && month) {
+      // Backend uses date_from / date_to (NOT start_date/end_date).
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0);
+      const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      params.date_from = fmt(start);
+      params.date_to = fmt(end);
+    }
+    if (status) params.status = status;
+    const res = await api.get('/timesheets/days', { params });
+    return res.data;
+  },
+  getDay: async (dayId) => {
+    const res = await api.get(`/timesheets/days/${dayId}`);
+    return res.data;
+  },
+  createDay: async ({ work_date, day_hours, notes }) => {
+    const res = await api.post('/timesheets/days', { work_date, day_hours, notes });
+    return res.data;
+  },
+  setDayHours: async (dayId, day_hours) => {
+    const res = await api.patch(`/timesheets/days/${dayId}`, { day_hours });
+    return res.data;
+  },
+  setDayNotes: async (dayId, notes) => {
+    const res = await api.patch(`/timesheets/days/${dayId}`, { notes });
+    return res.data;
+  },
+  rollupDay: async (dayId) => {
+    const res = await api.post(`/timesheets/days/${dayId}/rollup`);
+    return res.data;
+  },
+  submitDay: async (dayId) => {
+    const res = await api.post(`/timesheets/days/${dayId}/submit`);
+    return res.data;
+  },
+  createEntry: async ({ timesheet_day_id, task_id, hours }) => {
+    const res = await api.post('/timesheets/entries', { timesheet_day_id, task_id, hours });
+    return res.data;
+  },
+  updateEntry: async (entryId, { task_id, hours }) => {
+    const res = await api.put(`/timesheets/entries/${entryId}`, { task_id, hours });
+    return res.data;
+  },
+  deleteEntry: async (entryId) => {
+    await api.delete(`/timesheets/entries/${entryId}`);
   },
 };

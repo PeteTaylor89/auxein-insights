@@ -1,30 +1,82 @@
 // hooks/useGpsTracking.js — GPS tracking for task execution
-// Foreground-only mode for Expo Go compatibility.
-// Background tracking (expo-task-manager) will be added when we move to dev builds.
+//
+// Uses expo-location's foreground service (Android) + UIBackgroundModes
+// "location" (iOS) to keep collecting points when the screen is off,
+// WITHOUT requiring ACCESS_BACKGROUND_LOCATION or iOS Always authorization.
+// See docs/plans/LOCATION_COMPLIANCE_V1.md.
+//
+// Architecture:
+//   1. TaskManager.defineTask(LOCATION_TASK_NAME, handler) — registered at
+//      module scope. Receives batches of locations from the OS while the
+//      foreground service is running. Runs in the same JS context as the UI
+//      thread (since expo-location keeps the bundle alive on Android via
+//      the foreground service, and iOS keeps it alive via the location
+//      background mode).
+//   2. startTracking() — calls Location.startLocationUpdatesAsync with the
+//      task name + foreground service notification config. The OS shows a
+//      persistent notification and delivers location batches to the task.
+//   3. stopTracking() — calls Location.stopLocationUpdatesAsync, which
+//      tears down the foreground service AND its notification.
+//   4. Pause/Resume — leaves the service + notification running, just sets
+//      a `_paused` flag the task callback checks. Re-acquires nothing on
+//      resume; the OS is still streaming points.
 import { useState, useRef, useCallback, useEffect } from 'react';
 import * as Location from 'expo-location';
-import * as KeepAwake from 'expo-keep-awake';
+import * as TaskManager from 'expo-task-manager';
 import { tasksService } from '../api/services';
 import { enqueuePoints, flushQueue } from '../services/gpsQueue';
 import { checkNetwork } from './useNetworkStatus';
 
-// Tag for KeepAwake so multiple concurrent activators (if ever added) don't
-// trample each other. deactivate(tag) only releases this specific lock.
-const KEEP_AWAKE_TAG = 'auxein-gps-tracking';
+const LOCATION_TASK_NAME = 'auxein-grow-gps-tracking';
 
-async function lockScreenAwake() {
-  try { await KeepAwake.activateKeepAwakeAsync(KEEP_AWAKE_TAG); }
-  catch (err) { console.warn('[GPS] KeepAwake activate failed', err?.message); }
-}
+// ─── CPU wake-lock — scoping note ──────────────────────────────────────
+// expo-location's Android foreground service (when configured via the
+// `foregroundService` option below) registers a Service with type
+// `location` and acquires a `PARTIAL_WAKE_LOCK` internally while location
+// updates are active. The wake lock is released when
+// stopLocationUpdatesAsync is called or the JS process is torn down.
+//
+// What this gives us:
+//   • CPU stays awake while location updates flow → JS task callback runs
+//     promptly even when the screen is off and device is dozing.
+//   • Foreground notification keeps the app process privileged so Android
+//     doesn't kill it under memory pressure.
+//
+// What it does NOT give us:
+//   • Doze-mode immunity for the `setInterval` timers (batch upload,
+//     duration tick). These are JS-scheduled and may slip a few seconds
+//     under heavy doze. Acceptable — upload is async-batched and duration
+//     is cosmetic.
+//   • Anything once the user force-stops the app or kills it from recents:
+//     wake lock is released with the service.
+//
+// If field data later shows our wake-lock guarantees aren't enough (e.g.
+// JS callback latency > 5s under doze), the explicit add would be:
+//   1. Write a tiny Expo config plugin that drops a partial wake lock when
+//      a flag in AsyncStorage is set, releases when cleared.
+//   2. Acquire from startTracking, release from stopTracking.
+//   3. Verify with `dumpsys power | grep -i wake` while a session is active.
+// Not doing this in v1 — measure first.
 
-function releaseScreenAwake() {
-  try { KeepAwake.deactivateKeepAwake(KEEP_AWAKE_TAG); }
-  catch (err) { console.warn('[GPS] KeepAwake deactivate failed', err?.message); }
-}
+// Foreground-service notification copy — body is updated per-task in
+// startTracking when the caller supplies a task name. See spec §2.6.
+let _notificationConfig = {
+  title: 'Auxein Grow — Task in progress',
+  body: 'Tracking equipment movement.',
+  color: '#5B6830',
+};
+
+// Pause flag — task callback short-circuits when true so the service can
+// stay alive (notification visible) without polluting the buffer/track.
+let _paused = false;
 
 const BATCH_INTERVAL_MS = 10000; // Upload every 10s
 const DISTANCE_INTERVAL_M = 1;   // Every 1m movement (row-level resolution)
-const TIME_INTERVAL_MS = 2000;   // Every 2s (keeps GPS warm)
+const TIME_INTERVAL_MS = 1000;   // Every 1s — Strava-class polling. The OS
+                                 // treats this as a hint; under Doze pressure
+                                 // it may coalesce, but starting from 1s gives
+                                 // us a tighter ceiling than 2s when screen
+                                 // is off + device is in low-power state.
 
 // Accuracy filters
 const ACCURACY_GOOD_M = 8;      // Accuracy we consider "good" — once seen, filter poor fixes
@@ -210,6 +262,114 @@ function medianAltitude(alt) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
+// Process one location update — runs filter chain → Kalman → buffer + track.
+// Extracted from the old watchPositionAsync inline callback so the same
+// logic is shared between the foreground-service task callback and any
+// fallback path. Updates module-level state; the hook polls it for React
+// state updates.
+function processLocationUpdate(location) {
+  const { coords } = location;
+
+  // Filter 1: adaptive accuracy threshold
+  // Always reject very poor fixes. Once we've seen a good fix, reject mediocre ones too.
+  // First MIN_POINTS_BEFORE_FILTER points always pass (ensures a linestring).
+  if (coords.accuracy != null) {
+    if (coords.accuracy < _bestAccuracy) _bestAccuracy = coords.accuracy;
+    const pastWarmup = _totalPoints >= MIN_POINTS_BEFORE_FILTER;
+    const haveGoodFix = _bestAccuracy <= ACCURACY_GOOD_M;
+    if (coords.accuracy > ACCURACY_POOR_M && pastWarmup) {
+      _filteredCount++;
+      return;
+    }
+    if (haveGoodFix && coords.accuracy > ACCURACY_GOOD_M * 2 && pastWarmup) {
+      _filteredCount++;
+      return;
+    }
+  }
+
+  // Filter 2: speed sanity — check both reported speed and calculated speed
+  if (coords.speed != null && coords.speed * 3.6 > MAX_SPEED_KMH) {
+    _filteredCount++;
+    return;
+  }
+  if (_lastPoint) {
+    const d = haversine(_lastPoint.latitude, _lastPoint.longitude, coords.latitude, coords.longitude);
+    const dtSec = (Date.now() - new Date(_lastPoint.timestamp).getTime()) / 1000;
+    if (dtSec > 0 && (d / dtSec) * 3.6 > MAX_SPEED_KMH) {
+      _filteredCount++;
+      return;
+    }
+  }
+
+  // Filter 3: stationary detection — suppress duplicates when not moving
+  const now = Date.now();
+  if (_stationaryAnchor) {
+    const dFromAnchor = haversine(_stationaryAnchor.lat, _stationaryAnchor.lon, coords.latitude, coords.longitude);
+    if (dFromAnchor < STATIONARY_RADIUS_M) {
+      if (now - _stationaryAnchor.time > STATIONARY_TIMEOUT_MS) {
+        _filteredCount++;
+        return;
+      }
+    } else {
+      _stationaryAnchor = { lat: coords.latitude, lon: coords.longitude, time: now };
+    }
+  } else {
+    _stationaryAnchor = { lat: coords.latitude, lon: coords.longitude, time: now };
+  }
+
+  // Kalman filter: smooth position using speed + heading prediction model
+  const rawSpeed = coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
+  const rawHeading = coords.heading != null && coords.heading >= 0 ? coords.heading : null;
+  const filtered = kalmanUpdate(
+    coords.latitude, coords.longitude,
+    coords.accuracy, rawSpeed, rawHeading
+  );
+
+  const filteredCoords = {
+    ...coords,
+    latitude: filtered.lat,
+    longitude: filtered.lon,
+  };
+  const point = formatPoint(filteredCoords, _segmentId, _deviceId);
+  const smoothedAlt = medianAltitude(coords.altitude);
+  point.altitude = smoothedAlt != null ? parseFloat(smoothedAlt.toFixed(2)) : null;
+
+  if (_lastPoint) {
+    const d = haversine(_lastPoint.latitude, _lastPoint.longitude, point.latitude, point.longitude);
+    _totalDistance += d;
+  }
+  _lastPoint = point;
+  _totalPoints++;
+  _buffer.push(point);
+
+  // Live polyline source — retained across upload flushes. Capped to bound
+  // memory; oldest points drop first. Coordinate order is [lon, lat] to
+  // match Mapbox LineString expectations.
+  _trackPoints.push([point.longitude, point.latitude]);
+  if (_trackPoints.length > TRACK_MAX_POINTS) {
+    _trackPoints.splice(0, _trackPoints.length - TRACK_MAX_POINTS);
+  }
+  _notifyTrack();
+}
+
+// Register the TaskManager task at module scope. defineTask is idempotent
+// per task name — safe to call multiple times across bundle reloads. The
+// callback only fires when expo-location's foreground service delivers
+// batches.
+TaskManager.defineTask(LOCATION_TASK_NAME, ({ data, error }) => {
+  if (error) {
+    console.warn('[GPS task] error:', error.message);
+    return;
+  }
+  if (!data || _paused) return;
+  const { locations } = data;
+  if (!locations || locations.length === 0) return;
+  for (const loc of locations) {
+    try { processLocationUpdate(loc); }
+    catch (err) { console.warn('[GPS task] processLocation failed:', err?.message); }
+  }
+});
+
 export function useGpsTracking() {
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -223,18 +383,21 @@ export function useGpsTracking() {
   const pauseStartRef = useRef(null);
   const batchIntervalRef = useRef(null);
   const durationIntervalRef = useRef(null);
-  const watcherRef = useRef(null);
 
-  // Duration timer — updates every second when tracking
+  // Duration timer — also pulls module-level distance/pointCount into React
+  // state since the task callback that updates them runs outside the hook.
   const startDurationTimer = useCallback(() => {
     durationIntervalRef.current = setInterval(() => {
       if (startTimeRef.current && !pauseStartRef.current) {
         const elapsed = (Date.now() - startTimeRef.current - pausedDurationRef.current) / 1000;
         setStats((prev) => {
+          const distance = _totalDistance;
+          const pointCount = _totalPoints;
           const durationMin = elapsed / 60;
-          const distKm = prev.distance / 1000;
+          const distKm = distance / 1000;
           return {
-            ...prev,
+            distance,
+            pointCount,
             duration: elapsed,
             avgSpeed: durationMin > 0 ? parseFloat((distKm / (durationMin / 60)).toFixed(1)) : 0,
           };
@@ -270,127 +433,67 @@ export function useGpsTracking() {
     batchIntervalRef.current = setInterval(flushBuffer, BATCH_INTERVAL_MS);
   }, [flushBuffer]);
 
-  // Start foreground location watcher
+  // Start the OS-level foreground service. Once running, the OS streams
+  // location batches to the TaskManager task defined at module scope —
+  // even when the screen is off or the app is backgrounded, because the
+  // foreground service notification keeps the process privileged.
+  // No ACCESS_BACKGROUND_LOCATION needed: this is the foreground-service
+  // exemption pattern (spec §2.3, §2.4).
   const startWatcher = useCallback(async () => {
     try {
-      watcherRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          distanceInterval: DISTANCE_INTERVAL_M,
-          timeInterval: TIME_INTERVAL_MS,
+      _paused = false;
+      const alreadyRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
+      if (alreadyRunning) {
+        // Tear down + restart so a fresh notification with the new task
+        // name shows. Otherwise the OS keeps the previous body text.
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => {});
+      }
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.BestForNavigation,
+        distanceInterval: DISTANCE_INTERVAL_M,
+        timeInterval: TIME_INTERVAL_MS,
+        // Android — persistent notification config (foreground service).
+        // killServiceOnDestroy:false means the service survives task-removal
+        // (user swipes app from recents) without continuing to track —
+        // expo-location stops the service when the JS context is cleaned up.
+        foregroundService: {
+          notificationTitle: _notificationConfig.title,
+          notificationBody: _notificationConfig.body,
+          notificationColor: _notificationConfig.color,
         },
-        (location) => {
-          const { coords } = location;
-
-          // Filter 1: adaptive accuracy threshold
-          // Always reject very poor fixes. Once we've seen a good fix, reject mediocre ones too.
-          // First MIN_POINTS_BEFORE_FILTER points always pass (ensures a linestring).
-          if (coords.accuracy != null) {
-            if (coords.accuracy < _bestAccuracy) _bestAccuracy = coords.accuracy;
-            const pastWarmup = _totalPoints >= MIN_POINTS_BEFORE_FILTER;
-            const haveGoodFix = _bestAccuracy <= ACCURACY_GOOD_M;
-            if (coords.accuracy > ACCURACY_POOR_M && pastWarmup) {
-              _filteredCount++;
-              return;
-            }
-            if (haveGoodFix && coords.accuracy > ACCURACY_GOOD_M * 2 && pastWarmup) {
-              _filteredCount++;
-              return;
-            }
-          }
-
-          // Filter 2: speed sanity — check both reported speed and calculated speed
-          if (coords.speed != null && coords.speed * 3.6 > MAX_SPEED_KMH) {
-            _filteredCount++;
-            return;
-          }
-          if (_lastPoint) {
-            const d = haversine(_lastPoint.latitude, _lastPoint.longitude, coords.latitude, coords.longitude);
-            const dtSec = (Date.now() - new Date(_lastPoint.timestamp).getTime()) / 1000;
-            if (dtSec > 0 && (d / dtSec) * 3.6 > MAX_SPEED_KMH) {
-              _filteredCount++;
-              return;
-            }
-          }
-
-          // Filter 3: stationary detection — suppress duplicates when not moving
-          const now = Date.now();
-          if (_stationaryAnchor) {
-            const dFromAnchor = haversine(_stationaryAnchor.lat, _stationaryAnchor.lon, coords.latitude, coords.longitude);
-            if (dFromAnchor < STATIONARY_RADIUS_M) {
-              if (now - _stationaryAnchor.time > STATIONARY_TIMEOUT_MS) {
-                _filteredCount++;
-                return;
-              }
-            } else {
-              _stationaryAnchor = { lat: coords.latitude, lon: coords.longitude, time: now };
-            }
-          } else {
-            _stationaryAnchor = { lat: coords.latitude, lon: coords.longitude, time: now };
-          }
-
-          // Kalman filter: smooth position using speed + heading prediction model
-          const rawSpeed = coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
-          const rawHeading = coords.heading != null && coords.heading >= 0 ? coords.heading : null;
-          const filtered = kalmanUpdate(
-            coords.latitude, coords.longitude,
-            coords.accuracy, rawSpeed, rawHeading
-          );
-
-          // Build point from filtered coordinates
-          const filteredCoords = {
-            ...coords,
-            latitude: filtered.lat,
-            longitude: filtered.lon,
-          };
-          const point = formatPoint(filteredCoords, _segmentId, _deviceId);
-          const smoothedAlt = medianAltitude(coords.altitude);
-          point.altitude = smoothedAlt != null ? parseFloat(smoothedAlt.toFixed(2)) : null;
-
-          if (_lastPoint) {
-            const d = haversine(_lastPoint.latitude, _lastPoint.longitude, point.latitude, point.longitude);
-            _totalDistance += d;
-          }
-          _lastPoint = point;
-          _totalPoints++;
-          _buffer.push(point);
-
-          // Live polyline source — retained across upload flushes. Capped to
-          // bound memory; oldest points drop first. Coordinate order is
-          // [lon, lat] to match Mapbox LineString expectations.
-          _trackPoints.push([point.longitude, point.latitude]);
-          if (_trackPoints.length > TRACK_MAX_POINTS) {
-            _trackPoints.splice(0, _trackPoints.length - TRACK_MAX_POINTS);
-          }
-          _notifyTrack();
-
-          setStats((prev) => ({
-            ...prev,
-            distance: _totalDistance,
-            pointCount: _totalPoints,
-          }));
-        }
-      );
+        // iOS — bind to "When In Use" auth + Background Modes "location",
+        // never to Always. Indicator visible per spec §3.4.4.
+        showsBackgroundLocationIndicator: true,
+        pausesUpdatesAutomatically: false,
+        activityType: Location.ActivityType.OtherNavigation,
+      });
     } catch (err) {
-      console.warn('[GPS] Watcher failed:', err.message);
+      console.warn('[GPS] Foreground service start failed:', err.message);
       setError(err.message);
     }
   }, []);
 
-  const stopWatcher = useCallback(() => {
-    if (watcherRef.current) {
-      watcherRef.current.remove();
-      watcherRef.current = null;
+  const stopWatcher = useCallback(async () => {
+    try {
+      const isRegistered = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
+      if (isRegistered) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      }
+    } catch (err) {
+      console.warn('[GPS] Foreground service stop failed:', err?.message);
     }
   }, []);
 
+
   // --- Public API ---
 
-  const startTracking = useCallback(async (taskId) => {
+  const startTracking = useCallback(async (taskId, taskName) => {
     try {
       setError(null);
 
-      // Request foreground permission only (works in Expo Go)
+      // Foreground permission is the only one we ever request. The
+      // foreground service does the heavy lifting for screen-off tracking
+      // — no ACCESS_BACKGROUND_LOCATION or iOS Always needed.
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setError('Location permission denied');
@@ -419,6 +522,12 @@ export function useGpsTracking() {
       _trackActive = true;
       _notifyTrack();
 
+      // Personalise the foreground-service notification body per spec §2.6.
+      // Falls back to the generic copy when caller doesn't pass a task name.
+      _notificationConfig.body = taskName
+        ? `Task in progress: ${taskName}`
+        : 'Tracking equipment movement.';
+
       // Get initial position (BestForNavigation for max accuracy)
       const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
       initKalman(initialLoc.coords.latitude, initialLoc.coords.longitude, initialLoc.coords.accuracy);
@@ -445,14 +554,12 @@ export function useGpsTracking() {
       startTimeRef.current = Date.now();
       pausedDurationRef.current = 0;
 
-      // Start foreground watcher
+      // Start the foreground-service-backed location stream. Once this
+      // returns the OS notification is visible and points will flow into
+      // the TaskManager task regardless of screen state.
       await startWatcher();
       startBatchInterval();
       startDurationTimer();
-      // Hold the screen awake — watchPositionAsync stops collecting points
-      // the moment the OS auto-locks the screen, so an unattended phone
-      // would drop the trail mid-task. Released on pause/stop.
-      await lockScreenAwake();
 
       setIsTracking(true);
       setIsPaused(false);
@@ -470,7 +577,10 @@ export function useGpsTracking() {
 
   const pauseTracking = useCallback(async () => {
     try {
-      stopWatcher();
+      // Flip the gate first so any in-flight task callback drops its points.
+      // The foreground service stays alive — the notification is part of
+      // the active session contract per spec §2.4 ("active" includes paused).
+      _paused = true;
 
       const finalPoint = _lastPoint ? {
         latitude: _lastPoint.latitude,
@@ -487,15 +597,11 @@ export function useGpsTracking() {
 
       pauseStartRef.current = Date.now();
       setIsPaused(true);
-      // Pause respects the user's preference to put the phone down without
-      // burning battery — the trail is paused anyway, so the screen lock
-      // can come on. Resume re-acquires the lock.
-      releaseScreenAwake();
     } catch (err) {
       console.error('[GPS] Pause error:', err);
       setError(err.message);
     }
-  }, [flushBuffer, stopWatcher]);
+  }, [flushBuffer]);
 
   const resumeTracking = useCallback(async () => {
     try {
@@ -506,6 +612,9 @@ export function useGpsTracking() {
 
       _segmentId++;
 
+      // One-shot fresh fix to re-seed the Kalman state — the service has
+      // been running but we've been discarding points, so the filter is
+      // stale.
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
       initKalman(loc.coords.latitude, loc.coords.longitude, loc.coords.accuracy);
       const initialPoint = formatPoint(loc.coords, _segmentId, _deviceId);
@@ -514,21 +623,25 @@ export function useGpsTracking() {
         initial_point: initialPoint,
       });
 
-      await startWatcher();
-      await lockScreenAwake();
+      // Re-open the gate — the still-running foreground service will start
+      // delivering points to the buffer again.
+      _paused = false;
       setIsPaused(false);
     } catch (err) {
       console.error('[GPS] Resume error:', err);
       setError(err.message);
     }
-  }, [startWatcher]);
+  }, []);
 
   const stopTracking = useCallback(async () => {
     const taskId = taskIdRef.current;
     let stopFailed = false;
 
     try {
-      stopWatcher();
+      // Tear down the foreground service first — drops the notification +
+      // releases location resources within seconds (spec §2.4.3).
+      await stopWatcher();
+      _paused = false;
       await flushBuffer();
 
       const finalPoint = _lastPoint ? {
@@ -578,9 +691,6 @@ export function useGpsTracking() {
       setIsTracking(false);
       setIsPaused(false);
       setHasBeenStopped(true);
-      // Release the screen-awake lock regardless of network outcome —
-      // tracking has fully ended from the user's perspective.
-      releaseScreenAwake();
       // Surface a soft notice so the user knows recovery is in progress. Not
       // an error per se — the track will appear when they next open Map.
       if (stopFailed) {
@@ -589,17 +699,41 @@ export function useGpsTracking() {
     }
   }, [flushBuffer, stopWatcher]);
 
-  // Cleanup on unmount
+  // Resync local hook state from the foreground service on mount. If the
+  // service is running (because we started it earlier and a re-mount lost
+  // the hook's useState — common when the screen sleeps + RN remounts the
+  // screen on resume) we'd otherwise report isTracking=false and miss the
+  // stopTracking call on task complete → no summary built.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+        if (!running || cancelled) return;
+        // Service is still alive from a prior session. Reflect that locally
+        // so the rest of the UI (Complete task → stopTracking gate) behaves.
+        setIsTracking(true);
+        setIsPaused(_paused);
+        _trackActive = true;
+        _notifyTrack();
+      } catch {
+        // Best-effort — failure here just means the user has to manually
+        // stop GPS before completing the task, which was the prior behaviour.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Cleanup on unmount — DON'T tear the service down here, since RN often
+  // unmounts screens transiently (focus changes, lock cycles) while the
+  // user is still in-session. stopTracking() is the canonical user exit;
+  // unmount only stops the intervals.
   useEffect(() => {
     return () => {
       if (batchIntervalRef.current) clearInterval(batchIntervalRef.current);
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-      stopWatcher();
-      // Belt-and-braces — if the screen we held awake unmounts mid-track
-      // (e.g. abrupt logout), make sure the lock doesn't leak.
-      releaseScreenAwake();
     };
-  }, [stopWatcher]);
+  }, []);
 
   return {
     isTracking,

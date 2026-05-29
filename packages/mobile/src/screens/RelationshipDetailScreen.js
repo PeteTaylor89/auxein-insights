@@ -4,7 +4,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  ActivityIndicator, StatusBar,
+  ActivityIndicator, StatusBar, TouchableOpacity,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,14 +29,19 @@ export default function RelationshipDetailScreen({ route, navigation }) {
   const { relationshipId } = route.params || {};
   const toast = useToast();
   const [rel, setRel] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!relationshipId) return;
     setLoading(true);
     try {
-      const data = await contractorService.getMyRelationship(relationshipId);
+      const [data, hist] = await Promise.all([
+        contractorService.getMyRelationship(relationshipId),
+        contractorService.getMyRelationshipWorkHistory(relationshipId, 20).catch(() => []),
+      ]);
       setRel(data);
+      setHistory(Array.isArray(hist) ? hist : []);
       // Update header title once company name is known
       if (data?.company_name) {
         navigation.setOptions({ title: data.company_name });
@@ -163,6 +168,36 @@ export default function RelationshipDetailScreen({ route, navigation }) {
         )}
       </Card>
 
+      {/* Completed work — recent assignments with notes + hours per record */}
+      <Card icon="check-square" title={`Completed work${history.length ? ` (${history.length})` : ''}`}>
+        {history.length === 0 ? (
+          <Text style={styles.emptyText}>No completed work yet.</Text>
+        ) : (
+          history.map((item) => (
+            <TouchableOpacity
+              key={item.assignment_id}
+              style={styles.workRow}
+              onPress={() => item.task_id && navigation.navigate('TaskDetail', { taskId: item.task_id })}
+              disabled={!item.task_id}
+              activeOpacity={item.task_id ? 0.7 : 1}
+            >
+              <View style={styles.workRowHeader}>
+                <Text style={styles.workTitle} numberOfLines={1}>{item.title}</Text>
+                {item.actual_hours_worked != null && (
+                  <Text style={styles.workHours}>{item.actual_hours_worked.toFixed(1)} h</Text>
+                )}
+              </View>
+              <Text style={styles.workMeta}>
+                {item.block_name ? `${item.block_name} · ` : ''}{formatDate(item.actual_end)}
+              </Text>
+              {item.notes && (
+                <Text style={styles.workNotes} numberOfLines={3}>{item.notes}</Text>
+              )}
+            </TouchableOpacity>
+          ))
+        )}
+      </Card>
+
       {/* Emergency contact override */}
       {hasEmergency && (
         <Card icon="phone" title="Emergency contact (this company)">
@@ -280,4 +315,22 @@ const styles = StyleSheet.create({
   warningBoxText: { fontSize: fontSize.xs, color: colors.warningDark, flex: 1, lineHeight: 16 },
 
   notesText: { fontSize: fontSize.sm, color: colors.text, lineHeight: 20 },
+
+  emptyText: { fontSize: fontSize.sm, color: colors.textMuted, fontStyle: 'italic' },
+  workRow: {
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  workRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
+  workTitle: { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
+  workHours: { fontSize: fontSize.sm, fontWeight: '700', color: colors.primary },
+  workMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: 4 },
+  workNotes: { fontSize: fontSize.xs, color: colors.text, lineHeight: 16 },
 });

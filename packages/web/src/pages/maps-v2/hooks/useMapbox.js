@@ -88,6 +88,10 @@ export default function useMapbox() {
       pitch: 0,
       bearing: 0,
       antialias: true,
+      // Finger taps drift more than the 3px default before lift-off, so Mapbox
+      // treats them as tiny pans and never fires `click` — feature popups never
+      // open on iPad/touch. A wider tolerance lets taps register as clicks.
+      clickTolerance: 10,
     });
 
     m.addControl(new mapboxgl.NavigationControl(), 'top-right');

@@ -13,14 +13,19 @@ from db.session import get_db
 from api.deps import get_current_user
 from db.models.user import User
 from db.models.task import Task
-from db.models.observation_plan import ObservationPlan
 from db.models.observation_run import ObservationRun
 from db.models.timesheet import TimesheetDay, TimeEntry
 from db.models.asset import Asset
 from db.models.block import VineyardBlock
+from db.models.contractor import Contractor
+from db.models.contractor_relationship import ContractorRelationship
+from db.models.contractor_assignment import ContractorAssignment
+from db.models.contractor_movement import ContractorMovement
+from db.models.property import Property
 from schemas.report import (
     TaskReportSummary, ObservationReportSummary,
     TimesheetReportSummary, AssetReportSummary,
+    ContractorReportSummary, TopContractor, PropertyVisitCount,
     StatusCount, CategoryCount,
 )
 
@@ -153,14 +158,7 @@ def observation_report_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    plan_q = db.query(ObservationPlan).filter(ObservationPlan.company_id == current_user.company_id)
-    total_plans = plan_q.count()
-
-    run_q = (
-        db.query(ObservationRun)
-        .join(ObservationPlan, ObservationRun.plan_id == ObservationPlan.id)
-        .filter(ObservationPlan.company_id == current_user.company_id)
-    )
+    run_q = db.query(ObservationRun).filter(ObservationRun.company_id == current_user.company_id)
     # Property filter for observation runs: via run.block_id -> block.property_id
     if property_id is not None:
         block_ids = [
@@ -187,7 +185,6 @@ def observation_report_summary(
         runs_by_month[month_key] = runs_by_month.get(month_key, 0) + 1
 
     return ObservationReportSummary(
-        total_plans=total_plans,
         total_runs=total_runs,
         completed_runs=completed_runs,
         avg_spots_per_run=round(total_spots / total_runs, 1) if total_runs > 0 else 0,
@@ -203,11 +200,7 @@ def observation_report_export(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    run_q = (
-        db.query(ObservationRun)
-        .join(ObservationPlan, ObservationRun.plan_id == ObservationPlan.id)
-        .filter(ObservationPlan.company_id == current_user.company_id)
-    )
+    run_q = db.query(ObservationRun).filter(ObservationRun.company_id == current_user.company_id)
     if property_id is not None:
         block_ids = [
             row[0] for row in
@@ -221,14 +214,15 @@ def observation_report_export(
     run_q = _date_filter(run_q, ObservationRun, "created_at", start_date, end_date)
     runs = run_q.order_by(ObservationRun.created_at.desc()).all()
 
-    headers = ["ID", "Name", "Plan ID", "Started", "Ended", "Spots", "Created"]
+    headers = ["ID", "Name", "Block ID", "Scheduled", "Started", "Ended", "Spots", "Created"]
     rows = []
     for r in runs:
         spot_count = len(r.spots) if hasattr(r, "spots") and r.spots else 0
         rows.append([
             r.id,
             r.name or "",
-            r.plan_id,
+            r.block_id or "",
+            str(r.scheduled_date) if r.scheduled_date else "",
             str(r.observed_at_start) if r.observed_at_start else "",
             str(r.observed_at_end) if r.observed_at_end else "",
             spot_count,
@@ -402,3 +396,154 @@ def asset_report_export(
             float(a.current_value) if a.current_value else "",
         ])
     return _csv_response(rows, headers, "assets_report.csv")
+
+
+# ── Contractor Reports ────────────────────────────────────────────────
+@router.get("/contractors/summary", response_model=ContractorReportSummary)
+def contractor_report_summary(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Aggregate contractor activity for the company in the date range:
+    completed jobs + hours, site visits, top contributors, per-property
+    visit breakdown. Powers the Reports tab "Contractor Activity" card."""
+    company_id = current_user.company_id
+
+    # Total active relationships (not date-scoped — "how many contractors
+    # are we currently engaged with" is a now-state question).
+    total_active = db.query(func.count(ContractorRelationship.id)).filter(
+        ContractorRelationship.company_id == company_id,
+        ContractorRelationship.status == "active",
+    ).scalar() or 0
+
+    # Completed work in range — joined to actual_end so we count when the
+    # work was wrapped up, not when assigned.
+    asn_q = db.query(ContractorAssignment).filter(
+        ContractorAssignment.company_id == company_id,
+        ContractorAssignment.status == "completed",
+    )
+    asn_q = _date_filter(asn_q, ContractorAssignment, "actual_end", start_date, end_date)
+    completed_assignments = asn_q.all()
+
+    jobs_completed = len(completed_assignments)
+    total_hours = sum(float(a.actual_hours_worked or 0) for a in completed_assignments)
+
+    # Top contractors by hours in range
+    top_q = db.query(
+        ContractorAssignment.contractor_id.label("cid"),
+        func.coalesce(func.sum(ContractorAssignment.actual_hours_worked), 0).label("hours"),
+        func.count(ContractorAssignment.id).label("jobs"),
+    ).filter(
+        ContractorAssignment.company_id == company_id,
+        ContractorAssignment.status == "completed",
+    )
+    top_q = _date_filter(top_q, ContractorAssignment, "actual_end", start_date, end_date)
+    top_rows = top_q.group_by(ContractorAssignment.contractor_id).order_by(func.coalesce(func.sum(ContractorAssignment.actual_hours_worked), 0).desc()).limit(5).all()
+
+    top_contractor_ids = [r.cid for r in top_rows]
+    contractor_name_map = {}
+    if top_contractor_ids:
+        for c in db.query(Contractor).filter(Contractor.id.in_(top_contractor_ids)).all():
+            full = f"{(c.first_name or '').strip()} {(c.last_name or '').strip()}".strip() or (c.email or f"Contractor {c.id}")
+            contractor_name_map[c.id] = full
+
+    top_contractors = [
+        TopContractor(
+            contractor_id=r.cid,
+            contractor_name=contractor_name_map.get(r.cid, f"Contractor {r.cid}"),
+            jobs_completed=int(r.jobs or 0),
+            hours_worked=float(r.hours or 0),
+        )
+        for r in top_rows
+    ]
+
+    # Visits — count ContractorMovement rows in range; optional property
+    # filter applied to both the count and the per-property breakdown.
+    mov_q = db.query(ContractorMovement).filter(ContractorMovement.company_id == company_id)
+    mov_q = _date_filter(mov_q, ContractorMovement, "arrival_datetime", start_date, end_date)
+    if property_id is not None:
+        mov_q = mov_q.filter(ContractorMovement.property_id == property_id)
+    movements = mov_q.all()
+
+    total_visits = len(movements)
+    unique_contractors = len({m.contractor_id for m in movements if m.contractor_id})
+
+    # Per-property breakdown — group at the DB level for efficiency
+    prop_q = db.query(
+        ContractorMovement.property_id.label("pid"),
+        func.count(ContractorMovement.id).label("cnt"),
+    ).filter(ContractorMovement.company_id == company_id)
+    prop_q = _date_filter(prop_q, ContractorMovement, "arrival_datetime", start_date, end_date)
+    if property_id is not None:
+        prop_q = prop_q.filter(ContractorMovement.property_id == property_id)
+    prop_rows = prop_q.group_by(ContractorMovement.property_id).order_by(func.count(ContractorMovement.id).desc()).all()
+
+    prop_ids = [r.pid for r in prop_rows if r.pid is not None]
+    property_name_map = {}
+    if prop_ids:
+        for p in db.query(Property).filter(Property.id.in_(prop_ids)).all():
+            property_name_map[p.id] = p.name
+
+    visits_by_property = [
+        PropertyVisitCount(
+            property_id=r.pid,
+            property_name=property_name_map.get(r.pid) if r.pid else "Unassigned",
+            visit_count=int(r.cnt or 0),
+        )
+        for r in prop_rows
+    ]
+
+    return ContractorReportSummary(
+        total_active_relationships=int(total_active),
+        jobs_completed=jobs_completed,
+        total_hours_worked=round(total_hours, 2),
+        total_visits=total_visits,
+        unique_contractors_visited=unique_contractors,
+        top_contractors_by_hours=top_contractors,
+        visits_by_property=visits_by_property,
+    )
+
+
+@router.get("/contractors/export")
+def contractor_report_export(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """CSV of completed contractor assignments in range — one row per
+    assignment with contractor name, task title, hours, dates."""
+    company_id = current_user.company_id
+
+    rows_q = (
+        db.query(ContractorAssignment, Contractor, Task)
+        .join(Contractor, Contractor.id == ContractorAssignment.contractor_id)
+        .outerjoin(Task, Task.id == ContractorAssignment.task_id)
+        .filter(
+            ContractorAssignment.company_id == company_id,
+            ContractorAssignment.status == "completed",
+        )
+    )
+    rows_q = _date_filter(rows_q, ContractorAssignment, "actual_end", start_date, end_date)
+    rows_data = rows_q.order_by(ContractorAssignment.actual_end.desc().nulls_last()).all()
+
+    headers = ["Assignment ID", "Contractor", "Task ID", "Task Title", "Scheduled Start", "Scheduled End", "Actual Start", "Actual End", "Hours Worked"]
+    out_rows = []
+    for a, c, t in rows_data:
+        contractor_name = f"{(c.first_name or '').strip()} {(c.last_name or '').strip()}".strip() or c.email or f"Contractor {c.id}"
+        out_rows.append([
+            a.id,
+            contractor_name,
+            a.task_id or "",
+            t.title if t else (a.work_description or ""),
+            str(a.scheduled_start) if a.scheduled_start else "",
+            str(a.scheduled_end) if a.scheduled_end else "",
+            str(a.actual_start) if a.actual_start else "",
+            str(a.actual_end) if a.actual_end else "",
+            float(a.actual_hours_worked) if a.actual_hours_worked else "",
+        ])
+    return _csv_response(out_rows, headers, "contractors_report.csv")

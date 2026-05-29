@@ -116,12 +116,6 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
-    observation_plan_assignments = relationship(
-        "ObservationPlanAssignee",
-        back_populates="user",
-        cascade="all, delete-orphan",
-    )
-
     task_assignments = relationship(
         "TaskAssignment",
         foreign_keys="[TaskAssignment.user_id]",

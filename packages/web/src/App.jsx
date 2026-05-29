@@ -23,13 +23,8 @@ import TakeTraining from './pages/TakeTraining';
 import Insights from './pages/Insights';
 import TimesheetSystem from './pages/TimesheetSystem';
 
-import PlanNew from  './pages/PlanNew';
-import PlanDetail from './pages/PlanDetail';
 import RunCapture from './pages/RunCapture';
 import ObservationDashboard from './pages/ObservationDashboard';
-import PlanEdit from './pages/PlanEdit';
-import RunStart from './pages/RunStart';
-import AdhocObservationCreate from './pages/AdhocObservationCreate';
 import AssetsDashboard from './pages/AssetsDashboard';
 import AssetForm from './pages/AssetForm';
 import ContractorMobileOnly from './pages/ContractorMobileOnly';
@@ -38,6 +33,7 @@ import ContractorManagement from './pages/ContractorManagement';
 import Notifications from './pages/Notifications';
 import Calendar from './pages/Calendar';
 import QuickObservation from './pages/QuickObservation';
+import QuickPlanObservation from './pages/QuickPlanObservation';
 
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
 import TaskCreationWizard from './pages/TaskCreationWizard';
@@ -237,30 +233,6 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/planobservation" element={
-          <ProtectedRoute>
-            <PlanNew />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/plandetail/:id" element={
-          <ProtectedRoute>
-            <PlanDetail />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/planedit/:id" element={
-          <ProtectedRoute>
-            <PlanEdit />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/observations/runstart/:planId" element={
-          <ProtectedRoute>
-            <RunStart  />
-          </ProtectedRoute>
-        } />
-
         <Route path="/observations/runcapture/:id" element={
           <ProtectedRoute>
             <RunCapture  />
@@ -273,9 +245,9 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/observations/adhoc" element={
+        <Route path="/observations/schedule" element={
           <ProtectedRoute>
-            <AdhocObservationCreate  />
+            <QuickPlanObservation />
           </ProtectedRoute>
         } />
 

@@ -10,48 +10,15 @@ const observationService = {
     return res.data;
   },
   
-  checkTemplateUsage: async (templateId, companyId = null) => {
-    const params = {};
-    if (companyId) params.company_id = companyId;
-    
-    const res = await api.get(`/observations/api/observation-templates/${templateId}/usage`, { params });
-    return res.data;
-  },
-
-  // Plans
-  createPlan: async (payload) => {
-    const res = await api.post('/observations/api/observation-plans', payload);
-    return res.data;
-  },
-
-  getPlan: async (id) => {
-    const res = await api.get(`/observations/api/observation-plans/${id}`);
-    return res.data;
-  },
-
-  listPlans: async (params = {}) => (
-    await api.get('/observations/api/observation-plans', { params })
-  ).data,
-
-  listRunsForPlan: async (planId) => (
-    await api.get(`/observations/api/observation-plans/${planId}/runs`)
-  ).data,
-
-  updatePlan: async (id, payload) => {
-    const res = await api.patch(`/observations/api/observation-plans/${id}`, payload);
-    return res.data;
-  },
-
   // Runs
   listRuns: async (params = {}) => (
     await api.get('/observations/api/observation-runs', { params })
   ).data,
 
-  startRun: async (planId, extras = {}) => {
-    const res = await api.post('/observations/api/observation-runs', {
-      plan_id: planId,
-      ...extras,
-    });
+  // Flip a Scheduled run into In Progress. Server stamps observed_at_start.
+  // Idempotent on already-started runs.
+  beginRun: async (runId) => {
+    const res = await api.post(`/observations/api/observation-runs/${runId}/start`, {});
     return res.data;
   },
   
@@ -65,15 +32,6 @@ const observationService = {
   
   createRun: async (payload) => {
     const res = await api.post('/observations/api/observation-runs', payload);
-    return res.data;
-  },
-
-  checkRunConflicts: async (planId, blockId = null, companyId = null) => {
-    const params = { plan_id: planId };
-    if (blockId) params.block_id = blockId;
-    if (companyId) params.company_id = companyId;
-    
-    const res = await api.get('/observations/api/observation-runs/conflicts', { params });
     return res.data;
   },
 

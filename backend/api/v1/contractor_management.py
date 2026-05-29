@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm.attributes import flag_modified
 
 from db.session import get_db
@@ -789,6 +790,12 @@ def list_my_assignments(
         ContractorAssignment.created_at.desc(),
     ).all()
 
+    # Drop orphan rows where the assignment points at a task that no longer
+    # exists. Otherwise the mobile renders the row using work_description as
+    # the title, the user taps it, and TaskDetail 404s — confusing UX.
+    # General-work assignments (task_id IS NULL) are kept as before.
+    rows = [r for r in rows if not (r[0].task_id and r[2] is None)]
+
     return [{
         "id": a.id,
         "task_id": a.task_id,
@@ -1191,7 +1198,6 @@ def create_my_observation(
 
     run = ObservationRun(
         company_id=payload.company_id,
-        plan_id=None,
         template_id=template.id,
         template_version=template.version,
         block_id=payload.block_id,
@@ -1758,4 +1764,111 @@ def get_contractor_movement_detail(
         "status": movement.status,
         "check_in_notes": movement.check_in_notes,
         "check_out_notes": movement.check_out_notes,
+    }
+
+
+@router.get("/me/relationships/{relationship_id}/work-history")
+def list_my_relationship_work_history(
+    relationship_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_contractor: Contractor = Depends(get_current_contractor),
+) -> List[Dict[str, Any]]:
+    """Recent completed ContractorAssignments for one of the contractor's
+    relationships. Used by the mobile RelationshipDetailScreen "Completed
+    work" card so the contractor sees their own audit trail per company."""
+    relationship = db.query(ContractorRelationship).filter(
+        ContractorRelationship.id == relationship_id,
+        ContractorRelationship.contractor_id == current_contractor.id,
+    ).first()
+    if not relationship:
+        raise HTTPException(status_code=404, detail="Relationship not found")
+
+    rows = (
+        db.query(ContractorAssignment, Task, VineyardBlock)
+        .outerjoin(Task, Task.id == ContractorAssignment.task_id)
+        .outerjoin(VineyardBlock, VineyardBlock.id == Task.block_id)
+        .filter(
+            ContractorAssignment.contractor_id == current_contractor.id,
+            ContractorAssignment.company_id == relationship.company_id,
+            ContractorAssignment.status == "completed",
+        )
+        .order_by(ContractorAssignment.actual_end.desc().nulls_last(),
+                  ContractorAssignment.updated_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [{
+        "assignment_id": a.id,
+        "task_id": a.task_id,
+        "title": task.title if task else (a.work_description[:80] if a.work_description else 'Untitled work'),
+        "block_name": block.block_name if block else None,
+        "actual_end": a.actual_end.isoformat() if a.actual_end else None,
+        "actual_hours_worked": float(a.actual_hours_worked) if a.actual_hours_worked else None,
+        # Notes for the contractor — task.completion_notes is what the
+        # completer typed; fall back to assignment.work_description.
+        "notes": (task.completion_notes if task and getattr(task, "completion_notes", None) else a.work_description) or None,
+    } for a, task, block in rows]
+
+
+@router.post("/admin/recompute-contractor-rollups")
+def recompute_contractor_rollups(
+    contractor_id: Optional[int] = Query(None, description="Limit to a single contractor; omit to recompute all"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Idempotent recompute of ContractorRelationship rollups
+    (jobs_completed_for_company / total_hours_worked / last_worked_date)
+    + Contractor.total_jobs_completed from the ContractorAssignment history.
+
+    Run after deploying the rollup bug fix to backfill the existing 4-hour
+    completion Pete flagged. Re-runnable safely — derives state, doesn't
+    accumulate."""
+    if current_user.user_type not in ("auxein_admin", "company_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Scope: company_admin only touches their own company's relationships;
+    # auxein_admin can target any contractor across all companies.
+    rel_q = db.query(ContractorRelationship)
+    if current_user.user_type == "company_admin":
+        rel_q = rel_q.filter(ContractorRelationship.company_id == current_user.company_id)
+    if contractor_id is not None:
+        rel_q = rel_q.filter(ContractorRelationship.contractor_id == contractor_id)
+    relationships = rel_q.all()
+
+    relationships_updated = 0
+    for rel in relationships:
+        agg = db.query(
+            sa_func.count(ContractorAssignment.id).label("jobs"),
+            sa_func.coalesce(sa_func.sum(ContractorAssignment.actual_hours_worked), 0).label("hours"),
+            sa_func.max(ContractorAssignment.actual_end).label("last_end"),
+        ).filter(
+            ContractorAssignment.contractor_id == rel.contractor_id,
+            ContractorAssignment.company_id == rel.company_id,
+            ContractorAssignment.status == "completed",
+        ).first()
+        rel.jobs_completed_for_company = int(agg.jobs or 0)
+        rel.total_hours_worked = float(agg.hours or 0)
+        rel.last_worked_date = agg.last_end.date() if agg.last_end else None
+        relationships_updated += 1
+
+    # Cross-company total on Contractor — recompute once per touched contractor
+    contractor_ids = list({r.contractor_id for r in relationships})
+    contractors_updated = 0
+    for cid in contractor_ids:
+        total = db.query(sa_func.count(ContractorAssignment.id)).filter(
+            ContractorAssignment.contractor_id == cid,
+            ContractorAssignment.status == "completed",
+        ).scalar()
+        c = db.query(Contractor).filter(Contractor.id == cid).first()
+        if c:
+            c.total_jobs_completed = int(total or 0)
+            contractors_updated += 1
+
+    db.commit()
+
+    return {
+        "relationships_updated": relationships_updated,
+        "contractors_updated": contractors_updated,
     }

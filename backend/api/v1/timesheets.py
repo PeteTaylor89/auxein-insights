@@ -242,6 +242,40 @@ def update_timesheet_day(
     return day
 
 
+@router.post("/days/{day_id}/rollup", response_model=TimesheetDayOut)
+def rollup_timesheet_day(
+    day_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lock the per-entry sum in as the day's declared total.
+
+    Sets `day_hours = entry_hours` so the user can submit a day built from
+    task-completion time entries without manually re-typing the total. Only
+    valid on editable days (draft / rejected). No-op if entry_hours is zero
+    — returns 400 so the mobile shows a hint instead of silently submitting
+    an empty day.
+    """
+    day = _get_day_or_404(db, day_id)
+    _ensure_company_scope(current_user, day.company_id)
+    _ensure_editable(day, current_user)
+
+    if Decimal(str(day.entry_hours or 0)) <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No task entries yet — complete a task with hours first, then roll up.",
+        )
+
+    try:
+        set_day_hours(db, day.id, Decimal(str(day.entry_hours)))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    db.commit()
+    db.refresh(day)
+    return day
+
+
 @router.post("/days/{day_id}/submit", response_model=TimesheetDayOut)
 def submit_timesheet_day(
     day_id: int,

@@ -157,8 +157,8 @@ export default function QuickObservation() {
             <Eye size={20} />
             <h1 className="section-title">Quick Observation</h1>
           </div>
-          <Link to="/planobservation" className="btn-ghost qo-plan-link">
-            Scheduled
+          <Link to="/observations/schedule" className="btn-ghost qo-plan-link">
+            Schedule for later
           </Link>
         </div>
 

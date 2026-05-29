@@ -4,13 +4,14 @@
 // branch the backend already had.
 import { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
 import { FilledInput, useToast } from '../components';
+import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
 const csvFromArray = (arr) => Array.isArray(arr) ? arr.join(', ') : '';
 const arrayFromCsv = (csv) =>
@@ -18,6 +19,8 @@ const arrayFromCsv = (csv) =>
 
 export default function CheckInScreen({ navigation }) {
   const toast = useToast();
+  const checkIn = useActiveCheckIn();
+  const [signingOut, setSigningOut] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(null);
   const [properties, setProperties] = useState([]);
@@ -61,7 +64,29 @@ export default function CheckInScreen({ navigation }) {
       .finally(() => setPropertiesLoading(false));
   }, [companyId, toast]);
 
+  const handleSignOut = async () => {
+    if (!checkIn.activeCheckIn?.id) return;
+    setSigningOut(true);
+    try {
+      await contractorService.checkOut(checkIn.activeCheckIn.id);
+      toast.show('Signed out', 'success');
+      await checkIn.refresh();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      toast.show(typeof detail === 'string' ? detail : 'Sign out failed', 'error');
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
   const submit = async () => {
+    if (checkIn.activeCheckIn) {
+      Alert.alert(
+        'Already signed in',
+        `You're currently signed in to ${checkIn.companyName}${checkIn.propertyName ? ' · ' + checkIn.propertyName : ''}. Sign out first before signing in somewhere new.`,
+      );
+      return;
+    }
     if (companyId == null) {
       toast.show('Pick a company first', 'error');
       return;
@@ -107,6 +132,29 @@ export default function CheckInScreen({ navigation }) {
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Already-signed-in banner — blocks duplicate check-ins. Visible
+            once the active-check-in fetch has landed; submit gate matches. */}
+        {checkIn.activeCheckIn && (
+          <View style={styles.activeBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeBannerTitle}>You're already signed in</Text>
+              <Text style={styles.activeBannerSub} numberOfLines={2}>
+                {checkIn.companyName}
+                {checkIn.propertyName ? ` · ${checkIn.propertyName}` : ''}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleSignOut}
+              disabled={signingOut}
+              style={styles.signOutBtn}
+              activeOpacity={0.75}
+            >
+              <Feather name="log-out" size={14} color={colors.white} />
+              <Text style={styles.signOutBtnText}>{signingOut ? 'Signing out…' : 'Sign out'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Company */}
         <Text style={styles.label}>Company *</Text>
         {companies.length === 0 ? (
@@ -210,9 +258,9 @@ export default function CheckInScreen({ navigation }) {
             <Text style={styles.secondaryBtnText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.primaryBtn, (companyId == null || submitting) && styles.primaryBtnDisabled]}
+            style={[styles.primaryBtn, (companyId == null || submitting || !!checkIn.activeCheckIn) && styles.primaryBtnDisabled]}
             onPress={submit}
-            disabled={companyId == null || submitting}
+            disabled={companyId == null || submitting || !!checkIn.activeCheckIn}
             activeOpacity={0.85}
           >
             <Feather name="log-in" size={16} color={colors.white} />
@@ -262,4 +310,20 @@ const styles = StyleSheet.create({
   },
   primaryBtnDisabled: { opacity: 0.5 },
   primaryBtnText: { color: colors.white, fontWeight: '700', fontSize: fontSize.base },
+
+  activeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    padding: spacing.md, marginBottom: spacing.lg,
+    backgroundColor: colors.warning + '14',
+    borderWidth: 1, borderColor: colors.warning + '55',
+    borderRadius: radius.md,
+  },
+  activeBannerTitle: { fontSize: fontSize.sm, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  activeBannerSub: { fontSize: fontSize.xs, color: colors.textMuted },
+  signOutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.danger, borderRadius: radius.md,
+  },
+  signOutBtnText: { color: colors.white, fontSize: fontSize.xs, fontWeight: '700' },
 });

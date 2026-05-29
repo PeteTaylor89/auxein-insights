@@ -8,7 +8,7 @@ from typing import List, Optional
 
 def _utc(dt):
     """Normalise naive datetimes to UTC so we can mix tz-aware (from DB
-    DateTime(timezone=True) cols like risk_actions, observation_plans, training)
+    DateTime(timezone=True) cols like risk_actions, observation_runs, training)
     with naive datetimes (from datetime.combine(date, time.min) on date-only
     cols like task.scheduled_start_date, maintenance.scheduled_date) in the
     same sorted list."""
@@ -20,7 +20,6 @@ from db.session import get_db
 from api.deps import get_current_user
 from db.models.user import User
 from db.models.task import Task
-from db.models.observation_plan import ObservationPlan
 from db.models.observation_run import ObservationRun
 from db.models.risk_action import RiskAction
 from db.models.training_record import TrainingRecord
@@ -120,43 +119,69 @@ def get_calendar_events(
     # the window overlaps the requested range. Some plans only have a target
     # end date — treat that as a one-day event on that date.
     if show_all or CalendarEventType.observation in event_types:
-        plans = (
-            db.query(ObservationPlan)
+        # Observations on the calendar source from ObservationRun directly
+        # (since 2026-05-29 — Plans collapsed into Runs). A run shows on its
+        # scheduled_date when set, else on observed_at_start when ad-hoc and
+        # within the window.
+        run_q = (
+            db.query(ObservationRun)
             .filter(
-                ObservationPlan.company_id == company_id,
+                ObservationRun.company_id == company_id,
                 or_(
-                    ObservationPlan.due_start_at != None,  # noqa: E711
-                    ObservationPlan.due_end_at != None,    # noqa: E711
+                    and_(
+                        ObservationRun.scheduled_date.is_not(None),
+                        ObservationRun.scheduled_date >= start_date,
+                        ObservationRun.scheduled_date <= end_date,
+                    ),
+                    and_(
+                        ObservationRun.scheduled_date.is_(None),
+                        ObservationRun.observed_at_start.is_not(None),
+                        ObservationRun.observed_at_start >= range_start,
+                        ObservationRun.observed_at_start <= range_end,
+                    ),
                 ),
             )
-            .filter(
-                or_(
-                    and_(ObservationPlan.due_start_at != None, ObservationPlan.due_start_at <= range_end),  # noqa: E711
-                    and_(ObservationPlan.due_end_at != None, ObservationPlan.due_end_at <= range_end),      # noqa: E711
-                )
-            )
-            .filter(
-                or_(
-                    and_(ObservationPlan.due_end_at != None, ObservationPlan.due_end_at >= range_start),    # noqa: E711
-                    and_(ObservationPlan.due_start_at != None, ObservationPlan.due_start_at >= range_start),  # noqa: E711
-                )
-            )
-            .all()
         )
-        for p in plans:
-            start = p.due_start_at or p.due_end_at
-            end = p.due_end_at if (p.due_start_at and p.due_end_at and p.due_end_at != p.due_start_at) else None
+        # Field-worker tier (company_user) only sees runs they're the
+        # assignee on or they created — admins and managers keep the full
+        # company view to supervise. auxein_admin treated like company_admin.
+        if getattr(current_user, "user_type", None) == "company_user":
+            run_q = run_q.filter(
+                or_(
+                    ObservationRun.created_by == current_user.id,
+                    ObservationRun.assigned_to_user_id == current_user.id,
+                )
+            )
+        runs = run_q.all()
+        for r in runs:
+            if r.scheduled_date is not None:
+                start = datetime.combine(r.scheduled_date, time.min)
+            else:
+                start = r.observed_at_start
+            # Derive status the same way ObservationRunOut does
+            if r.observed_at_start and r.observed_at_end:
+                run_status = "complete"
+            elif r.observed_at_start:
+                run_status = "in progress"
+            else:
+                run_status = "scheduled"
+            # Assignee for the initials chip — single user per run since the
+            # 2026-05-29 collapse.
+            run_assignees = []
+            if r.assigned_to_user and getattr(r.assigned_to_user, "full_name", None):
+                run_assignees.append(r.assigned_to_user.full_name)
             events.append(
                 CalendarEvent(
-                    id=p.id,
+                    id=r.id,
                     event_type=CalendarEventType.observation,
-                    title=p.name or f"Observation Plan #{p.id}",
+                    title=r.name or f"Observation #{r.id}",
                     start=start,
-                    end=end,
+                    end=None,
                     all_day=True,
                     color=EVENT_TYPE_COLORS[CalendarEventType.observation],
-                    status=p.status if hasattr(p, "status") else None,
-                    url=f"/plandetail/{p.id}",
+                    status=run_status,
+                    assignees=run_assignees,
+                    url=f"/observations/runcapture/{r.id}",
                 )
             )
 
@@ -192,6 +217,14 @@ def get_calendar_events(
         for a in actions:
             start = a.target_start_date or a.target_completion_date
             end = a.target_completion_date if (a.target_start_date and a.target_completion_date and a.target_completion_date != a.target_start_date) else None
+            # Populate assignee from the relationship — Calendar shows initials
+            # chip per assignee. Falls back to responsible_person if no explicit
+            # assignee.
+            action_assignees = []
+            if a.assignee and getattr(a.assignee, "full_name", None):
+                action_assignees.append(a.assignee.full_name)
+            elif a.responsible and getattr(a.responsible, "full_name", None):
+                action_assignees.append(a.responsible.full_name)
             events.append(
                 CalendarEvent(
                     id=a.id,
@@ -202,7 +235,8 @@ def get_calendar_events(
                     all_day=True,
                     color=EVENT_TYPE_COLORS[CalendarEventType.risk_action],
                     status=a.status if hasattr(a, "status") and a.status else None,
-                    url=f"/RiskDashboard",
+                    assignees=action_assignees,
+                    url=f"/RiskDashboard?action={a.id}",
                 )
             )
 
@@ -284,7 +318,7 @@ def get_calendar_events(
                     all_day=True,
                     color=EVENT_TYPE_COLORS[CalendarEventType.maintenance],
                     status=m.status if m.status else None,
-                    url=f"/assets",
+                    url=f"/assets?tab=maintenance",
                 )
             )
 

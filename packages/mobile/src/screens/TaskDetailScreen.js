@@ -216,7 +216,7 @@ export default function TaskDetailScreen({ route, navigation }) {
       // stats live, and on a fresh start the user expects to see the
       // recording state, not the task detail page.
       if (gpsRequired) {
-        const gpsStarted = await gps.startTracking(taskId);
+        const gpsStarted = await gps.startTracking(taskId, task?.title);
         if (gpsStarted) {
           setShowGpsOverlay(true);
         } else {
@@ -453,7 +453,7 @@ export default function TaskDetailScreen({ route, navigation }) {
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnPrimary, { marginTop: spacing.md }]}
               onPress={() => confirmStartGps(async () => {
-                const ok = await gps.startTracking(taskId);
+                const ok = await gps.startTracking(taskId, task?.title);
                 if (!ok) {
                   Alert.alert('GPS', 'Could not start tracking. Check location permission and try again.');
                 } else {

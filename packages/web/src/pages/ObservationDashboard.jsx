@@ -6,7 +6,6 @@ import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCir
 import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import './ObservationDashboard.css';
-import BlockSelectionModal from '../components/BlockSelectionModal';
 import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
 import { getInsightKind } from '../utils/observationInsight';
 
@@ -17,7 +16,7 @@ function readTemplateFields(tpl) {
   return Array.isArray(s) ? s : Array.isArray(s.fields) ? s.fields : [];
 }
 
-const VALID_TABS = ['plans', 'runs', 'templates', 'tasks', 'task-templates'];
+const VALID_TABS = ['runs', 'templates', 'tasks', 'task-templates'];
 
 export default function ObservationDashboard() {
   const navigate = useNavigate();
@@ -53,6 +52,7 @@ export default function ObservationDashboard() {
         background: s.bg, color: s.color,
         padding: '2px 10px', borderRadius: 'var(--radius-pill)',
         fontSize: 'var(--font-size-xs)', fontWeight: '600',
+        whiteSpace: 'nowrap',
       }}>
         {status?.replace('_', ' ')}
       </span>
@@ -88,9 +88,9 @@ export default function ObservationDashboard() {
             <div className="icon-wrapper"><Eye size={24} /></div>
             <div className="actions-title">Quick Observation</div>
           </Link>
-          <Link to="/planobservation" className="stat-card">
+          <Link to="/observations/schedule" className="stat-card">
             <div className="icon-wrapper"><ClipboardList size={24} /></div>
-            <div className="actions-title">Schedule Obs Plan</div>
+            <div className="actions-title">Schedule Observation</div>
           </Link>
         </div>
       </div>
@@ -110,17 +110,13 @@ export default function ObservationDashboard() {
           <button className={`od-tab ${tab === 'runs' ? 'active' : ''}`} onClick={() => switchTab('runs')}>
             <Rocket size={16} /> Observation Management
           </button>
-          <button className={`od-tab ${tab === 'plans' ? 'active' : ''}`} onClick={() => switchTab('plans')}>
-            <Calendar size={16} /> Observation Scheduling
-          </button>
         </div>
 
         <div className="od-tab-content">
           {tab === 'tasks' && <TasksTab StatusBadge={StatusBadge} />}
           {tab === 'task-templates' && <TaskTemplatesTab />}
           {tab === 'templates' && <TemplatesTab />}
-          {tab === 'runs' && <RunsTab StatusBadge={StatusBadge} />}
-          {tab === 'plans' && <PlansTab StatusBadge={StatusBadge} />}
+          {tab === 'runs' && <ManagementTab StatusBadge={StatusBadge} />}
         </div>
       </div>
 
@@ -207,168 +203,7 @@ function TemplatePreviewModal({ open, template, onClose }) {
   return createPortal(modalContent, document.body);
 }
 
-function PlansTab({ StatusBadge }) {
-  const navigate = useNavigate();
-  const companyId = authService.getCompanyId();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [plans, setPlans] = useState([]);
-  const [users, setUsers] = useState([]);
-
-  const [blockModalOpen, setBlockModalOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [startingRun, setStartingRun] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState('');
-  const [assigneeFilter, setAssigneeFilter] = useState('');
-  const [q, setQ] = useState('');
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        const [planRes, userRes] = await Promise.all([
-          observationService.listPlans({ company_id: companyId }).catch(() => []),
-          usersService.listCompanyUsers().catch(() => []),
-        ]);
-        if (!mounted) return;
-        setPlans(Array.isArray(planRes) ? planRes : planRes?.items || []);
-        setUsers(Array.isArray(userRes) ? userRes : userRes?.items || []);
-      } catch (e) {
-        console.error(e);
-        setError('Failed to load plans');
-      } finally {
-        setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [companyId]);
-
-  const userMap = new Map(users.map(u => [String(u.id), u.full_name || `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email || `User ${u.id}`]));
-
-  const filtered = plans.filter(p => {
-    if (statusFilter && p.status !== statusFilter) return false;
-    if (assigneeFilter) {
-      const assigneeIds = (p.assignees || p.assignee_user_ids || []).map(a => a.user_id ?? a.id ?? a);
-      if (!assigneeIds.includes(Number(assigneeFilter))) return false;
-    }
-    if (q && !p.name?.toLowerCase().includes(q.toLowerCase())) return false;
-    return true;
-  });
-
-  const openBlockModal = (plan) => {
-    setSelectedPlan(plan);
-    setBlockModalOpen(true);
-  };
-
-  const closeBlockModal = () => {
-    setBlockModalOpen(false);
-    setSelectedPlan(null);
-  };
-
-  const startRunWithBlock = async (blockId) => {
-    if (!selectedPlan || startingRun) return;
-    
-    try {
-      setStartingRun(true);
-      
-      const payload = {
-        company_id: companyId,
-        plan_id: selectedPlan.id,
-        template_id: selectedPlan.template_id,
-        block_id: blockId,
-        started_at: new Date().toISOString(),
-      };
-
-      console.log('Creating run with payload:', payload);
-
-      const run = await observationService.createRun(payload);
-      
-      if (run?.id) {
-        navigate(`/observations/runcapture/${run.id}`);
-      } else {
-        alert('Run was not created (no id returned).');
-      }
-    } catch (e) {
-      console.error('Failed to start run:', e);
-      const detail = e?.response?.data?.detail || e?.response?.data?.message || e?.message || 'Failed to start run';
-      alert(`Could not start run:\n${Array.isArray(detail) ? detail[0]?.msg || detail : detail}`);
-    } finally {
-      setStartingRun(false);
-      closeBlockModal();
-    }
-  };
-
-  if (loading) return <div className="od-loading">Loading scheduled observations...</div>;
-  if (error) return <div className="od-error">{error}</div>;
-
-  return (
-    <div>
-      <div className="od-tab-header">
-        <h2>Scheduled Observations ({filtered.length})</h2>
-      </div>
-
-      <div className="od-search">
-        <input placeholder="Search by name..." value={q} onChange={e => setQ(e.target.value)} />
-      </div>
-
-      {filtered.length > 0 ? (
-        <div className="od-table-wrap">
-          <table className="od-table">
-            <thead>
-              <tr>
-                <th>Plan Name</th>
-                <th>Template</th>
-                <th className="center">Runs</th>
-                <th className="center">Latest Run</th>
-                <th className="right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(p => (
-                <tr key={p.id}>
-                  <td className="bold">{p.name || `Plan #${p.id}`}</td>
-                  <td>{p.template_name || p.template_id || '—'}</td>
-                  <td className="center">{typeof p.runs_count === 'number' ? p.runs_count : '—'}</td>
-                  <td className="center">
-                    {p.latest_run_started_at ? dayjs(p.latest_run_started_at).format('YYYY-MM-DD HH:mm') : '—'}
-                  </td>
-                  <td className="right">
-                    <div className="od-actions">
-                      <button className="od-btn od-btn--ghost" onClick={() => navigate(`/plandetail/${p.id}`)}>
-                        Open <ArrowRight size={14} />
-                      </button>
-                      <button className="od-btn od-btn--primary" onClick={() => openBlockModal(p)} disabled={startingRun} title="Start a run for this plan">
-                        <PlayCircle size={14} /> {startingRun ? 'Starting...' : 'Start Run'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="od-empty">
-          <div className="od-empty-text">No scheduled observations found</div>
-          <button className="btn-primary" onClick={() => navigate('/planobservation')}>
-            Schedule Your First Observation
-          </button>
-        </div>
-      )}
-
-      <BlockSelectionModal
-        open={blockModalOpen}
-        plan={selectedPlan}
-        onClose={closeBlockModal}
-        onStartRun={startRunWithBlock}
-      />
-    </div>
-  );
-}
-
-function RunsTab({ StatusBadge }) {
+function ManagementTab({ StatusBadge }) {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
   const [runs, setRuns] = useState([]);
@@ -379,75 +214,44 @@ function RunsTab({ StatusBadge }) {
   const reload = async () => {
     try {
       setLoading(true);
-      const res = await observationService.listRuns?.({ company_id: companyId }).catch(() => []);
+      const res = await observationService.listRuns({ company_id: companyId }).catch(() => []);
       setRuns(Array.isArray(res) ? res : res?.items || []);
     } catch (e) {
       console.error(e);
-      setError('Failed to load runs');
+      setError('Failed to load observations');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      await reload();
-    })();
-    return () => { mounted = false; };
-  }, [companyId]);
+  useEffect(() => { reload(); }, [companyId]);
 
-  const setStatus = async (runId, status) => {
+  const beginRun = async (run) => {
     try {
-      if (!observationService?.updateRun) {
-        alert('Run update service not available yet.');
-        return;
-      }
-      setBusyId(runId);
-      await observationService.updateRun(runId, { status });
-      await reload();
+      setBusyId(run.id);
+      const started = await observationService.beginRun(run.id);
+      if (started?.id) navigate(`/observations/runcapture/${started.id}`);
     } catch (e) {
-      console.error(e);
-      const detail =
-        e?.response?.data?.detail ||
-        e?.response?.data?.message ||
-        e?.message ||
-        'Unknown error';
-      alert(`Could not update run:\n${JSON.stringify(detail)}`);
+      console.error('Failed to start observation:', e);
+      const detail = e?.response?.data?.detail || e?.message || 'Failed to start observation';
+      alert(`Could not start observation:\n${Array.isArray(detail) ? detail[0]?.msg || detail : detail}`);
     } finally {
       setBusyId(null);
     }
   };
 
-  const completeRun = async (runId) => {
-    try {
-      if (!observationService?.completeRun) {
-        alert('Complete Run service not available yet.');
-        return;
-      }
-      setBusyId(runId);
-      await observationService.completeRun(runId);
-      await reload();
-    } catch (e) {
-      console.error(e);
-      const detail =
-        e?.response?.data?.detail ||
-        e?.response?.data?.message ||
-        e?.message ||
-        'Unknown error';
-      alert(`Could not complete run:\n${JSON.stringify(detail)}`);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  if (loading) return <div className="od-loading">Loading runs...</div>;
+  if (loading) return <div className="od-loading">Loading observations...</div>;
   if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
       <div className="od-tab-header">
-        <h2>Observation Runs ({runs.length})</h2>
+        <h2>Observation Management ({runs.length})</h2>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <button className="od-btn od-btn--primary" onClick={() => navigate('/observations/schedule')}>
+            <Plus size={14} /> Schedule Observation
+          </button>
+        </div>
       </div>
 
       {runs.length > 0 ? (
@@ -456,8 +260,9 @@ function RunsTab({ StatusBadge }) {
             <thead>
               <tr>
                 <th>Template</th>
-                <th>Plan</th>
                 <th>Block</th>
+                <th>Assignee</th>
+                <th className="center od-runs-fit">Scheduled</th>
                 <th className="center od-runs-fit">Status</th>
                 <th className="center od-runs-fit">Started</th>
                 <th className="center od-runs-fit">Completed</th>
@@ -465,60 +270,95 @@ function RunsTab({ StatusBadge }) {
               </tr>
             </thead>
             <tbody>
-              {runs.map(r => (
-                <tr key={r.id}>
-                  <td className="bold">{r.template_name || r.observation_template?.name || '—'}</td>
-                  <td>{r.plan_name || (r.plan_id ? `Plan #${r.plan_id}` : '—')}</td>
-                  <td>{r.block_name || '—'}</td>
-                  <td className="center"><StatusBadge status={r.status || 'active'} /></td>
-                  <td className="center od-runs-date">{r.observed_at_start ? dayjs(r.observed_at_start).format('DD MMM HH:mm') : '—'}</td>
-                  <td className="center od-runs-date">{r.observed_at_end ? dayjs(r.observed_at_end).format('DD MMM HH:mm') : '—'}</td>
-                  <td className="right">
-                    <div className="od-actions od-actions-runs">
-                      <button className="od-btn od-btn--primary" onClick={() => navigate(`/observations/runcapture/${r.id}`)}>
-                        Open <ArrowRight size={14} />
-                      </button>
-                      {(() => {
-                        const kind = getInsightKind(r.template_type);
-                        if (!kind) return <span className="od-actions-slot-empty" />;
-                        const params = new URLSearchParams({
-                          kind,
-                          runId: String(r.id),
-                          templateType: r.template_type || ''
-                        });
-                        if (r.block_id) params.set('blockId', String(r.block_id));
-                        return (
+              {runs.map(r => {
+                const status = r.status; // computed by backend: scheduled | in progress | complete
+                const insightKind = getInsightKind(r.template_type);
+                const insightsParams = insightKind
+                  ? (() => {
+                      const p = new URLSearchParams({
+                        kind: insightKind,
+                        runId: String(r.id),
+                        templateType: r.template_type || '',
+                      });
+                      if (r.block_id) p.set('blockId', String(r.block_id));
+                      return p.toString();
+                    })()
+                  : null;
+                return (
+                  <tr key={r.id}>
+                    <td className="bold">{r.template_name || `Template #${r.template_id}`}</td>
+                    <td>{r.block_name || '—'}</td>
+                    <td>
+                      {r.assigned_to_user_name
+                        ? r.assigned_to_user_name
+                        : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+                    </td>
+                    <td className="center od-runs-date">
+                      {r.scheduled_date ? dayjs(r.scheduled_date).format('DD MMM') : '—'}
+                    </td>
+                    <td className="center"><StatusBadge status={status} /></td>
+                    <td className="center od-runs-date">
+                      {r.observed_at_start ? dayjs(r.observed_at_start).format('DD MMM HH:mm') : '—'}
+                    </td>
+                    <td className="center od-runs-date">
+                      {r.observed_at_end ? dayjs(r.observed_at_end).format('DD MMM HH:mm') : '—'}
+                    </td>
+                    <td className="right">
+                      <div className="od-actions od-actions-runs">
+                        {status === 'scheduled' && (
+                          <button
+                            className="od-btn od-btn--primary"
+                            onClick={() => beginRun(r)}
+                            disabled={busyId === r.id}
+                          >
+                            <PlayCircle size={14} /> {busyId === r.id ? 'Starting...' : 'Start'}
+                          </button>
+                        )}
+                        {status === 'in progress' && (
+                          <button
+                            className="od-btn od-btn--primary"
+                            onClick={() => navigate(`/observations/runcapture/${r.id}`)}
+                          >
+                            Continue <ArrowRight size={14} />
+                          </button>
+                        )}
+                        {status === 'complete' && (
                           <button
                             className="od-btn od-btn--ghost"
-                            onClick={() => navigate(`/Insights?${params.toString()}`)}
+                            onClick={() => navigate(`/observations/runcapture/${r.id}`)}
+                          >
+                            <Eye size={14} /> View
+                          </button>
+                        )}
+                        {insightsParams && status !== 'scheduled' && (
+                          <button
+                            className="od-btn od-btn--ghost"
+                            onClick={() => navigate(`/Insights?${insightsParams}`)}
                             title="Open Insights"
                           >
                             <Sparkles size={14} /> Insights
                           </button>
-                        );
-                      })()}
-                      {r.observed_at_end ? (
-                        <span className="od-actions-slot-empty" />
-                      ) : (
-                        <button className="od-btn od-btn--accent" onClick={() => completeRun(r.id)} disabled={busyId === r.id} title="Complete this run">
-                          <CheckCircle size={14} /> Complete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : (
         <div className="od-empty">
-          <div className="od-empty-text">No runs found — start a run from a scheduled observation</div>
+          <div className="od-empty-text">No observations yet</div>
+          <button className="btn-primary" onClick={() => navigate('/observations/schedule')}>
+            <Plus size={16} /> Schedule the first one
+          </button>
         </div>
       )}
     </div>
   );
 }
+
 
 function TemplatesTab() {
   const navigate = useNavigate();
@@ -569,7 +409,7 @@ function TemplatesTab() {
               </div>
               <div className="od-card-badge">{labelFor(t)}</div>
               <div className="od-card-actions">
-                <button className="od-btn od-btn--primary" onClick={() => navigate('/planobservation', { state: { template: t } })} title="Use this template">
+                <button className="od-btn od-btn--primary" onClick={() => navigate(`/observations/schedule?template=${t.id}`)} title="Schedule an observation with this template">
                   <Plus size={14} /> Use Template
                 </button>
                 <button className="od-btn od-btn--ghost" onClick={() => onViewTemplate(t)} title="View fields">
@@ -755,7 +595,7 @@ function TemplateCard({ template, onView, onEdit, onUse, onToggleActive }) {
           <Plus size={14} /> Use Template
         </button>
         <button className="od-btn od-btn--ghost" onClick={() => onView(template)}>View</button>
-        <button className="od-btn od-btn--ghost" onClick={() => onEdit(template)} title="Edit template"><Edit size={12} /></button>
+        <button className="od-btn od-btn--ghost od-btn--icon" onClick={() => onEdit(template)} title="Edit template"><Edit size={12} /></button>
         {onToggleActive && (
           <button
             className="od-btn od-btn--ghost"

@@ -5,10 +5,9 @@ import { companiesService, propertyService, api } from '@vineyard/shared';
 import WeatherWidget from '../components/widgets/WeatherWidget';
 import SiteBanner from '../components/SiteBanner';
 import FeedbackModal from '../components/FeedbackModal';
+import ArticlesCarousel from '../components/ArticlesCarousel';
 import { Link } from 'react-router-dom';
 import { Calendar, Shield, Map, Zap, Eye, BarChart3, MessageSquare } from "lucide-react";
-
-const INSIGHTS_URL = import.meta.env.VITE_INSIGHTS_URL || 'https://insights.auxein.co.nz';
 
 function Home() {
   const { user, userTypeRole } = useAuth();
@@ -17,7 +16,6 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [weatherLocations, setWeatherLocations] = useState([]); // [{id, name, lat, lon}]
   const [selectedWeatherId, setSelectedWeatherId] = useState(null);
-  const [latestArticles, setLatestArticles] = useState([]);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Derived: the location object passed to WeatherWidget
@@ -110,12 +108,6 @@ function Home() {
     }
   }, [user]);
 
-  // Fetch latest articles from public API
-  useEffect(() => {
-    api.get('/v1/public/articles', { params: { page: 1, page_size: 6 } })
-      .then(res => setLatestArticles(res.data?.items || []))
-      .catch(() => {});
-  }, []);
 
   const renderStatValue = (value) => {
     if (loading) return <span className="stat-skeleton" aria-hidden="true" />;
@@ -216,66 +208,7 @@ function Home() {
         </div>
 
         {/* Latest Articles Carousel */}
-        {latestArticles.length > 0 && (
-          <div className="articles-section">
-            <div className="container-title">
-              <span>Latest from Auxein Insights</span>
-            </div>
-            <div className="articles-carousel">
-              <div className="articles-carousel-track">
-                {latestArticles.map((article) => (
-                  <a
-                    key={article.id}
-                    href={`${INSIGHTS_URL}/articles/${article.slug}`}
-                    className="carousel-article-card"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {(article.thumbnail_url || article.featured_image_url) && (
-                      <div className="carousel-card-image">
-                        <img
-                          src={article.thumbnail_url || article.featured_image_url}
-                          alt={article.featured_image_alt || article.title}
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-                    <div className="carousel-card-body">
-                      {article.tags && article.tags.length > 0 && (
-                        <div className="carousel-card-tags">
-                          {article.tags.slice(0, 2).map((t) => (
-                            <span key={t} className="carousel-tag">{t}</span>
-                          ))}
-                        </div>
-                      )}
-                      <h3 className="carousel-card-title">{article.title}</h3>
-                      {article.excerpt && (
-                        <p className="carousel-card-excerpt">{article.excerpt}</p>
-                      )}
-                      <span className="carousel-card-date">
-                        {article.published_at
-                          ? new Date(article.published_at).toLocaleDateString('en-NZ', {
-                              day: 'numeric', month: 'short', year: 'numeric'
-                            })
-                          : ''}
-                      </span>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="articles-carousel-footer">
-              <a
-                href={`https://insights.auxein.co.nz/articles`}
-                className="btn-ghost"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View all articles
-              </a>
-            </div>
-          </div>
-        )}
+        <ArticlesCarousel />
       </div>
 
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />

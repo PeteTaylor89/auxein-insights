@@ -1,0 +1,103 @@
+/* Insights.css — corporate styling to match CompanyAdmin, with large pill cards */
+
+.insights-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+  overflow-x: hidden;
+}
+
+/* Header — mirrors CompanyAdmin's .ca-header / .ca-title-row */
+.insights-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.insights-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.insights-title-row svg {
+  color: var(--color-primary);
+}
+
+/* Property selector toolbar */
+.insights-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.insights-property-select {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  color: var(--color-text);
+  background: var(--color-surface);
+  min-width: 220px;
+}
+
+.insights-property-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.insights-zone-tag {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* Pills — same shape/behaviour as CompanyAdmin's .ca-tab, ~2x the size.
+   Icon beside label, olive border, fills solid primary green when active. */
+.insights-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.insight-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--color-olive-border);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.insight-pill:hover {
+  color: var(--color-text);
+  background: var(--color-surface-warm);
+  border-color: var(--color-primary);
+}
+
+.insight-pill.active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .insight-pill {
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--font-size-base);
+  }
+}

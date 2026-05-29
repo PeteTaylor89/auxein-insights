@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { contractorService } from '../api/services';
+import { contractorService, tasksService } from '../api/services';
 import { SkeletonCard, useToast } from '../components';
 import RiskHazardChips from '../components/RiskHazardChips';
 
@@ -137,18 +137,37 @@ export default function ContractorTasksScreen({ navigation }) {
             </Text>
           </View>
         ) : (
-          items.map(a => <AssignmentRow key={a.id} a={a} navigation={navigation} />)
+          items.map(a => (
+            <AssignmentRow
+              key={a.id}
+              a={a}
+              navigation={navigation}
+              onOrphan={() => { toast.show('This task no longer exists', 'info'); load(); }}
+            />
+          ))
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function AssignmentRow({ a, navigation }) {
+function AssignmentRow({ a, navigation, onOrphan }) {
   const statusStyle = STATUS_STYLE[a.status] || STATUS_STYLE.assigned;
   const priorityColor = PRIORITY_COLOR[a.priority] || colors.textMuted;
-  const handlePress = () => {
+  const handlePress = async () => {
     if (a.task_id) {
+      // Probe the task before navigating. Backend now filters orphans from
+      // /me/assignments, but if a task is deleted between list-load and tap
+      // we'd still 404 in TaskDetail's own fetch. Catching it here is the
+      // quicker UX.
+      try {
+        await tasksService.getTask(a.task_id);
+      } catch (err) {
+        if (err?.response?.status === 404) {
+          onOrphan?.();
+          return;
+        }
+      }
       navigation.navigate('TaskDetail', { taskId: a.task_id });
     } else {
       // Ad-hoc work has no Task row to open — defer until we build a contractor

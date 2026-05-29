@@ -16,11 +16,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "nz.co.auxein.grow",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Auxein Grow uses your location to track field work and record GPS data for tasks.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Auxein Grow uses your location in the background to continue tracking field work when the app is minimised.",
-        "NSLocationAlwaysUsageDescription": "Auxein Grow uses your location in the background to continue tracking field work when the app is minimised.",
+        "NSLocationWhenInUseUsageDescription": "Auxein Grow uses your location to show your position on the vineyard map, geotag observations and tasks, and record tractor and shift activity while you work.",
         "UIBackgroundModes": [
-          "location",
           "location"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -36,19 +33,18 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Auxein Grow uses your location in the background to continue tracking field work when the app is minimised.",
-          "locationWhenInUsePermission": "Auxein Grow uses your location to track field work and record GPS data for tasks.",
-          "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": true,
+          "locationWhenInUsePermission": "Auxein Grow uses your location to show your position on the vineyard map, geotag observations and tasks, and record tractor and shift activity while you work.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": true
         }
       ],

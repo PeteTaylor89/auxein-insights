@@ -172,7 +172,7 @@ async def get_related_articles(
         .filter(
             Article.status == "published",
             Article.id != article.id,
-            Article.tags.overlap(article.tags),
+            Article.tags.op('&&')(article.tags),
         )
         .order_by(desc(Article.published_at))
         .limit(limit)

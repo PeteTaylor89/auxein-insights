@@ -63,17 +63,11 @@ function CreateAction() {
     if (!formData.action_description.trim()) errors.action_description = 'Action description is required';
     if (!formData.target_completion_date) errors.target_completion_date = 'Target completion date is required';
 
-    // Business logic validations
-    const completionDate = new Date(formData.target_completion_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (formData.target_completion_date && completionDate < today) {
-      errors.target_completion_date = 'Target completion date cannot be in the past';
-    }
-
+    // Ordering check only — target dates can be any time (past or future) so
+    // teams can backfill historic actions. Start must still precede completion.
     if (formData.target_start_date && formData.target_completion_date) {
       const startDate = new Date(formData.target_start_date);
+      const completionDate = new Date(formData.target_completion_date);
       if (startDate > completionDate) {
         errors.target_start_date = 'Target start date cannot be after the completion date';
       }

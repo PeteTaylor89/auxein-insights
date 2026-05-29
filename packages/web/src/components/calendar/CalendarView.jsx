@@ -1,7 +1,17 @@
 // components/calendar/CalendarView.jsx — month/week grid with multi-day bars, quick add, drag-drop
-import { useMemo, useState, useCallback } from 'react';
-import EventCard from './EventCard';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { X as XIcon } from 'lucide-react';
+import EventCard, { AssigneeChips } from './EventCard';
 import './CalendarView.css';
+
+const TYPE_LABELS = {
+  task: 'Tasks',
+  observation: 'Observations',
+  risk_action: 'Risk Actions',
+  maintenance: 'Maintenance',
+  training: 'Training',
+};
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -107,6 +117,7 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [dragData, setDragData] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
+  const [modalDate, setModalDate] = useState(null); // Date object or null
 
   const days = useMemo(() => {
     if (view === 'week') {
@@ -222,7 +233,7 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
 
         return (
           <div key={wi} className="calendar-week-row">
-            {/* Date strip — one cell per day, just the number + add button */}
+            {/* Date strip — one cell per day, clickable number opens the day modal + optional add button */}
             <div className="calendar-date-strip">
               {weekDays.map(({ date: d, currentMonth }) => {
                 const key = dateKey(d);
@@ -231,7 +242,14 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
                     key={`hdr-${key}`}
                     className={`calendar-date-cell ${!currentMonth ? 'other-month' : ''} ${isToday(d) ? 'today' : ''}`}
                   >
-                    <span className="calendar-cell-date">{d.getDate()}</span>
+                    <button
+                      type="button"
+                      className="calendar-date-cell-btn"
+                      onClick={() => setModalDate(d)}
+                      title="See all events for this day"
+                    >
+                      <span className="calendar-cell-date">{d.getDate()}</span>
+                    </button>
                     {canEdit && onAddTask && (
                       <button
                         className="calendar-add-btn"
@@ -264,12 +282,13 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
                   onClick={() => onEventClick?.(bar.event)}
                   onMouseEnter={() => setHoveredEvent(eventUid(bar.event))}
                   onMouseLeave={() => setHoveredEvent(null)}
-                  title={bar.event.title}
+                  title={`${bar.event.title}${bar.event.assignees?.length ? ' — ' + bar.event.assignees.join(', ') : ''}`}
                   draggable={canEdit && (bar.event.event_type === 'task' || bar.event.event_type === 'risk_action') && bar.event.status !== 'completed' && bar.event.status !== 'cancelled'}
                   onDragStart={(e) => handleDragStart(e, bar.event)}
                   onDragEnd={handleDragEnd}
                 >
                   <span className="calendar-span-bar-title">{bar.event.title}</span>
+                  <AssigneeChips assignees={bar.event.assignees} />
                 </button>
               ))}
             </div>
@@ -312,7 +331,117 @@ function CalendarView({ year, month, selectedDate, view, events, onEventClick, o
           </div>
         );
       })}
+
+      {modalDate && (
+        <DayDetailModal
+          date={modalDate}
+          events={events}
+          onClose={() => setModalDate(null)}
+          onEventClick={(ev) => {
+            setModalDate(null);
+            onEventClick?.(ev);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Day detail modal — lists every event whose window includes the chosen day,
+// grouped by type. Solves the "+N more" cap on the cell preview and gives a
+// fuller view (title + status + assignees) before drilling into a record.
+function DayDetailModal({ date, events, onClose, onEventClick }) {
+  useEffect(() => {
+    const onEsc = (e) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onEsc);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onEsc);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  const dayStart = stripTime(date);
+  const dayKey = dateKey(date);
+
+  // Pull every event whose date matches the chosen day OR whose multi-day
+  // span covers it. Keep them in one flat list, then group by type at render.
+  const dayEvents = useMemo(() => {
+    const out = [];
+    for (const ev of events) {
+      const evStart = stripTime(new Date(ev.start));
+      if (ev.end) {
+        const evEnd = stripTime(new Date(ev.end));
+        if (dayStart >= evStart && dayStart <= evEnd) out.push(ev);
+      } else if (dateKey(new Date(ev.start)) === dayKey) {
+        out.push(ev);
+      }
+    }
+    return out;
+  }, [events, dayStart, dayKey]);
+
+  const groups = useMemo(() => {
+    const order = ['task', 'observation', 'risk_action', 'maintenance', 'training'];
+    const map = {};
+    for (const ev of dayEvents) {
+      const t = ev.event_type || 'other';
+      if (!map[t]) map[t] = [];
+      map[t].push(ev);
+    }
+    return order
+      .filter((t) => map[t] && map[t].length > 0)
+      .map((t) => ({ type: t, label: TYPE_LABELS[t] || t, events: map[t] }))
+      // Then any types we didn't anticipate, alphabetised.
+      .concat(
+        Object.keys(map)
+          .filter((t) => !order.includes(t))
+          .sort()
+          .map((t) => ({ type: t, label: TYPE_LABELS[t] || t, events: map[t] })),
+      );
+  }, [dayEvents]);
+
+  const formatted = date.toLocaleDateString('en-NZ', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  return createPortal(
+    <div className="cdm-overlay" onClick={onClose}>
+      <div className="cdm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cdm-header">
+          <h3 className="cdm-title">{formatted}</h3>
+          <button className="cdm-close" onClick={onClose} aria-label="Close">
+            <XIcon size={18} />
+          </button>
+        </div>
+        <div className="cdm-body">
+          {dayEvents.length === 0 ? (
+            <div className="cdm-empty">Nothing scheduled for this day.</div>
+          ) : (
+            groups.map((g) => (
+              <div key={g.type} className="cdm-group">
+                <div className="cdm-group-title">{g.label} ({g.events.length})</div>
+                {g.events.map((ev) => (
+                  <div
+                    key={`${ev.event_type}-${ev.id}`}
+                    className="cdm-event"
+                    style={{ '--event-color': ev.color || '#5B6830' }}
+                    onClick={() => onEventClick(ev)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <span className="cdm-event-title">{ev.title}</span>
+                    <AssigneeChips assignees={ev.assignees} />
+                    {ev.status && <span className="cdm-event-status">{String(ev.status).replace(/_/g, ' ')}</span>}
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

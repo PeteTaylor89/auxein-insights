@@ -61,32 +61,7 @@
   4. The `6fbc24f09e13` file is always safe to delete regardless (its placeholder revision string can't be in `alembic_version`).
 - **Reported:** 2026-05-09. Discovered while adding `add_banner_audience` migration.
 
-### [BUG-006] Backend — Gunicorn workers OOM-killed ~60-90 min after each deploy
-- **Priority:** P1 (recurring production outage)
-- **Area:** Backend / AWS EB
-- **Env:** `auxein-api-prod-lb`, instance i-0c3f1c8061eba0733 (t3.small, 2 GB RAM, **no swap**)
-- **Symptom:** API serves traffic fine for ~1 hour after each deploy, then becomes completely offline. Replacement workers OOM as soon as they boot, cascading.
-- **Smoking gun (from `/var/log/messages` 2026-05-15 00:52:33):**
-  ```
-  kernel: Out of memory: Killed process 220455 (gunicorn) total-vm:1851380kB, anon-rss:933016kB
-  kernel: oom-kill: ... task=gunicorn, pid=220455
-  ```
-  Worker 220455 = 911 MB RSS; worker 220454 = 612 MB RSS. Combined ~1.5 GB on a 2 GB box leaves no headroom.
-- **Memory growth pattern:** Workers boot at ~250 MB. 72 minutes later they're at 612 + 911 MB. **~14 MB/min growth on essentially idle traffic** → leak signature, not load.
-- **Suspected root cause:** SQLAlchemy session leak. Hot suspect is the `Article.tags.overlap` `AttributeError` in `backend/api/v1/articles.py:175` — it throws on every call to `/api/v1/articles/related/{slug}` (and prerender/bot traffic hits this regularly). Exception path likely bypasses the `get_db` dependency teardown, leaving sessions open with cached ORM objects.
-- **Contributing factors:**
-  - 2 GB instance + 2 gunicorn workers + zero swap is genuinely tight for FastAPI + SQLAlchemy + PostGIS baseline (~250 MB/worker fresh).
-  - `utils.seo_prerender` runs every ~5-15 min, potentially loading full article bodies into memory (Tiptap JSON can be 50+ KB each).
-- **Immediate mitigation:** `eb restart auxein-api-prod-lb` returns service. Does not fix the leak.
-- **Recommended fixes (ranked):**
-  1. **Fix `Article.tags.overlap` at `backend/api/v1/articles.py:175`** — switch to `Article.tags.op('&&')(article.tags)` (Postgres ARRAY overlap operator) or cast to `ARRAY(String)`. Eliminates the AttributeError AND the suspected session leak.
-  2. **Add gunicorn `--max-requests 500 --max-requests-jitter 50`** in whatever launches gunicorn (Procfile / `.platform/hooks/`). Recycles workers periodically — reclaims leaked memory as a belt-and-braces measure.
-  3. **Verify `get_db` teardown.** Confirm `backend/db/session.py` (or wherever `get_db` lives) uses a `try/finally` with `db.close()` so dependency teardown can't leak sessions even on exceptions.
-  4. **Audit other endpoints loading PostGIS geometries.** Any `joinedload` on `WineRegion.geometry`, `Block.geometry`, `Property.geometry` pulls 50-500 KB WKB into the session — if the session leaks, that compounds.
-  5. **Longer term:** bump to t3.medium (4 GB) or drop to 1 worker. Add swap as a safety net.
-- **Verification next session:** SSH to instance, run `watch -n 30 "ps -e -o pid,rss,cmd | grep gunicorn"` while tailing `web.stdout.log`. If RSS climbs while the app is idle → leak confirmed. If it only climbs against specific endpoints → narrow to that endpoint.
-- **Logs preserved:** `backend/.elasticbeanstalk/logs/260515_125238/i-0c3f1c8061eba0733/`
-- **Reported:** 2026-05-15. Surfaced after Phase A climate-history deploy; the deploy reset workers to clean memory and the hourly leak cycle restarted, making the symptom newly visible. Deploy itself is **not** the cause — the new `/compare/zones/seasons` endpoint returns ~5 KB JSON and was not under load when the OOM fired.
+<!-- BUG-006 moved to Resolved 2026-05-29 -->
 
 ---
 
@@ -105,6 +80,16 @@
 ## Resolved
 
 <!-- Move fixed bugs here with resolution notes -->
+
+### ~~[BUG-006] Backend — Gunicorn workers OOM-killed ~60-90 min after each deploy~~
+- **Priority:** P1 (recurring production outage)
+- **Area:** Backend / AWS EB
+- **Resolved:** 2026-05-29
+- **Resolution:** Two-part fix.
+  1. **`Article.tags.overlap` AttributeError fixed** at `backend/api/v1/articles.py:175`. Root cause: `Article.tags` is declared as generic `sqlalchemy.ARRAY(String)`, not `sqlalchemy.dialects.postgresql.ARRAY`. The `.overlap()` method only exists on the PG-dialect variant; on generic ARRAY it raises AttributeError at query-build time. Switched to `Article.tags.op('&&')(article.tags)` — emits the same Postgres `&&` overlap operator without needing a model/column-type change (which would have churned the autogenerate baseline). `/api/v1/articles/related/{slug}` now returns results instead of 500-ing every call.
+  2. **Gunicorn `--max-requests 500 --max-requests-jitter 50`** added to `backend/Procfile`. Workers recycle every ~500 requests with jitter to stop them syncing — reclaims any leaked memory periodically as belt-and-braces, independent of whatever the actual leak source is.
+- **Verification path post-deploy:** SSH to EB instance, `watch -n 30 "ps -e -o pid,rss,cmd | grep gunicorn"`. Workers should now plateau (recycle before they hit OOM territory) instead of climbing monotonically toward 900 MB+.
+- **Files:** `backend/api/v1/articles.py`, `backend/Procfile`.
 
 ### ~~[BUG-009] Backend — `/risks/by-location` 403s for contractor tokens~~
 - **Priority:** P2

@@ -17,11 +17,19 @@ import { useAuth } from '../contexts/AuthContext';
 export default function useActiveCheckIn() {
   const { isContractor } = useAuth();
   const [activeCheckIn, setActiveCheckIn] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Start in loading=true so the first paint of any screen using this hook
+  // can suppress empty-state UI until we actually know whether a check-in
+  // exists. Without this, MapScreen + CheckInScreen briefly render the
+  // "Sign in" CTA, the user taps it during the race, and we end up
+  // double-checking-in.
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
 
   const fetchActive = useCallback(async () => {
     if (!isContractor) {
       setActiveCheckIn(null);
+      setLoading(false);
+      setLoaded(true);
       return;
     }
     setLoading(true);
@@ -39,6 +47,7 @@ export default function useActiveCheckIn() {
       setActiveCheckIn(null);
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [isContractor]);
 
@@ -53,6 +62,7 @@ export default function useActiveCheckIn() {
     propertyId: activeCheckIn?.property_id ?? null,
     propertyName: activeCheckIn?.property_name ?? null,
     loading,
+    loaded,
     refresh: fetchActive,
   };
 }

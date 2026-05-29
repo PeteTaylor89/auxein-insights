@@ -145,7 +145,15 @@ def process_gps_track(task_id: int, db: Session) -> TaskGPSSummary | None:
                 coverage_ha = Decimal(str(round(abs(area_m2) / 10000, 4)))
 
             if coverage_ha and block_ha and block_ha > 0:
-                coverage_pct = Decimal(str(round(float(coverage_ha / block_ha) * 100, 2)))
+                pct = round(float(coverage_ha / block_ha) * 100, 2)
+                # Schema caps coverage_percentage at numeric(5,2) → max 999.99.
+                # Tracks that drift well outside their assigned block (or are
+                # mis-assigned) can produce raw values in the thousands of %.
+                # Cap so the row inserts; >100% itself is meaningful signal
+                # to surface in the UI ("track exceeded block bounds").
+                if pct > 999.99:
+                    pct = 999.99
+                coverage_pct = Decimal(str(pct))
 
     # --- Accuracy stats ---
     accuracies = [float(p.accuracy) for p in points if p.accuracy is not None]

@@ -4,8 +4,23 @@ import MobileNavigation from '../components/MobileNavigation';
 import { useAuth } from '@vineyard/shared';
 import {companiesService, propertyService} from '@vineyard/shared';
 import ClimateContainer from '../components/climate/ClimateContainer';
+import ArticlesCarousel from '../components/ArticlesCarousel';
+import PhenologyPanel from '../components/phenology/PhenologyPanel';
 import { Link } from 'react-router'
 import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned} from "lucide-react"
+import './Insights.css';
+
+// Insight pill cards, in display order.
+const INSIGHT_CARDS = [
+  { key: 'climate', label: 'Climate History', Icon: ChartArea },
+  { key: 'climateprojection', label: 'Climate Projections', Icon: ChartSpline },
+  { key: 'currentseason', label: 'Current Season', Icon: CloudSunRain },
+  { key: 'phenology', label: 'Phenology', Icon: Grape },
+  { key: 'disease', label: 'Disease', Icon: ShieldCheck },
+  { key: 'biosecurity', label: 'Biosecurity', Icon: Bug },
+  { key: 'blockchain', label: 'BlockChain', Icon: ShieldCheck },
+  { key: 'industry', label: 'Latest Industry Insight', Icon: Bug },
+];
 
 
 function Insights() {
@@ -102,10 +117,7 @@ function Insights() {
                 ×
               </button>
             </div>
-            <div className="insight-placeholder">
-              <p>Phenology analysis coming soon...</p>
-              <p>This will show grape development stages, budbreak timing, flowering dates, and harvest predictions based on historical climate data.</p>
-            </div>
+            <PhenologyPanel />
           </div>
         );
       case 'climateprojection':
@@ -228,10 +240,7 @@ function Insights() {
                 ×
               </button>
             </div>
-            <div className="insight-placeholder">
-              <p>Industry Insights coming soon...</p>
-              <p>This will show current industry insights that may be relevant to you.</p>
-            </div>
+            <ArticlesCarousel title={null} />
           </div>
         );
       default:
@@ -247,27 +256,24 @@ function Insights() {
   }, []);
   
   return (
-    <div className="home-page">
+    <div className="page-container">
+      <div className="insights-page">
 
-      <div className="home-content">
+        <div className="insights-header">
+          <div className="insights-title-row">
+            <Lightbulb size={24} />
+            <h1 className="section-title">
+              {selectedProperty ? selectedProperty.name : (company?.name || 'Your Company')} — Insights
+            </h1>
+          </div>
 
-        {/* Updated Insights Section with Click Handlers */}
-        {/* Property selector */}
-        {properties.length > 0 && (
-          <div className="stats-container" style={{ padding: 'var(--space-sm) var(--space-base)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+          {properties.length > 0 && (
+            <div className="insights-toolbar">
               <MapPinned size={18} style={{ color: 'var(--color-primary)' }} />
               <select
+                className="insights-property-select"
                 value={selectedPropertyId}
                 onChange={(e) => setSelectedPropertyId(e.target.value)}
-                style={{
-                  padding: 'var(--space-xs) var(--space-sm)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: 'var(--font-size-sm)',
-                  fontFamily: 'var(--font-family)',
-                  minWidth: '200px',
-                }}
               >
                 <option value="">All Properties (Company Level)</option>
                 {properties.map(p => (
@@ -277,82 +283,23 @@ function Insights() {
                 ))}
               </select>
               {selectedProperty && selectedProperty.climate_zone_id && (
-                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                  Climate zone assigned
-                </span>
+                <span className="insights-zone-tag">Climate zone assigned</span>
               )}
             </div>
-          </div>
-        )}
-
-        <div className="stats-container">
-          <div className="container-title">
-            <span>{selectedProperty ? selectedProperty.name : (company?.name || 'Your Company')} — Insights</span>
-          </div>
-          <div className="stats-grid">
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'climate' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('climate')}
-            >
-              <div className="icon-wrapper"><ChartArea /></div>
-              <div className="actions-title">Climate History</div>
-            </button>
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'climateprojection' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('climateprojection')}
-            >
-              <div className="icon-wrapper"><ChartSpline /></div>
-              <div className="actions-title">Climate Projections</div>
-            </button>
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'currentseason' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('currentseason')}
-            >
-              <div className="icon-wrapper"><CloudSunRain /></div>
-              <div className="actions-title">Current Season</div>
-            </button>
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'phenology' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('phenology')}
-            >
-              <div className="icon-wrapper"><Grape /></div>
-              <div className="actions-title">Phenology</div>
-            </button>
-
-          </div>
+          )}
         </div>
-        <div className="stats-container">
-          <div className="stats-grid">
 
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'disease' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('disease')}
+        <div className="insights-pills">
+          {INSIGHT_CARDS.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              className={`insight-pill ${activeInsight === key ? 'active' : ''}`}
+              onClick={() => handleInsightClick(key)}
             >
-              <div className="icon-wrapper"><ShieldCheck /></div>
-              <div className="actions-title">Disease</div>
+              <Icon size={16} />
+              <span>{label}</span>
             </button>
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'biosecurity' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('biosecurity')}
-            >
-              <div className="icon-wrapper"><Bug /></div>
-              <div className="actions-title">Biosecurity</div>
-            </button>
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'blockchain' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('blockchain')}
-            >
-              <div className="icon-wrapper"><ShieldCheck /></div>
-              <div className="actions-title">BlockChain</div>
-            </button>
-            <button 
-              className={`stat-card insight-card ${activeInsight === 'industry' ? 'active' : ''}`}
-              onClick={() => handleInsightClick('industry')}
-            >
-              <div className="icon-wrapper"><Bug /></div>
-              <div className="actions-title">Latest Industry Insight</div>
-            </button>
-          </div>
+          ))}
         </div>
 
         {/* Dynamic Insight Component */}

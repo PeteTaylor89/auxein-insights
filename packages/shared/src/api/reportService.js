@@ -61,6 +61,23 @@ const reportService = {
   exportAssets: () => {
     return `${api.defaults.baseURL}/reports/assets/export`;
   },
+
+  // Contractor reports — completed work + site visits
+  getContractorSummary: async (startDate, endDate, propertyId) => {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    if (propertyId) params.property_id = propertyId;
+    const res = await api.get('/v1/reports/contractors/summary', { params });
+    return res.data;
+  },
+  exportContractors: (startDate, endDate, propertyId) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (propertyId) params.append('property_id', propertyId);
+    return `${api.defaults.baseURL}/reports/contractors/export?${params.toString()}`;
+  },
 };
 
 export default reportService;

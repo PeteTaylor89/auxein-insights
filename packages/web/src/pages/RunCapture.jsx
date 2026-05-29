@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   CheckCircle,
   Send,
-  PlayCircle,
   AlertCircle,
   Image as ImageIcon,
   Video as VideoIcon,
@@ -18,6 +17,7 @@ import {
   Lock,
   Save,
   Upload,
+  Download,
   Maximize2,
   X as XIcon,
   BarChart3,
@@ -376,24 +376,6 @@ export default function RunCapture() {
     }
   };
 
-  const completeAndStartNext = async () => {
-    if (!run?.plan_id) return alert('No plan associated with this run - cannot start another.');
-    const allSaved = await saveAllUnsavedSpots();
-    if (!allSaved) return;
-    const confirmed = window.confirm('This will complete the current run and start a new one on a different block. Continue?');
-    if (!confirmed) return;
-    try {
-      setBusy(true);
-      await observationService.completeRun(id);
-      navigate(`/observations/runstart/${run.plan_id}`);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to complete run and start next.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const refreshSpotMedia = async (spotId) => {
     try {
       const [photos, videos, documents] = await Promise.all([
@@ -517,8 +499,8 @@ export default function RunCapture() {
   return (
     <div className="vp-container" style={{ maxWidth: 1100, paddingTop: '5rem' }}>
       <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-        <button className="vp-back" onClick={() => { if (run?.plan_id) navigate(`/plandetail/${run.plan_id}`); else navigate('/observations?tab=runs'); }}>
-          <ArrowLeft size={16} /> {run?.plan_id ? 'Back to Plan' : 'Back to Runs'}
+        <button className="vp-back" onClick={() => navigate('/observations?tab=runs')}>
+          <ArrowLeft size={16} /> Back to Observations
         </button>
       </div>
 
@@ -562,11 +544,6 @@ export default function RunCapture() {
                     <Send size={16} /> Submit
                   </button>
                 </>
-              )}
-              {run?.plan_id && (
-                <button className="btn-accent" onClick={completeAndStartNext} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-sm)' }} title="Complete this run and start another block">
-                  <PlayCircle size={16} /> {isRunCompleted ? 'Start Next Block' : 'Complete & Start Next'}
-                </button>
               )}
             </div>
           </section>
@@ -1437,9 +1414,14 @@ function UnifiedUploads({ spot, disabled, uploading, onPick, onDelete, onDownloa
               className="rc-upload-tile"
               title={it.original_filename || it._kind}
               onClick={() => {
+                // Photos with a preview open in the lightbox. Photos whose
+                // blob fetch failed (blob_url null) fall through to download
+                // so the user still gets the file rather than a silent
+                // nothing. Videos + docs always download.
                 if (it._kind === 'photo' && it.blob_url) setEnlarged(it);
                 else onDownload(it.id, it.original_filename);
               }}
+              style={{ cursor: 'pointer' }}
             >
               {it._kind === 'photo' && it.blob_url && (
                 <img src={it.blob_url} alt={it.original_filename || 'photo'} />
@@ -1480,14 +1462,59 @@ function UnifiedUploads({ spot, disabled, uploading, onPick, onDelete, onDownloa
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 10000, padding: 20
+            zIndex: 10000, padding: 20, cursor: 'zoom-out',
           }}
         >
           <img
             src={enlarged.blob_url}
             alt={enlarged.original_filename}
-            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain' }}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain', cursor: 'default' }}
           />
+
+          {/* Filename + actions strip */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed', top: 16, left: 16, right: 16,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              gap: 12, pointerEvents: 'none',
+            }}
+          >
+            <span style={{
+              color: '#fff', fontSize: 14, fontWeight: 500,
+              textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {enlarged.original_filename || 'Photo'}
+            </span>
+            <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
+              <button
+                onClick={() => onDownload(enlarged.id, enlarged.original_filename)}
+                title="Download original"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(255,255,255,0.92)', color: '#111',
+                  border: 'none', borderRadius: 6, padding: '6px 12px',
+                  cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                }}
+              >
+                <Download size={14} /> Download
+              </button>
+              <button
+                onClick={() => setEnlarged(null)}
+                title="Close (Esc)"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.92)', color: '#111',
+                  border: 'none', borderRadius: 6, width: 32, height: 32,
+                  cursor: 'pointer',
+                }}
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
+          </div>
         </div>,
         document.body
       )}

@@ -29,7 +29,7 @@ import MapBlockSheet from '../components/MapBlockSheet';
 import MapRiskSheet from '../components/MapRiskSheet';
 import MapAssetSheet from '../components/MapAssetSheet';
 import MapLayerSheet from '../components/MapLayerSheet';
-import { assetService } from '../api/services';
+import { assetService, contractorService } from '../api/services';
 
 // Category → fill colour for asset pins. Falls back to muted grey for unknown.
 const ASSET_COLOR_BY_CATEGORY = [
@@ -129,10 +129,54 @@ export default function MapScreen({ navigation, route }) {
   const { feature: liveTrack, active: liveActive, lastCoord: liveLastCoord } = useLiveLocalTrack();
   const { track: historicalTrack, task: viewingTask, loading: viewingLoading } = useTaskTrackOnce(viewTaskId);
 
-  // Contractors are gated to the property they're currently checked into.
-  // If no active check-in: render an empty state instead of any layer fetches.
-  // If checked in: force the selected property so the layer hooks below use it.
-  const contractorPropertyId = isContractor ? checkIn.propertyId : null;
+  // Contractors are gated to the property they're scoped to. Three states:
+  //   1. Not checked in at all → "Sign in" CTA
+  //   2. Checked in but no property selected → inline property picker
+  //   3. Checked in with property → use it
+  // We also let case 2 contractors pick a property ad-hoc — saved only on the
+  // map session, doesn't write back to the movement record.
+  const [adHocPropertyId, setAdHocPropertyId] = useState(null);
+  const [companyProperties, setCompanyProperties] = useState([]);
+  const [propsLoading, setPropsLoading] = useState(false);
+
+  // Fetch the company's properties whenever the contractor is checked in
+  // to a company — used by both the initial picker (when no property yet)
+  // and the switcher pill (when changing between properties).
+  const hasContractorCompany = isContractor && checkIn.loaded && !!checkIn.companyId;
+  useEffect(() => {
+    if (!hasContractorCompany) {
+      setCompanyProperties([]);
+      return;
+    }
+    let mounted = true;
+    setPropsLoading(true);
+    contractorService.listMyScopedProperties(checkIn.companyId)
+      .then(data => mounted && setCompanyProperties(Array.isArray(data) ? data : []))
+      .catch(() => mounted && setCompanyProperties([]))
+      .finally(() => mounted && setPropsLoading(false));
+    return () => { mounted = false; };
+  }, [hasContractorCompany, checkIn.companyId]);
+
+  // Contractor map property switcher state — separate modal from the user
+  // PropertyContext one so the two flows stay tidy.
+  const [contractorPickerOpen, setContractorPickerOpen] = useState(false);
+
+  // Inline name resolver so there's no useMemo/closure cache. Returns a
+  // non-empty string in every branch — JSX can drop the `|| '—'` guard.
+  const resolveContractorPropertyName = (id) => {
+    if (!id) return '';
+    const target = Number(id);
+    // Number-coerce both sides — the picker passes int p.id but check-in
+    // values can come back as strings from some serializers.
+    const match = companyProperties.find(p => Number(p.id) === target);
+    if (match?.name) return match.name;
+    if (checkIn.propertyName) return checkIn.propertyName;
+    if (propsLoading) return 'Loading…';
+    return `Property ${target}`;
+  };
+
+  // Effective property — explicit check-in wins, ad-hoc map pick fills in.
+  const contractorPropertyId = isContractor ? (checkIn.propertyId || adHocPropertyId) : null;
   useEffect(() => {
     if (isContractor && contractorPropertyId && selectedPropertyId !== contractorPropertyId) {
       setSelectedPropertyId(contractorPropertyId);
@@ -140,8 +184,8 @@ export default function MapScreen({ navigation, route }) {
   }, [isContractor, contractorPropertyId, selectedPropertyId, setSelectedPropertyId]);
 
   // The scope-id used by the layer hooks below. For contractors this is
-  // always the check-in's property (or null = render nothing). For users it's
-  // whatever PropertyContext returns.
+  // always the check-in's property (or ad-hoc pick, or null = render nothing).
+  // For users it's whatever PropertyContext returns.
   const layerPropertyId = isContractor ? contractorPropertyId : selectedPropertyId;
 
   // Historical (explicit user intent — TaskDetail "View on Map") wins. Live
@@ -181,10 +225,10 @@ export default function MapScreen({ navigation, route }) {
 
   // Block / asset / risk layers — all scoped by `layerPropertyId`. For users
   // that follows PropertyContext; for contractors it's pinned to the active
-  // check-in. When a contractor has no active check-in, layer hooks are
-  // disabled so we don't fire requests that would 403/empty anyway.
-  const contractorBlocked = isContractor && !contractorPropertyId;
-  const layersEnabled = !contractorBlocked;
+  // check-in (or their ad-hoc map pick). Layer hooks disabled until we have
+  // a property to scope to, otherwise we'd fire empty 403-style requests.
+  const contractorNotSignedIn = isContractor && checkIn.loaded && !checkIn.companyId;
+  const layersEnabled = isContractor ? (checkIn.loaded && !!contractorPropertyId) : true;
   const { data: blocksGeojson, loading: blocksLoading, error: blocksError } = useBlockGeojson(layerPropertyId, { enabled: layersEnabled });
   const { tasksByBlock, getBlockTasks } = useTasksByBlock({ enabled: layersEnabled });
   const { data: assetsGeojson, loading: assetsLoading, error: assetsError } = useAssetGeojson({ propertyId: layerPropertyId, enabled: layersEnabled });
@@ -438,10 +482,59 @@ export default function MapScreen({ navigation, route }) {
     );
   }
 
-  // Contractor with no active check-in: short-circuit before mounting the
-  // Mapbox view. Sign-in CTA is the only path forward — once they're checked
-  // in the focus-refresh in useActiveCheckIn flips this back on.
-  if (contractorBlocked) {
+  // Contractor still resolving check-in state — show a spinner instead of
+  // the Sign-in CTA so the user doesn't tap into a race where we create a
+  // duplicate check-in on top of an existing one.
+  if (isContractor && !checkIn.loaded) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Text style={styles.bootText}>Checking sign-in status…</Text>
+      </View>
+    );
+  }
+
+  // Contractor checked in to a company but no property selected — show
+  // inline picker so they don't get "Sign in" prompts when they're already
+  // signed in. Pick saves to map-session state only (doesn't mutate the
+  // movement record on the server).
+  if (isContractor && checkIn.companyId && !contractorPropertyId) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Feather name="map" size={32} color={colors.primary} style={{ marginBottom: 12 }} />
+        <Text style={styles.bootText}>Pick a property to view</Text>
+        <Text style={styles.bootHint}>
+          You're signed in to {checkIn.companyName}. The map needs a property to
+          scope blocks, assets and risks. Pick one below — you can switch any time.
+        </Text>
+        <View style={{ marginTop: 20, paddingHorizontal: spacing.lg, gap: 8, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {propsLoading ? (
+            <Text style={styles.bootHint}>Loading properties…</Text>
+          ) : companyProperties.length === 0 ? (
+            <Text style={styles.bootHint}>No properties available for this company.</Text>
+          ) : (
+            companyProperties.map(p => (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => setAdHocPropertyId(p.id)}
+                activeOpacity={0.8}
+                style={{
+                  paddingHorizontal: 16, paddingVertical: 10,
+                  borderRadius: 999, backgroundColor: colors.primary,
+                }}
+              >
+                <Text style={{ color: colors.white, fontWeight: '700', fontSize: 13 }}>{p.name}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // Contractor with no active check-in at all: short-circuit before mounting
+  // the Mapbox view. Sign-in CTA is the only path forward — once they're
+  // checked in the focus-refresh in useActiveCheckIn flips this back on.
+  if (contractorNotSignedIn) {
     return (
       <View style={[styles.container, styles.centered]}>
         <Feather name="map-pin" size={32} color={colors.primary} style={{ marginBottom: 12 }} />
@@ -737,6 +830,26 @@ export default function MapScreen({ navigation, route }) {
         </TouchableOpacity>
       )}
 
+      {/* Contractor property switcher — same pill spot, only renders once the
+          contractor has a property scoped (either from check-in or ad-hoc).
+          Disabled when there's only one option since there's nothing to swap. */}
+      {!tokenMissing && !viewTaskId && isContractor && contractorPropertyId && (
+        <TouchableOpacity
+          style={styles.propertyPill}
+          onPress={() => companyProperties.length > 1 && setContractorPickerOpen(true)}
+          activeOpacity={companyProperties.length > 1 ? 0.7 : 1}
+          accessibilityLabel="Switch property"
+        >
+          <Feather name="map-pin" size={15} color={colors.primary} />
+          <Text style={styles.propertyPillName} numberOfLines={1}>
+            {resolveContractorPropertyName(contractorPropertyId)}
+          </Text>
+          {companyProperties.length > 1 && (
+            <Feather name="chevron-down" size={15} color={colors.textMuted} />
+          )}
+        </TouchableOpacity>
+      )}
+
       {/* Historical-track viewing pill. Appears when navigated in with
           viewTaskId. Tap the close button to clear and return to normal map
           state. Hit target is generous (24 hitSlop + 28px touch surface) so
@@ -912,6 +1025,47 @@ export default function MapScreen({ navigation, route }) {
                     name={item.id === selectedPropertyId ? 'check-circle' : 'circle'}
                     size={18}
                     color={item.id === selectedPropertyId ? colors.success : colors.textMuted}
+                  />
+                  <Text style={styles.pickerItemName}>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Contractor property switcher — separate modal from the user one
+          since the source list (company properties from /me/properties) is
+          different and the pick saves to map-session state, not PropertyContext. */}
+      <Modal visible={contractorPickerOpen} transparent animationType="fade">
+        <Pressable
+          style={styles.pickerOverlay}
+          onPress={() => setContractorPickerOpen(false)}
+        >
+          <Pressable
+            style={[styles.pickerSheet, { paddingBottom: spacing.xl + insets.bottom }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.pickerHandle} />
+            <Text style={styles.pickerTitle}>Switch property</Text>
+            <Text style={[styles.pickerItemName, { color: colors.textMuted, marginBottom: spacing.sm, paddingHorizontal: spacing.lg }]}>
+              {checkIn.companyName} · {companyProperties.length} {companyProperties.length === 1 ? 'property' : 'properties'}
+            </Text>
+            <FlatList
+              data={companyProperties}
+              keyExtractor={(p) => String(p.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.pickerItem}
+                  onPress={() => {
+                    setAdHocPropertyId(item.id);
+                    setContractorPickerOpen(false);
+                  }}
+                >
+                  <Feather
+                    name={item.id === contractorPropertyId ? 'check-circle' : 'circle'}
+                    size={18}
+                    color={item.id === contractorPropertyId ? colors.success : colors.textMuted}
                   />
                   <Text style={styles.pickerItemName}>{item.name}</Text>
                 </TouchableOpacity>

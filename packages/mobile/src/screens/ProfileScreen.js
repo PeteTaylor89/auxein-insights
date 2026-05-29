@@ -46,6 +46,13 @@ export default function ProfileScreen() {
         <Feather name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
+      {/* Timesheet */}
+      <TouchableOpacity style={styles.notifRow} onPress={() => navigation.navigate('Timesheet')}>
+        <Feather name="clock" size={20} color={colors.primary} />
+        <Text style={styles.notifLabel}>Timesheet</Text>
+        <Feather name="chevron-right" size={20} color={colors.textMuted} />
+      </TouchableOpacity>
+
       {/* User Info */}
       <View style={styles.section}>
         <Field label="Username" value={user?.username} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { riskManagementService, usersService, adminService, api } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
@@ -8,6 +8,7 @@ import './RiskManagement.css';
 function RiskDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
@@ -96,6 +97,26 @@ function RiskDashboard() {
   useEffect(() => { if (!loading) fetchRisks(); }, [riskFilters]);
   useEffect(() => { if (!loading) fetchActions(); }, [actionFilters]);
   useEffect(() => { if (!loading) fetchIncidents(); }, [incidentFilters]);
+
+  // Deep-link from the calendar — ?action=N or ?risk=N opens the matching
+  // edit page. Strip the param after firing so the back button + refresh
+  // don't re-trigger.
+  useEffect(() => {
+    if (loading) return;
+    const actionId = searchParams.get('action');
+    const riskId = searchParams.get('risk');
+    if (actionId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('action');
+      setSearchParams(next, { replace: true });
+      handleEditAction(Number(actionId));
+    } else if (riskId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('risk');
+      setSearchParams(next, { replace: true });
+      handleEditRisk(Number(riskId));
+    }
+  }, [loading, searchParams]);
 
   const handleEditRisk = async (riskId) => {
     try { const d = await riskManagementService.getRiskById(riskId); navigate('/risks/create', { state: { editMode: true, riskData: d } }); }

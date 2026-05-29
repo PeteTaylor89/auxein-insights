@@ -515,14 +515,22 @@
 
 .od-card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-sm);
 }
 
 .od-card-actions .od-btn {
-  flex: 1;
+  flex: 1 1 120px;
+  min-width: 0;
   justify-content: center;
   padding: var(--space-sm) var(--space-md);
   font-size: var(--font-size-sm);
+}
+
+.od-card-actions .od-btn--icon {
+  flex: 0 0 auto;
+  min-width: 32px;
+  padding: var(--space-sm);
 }
 
 /* Task card (with status border) */

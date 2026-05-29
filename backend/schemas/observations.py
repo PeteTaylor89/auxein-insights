@@ -74,71 +74,11 @@ class ObservationTemplateOut(BaseModel):
             orm_mode = True
             allow_population_by_field_name = True
 
-# ----- Plans (scheduled templates to do) -----
-
-class PlanTarget(BaseModel):
-    block_id: Optional[int] = None
-    row_id: Optional[int] = None
-    row_start: Optional[str] = None  # e.g., "x"
-    row_end: Optional[str] = None    # e.g., "z"
-    required_spots: Optional[conint(ge=1)] = None
-    extra: Optional[Dict[str, Any]] = None
-
-class ObservationPlanBase(BaseModel):
-    company_id: int
-    template_id: int
-    name: str
-    description: Optional[str] = None
-    scheduled_for: Optional[date] = None
-    auto_block_selection: bool = False
-    targets: List[PlanTarget] = Field(default_factory=list)
-    instructions: Optional[str] = None
-    is_active: bool = True
-
-class ObservationPlanCreate(ObservationPlanBase):
-    assignee_user_ids: List[int] = Field(default_factory=list)
-
-class ObservationPlanUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    scheduled_for: Optional[date] = None
-    auto_block_selection: Optional[bool] = None
-    targets: Optional[List[PlanTarget]] = None
-    instructions: Optional[str] = None
-    is_active: Optional[bool] = None
-    assignee_user_ids: Optional[List[int]] = None
-
-class ObservationPlanOut(BaseModel):
-    id: int
-    company_id: int
-    template_id: int
-    template_name: Optional[str] = None
-    template_version: int
-    name: str
-    instructions: Optional[str] = None
-    # if you want to echo inputs like description/scheduled_for, add them as real columns later
-    status: str
-    priority: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    # relations serialized from ORM:
-    targets: List[PlanTargetOut] = Field(default_factory=list)
-    assignees: List[PlanAssigneeOut] = Field(default_factory=list)
-    runs_count: int = 0
-    latest_run_started_at: Optional[datetime] = None
-
-    if ConfigDict:
-        model_config = ConfigDict(**_CFG)
-    else:
-        class Config:
-            orm_mode = True
 # ----- Runs and Spots -----
 
 class ObservationRunBase(BaseModel):
     company_id: int
     template_id: int
-    plan_id: Optional[int] = None
     block_id: Optional[int] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -146,33 +86,49 @@ class ObservationRunBase(BaseModel):
 
 class ObservationRunCreate(ObservationRunBase):
     created_by: Optional[int] = None
+    # Scheduling fields. Setting scheduled_date without started_at puts the
+    # run in the "Scheduled" state (observed_at_start stays NULL on insert).
+    scheduled_date: Optional[date] = None
+    assigned_to_user_id: Optional[int] = None
+    instructions: Optional[str] = None
+    name: Optional[str] = None  # caller-supplied display name; create_run auto-fills if absent
 
 class ObservationRunUpdate(BaseModel):
     status: Optional[ObservationRunStatus] = None
     completed_at: Optional[datetime] = None
     summary_stats: Optional[Dict[str, Any]] = None
+    scheduled_date: Optional[date] = None
+    assigned_to_user_id: Optional[int] = None
+    instructions: Optional[str] = None
 
 class ObservationRunOut(ObservationRunBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime]
     created_by: Optional[int] = None  # Keep as user ID
-    plan_name: Optional[str] = None
     template_name: Optional[str] = None
     template_type: Optional[str] = None  # e.g. phenology, bud_count, bunch_count — gates the Insights link
     creator_name: Optional[str] = None  # This will contain "FirstName LastName"
-    
+
     # Pass through the observation dates
     observed_at_start: Optional[datetime] = None
     observed_at_end: Optional[datetime] = None
-    
+
     # Block name from vineyard_blocks
     block_name: Optional[str] = None
+
+    # Scheduling fields surfaced for the Management table
+    scheduled_date: Optional[date] = None
+    assigned_to_user_id: Optional[int] = None
+    assigned_to_user_name: Optional[str] = None
+    instructions: Optional[str] = None
 
     # Spot count for display
     spots_count: Optional[int] = None
 
-    # Computed status field
+    # Computed status field. Scheduled = neither timestamp set; In progress =
+    # started not ended; Complete = both set. UI palette keys off this exact
+    # set so don't rename without updating the StatusBadge map.
     @computed_field
     @property
     def status(self) -> str:
@@ -181,8 +137,8 @@ class ObservationRunOut(ObservationRunBase):
         elif self.observed_at_start and not self.observed_at_end:
             return "in progress"
         else:
-            return "not started"
-    
+            return "scheduled"
+
     class Config:
         from_attributes = True
 
@@ -295,24 +251,3 @@ class ObservationTaskLinkOut(ObservationTaskLinkCreate):
         from_attributes = True
 
 
-class PlanAssigneeOut(BaseModel):
-    id: int
-    user_id: int
-    if ConfigDict:
-        model_config = ConfigDict(**_CFG)
-    else:
-        class Config:
-            orm_mode = True
-
-class PlanTargetOut(BaseModel):
-    id: int
-    block_id: int
-    row_labels: List[str] = Field(default_factory=list)   # <- matches DB JSON column
-    asset_id: Optional[int] = None
-    sample_size: Optional[int] = None
-    notes: Optional[str] = None
-    if ConfigDict:
-        model_config = ConfigDict(**_CFG)
-    else:
-        class Config:
-            orm_mode = True

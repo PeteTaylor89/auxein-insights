@@ -1,6 +1,6 @@
 #db/models/observation_run.py
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
@@ -12,15 +12,21 @@ class ObservationRun(Base):
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
 
-    plan_id = Column(Integer, ForeignKey("observation_plans.id"), nullable=True)
     template_id = Column(Integer, ForeignKey("observation_templates.id"), nullable=False)
     template_version = Column(Integer, nullable=False)
-    
+
     block_id = Column(Integer, ForeignKey("vineyard_blocks.id", ondelete="CASCADE"), nullable=True)
 
     name = Column(String(160), nullable=False)
     observed_at_start = Column(DateTime(timezone=True), nullable=True)
     observed_at_end = Column(DateTime(timezone=True), nullable=True)
+
+    # Scheduling fields (added 2026-05-29 — collapse Plan layer onto Run).
+    # When scheduled_date is set and observed_at_start is NULL the run is in
+    # the "Scheduled" state. Ad-hoc Quick Obs leaves both NULL/now respectively.
+    scheduled_date = Column(Date, nullable=True, index=True)
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    instructions = Column(Text, nullable=True)
 
     # Attachments & tags follow your JSON array conventions
     photo_file_ids = Column(JSON, nullable=False, default=list)
@@ -34,10 +40,10 @@ class ObservationRun(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    plan = relationship("ObservationPlan", back_populates="runs")
     template = relationship("ObservationTemplate")
     spots = relationship("ObservationSpot", back_populates="run", cascade="all, delete-orphan")
-    creator = relationship("User")
+    creator = relationship("User", foreign_keys=[created_by])
+    assigned_to_user = relationship("User", foreign_keys=[assigned_to_user_id])
     block = relationship("VineyardBlock")
 
 class ObservationSpot(Base):

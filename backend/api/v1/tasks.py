@@ -1270,14 +1270,20 @@ def complete_task(
 
     # Move the contractor's own assignment(s) to completed too. Hours land on
     # ContractorAssignment.actual_hours_worked rather than a user Timesheet.
+    # Also propagate to the relationship + contractor rollups so the mobile
+    # Contracts list and the web Relationships table show real numbers (this
+    # was missed in the original wiring — runs once per fresh completion only
+    # to avoid double-counting if the endpoint is hit twice).
     if is_contractor:
         contractor_assignments = db.query(ContractorAssignment).filter(
             ContractorAssignment.task_id == task.id,
             ContractorAssignment.contractor_id == actor.id,
         ).all()
         now = datetime.now()
+        primary_hours_credited = False
         for ca_row in contractor_assignments:
             if ca_row.status != "completed":
+                was_already_completed = False
                 ca_row.status = "completed"
                 ca_row.actual_end = now
                 ca_row.completion_percentage = 100
@@ -1287,6 +1293,23 @@ def complete_task(
                     # actual_hours_worked untouched.
                     if ca_row.actual_hours_worked is None:
                         ca_row.actual_hours_worked = complete_request.hours_worked
+            else:
+                was_already_completed = True
+
+            if not was_already_completed and not primary_hours_credited:
+                # First just-completed row drives the rollup credit for this task.
+                primary_hours_credited = True
+                hours_for_rollup = float(complete_request.hours_worked) if complete_request.hours_worked and complete_request.hours_worked > 0 else float(ca_row.actual_hours_worked or 0)
+                relationship = db.query(ContractorRelationship).filter(
+                    ContractorRelationship.contractor_id == actor.id,
+                    ContractorRelationship.company_id == task.company_id,
+                ).first()
+                if relationship:
+                    relationship.update_performance_stats(hours_worked=hours_for_rollup if hours_for_rollup > 0 else None)
+                # Cross-company total on the Contractor row
+                contractor_row = db.query(Contractor).filter(Contractor.id == actor.id).first()
+                if contractor_row:
+                    contractor_row.total_jobs_completed = (contractor_row.total_jobs_completed or 0) + 1
 
     # Log hours to today's timesheet (User actor only — contractors aren't on the timesheet)
     hours_entry_created = False

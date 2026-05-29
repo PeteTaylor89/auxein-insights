@@ -35,6 +35,9 @@ import VisitorsScreen from '../screens/VisitorsScreen';
 import MapScreen from '../screens/MapScreen';
 import RelationshipsScreen from '../screens/RelationshipsScreen';
 import RelationshipDetailScreen from '../screens/RelationshipDetailScreen';
+import TimesheetScreen from '../screens/TimesheetScreen';
+import TimesheetDayDetailScreen from '../screens/TimesheetDayDetailScreen';
+import TimesheetEntryEditScreen from '../screens/TimesheetEntryEditScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -159,6 +162,13 @@ function ProfileStackNavigator() {
         options={{ title: 'Profile' }}
       />
       <ProfileStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
+      {!isContractor && (
+        <>
+          <ProfileStack.Screen name="Timesheet" component={TimesheetScreen} options={{ title: 'Timesheet' }} />
+          <ProfileStack.Screen name="TimesheetDayDetail" component={TimesheetDayDetailScreen} options={{ title: 'Day detail' }} />
+          <ProfileStack.Screen name="TimesheetEntryEdit" component={TimesheetEntryEditScreen} options={{ title: 'Time entry' }} />
+        </>
+      )}
       {isContractor && (
         <>
           <ProfileStack.Screen

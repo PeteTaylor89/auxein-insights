@@ -12,6 +12,7 @@ import ForecastPointPicker from '../components/ForecastPointPicker';
 import BlockStatusBadge from '../components/BlockStatusBadge';
 import FeedbackModal from '../components/FeedbackModal';
 import TaskReport from '../components/reports/TaskReport';
+import ContractorReport from '../components/reports/ContractorReport';
 import ObservationReport from '../components/reports/ObservationReport';
 import TimesheetReport from '../components/reports/TimesheetReport';
 import AssetReport from '../components/reports/AssetReport';
@@ -93,7 +94,7 @@ function CompanyAdmin() {
                 className={`ca-tab ${activeTab === tab.key ? 'active' : ''}`}
                 onClick={() => handleTabClick(tab.key)}
               >
-                <Icon size={14} />
+                <Icon size={16} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -1702,7 +1703,7 @@ function WeatherTab() {
           <strong>Already running Harvest weather stations?</strong> Auxein can integrate them so your readings flow straight into Grow alongside your forecast and regional climate data.
         </p>
         <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-          Email <a href="mailto:grow@auxein.co.nz?subject=Harvest%20station%20integration" style={{ color: 'var(--color-primary)', fontWeight: 500 }}>grow@auxein.co.nz</a> with your station IDs or login details and we'll wire them up for you.
+          Email <a href="mailto:grow@auxein.co.nz?subject=Harvest%20station%20integration" style={{ color: 'var(--color-primary)', fontWeight: 500 }}>grow@auxein.co.nz</a> with your Harvest details and we'll wire them up for you.
         </p>
       </div>
     </div>
@@ -1739,6 +1740,7 @@ function CalendarSyncTab() {
 const REPORT_TABS = [
   { key: 'tasks', label: 'Tasks' },
   { key: 'observations', label: 'Observations' },
+  { key: 'contractors', label: 'Contractors' },
   { key: 'timesheets', label: 'Timesheets' },
   { key: 'assets', label: 'Assets' },
 ];
@@ -1816,6 +1818,7 @@ function ReportsTab() {
         <div className="reports-content">
           {reportTab === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
           {reportTab === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
+          {reportTab === 'contractors' && <ContractorReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
           {reportTab === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
           {reportTab === 'assets' && <AssetReport />}
         </div>

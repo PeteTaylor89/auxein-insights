@@ -7,6 +7,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
 import { byNatural } from '../utils/naturalSort';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
@@ -26,7 +27,7 @@ export default function ObservationsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [templates, setTemplates] = useState([]);
-  const [plans, setPlans] = useState([]);
+  const [scheduledRuns, setScheduledRuns] = useState([]);
   const [activeRuns, setActiveRuns] = useState([]);
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,18 +37,27 @@ export default function ObservationsScreen({ navigation }) {
   const [showBlockPicker, setShowBlockPicker] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+  // Field-worker tier sees only obs assigned to them; admins/managers see all
+  // company obs so they can supervise.
+  const onlyMine = user?.user_type === 'company_user';
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tpl, pln, runs, blk] = await Promise.all([
+      // One fetch for both sections — partition client-side by whether the
+      // run has been started yet. "Scheduled" = observed_at_start NULL;
+      // "In progress" = observed_at_start set, observed_at_end NULL.
+      const runParams = { not_completed: true };
+      if (onlyMine) runParams.assigned_to_me = true;
+      const [tpl, runs, blk] = await Promise.all([
         observationService.getTemplates().catch(() => []),
-        observationService.getPlans({ status_in: 'scheduled,in_progress' }).catch(() => []),
-        observationService.listRuns({ active_only: true }).catch(() => []),
+        observationService.listRuns(runParams).catch(() => []),
         blocksService.getCompanyBlocks().catch(() => []),
       ]);
       setTemplates(Array.isArray(tpl) ? tpl : []);
-      setPlans(Array.isArray(pln) ? pln : []);
-      setActiveRuns(Array.isArray(runs) ? runs : []);
+      const runList = Array.isArray(runs) ? runs : [];
+      setScheduledRuns(runList.filter(r => !r.observed_at_start));
+      setActiveRuns(runList.filter(r => r.observed_at_start && !r.observed_at_end));
       // Natural sort blocks alphanumerically — "Block 2" < "Block 10".
       const blockList = Array.isArray(blk) ? [...blk] : [];
       blockList.sort(byNatural('block_name'));
@@ -57,7 +67,7 @@ export default function ObservationsScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onlyMine]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -111,15 +121,22 @@ export default function ObservationsScreen({ navigation }) {
     });
   };
 
-  const handleStartPlan = (plan) => {
-    const blockId = plan.targets?.length === 1 ? plan.targets[0].block_id : null;
+  const handleStartScheduled = async (run) => {
+    // Flip Scheduled → In Progress on the server (stamps observed_at_start),
+    // then jump straight into SpotCapture for that run.
+    try {
+      await observationService.beginRun(run.id);
+    } catch (err) {
+      console.log('Failed to start scheduled run:', err?.message);
+      // Non-fatal — SpotCapture can still open; user can retry. Loud failures
+      // shouldn't block the field worker from opening the screen.
+    }
     navigation.navigate('SpotCapture', {
-      templateId: plan.template_id,
-      planId: plan.id,
-      blockId: blockId,
-      blockName: plan.targets?.[0]?.block_name,
-      templateName: plan.template_name || plan.name,
-      planName: plan.name,
+      runId: run.id,
+      templateId: run.template_id,
+      blockId: run.block_id,
+      blockName: run.block_name || '',
+      templateName: run.template_name || run.name || 'Observation',
       companyId: user?.company_id,
     });
   };
@@ -145,48 +162,24 @@ export default function ObservationsScreen({ navigation }) {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} tintColor={colors.primary} />}
     >
-      {/* Active Runs — always first so resumable work is visible */}
-      {activeRuns.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>In progress</Text>
-            <Text style={styles.sectionHint}>Tap to resume</Text>
-          </View>
-          {activeRuns.map(run => (
-            <TouchableOpacity key={run.id} style={styles.runCard} onPress={() => handleResumeRun(run)} activeOpacity={0.75}>
-              <View style={styles.runDot} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.runName} numberOfLines={1}>{run.template_name || run.name}</Text>
-                <Text style={styles.runMeta}>
-                  {run.block_name || 'No block'}
-                  {run.spots_count != null ? ` · ${run.spots_count} spot${run.spots_count !== 1 ? 's' : ''}` : ''}
-                  {run.observed_at_start ? ` · ${timeAgo(run.observed_at_start)}` : ''}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Quick Field Note */}
-      <TouchableOpacity style={styles.fieldNoteBtn} onPress={handleQuickFieldNote} activeOpacity={0.85}>
-        <View style={styles.fieldNoteIconBox}>
-          <Feather name="edit-3" size={20} color={colors.white} />
-        </View>
-        <View style={styles.fieldNoteLabelWrap}>
-          <Text style={styles.fieldNoteLabel}>Quick field note</Text>
-          <Text style={styles.fieldNoteSub}>Photo, notes & GPS — no template needed</Text>
-        </View>
-        <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.7)" />
-      </TouchableOpacity>
-
-      {/* Quick Observation */}
+      {/* 1. Quick observation — ad-hoc field capture */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Quick observation</Text>
         </View>
-        <Text style={styles.sectionSub}>Pick a category → template → block</Text>
+
+        <TouchableOpacity style={styles.fieldNoteBtn} onPress={handleQuickFieldNote} activeOpacity={0.85}>
+          <View style={styles.fieldNoteIconBox}>
+            <Feather name="edit-3" size={20} color={colors.white} />
+          </View>
+          <View style={styles.fieldNoteLabelWrap}>
+            <Text style={styles.fieldNoteLabel}>Quick field note</Text>
+            <Text style={styles.fieldNoteSub}>Photo, notes & GPS — no template needed</Text>
+          </View>
+          <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+
+        <Text style={styles.sectionSub}>Or pick a category → template → block</Text>
         <View style={styles.categoryGrid}>
           {TEMPLATE_CATEGORIES.map(cat => {
             const count = templates.filter(t => cat.types.includes(getType(t))).length;
@@ -213,43 +206,65 @@ export default function ObservationsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Planned Observations */}
+      {/* 2. Scheduled — assigned to me, not yet started */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Planned observations</Text>
+          <Text style={styles.sectionTitle}>Scheduled</Text>
         </View>
-        {loading && plans.length === 0 ? (
+        {loading && scheduledRuns.length === 0 ? (
           <SkeletonCard />
-        ) : plans.length === 0 ? (
+        ) : scheduledRuns.length === 0 ? (
           <View style={styles.emptyCard}>
             <Feather name="calendar" size={20} color={colors.textMuted} />
-            <Text style={styles.emptyText}>No observation plans scheduled</Text>
+            <Text style={styles.emptyText}>Nothing scheduled — anything new will appear here</Text>
           </View>
         ) : (
-          plans.map(plan => (
-            <TouchableOpacity key={plan.id} style={styles.planCard} onPress={() => handleStartPlan(plan)} activeOpacity={0.75}>
+          scheduledRuns.map(run => (
+            <TouchableOpacity key={run.id} style={styles.planCard} onPress={() => handleStartScheduled(run)} activeOpacity={0.75}>
               <View style={styles.planHeader}>
-                <Text style={styles.planName} numberOfLines={1}>{plan.name}</Text>
-                {plan.priority && (
-                  <View style={[styles.priorityBadge, { backgroundColor: priorityColor(plan.priority) + '18' }]}>
-                    <Text style={[styles.priorityText, { color: priorityColor(plan.priority) }]}>
-                      {plan.priority}
-                    </Text>
-                  </View>
-                )}
+                <Text style={styles.planName} numberOfLines={1}>{run.template_name || run.name}</Text>
               </View>
               <Text style={styles.planMeta}>
-                {plan.template_name || 'Template'}
-                {plan.targets?.length ? ` · ${plan.targets.length} target${plan.targets.length > 1 ? 's' : ''}` : ''}
-                {plan.runs_count ? ` · ${plan.runs_count} run${plan.runs_count > 1 ? 's' : ''}` : ''}
+                {run.block_name || 'No block'}
+                {run.scheduled_date ? ` · Due ${dayjs(run.scheduled_date).format('DD MMM')}` : ''}
+                {run.assigned_to_user_name ? ` · ${run.assigned_to_user_name}` : ''}
               </Text>
-              {plan.instructions && <Text style={styles.planInstructions} numberOfLines={2}>{plan.instructions}</Text>}
-              <View style={[styles.statusBadge, { backgroundColor: (plan.status === 'in_progress' ? colors.warning : colors.info) + '18' }]}>
-                <View style={[styles.statusDot, { backgroundColor: plan.status === 'in_progress' ? colors.warning : colors.info }]} />
-                <Text style={[styles.statusText, { color: plan.status === 'in_progress' ? colors.warning : colors.info }]}>
-                  {plan.status?.replace(/_/g, ' ')}
+              {run.instructions && <Text style={styles.planInstructions} numberOfLines={2}>{run.instructions}</Text>}
+              <View style={[styles.statusBadge, { backgroundColor: colors.info + '18' }]}>
+                <View style={[styles.statusDot, { backgroundColor: colors.info }]} />
+                <Text style={[styles.statusText, { color: colors.info }]}>scheduled</Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
+
+      {/* 3. In progress — started but not completed (tap to resume) */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>In progress</Text>
+          {activeRuns.length > 0 && <Text style={styles.sectionHint}>Tap to resume</Text>}
+        </View>
+        {loading && activeRuns.length === 0 ? (
+          <SkeletonCard />
+        ) : activeRuns.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Feather name="play-circle" size={20} color={colors.textMuted} />
+            <Text style={styles.emptyText}>Nothing in progress</Text>
+          </View>
+        ) : (
+          activeRuns.map(run => (
+            <TouchableOpacity key={run.id} style={styles.runCard} onPress={() => handleResumeRun(run)} activeOpacity={0.75}>
+              <View style={styles.runDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.runName} numberOfLines={1}>{run.template_name || run.name}</Text>
+                <Text style={styles.runMeta}>
+                  {run.block_name || 'No block'}
+                  {run.spots_count != null ? ` · ${run.spots_count} spot${run.spots_count !== 1 ? 's' : ''}` : ''}
+                  {run.observed_at_start ? ` · ${timeAgo(run.observed_at_start)}` : ''}
                 </Text>
               </View>
+              <Feather name="chevron-right" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           ))
         )}
