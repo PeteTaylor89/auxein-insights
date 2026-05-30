@@ -1,0 +1,285 @@
+/* pages/Feedback.css — public Insights feedback form */
+
+.feedback-page {
+  min-height: 100vh;
+  background: #FDF6E3; /* Warm Sand */
+  color: #2F2F2F; /* Charcoal */
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(91, 104, 48, 0.15);
+}
+
+.feedback-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5B6830; /* Olive */
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.feedback-back:hover {
+  text-decoration: underline;
+}
+
+.feedback-logo {
+  height: 32px;
+  width: auto;
+}
+
+.feedback-content {
+  padding: 24px 16px 64px;
+}
+
+.feedback-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.feedback-intro h1 {
+  color: #5B6830;
+  font-size: 26px;
+  margin: 8px 0 8px;
+}
+
+.feedback-intro p {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 24px;
+  color: #4a4a4a;
+}
+
+/* Sections */
+.feedback-section {
+  margin-bottom: 8px;
+}
+
+.feedback-section h2 {
+  color: #5B6830;
+  font-size: 18px;
+  margin: 28px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(91, 104, 48, 0.2);
+}
+
+/* Fields */
+.feedback-field {
+  border: none;
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.feedback-field legend,
+.field-label {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #2F2F2F;
+  margin-bottom: 10px;
+  padding: 0;
+  line-height: 1.4;
+}
+
+.required {
+  color: #D1583B; /* Terracotta */
+  font-weight: 500;
+}
+
+.feedback-field.has-error legend {
+  color: #D1583B;
+}
+
+/* Option lists (checkbox / radio) */
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.4;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.option input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: #5B6830;
+  flex-shrink: 0;
+}
+
+/* Textareas + email input */
+.feedback-field textarea,
+.feedback-field input[type='email'] {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(47, 47, 47, 0.25);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: #2F2F2F;
+  background: #fff;
+  resize: vertical;
+}
+
+.feedback-field textarea:focus,
+.feedback-field input[type='email']:focus {
+  outline: none;
+  border-color: #5B6830;
+  box-shadow: 0 0 0 2px rgba(91, 104, 48, 0.15);
+}
+
+.feedback-field input.input-error {
+  border-color: #D1583B;
+}
+
+/* 1–5 scale */
+.scale {
+  display: flex;
+  gap: 8px;
+}
+
+.scale-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #5B6830;
+  background: #fff;
+  border: 1px solid rgba(91, 104, 48, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.scale-btn:hover {
+  background: rgba(91, 104, 48, 0.08);
+}
+
+.scale-btn.active {
+  background: #5B6830;
+  color: #fff;
+  border-color: #5B6830;
+}
+
+.scale-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #6b6b6b;
+}
+
+/* Errors */
+.field-error {
+  color: #D1583B;
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.form-error {
+  color: #D1583B;
+  background: rgba(209, 88, 59, 0.08);
+  border: 1px solid rgba(209, 88, 59, 0.3);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 8px 0 16px;
+}
+
+/* Submit */
+.feedback-submit {
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: #5B6830;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.feedback-submit:hover:not(:disabled) {
+  background: #4c571f;
+}
+
+.feedback-submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: feedback-spin 0.7s linear infinite;
+}
+
+@keyframes feedback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Success card */
+.feedback-confirm {
+  max-width: 480px;
+  margin: 64px auto;
+  text-align: center;
+  background: #fff;
+  border: 1px solid rgba(91, 104, 48, 0.2);
+  border-radius: 12px;
+  padding: 40px 28px;
+}
+
+.feedback-confirm h1 {
+  color: #5B6830;
+  font-size: 26px;
+  margin: 0 0 12px;
+}
+
+.feedback-confirm p {
+  font-size: 16px;
+  color: #4a4a4a;
+  margin: 0 0 24px;
+}
+
+.feedback-confirm-link {
+  display: inline-block;
+  color: #5B6830;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 2px solid #5B6830;
+  padding-bottom: 2px;
+}
+
+/* Desktop: submit no longer needs to be full bleed but full-width reads fine */
+@media (min-width: 640px) {
+  .feedback-submit {
+    width: auto;
+    min-width: 220px;
+  }
+}

@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import About from './pages/About';
+import Feedback from './pages/Feedback';
 import './components/legal/legal.css';
 import LegalPage from './components/legal/LegalPage';
 
@@ -44,6 +45,7 @@ function AppRoutes() {
           <Route path="/map" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: '#5B6830' }}>Loading map...</div>}><MapExplorer /></Suspense>} />
           <Route path="/widget/seasonal" element={<Suspense fallback={<div style={{ padding: '20px', color: '#999', fontSize: '13px' }}>Loading...</div>}><WidgetEmbed /></Suspense>} />
           <Route path="/about" element={<About />} />
+          <Route path="/feedback" element={<Feedback />} />
           <Route path="/legal" element={<LegalPage />} />
           <Route path="/articles" element={<ArticlesPage />} />
           <Route path="/articles/:slug" element={<ArticleDetail />} />

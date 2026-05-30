@@ -46,12 +46,16 @@ class UnifiedEmailService:
         html_content: str,
         text_content: Optional[str] = None,
         attachments: Optional[list] = None,
+        reply_to: Optional[str] = None,
     ) -> bool:
         """Internal method to send email.
 
         attachments is an optional list of dicts with keys
         {filename, content (bytes), content_type}. When present the message is
         wrapped in a multipart/mixed envelope so the body still renders inline.
+
+        reply_to, when set, adds a Reply-To header so replies route to the
+        given address instead of the system sender.
         """
 
         if not self.send_emails:
@@ -60,6 +64,8 @@ class UnifiedEmailService:
             logger.info(f"[DEV MODE] Email would be sent to: {to_email}")
             logger.info(f"Subject: {subject}")
             logger.info(f"From: {self.from_name} <{self.from_email}>")
+            if reply_to:
+                logger.info(f"Reply-To: {reply_to}")
             if attachments:
                 names = ", ".join(a.get("filename", "?") for a in attachments)
                 logger.info(f"Attachments: {names}")
@@ -97,6 +103,8 @@ class UnifiedEmailService:
             message['Subject'] = subject
             message['From'] = f"{self.from_name} <{self.from_email}>"
             message['To'] = to_email
+            if reply_to:
+                message['Reply-To'] = reply_to
 
             # Send email
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
@@ -282,6 +290,66 @@ The Auxein Team
 
         return self._send_email(
             recipient, subject, html_content, text_content, attachments=attachments
+        )
+
+    def send_insights_feedback(
+        self,
+        sections: list,
+        subject_regions: str,
+        reply_to: Optional[str] = None,
+        to_email: Optional[str] = None,
+    ) -> bool:
+        """Email a public Insights feedback-form submission to the inbox.
+
+        sections is an ordered list of (section_title, [(label, value), ...]).
+        Values are pre-rendered by the caller; empty answers should already be
+        passed as the em dash placeholder. Defaults the recipient to
+        insights@auxein.co.nz; overrideable via INSIGHTS_FEEDBACK_INBOX or the
+        to_email argument. reply_to routes replies to the grower when supplied.
+        """
+        recipient = to_email or os.getenv(
+            "INSIGHTS_FEEDBACK_INBOX", "insights@auxein.co.nz"
+        )
+        subject = f"New Insights feedback — {subject_regions or '(no region given)'}"
+
+        def esc(s: str) -> str:
+            return (
+                (s or "")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+
+        # Plain-text body
+        text_parts = ["New Auxein Insights feedback received.\n"]
+        for title, rows in sections:
+            text_parts.append(f"— {title.upper()} —")
+            for label, value in rows:
+                text_parts.append(f"{label}: {value}")
+            text_parts.append("")
+        text_content = "\n".join(text_parts).rstrip() + "\n"
+
+        # HTML body — section headings olive, body charcoal
+        html_sections = []
+        for title, rows in sections:
+            row_html = "".join(
+                f"<p style=\"margin: 0 0 10px 0; color: #2F2F2F;\">"
+                f"<strong>{esc(label)}</strong><br/>"
+                f"{esc(value).replace(chr(10), '<br/>')}</p>"
+                for label, value in rows
+            )
+            html_sections.append(
+                f"<h2 style=\"color: #5B6830; font-size: 16px; "
+                f"margin: 24px 0 12px 0;\">{esc(title)}</h2>{row_html}"
+            )
+        html_content = f"""
+<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #2F2F2F; max-width: 640px;\">
+  <p style=\"margin: 0 0 8px 0;\">New Auxein Insights feedback received.</p>
+  {''.join(html_sections)}
+</div>
+"""
+        return self._send_email(
+            recipient, subject, html_content, text_content, reply_to=reply_to
         )
 
     # ============================================
