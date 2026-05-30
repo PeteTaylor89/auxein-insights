@@ -1,0 +1,210 @@
+/* src/components/climate/RegionalClimateHistory.css */
+
+.regional-climate-history {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- States (loading / error / empty) ---- */
+.rch-state {
+  padding: 28px 20px;
+  text-align: center;
+  color: #6b7280;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.rch-state-error {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+/* ---- Zone accordion block ---- */
+.rch-zone {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rch-zone.open {
+  border-color: var(--color-primary, #5b6830);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.rch-zone-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.rch-zone-header.static {
+  cursor: default;
+}
+.rch-zone-header:hover:not(.static) {
+  background: #fafaf7;
+}
+
+.rch-zone-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.rch-zone-title svg {
+  color: var(--color-primary, #5b6830);
+  flex-shrink: 0;
+}
+.rch-zone-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rch-zone-region {
+  font-size: 0.8rem;
+  color: #6b7280;
+  background: #f3f4f1;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rch-zone-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.rch-zone-meta svg:last-child {
+  color: #9ca3af;
+}
+.rch-zone-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+.rch-zone-count svg {
+  color: var(--color-primary, #5b6830);
+}
+
+/* ---- Zone body ---- */
+.rch-zone-body {
+  padding: 0 18px 18px;
+  border-top: 1px solid #f0f0ec;
+}
+
+.rch-history {
+  margin-top: 16px;
+}
+
+.rch-history-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 20px;
+  margin-top: 16px;
+  text-align: center;
+  color: #9ca3af;
+  background: #fafaf7;
+  border: 1px dashed #d6d8cf;
+  border-radius: 10px;
+}
+.rch-history-placeholder svg {
+  color: #c2c7b4;
+}
+.rch-history-placeholder p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+/* ---- Nested properties ---- */
+.rch-properties {
+  margin-top: 18px;
+}
+.rch-properties-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin-bottom: 10px;
+}
+.rch-property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.rch-property-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fff;
+}
+.rch-property-card.muted {
+  background: #fafafa;
+  border-style: dashed;
+}
+.rch-property-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: #1f2937;
+}
+.rch-property-name svg {
+  color: var(--color-primary, #5b6830);
+  flex-shrink: 0;
+}
+.rch-property-region {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 3px;
+}
+.rch-property-note {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* ---- Unassigned group ---- */
+.rch-zone-unassigned .rch-zone-title svg {
+  color: var(--color-warning, #d97706);
+}
+.rch-unassigned-note {
+  margin: 16px 0 12px;
+  font-size: 0.88rem;
+  color: #92732a;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+@media (max-width: 560px) {
+  .rch-property-grid {
+    grid-template-columns: 1fr;
+  }
+  .rch-zone-region {
+    display: none;
+  }
+}

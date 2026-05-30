@@ -1095,10 +1095,15 @@ def create_my_incident(
         injured_person_company=current_contractor.business_name,
         witness_details=payload.witness_details,
         immediate_actions_taken=payload.immediate_actions_taken,
-        is_notifiable=payload.is_notifiable,
         reported_by=None,
         reported_by_contractor_id=current_contractor.id,
     )
+
+    # Server-authoritative WorkSafe classification — never trust the client's
+    # is_notifiable hint (mirrors risk_management.py::create_incident).
+    incident.determine_notifiability()
+    incident.set_investigation_due_date()
+
     db.add(incident)
     db.commit()
     db.refresh(incident)

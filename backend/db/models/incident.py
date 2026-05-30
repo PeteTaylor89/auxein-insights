@@ -4,6 +4,23 @@ from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
 from db.base_class import Base
 
+# Injury types (from schemas.incident.NZ_INJURY_TYPES) that are, on their own,
+# a notifiable injury under the HSW (Notifiable Events) Regulations 2016.
+# NOTE: fractures are handled separately because minor finger/toe/nose
+# fractures are NOT notifiable per the WorkSafe guide.
+_NOTIFIABLE_INJURY_TYPES = frozenset({
+    "amputation", "eye_injury", "spinal_injury",
+    "head_injury", "concussion", "loss_of_consciousness",
+    "degloving", "scalping", "infection",
+})
+
+# Lifting/transport plant whose collapse, overturning or failure is a
+# notifiable incident. Matched against the free-text description.
+_LIFTING_PLANT_TERMS = (
+    "crane", "forklift", "hoist", "elevator", "platform",
+    "boom lift", "scissor lift", "cherry picker", "telehandler",
+)
+
 
 class Incident(Base):
     __tablename__ = "incidents"
@@ -133,6 +150,21 @@ class Incident(Base):
     def requires_worksafe_notification(self):
         """Check if this incident requires WorkSafe NZ notification"""
         return self.is_notifiable and not self.worksafe_notified
+
+    @property
+    def notification_urgency(self):
+        """
+        How urgently WorkSafe must be notified.
+
+        HSWA requires notification 'as soon as possible … by the fastest way
+        possible'. There is no fixed statutory hour-clock for serious injuries
+        or dangerous occurrences. A death must be reported immediately by phone.
+        """
+        if not self.is_notifiable:
+            return None
+        if self.notifiable_type == "death":
+            return "IMMEDIATE"
+        return "AS_SOON_AS_POSSIBLE"
     
     @property
     def is_serious_incident(self):
@@ -167,52 +199,241 @@ class Incident(Base):
         return f"INC-{current_year}-{current_user.company_id}-{self.id:04d}"
     
     def determine_notifiability(self):
-        """Determine if incident is notifiable to WorkSafe NZ"""
-        # NZ-specific notifiable event criteria
-        notifiable_conditions = [
-            # Death
-            self.severity == "fatal",
-            
-            # Serious injury requiring immediate treatment
-            (self.severity in ["serious", "critical"] and self.medical_treatment_required),
-            
-            # Specific injury types that are notifiable
-            self.injury_type in [
-                "fracture", "amputation", "serious_burns", "loss_of_consciousness",
-                "serious_laceration", "eye_injury", "spinal_injury"
-            ],
-            
-            # Dangerous occurrences
-            self.incident_type == "dangerous_occurrence",
+        """
+        Classify this incident against the Health and Safety at Work Act 2015
+        and the HSW (Notifiable Events) Regulations 2016, following WorkSafe's
+        guide 'What events need to be notified?' (WSNZ_4705, Mar 2024).
 
-        ]
-        
-        self.is_notifiable = any(notifiable_conditions)
-        
-        # Set notifiable type
-        if self.severity == "fatal":
+        A notifiable event is a death, a notifiable injury/illness, or a
+        notifiable incident. This sets `is_notifiable` and `notifiable_type`
+        together so they can never disagree.
+
+        Detection prefers structured fields (severity, injury_type,
+        body_part_affected, incident_type, category) and falls back to
+        free-text description keywords only for triggers that have no
+        structured equivalent.
+        """
+        self.is_notifiable = False
+        self.notifiable_type = None
+
+        desc = (self.incident_description or "").lower()
+        injury = self.injury_type or ""
+        body = self.body_part_affected or ""
+        severity = self.severity or ""
+        treated = bool(self.medical_treatment_required)
+
+        # ---- DEATH (s.16 HSWA) ----
+        if severity == "fatal":
+            self.is_notifiable = True
             self.notifiable_type = "death"
-        elif self.severity in ["serious", "critical"] or self.medical_treatment_required:
+            return
+
+        # ---- NOTIFIABLE INJURY OR ILLNESS (reg 7 / Table 1) ----
+        # A fracture is notifiable EXCEPT minor fractures to fingers, toes
+        # or the nose (the guide calls out a straightened broken nose).
+        fracture_notifiable = (
+            injury == "fracture"
+            and body not in ("finger", "toe", "nose")
+        )
+
+        # Serious burn: needs intensive/critical care (skin graft, compression
+        # garment). A burn treatable by washing + dressing is not notifiable.
+        serious_burn = (
+            injury in ("burn", "chemical_burn")
+            and (
+                severity in ("serious", "critical")
+                or treated
+                or any(t in desc for t in (
+                    "skin graft", "compression garment",
+                    "intensive care", "critical care",
+                ))
+            )
+        )
+
+        # Loss of a bodily function (consciousness, speech, limb movement,
+        # organ function, senses) requiring immediate treatment.
+        loss_of_function = any(t in desc for t in (
+            "unconscious", "loss of consciousness", "lost consciousness",
+            "fractured skull", "skull fracture", "bleeding in the brain",
+            "brain bleed", "memory loss", "loss of speech", "paralysis",
+            "paralysed", "loss of sight", "loss of hearing", "organ function",
+        ))
+
+        # Serious laceration requiring immediate medical treatment (deep cut
+        # with muscle/tendon/nerve/vessel damage). Superficial cuts excluded.
+        serious_laceration = (
+            injury in ("laceration", "cut")
+            and treated
+            and (
+                severity in ("serious", "critical")
+                or any(t in desc for t in (
+                    "deep cut", "muscle", "tendon", "nerve",
+                    "blood vessel", "stitches", "stitching",
+                ))
+            )
+        )
+
+        # Admitted to hospital as an inpatient for immediate treatment.
+        # Out-patient / ED-only treatment is explicitly NOT notifiable, so we
+        # require an inpatient-admission signal rather than just "hospital".
+        hospital_admission = any(t in desc for t in (
+            "admitted to hospital", "hospital admission",
+            "inpatient", "in-patient", "admitted as an inpatient",
+        ))
+
+        # Injury/illness requiring medical treatment within 48h of exposure
+        # to a substance (chemical/respiratory exposure).
+        substance_exposure = (
+            (self.incident_type == "environmental"
+             or self.category in ("chemical_exposure", "respiratory"))
+            and treated
+        )
+
+        # Serious infection / occupational zoonosis (leptospirosis,
+        # Legionnaire's, E. coli) — relevant to soil/animal/agricultural work.
+        serious_infection = (
+            injury in ("infection", "zoonosis")
+            or any(t in desc for t in (
+                "leptospirosis", "legionnaire", "zoonosis", "zoonotic",
+                "e. coli", "e.coli",
+            ))
+        )
+
+        notifiable_injury = any([
+            fracture_notifiable,
+            injury == "amputation",
+            # Serious head injury / loss of consciousness
+            injury in ("head_injury", "concussion", "loss_of_consciousness")
+            or body == "head",
+            loss_of_function,
+            # Serious eye injury
+            injury == "eye_injury" or body == "eye",
+            serious_burn,
+            # Degloving / scalping
+            injury in ("degloving", "scalping")
+            or any(t in desc for t in ("degloving", "degloved", "scalp")),
+            # Spinal injury (excludes back strain/bruise — handled by injury_type)
+            injury == "spinal_injury"
+            or any(t in desc for t in (
+                "spinal cord", "spine fracture", "cervical vertebra",
+                "thoracic vertebra", "lumbar vertebra", "sacral vertebra",
+            )),
+            serious_laceration,
+            hospital_admission,
+            substance_exposure,
+            serious_infection,
+        ])
+
+        if notifiable_injury:
+            self.is_notifiable = True
             self.notifiable_type = "serious_injury"
-        elif self.incident_type == "dangerous_occurrence":
+            return
+
+        # ---- NOTIFIABLE INCIDENT (reg 8) ----
+        # An explicit dangerous-occurrence classification always qualifies.
+        explicit_dangerous = self.incident_type == "dangerous_occurrence"
+
+        # Electric shock from anything that could deliver a lethal shock.
+        # Static / extra-low-voltage shocks are excluded.
+        electric_shock = (
+            self.category == "electrical"
+            and (treated or any(t in desc for t in (
+                "shock", "electrocuted", "electrocution",
+            )))
+            and "static" not in desc
+        )
+
+        # Collapse / overturning / failure of lifting or transport plant.
+        plant_failure = (
+            self.category == "equipment_failure"
+            and any(t in desc for t in _LIFTING_PLANT_TERMS)
+        ) or any(t in desc for t in (
+            "overturned", "overturning", "plant collapse",
+        ))
+
+        notifiable_incident = any([
+            explicit_dangerous,
+            # Uncontrolled escape/spill/leak of a substance
+            (self.incident_type == "environmental"
+             and any(t in desc for t in (
+                 "spill", "leak", "escape", "release",
+                 "chemical", "toxic", "hazardous",
+             ))),
+            # Implosion, explosion or fire
+            self.category == "fire_explosion"
+            or any(t in desc for t in ("explosion", "fire", "blast", "implosion")),
+            # Gas or steam escaping / pressurised substance escaping
+            any(t in desc for t in (
+                "gas escape", "gas leak", "steam", "pressurised",
+                "pressurized", "compressed air", "pressure release",
+            )),
+            electric_shock,
+            # Fall or release from height of any plant, substance or thing
+            any(t in desc for t in (
+                "fell from height", "fall from height", "released from height",
+                "object fell", "dropped from height", "falling object",
+            )),
+            plant_failure,
+            # Collapse or partial collapse of a structure
+            self.category == "structural_collapse"
+            or any(t in desc for t in (
+                "structural failure", "building collapse", "roof collapse",
+                "structure collapse",
+            )),
+            # Collapse/failure of an excavation or its shoring
+            any(t in desc for t in (
+                "excavation", "trench collapse", "shoring", "cave-in", "cave in",
+            )),
+            # Inrush of water, mud or gas in an underground working
+            any(t in desc for t in (
+                "inrush", "water inrush", "mud inrush", "gas inrush",
+            )),
+            # Interruption of main ventilation in an underground excavation/tunnel
+            any(t in desc for t in (
+                "ventilation failure", "ventilation interruption",
+                "loss of ventilation",
+            )),
+            # Vessel collision, capsize, or inrush of water into a vessel
+            any(t in desc for t in (
+                "vessel capsize", "vessel collision", "capsized",
+                "water into the vessel", "inrush of water into",
+            )),
+        ])
+
+        if notifiable_incident:
+            self.is_notifiable = True
             self.notifiable_type = "dangerous_occurrence"
-    
+            return
+
+        # ---- NEAR MISS WITH SERIOUS POTENTIAL (dangerous occurrence) ----
+        if self.incident_type == "near_miss" and severity in ("serious", "critical"):
+            if (self.category in ("fire_explosion", "structural_collapse", "electrical")
+                or any(t in desc for t in (
+                    "could have died", "potential fatality", "narrowly avoided",
+                    "close call", "serious injury potential",
+                ))):
+                self.is_notifiable = True
+                self.notifiable_type = "dangerous_occurrence"
+                return
+
     def set_investigation_due_date(self):
-        """Set investigation due date based on severity"""
+        """
+        Set an internal investigation due date based on severity and
+        notifiability. These are Auxein workflow targets for prompting an
+        internal investigation — they are NOT the WorkSafe notification
+        deadline (which is 'as soon as possible'; see notification_urgency).
+        """
         from datetime import datetime, timezone, timedelta
-        
+
+        now = datetime.now(timezone.utc)
         if self.severity == "fatal":
-            # Immediate investigation required
-            self.investigation_due_date = datetime.now(timezone.utc) + timedelta(hours=24)
-        elif self.severity in ["serious", "critical"] or self.is_notifiable:
-            # 48 hours for serious incidents
-            self.investigation_due_date = datetime.now(timezone.utc) + timedelta(hours=48)
+            self.investigation_due_date = now + timedelta(hours=24)
+        elif self.severity in ("serious", "critical") or self.is_notifiable:
+            self.investigation_due_date = now + timedelta(hours=48)
         elif self.severity == "moderate":
-            # 7 days for moderate incidents
-            self.investigation_due_date = datetime.now(timezone.utc) + timedelta(days=7)
+            self.investigation_due_date = now + timedelta(days=7)
         else:
-            # 14 days for minor incidents
-            self.investigation_due_date = datetime.now(timezone.utc) + timedelta(days=14)
+            self.investigation_due_date = now + timedelta(days=14)
     
     def mark_worksafe_notified(self, reference_number: str = None):
         """Mark as notified to WorkSafe NZ"""

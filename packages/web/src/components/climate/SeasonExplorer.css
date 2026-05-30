@@ -1,0 +1,422 @@
+/* src/components/climate/SeasonExplorer.css
+   Ported from Regional Insights PublicClimate.css, scoped under .season-explorer
+   so it can't collide with the legacy Grow climate styles. */
+
+.season-explorer {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+/* Header */
+.season-explorer .explorer-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.season-explorer .explorer-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.season-explorer .zone-region {
+  font-size: 14px;
+  color: #666;
+}
+
+/* Placeholder / loading / error */
+.season-explorer .explorer-placeholder,
+.season-explorer .explorer-loading,
+.season-explorer .explorer-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #666;
+}
+.season-explorer .explorer-placeholder svg {
+  margin-bottom: 16px;
+  color: #ccc;
+}
+.season-explorer .explorer-error {
+  color: #dc3545;
+}
+
+/* View Mode Selector */
+.season-explorer .view-mode-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+.season-explorer .mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.season-explorer .mode-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+.season-explorer .mode-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+/* Baseline Summary */
+.season-explorer .baseline-summary {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid #e9ecef;
+}
+.season-explorer .baseline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.season-explorer .baseline-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.season-explorer .include-lta-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+}
+.season-explorer .include-lta-toggle input {
+  cursor: pointer;
+}
+.season-explorer .baseline-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.season-explorer .baseline-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.season-explorer .baseline-stat svg {
+  color: #0066cc;
+}
+.season-explorer .baseline-stat .stat-value {
+  font-weight: 600;
+  color: #333;
+}
+.season-explorer .baseline-stat .stat-label {
+  color: #666;
+  font-size: 13px;
+}
+
+/* Chart Controls */
+.season-explorer .chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.season-explorer .chart-metric-selector {
+  display: flex;
+  gap: 4px;
+  background: white;
+  border-radius: 6px;
+  padding: 4px;
+  border: 1px solid #e9ecef;
+}
+.season-explorer .chart-type-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+.season-explorer .chart-type-btn:hover {
+  background: #f5f5f5;
+}
+.season-explorer .chart-type-btn.active {
+  background: #0066cc;
+  color: white;
+}
+.season-explorer .season-limit-select,
+.season-explorer .season-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+}
+.season-explorer .season-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.season-explorer .season-selector label {
+  font-size: 13px;
+  color: #666;
+}
+
+/* Comparison Season Selector */
+.season-explorer .comparison-season-selector {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+}
+.season-explorer .selector-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+.season-explorer .season-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.season-explorer .season-pill {
+  padding: 6px 12px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.season-explorer .season-pill:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+.season-explorer .season-pill.selected {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+.season-explorer .season-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Chart Container */
+.season-explorer .chart-container {
+  position: relative;
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  height: 350px;
+  margin-bottom: 24px;
+}
+.season-explorer .chart-loading,
+.season-explorer .chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  font-size: 14px;
+  color: #999;
+}
+.season-explorer .chart-placeholder {
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+.season-explorer .chart-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  color: #666;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+/* Season Cards */
+.season-explorer .seasons-section {
+  margin-top: 24px;
+}
+.season-explorer .seasons-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.season-explorer .seasons-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+.season-explorer .seasons-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.season-explorer .page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #555;
+}
+.season-explorer .page-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+.season-explorer .page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.season-explorer .page-info {
+  font-size: 13px;
+  color: #666;
+  min-width: 50px;
+  text-align: center;
+}
+.season-explorer .seasons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+.season-explorer .season-card {
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.season-explorer .season-card:hover {
+  border-color: #0066cc;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+}
+.season-explorer .season-card.selected {
+  border-color: #0066cc;
+  background: #f5f8ff;
+}
+.season-explorer .season-card.comparing {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+.season-explorer .season-card.comparing .season-label {
+  color: #f59e0b;
+}
+.season-explorer .season-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.season-explorer .season-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+.season-explorer .season-ranking {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0066cc;
+  background: #e8f4ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.season-explorer .season-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.season-explorer .season-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.season-explorer .season-stat .stat-label {
+  font-size: 12px;
+  color: #666;
+  min-width: 40px;
+}
+.season-explorer .season-stat .stat-value {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+.season-explorer .season-stat .stat-diff {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+}
+.season-explorer .stat-diff.positive { color: #28a745; }
+.season-explorer .stat-diff.negative { color: #dc3545; }
+.season-explorer .trend-icon.positive { color: #28a745; }
+.season-explorer .trend-icon.negative { color: #dc3545; }
+.season-explorer .trend-icon.neutral { color: #6c757d; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .season-explorer {
+    padding: 16px;
+  }
+  .season-explorer .view-mode-selector {
+    flex-direction: column;
+  }
+  .season-explorer .chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .season-explorer .seasons-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .season-explorer .seasons-grid {
+    grid-template-columns: 1fr;
+  }
+}

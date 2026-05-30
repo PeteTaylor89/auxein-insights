@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import MobileNavigation from '../components/MobileNavigation';
 import { useAuth } from '@vineyard/shared';
 import {companiesService, propertyService} from '@vineyard/shared';
-import ClimateContainer from '../components/climate/ClimateContainer';
+import RegionalClimateHistory from '../components/climate/RegionalClimateHistory';
 import ArticlesCarousel from '../components/ArticlesCarousel';
 import PhenologyPanel from '../components/phenology/PhenologyPanel';
 import { Link } from 'react-router'
@@ -91,17 +91,17 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Climate Analysis</span>
-              
-              <button 
+              <span>Climate History</span>
+
+              <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
-                aria-label="Close Climate Analysis"
+                aria-label="Close Climate History"
               >
                 ×
               </button>
             </div>
-            <ClimateContainer />
+            <RegionalClimateHistory properties={properties} />
           </div>
         );
       case 'phenology':
