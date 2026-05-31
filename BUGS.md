@@ -28,6 +28,22 @@
 
 <!-- Add new bugs here -->
 
+### [BUG-010] Mobile — Screen-off GPS tracking: logout, track misattribution, Android Doze gaps
+- **Priority:** P0 (loses recorded tractor/shift tracks)
+- **Area:** Mobile / Backend
+- **Page/Screen:** GpsTrackingScreen, useGpsTracking, auth
+- **Three independent root causes:**
+  1. **iOS logout mid-track.** Tokens stored with default keychain accessibility `WHEN_UNLOCKED` → unreadable while the device is locked (screen off) → background requests 401 → old 401 handler deleted the tokens → session destroyed, task never finalised. Access-token TTL 180 min also lets long tasks outlive the token.
+  2. **Orphan track attaches to next task.** The foreground location session is a single module-global with no teardown on logout/session-loss and no binding of captured points to the originating task; the OS stream survives and bleeds the previous physical path into the next task.
+  3. **Android — no points while screen off.** JS task callback not running under Doze → straight lines between wake points. Secondary: `formatPoint` stamps `new Date()` instead of `location.timestamp`, so any batched/late delivery is mis-timed and rejected by the speed filter.
+- **Fix (phased, root-cause + safety spine):**
+  - **Phase 1 (DONE, untested):** Keychain accessibility `AFTER_FIRST_UNLOCK` + interceptor only clears tokens on a definitive auth rejection (401/403), never on locked-keychain/network/5xx + single-flight refresh that persists the rotated refresh token + proactive token refresh during long sessions. New `services/tokenStore.js`; rewired `api/api.js` (the live instance imported by `services.js`), `contexts/AuthContext.js`, `hooks/useGpsTracking.js`.
+  - **Phase 2 (DONE, untested):** Session binding + teardown. `useGpsTracking` now opens a `_sessionId`/`_sessionTaskId` per recording; `processLocationUpdate` drops any point with no active session; `flushBuffer` uploads to `_sessionTaskId` (not the mutable React ref). `teardownTracking()` stops the OS service + wipes buffers/live-trail and is fired on session loss via a new `tokenStore.onSessionCleared` listener (logout AND interceptor auth-rejection). `startTracking` tears down any zombie session first.
+  - **Phase 3 (DONE, untested):** Real fix-time stamping. `formatPoint`/`kalmanUpdate`/`initKalman` now use `location.timestamp` (true GPS fix time) instead of wall-clock `now`. This is the likely primary cause of the Android straight-line bug: under Doze the OS delivers a batch of buffered fixes on screen wake, and the old zero-dt stamping made the speed filter reject all but the first as a teleport. Config verified compliant (iOS UIBackgroundModes location + WhenInUse; Android FOREGROUND_SERVICE_LOCATION + foreground service enabled).
+  - **Phase 4 (DONE, untested):** Remount resilience. The OS service + module buffers survive a mid-session screen remount, but the per-mount intervals (10s batch upload, 1s duration/stats, token refresh) were cleared on unmount and never re-armed — so a remounted session buffered points RAM-only (lost on OS kill), froze on-screen stats, stalled the web live-view, and left `taskIdRef` null so Complete skipped the stop call. Fix: `_sessionStartedAt` persisted at module scope; the resync-on-mount effect now restores `startTimeRef`/`taskIdRef` and re-arms all three intervals (guarded against double-arm). Plus a `_buffer` safety valve (`MAX_BUFFER_POINTS`) that persists overflow straight to the durable offline queue if any drain path is ever dead.
+  - **Deferred (C1):** explicit PARTIAL_WAKE_LOCK config plugin — only build it if the Android retest still shows screen-off gaps after the timestamp fix. Measure first.
+- **Notes:** `packages/mobile/src/api/setup.js` is a no-op placeholder (not the live axios instance — that is `api/api.js`). Reported 2026-06-01.
+
 ### [BUG-001] Web — Calibration attached photos not viewable
 - **Priority:** P2
 - **Area:** Web

@@ -3,7 +3,9 @@
 **Status:** Authoritative for v1.0 production submission
 **Last updated:** 28 May 2026
 **Owner:** Pete Taylor
-**Purpose:** Defines location-related implementation requirements for Auxein Grow v1.0 such that the app qualifies for the **foreground-service exemption** under Google Play policy and the standard **When In Use** authorization pattern on iOS. If the codebase complies with every requirement in this document, Grow does **not** require Google Play's Permissions Declaration Form, the demonstration video, or `ACCESS_BACKGROUND_LOCATION`.
+**Purpose:** Defines location-related implementation requirements for Auxein Grow v1.0 such that the app qualifies for the **foreground-service exemption** under Google Play policy and the standard **When In Use** authorization pattern on iOS. If the codebase complies with every requirement in this document, Grow does **not** require Google Play's **background-location** Permissions Declaration Form (the heavy review) or `ACCESS_BACKGROUND_LOCATION`.
+
+> **Note (corrected 2026-06-01):** Grow DOES still require the separate, lighter **foreground-service type declaration** (because it declares `FOREGROUND_SERVICE_LOCATION` and targets SDK 34+), and that declaration **does require a short demonstration video**. The two Play requirements are independent — see §8 for the full breakdown. A prior version of this spec incorrectly stated no video was needed at all.
 
 ---
 
@@ -363,24 +365,67 @@ Run this checklist against the codebase. Every item must pass before submission.
 - [ ] Play Data Safety form matches §6.1 exactly
 - [ ] iOS App Privacy labels match §6.2 exactly
 - [ ] Play listing description contains the §6.4 sentence
+- [ ] **Foreground service declaration (§8.2) completed** — FGS type `FOREGROUND_SERVICE_LOCATION`, category "Background location updates"
+- [ ] **Demonstration video (§8.3) recorded against the rebuilt app and uploaded as an unlisted URL**
+- [ ] Background-location form (Requirement A / §8.1) confirmed NOT triggered — merged manifest has no `ACCESS_BACKGROUND_LOCATION`
 - [ ] Demo reviewer account can complete one full shift-tracking cycle and one tractor-task cycle without crashing
 
 ---
 
-## 8. Why This Spec Means No Declaration Form
+## 8. Play Declarations — what we DO and do NOT have to submit
 
-Per Google Play policy (current as of May 2026):
+**CORRECTION (2026-06-01):** An earlier version of this section claimed Grow needs *no* declaration form and *no* video. That conflated two separate, independent Play requirements. The truth:
+
+| Requirement | Trigger | Video required? | Grow v1.0 |
+|---|---|---|---|
+| **A. Background location permission** (Policy → App content → "Location in the background"; the heavy review) | `ACCESS_BACKGROUND_LOCATION` in the merged manifest | Yes (≤30s) | **AVOIDED** — we never declare this permission |
+| **B. Foreground service types** (Policy → App content → "Foreground service"; the lighter review) | declaring any FGS type (here `FOREGROUND_SERVICE_LOCATION`) while targeting Android 14 / SDK 34+ | **Yes — mandatory** | **REQUIRED — must be completed** |
+
+### 8.1 Requirement A — Background location permission form (AVOIDED)
+
+Per Google Play policy:
 
 > If your app does not include the `ACCESS_BACKGROUND_LOCATION` permission and only uses location when the app is closed when starting a foreground service (e.g., during a curbside pickup, during a delivery, or during navigation), you DO NOT need to submit for approval.
 
-Grow v1.0 satisfies this because:
+Grow v1.0 avoids this heavier form because:
 
 1. The manifest does not include `ACCESS_BACKGROUND_LOCATION` (§2.2)
 2. All app-closed location collection runs inside a `foregroundServiceType="location"` service (§2.3)
 3. The service is user-initiated and user-terminated (§2.4.1, §2.4.3)
 4. A persistent notification is shown throughout (§2.4.2, §2.6)
 
-If any of these four conditions is broken in implementation, the exemption fails and a Permissions Declaration Form + demonstration video becomes mandatory before Play will approve the submission.
+If any of these four conditions is broken in implementation, Requirement A is triggered and the background-location declaration form + its own video become mandatory.
+
+### 8.2 Requirement B — Foreground service type declaration (REQUIRED, with video)
+
+Because we declare `FOREGROUND_SERVICE_LOCATION` (which we MUST, for screen-off track recording to work — see §2.1, §2.3) and target SDK 34+, Google Play requires the **foreground service declaration** on the App content page. This is **separate** from, and lighter than, Requirement A — but it is **not optional and it requires a video.**
+
+**Form answers:**
+
+| Field | Value |
+|---|---|
+| FGS type | `FOREGROUND_SERVICE_LOCATION` |
+| Task category to select | **Background location updates** (NOT Navigation, NOT Geofencing, NOT User-initiated location sharing) |
+| Description | "During a user-started tractor task or contractor shift, Auxein Grow records the GPS track of the work session so equipment coverage and shift movement are captured for the vineyard operator. Tracking is initiated only by an explicit in-app action, shows a persistent notification the entire time, and stops immediately when the user ends the task or shift." |
+| Video link | Unlisted YouTube URL (see §8.3) |
+
+Rationale for **Background location updates** as the category: our behaviour is the fitness-tracker/Strava pattern — recording the path of an active, user-started session while the screen is off. It does **not** require `ACCESS_BACKGROUND_LOCATION`; the FGS declaration is the sanctioned path for background-equivalent location *via* a foreground service. Do **not** select Navigation (no turn-by-turn), Geofencing (explicitly out of scope, §1 — selecting it invites scrutiny for a feature we don't ship), or User-initiated location sharing (connotes real-time person-to-person sharing).
+
+### 8.3 Required demonstration video (~30–60s, screen-recorded on a real device)
+
+The video MUST show the three things reviewers verify — user-initiated, user-noticeable, terminated on completion:
+
+1. Open app → log in → open a task → **tap "Start"** (the user-initiated action).
+2. Show the **persistent foreground notification** appear ("Auxein Grow — Task in progress: …").
+3. **Lock the phone / turn the screen off**, wait, then wake — show the track has continued recording (points accumulated).
+4. Return to the app → **tap "Complete/Stop"** → show the **notification disappears** (service terminates with the task).
+5. Caption/voiceover: "Location is collected only during an active, user-started task, shown by a persistent notification, and stops the moment the task ends."
+
+Record this against the **rebuilt** app (Phase 1–4 GPS/auth fixes from BUG-010) so the demonstrated behaviour matches the submitted binary. Host as unlisted (not private) so the reviewer can open it.
+
+### 8.4 If we ever add the v1.1 features in §9
+
+Geofence auto-detection / lone-worker pinging / passive attribution would add `ACCESS_BACKGROUND_LOCATION`, which flips on **Requirement A** as well — the heavier background-location form + its own video. Until then, only Requirement B applies.
 
 ---
 

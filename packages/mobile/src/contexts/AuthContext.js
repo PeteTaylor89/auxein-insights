@@ -1,7 +1,7 @@
 // mobile/src/contexts/AuthContext.js — Mobile auth provider (no shared package dependency)
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { authApi } from '../api/services';
+import { getAccessToken, getRole, setTokens, clearTokens } from '../services/tokenStore';
 
 const AuthContext = createContext();
 
@@ -25,19 +25,17 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = await SecureStore.getItemAsync('accessToken');
+        const token = await getAccessToken();
         if (token) {
           const userData = await authApi.getProfile();
           setUser(userData);
-          const storedRole = await SecureStore.getItemAsync('userTypeRole');
+          const storedRole = await getRole();
           setUserTypeRole(storedRole || userData.user_type_role || userData.user_type || 'company_user');
           setIsAuthenticated(true);
         }
       } catch (err) {
         console.log('Auth check failed, clearing tokens');
-        await SecureStore.deleteItemAsync('accessToken');
-        await SecureStore.deleteItemAsync('refreshToken');
-        await SecureStore.deleteItemAsync('userTypeRole');
+        await clearTokens();
       } finally {
         setInitialLoading(false);
       }
@@ -52,10 +50,8 @@ export const AuthProvider = ({ children }) => {
       const data = await authApi.login(identifier, password);
       const { access_token, refresh_token, user_type_role, user_type } = data;
 
-      await SecureStore.setItemAsync('accessToken', access_token);
-      if (refresh_token) await SecureStore.setItemAsync('refreshToken', refresh_token);
       const role = user_type_role || user_type || 'company_user';
-      await SecureStore.setItemAsync('userTypeRole', role);
+      await setTokens({ access_token, refresh_token, role });
 
       const userData = await authApi.getProfile();
       setUser(userData);
@@ -81,9 +77,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     await authApi.logout();
-    await SecureStore.deleteItemAsync('accessToken');
-    await SecureStore.deleteItemAsync('refreshToken');
-    await SecureStore.deleteItemAsync('userTypeRole');
+    await clearTokens();
     setUser(null);
     setUserTypeRole(null);
     setIsAuthenticated(false);

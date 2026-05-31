@@ -25,9 +25,16 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { tasksService } from '../api/services';
 import { enqueuePoints, flushQueue } from '../services/gpsQueue';
+import { refreshSession, onSessionCleared } from '../services/tokenStore';
 import { checkNetwork } from './useNetworkStatus';
 
 const LOCATION_TASK_NAME = 'auxein-grow-gps-tracking';
+
+// Proactively refresh the access token while a long track runs. The backend
+// access-token TTL is 180 min; refreshing every 90 keeps a wide margin so the
+// token never expires mid-session. Belt-and-braces on top of the keychain +
+// interceptor fixes — if a tick slips under Doze, those still prevent logout.
+const TOKEN_REFRESH_INTERVAL_MS = 90 * 60 * 1000;
 
 // ─── CPU wake-lock — scoping note ──────────────────────────────────────
 // expo-location's Android foreground service (when configured via the
@@ -103,8 +110,9 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Format a location update into a GPS point payload
-function formatPoint(coords, segmentId, deviceId) {
+// Format a location update into a GPS point payload. fixTimeMs is the true GPS
+// fix time (ms epoch); falls back to now only when the platform omits it.
+function formatPoint(coords, segmentId, deviceId, fixTimeMs) {
   const safeNum = (v, min, max) => {
     if (v == null || !Number.isFinite(v)) return null;
     if (min != null && v < min) return null;
@@ -118,7 +126,7 @@ function formatPoint(coords, segmentId, deviceId) {
     accuracy: safeNum(coords.accuracy, 0) != null ? parseFloat(coords.accuracy.toFixed(2)) : null,
     speed: safeNum(coords.speed, 0) != null ? parseFloat((coords.speed * 3.6).toFixed(2)) : null,
     heading: safeNum(coords.heading, 0, 360) != null ? parseFloat(coords.heading.toFixed(2)) : null,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(Number.isFinite(fixTimeMs) ? fixTimeMs : Date.now()).toISOString(),
     segment_id: segmentId,
     device_id: deviceId,
   };
@@ -130,14 +138,14 @@ function formatPoint(coords, segmentId, deviceId) {
 // measurements during direction changes (heading delta > 45°).
 let _kalman = null;
 
-function initKalman(lat, lon, accuracy) {
+function initKalman(lat, lon, accuracy, lastTimeMs) {
   const r = Math.max(accuracy || KALMAN_R_BASE, 1);
   _kalman = {
     lat, lon,
     vLat: 0, vLon: 0,       // velocity in degrees/s (tiny numbers, that's fine)
     p: r * r,                // position variance
     pV: 100,                 // velocity variance (high = uncertain)
-    lastTime: Date.now(),
+    lastTime: Number.isFinite(lastTimeMs) ? lastTimeMs : Date.now(),
     lastHeading: null,
   };
 }
@@ -152,10 +160,10 @@ function kalmanPredict(dt) {
   _kalman.pV += KALMAN_Q * dt;
 }
 
-function kalmanUpdate(measLat, measLon, accuracy, speed, heading) {
-  if (!_kalman) { initKalman(measLat, measLon, accuracy); return { lat: measLat, lon: measLon }; }
+function kalmanUpdate(measLat, measLon, accuracy, speed, heading, nowMs) {
+  const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+  if (!_kalman) { initKalman(measLat, measLon, accuracy, now); return { lat: measLat, lon: measLon }; }
 
-  const now = Date.now();
   const dt = (now - _kalman.lastTime) / 1000;
   _kalman.lastTime = now;
 
@@ -221,6 +229,20 @@ let _altitudeWindow = [];        // Recent altitude values for median smoothing
 let _filteredCount = 0;          // Points discarded by filters
 let _bestAccuracy = Infinity;    // Best accuracy seen so far (adaptive threshold)
 
+// ─── Session binding ───────────────────────────────────────────────────────
+// Every active recording has a unique _sessionId and the _sessionTaskId it
+// belongs to. Captured points are dropped unless a session is active, and
+// uploads are bound to _sessionTaskId — NOT to a React ref that can change.
+// This is what stops a zombie OS location stream (e.g. after a mid-track
+// logout) from bleeding the previous physical path onto the next task.
+let _sessionId = null;
+let _sessionTaskId = null;
+// Wall-clock ms the active session started. Persisted at module scope so a
+// remounted hook can restore its duration timer's origin (the React ref is
+// lost on unmount). Inside _sessionId we already embed Date.now(); this is the
+// plain numeric form the duration math needs.
+let _sessionStartedAt = null;
+
 // ─── Live-track subscription API ──────────────────────────────────────────
 // The backend `/track/geojson` endpoint builds the LineString from
 // TaskGPSSummary, which is only populated at stop/reprocess time — so it
@@ -234,6 +256,14 @@ let _trackPoints = [];          // [[lon, lat], ...] ordered by capture time
 let _trackActive = false;        // Mirrors isTracking but readable outside React
 const _trackSubscribers = new Set();
 const TRACK_MAX_POINTS = 10000;  // ~5h of tracking at 2s cadence — soft cap
+
+// Safety valve for _buffer (the upload staging array). Normally drained every
+// 10s by the batch interval. If that interval is ever dead (e.g. the screen
+// unmounted mid-session and remount didn't re-arm it before this fix), the
+// buffer would grow unbounded in RAM and be lost on an OS kill. When it crosses
+// this size we persist the overflow straight to the durable offline queue so it
+// can never be RAM-only. Set well above a healthy 10s batch (~5-10 points).
+const MAX_BUFFER_POINTS = 2000;
 
 function _notifyTrack() {
   // Snapshot the array so subscribers see an immutable reference per emit.
@@ -268,7 +298,19 @@ function medianAltitude(alt) {
 // fallback path. Updates module-level state; the hook polls it for React
 // state updates.
 function processLocationUpdate(location) {
+  // Session guard — drop any point that arrives while no recording is active.
+  // Belt-and-braces with teardownTracking(): even if a zombie OS stream slips
+  // through, its points can never accumulate or attach to a later task.
+  if (_sessionId == null) return;
+
   const { coords } = location;
+
+  // Real GPS fix time (ms epoch). Critical for batched delivery: under Android
+  // Doze the OS hands over a burst of buffered fixes on screen wake. Stamping
+  // them with the true fix time (not wall-clock now) keeps their spacing — so
+  // the speed filter sees realistic speeds instead of a zero-dt "teleport" and
+  // discarding all but the first point of each batch (the straight-line bug).
+  const fixTime = (location && Number.isFinite(location.timestamp)) ? location.timestamp : Date.now();
 
   // Filter 1: adaptive accuracy threshold
   // Always reject very poor fixes. Once we've seen a good fix, reject mediocre ones too.
@@ -294,7 +336,7 @@ function processLocationUpdate(location) {
   }
   if (_lastPoint) {
     const d = haversine(_lastPoint.latitude, _lastPoint.longitude, coords.latitude, coords.longitude);
-    const dtSec = (Date.now() - new Date(_lastPoint.timestamp).getTime()) / 1000;
+    const dtSec = (fixTime - new Date(_lastPoint.timestamp).getTime()) / 1000;
     if (dtSec > 0 && (d / dtSec) * 3.6 > MAX_SPEED_KMH) {
       _filteredCount++;
       return;
@@ -302,7 +344,7 @@ function processLocationUpdate(location) {
   }
 
   // Filter 3: stationary detection — suppress duplicates when not moving
-  const now = Date.now();
+  const now = fixTime;
   if (_stationaryAnchor) {
     const dFromAnchor = haversine(_stationaryAnchor.lat, _stationaryAnchor.lon, coords.latitude, coords.longitude);
     if (dFromAnchor < STATIONARY_RADIUS_M) {
@@ -322,7 +364,7 @@ function processLocationUpdate(location) {
   const rawHeading = coords.heading != null && coords.heading >= 0 ? coords.heading : null;
   const filtered = kalmanUpdate(
     coords.latitude, coords.longitude,
-    coords.accuracy, rawSpeed, rawHeading
+    coords.accuracy, rawSpeed, rawHeading, fixTime
   );
 
   const filteredCoords = {
@@ -330,7 +372,7 @@ function processLocationUpdate(location) {
     latitude: filtered.lat,
     longitude: filtered.lon,
   };
-  const point = formatPoint(filteredCoords, _segmentId, _deviceId);
+  const point = formatPoint(filteredCoords, _segmentId, _deviceId, fixTime);
   const smoothedAlt = medianAltitude(coords.altitude);
   point.altitude = smoothedAlt != null ? parseFloat(smoothedAlt.toFixed(2)) : null;
 
@@ -341,6 +383,19 @@ function processLocationUpdate(location) {
   _lastPoint = point;
   _totalPoints++;
   _buffer.push(point);
+
+  // Safety valve — if the batch interval isn't draining (dead after a remount,
+  // or stalled), persist the overflow to the durable offline queue rather than
+  // letting _buffer grow unbounded in RAM. flushQueue (run on the next
+  // successful upload / reconnect) will sync it. No-op in the healthy case.
+  if (_buffer.length >= MAX_BUFFER_POINTS && _sessionTaskId) {
+    const overflow = _buffer.splice(0, _buffer.length - Math.floor(MAX_BUFFER_POINTS / 2));
+    enqueuePoints(_sessionTaskId, overflow).catch((e) => {
+      // Re-insert at the front if persistence failed, so it's retried next time.
+      _buffer.unshift(...overflow);
+      console.warn('[GPS] buffer overflow persist failed:', e?.message);
+    });
+  }
 
   // Live polyline source — retained across upload flushes. Capped to bound
   // memory; oldest points drop first. Coordinate order is [lon, lat] to
@@ -370,6 +425,34 @@ TaskManager.defineTask(LOCATION_TASK_NAME, ({ data, error }) => {
   }
 });
 
+// Hard teardown — stop the OS location service and wipe all session state.
+// Called on user stop (indirectly), and on session loss (logout / auth
+// rejection) via the tokenStore listener below. Idempotent and React-free so
+// it works even when no screen is mounted.
+async function teardownTracking() {
+  try {
+    const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
+    if (running) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => {});
+  } catch { /* best-effort */ }
+  _paused = false;
+  _sessionId = null;
+  _sessionTaskId = null;
+  _sessionStartedAt = null;
+  _buffer = [];
+  _lastPoint = null;
+  // Drop the live trail too, so a stale path can't render on the next task's map.
+  _trackPoints = [];
+  _trackActive = false;
+  _notifyTrack();
+}
+
+export { teardownTracking };
+
+// When the session is cleared (logout, or an interceptor auth rejection that
+// wiped the tokens), kill any zombie GPS stream so it can't keep recording or
+// attach its points to whatever task is opened next.
+onSessionCleared(() => { teardownTracking().catch(() => {}); });
+
 export function useGpsTracking() {
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -383,6 +466,7 @@ export function useGpsTracking() {
   const pauseStartRef = useRef(null);
   const batchIntervalRef = useRef(null);
   const durationIntervalRef = useRef(null);
+  const tokenRefreshIntervalRef = useRef(null);
 
   // Duration timer — also pulls module-level distance/pointCount into React
   // state since the task callback that updates them runs outside the hook.
@@ -408,22 +492,26 @@ export function useGpsTracking() {
 
   // Batch upload buffered points — falls back to persistent queue on failure
   const flushBuffer = useCallback(async () => {
-    if (_buffer.length === 0 || !taskIdRef.current) return;
+    // Bind the upload to the SESSION's task, not taskIdRef — the ref can be
+    // nulled or repointed by lifecycle churn, the session id cannot. Skip
+    // entirely if no session is active (a fired interval after teardown).
+    const sessionTaskId = _sessionTaskId;
+    if (_buffer.length === 0 || !sessionTaskId || _sessionId == null) return;
 
     const points = [..._buffer];
     _buffer = [];
     try {
       const isOnline = await checkNetwork();
       if (!isOnline) {
-        await enqueuePoints(taskIdRef.current, points);
+        await enqueuePoints(sessionTaskId, points);
         return;
       }
-      await tasksService.bulkAddGpsPoints(taskIdRef.current, { points });
+      await tasksService.bulkAddGpsPoints(sessionTaskId, { points });
       // After a successful upload, try flushing any previously queued points
       flushQueue().catch(() => {});
     } catch (err) {
       // Persist to offline queue instead of volatile in-memory retry
-      await enqueuePoints(taskIdRef.current, points);
+      await enqueuePoints(sessionTaskId, points);
       console.warn('[GPS] Upload failed, queued offline:', err.message);
     }
   }, []);
@@ -500,6 +588,16 @@ export function useGpsTracking() {
         return false;
       }
 
+      // Refresh the access token up-front so a long session starts on a fresh
+      // 180-min window. Best-effort: a failure here doesn't block tracking
+      // (the interceptor will refresh on demand if the current token is valid).
+      await refreshSession().catch(() => {});
+
+      // Clear any prior/zombie session before starting a new one — stops a
+      // still-running OS stream and wipes stale buffers/trail so nothing bleeds
+      // into this task.
+      await teardownTracking();
+
       // Get device ID
       try {
         const Constants = require('expo-constants').default;
@@ -517,6 +615,11 @@ export function useGpsTracking() {
       _filteredCount = 0;
       _bestAccuracy = Infinity;
       _kalman = null;
+      // Open a fresh session bound to THIS task. Points are dropped and uploads
+      // are skipped unless _sessionId is set, and uploads target _sessionTaskId.
+      _sessionStartedAt = Date.now();
+      _sessionId = `${taskId}-${_sessionStartedAt}`;
+      _sessionTaskId = taskId;
       // Fresh tracking session — clear the live-trail buffer + flip the flag.
       _trackPoints = [];
       _trackActive = true;
@@ -530,8 +633,8 @@ export function useGpsTracking() {
 
       // Get initial position (BestForNavigation for max accuracy)
       const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
-      initKalman(initialLoc.coords.latitude, initialLoc.coords.longitude, initialLoc.coords.accuracy);
-      const initialPoint = formatPoint(initialLoc.coords, 1, _deviceId);
+      initKalman(initialLoc.coords.latitude, initialLoc.coords.longitude, initialLoc.coords.accuracy, initialLoc.timestamp);
+      const initialPoint = formatPoint(initialLoc.coords, 1, _deviceId, initialLoc.timestamp);
       _lastPoint = initialPoint;
       _totalPoints = 1;
 
@@ -560,6 +663,12 @@ export function useGpsTracking() {
       await startWatcher();
       startBatchInterval();
       startDurationTimer();
+
+      // Keep the access token fresh for the whole session.
+      if (tokenRefreshIntervalRef.current) clearInterval(tokenRefreshIntervalRef.current);
+      tokenRefreshIntervalRef.current = setInterval(() => {
+        refreshSession().catch(() => {});
+      }, TOKEN_REFRESH_INTERVAL_MS);
 
       setIsTracking(true);
       setIsPaused(false);
@@ -616,8 +725,8 @@ export function useGpsTracking() {
       // been running but we've been discarding points, so the filter is
       // stale.
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
-      initKalman(loc.coords.latitude, loc.coords.longitude, loc.coords.accuracy);
-      const initialPoint = formatPoint(loc.coords, _segmentId, _deviceId);
+      initKalman(loc.coords.latitude, loc.coords.longitude, loc.coords.accuracy, loc.timestamp);
+      const initialPoint = formatPoint(loc.coords, _segmentId, _deviceId, loc.timestamp);
 
       await tasksService.resumeGpsTracking(taskIdRef.current, {
         initial_point: initialPoint,
@@ -673,13 +782,20 @@ export function useGpsTracking() {
       // app gets stuck in "tracking" state on stop failure.
       if (batchIntervalRef.current) clearInterval(batchIntervalRef.current);
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+      if (tokenRefreshIntervalRef.current) clearInterval(tokenRefreshIntervalRef.current);
       batchIntervalRef.current = null;
       durationIntervalRef.current = null;
+      tokenRefreshIntervalRef.current = null;
 
       taskIdRef.current = null;
       startTimeRef.current = null;
       pausedDurationRef.current = 0;
       pauseStartRef.current = null;
+      // Close the session — no further points buffer or upload until the next
+      // startTracking opens a fresh one.
+      _sessionId = null;
+      _sessionTaskId = null;
+      _sessionStartedAt = null;
       _buffer = [];
       _lastPoint = null;
       // Live-trail buffer: flip the flag (so the map knows tracking ended) but
@@ -716,13 +832,38 @@ export function useGpsTracking() {
         setIsPaused(_paused);
         _trackActive = true;
         _notifyTrack();
+
+        // Re-arm the per-mount intervals that the previous unmount cleared.
+        // Without this, a mid-session remount leaves the OS service streaming
+        // points into _buffer with nothing draining it (RAM-only, lost on an
+        // OS kill), frozen on-screen stats, and a stalled web live-view —
+        // until the user taps Complete. Guard on the ref so we never double-arm
+        // when this same mount also ran startTracking.
+        if (!batchIntervalRef.current && _sessionId != null) {
+          // Restore the duration timer's origin from module scope (the ref was
+          // lost on unmount). Pause time accumulated before the remount can't be
+          // recovered; treat an in-progress pause as starting now so the timer
+          // doesn't count through it.
+          startTimeRef.current = _sessionStartedAt || Date.now();
+          pauseStartRef.current = _paused ? Date.now() : null;
+          taskIdRef.current = _sessionTaskId;
+          startBatchInterval();
+          startDurationTimer();
+          // Resume proactive token refresh too (on-demand refresh still covers
+          // us via the interceptor, but keep the belt-and-braces layer alive).
+          if (!tokenRefreshIntervalRef.current) {
+            tokenRefreshIntervalRef.current = setInterval(() => {
+              refreshSession().catch(() => {});
+            }, TOKEN_REFRESH_INTERVAL_MS);
+          }
+        }
       } catch {
         // Best-effort — failure here just means the user has to manually
         // stop GPS before completing the task, which was the prior behaviour.
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [startBatchInterval, startDurationTimer]);
 
   // Cleanup on unmount — DON'T tear the service down here, since RN often
   // unmounts screens transiently (focus changes, lock cycles) while the
@@ -732,6 +873,7 @@ export function useGpsTracking() {
     return () => {
       if (batchIntervalRef.current) clearInterval(batchIntervalRef.current);
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+      if (tokenRefreshIntervalRef.current) clearInterval(tokenRefreshIntervalRef.current);
     };
   }, []);
 

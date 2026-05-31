@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Image,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
+  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,13 @@ import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 
 const LOGO_MARK = require('../../assets/brand/logo-mark.png');
 const LOGO_FULL = require('../../assets/brand/logo-full.png');
+
+// Forgot-password is handled by the existing public web flow opened in the
+// device browser — no in-app reset screen or deep linking needed for V1. The
+// user requests the reset there, gets the email, completes it in the browser,
+// then returns to the app to sign in. If the Grow web domain changes, update
+// this (and the backend GROW_FRONTEND_URL).
+const FORGOT_PASSWORD_URL = 'https://grow.auxein.co.nz/forgot-password';
 
 export default function LoginScreen() {
   const { login, loading, error } = useAuth();
@@ -23,6 +30,10 @@ export default function LoginScreen() {
     try {
       await login(identifier.trim(), password);
     } catch {}
+  };
+
+  const handleForgotPassword = () => {
+    Linking.openURL(FORGOT_PASSWORD_URL).catch(() => {});
   };
 
   return (
@@ -131,6 +142,15 @@ export default function LoginScreen() {
                 </>
               )}
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.forgotLink}
+              onPress={handleForgotPassword}
+              disabled={loading}
+              hitSlop={10}
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -200,6 +220,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: colors.white, fontSize: fontSize.md, fontWeight: '600' },
+
+  forgotLink: { alignSelf: 'center', marginTop: spacing.md, paddingVertical: spacing.xs },
+  forgotText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '600' },
 
   footer: {
     color: 'rgba(255,255,255,0.6)', fontSize: fontSize.xs,
