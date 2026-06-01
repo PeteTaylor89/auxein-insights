@@ -15,18 +15,18 @@ const SPECIALIZATION_OPTIONS = [
 
 function StatusPill({ status }) {
   const variant = {
-    active: { bg: 'var(--color-success-bg, #ecfdf5)', fg: '#065f46', label: 'Active' },
-    suspended: { bg: '#fef3c7', fg: '#92400e', label: 'Suspended' },
+    active: { bg: 'var(--color-success-bg, #ecfdf5)', fg: 'var(--color-success-text)', label: 'Active' },
+    suspended: { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-text)', label: 'Suspended' },
     inactive: { bg: 'var(--color-surface-warm)', fg: 'var(--color-text-muted)', label: 'Inactive' },
-    pending: { bg: '#dbeafe', fg: '#1e40af', label: 'Pending' },
-    terminated: { bg: '#fee2e2', fg: '#991b1b', label: 'Terminated' },
+    pending: { bg: 'var(--color-info-bg)', fg: 'var(--color-info-text)', label: 'Pending' },
+    terminated: { bg: 'var(--color-danger-bg)', fg: 'var(--color-danger-text)', label: 'Terminated' },
   }[status] || { bg: 'var(--color-surface-warm)', fg: 'var(--color-text-muted)', label: status || 'Unknown' };
 
   return (
     <span style={{
       display: 'inline-block',
       padding: '2px 10px',
-      borderRadius: 999,
+      borderRadius: 'var(--radius-pill)',
       background: variant.bg,
       color: variant.fg,
       fontSize: 'var(--font-size-xs)',
@@ -37,9 +37,9 @@ function StatusPill({ status }) {
 }
 
 function InsuranceBadge({ status }) {
-  if (status === 'compliant') return <span title="Insurance compliant" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#065f46', fontSize: 'var(--font-size-xs)' }}><ShieldCheck size={12} /> Compliant</span>;
-  if (status === 'partial') return <span title="Insurance partial" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#92400e', fontSize: 'var(--font-size-xs)' }}><ShieldAlert size={12} /> Partial</span>;
-  return <span title="Insurance not on file" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#991b1b', fontSize: 'var(--font-size-xs)' }}><ShieldX size={12} /> Non-compliant</span>;
+  if (status === 'compliant') return <span title="Insurance compliant" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-success-text)', fontSize: 'var(--font-size-xs)' }}><ShieldCheck size={12} /> Compliant</span>;
+  if (status === 'partial') return <span title="Insurance partial" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-warning-text)', fontSize: 'var(--font-size-xs)' }}><ShieldAlert size={12} /> Partial</span>;
+  return <span title="Insurance not on file" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-danger-text)', fontSize: 'var(--font-size-xs)' }}><ShieldX size={12} /> Non-compliant</span>;
 }
 
 function fmtDate(iso) {
@@ -182,7 +182,7 @@ export default function ContractorRelationships() {
                             handleStatusChange(rel, 'terminated', reason);
                           }}
                           title="Terminate"
-                          style={{ color: '#991b1b' }}
+                          style={{ color: 'var(--color-danger-text)' }}
                         >
                           <XCircle size={14} />
                         </button>

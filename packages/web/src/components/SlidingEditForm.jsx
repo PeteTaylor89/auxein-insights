@@ -185,13 +185,13 @@ const SlidingEditForm = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '1.5rem 1.25rem 1rem',
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid var(--color-surface-warm)',
           position: 'sticky',
           top: 0,
           backgroundColor: 'white',
           zIndex: 10
         }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#111827' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text)' }}>
             Edit Vineyard Block - {formData.block_name}
           </h2>
           <button 
@@ -200,7 +200,7 @@ const SlidingEditForm = ({
               background: 'none',
               border: 'none',
               fontSize: '1.5rem',
-              color: '#6b7280',
+              color: 'var(--color-text-muted)',
               cursor: 'pointer',
               padding: '0.25rem',
               width: '32px',
@@ -217,20 +217,20 @@ const SlidingEditForm = ({
         
         {/* Block info header */}
         <div style={{
-          backgroundColor: '#f3f4f6',
+          backgroundColor: 'var(--color-surface-warm)',
           padding: '1rem 1.25rem',
-          borderBottom: '1px solid #e5e7eb'
+          borderBottom: '1px solid var(--color-border)'
         }}>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>Block ID:</strong> {blockData.id}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>Area:</strong> {blockData.area?.toFixed(2)} ha
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>Region:</strong> {blockData.region || 'Not specified'}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>GI:</strong> {blockData.gi || 'Not specified'}
           </div>
         </div>
@@ -238,9 +238,9 @@ const SlidingEditForm = ({
         <div style={{ padding: '1.25rem', paddingBottom: '2rem' }}>
           {error && (
             <div style={{
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fecaca',
+              backgroundColor: 'var(--color-danger-bg)',
+              color: 'var(--color-danger)',
+              border: '1px solid var(--color-danger-bg)',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
               marginBottom: '1rem',
@@ -260,7 +260,7 @@ const SlidingEditForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Block Name *
             </label>
@@ -273,7 +273,7 @@ const SlidingEditForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -294,7 +294,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Variety
               </label>
@@ -307,14 +307,14 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
                   boxSizing: 'border-box'
                 }}
               />
-              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
                 <Info size={16} style={{ display: 'inline', marginRight: '0.25rem' }} />
                 <strong>Note:</strong> If more than one variety planted (except  field blends), please split block using <strong>Split Block</strong> function.
               </div>
@@ -327,7 +327,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Clone
               </label>
@@ -340,14 +340,14 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
                   boxSizing: 'border-box'
                 }}
               />
-              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
                 <Info size={16} style={{ display: 'inline', marginRight: '0.25rem' }} />
               <strong>Note:</strong> Please indicate majority clone and rootstock in the block - row by row editing available under <strong>Insights.</strong>
               </div>
@@ -368,7 +368,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Rootstock
               </label>
@@ -381,7 +381,7 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -396,7 +396,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Training System
               </label>
@@ -409,7 +409,7 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -431,7 +431,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Planted Date
               </label>
@@ -443,7 +443,7 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -458,7 +458,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Removed Date
               </label>
@@ -470,7 +470,7 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -492,7 +492,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Row Spacing (m)
               </label>
@@ -506,7 +506,7 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -521,7 +521,7 @@ const SlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Vine Spacing (m)
               </label>
@@ -535,7 +535,7 @@ const SlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -547,8 +547,8 @@ const SlidingEditForm = ({
 
           {/* Row Management Section */}
           <div style={{
-            backgroundColor: '#f9fafb',
-            border: '1px solid #e5e7eb',
+            backgroundColor: 'var(--color-surface-warm)',
+            border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.25rem'
@@ -556,12 +556,12 @@ const SlidingEditForm = ({
             <h3 style={{
               fontSize: '1rem',
               fontWeight: 600,
-              color: '#374151',
+              color: 'var(--color-text)',
               marginBottom: '0.75rem'
             }}>
               Row Management
             </h3>
-            <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem', marginBottom: '0.7rem' }}>
+            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', marginBottom: '0.7rem' }}>
               <Info size={16} style={{ display: 'inline', marginRight: '0.25rem' }} />
             <strong>Note:</strong> For <strong>Row Start</strong> and <strong>Row End,</strong> indicate the naming convention on your vineyard, <strong>Row Count,</strong> indicates the number of rows in this block. Once entered, you can bulk create rows for detailed management. 
             </div>
@@ -578,7 +578,7 @@ const SlidingEditForm = ({
                   marginBottom: '0.5rem',
                   fontWeight: 500,
                   fontSize: '0.875rem',
-                  color: '#374151'
+                  color: 'var(--color-text)'
                 }}>
                   Row Start
                 </label>
@@ -591,7 +591,7 @@ const SlidingEditForm = ({
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    border: '2px solid #e5e7eb',
+                    border: '2px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '1rem',
                     backgroundColor: '#ffffff',
@@ -606,7 +606,7 @@ const SlidingEditForm = ({
                   marginBottom: '0.5rem',
                   fontWeight: 500,
                   fontSize: '0.875rem',
-                  color: '#374151'
+                  color: 'var(--color-text)'
                 }}>
                   Row End
                 </label>
@@ -619,7 +619,7 @@ const SlidingEditForm = ({
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    border: '2px solid #e5e7eb',
+                    border: '2px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '1rem',
                     backgroundColor: '#ffffff',
@@ -634,7 +634,7 @@ const SlidingEditForm = ({
                   marginBottom: '0.5rem',
                   fontWeight: 500,
                   fontSize: '0.875rem',
-                  color: '#374151'
+                  color: 'var(--color-text)'
                 }}>
                   Row Count
                 </label>
@@ -647,7 +647,7 @@ const SlidingEditForm = ({
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
-                    border: '2px solid #e5e7eb',
+                    border: '2px solid var(--color-border)',
                     borderRadius: '8px',
                     fontSize: '1rem',
                     backgroundColor: '#ffffff',
@@ -669,7 +669,7 @@ const SlidingEditForm = ({
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: 'var(--color-primary)',
                   color: 'white',
                   opacity: loading ? 0.6 : 1
                 }}
@@ -680,8 +680,8 @@ const SlidingEditForm = ({
           </div>
 
           <div style={{
-            backgroundColor: '#f9fafb',
-            border: '1px solid #e5e7eb',
+            backgroundColor: 'var(--color-surface-warm)',
+            border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.25rem'
@@ -689,12 +689,12 @@ const SlidingEditForm = ({
             <h3 style={{
               fontSize: '1rem',
               fontWeight: 600,
-              color: '#374151',
+              color: 'var(--color-text)',
               marginBottom: '0.75rem'
             }}>
               Sustainable Management
             </h3>
-              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem', marginBottom: '0.7rem' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', marginBottom: '0.7rem' }}>
                 <Info size={16} style={{ display: 'inline', marginRight: '0.25rem' }} />
               <strong>Note:</strong> For each selection, additional insights, controls, and reporting will be implemented assisting you in your sustainable wine-growing pursuit.  
               </div>
@@ -711,7 +711,7 @@ const SlidingEditForm = ({
                 gap: '0.5rem',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 <input
                   type="checkbox"
@@ -733,7 +733,7 @@ const SlidingEditForm = ({
                 gap: '0.5rem',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 <input
                   type="checkbox"
@@ -755,7 +755,7 @@ const SlidingEditForm = ({
                 gap: '0.5rem',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 <input
                   type="checkbox"
@@ -777,7 +777,7 @@ const SlidingEditForm = ({
                 gap: '0.5rem',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 <input
                   type="checkbox"
@@ -801,7 +801,7 @@ const SlidingEditForm = ({
             justifyContent: 'flex-end',
             marginTop: '1.5rem',
             paddingTop: '1.5rem',
-            borderTop: '1px solid #f3f4f6'
+            borderTop: '1px solid var(--color-surface-warm)'
           }}>
             <button 
               onClick={onClose}
@@ -813,8 +813,8 @@ const SlidingEditForm = ({
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                backgroundColor: '#f3f4f6',
-                color: '#4b5563',
+                backgroundColor: 'var(--color-surface-warm)',
+                color: 'var(--color-text)',
                 opacity: loading ? 0.6 : 1
               }}
             >
@@ -876,37 +876,37 @@ const SlidingEditForm = ({
               fontSize: '1.25rem', 
               fontWeight: 600, 
               marginBottom: '1rem',
-              color: '#111827'
+              color: 'var(--color-text)'
             }}>
               Create Rows for Block
             </h3>
             
             <div style={{
-              backgroundColor: '#f3f4f6',
+              backgroundColor: 'var(--color-surface-warm)',
               padding: '1rem',
               borderRadius: '8px',
               marginBottom: '1.5rem'
             }}>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#374151' }}>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                 You are about to create <strong>{formData.row_count} rows</strong> for block <strong>{formData.block_name}</strong>.
               </p>
-              <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#374151' }}>
+              <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--color-text)' }}>
                 Rows will be numbered from <strong>{formData.row_start}</strong> to <strong>{formData.row_end}</strong>.
               </p>
               {formData.variety && (
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#374151' }}>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Variety: <strong>{formData.variety}</strong>
                 </p>
               )}
               {(formData.clone || formData.rootstock) && (
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#374151' }}>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Clone/Rootstock: <strong>{formData.clone || 'N/A'} / {formData.rootstock || 'N/A'}</strong>
                 </p>
               )}
             </div>
 
             <div style={{ 
-              backgroundColor: '#fef3c7', 
+              backgroundColor: 'var(--color-warning-bg)',
               border: '1px solid #fbbf24',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
@@ -915,8 +915,8 @@ const SlidingEditForm = ({
               alignItems: 'flex-start',
               gap: '0.5rem'
             }}>
-              <AlertCircle size={20} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '0.125rem' }} />
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#92400e' }}>
+              <AlertCircle size={20} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '0.125rem' }} />
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-warning-text)' }}>
                 This action cannot be undone. Any existing rows for this block will need to be deleted first.
               </p>
             </div>
@@ -936,8 +936,8 @@ const SlidingEditForm = ({
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  backgroundColor: '#f3f4f6',
-                  color: '#4b5563',
+                  backgroundColor: 'var(--color-surface-warm)',
+                  color: 'var(--color-text)',
                   opacity: loading ? 0.6 : 1
                 }}
               >
@@ -953,7 +953,7 @@ const SlidingEditForm = ({
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: 'var(--color-primary)',
                   color: 'white',
                   opacity: loading ? 0.6 : 1
                 }}

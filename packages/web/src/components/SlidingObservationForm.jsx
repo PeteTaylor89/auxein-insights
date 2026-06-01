@@ -215,13 +215,13 @@ const SlidingObservationForm = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '1.5rem 1.25rem 1rem',
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid var(--color-surface-warm)',
           position: 'sticky',
           top: 0,
           backgroundColor: 'white',
           zIndex: 10
         }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#111827' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text)' }}>
             Create New Observation
           </h2>
           <button 
@@ -230,7 +230,7 @@ const SlidingObservationForm = ({
               background: 'none',
               border: 'none',
               fontSize: '1.5rem',
-              color: '#6b7280',
+              color: 'var(--color-text-muted)',
               cursor: 'pointer',
               padding: '0.25rem',
               width: '32px',
@@ -281,9 +281,9 @@ const SlidingObservationForm = ({
         <div style={{ padding: '1.25rem', paddingBottom: '2rem' }}>
           {error && (
             <div style={{
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fecaca',
+              backgroundColor: 'var(--color-danger-bg)',
+              color: 'var(--color-danger)',
+              border: '1px solid var(--color-danger-bg)',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
               marginBottom: '1rem',
@@ -299,7 +299,7 @@ const SlidingObservationForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Observation Notes *
             </label>
@@ -312,7 +312,7 @@ const SlidingObservationForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -335,7 +335,7 @@ const SlidingObservationForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Vineyard Block *
               </label>
@@ -346,7 +346,7 @@ const SlidingObservationForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -368,7 +368,7 @@ const SlidingObservationForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Type
               </label>
@@ -379,7 +379,7 @@ const SlidingObservationForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -402,16 +402,16 @@ const SlidingObservationForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Add Files (Optional)
             </label>
             <div style={{
-              border: '2px dashed #e5e7eb',
+              border: '2px dashed var(--color-border)',
               borderRadius: '8px',
               padding: '2rem',
               textAlign: 'center',
-              backgroundColor: '#f9fafb',
+              backgroundColor: 'var(--color-surface-warm)',
               transition: 'all 0.2s'
             }}>
               <input
@@ -431,7 +431,7 @@ const SlidingObservationForm = ({
                   flexDirection: 'column',
                   alignItems: 'center',
                   gap: '0.75rem',
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: 'var(--color-primary)',
                   color: 'white',
                   border: 'none',
                   padding: '1rem 2rem',
@@ -450,7 +450,7 @@ const SlidingObservationForm = ({
             {/* File Preview List */}
             {selectedFiles.length > 0 && (
               <div style={{ marginTop: '1rem' }}>
-                <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
                   Selected files ({selectedFiles.length}):
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -461,7 +461,7 @@ const SlidingObservationForm = ({
                       gap: '0.75rem',
                       padding: '0.75rem',
                       backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '8px'
                     }}>
                       {fileObj.preview ? (
@@ -480,7 +480,7 @@ const SlidingObservationForm = ({
                         <div style={{
                           width: '40px',
                           height: '40px',
-                          backgroundColor: '#f3f4f6',
+                          backgroundColor: 'var(--color-surface-warm)',
                           borderRadius: '4px',
                           display: 'flex',
                           alignItems: 'center',
@@ -495,14 +495,14 @@ const SlidingObservationForm = ({
                         <div style={{
                           fontSize: '0.875rem',
                           fontWeight: 500,
-                          color: '#374151',
+                          color: 'var(--color-text)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap'
                         }}>
                           {fileObj.name}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                           {formatFileSize(fileObj.size)}
                         </div>
                       </div>
@@ -510,7 +510,7 @@ const SlidingObservationForm = ({
                         type="button"
                         onClick={() => removeFile(fileObj.id)}
                         style={{
-                          backgroundColor: '#dc2626',
+                          backgroundColor: 'var(--color-danger)',
                           color: 'white',
                           border: 'none',
                           width: '24px',
@@ -540,7 +540,7 @@ const SlidingObservationForm = ({
             justifyContent: 'flex-end',
             marginTop: '1.5rem',
             paddingTop: '1.5rem',
-            borderTop: '1px solid #f3f4f6'
+            borderTop: '1px solid var(--color-surface-warm)'
           }}>
             <button 
               onClick={onClose}
@@ -552,8 +552,8 @@ const SlidingObservationForm = ({
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                backgroundColor: '#f3f4f6',
-                color: '#4b5563',
+                backgroundColor: 'var(--color-surface-warm)',
+                color: 'var(--color-text)',
                 opacity: loading ? 0.6 : 1
               }}
             >

@@ -41,9 +41,9 @@
   right: 12px;
   width: 32px;
   height: 32px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   background: #ffffff;
-  color: #374151;
+  color: var(--color-text);
   border-radius: var(--radius-sm, 8px);
   cursor: pointer;
   display: flex;
@@ -54,9 +54,9 @@
   padding: 0;
 }
 .v2-tdm-close:hover {
-  background: #f3f4f6;
-  color: #111827;
-  border-color: #d1d5db;
+  background: var(--color-surface-warm);
+  color: var(--color-text);
+  border-color: var(--color-border);
 }
 .v2-tdm-close svg { stroke: currentColor; display: block; }
 
@@ -75,15 +75,15 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   background: #ffffff;
-  color: #374151;
+  color: var(--color-text);
   border-radius: var(--radius-sm, 8px);
   cursor: pointer;
   flex-shrink: 0;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
-.v2-tdm-back:hover { background: #f3f4f6; color: #111827; border-color: #d1d5db; }
+.v2-tdm-back:hover { background: var(--color-surface-warm); color: var(--color-text); border-color: var(--color-border); }
 .v2-tdm-back svg { stroke: currentColor; display: block; }
 
 .v2-tdm-title-wrap { flex: 1; min-width: 0; }
@@ -112,7 +112,7 @@
   font-size: 11px;
   font-weight: 600;
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   white-space: nowrap;
   text-transform: capitalize;
   flex-shrink: 0;
@@ -201,7 +201,7 @@
   aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -233,14 +233,14 @@
   font-weight: 600;
   cursor: pointer;
 }
-.v2-tdm-btn:hover { background: #f3f4f6; }
+.v2-tdm-btn:hover { background: var(--color-surface-warm); }
 
 .v2-tdm-btn--accent {
-  background: #5B6830;
+  background: var(--color-primary);
   color: #ffffff;
-  border-color: #5B6830;
+  border-color: var(--color-primary);
 }
-.v2-tdm-btn--accent:hover { background: #4a5527; border-color: #4a5527; }
+.v2-tdm-btn--accent:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
 
 .v2-tdm-list {
   list-style: none;
@@ -266,8 +266,8 @@
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 .v2-tdm-list-item:hover {
-  background: #f9fafb;
-  border-color: #5B6830;
+  background: var(--color-surface-warm);
+  border-color: var(--color-primary);
 }
 .v2-tdm-list-main { flex: 1; min-width: 0; }
 .v2-tdm-list-title {

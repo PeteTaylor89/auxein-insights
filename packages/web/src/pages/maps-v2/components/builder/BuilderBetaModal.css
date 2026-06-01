@@ -49,7 +49,7 @@
   justify-content: center;
 }
 .v2-beta-close:hover {
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   color: var(--color-text);
 }
 
@@ -67,7 +67,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(91, 104, 48, 0.12);
-  color: #5B6830;
+  color: var(--color-primary);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
@@ -118,7 +118,7 @@
 }
 
 .v2-beta-btn {
-  background: #5B6830;
+  background: var(--color-primary);
   color: #ffffff;
   border: none;
   border-radius: var(--radius-sm);
@@ -129,7 +129,7 @@
   transition: background-color var(--transition-fast);
 }
 .v2-beta-btn:hover {
-  background: #4a5527;
+  background: var(--color-primary-hover);
 }
 
 /* Beta pill in the sidebar tab */
@@ -141,8 +141,8 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #5B6830;
+  color: var(--color-primary);
   background: rgba(91, 104, 48, 0.14);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   vertical-align: middle;
 }

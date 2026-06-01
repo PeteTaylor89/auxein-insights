@@ -272,7 +272,7 @@ function RiskDashboard() {
                             <td className="center"><StatusBadge status={isOverdue ? 'overdue' : (action.status || 'open')} /></td>
                             <td className="center">
                               <div className="rm-progress">
-                                <div className="rm-progress-bar"><div className="rm-progress-fill" style={{ width: `${Math.min(progress, 100)}%`, background: progress === 100 ? '#22c55e' : progress >= 75 ? 'var(--color-primary)' : progress >= 50 ? 'var(--color-warning)' : 'var(--color-danger)' }} /></div>
+                                <div className="rm-progress-bar"><div className="rm-progress-fill" style={{ width: `${Math.min(progress, 100)}%`, background: progress === 100 ? 'var(--color-success)' : progress >= 75 ? 'var(--color-primary)' : progress >= 50 ? 'var(--color-warning)' : 'var(--color-danger)' }} /></div>
                                 <span className="rm-progress-text">{progress}%</span>
                               </div>
                             </td>
@@ -374,20 +374,20 @@ function RiskDashboard() {
           <div className="rm-alerts-grid">
             {overdueItems.unnotified_incidents?.length > 0 && (
               <div className="rm-alert-card rm-alert-card--danger">
-                <h4 style={{ color: '#991b1b' }}>🚨 WorkSafe Notifications Required ({overdueItems.unnotified_incidents.length})</h4>
+                <h4>🚨 WorkSafe Notifications Required ({overdueItems.unnotified_incidents.length})</h4>
                 {overdueItems.unnotified_incidents.slice(0, 3).map(inc => (
-                  <div key={inc.id} className="rm-alert-item" style={{ color: '#991b1b' }}>
+                  <div key={inc.id} className="rm-alert-item">
                     • {inc.incident_number}: {inc.title} ({inc.notifiable_type})
                   </div>
                 ))}
-                {overdueItems.unnotified_incidents.length > 3 && <div className="rm-alert-more" style={{ color: '#991b1b' }}>...and {overdueItems.unnotified_incidents.length - 3} more</div>}
+                {overdueItems.unnotified_incidents.length > 3 && <div className="rm-alert-more">...and {overdueItems.unnotified_incidents.length - 3} more</div>}
               </div>
             )}
             {overdueItems.overdue_investigations?.length > 0 && (
               <div className="rm-alert-card rm-alert-card--warning">
-                <h4 style={{ color: '#92400e' }}>🔍 Overdue Investigations ({overdueItems.overdue_investigations.length})</h4>
+                <h4>🔍 Overdue Investigations ({overdueItems.overdue_investigations.length})</h4>
                 {overdueItems.overdue_investigations.slice(0, 3).map(inc => (
-                  <div key={inc.id} className="rm-alert-item" style={{ color: '#92400e' }}>
+                  <div key={inc.id} className="rm-alert-item">
                     • {inc.incident_number}: {inc.title} ({inc.days_overdue} days overdue)
                   </div>
                 ))}

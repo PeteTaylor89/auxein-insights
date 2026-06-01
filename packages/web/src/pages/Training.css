@@ -227,18 +227,18 @@
   text-transform: capitalize;
 }
 
-.tr-badge--published { background: var(--color-success-bg); color: #166534; }
-.tr-badge--draft { background: var(--color-warning-bg); color: #92400e; }
-.tr-badge--quiz { background: #f3e8ff; color: #7c3aed; }
-.tr-badge--duration { background: #ecfdf5; color: #059669; }
+.tr-badge--published { background: var(--color-success-bg); color: var(--color-success-text); }
+.tr-badge--draft { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.tr-badge--quiz { background: var(--color-olive-light); color: var(--color-primary); }
+.tr-badge--duration { background: var(--color-success-bg); color: #059669; }
 
 /* Category badges */
-.tr-badge--safety { background: var(--color-danger-bg); color: #991b1b; }
-.tr-badge--compliance { background: #fed7aa; color: #c2410c; }
-.tr-badge--operations { background: var(--color-info-bg); color: #1e40af; }
-.tr-badge--onboarding { background: var(--color-success-bg); color: #166534; }
-.tr-badge--skills { background: #e0f2fe; color: #0369a1; }
-.tr-badge--general { background: #f3f4f6; color: #374151; }
+.tr-badge--safety { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.tr-badge--compliance { background: var(--color-high-bg); color: var(--color-high); }
+.tr-badge--operations { background: var(--color-info-bg); color: var(--color-info); }
+.tr-badge--onboarding { background: var(--color-success-bg); color: var(--color-success-text); }
+.tr-badge--skills { background: var(--color-info-bg); color: var(--color-info); }
+.tr-badge--general { background: var(--color-surface-warm); color: var(--color-text); }
 
 /* Buttons */
 .tr-btn-primary {
@@ -294,7 +294,7 @@
   transition: background var(--transition-fast);
 }
 
-.tr-btn-danger:hover { background: #b91c1c; }
+.tr-btn-danger:hover { background: var(--color-danger-hover); }
 
 .tr-btn-ghost {
   display: inline-flex;
@@ -927,7 +927,7 @@
   padding: var(--space-md);
   margin-bottom: var(--space-base);
   font-size: var(--font-size-sm);
-  color: #0c4a6e;
+  color: var(--color-info-text);
 }
 
 /* Alert hint */

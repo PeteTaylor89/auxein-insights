@@ -544,7 +544,7 @@ const VisitorRegistrationPortal = () => {
         .visitor-portal {
           width: 100%;
           min-height: 100vh;
-          background: #f9fafb;
+          background: var(--color-surface-warm);
           padding: 16px;
           font-family: system-ui, -apple-system, sans-serif;
         }
@@ -553,7 +553,7 @@ const VisitorRegistrationPortal = () => {
           max-width: 672px;
           margin: 0 auto;
           background: white;
-          border-radius: 12px;
+          border-radius: var(--radius-lg);
           box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
           padding: 32px;
         }
@@ -575,33 +575,33 @@ const VisitorRegistrationPortal = () => {
           justify-content: center;
           width: 40px;
           height: 40px;
-          border-radius: 50%;
-          border: 2px solid #d1d5db;
+          border-radius: var(--radius-pill);
+          border: 2px solid var(--color-border);
           font-size: 14px;
           font-weight: 600;
-          background: #f3f4f6;
-          color: #9ca3af;
+          background: var(--color-surface-warm);
+          color: var(--color-text-muted);
           transition: all 0.3s ease;
         }
 
         .progress-step.active {
-          background: #2563eb;
+          background: var(--color-primary-hover);
           color: white;
-          border-color: #2563eb;
+          border-color: var(--color-primary-hover);
         }
 
         .progress-bar {
           width: 100%;
-          background: #e5e7eb;
-          border-radius: 999px;
+          background: var(--color-border);
+          border-radius: var(--radius-pill);
           height: 8px;
           overflow: hidden;
         }
 
         .progress-fill {
-          background: #2563eb;
+          background: var(--color-primary-hover);
           height: 100%;
-          border-radius: 999px;
+          border-radius: var(--radius-pill);
           transition: width 0.3s ease;
         }
 
@@ -609,7 +609,7 @@ const VisitorRegistrationPortal = () => {
           display: flex;
           justify-content: space-between;
           font-size: 12px;
-          color: #6b7280;
+          color: var(--color-text-muted);
           margin-top: 4px;
         }
 
@@ -621,25 +621,25 @@ const VisitorRegistrationPortal = () => {
         .step-icon {
           width: 48px;
           height: 48px;
-          color: #2563eb;
+          color: var(--color-primary);
           margin: 0 auto 8px;
         }
 
         .step-icon.success {
           width: 64px;
           height: 64px;
-          color: #10b981;
+          color: var(--color-success);
         }
 
         .step-title {
           font-size: 24px;
           font-weight: bold;
-          color: #111827;
+          color: var(--color-text);
           margin: 0 0 8px 0;
         }
 
         .step-subtitle {
-          color: #6b7280;
+          color: var(--color-text-muted);
           margin: 0;
         }
 
@@ -657,15 +657,15 @@ const VisitorRegistrationPortal = () => {
           display: block;
           font-size: 14px;
           font-weight: 500;
-          color: #374151;
+          color: var(--color-text);
           margin-bottom: 4px;
         }
 
         .form-input, .form-select {
           width: 100%;
           padding: 12px;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
           font-size: 16px;
           outline: none;
           transition: border-color 0.2s;
@@ -674,7 +674,7 @@ const VisitorRegistrationPortal = () => {
         }
 
         .form-input:focus, .form-select:focus {
-          border-color: #2563eb;
+          border-color: var(--color-primary);
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
@@ -689,7 +689,7 @@ const VisitorRegistrationPortal = () => {
         }
 
         .alert-box {
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           padding: 16px;
           margin-bottom: 24px;
           display: flex;
@@ -697,18 +697,18 @@ const VisitorRegistrationPortal = () => {
         }
 
         .alert-box.warning {
-          background: #fef3c7;
-          border: 1px solid #f59e0b;
+          background: var(--color-warning-bg);
+          border: 1px solid var(--color-warning);
         }
 
         .alert-box.success {
-          background: #d1fae5;
-          border: 1px solid #10b981;
+          background: var(--color-success-bg);
+          border: 1px solid var(--color-success);
         }
 
         .alert-box.info {
-          background: #dbeafe;
-          border: 1px solid #3b82f6;
+          background: var(--color-info-bg);
+          border: 1px solid var(--color-info);
         }
 
         .alert-icon {
@@ -719,7 +719,7 @@ const VisitorRegistrationPortal = () => {
         }
 
         .alert-box.warning .alert-icon {
-          color: #d97706;
+          color: var(--color-warning);
         }
 
         .alert-box.success .alert-icon {
@@ -727,7 +727,7 @@ const VisitorRegistrationPortal = () => {
         }
 
         .alert-box.info .alert-icon {
-          color: #2563eb;
+          color: var(--color-info);
         }
 
         .alert-content {
@@ -741,15 +741,15 @@ const VisitorRegistrationPortal = () => {
         }
 
         .alert-box.warning .alert-title {
-          color: #92400e;
+          color: var(--color-warning-text);
         }
 
         .alert-box.success .alert-title {
-          color: #065f46;
+          color: var(--color-success-text);
         }
 
         .alert-box.info .alert-title {
-          color: #1e40af;
+          color: var(--color-info-text);
         }
 
         .alert-text {
@@ -758,21 +758,21 @@ const VisitorRegistrationPortal = () => {
         }
 
         .alert-box.warning .alert-text {
-          color: #92400e;
+          color: var(--color-warning-text);
         }
 
         .alert-box.success .alert-text {
-          color: #065f46;
+          color: var(--color-success-text);
         }
 
         .alert-box.info .alert-text {
-          color: #1e40af;
+          color: var(--color-info-text);
         }
 
         .section-title {
           font-size: 18px;
           font-weight: 600;
-          color: #111827;
+          color: var(--color-text);
           margin-bottom: 16px;
           display: flex;
           align-items: center;
@@ -785,15 +785,15 @@ const VisitorRegistrationPortal = () => {
         }
 
         .section-subtitle {
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-size: 14px;
           margin-bottom: 16px;
         }
 
         .induction-panel {
-          background: #dbeafe;
-          border: 1px solid #3b82f6;
-          border-radius: 8px;
+          background: var(--color-olive-light);
+          border: 1px solid var(--color-primary);
+          border-radius: var(--radius-md);
           padding: 24px;
           margin-bottom: 24px;
         }
@@ -801,15 +801,15 @@ const VisitorRegistrationPortal = () => {
         .panel-title {
           font-size: 18px;
           font-weight: 600;
-          color: #1e40af;
+          color: var(--color-primary-hover);
           margin-bottom: 16px;
         }
 
         .induction-card {
           background: white;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           padding: 16px;
-          border: 1px solid #dbeafe;
+          border: 1px solid var(--color-olive-light);
           margin-bottom: 16px;
         }
 
@@ -822,18 +822,18 @@ const VisitorRegistrationPortal = () => {
 
         .induction-header h4 {
           font-weight: 500;
-          color: #111827;
+          color: var(--color-text);
           margin: 0;
         }
 
         .duration {
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-text-muted);
         }
 
         .mock-video {
-          background: #f3f4f6;
-          border-radius: 8px;
+          background: var(--color-surface-warm);
+          border-radius: var(--radius-md);
           height: 128px;
           display: flex;
           align-items: center;
@@ -848,35 +848,35 @@ const VisitorRegistrationPortal = () => {
         .video-icon {
           width: 32px;
           height: 32px;
-          color: #9ca3af;
+          color: var(--color-text-muted);
           margin: 0 auto 8px;
         }
 
         .video-placeholder p {
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-size: 14px;
           margin: 0 0 4px 0;
         }
 
         .video-placeholder span {
-          color: #9ca3af;
+          color: var(--color-text-muted);
           font-size: 12px;
         }
 
         .induction-button {
           width: 100%;
-          background: #2563eb;
+          background: var(--color-primary);
           color: white;
           border: none;
           padding: 12px;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           font-weight: 500;
           cursor: pointer;
           transition: background-color 0.2s;
         }
 
         .induction-button:hover {
-          background: #1d4ed8;
+          background: var(--color-primary-hover);
         }
 
         .ppe-grid {
@@ -890,19 +890,19 @@ const VisitorRegistrationPortal = () => {
           display: flex;
           align-items: center;
           padding: 12px;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
           cursor: pointer;
           transition: background-color 0.2s;
         }
 
         .ppe-checkbox:hover {
-          background: #f9fafb;
+          background: var(--color-surface-warm);
         }
 
         .ppe-checkbox.checked {
-          background: #f3f4f6;
-          border-color: #2563eb;
+          background: var(--color-surface-warm);
+          border-color: var(--color-primary);
         }
 
         .checkbox-input {
@@ -917,8 +917,8 @@ const VisitorRegistrationPortal = () => {
         }
 
         .safety-agreement {
-          background: #f9fafb;
-          border-radius: 8px;
+          background: var(--color-surface-warm);
+          border-radius: var(--radius-md);
           padding: 16px;
           margin-top: 24px;
         }
@@ -940,20 +940,20 @@ const VisitorRegistrationPortal = () => {
         .agreement-title {
           font-size: 14px;
           font-weight: 500;
-          color: #111827;
+          color: var(--color-text);
           display: block;
           margin-bottom: 4px;
         }
 
         .agreement-subtitle {
           font-size: 12px;
-          color: #6b7280;
+          color: var(--color-text-muted);
           margin: 0;
         }
 
         .summary-panel {
-          background: #f9fafb;
-          border-radius: 8px;
+          background: var(--color-surface-warm);
+          border-radius: var(--radius-md);
           padding: 24px;
           margin-bottom: 24px;
         }
@@ -972,17 +972,17 @@ const VisitorRegistrationPortal = () => {
 
         .summary-label {
           font-weight: 500;
-          color: #374151;
+          color: var(--color-text);
           display: block;
         }
 
         .summary-item p {
           margin: 0;
-          color: #111827;
+          color: var(--color-text);
         }
 
         .completion-status {
-          border-top: 1px solid #e5e7eb;
+          border-top: 1px solid var(--color-border);
           padding-top: 16px;
         }
 
@@ -1010,7 +1010,7 @@ const VisitorRegistrationPortal = () => {
 
         .next-steps {
           font-size: 14px;
-          color: #1e40af;
+          color: var(--color-info-text);
           margin: 0.0;
           padding-left: 35px;
         }
@@ -1024,7 +1024,7 @@ const VisitorRegistrationPortal = () => {
           justify-content: space-between;
           margin-top: 32px;
           padding-top: 24px;
-          border-top: 1px solid #e5e7eb;
+          border-top: 1px solid var(--color-border);
         }
 
         .action-spacer {
@@ -1034,7 +1034,7 @@ const VisitorRegistrationPortal = () => {
         .action-button {
           padding: 12px 24px;
           border: none;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           font-size: 16px;
           font-weight: 500;
           cursor: pointer;
@@ -1043,30 +1043,30 @@ const VisitorRegistrationPortal = () => {
         }
 
         .action-button.primary {
-          background: #2563eb;
+          background: var(--color-primary);
           color: white;
         }
 
         .action-button.primary:hover {
-          background: #1d4ed8;
+          background: var(--color-primary-hover);
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
 
         .action-button.secondary {
           background: white;
-          color: #374151;
-          border: 1px solid #d1d5db;
+          color: var(--color-text);
+          border: 1px solid var(--color-border);
         }
 
         .action-button.secondary:hover {
-          background: #f9fafb;
+          background: var(--color-surface-warm);
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .action-button.success {
-          background: #10b981;
+          background: var(--color-success);
           padding: 16px 28px;
           font-size: 13px;
           color: white;
@@ -1100,7 +1100,7 @@ const VisitorRegistrationPortal = () => {
         .progress-step {
           width: 40px;
           height: 40px;
-          border-radius: 50%;
+          border-radius: var(--radius-pill);
           background-color: #ccc;
           color: white;
           display: flex;
@@ -1117,7 +1117,7 @@ const VisitorRegistrationPortal = () => {
           margin-top: 8px;
           font-size: 14px;
           text-align: center;
-          color: #333;
+          color: var(--color-text);
         }
 
 

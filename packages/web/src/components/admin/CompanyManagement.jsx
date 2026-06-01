@@ -336,8 +336,8 @@ function CompanyManagement() {
           gap: 16px;
           margin-bottom: 24px;
           padding: 20px;
-          background: #f8fafc;
-          border-radius: 8px;
+          background: var(--color-surface-warm);
+          border-radius: var(--radius-md);
           align-items: end;
           flex-wrap: wrap;
         }
@@ -352,40 +352,40 @@ function CompanyManagement() {
           margin-bottom: 4px;
           font-weight: 600;
           font-size: 0.9rem;
-          color: #374151;
+          color: var(--color-text);
         }
 
         .filter-group input,
         .filter-group select {
           padding: 8px 12px;
-          border: 2px solid #e5e7eb;
-          border-radius: 6px;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-sm);
           font-size: 0.9rem;
         }
 
         .filter-group input:focus,
         .filter-group select:focus {
           outline: none;
-          border-color: #3b82f6;
+          border-color: var(--color-primary);
         }
 
         .refresh-button {
           padding: 8px 16px;
-          background: #3b82f6;
+          background: var(--color-primary);
           color: white;
           border: none;
-          border-radius: 6px;
+          border-radius: var(--radius-sm);
           cursor: pointer;
           font-weight: 500;
         }
 
         .refresh-button:hover {
-          background: #2563eb;
+          background: var(--color-primary-hover);
         }
 
         .companies-table-container {
           background: white;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           overflow: hidden;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           margin-bottom: 20px;
@@ -397,22 +397,22 @@ function CompanyManagement() {
         }
 
         .companies-table th {
-          background: #f8fafc;
+          background: var(--color-surface-warm);
           padding: 12px;
           text-align: left;
           font-weight: 600;
-          color: #374151;
-          border-bottom: 2px solid #e5e7eb;
+          color: var(--color-text);
+          border-bottom: 2px solid var(--color-border);
         }
 
         .companies-table td {
           padding: 12px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--color-border);
           vertical-align: top;
         }
 
         .companies-table tr:hover {
-          background: #f9fafb;
+          background: var(--color-surface-warm);
         }
 
         .company-info .company-name {
@@ -435,7 +435,7 @@ function CompanyManagement() {
 
         .tier-badge {
           padding: 4px 8px;
-          border-radius: 12px;
+          border-radius: var(--radius-lg);
           font-size: 0.8rem;
           font-weight: 600;
           text-align: center;
@@ -443,18 +443,18 @@ function CompanyManagement() {
         }
 
         .tier-badge.free {
-          background: #f3f4f6;
-          color: #374151;
+          background: var(--color-surface-warm);
+          color: var(--color-text);
         }
 
         .tier-badge.basic {
-          background: #dbeafe;
-          color: #1d4ed8;
+          background: var(--color-info-bg);
+          color: var(--color-info-text);
         }
 
         .tier-badge.premium {
-          background: #fef3c7;
-          color: #92400e;
+          background: var(--color-warning-bg);
+          color: var(--color-warning-text);
         }
 
         .tier-badge.enterprise {
@@ -470,14 +470,14 @@ function CompanyManagement() {
 
         .status-badge {
           padding: 4px 8px;
-          border-radius: 12px;
+          border-radius: var(--radius-lg);
           font-size: 0.8rem;
           font-weight: 600;
         }
 
         .status-badge.active {
-          background: #dcfce7;
-          color: #166534;
+          background: var(--color-success-bg);
+          color: var(--color-success-text);
         }
 
         .status-badge.trial {
@@ -487,19 +487,19 @@ function CompanyManagement() {
 
         .status-badge.inactive,
         .status-badge.cancelled {
-          background: #fef2f2;
-          color: #991b1b;
+          background: var(--color-danger-bg);
+          color: var(--color-danger-text);
         }
 
         .status-badge.past-due {
-          background: #fef3c7;
-          color: #92400e;
+          background: var(--color-warning-bg);
+          color: var(--color-warning-text);
         }
 
         .user-count {
           font-family: monospace;
           font-size: 0.9rem;
-          color: #374151;
+          color: var(--color-text);
         }
 
         .action-buttons {
@@ -517,31 +517,31 @@ function CompanyManagement() {
         }
 
         .edit-button {
-          background: #f3f4f6;
-          color: #374151;
+          background: var(--color-surface-warm);
+          color: var(--color-text);
         }
 
         .edit-button:hover {
-          background: #e5e7eb;
+          background: var(--color-border);
         }
 
         .toggle-button.deactivate {
-          background: #fef2f2;
-          color: #991b1b;
+          background: var(--color-danger-bg);
+          color: var(--color-danger-text);
         }
 
         .toggle-button.activate {
-          background: #dcfce7;
-          color: #166534;
+          background: var(--color-success-bg);
+          color: var(--color-success-text);
         }
 
         .view-button {
-          background: #eff6ff;
-          color: #1d4ed8;
+          background: var(--color-olive-light);
+          color: var(--color-info-text);
         }
 
         .view-button:hover {
-          background: #dbeafe;
+          background: var(--color-info-bg);
         }
 
         .pagination {
@@ -553,21 +553,21 @@ function CompanyManagement() {
 
         .page-button {
           padding: 8px 16px;
-          background: #3b82f6;
+          background: var(--color-primary);
           color: white;
           border: none;
-          border-radius: 6px;
+          border-radius: var(--radius-sm);
           cursor: pointer;
           font-weight: 500;
         }
 
         .page-button:disabled {
-          background: #9ca3af;
+          background: var(--color-text-muted);
           cursor: not-allowed;
         }
 
         .page-button:hover:not(:disabled) {
-          background: #2563eb;
+          background: var(--color-primary-hover);
         }
 
         .page-info {
@@ -582,12 +582,12 @@ function CompanyManagement() {
         }
 
         .error-message {
-          background: #fef2f2;
-          color: #991b1b;
+          background: var(--color-danger-bg);
+          color: var(--color-danger-text);
           padding: 12px 16px;
-          border-radius: 6px;
+          border-radius: var(--radius-sm);
           margin-bottom: 16px;
-          border: 1px solid #fecaca;
+          border: 1px solid var(--color-danger-bg);
         }
 
         @media (max-width: 768px) {
@@ -750,7 +750,7 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
 
           .modal-content {
             background: white;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             width: 90%;
             max-width: 500px;
             max-height: 90vh;
@@ -762,7 +762,7 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
             justify-content: space-between;
             align-items: center;
             padding: 20px;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--color-border);
           }
 
           .modal-header h3 {
@@ -785,7 +785,7 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
           }
 
           .close-button:hover {
-            color: #374151;
+            color: var(--color-text);
           }
 
           .modal-body {
@@ -800,22 +800,22 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
             display: block;
             margin-bottom: 6px;
             font-weight: 600;
-            color: #374151;
+            color: var(--color-text);
           }
 
           .form-group input,
           .form-group select {
             width: 100%;
             padding: 8px 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 6px;
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-sm);
             font-size: 0.9rem;
           }
 
           .form-group input:focus,
           .form-group select:focus {
             outline: none;
-            border-color: #3b82f6;
+            border-color: var(--color-primary);
           }
 
           .checkbox-label {
@@ -831,15 +831,15 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
           }
 
           .pricing-preview {
-            background: #f8fafc;
+            background: var(--color-surface-warm);
             padding: 16px;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             margin-bottom: 16px;
           }
 
           .pricing-preview h4 {
             margin: 0 0 8px 0;
-            color: #374151;
+            color: var(--color-text);
             font-size: 0.9rem;
           }
 
@@ -854,8 +854,8 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
 
           .pricing-breakdown div:last-child {
             font-weight: 600;
-            color: #374151;
-            border-top: 1px solid #e5e7eb;
+            color: var(--color-text);
+            border-top: 1px solid var(--color-border);
             padding-top: 4px;
             margin-top: 4px;
           }
@@ -865,39 +865,39 @@ function SubscriptionUpdateModal({ company, subscriptions, onUpdate, onClose }) 
             justify-content: flex-end;
             gap: 12px;
             padding: 20px;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--color-border);
           }
 
           .cancel-button {
             padding: 8px 16px;
-            background: #f3f4f6;
-            color: #374151;
+            background: var(--color-surface-warm);
+            color: var(--color-text);
             border: none;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
             font-weight: 500;
           }
 
           .cancel-button:hover {
-            background: #e5e7eb;
+            background: var(--color-border);
           }
 
           .update-button {
             padding: 8px 16px;
-            background: #3b82f6;
+            background: var(--color-primary);
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
             font-weight: 500;
           }
 
           .update-button:hover:not(:disabled) {
-            background: #2563eb;
+            background: var(--color-primary-hover);
           }
 
           .update-button:disabled {
-            background: #9ca3af;
+            background: var(--color-text-muted);
             cursor: not-allowed;
           }
         `}</style>

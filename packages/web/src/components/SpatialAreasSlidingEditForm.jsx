@@ -106,12 +106,12 @@ const SpatialAreaSlidingEditForm = ({
       case 'paddock':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Paddock Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Pasture Type
                 </label>
                 <input
@@ -119,11 +119,11 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.pasture_type || ''}
                   onChange={(e) => handleMetadataChange('pasture_type', e.target.value)}
                   placeholder="e.g., Ryegrass/Clover"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Stocking Rate (animals/ha)
                 </label>
                 <input
@@ -132,19 +132,19 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.stocking_rate || ''}
                   onChange={(e) => handleMetadataChange('stocking_rate', e.target.value)}
                   placeholder="e.g., 12.5"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Grazing System
                 </label>
                 <select
                   value={metadata.grazing_system || ''}
                   onChange={(e) => handleMetadataChange('grazing_system', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select system</option>
                   <option value="rotational">Rotational</option>
@@ -154,7 +154,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Soil Type
                 </label>
                 <input
@@ -162,13 +162,13 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.soil_type || ''}
                   onChange={(e) => handleMetadataChange('soil_type', e.target.value)}
                   placeholder="e.g., Clay loam"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Water Source
                 </label>
                 <input
@@ -176,18 +176,18 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.water_source || ''}
                   onChange={(e) => handleMetadataChange('water_source', e.target.value)}
                   placeholder="e.g., Bore, Stream, Trough"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Last Renovation
                 </label>
                 <input
                   type="date"
                   value={metadata.last_renovation || ''}
                   onChange={(e) => handleMetadataChange('last_renovation', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -197,12 +197,12 @@ const SpatialAreaSlidingEditForm = ({
       case 'orchard':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Orchard Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Crop Type
                 </label>
                 <input
@@ -210,11 +210,11 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.crop_type || ''}
                   onChange={(e) => handleMetadataChange('crop_type', e.target.value)}
                   placeholder="e.g., Apples, Citrus, Stone fruit"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Varieties
                 </label>
                 <input
@@ -222,13 +222,13 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.varieties || ''}
                   onChange={(e) => handleMetadataChange('varieties', e.target.value)}
                   placeholder="e.g., Gala, Braeburn"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Planting Density (trees/ha)
                 </label>
                 <input
@@ -236,11 +236,11 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.planting_density || ''}
                   onChange={(e) => handleMetadataChange('planting_density', e.target.value)}
                   placeholder="e.g., 1200"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Training System
                 </label>
                 <input
@@ -248,30 +248,30 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.training_system || ''}
                   onChange={(e) => handleMetadataChange('training_system', e.target.value)}
                   placeholder="e.g., Trellis, Central leader"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Planted Date
                 </label>
                 <input
                   type="date"
                   value={metadata.planted_date || ''}
                   onChange={(e) => handleMetadataChange('planted_date', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Irrigation System
                 </label>
                 <select
                   value={metadata.irrigation_system || ''}
                   onChange={(e) => handleMetadataChange('irrigation_system', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select system</option>
                   <option value="drip">Drip</option>
@@ -288,12 +288,12 @@ const SpatialAreaSlidingEditForm = ({
       case 'plantation_forestry':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Plantation Forestry Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Tree Species
                 </label>
                 <input
@@ -301,11 +301,11 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.tree_species || ''}
                   onChange={(e) => handleMetadataChange('tree_species', e.target.value)}
                   placeholder="e.g., Pinus radiata, Eucalyptus"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Planting Density (stems/ha)
                 </label>
                 <input
@@ -313,36 +313,36 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.planting_density || ''}
                   onChange={(e) => handleMetadataChange('planting_density', e.target.value)}
                   placeholder="e.g., 1000"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Planted Date
                 </label>
                 <input
                   type="date"
                   value={metadata.planted_date || ''}
                   onChange={(e) => handleMetadataChange('planted_date', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Expected Harvest Date
                 </label>
                 <input
                   type="date"
                   value={metadata.expected_harvest || ''}
                   onChange={(e) => handleMetadataChange('expected_harvest', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                 Management Regime
               </label>
               <textarea
@@ -350,7 +350,7 @@ const SpatialAreaSlidingEditForm = ({
                 onChange={(e) => handleMetadataChange('management_regime', e.target.value)}
                 placeholder="Pruning schedule, thinning operations, etc."
                 rows={3}
-                style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box', resize: 'vertical' }}
+                style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box', resize: 'vertical' }}
               />
             </div>
           </div>
@@ -359,12 +359,12 @@ const SpatialAreaSlidingEditForm = ({
       case 'native_forest':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Native Forest Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Dominant Species
                 </label>
                 <input
@@ -372,17 +372,17 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.dominant_species || ''}
                   onChange={(e) => handleMetadataChange('dominant_species', e.target.value)}
                   placeholder="e.g., Kauri, Beech, Podocarp"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Forest Type
                 </label>
                 <select
                   value={metadata.forest_type || ''}
                   onChange={(e) => handleMetadataChange('forest_type', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select type</option>
                   <option value="podocarp">Podocarp</option>
@@ -395,13 +395,13 @@ const SpatialAreaSlidingEditForm = ({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Conservation Status
                 </label>
                 <select
                   value={metadata.conservation_status || ''}
                   onChange={(e) => handleMetadataChange('conservation_status', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select status</option>
                   <option value="protected">Protected</option>
@@ -411,7 +411,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: '#374151', marginTop: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--color-text)', marginTop: '1.5rem' }}>
                   <input
                     type="checkbox"
                     checked={metadata.public_access || false}
@@ -428,18 +428,18 @@ const SpatialAreaSlidingEditForm = ({
       case 'infrastructure_zone':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Infrastructure Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Infrastructure Type
                 </label>
                 <select
                   value={metadata.infrastructure_type || ''}
                   onChange={(e) => handleMetadataChange('infrastructure_type', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select type</option>
                   <option value="buildings">Buildings</option>
@@ -450,7 +450,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Capacity/Specifications
                 </label>
                 <input
@@ -458,12 +458,12 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.capacity || ''}
                   onChange={(e) => handleMetadataChange('capacity', e.target.value)}
                   placeholder="e.g., 500 tonnes, 20kW"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                 Safety Requirements
               </label>
               <textarea
@@ -471,7 +471,7 @@ const SpatialAreaSlidingEditForm = ({
                 onChange={(e) => handleMetadataChange('safety_requirements', e.target.value)}
                 placeholder="Safety protocols, access restrictions, etc."
                 rows={3}
-                style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box', resize: 'vertical' }}
+                style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box', resize: 'vertical' }}
               />
             </div>
           </div>
@@ -480,18 +480,18 @@ const SpatialAreaSlidingEditForm = ({
       case 'waterway':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Waterway Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Water Type
                 </label>
                 <select
                   value={metadata.water_type || ''}
                   onChange={(e) => handleMetadataChange('water_type', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select type</option>
                   <option value="stream">Stream</option>
@@ -502,7 +502,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Flow Rate (L/s)
                 </label>
                 <input
@@ -511,19 +511,19 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.flow_rate || ''}
                   onChange={(e) => handleMetadataChange('flow_rate', e.target.value)}
                   placeholder="e.g., 15.5"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Water Quality Status
                 </label>
                 <select
                   value={metadata.water_quality || ''}
                   onChange={(e) => handleMetadataChange('water_quality', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select quality</option>
                   <option value="excellent">Excellent</option>
@@ -533,7 +533,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Fish Species Present
                 </label>
                 <input
@@ -541,7 +541,7 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.fish_species || ''}
                   onChange={(e) => handleMetadataChange('fish_species', e.target.value)}
                   placeholder="e.g., Trout, Native galaxias"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -551,18 +551,18 @@ const SpatialAreaSlidingEditForm = ({
       case 'wetland':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Wetland Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Wetland Type
                 </label>
                 <select
                   value={metadata.wetland_type || ''}
                   onChange={(e) => handleMetadataChange('wetland_type', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select type</option>
                   <option value="natural">Natural</option>
@@ -571,7 +571,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Dominant Vegetation
                 </label>
                 <input
@@ -579,13 +579,13 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.dominant_vegetation || ''}
                   onChange={(e) => handleMetadataChange('dominant_vegetation', e.target.value)}
                   placeholder="e.g., Raupo, Flax, Sedges"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Water Source
                 </label>
                 <input
@@ -593,11 +593,11 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.water_source || ''}
                   onChange={(e) => handleMetadataChange('water_source', e.target.value)}
                   placeholder="e.g., Spring fed, Rainfall"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Wildlife Species
                 </label>
                 <input
@@ -605,7 +605,7 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.wildlife_species || ''}
                   onChange={(e) => handleMetadataChange('wildlife_species', e.target.value)}
                   placeholder="e.g., Pukeko, Ducks, Native fish"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -615,12 +615,12 @@ const SpatialAreaSlidingEditForm = ({
       case 'conservation_area':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Conservation Area Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Conservation Purpose
                 </label>
                 <input
@@ -628,11 +628,11 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.conservation_purpose || ''}
                   onChange={(e) => handleMetadataChange('conservation_purpose', e.target.value)}
                   placeholder="e.g., Native bird habitat"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Protected Species
                 </label>
                 <input
@@ -640,19 +640,19 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.protected_species || ''}
                   onChange={(e) => handleMetadataChange('protected_species', e.target.value)}
                   placeholder="e.g., Kiwi, Kakapo, Native orchids"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Legal Protection Status
                 </label>
                 <select
                   value={metadata.protection_status || ''}
                   onChange={(e) => handleMetadataChange('protection_status', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select status</option>
                   <option value="covenant">Conservation Covenant</option>
@@ -663,7 +663,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: '#374151', marginTop: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--color-text)', marginTop: '1.5rem' }}>
                   <input
                     type="checkbox"
                     checked={metadata.access_restricted || false}
@@ -680,18 +680,18 @@ const SpatialAreaSlidingEditForm = ({
       case 'waste_management':
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: '#374151' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text)' }}>
               Waste Management Details
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Waste Type
                 </label>
                 <select
                   value={metadata.waste_type || ''}
                   onChange={(e) => handleMetadataChange('waste_type', e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 >
                   <option value="">Select type</option>
                   <option value="organic">Organic Waste</option>
@@ -702,7 +702,7 @@ const SpatialAreaSlidingEditForm = ({
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                   Capacity
                 </label>
                 <input
@@ -710,12 +710,12 @@ const SpatialAreaSlidingEditForm = ({
                   value={metadata.capacity || ''}
                   onChange={(e) => handleMetadataChange('capacity', e.target.value)}
                   placeholder="e.g., 50 tonnes, 1000L"
-                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: '#374151' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.875rem', color: 'var(--color-text)' }}>
                 Treatment Method
               </label>
               <input
@@ -723,7 +723,7 @@ const SpatialAreaSlidingEditForm = ({
                 value={metadata.treatment_method || ''}
                 onChange={(e) => handleMetadataChange('treatment_method', e.target.value)}
                 placeholder="e.g., Composting, Incineration, Landfill"
-                style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '0.75rem 1rem', border: '2px solid var(--color-border)', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -778,13 +778,13 @@ const SpatialAreaSlidingEditForm = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '1.5rem 1.25rem 1rem',
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid var(--color-surface-warm)',
           position: 'sticky',
           top: 0,
           backgroundColor: 'white',
           zIndex: 10
         }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#111827' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text)' }}>
             Edit Management Area - {formData.name}
           </h2>
           <button 
@@ -793,7 +793,7 @@ const SpatialAreaSlidingEditForm = ({
               background: 'none',
               border: 'none',
               fontSize: '1.5rem',
-              color: '#6b7280',
+              color: 'var(--color-text-muted)',
               cursor: 'pointer',
               padding: '0.25rem',
               width: '32px',
@@ -810,20 +810,20 @@ const SpatialAreaSlidingEditForm = ({
         
         {/* Area info header */}
         <div style={{
-          backgroundColor: '#f3f4f6',
+          backgroundColor: 'var(--color-surface-warm)',
           padding: '1rem 1.25rem',
-          borderBottom: '1px solid #e5e7eb'
+          borderBottom: '1px solid var(--color-border)'
         }}>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>Area ID:</strong> {spatialAreaData.id}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>Area:</strong> {spatialAreaData.area_hectares?.toFixed(2)} ha
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             <strong>Company ID:</strong> {spatialAreaData.company_id}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
             <Info size={16} style={{ display: 'inline', marginRight: '0.25rem' }} />
             <strong>Note:</strong> Type-specific fields are stored in metadata and will change based on the selected area type.
           </div>
@@ -832,9 +832,9 @@ const SpatialAreaSlidingEditForm = ({
         <div style={{ padding: '1.25rem', paddingBottom: '2rem' }}>
           {error && (
             <div style={{
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fecaca',
+              backgroundColor: 'var(--color-danger-bg)',
+              color: 'var(--color-danger)',
+              border: '1px solid var(--color-danger-bg)',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
               marginBottom: '1rem',
@@ -855,7 +855,7 @@ const SpatialAreaSlidingEditForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Area Name *
             </label>
@@ -868,7 +868,7 @@ const SpatialAreaSlidingEditForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -889,7 +889,7 @@ const SpatialAreaSlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Area Type *
               </label>
@@ -900,7 +900,7 @@ const SpatialAreaSlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -922,7 +922,7 @@ const SpatialAreaSlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Parent Area
               </label>
@@ -933,7 +933,7 @@ const SpatialAreaSlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -962,7 +962,7 @@ const SpatialAreaSlidingEditForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Area (hectares)
               </label>
@@ -976,7 +976,7 @@ const SpatialAreaSlidingEditForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -992,7 +992,7 @@ const SpatialAreaSlidingEditForm = ({
                 gap: '0.5rem',
                 cursor: 'pointer',
                 fontSize: '0.875rem',
-                color: '#374151',
+                color: 'var(--color-text)',
                 marginTop: '1.5rem'
               }}>
                 <input
@@ -1017,7 +1017,7 @@ const SpatialAreaSlidingEditForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Description
             </label>
@@ -1030,7 +1030,7 @@ const SpatialAreaSlidingEditForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -1043,8 +1043,8 @@ const SpatialAreaSlidingEditForm = ({
           {/* Type-specific fields */}
           {formData.area_type && (
             <div style={{
-              backgroundColor: '#f9fafb',
-              border: '1px solid #e5e7eb',
+              backgroundColor: 'var(--color-surface-warm)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px',
               padding: '1rem',
               marginBottom: '1.25rem'
@@ -1059,9 +1059,9 @@ const SpatialAreaSlidingEditForm = ({
             justifyContent: 'flex-end',
             marginTop: '1.5rem',
             paddingTop: '1.5rem',
-            borderTop: '1px solid #f3f4f6'
+            borderTop: '1px solid var(--color-surface-warm)'
           }}>
-            <button 
+            <button
               onClick={onClose}
               disabled={loading}
               style={{
@@ -1071,8 +1071,8 @@ const SpatialAreaSlidingEditForm = ({
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                backgroundColor: '#f3f4f6',
-                color: '#4b5563',
+                backgroundColor: 'var(--color-surface-warm)',
+                color: 'var(--color-text)',
                 opacity: loading ? 0.6 : 1
               }}
             >

@@ -30,7 +30,8 @@
       "Bash(Get-ChildItem -Path \"A:\\\\auxein-insights-V0.1\\\\backend\\\\alembic\\\\versions\" -Filter \"*.py\")",
       "Bash(Sort-Object Name)",
       "Bash(Get-ChildItem -Path \"A:\\\\auxein-insights-V0.1\" -Directory)",
-      "PowerShell($p='A:\\\\auxein-insights-V0.1\\\\backend\\\\schemas\\\\incident.py'; $b=[System.IO.File]::ReadAllBytes\\($p\\); $crlf=\\([regex]::Matches\\([System.Text.Encoding]::ASCII.GetString\\($b\\),\"`r`n\"\\)\\).Count; $lf=\\([regex]::Matches\\([System.Text.Encoding]::ASCII.GetString\\($b\\),\"`n\"\\)\\).Count; $bom = \\($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF\\); \"CRLF=$crlf totalLF=$lf BOM=$bom\")"
+      "PowerShell($p='A:\\\\auxein-insights-V0.1\\\\backend\\\\schemas\\\\incident.py'; $b=[System.IO.File]::ReadAllBytes\\($p\\); $crlf=\\([regex]::Matches\\([System.Text.Encoding]::ASCII.GetString\\($b\\),\"`r`n\"\\)\\).Count; $lf=\\([regex]::Matches\\([System.Text.Encoding]::ASCII.GetString\\($b\\),\"`n\"\\)\\).Count; $bom = \\($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF\\); \"CRLF=$crlf totalLF=$lf BOM=$bom\")",
+      "WebFetch(domain:support.google.com)"
     ]
   }
 }

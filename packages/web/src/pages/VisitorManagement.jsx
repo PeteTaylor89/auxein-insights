@@ -67,7 +67,7 @@ const VisitorDashboard = () => {
           {[
             { label: 'Active Visits', value: dashboardData.active_visits, icon: <Users style={{ width: 32, height: 32, color: 'var(--color-primary)', marginRight: 'var(--space-base)' }} /> },
             { label: "Today's Visits", value: dashboardData.today_visits, icon: <Clock style={{ width: 32, height: 32, color: 'var(--color-success)', marginRight: 'var(--space-base)' }} /> },
-            { label: 'Monthly Total', value: dashboardData.stats?.visits_this_month || 0, icon: <TrendingUp style={{ width: 32, height: 32, color: '#7c3aed', marginRight: 'var(--space-base)' }} /> },
+            { label: 'Monthly Total', value: dashboardData.stats?.visits_this_month || 0, icon: <TrendingUp style={{ width: 32, height: 32, color: 'var(--color-primary)', marginRight: 'var(--space-base)' }} /> },
             { label: 'Alerts', value: dashboardData.alerts?.length || 0, icon: <AlertTriangle style={{ width: 32, height: 32, color: 'var(--color-warning)', marginRight: 'var(--space-base)' }} /> }
           ].map((s, i) => (
             <div key={i} className="vi-stat-card">

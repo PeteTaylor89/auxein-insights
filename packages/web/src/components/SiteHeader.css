@@ -90,8 +90,8 @@ a.header-brand {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-base);
-  background: #f5f5f5;
-  border: 1px solid #ddd;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-base);
   font-weight: 500;
@@ -101,7 +101,7 @@ a.header-brand {
 }
 
 .user-menu-trigger:hover {
-  background: #e8e8e8;
+  background: var(--color-border);
   border-color: var(--color-primary);
 }
 
@@ -145,7 +145,7 @@ a.header-brand {
   padding: var(--space-md) var(--space-base);
   background: none;
   border: none;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-surface-warm);
   font-size: var(--font-size-base);
   color: var(--color-text);
   text-align: left;
@@ -155,7 +155,7 @@ a.header-brand {
 }
 
 .user-dropdown-item:hover {
-  background: #f5f5f5;
+  background: var(--color-surface-warm);
 }
 
 .user-dropdown-item:first-of-type {
@@ -190,7 +190,7 @@ a.header-brand {
 }
 
 .mobile-menu-btn:hover {
-  background: #f5f5f5;
+  background: var(--color-surface-warm);
   border-color: var(--color-primary);
 }
 
@@ -244,17 +244,17 @@ a.header-brand {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
+  background: var(--color-surface-warm);
   border: none;
   border-radius: var(--radius-md);
-  color: #666;
+  color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition-base);
 }
 
 .mobile-nav-close:hover {
-  background: #e5e5e5;
-  color: #333;
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 .mobile-nav > a:first-of-type {
@@ -281,7 +281,7 @@ a.header-brand {
 
 .mobile-nav a:hover,
 .mobile-nav .mobile-nav-item:hover {
-  background: #f8f8f8;
+  background: var(--color-surface-warm);
 }
 
 .mobile-nav a.active {
@@ -296,7 +296,7 @@ a.header-brand {
 
 .mobile-nav-divider {
   height: 1px;
-  background: #e5e5e5;
+  background: var(--color-border);
   margin: var(--space-base) var(--space-lg);
 }
 
@@ -306,7 +306,7 @@ a.header-brand {
   align-items: center;
   gap: 14px;
   padding: 20px var(--space-lg);
-  background: #f8f9fa;
+  background: var(--color-surface-warm);
   margin: var(--space-sm) var(--space-base);
   border-radius: var(--radius-lg);
 }
@@ -329,7 +329,7 @@ a.header-brand {
 
 .mobile-user-info strong {
   font-size: 15px;
-  color: #1a1a1a;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -409,7 +409,7 @@ a.header-brand {
 
   .mobile-menu-btn:active {
     transform: scale(0.95);
-    background: #f0f0f0;
+    background: var(--color-surface-warm);
   }
 }
 

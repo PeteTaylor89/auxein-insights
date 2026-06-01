@@ -1134,7 +1134,7 @@ button.stat-card,
 /* Button Styles */
 .btn-primary, .btn-secondary {
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
@@ -1144,22 +1144,22 @@ button.stat-card,
 }
 
 .btn-primary {
-  background: #3b82f6;
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-white);
 }
 
 .btn-primary:hover {
-  background: #2563eb;
+  background: var(--color-primary-hover);
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  background: var(--color-surface-warm);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
 }
 
 .btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--color-olive-light);
 }
 
 .btn-sm {
@@ -1168,13 +1168,13 @@ button.stat-card,
 }
 
 .btn-link {
-  color: #3b82f6;
+  color: var(--color-primary);
   text-decoration: none;
   font-weight: 500;
 }
 
 .btn-link:hover {
-  color: #2563eb;
+  color: var(--color-accent);
   text-decoration: underline;
 }
 
@@ -1848,7 +1848,7 @@ button.stat-card,
 .profile-header h1 {
   font-size: 2rem;
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text);
   margin: 0;
 }
 
@@ -1865,18 +1865,18 @@ button.stat-card,
 .profile-section h2 {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text);
   margin-bottom: 1rem;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--color-border);
   padding-bottom: 0.5rem;
 }
 
 .profile-card {
-  background: white;
-  border: 1px solid #99bbff;
-  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-olive-border);
+  border-radius: var(--radius-lg);
   padding: 1rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-field {
@@ -1884,7 +1884,7 @@ button.stat-card,
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .profile-field:last-child {
@@ -1893,12 +1893,12 @@ button.stat-card,
 
 .profile-field label {
   font-weight: 500;
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.875rem;
 }
 
 .profile-field span {
-  color: #111827;
+  color: var(--color-text);
   font-weight: 400;
   text-align: right;
   max-width: 60%;
@@ -1915,13 +1915,13 @@ button.stat-card,
 }
 
 .role-badge.admin {
-  background-color: #fee2e2;
-  color: #dc2626;
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .role-badge.user {
-  background-color: #e0e7ff;
-  color: #3730a3;
+  background-color: var(--color-info-bg);
+  color: var(--color-info-text);
 }
 
 
@@ -1935,11 +1935,11 @@ button.stat-card,
 }
 
 .logout-button {
-  background-color: #dc2626;
-  color: white;
+  background-color: var(--color-danger);
+  color: var(--color-white);
   border: none;
   padding: 0.75rem 2rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
@@ -1947,18 +1947,18 @@ button.stat-card,
 }
 
 .logout-button:hover {
-  background-color: #b91c1c;
+  background-color: var(--color-danger-hover);
 }
 
 .logout-button:active {
-  background-color: #991b1b;
+  background-color: var(--color-danger-text);
 }
 
 /* Loading and Error States */
 .loading-message {
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 1.1rem;
 }
 

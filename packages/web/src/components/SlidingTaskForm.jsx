@@ -138,13 +138,13 @@ const SlidingTaskForm = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '1.5rem 1.25rem 1rem',
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid var(--color-surface-warm)',
           position: 'sticky',
           top: 0,
           backgroundColor: 'white',
           zIndex: 10
         }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#111827' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text)' }}>
             Create New Task
           </h2>
           <button 
@@ -153,7 +153,7 @@ const SlidingTaskForm = ({
               background: 'none',
               border: 'none',
               fontSize: '1.5rem',
-              color: '#6b7280',
+              color: 'var(--color-text-muted)',
               cursor: 'pointer',
               padding: '0.25rem',
               width: '32px',
@@ -189,9 +189,9 @@ const SlidingTaskForm = ({
         <div style={{ padding: '1.25rem', paddingBottom: '2rem' }}>
           {error && (
             <div style={{
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fecaca',
+              backgroundColor: 'var(--color-danger-bg)',
+              color: 'var(--color-danger)',
+              border: '1px solid var(--color-danger-bg)',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
               marginBottom: '1rem',
@@ -207,7 +207,7 @@ const SlidingTaskForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Task Title *
             </label>
@@ -220,7 +220,7 @@ const SlidingTaskForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -235,7 +235,7 @@ const SlidingTaskForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Description
             </label>
@@ -248,7 +248,7 @@ const SlidingTaskForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -271,7 +271,7 @@ const SlidingTaskForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Vineyard Block *
               </label>
@@ -282,7 +282,7 @@ const SlidingTaskForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -304,7 +304,7 @@ const SlidingTaskForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Assign To
               </label>
@@ -315,7 +315,7 @@ const SlidingTaskForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -344,7 +344,7 @@ const SlidingTaskForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Due Date
               </label>
@@ -356,7 +356,7 @@ const SlidingTaskForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -371,7 +371,7 @@ const SlidingTaskForm = ({
                 marginBottom: '0.5rem',
                 fontWeight: 500,
                 fontSize: '0.875rem',
-                color: '#374151'
+                color: 'var(--color-text)'
               }}>
                 Priority
               </label>
@@ -382,7 +382,7 @@ const SlidingTaskForm = ({
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
-                  border: '2px solid #e5e7eb',
+                  border: '2px solid var(--color-border)',
                   borderRadius: '8px',
                   fontSize: '1rem',
                   backgroundColor: '#ffffff',
@@ -403,7 +403,7 @@ const SlidingTaskForm = ({
               marginBottom: '0.5rem',
               fontWeight: 500,
               fontSize: '0.875rem',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Task Type
             </label>
@@ -414,7 +414,7 @@ const SlidingTaskForm = ({
               style={{
                 width: '100%',
                 padding: '0.75rem 1rem',
-                border: '2px solid #e5e7eb',
+                border: '2px solid var(--color-border)',
                 borderRadius: '8px',
                 fontSize: '1rem',
                 backgroundColor: '#ffffff',
@@ -437,7 +437,7 @@ const SlidingTaskForm = ({
             justifyContent: 'flex-end',
             marginTop: '1.5rem',
             paddingTop: '1.5rem',
-            borderTop: '1px solid #f3f4f6'
+            borderTop: '1px solid var(--color-surface-warm)'
           }}>
             <button 
               onClick={onClose}
@@ -449,8 +449,8 @@ const SlidingTaskForm = ({
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                backgroundColor: '#f3f4f6',
-                color: '#4b5563',
+                backgroundColor: 'var(--color-surface-warm)',
+                color: 'var(--color-text)',
                 opacity: loading ? 0.6 : 1
               }}
             >

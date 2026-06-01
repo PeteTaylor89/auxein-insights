@@ -370,28 +370,28 @@ function AcceptInvitation() {
         }
 
         .header h1 {
-          color: #1f2937;
+          color: var(--color-text);
           margin-bottom: 8px;
           font-size: 2rem;
         }
 
         .header p {
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-size: 1.1rem;
         }
 
         .invitation-details {
           background: #f8fafc;
           padding: 24px;
-          border-radius: 12px;
+          border-radius: var(--radius-lg);
           margin-bottom: 30px;
-          border-left: 4px solid #3b82f6;
+          border-left: 4px solid var(--color-primary);
         }
 
         .invitation-details h3 {
           margin-top: 0;
           margin-bottom: 16px;
-          color: #1f2937;
+          color: var(--color-text);
         }
 
         .detail-grid {
@@ -408,18 +408,18 @@ function AcceptInvitation() {
 
         .label {
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text);
         }
 
         .value {
-          color: #1f2937;
+          color: var(--color-text);
           font-weight: 500;
         }
 
         .personal-message {
-          background: #e0f2fe;
+          background: var(--color-info-bg);
           padding: 16px;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           margin-top: 16px;
         }
 
@@ -431,7 +431,7 @@ function AcceptInvitation() {
 
         .form-container h3 {
           margin-bottom: 24px;
-          color: #1f2937;
+          color: var(--color-text);
         }
 
         .form-row {
@@ -448,7 +448,7 @@ function AcceptInvitation() {
           display: block;
           margin-bottom: 8px;
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text);
           font-size: 14px;
         }
 
@@ -456,8 +456,8 @@ function AcceptInvitation() {
         .form-group select {
           width: 100%;
           padding: 12px 16px;
-          border: 2px solid #e5e7eb;
-          border-radius: 8px;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-md);
           font-size: 16px;
           transition: all 0.2s;
           box-sizing: border-box;
@@ -466,20 +466,20 @@ function AcceptInvitation() {
         .form-group input:focus,
         .form-group select:focus {
           outline: none;
-          border-color: #3b82f6;
+          border-color: var(--color-primary);
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         .form-group small {
           display: block;
           margin-top: 6px;
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-size: 13px;
         }
 
         .submit-button {
           width: 100%;
-          background: #3b82f6;
+          background: var(--color-primary);
           color: white;
           padding: 16px 24px;
           border: none;
@@ -495,12 +495,12 @@ function AcceptInvitation() {
         }
 
         .submit-button:hover:not(:disabled) {
-          background: #2563eb;
+          background: var(--color-primary-hover);
           transform: translateY(-1px);
         }
 
         .submit-button:disabled {
-          background: #9ca3af;
+          background: var(--color-text-muted);
           cursor: not-allowed;
           transform: none;
         }
@@ -510,13 +510,13 @@ function AcceptInvitation() {
           height: 16px;
           border: 2px solid transparent;
           border-top: 2px solid white;
-          border-radius: 50%;
+          border-radius: var(--radius-pill);
           animation: spin 1s linear infinite;
         }
 
         .primary-button, .secondary-button {
           padding: 12px 24px;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s;
@@ -525,25 +525,25 @@ function AcceptInvitation() {
         }
 
         .primary-button {
-          background: #3b82f6;
+          background: var(--color-primary);
           color: white;
           margin-right: 12px;
         }
 
         .primary-button:hover {
-          background: #2563eb;
+          background: var(--color-primary-hover);
         }
 
         .secondary-button {
-          background: #f3f4f6;
-          color: #374151;
-          border: 1px solid #d1d5db;
+          background: var(--color-surface-warm);
+          color: var(--color-text);
+          border: 1px solid var(--color-border);
           width: 100%;
           margin-top: 12px;
         }
 
         .secondary-button:hover {
-          background: #e5e7eb;
+          background: var(--color-border);
         }
 
         .action-buttons {
@@ -568,13 +568,13 @@ function AcceptInvitation() {
           left: 0;
           right: 0;
           height: 1px;
-          background: #e5e7eb;
+          background: var(--color-border);
         }
 
         .divider span {
           background: white;
           padding: 0 16px;
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-weight: 500;
         }
 
@@ -582,17 +582,17 @@ function AcceptInvitation() {
           text-align: center;
           margin-top: 30px;
           padding-top: 20px;
-          border-top: 1px solid #e5e7eb;
+          border-top: 1px solid var(--color-border);
         }
 
         .help-section p {
-          color: #6b7280;
+          color: var(--color-text-muted);
           font-size: 14px;
           margin: 0;
         }
 
         .help-section a {
-          color: #3b82f6;
+          color: var(--color-primary);
           text-decoration: none;
         }
 
@@ -601,21 +601,21 @@ function AcceptInvitation() {
         }
 
         .error-message {
-          background: #fef2f2;
-          color: #dc2626;
+          background: var(--color-danger-bg);
+          color: var(--color-danger);
           padding: 12px 16px;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           margin-bottom: 20px;
-          border: 1px solid #fecaca;
+          border: 1px solid var(--color-danger-bg);
           font-size: 14px;
         }
 
         .loading-spinner {
           width: 40px;
           height: 40px;
-          border: 4px solid #e5e7eb;
-          border-top: 4px solid #3b82f6;
-          border-radius: 50%;
+          border: 4px solid var(--color-border);
+          border-top: 4px solid var(--color-primary);
+          border-radius: var(--radius-pill);
           animation: spin 1s linear infinite;
           margin: 20px auto;
         }

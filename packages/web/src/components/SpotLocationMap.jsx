@@ -284,7 +284,7 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
         {/* Header */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderBottom: '1px solid #e5e7eb',
+          borderBottom: '1px solid var(--color-border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -300,7 +300,7 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               fontSize: '1.5rem',
               cursor: 'pointer',
               padding: '0.25rem',
-              color: '#6b7280'
+              color: 'var(--color-text-muted)'
             }}
           >
             ×
@@ -310,8 +310,8 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
         {/* Controls */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderBottom: '1px solid #e5e7eb',
-          background: '#f8fafc'
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-surface-warm)'
         }}>
           
           <div style={{
@@ -326,7 +326,7 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               border: '1px solid #0ea5e9',
               borderRadius: '6px',
               fontSize: '0.875rem',
-              color: '#0369a1',
+              color: 'var(--color-info)',
               flex: 1
             }}>
               Click on the map to place a marker, or use your current location
@@ -337,9 +337,9 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               disabled={loading}
               style={{
                 padding: '0.5rem 1rem',
-                border: '1px solid #3b82f6',
+                border: '1px solid var(--color-primary)',
                 background: 'white',
-                color: '#3b82f6',
+                color: 'var(--color-primary)',
                 borderRadius: '6px',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 fontSize: '0.875rem',
@@ -364,7 +364,7 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#f8fafc',
+              background: 'var(--color-surface-warm)',
               zIndex: 1000
             }}>
               <div style={{ textAlign: 'center' }}>
@@ -387,7 +387,7 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               background: '#fef2f2',
               zIndex: 1000
             }}>
-              <div style={{ textAlign: 'center', color: '#dc2626' }}>
+              <div style={{ textAlign: 'center', color: 'var(--color-danger)' }}>
                 <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⚠️</div>
                 <div>{error}</div>
               </div>
@@ -407,21 +407,21 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
         {/* Footer Actions */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderTop: '1px solid #e5e7eb',
+          borderTop: '1px solid var(--color-border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: '#f8fafc'
+          background: 'var(--color-surface-warm)'
         }}>
-          
+
           {/* Location Info */}
           <div style={{ flex: 1 }}>
             {currentCoords ? (
-              <div style={{ fontSize: '0.875rem', color: '#374151' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text)' }}>
                 <strong>Coordinates:</strong> {currentCoords.latitude.toFixed(6)}, {currentCoords.longitude.toFixed(6)}
               </div>
             ) : (
-              <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
                 No location selected
               </div>
             )}
@@ -435,9 +435,9 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
                 onClick={handleRemove}
                 style={{
                   padding: '0.5rem 1rem',
-                  border: '1px solid #dc2626',
+                  border: '1px solid var(--color-danger)',
                   background: 'white',
-                  color: '#dc2626',
+                  color: 'var(--color-danger)',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '0.875rem'
@@ -451,9 +451,9 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               onClick={onClose}
               style={{
                 padding: '0.5rem 1rem',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--color-border)',
                 background: 'white',
-                color: '#374151',
+                color: 'var(--color-text)',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '0.875rem'
@@ -468,7 +468,7 @@ function SpotLocationMap({ isOpen, onClose, onLocationSet, initialCoordinates = 
               style={{
                 padding: '0.5rem 1rem',
                 border: 'none',
-                background: currentCoords ? '#3b82f6' : '#9ca3af',
+                background: currentCoords ? 'var(--color-primary)' : 'var(--color-border)',
                 color: 'white',
                 borderRadius: '6px',
                 cursor: currentCoords ? 'pointer' : 'not-allowed',

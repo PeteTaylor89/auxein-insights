@@ -278,12 +278,12 @@ function EditIncident() {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        background: '#f8fafc',
+        background: 'var(--color-surface-warm)',
         paddingTop: '70px'
       }}>
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
           <h2>Loading Incident...</h2>
-          <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
+          <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
             {loadingSteps.incident && '📋 Loading incident details...'}
             {loadingSteps.compliance && '🔍 Checking compliance...'}
             {loadingSteps.supportingData && '📊 Loading supporting data...'}
@@ -293,7 +293,7 @@ function EditIncident() {
           <div style={{ 
             marginTop: '1rem', 
             fontSize: '0.75rem', 
-            color: '#9ca3af',
+            color: 'var(--color-text-muted)',
             fontFamily: 'monospace' 
           }}>
             Incident ID: {incidentId}
@@ -307,7 +307,7 @@ function EditIncident() {
     return (
       <div style={{ 
         minHeight: '100vh', 
-        background: '#f8fafc',
+        background: 'var(--color-surface-warm)',
         paddingTop: '70px',
         paddingBottom: '80px'
       }}>
@@ -317,11 +317,11 @@ function EditIncident() {
           padding: '1rem' 
         }}>
           <div style={{
-            background: '#fecaca',
-            border: '1px solid #dc2626',
+            background: 'var(--color-danger-bg)',
+            border: '1px solid var(--color-danger)',
             borderRadius: '8px',
             padding: '1.5rem',
-            color: '#991b1b'
+            color: 'var(--color-danger-text)'
           }}>
             <div style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               ❌ Error Loading Incident
@@ -329,14 +329,14 @@ function EditIncident() {
             <div style={{ marginBottom: '1rem' }}>
               {error}
             </div>
-            <div style={{ fontSize: '0.875rem', color: '#7f1d1d' }}>
+            <div style={{ fontSize: '0.875rem', color: 'var(--color-danger-text)' }}>
               Incident ID: {incidentId}
             </div>
             <button
               onClick={() => navigate('/riskdashboard')}
               style={{
                 marginTop: '1rem',
-                background: '#dc2626',
+                background: 'var(--color-danger)',
                 color: 'white',
                 border: 'none',
                 padding: '0.75rem 1.5rem',
@@ -356,7 +356,7 @@ function EditIncident() {
     return (
       <div style={{ 
         minHeight: '100vh', 
-        background: '#f8fafc',
+        background: 'var(--color-surface-warm)',
         paddingTop: '70px',
         paddingBottom: '80px'
       }}>
@@ -366,11 +366,11 @@ function EditIncident() {
           padding: '1rem' 
         }}>
           <div style={{
-            background: '#fef3c7',
-            border: '1px solid #f59e0b',
+            background: 'var(--color-warning-bg)',
+            border: '1px solid var(--color-warning)',
             borderRadius: '8px',
             padding: '1.5rem',
-            color: '#92400e'
+            color: 'var(--color-warning-text)'
           }}>
             <div style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               ⚠️ Incident Not Found
@@ -383,13 +383,13 @@ function EditIncident() {
               <li>You don't have permission to view it</li>
               <li>The incident ID is invalid</li>
             </ul>
-            <div style={{ fontSize: '0.875rem', color: '#78350f', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.875rem', color: 'var(--color-warning-text)', marginBottom: '1rem' }}>
               Incident ID: {incidentId}
             </div>
             <button
               onClick={() => navigate('/riskdashboard')}
               style={{
-                background: '#f59e0b',
+                background: 'var(--color-warning)',
                 color: 'white',
                 border: 'none',
                 padding: '0.75rem 1.5rem',
@@ -651,7 +651,7 @@ function EditIncident() {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: '#f8fafc',
+      background: 'var(--color-surface-warm)',
       paddingTop: '70px',
       paddingBottom: '80px'
     }}>
@@ -675,13 +675,13 @@ function EditIncident() {
             alignItems: 'center',
             marginBottom: '1rem',
             paddingBottom: '0.5rem',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid var(--color-surface-warm)'
           }}>
             <div>
               <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '600' }}>
                 Edit Incident: {incident.incident_number}
               </h1>
-              <p style={{ margin: '0.25rem 0 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
+              <p style={{ margin: '0.25rem 0 0 0', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                 {incident.incident_title}
               </p>
             </div>
@@ -690,7 +690,7 @@ function EditIncident() {
                 <button 
                   onClick={() => setShowWorkSafeForm(true)}
                   style={{
-                    background: '#dc2626',
+                    background: 'var(--color-danger)',
                     color: 'white',
                     border: 'none',
                     padding: '0.5rem 1rem',
@@ -706,7 +706,7 @@ function EditIncident() {
                 <button 
                   onClick={() => setShowClosureForm(true)}
                   style={{
-                    background: '#059669',
+                    background: 'var(--color-success)',
                     color: 'white',
                     border: 'none',
                     padding: '0.5rem 1rem',
@@ -721,7 +721,7 @@ function EditIncident() {
               <button 
                 onClick={() => navigate('/riskdashboard')}
                 style={{
-                  background: '#6b7280',
+                  background: 'var(--color-text-muted)',
                   color: 'white',
                   border: 'none',
                   padding: '0.5rem 1rem',
@@ -742,11 +742,11 @@ function EditIncident() {
           }}>
             <div style={{
               padding: '0.75rem',
-              background: incident.severity === 'critical' || incident.severity === 'fatal' ? '#fecaca' : '#f8fafc',
-              border: `1px solid ${incident.severity === 'critical' || incident.severity === 'fatal' ? '#dc2626' : '#e5e7eb'}`,
+              background: incident.severity === 'critical' || incident.severity === 'fatal' ? 'var(--color-danger-bg)' : 'var(--color-surface-warm)',
+              border: `1px solid ${incident.severity === 'critical' || incident.severity === 'fatal' ? 'var(--color-danger)' : 'var(--color-border)'}`,
               borderRadius: '8px'
             }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Severity</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Severity</div>
               <div style={{ fontWeight: '600', textTransform: 'capitalize' }}>
                 {incident.severity}
               </div>
@@ -754,11 +754,11 @@ function EditIncident() {
             
             <div style={{
               padding: '0.75rem',
-              background: isNotifiable ? (isNotified ? '#dcfce7' : '#fecaca') : '#f8fafc',
-              border: `1px solid ${isNotifiable ? (isNotified ? '#22c55e' : '#dc2626') : '#e5e7eb'}`,
+              background: isNotifiable ? (isNotified ? 'var(--color-success-bg)' : 'var(--color-danger-bg)') : 'var(--color-surface-warm)',
+              border: `1px solid ${isNotifiable ? (isNotified ? 'var(--color-success)' : 'var(--color-danger)') : 'var(--color-border)'}`,
               borderRadius: '8px'
             }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>WorkSafe Status</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>WorkSafe Status</div>
               <div style={{ fontWeight: '600' }}>
                 {isNotifiable ? (isNotified ? '✅ Notified' : '⚠️ Notification Required') : 'Not Notifiable'}
               </div>
@@ -766,13 +766,13 @@ function EditIncident() {
             
             <div style={{
               padding: '0.75rem',
-              background: isOverdueInvestigation ? '#fecaca' : 
-                        incident.investigation_status === 'completed' ? '#dcfce7' : '#f8fafc',
-              border: `1px solid ${isOverdueInvestigation ? '#dc2626' : 
-                                 incident.investigation_status === 'completed' ? '#22c55e' : '#e5e7eb'}`,
+              background: isOverdueInvestigation ? 'var(--color-danger-bg)' :
+                        incident.investigation_status === 'completed' ? 'var(--color-success-bg)' : 'var(--color-surface-warm)',
+              border: `1px solid ${isOverdueInvestigation ? 'var(--color-danger)' :
+                                 incident.investigation_status === 'completed' ? 'var(--color-success)' : 'var(--color-border)'}`,
               borderRadius: '8px'
             }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Investigation</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Investigation</div>
               <div style={{ fontWeight: '600', textTransform: 'capitalize' }}>
                 {isOverdueInvestigation ? 'Overdue' : incident.investigation_status?.replace('_', ' ')}
               </div>
@@ -780,11 +780,11 @@ function EditIncident() {
             
             <div style={{
               padding: '0.75rem',
-              background: isClosed ? '#dcfce7' : '#f8fafc',
-              border: `1px solid ${isClosed ? '#22c55e' : '#e5e7eb'}`,
+              background: isClosed ? 'var(--color-success-bg)' : 'var(--color-surface-warm)',
+              border: `1px solid ${isClosed ? 'var(--color-success)' : 'var(--color-border)'}`,
               borderRadius: '8px'
             }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Status</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Status</div>
               <div style={{ fontWeight: '600', textTransform: 'capitalize' }}>
                 {incident.status?.replace('_', ' ')}
               </div>
@@ -795,12 +795,12 @@ function EditIncident() {
         {/* Success/Error Messages */}
         {success && (
           <div style={{
-            background: '#dcfce7',
-            border: '1px solid #22c55e',
+            background: 'var(--color-success-bg)',
+            border: '1px solid var(--color-success)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#166534'
+            color: 'var(--color-success-text)'
           }}>
             ✅ {success}
           </div>
@@ -808,12 +808,12 @@ function EditIncident() {
 
         {error && (
           <div style={{
-            background: '#fecaca',
-            border: '1px solid #dc2626',
+            background: 'var(--color-danger-bg)',
+            border: '1px solid var(--color-danger)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#991b1b'
+            color: 'var(--color-danger-text)'
           }}>
             ❌ {error}
           </div>
@@ -822,12 +822,12 @@ function EditIncident() {
         {/* Compliance Alerts */}
         {complianceData && !complianceData.overall_compliance && (
           <div style={{
-            background: '#fef3c7',
-            border: '1px solid #f59e0b',
+            background: 'var(--color-warning-bg)',
+            border: '1px solid var(--color-warning)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#92400e'
+            color: 'var(--color-warning-text)'
           }}>
             <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
               ⚠️ Compliance Issues Detected
@@ -851,7 +851,7 @@ function EditIncident() {
         }}>
           <div style={{
             display: 'flex',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid var(--color-surface-warm)'
           }}>
             {[
               { id: 'details', label: 'Basic Details', icon: '📝' },
@@ -865,12 +865,12 @@ function EditIncident() {
                   flex: 1,
                   padding: '1rem',
                   border: 'none',
-                  background: activeTab === tab.id ? '#f8fafc' : 'white',
-                  borderBottom: activeTab === tab.id ? '2px solid #3b82f6' : '2px solid transparent',
+                  background: activeTab === tab.id ? 'var(--color-surface-warm)' : 'white',
+                  borderBottom: activeTab === tab.id ? '2px solid var(--color-primary)' : '2px solid transparent',
                   cursor: 'pointer',
                   fontSize: '0.875rem',
                   fontWeight: '500',
-                  color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
+                  color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
                   transition: 'all 0.2s ease'
                 }}
               >
@@ -898,7 +898,7 @@ function EditIncident() {
                     onClick={saveBasicDetails}
                     disabled={loading}
                     style={{
-                      background: loading ? '#9ca3af' : '#3b82f6',
+                      background: loading ? 'var(--color-text-muted)' : 'var(--color-primary)',
                       color: 'white',
                       border: 'none',
                       padding: '0.5rem 1rem',
@@ -925,7 +925,7 @@ function EditIncident() {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem'
                     }}
@@ -945,7 +945,7 @@ function EditIncident() {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem',
                       resize: 'vertical'
@@ -957,7 +957,7 @@ function EditIncident() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                      Type * <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '400' }}>(cannot be changed)</span>
+                      Type * <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: '400' }}>(cannot be changed)</span>
                     </label>
                     <input
                       type="text"
@@ -966,11 +966,11 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem',
-                        backgroundColor: '#f9fafb',
-                        color: '#6b7280',
+                        backgroundColor: 'var(--color-surface-warm)',
+                        color: 'var(--color-text-muted)',
                         cursor: 'not-allowed'
                       }}
                     />
@@ -986,7 +986,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1009,7 +1009,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1044,7 +1044,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1054,7 +1054,7 @@ function EditIncident() {
                   <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
                       Discovered Date & Time
-                      <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '400' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: '400' }}>
                         {' '}(if different from incident date)
                       </span>
                     </label>
@@ -1065,7 +1065,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1086,7 +1086,7 @@ function EditIncident() {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem'
                     }}
@@ -1097,8 +1097,8 @@ function EditIncident() {
                 <div style={{ 
                   marginBottom: '1rem',
                   padding: '1rem',
-                  background: '#f8fafc',
-                  border: '1px solid #e5e7eb',
+                  background: 'var(--color-surface-warm)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '8px'
                 }}>
                   <div style={{ 
@@ -1115,7 +1115,7 @@ function EditIncident() {
                         type="button"
                         onClick={() => setShowLocationMap(true)}
                         style={{
-                          background: '#3b82f6',
+                          background: 'var(--color-primary)',
                           color: 'white',
                           border: 'none',
                           padding: '0.5rem 1rem',
@@ -1131,8 +1131,8 @@ function EditIncident() {
                   
                   {selectedLocation ? (
                     <div style={{
-                      background: '#dcfce7',
-                      border: '1px solid #22c55e',
+                      background: 'var(--color-success-bg)',
+                      border: '1px solid var(--color-success)',
                       borderRadius: '6px',
                       padding: '0.75rem',
                       display: 'flex',
@@ -1140,10 +1140,10 @@ function EditIncident() {
                       alignItems: 'center'
                     }}>
                       <div>
-                        <div style={{ fontWeight: '500', color: '#166534' }}>
+                        <div style={{ fontWeight: '500', color: 'var(--color-success-text)' }}>
                           ✅ Location Set: Point Location
                         </div>
-                        <div style={{ fontSize: '0.875rem', color: '#166534' }}>
+                        <div style={{ fontSize: '0.875rem', color: 'var(--color-success-text)' }}>
                           Coordinates: {selectedLocation.coordinates[1].toFixed(6)}, {selectedLocation.coordinates[0].toFixed(6)}
                         </div>
                       </div>
@@ -1152,7 +1152,7 @@ function EditIncident() {
                           type="button"
                           onClick={() => setShowLocationMap(true)}
                           style={{
-                            background: '#3b82f6',
+                            background: 'var(--color-primary)',
                             color: 'white',
                             border: 'none',
                             padding: '0.25rem 0.75rem',
@@ -1167,7 +1167,7 @@ function EditIncident() {
                           type="button"
                           onClick={handleRemoveLocation}
                           style={{
-                            background: '#dc2626',
+                            background: 'var(--color-danger)',
                             color: 'white',
                             border: 'none',
                             padding: '0.25rem 0.75rem',
@@ -1183,7 +1183,7 @@ function EditIncident() {
                   ) : (
                     <div style={{ 
                       fontSize: '0.875rem', 
-                      color: '#6b7280'
+                      color: 'var(--color-text-muted)'
                     }}>
                       No precise location set. Use "Set Location on Map" to mark the exact incident location.
                     </div>
@@ -1193,8 +1193,8 @@ function EditIncident() {
                 {/* People Involved Section - Conditional based on incident type */}
                 {(basicDetails.incident_type === 'injury' || basicDetails.injured_person_name || basicDetails.witness_details) && (
                   <div style={{
-                    background: '#f8fafc',
-                    border: '1px solid #e5e7eb',
+                    background: 'var(--color-surface-warm)',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginBottom: '1rem'
@@ -1206,7 +1206,7 @@ function EditIncident() {
                     {/* Injured Person Details */}
                     {basicDetails.incident_type === 'injury' && (
                       <div style={{ marginBottom: '1rem' }}>
-                        <h5 style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', fontWeight: '600', color: '#dc2626' }}>
+                        <h5 style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-danger)' }}>
                           🏥 Injured Person Details
                         </h5>
                         
@@ -1223,7 +1223,7 @@ function EditIncident() {
                               style={{
                                 width: '100%',
                                 padding: '0.5rem',
-                                border: '1px solid #d1d5db',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: '4px',
                                 fontSize: '0.875rem'
                               }}
@@ -1242,7 +1242,7 @@ function EditIncident() {
                               style={{
                                 width: '100%',
                                 padding: '0.5rem',
-                                border: '1px solid #d1d5db',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: '4px',
                                 fontSize: '0.875rem'
                               }}
@@ -1261,7 +1261,7 @@ function EditIncident() {
                               style={{
                                 width: '100%',
                                 padding: '0.5rem',
-                                border: '1px solid #d1d5db',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: '4px',
                                 fontSize: '0.875rem'
                               }}
@@ -1280,7 +1280,7 @@ function EditIncident() {
                               style={{
                                 width: '100%',
                                 padding: '0.5rem',
-                                border: '1px solid #d1d5db',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: '4px',
                                 fontSize: '0.875rem'
                               }}
@@ -1309,7 +1309,7 @@ function EditIncident() {
                               style={{
                                 width: '100%',
                                 padding: '0.5rem',
-                                border: '1px solid #d1d5db',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: '4px',
                                 fontSize: '0.875rem'
                               }}
@@ -1333,7 +1333,7 @@ function EditIncident() {
                             padding: '0.75rem',
                             background: '#ffffff',
                             borderRadius: '6px',
-                            border: '1px solid #d1d5db'
+                            border: '1px solid var(--color-border)'
                           }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                               <input
@@ -1352,7 +1352,7 @@ function EditIncident() {
                                 style={{
                                   width: '100%',
                                   padding: '0.5rem',
-                                  border: '1px solid #d1d5db',
+                                  border: '1px solid var(--color-border)',
                                   borderRadius: '4px',
                                   fontSize: '0.875rem'
                                 }}
@@ -1364,7 +1364,7 @@ function EditIncident() {
                             padding: '0.75rem',
                             background: '#ffffff',
                             borderRadius: '6px',
-                            border: '1px solid #d1d5db'
+                            border: '1px solid var(--color-border)'
                           }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                               <input
@@ -1384,7 +1384,7 @@ function EditIncident() {
                                 style={{
                                   width: '100%',
                                   padding: '0.5rem',
-                                  border: '1px solid #d1d5db',
+                                  border: '1px solid var(--color-border)',
                                   borderRadius: '4px',
                                   fontSize: '0.875rem'
                                 }}
@@ -1408,7 +1408,7 @@ function EditIncident() {
                         style={{
                           width: '100%',
                           padding: '0.5rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '4px',
                           fontSize: '0.875rem',
                           resize: 'vertical'
@@ -1421,8 +1421,8 @@ function EditIncident() {
                 {/* Property Damage Section */}
                 {(basicDetails.incident_type === 'property_damage' || (basicDetails.property_damage_cost && basicDetails.property_damage_cost !== '')) && (
                   <div style={{
-                    background: '#f8fafc',
-                    border: '1px solid #e5e7eb',
+                    background: 'var(--color-surface-warm)',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginBottom: '1rem'
@@ -1444,12 +1444,12 @@ function EditIncident() {
                         style={{
                           width: '200px',
                           padding: '0.5rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '4px',
                           fontSize: '0.875rem'
                         }}
                       />
-                      <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                      <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                         Enter estimated cost of repairs/replacement
                       </small>
                     </div>
@@ -1459,8 +1459,8 @@ function EditIncident() {
                 {/* Environmental Impact Section */}
                 {(basicDetails.incident_type === 'environmental' || basicDetails.environmental_impact) && (
                   <div style={{
-                    background: '#f8fafc',
-                    border: '1px solid #e5e7eb',
+                    background: 'var(--color-surface-warm)',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginBottom: '1rem'
@@ -1480,7 +1480,7 @@ function EditIncident() {
                         style={{
                           width: '100%',
                           padding: '0.5rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '4px',
                           fontSize: '0.875rem',
                           resize: 'vertical'
@@ -1492,8 +1492,8 @@ function EditIncident() {
 
                 {/* Immediate Actions Section */}
                 <div style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e5e7eb',
+                  background: 'var(--color-surface-warm)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '8px',
                   padding: '1rem',
                   marginBottom: '1rem'
@@ -1514,7 +1514,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.5rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '4px',
                         fontSize: '0.875rem',
                         resize: 'vertical'
@@ -1527,7 +1527,7 @@ function EditIncident() {
                       padding: '0.75rem',
                       background: '#ffffff',
                       borderRadius: '6px',
-                      border: '1px solid #d1d5db'
+                      border: '1px solid var(--color-border)'
                     }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
                         <input
@@ -1537,7 +1537,7 @@ function EditIncident() {
                         />
                         Evidence Collected
                       </label>
-                      <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                      <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                         Physical evidence, samples, or documents gathered
                       </small>
                     </div>
@@ -1546,7 +1546,7 @@ function EditIncident() {
                       padding: '0.75rem',
                       background: '#ffffff',
                       borderRadius: '6px',
-                      border: '1px solid #d1d5db'
+                      border: '1px solid var(--color-border)'
                     }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
                         <input
@@ -1556,7 +1556,7 @@ function EditIncident() {
                         />
                         Photos Taken
                       </label>
-                      <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                      <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                         Photographs of the incident scene/damage
                       </small>
                     </div>
@@ -1574,7 +1574,7 @@ function EditIncident() {
                     style={{
                       width: '300px',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem'
                     }}
@@ -1606,7 +1606,7 @@ function EditIncident() {
                         onClick={createCorrectiveAction}
                         disabled={loading}
                         style={{
-                          background: loading ? '#9ca3af' : '#f59e0b',
+                          background: loading ? 'var(--color-text-muted)' : 'var(--color-warning)',
                           color: 'white',
                           border: 'none',
                           padding: '0.5rem 1rem',
@@ -1622,7 +1622,7 @@ function EditIncident() {
                       onClick={saveInvestigation}
                       disabled={loading}
                       style={{
-                        background: loading ? '#9ca3af' : '#3b82f6',
+                        background: loading ? 'var(--color-text-muted)' : 'var(--color-primary)',
                         color: 'white',
                         border: 'none',
                         padding: '0.5rem 1rem',
@@ -1648,7 +1648,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1671,7 +1671,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1696,7 +1696,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1717,7 +1717,7 @@ function EditIncident() {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem',
                       resize: 'vertical'
@@ -1740,10 +1740,10 @@ function EditIncident() {
                       display: 'grid', 
                       gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
                       gap: '0.5rem',
-                      background: '#f8fafc',
+                      background: 'var(--color-surface-warm)',
                       padding: '1rem',
                       borderRadius: '6px',
-                      border: '1px solid #e5e7eb'
+                      border: '1px solid var(--color-border)'
                     }}>
                       {immediateCauses.map(cause => (
                         <label key={cause} style={{ 
@@ -1773,7 +1773,7 @@ function EditIncident() {
                         style={{
                           width: '100%',
                           padding: '0.5rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '4px',
                           fontSize: '0.875rem'
                         }}
@@ -1790,10 +1790,10 @@ function EditIncident() {
                       display: 'grid', 
                       gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
                       gap: '0.5rem',
-                      background: '#f8fafc',
+                      background: 'var(--color-surface-warm)',
                       padding: '1rem',
                       borderRadius: '6px',
-                      border: '1px solid #e5e7eb'
+                      border: '1px solid var(--color-border)'
                     }}>
                       {rootCauses.map(cause => (
                         <label key={cause} style={{ 
@@ -1823,7 +1823,7 @@ function EditIncident() {
                         style={{
                           width: '100%',
                           padding: '0.5rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '4px',
                           fontSize: '0.875rem'
                         }}
@@ -1840,10 +1840,10 @@ function EditIncident() {
                       display: 'grid', 
                       gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
                       gap: '0.5rem',
-                      background: '#f8fafc',
+                      background: 'var(--color-surface-warm)',
                       padding: '1rem',
                       borderRadius: '6px',
-                      border: '1px solid #e5e7eb'
+                      border: '1px solid var(--color-border)'
                     }}>
                       {contributingFactors.map(factor => (
                         <label key={factor} style={{ 
@@ -1873,7 +1873,7 @@ function EditIncident() {
                         style={{
                           width: '100%',
                           padding: '0.5rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '4px',
                           fontSize: '0.875rem'
                         }}
@@ -1896,7 +1896,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem',
                         resize: 'vertical'
@@ -1916,7 +1916,7 @@ function EditIncident() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem',
                         resize: 'vertical'
@@ -1938,7 +1938,7 @@ function EditIncident() {
                       style={{
                         width: '300px',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1952,19 +1952,19 @@ function EditIncident() {
                   investigationData.contributing_factors?.length > 0) && (
                   <div style={{
                     background: '#f0f9ff',
-                    border: '1px solid #0ea5e9',
+                    border: '1px solid var(--color-info)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginTop: '1.5rem'
                   }}>
-                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: '#0369a1' }}>
+                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-info)' }}>
                       🔍 Investigation Summary
                     </h4>
                     
                     {investigationData.immediate_causes?.length > 0 && (
                       <div style={{ marginBottom: '0.5rem' }}>
-                        <strong style={{ fontSize: '0.875rem', color: '#0369a1' }}>Immediate Causes:</strong>
-                        <span style={{ fontSize: '0.875rem', color: '#0369a1', marginLeft: '0.5rem' }}>
+                        <strong style={{ fontSize: '0.875rem', color: 'var(--color-info)' }}>Immediate Causes:</strong>
+                        <span style={{ fontSize: '0.875rem', color: 'var(--color-info)', marginLeft: '0.5rem' }}>
                           {investigationData.immediate_causes.map(cause => 
                             cause.replace(/_/g, ' ')
                           ).join(', ')}
@@ -1974,8 +1974,8 @@ function EditIncident() {
                     
                     {investigationData.root_causes?.length > 0 && (
                       <div style={{ marginBottom: '0.5rem' }}>
-                        <strong style={{ fontSize: '0.875rem', color: '#0369a1' }}>Root Causes:</strong>
-                        <span style={{ fontSize: '0.875rem', color: '#0369a1', marginLeft: '0.5rem' }}>
+                        <strong style={{ fontSize: '0.875rem', color: 'var(--color-info)' }}>Root Causes:</strong>
+                        <span style={{ fontSize: '0.875rem', color: 'var(--color-info)', marginLeft: '0.5rem' }}>
                           {investigationData.root_causes.map(cause => 
                             cause.replace(/_/g, ' ')
                           ).join(', ')}
@@ -1985,8 +1985,8 @@ function EditIncident() {
                     
                     {investigationData.contributing_factors?.length > 0 && (
                       <div>
-                        <strong style={{ fontSize: '0.875rem', color: '#0369a1' }}>Contributing Factors:</strong>
-                        <span style={{ fontSize: '0.875rem', color: '#0369a1', marginLeft: '0.5rem' }}>
+                        <strong style={{ fontSize: '0.875rem', color: 'var(--color-info)' }}>Contributing Factors:</strong>
+                        <span style={{ fontSize: '0.875rem', color: 'var(--color-info)', marginLeft: '0.5rem' }}>
                           {investigationData.contributing_factors.map(factor => 
                             factor.replace(/_/g, ' ')
                           ).join(', ')}
@@ -2020,8 +2020,8 @@ function EditIncident() {
 
                 {/* Notification Requirements */}
                 <div style={{
-                  background: isNotifiable ? (isNotified ? '#dcfce7' : '#fecaca') : '#f8fafc',
-                  border: `1px solid ${isNotifiable ? (isNotified ? '#22c55e' : '#dc2626') : '#e5e7eb'}`,
+                  background: isNotifiable ? (isNotified ? 'var(--color-success-bg)' : 'var(--color-danger-bg)') : 'var(--color-surface-warm)',
+                  border: `1px solid ${isNotifiable ? (isNotified ? 'var(--color-success)' : 'var(--color-danger)') : 'var(--color-border)'}`,
                   borderRadius: '8px',
                   padding: '1rem',
                   marginBottom: '1.5rem'
@@ -2048,7 +2048,7 @@ function EditIncident() {
                   {isNotifiable && (
                     <div style={{
                       fontSize: '0.875rem',
-                      color: isNotified ? '#166534' : '#991b1b',
+                      color: isNotified ? 'var(--color-success-text)' : 'var(--color-danger-text)',
                       marginBottom: '0.75rem'
                     }}>
                       {isNotified ? 
@@ -2061,12 +2061,12 @@ function EditIncident() {
 
                   {isNotifiable && !isNotified && (
                     <div style={{
-                      background: '#fef3c7',
-                      border: '1px solid #f59e0b',
+                      background: 'var(--color-warning-bg)',
+                      border: '1px solid var(--color-warning)',
                       borderRadius: '6px',
                       padding: '0.75rem',
                       fontSize: '0.875rem',
-                      color: '#92400e'
+                      color: 'var(--color-warning-text)'
                     }}>
                       <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
                         📞 How to Notify WorkSafe:
@@ -2083,13 +2083,13 @@ function EditIncident() {
                 {/* Current Notification Status */}
                 {isNotified && (
                   <div style={{
-                    background: '#dcfce7',
-                    border: '1px solid #22c55e',
+                    background: 'var(--color-success-bg)',
+                    border: '1px solid var(--color-success)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginBottom: '1.5rem'
                   }}>
-                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: '#166534' }}>
+                    <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-success-text)' }}>
                       ✅ Notification Details
                     </h4>
                     
@@ -2111,7 +2111,7 @@ function EditIncident() {
                 {isNotifiable && !isNotified && (
                   <div style={{
                     background: 'white',
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginBottom: '1.5rem'
@@ -2152,7 +2152,7 @@ function EditIncident() {
                         style={{
                           width: '300px',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem'
                         }}
@@ -2171,7 +2171,7 @@ function EditIncident() {
                         style={{
                           width: '100%',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem',
                           resize: 'vertical'
@@ -2183,7 +2183,7 @@ function EditIncident() {
                       onClick={notifyWorkSafe}
                       disabled={loading || !workSafeData.notification_method}
                       style={{
-                        background: (loading || !workSafeData.notification_method) ? '#9ca3af' : '#dc2626',
+                        background: (loading || !workSafeData.notification_method) ? 'var(--color-text-muted)' : 'var(--color-danger)',
                         color: 'white',
                         border: 'none',
                         padding: '0.75rem 1.5rem',
@@ -2201,15 +2201,15 @@ function EditIncident() {
                 {/* Compliance Information */}
                 <div style={{
                   background: '#f0f9ff',
-                  border: '1px solid #0ea5e9',
+                  border: '1px solid var(--color-info)',
                   borderRadius: '8px',
                   padding: '1rem'
                 }}>
-                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: '#0369a1' }}>
+                  <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-info)' }}>
                     📋 WorkSafe NZ Notification Requirements
                   </h4>
                   
-                  <div style={{ fontSize: '0.875rem', color: '#0369a1', lineHeight: '1.5' }}>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--color-info)', lineHeight: '1.5' }}>
                     <p style={{ margin: '0 0 0.5rem 0' }}>
                       <strong>Must be notified within 48 hours if:</strong>
                     </p>
@@ -2260,12 +2260,12 @@ function EditIncident() {
               <h3 style={{ margin: '0 0 1rem 0' }}>📢 WorkSafe Notification Required</h3>
               
               <div style={{
-                background: '#fecaca',
-                border: '1px solid #dc2626',
+                background: 'var(--color-danger-bg)',
+                border: '1px solid var(--color-danger)',
                 borderRadius: '6px',
                 padding: '1rem',
                 marginBottom: '1rem',
-                color: '#991b1b'
+                color: 'var(--color-danger-text)'
               }}>
                 <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
                   ⚠️ This incident requires WorkSafe notification
@@ -2290,7 +2290,7 @@ function EditIncident() {
                 <button
                   onClick={() => setShowWorkSafeForm(false)}
                   style={{
-                    background: '#6b7280',
+                    background: 'var(--color-text-muted)',
                     color: 'white',
                     border: 'none',
                     padding: '0.75rem 1rem',
@@ -2306,7 +2306,7 @@ function EditIncident() {
                     setActiveTab('worksafe');
                   }}
                   style={{
-                    background: '#dc2626',
+                    background: 'var(--color-danger)',
                     color: 'white',
                     border: 'none',
                     padding: '0.75rem 1rem',
@@ -2349,12 +2349,12 @@ function EditIncident() {
               {/* Closure validation warnings */}
               {(isNotifiable && !isNotified) && (
                 <div style={{
-                  background: '#fecaca',
-                  border: '1px solid #dc2626',
+                  background: 'var(--color-danger-bg)',
+                  border: '1px solid var(--color-danger)',
                   borderRadius: '6px',
                   padding: '1rem',
                   marginBottom: '1rem',
-                  color: '#991b1b'
+                  color: 'var(--color-danger-text)'
                 }}>
                   ⚠️ Cannot close: WorkSafe notification is required but not completed.
                 </div>
@@ -2362,12 +2362,12 @@ function EditIncident() {
 
               {(incident.investigation_required && incident.investigation_status !== 'completed') && (
                 <div style={{
-                  background: '#fef3c7',
-                  border: '1px solid #f59e0b',
+                  background: 'var(--color-warning-bg)',
+                  border: '1px solid var(--color-warning)',
                   borderRadius: '6px',
                   padding: '1rem',
                   marginBottom: '1rem',
-                  color: '#92400e'
+                  color: 'var(--color-warning-text)'
                 }}>
                   ⚠️ Warning: Investigation is not marked as completed.
                 </div>
@@ -2385,7 +2385,7 @@ function EditIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem',
                     resize: 'vertical'
@@ -2405,7 +2405,7 @@ function EditIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem',
                     resize: 'vertical'
@@ -2422,7 +2422,7 @@ function EditIncident() {
                   />
                   All required communications completed
                 </label>
-                <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                   Stakeholders have been informed of the incident resolution
                 </small>
               </div>
@@ -2431,7 +2431,7 @@ function EditIncident() {
                 <button
                   onClick={() => setShowClosureForm(false)}
                   style={{
-                    background: '#6b7280',
+                    background: 'var(--color-text-muted)',
                     color: 'white',
                     border: 'none',
                     padding: '0.75rem 1rem',
@@ -2446,7 +2446,7 @@ function EditIncident() {
                   disabled={loading || !closureData.closure_reason || (isNotifiable && !isNotified)}
                   style={{
                     background: (loading || !closureData.closure_reason || (isNotifiable && !isNotified)) ? 
-                      '#9ca3af' : '#059669',
+                      'var(--color-text-muted)' : 'var(--color-success)',
                     color: 'white',
                     border: 'none',
                     padding: '0.75rem 1rem',
@@ -2498,7 +2498,7 @@ function EditIncident() {
                     border: 'none',
                     fontSize: '1.5rem',
                     cursor: 'pointer',
-                    color: '#6b7280'
+                    color: 'var(--color-text-muted)'
                   }}
                 >
                   ×
@@ -2506,8 +2506,8 @@ function EditIncident() {
               </div>
               
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e5e7eb',
+                background: 'var(--color-surface-warm)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '8px',
                 padding: '2rem',
                 textAlign: 'center',
@@ -2521,7 +2521,7 @@ function EditIncident() {
                 <div style={{ fontSize: '3rem' }}>🗺️</div>
                 <div>
                   <h4>Interactive Map Component</h4>
-                  <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+                  <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
                     Map integration would be implemented here using a service like Leaflet, Google Maps, or Mapbox.
                   </p>
                   <button
@@ -2533,7 +2533,7 @@ function EditIncident() {
                       });
                     }}
                     style={{
-                      background: '#3b82f6',
+                      background: 'var(--color-primary)',
                       color: 'white',
                       border: 'none',
                       padding: '0.75rem 1.5rem',
@@ -2555,7 +2555,7 @@ function EditIncident() {
                 <button
                   onClick={() => setShowLocationMap(false)}
                   style={{
-                    background: '#6b7280',
+                    background: 'var(--color-text-muted)',
                     color: 'white',
                     border: 'none',
                     padding: '0.75rem 1rem',

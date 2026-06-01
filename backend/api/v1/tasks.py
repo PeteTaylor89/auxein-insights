@@ -25,6 +25,7 @@ from db.models.vineyard_row import VineyardRow
 from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration, AssetCalibrationSchedule
 from db.models.risk_action import RiskAction
 from services.gps_processing import process_gps_track
+from services.spray_coverage import compute_spray_coverage, detect_spray_blocks
 from services.property_service import get_visible_property_ids, verify_block_access
 from db.models.timesheet import TimesheetDay, TimeEntry, TimesheetStatus
 from services.timesheet_rules import create_entry as ts_create_entry
@@ -1378,6 +1379,14 @@ def complete_task(
         except Exception as e:
             logger.warning(f"GPS summary processing failed for task {task_id}: {e}")
 
+        # Spray coverage — no-ops unless the task used an asset with a swath
+        # width + resolvable flow rate. Computed for the task's own block here;
+        # multi-block detection/propagation is Phase 3.
+        try:
+            compute_spray_coverage(task_id, db)
+        except Exception as e:
+            logger.warning(f"Spray coverage processing failed for task {task_id}: {e}")
+
     logger.info(f"Task {task_id} completed by actor {type(actor).__name__}:{actor.id}")
 
     return task
@@ -2581,6 +2590,323 @@ def reprocess_gps_track(
     if not summary:
         raise HTTPException(status_code=404, detail="No GPS points to process")
     return {"message": f"Reprocessed {summary.total_points} points", "distance_km": float(summary.total_distance_km or 0)}
+
+
+def _serialize_spray_coverage(cov):
+    """Serialize a SprayCoverage row to stats + GeoJSON grid for the client."""
+    def f(v):
+        return float(v) if v is not None else None
+    return {
+        "task_id": cov.task_id,
+        "block_id": cov.block_id,
+        "asset_id": cov.asset_id,
+        "source_task_id": cov.source_task_id,
+        "computed_at": cov.computed_at.isoformat() if cov.computed_at else None,
+        "inputs": {
+            "swath_m": f(cov.swath_m),
+            "flow_l_s": f(cov.flow_l_s),
+            "target_lha": f(cov.target_lha),
+            "tolerance_min_lha": f(cov.tolerance_min_lha),
+            "tolerance_max_lha": f(cov.tolerance_max_lha),
+            "cell_size_m": f(cov.cell_size_m),
+            "speed_band_min_kmh": f(cov.speed_band_min_kmh),
+            "speed_band_max_kmh": f(cov.speed_band_max_kmh),
+            "max_gap_m": f(cov.max_gap_m),
+        },
+        "stats": {
+            "sprayed_area_hectares": f(cov.sprayed_area_hectares),
+            "block_area_hectares": f(cov.block_area_hectares),
+            "gap_area_hectares": f(cov.gap_area_hectares),
+            "overlap_area_hectares": f(cov.overlap_area_hectares),
+            "computed_volume_l": f(cov.computed_volume_l),
+            "min_lha": f(cov.min_lha),
+            "avg_lha": f(cov.avg_lha),
+            "max_lha": f(cov.max_lha),
+            "pct_within_tolerance": f(cov.pct_within_tolerance),
+        },
+        "grid": cov.grid_geojson or {"type": "FeatureCollection", "features": []},
+    }
+
+
+@router.get("/tasks/{task_id}/spray-coverage")
+def get_spray_coverage(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Spray application-rate coverage for a task (stats + GeoJSON grid).
+
+    Lazy-build: if no row exists yet but the task is spray-capable with a GPS
+    track, compute it inline before returning."""
+    task = check_task_access(db, task_id, current_user)
+    from db.models.spray_coverage import SprayCoverage
+
+    cov = (
+        db.query(SprayCoverage)
+        .filter(SprayCoverage.task_id == task_id, SprayCoverage.block_id == task.block_id)
+        .first()
+    )
+    if not cov:
+        try:
+            cov = compute_spray_coverage(task_id, db)
+        except Exception as e:
+            logger.warning(f"Spray coverage lazy build failed for task {task_id}: {e}")
+            cov = None
+    if not cov:
+        raise HTTPException(status_code=404, detail="No spray coverage available for this task")
+    return _serialize_spray_coverage(cov)
+
+
+@router.post("/tasks/{task_id}/spray-coverage/recompute")
+def recompute_spray_coverage(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Force-recompute spray coverage for a task's block (admin/debug, or after
+    a calibration correction)."""
+    task = check_task_access(db, task_id, current_user)
+    cov = compute_spray_coverage(task_id, db)
+    if not cov:
+        raise HTTPException(
+            status_code=404,
+            detail="Task is not spray-capable (needs an asset with swath width + flow calibration) or has no usable GPS track within the block",
+        )
+    return _serialize_spray_coverage(cov)
+
+
+class SprayConfirmRequest(BaseModel):
+    block_ids: List[int]
+
+
+@router.get("/tasks/{task_id}/spray-coverage/candidates")
+def spray_coverage_candidates(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Blocks (other than the task's assigned block) that this spray track
+    appears to have covered — for the detect-and-confirm step. Empty for
+    clone / non-spray tasks."""
+    check_task_access(db, task_id, current_user)
+    cands = detect_spray_blocks(task_id, db)
+    if current_user.user_type not in ("auxein_admin", "contractor"):
+        visible = get_visible_property_ids(db, current_user)
+        if visible is not None and current_user.user_type != "company_admin":
+            cands = [c for c in cands if c["property_id"] in visible]
+    return cands
+
+
+@router.post("/tasks/{task_id}/spray-coverage/confirm")
+def confirm_spray_coverage_blocks(
+    task_id: int,
+    body: SprayConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Confirm the track sprayed the given blocks: clone the origin task as a
+    completed task per block (coverage computed from the origin's GPS, clipped to
+    that block), apportion consumables by sprayed area, link via source_task_id.
+    Labour hours + stock movements stay on the origin (clones don't duplicate)."""
+    from db.models.spray_coverage import SprayCoverage
+
+    origin = check_task_access(db, task_id, current_user)
+    requested = list(dict.fromkeys(body.block_ids))  # dedupe, preserve order
+    if not requested:
+        return {"created": [], "skipped": []}
+
+    visible = None
+    if current_user.user_type not in ("auxein_admin", "contractor", "company_admin"):
+        visible = get_visible_property_ids(db, current_user)
+
+    existing_clone_blocks = {
+        bid for (bid,) in db.query(Task.block_id).filter(Task.source_task_id == origin.id).all()
+    }
+
+    created = []
+    skipped = []
+    for block_id in requested:
+        if block_id == origin.block_id:
+            skipped.append({"block_id": block_id, "reason": "origin block"})
+            continue
+        if block_id in existing_clone_blocks:
+            skipped.append({"block_id": block_id, "reason": "already created"})
+            continue
+        block = (
+            db.query(VineyardBlock)
+            .filter(VineyardBlock.id == block_id, VineyardBlock.company_id == origin.company_id)
+            .first()
+        )
+        if not block:
+            skipped.append({"block_id": block_id, "reason": "not found"})
+            continue
+        if visible is not None and block.property_id not in visible:
+            skipped.append({"block_id": block_id, "reason": "not visible"})
+            continue
+
+        clone = Task(
+            company_id=origin.company_id,
+            template_id=origin.template_id,
+            task_number=generate_task_number(db, origin.company_id),
+            title=f"{origin.title} — {block.block_name}" if block.block_name else origin.title,
+            task_category=origin.task_category,
+            task_subcategory=origin.task_subcategory,
+            description=origin.description,
+            block_id=block.id,
+            priority=origin.priority,
+            status=TaskStatus.completed,
+            actual_start_time=origin.actual_start_time,
+            actual_end_time=origin.actual_end_time,
+            progress_percentage=100,
+            requires_gps_tracking=False,
+            completed_at=origin.completed_at,
+            completed_by=origin.completed_by,
+            completion_notes=f"Auto-created from {origin.task_number} (multi-block spray coverage).",
+            weather_conditions=origin.weather_conditions,
+            created_by=current_user.id,
+            source_task_id=origin.id,
+        )
+        db.add(clone)
+        db.flush()  # need clone.id
+
+        # Copy equipment assets (with calibration) so coverage can resolve swath
+        # + flow on the clone. Consumables are apportioned once areas are known.
+        for ta in origin.task_assets:
+            if ta.role == "consumable":
+                continue
+            db.add(TaskAsset(
+                task_id=clone.id,
+                asset_id=ta.asset_id,
+                role=ta.role,
+                is_required=ta.is_required,
+                calibration_id=ta.calibration_id,
+                planned_rate=ta.planned_rate,
+            ))
+        db.flush()
+
+        cov = compute_spray_coverage(
+            clone.id, db, block_id=block.id, persist=False,
+            points_task_id=origin.id, source_task_id=origin.id,
+        )
+        if not cov:
+            db.query(TaskAsset).filter(TaskAsset.task_id == clone.id).delete()
+            db.delete(clone)
+            db.flush()
+            skipped.append({"block_id": block_id, "reason": "no coverage in block"})
+            continue
+        clone.area_covered_hectares = cov.sprayed_area_hectares
+        clone.area_total_hectares = cov.block_area_hectares
+        created.append((clone, block, cov))
+
+    if not created:
+        db.commit()
+        return {"created": [], "skipped": skipped}
+
+    # Apportion consumables by sprayed area across origin + clones (no stock
+    # movements — product was deducted once on the origin).
+    origin_cov = (
+        db.query(SprayCoverage)
+        .filter(SprayCoverage.task_id == origin.id, SprayCoverage.block_id == origin.block_id)
+        .first()
+    )
+    areas = {}
+    if origin_cov and origin_cov.sprayed_area_hectares:
+        areas["origin"] = float(origin_cov.sprayed_area_hectares)
+    for clone, block, cov in created:
+        areas[clone.id] = float(cov.sprayed_area_hectares or 0)
+    total_area = sum(areas.values()) or 1.0
+
+    origin_consumables = [
+        ta for ta in origin.task_assets if ta.role == "consumable" and ta.actual_quantity
+    ]
+    for clone, block, cov in created:
+        share = areas.get(clone.id, 0) / total_area
+        for ta in origin_consumables:
+            db.add(TaskAsset(
+                task_id=clone.id,
+                asset_id=ta.asset_id,
+                role="consumable",
+                is_required=ta.is_required,
+                actual_quantity=(ta.actual_quantity * Decimal(str(share))) if ta.actual_quantity is not None else None,
+                batch_number=ta.batch_number,
+                notes=f"Apportioned from {origin.task_number} by sprayed area ({round(share * 100, 1)}%). Stock deducted on origin.",
+            ))
+
+    db.commit()
+
+    out = []
+    for clone, block, cov in created:
+        out.append({
+            "task_id": clone.id,
+            "task_number": clone.task_number,
+            "block_id": block.id,
+            "block_name": block.block_name,
+            "avg_lha": float(cov.avg_lha) if cov.avg_lha is not None else None,
+            "sprayed_area_hectares": float(cov.sprayed_area_hectares) if cov.sprayed_area_hectares is not None else None,
+        })
+    return {"created": out, "skipped": skipped}
+
+
+@router.get("/spray-coverages")
+def list_spray_coverages(
+    property_id: Optional[int] = None,
+    block_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List spray-coverage events for the company (Spray Program). Summary rows
+    only — the grid GeoJSON is fetched per-event via GET /tasks/{id}/spray-coverage."""
+    from db.models.spray_coverage import SprayCoverage
+
+    q = (
+        db.query(SprayCoverage, Task, VineyardBlock, Asset)
+        .join(Task, Task.id == SprayCoverage.task_id)
+        .join(VineyardBlock, VineyardBlock.id == SprayCoverage.block_id)
+        .outerjoin(Asset, Asset.id == SprayCoverage.asset_id)
+        .filter(SprayCoverage.company_id == current_user.company_id)
+    )
+    if block_id:
+        q = q.filter(SprayCoverage.block_id == block_id)
+    if property_id:
+        q = q.filter(VineyardBlock.property_id == property_id)
+
+    # Property scoping — same gate as the task list (company_admin sees all).
+    if current_user.user_type not in ("auxein_admin", "contractor"):
+        visible_property_ids = get_visible_property_ids(db, current_user)
+        if visible_property_ids is not None and current_user.user_type != "company_admin":
+            q = q.filter(VineyardBlock.property_id.in_(visible_property_ids))
+
+    q = q.order_by(SprayCoverage.computed_at.desc().nullslast())
+
+    def f(v):
+        return float(v) if v is not None else None
+
+    rows = []
+    for cov, task, block, asset in q.all():
+        date_val = task.completed_at or task.actual_end_time
+        rows.append({
+            "task_id": cov.task_id,
+            "task_number": task.task_number,
+            "title": task.title,
+            "block_id": cov.block_id,
+            "block_name": block.block_name,
+            "property_id": block.property_id,
+            "asset_id": cov.asset_id,
+            "asset_name": asset.name if asset else None,
+            "date": date_val.isoformat() if date_val else None,
+            "avg_lha": f(cov.avg_lha),
+            "min_lha": f(cov.min_lha),
+            "max_lha": f(cov.max_lha),
+            "target_lha": f(cov.target_lha),
+            "sprayed_area_hectares": f(cov.sprayed_area_hectares),
+            "block_area_hectares": f(cov.block_area_hectares),
+            "gap_area_hectares": f(cov.gap_area_hectares),
+            "overlap_area_hectares": f(cov.overlap_area_hectares),
+            "computed_volume_l": f(cov.computed_volume_l),
+            "pct_within_tolerance": f(cov.pct_within_tolerance),
+            "computed_at": cov.computed_at.isoformat() if cov.computed_at else None,
+        })
+    return rows
 
 
 # ============================================================================

@@ -10,24 +10,24 @@
 .rch-state {
   padding: 28px 20px;
   text-align: center;
-  color: #6b7280;
+  color: var(--color-text-muted);
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   font-size: 0.95rem;
   line-height: 1.5;
 }
 .rch-state-error {
-  color: #b91c1c;
-  border-color: #fecaca;
-  background: #fef2f2;
+  color: var(--color-danger-hover);
+  border-color: var(--color-danger-bg);
+  background: var(--color-danger-bg);
 }
 
 /* ---- Zone accordion block ---- */
 .rch-zone {
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -41,7 +41,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-md);
   padding: 16px 18px;
   background: transparent;
   border: none;
@@ -69,35 +69,35 @@
 .rch-zone-name {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .rch-zone-region {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   background: #f3f4f1;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 
 .rch-zone-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
   flex-shrink: 0;
 }
 .rch-zone-meta svg:last-child {
-  color: #9ca3af;
+  color: var(--color-text-muted);
 }
 .rch-zone-count {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 0.82rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 .rch-zone-count svg {
@@ -111,7 +111,7 @@
 }
 
 .rch-history {
-  margin-top: 16px;
+  margin-top: var(--space-base);
 }
 
 .rch-history-placeholder {
@@ -120,9 +120,9 @@
   align-items: center;
   gap: 10px;
   padding: 36px 20px;
-  margin-top: 16px;
+  margin-top: var(--space-base);
   text-align: center;
-  color: #9ca3af;
+  color: var(--color-text-muted);
   background: #fafaf7;
   border: 1px dashed #d6d8cf;
   border-radius: 10px;
@@ -144,7 +144,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #9ca3af;
+  color: var(--color-text-muted);
   margin-bottom: 10px;
 }
 .rch-property-grid {
@@ -153,13 +153,13 @@
   gap: 10px;
 }
 .rch-property-card {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 12px 14px;
   background: #fff;
 }
 .rch-property-card.muted {
-  background: #fafafa;
+  background: var(--color-surface-warm);
   border-style: dashed;
 }
 .rch-property-name {
@@ -168,7 +168,7 @@
   gap: 6px;
   font-weight: 600;
   font-size: 0.92rem;
-  color: #1f2937;
+  color: var(--color-text);
 }
 .rch-property-name svg {
   color: var(--color-primary, #5b6830);
@@ -176,13 +176,13 @@
 }
 .rch-property-region {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   margin-top: 3px;
 }
 .rch-property-note {
   font-size: 0.72rem;
-  color: #9ca3af;
-  margin-top: 8px;
+  color: var(--color-text-muted);
+  margin-top: var(--space-sm);
   font-style: italic;
 }
 
@@ -191,12 +191,12 @@
   color: var(--color-warning, #d97706);
 }
 .rch-unassigned-note {
-  margin: 16px 0 12px;
+  margin: var(--space-base) 0 var(--space-md);
   font-size: 0.88rem;
   color: #92732a;
-  background: #fffbeb;
+  background: var(--color-warning-bg);
   border: 1px solid #fde68a;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
 }
 

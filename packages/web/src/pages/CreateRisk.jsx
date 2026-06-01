@@ -123,13 +123,13 @@ function CreateRisk() {
 
   const calculateRiskScore = (likelihood, severity) => {
     const score = likelihood * severity;
-    if (score <= 4) return { score, level: 'Low', color: '#22c55e' };
-    if (score <= 9) return { score, level: 'Medium', color: '#f59e0b' };
-    if (score <= 16) return { score, level: 'High', color: '#ef4444' };
-    return { score, level: 'Critical', color: '#991b1b' };
+    if (score <= 4) return { score, level: 'Low', color: 'var(--color-success)' };
+    if (score <= 9) return { score, level: 'Medium', color: 'var(--color-warning)' };
+    if (score <= 16) return { score, level: 'High', color: 'var(--color-danger)' };
+    return { score, level: 'Critical', color: 'var(--color-danger-text)' };
   };
 
-  const getCellColor = (l, s) => { const sc = l * s; if (sc <= 4) return '#22c55e'; if (sc <= 9) return '#f59e0b'; if (sc <= 16) return '#ef4444'; return '#991b1b'; };
+  const getCellColor = (l, s) => { const sc = l * s; if (sc <= 4) return 'var(--color-success)'; if (sc <= 9) return 'var(--color-warning)'; if (sc <= 16) return 'var(--color-danger)'; return 'var(--color-danger-text)'; };
 
   const handleMatrixClick = (likelihood, severity, type = 'inherent') => {
     if (type === 'inherent') setFormData(prev => ({ ...prev, inherent_likelihood: likelihood, inherent_severity: severity }));
@@ -191,15 +191,15 @@ function CreateRisk() {
           <div style={{ display: 'inline-block', border: '2px solid var(--color-charcoal)', borderRadius: '4px' }}>
             <div style={{ display: 'flex' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ width: 80, height: 60, display: 'flex', alignItems: 'end', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderRight: '1px solid #9ca3af', borderBottom: '1px solid #9ca3af', paddingBottom: 4 }}>SEVERITY</div>
+                <div style={{ width: 80, height: 60, display: 'flex', alignItems: 'end', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderRight: '1px solid var(--color-text-muted)', borderBottom: '1px solid var(--color-text-muted)', paddingBottom: 4 }}>SEVERITY</div>
                 {[5,4,3,2,1].map((s, i) => (
-                  <div key={s} style={{ width: 80, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderRight: '1px solid #9ca3af', borderTop: i > 0 ? '1px solid #9ca3af' : 'none', textAlign: 'center' }}>{severityLabels[s-1]}</div>
+                  <div key={s} style={{ width: 80, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderRight: '1px solid var(--color-text-muted)', borderTop: i > 0 ? '1px solid var(--color-text-muted)' : 'none', textAlign: 'center' }}>{severityLabels[s-1]}</div>
                 ))}
               </div>
               <div>
                 <div style={{ display: 'flex', height: 60 }}>
                   {[1,2,3,4,5].map((l, i) => (
-                    <div key={l} style={{ width: 30, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderLeft: i > 0 ? '1px solid #9ca3af' : 'none', borderBottom: '1px solid #9ca3af', writingMode: 'vertical-rl', textOrientation: 'mixed' }}>{likelihoodLabels[l-1]}</div>
+                    <div key={l} style={{ width: 30, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderLeft: i > 0 ? '1px solid var(--color-text-muted)' : 'none', borderBottom: '1px solid var(--color-text-muted)', writingMode: 'vertical-rl', textOrientation: 'mixed' }}>{likelihoodLabels[l-1]}</div>
                   ))}
                 </div>
                 {[5,4,3,2,1].map(s => (
@@ -218,7 +218,7 @@ function CreateRisk() {
                 ))}
               </div>
             </div>
-            <div style={{ textAlign: 'center', padding: 4, fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderTop: '1px solid #9ca3af' }}>LIKELIHOOD</div>
+            <div style={{ textAlign: 'center', padding: 4, fontSize: '0.625rem', fontWeight: 500, color: 'var(--color-text)', borderTop: '1px solid var(--color-text-muted)' }}>LIKELIHOOD</div>
           </div>
         </div>
       </div>
@@ -298,7 +298,7 @@ function CreateRisk() {
           </div>
 
           {/* Location */}
-          <div style={{ marginBottom: 'var(--space-base)', padding: 'var(--space-base)', background: shouldSuggestLocation() ? 'var(--color-info-bg)' : 'var(--color-surface-warm)', border: `1px solid ${shouldSuggestLocation() ? '#0ea5e9' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)' }}>
+          <div style={{ marginBottom: 'var(--space-base)', padding: 'var(--space-base)', background: shouldSuggestLocation() ? 'var(--color-info-bg)' : 'var(--color-surface-warm)', border: `1px solid ${shouldSuggestLocation() ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-md)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
               <label className="rm-field-label" style={{ marginBottom: 0 }}>Risk Location (Optional)</label>
               {!riskLocation && <button type="button" className="rm-btn-primary" onClick={() => setShowLocationMap(true)}>Set Location on Map</button>}
@@ -385,7 +385,7 @@ function CreateRisk() {
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
                             <div className="rm-progress">
-                              <div className="rm-progress-bar" style={{ width: 60 }}><div className="rm-progress-fill" style={{ width: `${Math.min(progress, 100)}%`, background: progress === 100 ? '#22c55e' : progress >= 50 ? 'var(--color-warning)' : 'var(--color-danger)' }} /></div>
+                              <div className="rm-progress-bar" style={{ width: 60 }}><div className="rm-progress-fill" style={{ width: `${Math.min(progress, 100)}%`, background: progress === 100 ? 'var(--color-success)' : progress >= 50 ? 'var(--color-warning)' : 'var(--color-danger)' }} /></div>
                               <span className="rm-progress-text">{progress}%</span>
                             </div>
                             <button type="button" className="rm-btn-primary rm-btn-sm" onClick={() => handleEditAction(action.id)}>Edit</button>

@@ -337,11 +337,11 @@ function CreateAction() {
         <div style={{
           padding: '0.75rem',
           background: '#f0f9ff',
-          border: '1px solid #0ea5e9',
+          border: '1px solid var(--color-info)',
           borderRadius: '6px',
           marginBottom: '1rem'
         }}>
-          <p style={{ margin: 0, fontSize: '0.875rem', color: '#0369a1' }}>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-info)' }}>
             This is part of a recurring action series. Below is the complete history of all instances.
           </p>
         </div>
@@ -352,10 +352,10 @@ function CreateAction() {
               display: 'flex',
               alignItems: 'center',
               padding: '0.75rem',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--color-border)',
               borderRadius: '6px',
               marginBottom: '0.5rem',
-              background: action.id === currentAction?.id ? '#fef3c7' : '#f9fafb'
+              background: action.id === currentAction?.id ? 'var(--color-warning-bg)' : 'var(--color-surface-warm)'
             }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -381,7 +381,7 @@ function CreateAction() {
                   </span>
                 </div>
                 
-                <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#6b7280' }}>
+                <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                   Created: {new Date(action.created_at).toLocaleDateString()}
                   {action.target_completion_date && (
                     <> • Due: {new Date(action.target_completion_date).toLocaleDateString()}</>
@@ -396,18 +396,18 @@ function CreateAction() {
                     <div style={{
                       width: '100%',
                       height: '4px',
-                      backgroundColor: '#e5e7eb',
+                      backgroundColor: 'var(--color-border)',
                       borderRadius: '2px',
                       overflow: 'hidden'
                     }}>
                       <div style={{
                         width: `${action.progress_percentage}%`,
                         height: '100%',
-                        backgroundColor: action.progress_percentage === 100 ? '#10b981' : '#3b82f6',
+                        backgroundColor: action.progress_percentage === 100 ? 'var(--color-success)' : 'var(--color-primary)',
                         borderRadius: '2px'
                       }} />
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                       {action.progress_percentage}% complete
                     </span>
                   </div>
@@ -423,14 +423,14 @@ function CreateAction() {
   // Helper function for status colors
   const getStatusColor = (status) => {
     const colors = {
-      'planned': '#6b7280',
-      'in_progress': '#3b82f6',
-      'completed': '#10b981',
-      'on_hold': '#f59e0b',
-      'cancelled': '#ef4444',
-      'overdue': '#dc2626'
+      'planned': 'var(--color-text-muted)',
+      'in_progress': 'var(--color-info)',
+      'completed': 'var(--color-success)',
+      'on_hold': 'var(--color-warning)',
+      'cancelled': 'var(--color-danger)',
+      'overdue': 'var(--color-danger)'
     };
-    return colors[status] || '#6b7280';
+    return colors[status] || 'var(--color-text-muted)';
   };
 
   // FIXED: Handle form submission with proper data flow
@@ -543,7 +543,7 @@ function CreateAction() {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: '#f8fafc',
+      background: 'var(--color-surface-warm)',
       paddingTop: '70px',
       paddingBottom: '80px'
     }}>
@@ -567,7 +567,7 @@ function CreateAction() {
             alignItems: 'center',
             marginBottom: '1rem',
             paddingBottom: '0.5rem',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid var(--color-surface-warm)'
           }}>
             <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '600' }}>
               {editMode ? 'Edit Risk Action' : 'Create Risk Action'}
@@ -575,7 +575,7 @@ function CreateAction() {
             <button 
               onClick={handleCancel}
               style={{
-                background: '#6b7280',
+                background: 'var(--color-text-muted)',
                 color: 'white',
                 border: 'none',
                 padding: '0.5rem 1rem',
@@ -592,12 +592,12 @@ function CreateAction() {
             <div style={{
               padding: '1rem',
               background: '#f0f9ff',
-              border: '1px solid #0ea5e9',
+              border: '1px solid var(--color-info)',
               borderRadius: '8px'
             }}>
-              <h4 style={{ margin: '0 0 0.5rem 0', color: '#0369a1' }}>Selected Risk:</h4>
+              <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-info)' }}>Selected Risk:</h4>
               <p style={{ margin: 0, fontWeight: '500' }}>{selectedRisk.risk_title}</p>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
                 {selectedRisk.risk_category?.replace('_', ' ')} • {selectedRisk.inherent_risk_level} risk
               </p>
             </div>
@@ -607,13 +607,13 @@ function CreateAction() {
           {selectedRisk && requiresAdminVerification() && (
             <div style={{
               padding: '1rem',
-              background: '#fef3c7',
-              border: '1px solid #f59e0b',
+              background: 'var(--color-warning-bg)',
+              border: '1px solid var(--color-warning)',
               borderRadius: '8px',
               marginTop: '1rem'
             }}>
-              <h4 style={{ margin: '0 0 0.5rem 0', color: '#92400e' }}>⚠️ High/Critical Risk Action</h4>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#92400e' }}>
+              <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-warning-text)' }}>⚠️ High/Critical Risk Action</h4>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-warning-text)' }}>
                 This action is for a {selectedRisk.inherent_risk_level} risk and may require company management verification upon completion.
                 Ensure the action plan is comprehensive and addresses the significant risk level.
               </p>
@@ -624,12 +624,12 @@ function CreateAction() {
         {/* Success Message */}
         {success && (
           <div style={{
-            background: '#dcfce7',
-            border: '1px solid #22c55e',
+            background: 'var(--color-success-bg)',
+            border: '1px solid var(--color-success)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#166534'
+            color: 'var(--color-success-text)'
           }}>
             ✅ Action {editMode ? 'updated' : 'created'} successfully! Redirecting to dashboard...
           </div>
@@ -638,12 +638,12 @@ function CreateAction() {
         {/* Error Message */}
         {error && (
           <div style={{
-            background: '#fecaca',
-            border: '1px solid #dc2626',
+            background: 'var(--color-danger-bg)',
+            border: '1px solid var(--color-danger)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#991b1b'
+            color: 'var(--color-danger-text)'
           }}>
             ❌ {typeof error === 'string' ? error : JSON.stringify(error)}
           </div>
@@ -653,11 +653,11 @@ function CreateAction() {
         {loadingRisks && (
           <div style={{
             background: '#f0f9ff',
-            border: '1px solid #0ea5e9',
+            border: '1px solid var(--color-info)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#0369a1'
+            color: 'var(--color-info)'
           }}>
             Loading available risks...
           </div>
@@ -685,12 +685,12 @@ function CreateAction() {
               <div style={{
                 padding: '1rem',
                 background: '#f0f9ff',
-                border: '1px solid #0ea5e9',
+                border: '1px solid var(--color-info)',
                 borderRadius: '8px',
                 marginBottom: '1rem'
               }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', color: '#0369a1' }}>🔄 Recurring Action Information</h4>
-                <div style={{ fontSize: '0.875rem', color: '#0369a1' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-info)' }}>🔄 Recurring Action Information</h4>
+                <div style={{ fontSize: '0.875rem', color: 'var(--color-info)' }}>
                   <p style={{ margin: '0 0 0.5rem 0' }}>
                     <strong>Frequency:</strong> Every {existingActionData.recurrence_frequency_quarters || Math.ceil(existingActionData.recurrence_frequency_days / 90)} quarter(s)
                   </p>
@@ -726,7 +726,7 @@ function CreateAction() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem'
                 }}
@@ -754,7 +754,7 @@ function CreateAction() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem'
                 }}
@@ -775,7 +775,7 @@ function CreateAction() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem',
                   resize: 'vertical'
@@ -796,7 +796,7 @@ function CreateAction() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem'
                 }}
@@ -812,16 +812,16 @@ function CreateAction() {
                 ))}
               </select>
               {loadingUsers && (
-                <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                   Loading team members...
                 </small>
               )}
               {!loadingUsers && companyUsers.length === 0 && (
-                <small style={{ display: 'block', marginTop: '0.25rem', color: '#dc2626' }}>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-danger)' }}>
                   No team members available for assignment.
                 </small>
               )}
-              <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+              <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                 Select a team member to assign this action to. Leave unassigned if responsibility is unclear.
               </small>
             </div>
@@ -839,7 +839,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -862,7 +862,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -887,7 +887,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -910,7 +910,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -939,7 +939,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -966,7 +966,7 @@ function CreateAction() {
                     style={{
                       flex: 1,
                       height: '6px',
-                      background: '#e5e7eb',
+                      background: 'var(--color-border)',
                       borderRadius: '3px',
                       outline: 'none'
                     }}
@@ -981,13 +981,13 @@ function CreateAction() {
                     style={{
                       width: '60px',
                       padding: '0.5rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '4px',
                       fontSize: '0.875rem',
                       textAlign: 'center'
                     }}
                   />
-                  <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>%</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>%</span>
                 </div>
               </div>
             </div>
@@ -997,7 +997,7 @@ function CreateAction() {
               <div style={{
                 width: '100%',
                 height: '20px',
-                backgroundColor: '#e5e7eb',
+                backgroundColor: 'var(--color-border)',
                 borderRadius: '10px',
                 overflow: 'hidden',
                 position: 'relative'
@@ -1005,7 +1005,7 @@ function CreateAction() {
                 <div style={{
                   width: `${formData.progress_percentage}%`,
                   height: '100%',
-                  backgroundColor: formData.progress_percentage === 100 ? '#10b981' : '#3b82f6',
+                  backgroundColor: formData.progress_percentage === 100 ? 'var(--color-success)' : 'var(--color-primary)',
                   borderRadius: '10px',
                   transition: 'width 0.3s ease'
                 }} />
@@ -1016,7 +1016,7 @@ function CreateAction() {
                   transform: 'translate(-50%, -50%)',
                   fontSize: '0.75rem',
                   fontWeight: '500',
-                  color: formData.progress_percentage > 50 ? 'white' : '#374151'
+                  color: formData.progress_percentage > 50 ? 'white' : 'var(--color-text)'
                 }}>
                   {formData.progress_percentage}% Complete
                 </div>
@@ -1038,13 +1038,13 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
                 />
                 {validationErrors.target_start_date && (
-                  <small style={{ display: 'block', marginTop: '0.25rem', color: '#dc2626' }}>{validationErrors.target_start_date}</small>
+                  <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-danger)' }}>{validationErrors.target_start_date}</small>
                 )}
               </div>
               <div>
@@ -1060,13 +1060,13 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
                 />
                 {validationErrors.target_completion_date && (
-                  <small style={{ display: 'block', marginTop: '0.25rem', color: '#dc2626' }}>{validationErrors.target_completion_date}</small>
+                  <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-danger)' }}>{validationErrors.target_completion_date}</small>
                 )}
               </div>
             </div>
@@ -1088,7 +1088,7 @@ function CreateAction() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1108,7 +1108,7 @@ function CreateAction() {
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         fontSize: '0.875rem'
                       }}
@@ -1133,7 +1133,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem',
                     resize: 'vertical'
@@ -1146,12 +1146,12 @@ function CreateAction() {
             {formData.status === 'completed' && formData.progress_percentage < 100 && (
               <div style={{
                 padding: '0.75rem',
-                background: '#fef3c7',
-                border: '1px solid #f59e0b',
+                background: 'var(--color-warning-bg)',
+                border: '1px solid var(--color-warning)',
                 borderRadius: '6px',
                 marginBottom: '1rem'
               }}>
-                <small style={{ color: '#92400e' }}>
+                <small style={{ color: 'var(--color-warning-text)' }}>
                   ⚠️ Status is marked as completed but progress is less than 100%. Consider updating the progress percentage.
                 </small>
               </div>
@@ -1162,12 +1162,12 @@ function CreateAction() {
               <div style={{
                 padding: '1rem',
                 background: '#f0f9ff',
-                border: '1px solid #0ea5e9',
+                border: '1px solid var(--color-info)',
                 borderRadius: '8px',
                 marginBottom: '1rem'
               }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', color: '#0369a1' }}>Recurring Action Settings:</h4>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: '#0369a1' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-info)' }}>Recurring Action Settings:</h4>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-info)' }}>
                   This action will automatically create a new instance every{' '}
                   {formData.recurrence_frequency_quarters === '1' ? '3 months' :
                   formData.recurrence_frequency_quarters === '2' ? '6 months' :
@@ -1199,7 +1199,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -1217,7 +1217,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -1247,7 +1247,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -1272,7 +1272,7 @@ function CreateAction() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -1294,13 +1294,13 @@ function CreateAction() {
               gap: '1rem',
               marginTop: '2rem',
               paddingTop: '1rem',
-              borderTop: '1px solid #f3f4f6'
+              borderTop: '1px solid var(--color-surface-warm)'
             }}>
               <button
                 type="submit"
                 disabled={loading || loadingRisks || !formData.risk_id}
                 style={{
-                  background: (loading || loadingRisks || !formData.risk_id) ? '#9ca3af' : '#3b82f6',
+                  background: (loading || loadingRisks || !formData.risk_id) ? 'var(--color-text-muted)' : 'var(--color-primary)',
                   color: 'white',
                   border: 'none',
                   padding: '0.75rem 1.5rem',
@@ -1319,8 +1319,8 @@ function CreateAction() {
                 disabled={loading}
                 style={{
                   background: 'white',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
                   padding: '0.75rem 1.5rem',
                   borderRadius: '6px',
                   cursor: loading ? 'not-allowed' : 'pointer',

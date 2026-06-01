@@ -104,7 +104,14 @@ class Task(Base):
     related_observation_run_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("observation_runs.id", ondelete="SET NULL"), nullable=True)
     related_maintenance_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("asset_maintenance.id", ondelete="SET NULL"), nullable=True)
     related_calibration_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("asset_calibrations.id", ondelete="SET NULL"), nullable=True)
-    
+
+    # Spray multi-block: completed-task clones generated for blocks beyond the
+    # origin task's assigned block (spray coverage Phase 3) point back to the
+    # origin run. Labour/stock stay on the origin; clones are coverage records,
+    # so reports should exclude rows where source_task_id IS NOT NULL to avoid
+    # double-counting.
+    source_task_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -138,6 +145,7 @@ class Task(Base):
     creator = relationship("User", foreign_keys=[created_by])
     completer = relationship("User", foreign_keys=[completed_by])
     canceller = relationship("User", foreign_keys=[cancelled_by])
+    source_task = relationship("Task", remote_side=[id], foreign_keys=[source_task_id])
     
     assignments: Mapped[List["TaskAssignment"]] = relationship("TaskAssignment", back_populates="task", cascade="all, delete-orphan")
     task_rows: Mapped[List["TaskRow"]] = relationship("TaskRow", back_populates="task", cascade="all, delete-orphan")

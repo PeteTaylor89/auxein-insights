@@ -107,15 +107,15 @@
 }
 
 .ts-notification--success {
-  border: 1px solid #d1fae5;
-  background: #ecfdf5;
-  color: #065f46;
+  border: 1px solid var(--color-success-bg);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .ts-notification--error {
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #991b1b;
+  border: 1px solid var(--color-danger-bg);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 /* Loading */
@@ -262,7 +262,7 @@
   transition: color var(--transition-fast);
 }
 
-.ts-delete-btn:hover { color: #dc2626; }
+.ts-delete-btn:hover { color: var(--color-danger); }
 
 .ts-entry-total {
   font-size: var(--font-size-xs);
@@ -383,7 +383,7 @@
 }
 
 .ts-day-hours-input:focus { outline: none; border-color: var(--color-primary); }
-.ts-day-hours-input:disabled { background: #f3f4f6; cursor: not-allowed; }
+.ts-day-hours-input:disabled { background: var(--color-surface-warm); cursor: not-allowed; }
 
 .ts-notes-textarea {
   width: 100%;
@@ -397,10 +397,10 @@
 }
 
 .ts-notes-textarea:focus { outline: none; border-color: var(--color-primary); }
-.ts-notes-textarea:disabled { background: #f3f4f6; cursor: not-allowed; }
+.ts-notes-textarea:disabled { background: var(--color-surface-warm); cursor: not-allowed; }
 
 .ts-totals-info { font-size: var(--font-size-xs); color: var(--color-text-muted); }
-.ts-uncoded-hours { font-size: var(--font-size-xs); color: #ea580c; font-weight: 500; }
+.ts-uncoded-hours { font-size: var(--font-size-xs); color: var(--color-warning); font-weight: 500; }
 
 /* Status badge */
 .ts-badge {
@@ -411,10 +411,10 @@
   font-weight: 500;
 }
 
-.ts-badge--approved { background: var(--color-success-bg); color: #166534; }
-.ts-badge--submitted { background: var(--color-warning-bg); color: #92400e; }
-.ts-badge--rejected { background: var(--color-danger-bg); color: #991b1b; }
-.ts-badge--draft { background: #f3f4f6; color: #374151; }
+.ts-badge--approved { background: var(--color-success-bg); color: var(--color-success-text); }
+.ts-badge--submitted { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.ts-badge--rejected { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.ts-badge--draft { background: var(--color-surface-warm); color: var(--color-text); }
 
 /* Submit button */
 .ts-submit-btn {
@@ -431,7 +431,7 @@
   transition: background var(--transition-fast);
 }
 
-.ts-submit-btn:hover { background: #047857; }
+.ts-submit-btn:hover { background: var(--color-success); }
 
 /* Stats grid (team dashboard) */
 .ts-stats-grid {

@@ -44,6 +44,7 @@ from db.models.task_assignment import TaskAssignment
 from db.models.task_row import TaskRow
 from db.models.task_gps_track import TaskGPSTrack
 from db.models.task_gps_summary import TaskGPSSummary
+from db.models.spray_coverage import SprayCoverage
 from db.models.wine_region import WineRegion
 from db.models.geographical_indication import GeographicalIndication
 from db.models.weather import WeatherStation, WeatherData, IngestionLog

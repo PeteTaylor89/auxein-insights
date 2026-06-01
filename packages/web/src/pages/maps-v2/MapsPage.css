@@ -190,7 +190,7 @@ body.maps-fullscreen .app-main {
 .v2-style-selector {
   display: flex;
   gap: 2px;
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   border-radius: var(--radius-sm);
   padding: 2px;
 }
@@ -308,7 +308,7 @@ body.maps-fullscreen .app-main {
 
 .v2-popup-badge--other {
   background: #f1f5f9;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .v2-popup-badge--obs {
@@ -323,22 +323,22 @@ body.maps-fullscreen .app-main {
 
 .v2-popup-badge--parcel-assigned {
   background: var(--color-success-bg);
-  color: #166534;
+  color: var(--color-success-text);
 }
 
 .v2-popup-badge--parcel-unassigned {
   background: var(--color-warning-bg);
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 .v2-popup-badge--risk {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
-.v2-popup-risk--low { background: #dcfce7; color: #166534; }
-.v2-popup-risk--medium { background: #fef3c7; color: #92400e; }
-.v2-popup-risk--high { background: #fecaca; color: #991b1b; }
+.v2-popup-risk--low { background: var(--color-success-bg); color: var(--color-success-text); }
+.v2-popup-risk--medium { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.v2-popup-risk--high { background: var(--color-danger-bg); color: var(--color-danger-text); }
 .v2-popup-risk--critical { background: #7c2d12; color: #ffffff; }
 
 /* Title */
@@ -1296,7 +1296,7 @@ body.maps-fullscreen .app-main {
 .v2-flyover-tabs {
   display: flex;
   gap: 2px;
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   border-radius: var(--radius-sm);
   padding: 2px;
   margin-bottom: var(--space-sm);
@@ -1462,7 +1462,7 @@ body.maps-fullscreen .app-main {
 .v2-flyover-edit-hint {
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: #3b82f6;
+  color: var(--color-primary);
 }
 
 .v2-flyover-edit-actions {
@@ -1509,7 +1509,7 @@ body.maps-fullscreen .app-main {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #D1583B;
+  background: var(--color-accent);
   color: white;
   font-size: 10px;
   font-weight: 700;

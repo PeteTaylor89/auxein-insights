@@ -143,12 +143,12 @@
    a white card with a thin border + 10px radius, search + selects inline. */
 .ad-filters {
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-md);
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   padding: 10px 12px;
   border-radius: 10px;
 }
@@ -157,8 +157,8 @@
   flex: 1 1 280px;
   min-width: 200px;
   padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
   font-size: 14px;
   font-family: var(--font-family);
   color: var(--color-text);
@@ -172,8 +172,8 @@
 
 .ad-filter-select {
   padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
   font-size: 14px;
   font-family: var(--font-family);
   color: var(--color-text);
@@ -192,7 +192,7 @@
    strip, hairline row separators, light-grey hover. */
 .ad-table-wrap {
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow-x: auto;
 }
@@ -206,10 +206,10 @@
 .ad-table thead th {
   text-align: left;
   padding: 10px 12px;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--color-surface-warm);
+  border-bottom: 1px solid var(--color-border);
   font-weight: 600;
-  color: #4b5563;
+  color: var(--color-text);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -221,7 +221,7 @@
 .ad-table td {
   padding: 10px 12px;
   color: var(--color-text);
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-surface-warm);
   vertical-align: middle;
 }
 
@@ -238,7 +238,7 @@
 }
 
 .ad-table tbody tr:hover {
-  background: #f9fafb;
+  background: var(--color-surface-warm);
 }
 
 /* Buttons */
@@ -279,7 +279,7 @@
 }
 
 .ad-btn-success:hover {
-  background: #219a38;
+  background: var(--color-success);
 }
 
 .ad-btn-accent {
@@ -312,7 +312,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-base);
-  background: #7c3aed;
+  background: var(--color-primary);
   color: var(--color-white);
   border: none;
   border-radius: var(--radius-sm);
@@ -324,7 +324,7 @@
 }
 
 .ad-btn-purple:hover {
-  background: #6d28d9;
+  background: var(--color-primary-hover);
 }
 
 /* Action cell */
@@ -346,18 +346,18 @@
   text-transform: capitalize;
 }
 
-.ad-badge--active { background: var(--color-success-bg); color: #166534; }
-.ad-badge--maintenance { background: #fed7aa; color: #9a3412; }
-.ad-badge--retired { background: #e5e7eb; color: #374151; }
+.ad-badge--active { background: var(--color-success-bg); color: var(--color-success-text); }
+.ad-badge--maintenance { background: var(--color-high-bg); color: var(--color-high); }
+.ad-badge--retired { background: var(--color-border); color: var(--color-text); }
 .ad-badge--disposed { background: var(--color-danger-bg); color: var(--color-danger); }
-.ad-badge--out_of_stock { background: #fef2f2; color: var(--color-danger); }
-.ad-badge--low_stock { background: var(--color-warning-bg); color: #92400e; }
-.ad-badge--adequate { background: var(--color-success-bg); color: #166534; }
-.ad-badge--scheduled { background: var(--color-info-bg); color: #1e40af; }
-.ad-badge--in_progress { background: var(--color-warning-bg); color: #92400e; }
-.ad-badge--completed { background: var(--color-success-bg); color: #166534; }
+.ad-badge--out_of_stock { background: var(--color-danger-bg); color: var(--color-danger); }
+.ad-badge--low_stock { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.ad-badge--adequate { background: var(--color-success-bg); color: var(--color-success-text); }
+.ad-badge--scheduled { background: var(--color-info-bg); color: var(--color-info-text); }
+.ad-badge--in_progress { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.ad-badge--completed { background: var(--color-success-bg); color: var(--color-success-text); }
 .ad-badge--cancelled { background: var(--color-danger-bg); color: var(--color-danger); }
-.ad-badge--default { background: #f3f4f6; color: #374151; }
+.ad-badge--default { background: var(--color-surface-warm); color: var(--color-text); }
 
 /* Stock status badges */
 .ad-stock-badge {
@@ -369,9 +369,9 @@
   font-weight: 600;
 }
 
-.ad-stock-badge--green { background: var(--color-success-bg); color: #166534; }
-.ad-stock-badge--orange { background: var(--color-warning-bg); color: #92400e; }
-.ad-stock-badge--red { background: #fef2f2; color: var(--color-danger); }
+.ad-stock-badge--green { background: var(--color-success-bg); color: var(--color-success-text); }
+.ad-stock-badge--orange { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.ad-stock-badge--red { background: var(--color-danger-bg); color: var(--color-danger); }
 
 /* Priority indicator */
 .ad-priority {
@@ -384,10 +384,10 @@
   font-weight: 600;
 }
 
-.ad-priority--red { background: #fef2f2; color: var(--color-danger); }
+.ad-priority--red { background: var(--color-danger-bg); color: var(--color-danger); }
 .ad-priority--orange { background: #fff7ed; color: #ea580c; }
 .ad-priority--yellow { background: #fefce8; color: #ca8a04; }
-.ad-priority--blue { background: #eff6ff; color: #2563eb; }
+.ad-priority--blue { background: var(--color-info-bg); color: var(--color-info); }
 
 /* Certification badges */
 .ad-cert-badges {
@@ -477,17 +477,17 @@
   .ad-table tbody td {
     display: block;
     border-bottom: none;
-    padding: 4px 12px;
+    padding: var(--space-xs) var(--space-md);
     text-align: left;
   }
   .ad-table tbody td.center,
   .ad-table tbody td.right { text-align: left; }
   .ad-table tbody td:first-child {
-    padding-top: 12px;
+    padding-top: var(--space-md);
     font-weight: 600;
   }
   .ad-table tbody td:last-child {
-    padding-bottom: 12px;
-    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--color-border);
   }
 }

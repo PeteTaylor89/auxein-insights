@@ -212,7 +212,7 @@
 .ac-input:disabled,
 .ac-select:disabled,
 .ac-textarea:disabled {
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   cursor: not-allowed;
 }
 
@@ -296,7 +296,7 @@
   transition: background var(--transition-fast);
 }
 
-.ac-btn-success:hover { background: #219a38; }
+.ac-btn-success:hover { background: var(--color-success); }
 .ac-btn-success:disabled { background: var(--color-text-muted); cursor: not-allowed; }
 
 .ac-btn-danger {
@@ -315,12 +315,12 @@
   transition: background var(--transition-fast);
 }
 
-.ac-btn-danger:hover { background: #b91c1c; }
+.ac-btn-danger:hover { background: var(--color-danger-hover); }
 .ac-btn-danger:disabled { background: #fca5a5; cursor: not-allowed; }
 
 .ac-btn-cancel {
   padding: var(--space-sm) var(--space-base);
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   color: var(--color-text);
   border: none;
   border-radius: var(--radius-sm);
@@ -400,13 +400,13 @@
 .ac-toggle-btn.active--add {
   border: 2px solid var(--color-success);
   background: var(--color-success-bg);
-  color: #166534;
+  color: var(--color-success-text);
 }
 
 .ac-toggle-btn.active--subtract {
   border: 2px solid var(--color-warning);
   background: var(--color-warning-bg);
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 /* Alerts / banners */
@@ -436,13 +436,13 @@
 
 .ac-warning-title {
   font-weight: 600;
-  color: #92400e;
+  color: var(--color-warning-text);
   margin-bottom: 2px;
 }
 
 .ac-warning-text {
   font-size: var(--font-size-base);
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 .ac-info {
@@ -452,12 +452,12 @@
   padding: var(--space-md);
   margin-bottom: var(--space-base);
   font-size: var(--font-size-sm);
-  color: #0c4a6e;
+  color: var(--color-info-text);
 }
 
 .ac-success-box {
   background: var(--color-success-bg);
-  border: 1px solid #22c55e;
+  border: 1px solid var(--color-success);
   border-radius: var(--radius-md);
   padding: var(--space-md);
 }
@@ -465,13 +465,13 @@
 .ac-success-title {
   font-weight: 600;
   font-size: var(--font-size-base);
-  color: #166534;
+  color: var(--color-success-text);
   margin-bottom: 2px;
 }
 
 .ac-success-text {
   font-size: var(--font-size-sm);
-  color: #166534;
+  color: var(--color-success-text);
 }
 
 /* Stock status banner */
@@ -486,7 +486,7 @@
 
 .ac-stock-status--green {
   background: var(--color-success-bg);
-  border: 1px solid #22c55e;
+  border: 1px solid var(--color-success);
 }
 
 .ac-stock-status--orange {
@@ -495,7 +495,7 @@
 }
 
 .ac-stock-status--red {
-  background: #fef2f2;
+  background: var(--color-danger-bg);
   border: 1px solid #fca5a5;
 }
 
@@ -525,12 +525,12 @@
   font-size: var(--font-size-xs);
   font-weight: 600;
   margin-bottom: var(--space-xs);
-  color: #0c4a6e;
+  color: var(--color-info-text);
 }
 
 .ac-preview-text {
   font-size: var(--font-size-base);
-  color: #0369a1;
+  color: var(--color-info);
 }
 
 /* Tables */
@@ -593,13 +593,13 @@
   text-transform: capitalize;
 }
 
-.ac-badge--pass { background: var(--color-success-bg); color: #166534; }
+.ac-badge--pass { background: var(--color-success-bg); color: var(--color-success-text); }
 .ac-badge--fail { background: var(--color-danger-bg); color: var(--color-danger); }
-.ac-badge--warning { background: var(--color-warning-bg); color: #92400e; }
+.ac-badge--warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
 .ac-badge--info { background: var(--color-info-bg); color: var(--color-info); }
-.ac-badge--neutral { background: #f3f4f6; color: #374151; }
-.ac-badge--purchase { background: var(--color-success-bg); color: #166534; }
-.ac-badge--usage { background: var(--color-warning-bg); color: #92400e; }
+.ac-badge--neutral { background: var(--color-surface-warm); color: var(--color-text); }
+.ac-badge--purchase { background: var(--color-success-bg); color: var(--color-success-text); }
+.ac-badge--usage { background: var(--color-warning-bg); color: var(--color-warning-text); }
 .ac-badge--disposal { background: var(--color-danger-bg); color: var(--color-danger); }
 .ac-badge--adjustment { background: var(--color-info-bg); color: var(--color-info); }
 
@@ -678,7 +678,7 @@
   background: rgba(220, 38, 38, 0.9);
   color: var(--color-white);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   width: 24px;
   height: 24px;
   font-size: 14px;

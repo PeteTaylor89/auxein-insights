@@ -294,16 +294,16 @@ function CreateIncident() {
     
     if (score <= 4) {
       level = 'Low';
-      color = '#22c55e';
+      color = 'var(--color-success)';
     } else if (score <= 9) {
       level = 'Medium';
-      color = '#f59e0b';
+      color = 'var(--color-warning)';
     } else if (score <= 16) {
       level = 'High';
-      color = '#ef4444';
+      color = 'var(--color-danger)';
     } else {
       level = 'Critical';
-      color = '#991b1b';
+      color = 'var(--color-danger-text)';
     }
     
     return { score, level, color };
@@ -434,7 +434,7 @@ function CreateIncident() {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: '#f8fafc',
+      background: 'var(--color-surface-warm)',
       paddingTop: '70px',
       paddingBottom: '80px'
     }}>
@@ -458,12 +458,12 @@ function CreateIncident() {
             alignItems: 'center',
             marginBottom: '1rem',
             paddingBottom: '0.5rem',
-            borderBottom: '1px solid #f3f4f6'
+            borderBottom: '1px solid var(--color-surface-warm)'
           }}>
             <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '600' }}>
               {editMode ? 'Edit Incident:' : 'Report New Incident'}
               {editMode && existingIncidentData && (
-                <span style={{ fontSize: '1.0rem', color: '#6b7280', fontWeight: '500' }}>
+                <span style={{ fontSize: '1.0rem', color: 'var(--color-text-muted)', fontWeight: '500' }}>
                   {' '}{existingIncidentData.incident_number} - {existingIncidentData.incident_title}
                 </span>
               )}
@@ -472,7 +472,7 @@ function CreateIncident() {
               <button 
                 onClick={handleCancel}
                 style={{
-                  background: '#6b7280',
+                  background: 'var(--color-text-muted)',
                   color: 'white',
                   border: 'none',
                   padding: '0.5rem 1rem',
@@ -493,8 +493,8 @@ function CreateIncident() {
             ['injury', 'near_miss', 'dangerous_occurrence'].includes(formData.incident_type) && (
               <div
                 style={{
-                  background: '#fecaca',
-                  border: '1px solid #dc2626',
+                  background: 'var(--color-danger-bg)',
+                  border: '1px solid var(--color-danger)',
                   borderRadius: '8px',
                   padding: '1rem',
                   marginBottom: '1rem',
@@ -502,14 +502,14 @@ function CreateIncident() {
               >
                 <div
                   style={{
-                    color: '#991b1b',
+                    color: 'var(--color-danger-text)',
                     fontWeight: '600',
                     marginBottom: '0.5rem',
                   }}
                 >
                   🚨 Serious Incident Alert
                 </div>
-                <div style={{ color: '#991b1b', fontSize: '0.875rem' }}>
+                <div style={{ color: 'var(--color-danger-text)', fontSize: '0.875rem' }}>
                   This incident may require WorkSafe notification. An internal investigation will be automatically scheduled.
                   <br /><br />
                   Please ensure you meet all regulatory requirements under the Health and Safety at Work Act 2015. 
@@ -526,8 +526,8 @@ function CreateIncident() {
             ['environmental'].includes(formData.incident_type) && (
               <div
                 style={{
-                  background: '#fecaca',
-                  border: '1px solid #dc2626',
+                  background: 'var(--color-danger-bg)',
+                  border: '1px solid var(--color-danger)',
                   borderRadius: '8px',
                   padding: '1rem',
                   marginBottom: '1rem',
@@ -535,14 +535,14 @@ function CreateIncident() {
               >
                 <div
                   style={{
-                    color: '#991b1b',
+                    color: 'var(--color-danger-text)',
                     fontWeight: '600',
                     marginBottom: '0.5rem',
                   }}
                 >
                   🚨 Environmental Incident Alert
                 </div>
-                <div style={{ color: '#991b1b', fontSize: '0.875rem' }}>
+                <div style={{ color: 'var(--color-danger-text)', fontSize: '0.875rem' }}>
                   This incident may require notification to your Local or Regional Council. An internal investigation will be automatically scheduled.
                   <br /><br />
                   Use of this module in Auxein Insights does not constitute compliance with local or regional regulations. 
@@ -555,12 +555,12 @@ function CreateIncident() {
         {/* Success Message */}
         {success && (
           <div style={{
-            background: '#dcfce7',
-            border: '1px solid #22c55e',
+            background: 'var(--color-success-bg)',
+            border: '1px solid var(--color-success)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#166534'
+            color: 'var(--color-success-text)'
           }}>
             ✅ Incident {editMode ? 'updated' : 'reported'} successfully!
             {showCreateRiskSection && !editMode && ' Related risk will be created.'}
@@ -571,12 +571,12 @@ function CreateIncident() {
         {/* Error Message */}
         {error && (
           <div style={{
-            background: '#fecaca',
-            border: '1px solid #dc2626',
+            background: 'var(--color-danger-bg)',
+            border: '1px solid var(--color-danger)',
             borderRadius: '8px',
             padding: '1rem',
             marginBottom: '1.5rem',
-            color: '#991b1b'
+            color: 'var(--color-danger-text)'
           }}>
             ❌ {typeof error === 'string' ? error : JSON.stringify(error)}
           </div>
@@ -611,7 +611,7 @@ function CreateIncident() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem'
                 }}
@@ -632,7 +632,7 @@ function CreateIncident() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem',
                   resize: 'vertical'
@@ -649,7 +649,7 @@ function CreateIncident() {
                 value={formData.property_id}
                 onChange={handleChange}
                 required
-                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}
+                style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.875rem' }}
               >
                 <option value="">Select Property</option>
                 {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -669,7 +669,7 @@ function CreateIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -693,7 +693,7 @@ function CreateIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -717,7 +717,7 @@ function CreateIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -744,7 +744,7 @@ function CreateIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -754,7 +754,7 @@ function CreateIncident() {
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
                   Discovered Date & Time
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '400' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: '400' }}>
                     {' '}(if different from incident date)
                   </span>
                 </label>
@@ -766,7 +766,7 @@ function CreateIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem'
                   }}
@@ -801,7 +801,7 @@ function CreateIncident() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem'
                 }}
@@ -812,8 +812,8 @@ function CreateIncident() {
             <div style={{ 
               marginBottom: '1rem',
               padding: '1rem',
-              background: '#f8fafc',
-              border: '1px solid #e5e7eb',
+              background: 'var(--color-surface-warm)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px'
             }}>
               <div style={{ 
@@ -830,7 +830,7 @@ function CreateIncident() {
                     type="button"
                     onClick={() => setShowLocationMap(true)}
                     style={{
-                      background: '#3b82f6',
+                      background: 'var(--color-primary)',
                       color: 'white',
                       border: 'none',
                       padding: '0.5rem 1rem',
@@ -846,8 +846,8 @@ function CreateIncident() {
               
               {incidentLocation ? (
                 <div style={{
-                  background: '#dcfce7',
-                  border: '1px solid #22c55e',
+                  background: 'var(--color-success-bg)',
+                  border: '1px solid var(--color-success)',
                   borderRadius: '6px',
                   padding: '0.75rem',
                   display: 'flex',
@@ -855,10 +855,10 @@ function CreateIncident() {
                   alignItems: 'center'
                 }}>
                   <div>
-                    <div style={{ fontWeight: '500', color: '#166534' }}>
+                    <div style={{ fontWeight: '500', color: 'var(--color-success-text)' }}>
                       ✅ Location Set: Point Location
                     </div>
-                    <div style={{ fontSize: '0.875rem', color: '#166534' }}>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--color-success-text)' }}>
                       Coordinates: {incidentLocation.coordinates[1].toFixed(6)}, {incidentLocation.coordinates[0].toFixed(6)}
                     </div>
                   </div>
@@ -867,7 +867,7 @@ function CreateIncident() {
                       type="button"
                       onClick={() => setShowLocationMap(true)}
                       style={{
-                        background: '#3b82f6',
+                        background: 'var(--color-primary)',
                         color: 'white',
                         border: 'none',
                         padding: '0.25rem 0.75rem',
@@ -882,7 +882,7 @@ function CreateIncident() {
                       type="button"
                       onClick={handleRemoveLocation}
                       style={{
-                        background: '#dc2626',
+                        background: 'var(--color-danger)',
                         color: 'white',
                         border: 'none',
                         padding: '0.25rem 0.75rem',
@@ -898,7 +898,7 @@ function CreateIncident() {
               ) : (
                 <div style={{ 
                   fontSize: '0.875rem', 
-                  color: '#6b7280'
+                  color: 'var(--color-text-muted)'
                 }}>
                   No precise location set. Use "Set Location on Map" to mark the exact incident location.
                 </div>
@@ -921,7 +921,7 @@ function CreateIncident() {
               
               {isInjuryIncident() && (
                 <div>
-                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: '600', color: '#dc2626' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-danger)' }}>
                     🏥 Injured Person Details
                   </h4>
                   
@@ -939,7 +939,7 @@ function CreateIncident() {
                         style={{
                           width: '100%',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem'
                         }}
@@ -959,7 +959,7 @@ function CreateIncident() {
                         style={{
                           width: '100%',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem'
                         }}
@@ -979,7 +979,7 @@ function CreateIncident() {
                         style={{
                           width: '100%',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem'
                         }}
@@ -999,7 +999,7 @@ function CreateIncident() {
                         style={{
                           width: '100%',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem'
                         }}
@@ -1024,7 +1024,7 @@ function CreateIncident() {
                         style={{
                           width: '100%',
                           padding: '0.75rem',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '6px',
                           fontSize: '0.875rem'
                         }}
@@ -1042,9 +1042,9 @@ function CreateIncident() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                     <div style={{
                       padding: '1rem',
-                      background: '#f8fafc',
+                      background: 'var(--color-surface-warm)',
                       borderRadius: '8px',
-                      border: '1px solid #e5e7eb'
+                      border: '1px solid var(--color-border)'
                     }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', marginBottom: '0.5rem' }}>
                         <input
@@ -1065,7 +1065,7 @@ function CreateIncident() {
                           style={{
                             width: '100%',
                             padding: '0.5rem',
-                            border: '1px solid #d1d5db',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '4px',
                             fontSize: '0.875rem'
                           }}
@@ -1075,9 +1075,9 @@ function CreateIncident() {
 
                     <div style={{
                       padding: '1rem',
-                      background: '#f8fafc',
+                      background: 'var(--color-surface-warm)',
                       borderRadius: '8px',
-                      border: '1px solid #e5e7eb'
+                      border: '1px solid var(--color-border)'
                     }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500', marginBottom: '0.5rem' }}>
                         <input
@@ -1099,7 +1099,7 @@ function CreateIncident() {
                           style={{
                             width: '100%',
                             padding: '0.5rem',
-                            border: '1px solid #d1d5db',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '4px',
                             fontSize: '0.875rem'
                           }}
@@ -1123,7 +1123,7 @@ function CreateIncident() {
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                     fontSize: '0.875rem',
                     resize: 'vertical'
@@ -1162,12 +1162,12 @@ function CreateIncident() {
                     style={{
                       width: '200px',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem'
                     }}
                   />
-                  <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                  <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                     Enter estimated cost of repairs/replacement
                   </small>
                 </div>
@@ -1187,7 +1187,7 @@ function CreateIncident() {
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       fontSize: '0.875rem',
                       resize: 'vertical'
@@ -1223,7 +1223,7 @@ function CreateIncident() {
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.875rem',
                   resize: 'vertical'
@@ -1234,9 +1234,9 @@ function CreateIncident() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div style={{
                 padding: '1rem',
-                background: '#f8fafc',
+                background: 'var(--color-surface-warm)',
                 borderRadius: '8px',
-                border: '1px solid #e5e7eb'
+                border: '1px solid var(--color-border)'
               }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500' }}>
                   <input
@@ -1247,16 +1247,16 @@ function CreateIncident() {
                   />
                   Evidence Collected
                 </label>
-                <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                   Physical evidence, samples, or documents gathered
                 </small>
               </div>
 
               <div style={{
                 padding: '1rem',
-                background: '#f8fafc',
+                background: 'var(--color-surface-warm)',
                 borderRadius: '8px',
-                border: '1px solid #e5e7eb'
+                border: '1px solid var(--color-border)'
               }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '500' }}>
                   <input
@@ -1267,7 +1267,7 @@ function CreateIncident() {
                   />
                   Photos Taken
                 </label>
-                <small style={{ display: 'block', marginTop: '0.25rem', color: '#6b7280' }}>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: 'var(--color-text-muted)' }}>
                   Photographs of the incident scene/damage
                 </small>
               </div>
@@ -1293,8 +1293,8 @@ function CreateIncident() {
                 disabled={loading}
                 style={{
                   background: 'white',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
                   padding: '0.75rem 1.5rem',
                   borderRadius: '6px',
                   cursor: loading ? 'not-allowed' : 'pointer',
@@ -1309,7 +1309,7 @@ function CreateIncident() {
                 type="submit"
                 disabled={loading}
                 style={{
-                  background: loading ? '#9ca3af' : '#dc2626',
+                  background: loading ? 'var(--color-text-muted)' : 'var(--color-danger)',
                   color: 'white',
                   border: 'none',
                   padding: '0.75rem 1.5rem',
@@ -1329,12 +1329,12 @@ function CreateIncident() {
             
             {showCreateRiskSection && !editMode && (
               <div style={{
-                background: '#f0fdf4',
-                border: '1px solid #22c55e',
+                background: 'var(--color-success-bg)',
+                border: '1px solid var(--color-success)',
                 borderRadius: '6px',
                 padding: '0.75rem',
                 fontSize: '0.875rem',
-                color: '#166534',
+                color: 'var(--color-success-text)',
                 marginTop: '1rem'
               }}>
                 ✅ This will create both the incident report and a new related risk to help prevent similar incidents.
@@ -1376,7 +1376,7 @@ function CreateIncident() {
                     });
                   }}
                   style={{
-                    background: '#3b82f6',
+                    background: 'var(--color-primary)',
                     color: 'white',
                     border: 'none',
                     padding: '0.5rem 1rem',
@@ -1389,7 +1389,7 @@ function CreateIncident() {
                 <button
                   onClick={() => setShowLocationMap(false)}
                   style={{
-                    background: '#6b7280',
+                    background: 'var(--color-text-muted)',
                     color: 'white',
                     border: 'none',
                     padding: '0.5rem 1rem',

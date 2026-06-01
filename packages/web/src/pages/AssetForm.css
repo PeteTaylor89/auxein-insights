@@ -103,7 +103,7 @@
   transition: background var(--transition-fast);
 }
 
-.af-btn-delete:hover { background: #b91c1c; }
+.af-btn-delete:hover { background: var(--color-danger-hover); }
 .af-btn-delete:disabled { background: #fca5a5; cursor: not-allowed; }
 
 .af-btn-action {
@@ -141,7 +141,7 @@
   transition: background var(--transition-fast);
 }
 
-.af-btn-success:hover { background: #219a38; }
+.af-btn-success:hover { background: var(--color-success); }
 
 .af-btn-sm {
   padding: var(--space-xs) var(--space-sm);
@@ -306,7 +306,7 @@
 }
 
 .af-input:disabled {
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
 }
 
 .af-textarea {
@@ -377,7 +377,7 @@
   background: rgba(220, 38, 38, 0.9);
   color: var(--color-white);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   width: 24px;
   height: 24px;
   font-size: 14px;

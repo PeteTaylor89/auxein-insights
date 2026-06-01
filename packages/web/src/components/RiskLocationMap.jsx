@@ -513,7 +513,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
         {/* Header */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderBottom: '1px solid #e5e7eb',
+          borderBottom: '1px solid var(--color-border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -529,7 +529,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               fontSize: '1.5rem',
               cursor: 'pointer',
               padding: '0.25rem',
-              color: '#6b7280'
+              color: 'var(--color-text-muted)'
             }}
           >
             ×
@@ -539,8 +539,8 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
         {/* Controls */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderBottom: '1px solid #e5e7eb',
-          background: '#f8fafc'
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-surface-warm)'
         }}>
           
           {/* Location Type Toggle */}
@@ -550,7 +550,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               marginBottom: '0.5rem', 
               fontSize: '0.875rem',
               fontWeight: '500',
-              color: '#374151'
+              color: 'var(--color-text)'
             }}>
               Location Type:
             </label>
@@ -561,9 +561,9 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
                   onClick={() => handleLocationTypeChange(mode)}
                   style={{
                     padding: '0.5rem 1rem',
-                    border: '1px solid #d1d5db',
-                    background: locationType === mode ? '#3b82f6' : 'white',
-                    color: locationType === mode ? 'white' : '#374151',
+                    border: '1px solid var(--color-border)',
+                    background: locationType === mode ? 'var(--color-primary)' : 'white',
+                    color: locationType === mode ? 'white' : 'var(--color-text)',
                     borderRadius: '6px',
                     cursor: 'pointer',
                     fontSize: '0.875rem',
@@ -583,7 +583,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
             border: '1px solid #0ea5e9',
             borderRadius: '6px',
             fontSize: '0.875rem',
-            color: '#0369a1'
+            color: 'var(--color-info)'
           }}>
             {status}
           </div>
@@ -601,7 +601,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#f8fafc',
+              background: 'var(--color-surface-warm)',
               zIndex: 1000
             }}>
               <div style={{ textAlign: 'center' }}>
@@ -624,7 +624,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               background: '#fef2f2',
               zIndex: 1000
             }}>
-              <div style={{ textAlign: 'center', color: '#dc2626' }}>
+              <div style={{ textAlign: 'center', color: 'var(--color-danger)' }}>
                 <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>❌</div>
                 <div>{error}</div>
               </div>
@@ -644,17 +644,17 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
         {/* Footer Actions */}
         <div style={{
           padding: '1rem 1.5rem',
-          borderTop: '1px solid #e5e7eb',
+          borderTop: '1px solid var(--color-border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: '#f8fafc'
+          background: 'var(--color-surface-warm)'
         }}>
-          
+
           {/* Location Info */}
           <div style={{ flex: 1 }}>
             {currentLocation && (
-              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
                 {currentLocation.type === 'Point'
                   ? `Point: ${currentLocation.coordinates[1].toFixed(6)}, ${currentLocation.coordinates[0].toFixed(6)}`
                   : currentLocation.type === 'LineString'
@@ -673,9 +673,9 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
                 onClick={handleRemoveLocation}
                 style={{
                   padding: '0.5rem 1rem',
-                  border: '1px solid #dc2626',
+                  border: '1px solid var(--color-danger)',
                   background: 'white',
-                  color: '#dc2626',
+                  color: 'var(--color-danger)',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '0.875rem'
@@ -689,9 +689,9 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               onClick={onClose}
               style={{
                 padding: '0.5rem 1rem',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--color-border)',
                 background: 'white',
-                color: '#374151',
+                color: 'var(--color-text)',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '0.875rem'
@@ -706,7 +706,7 @@ function RiskLocationMap({ isOpen, onClose, onLocationSet, initialLocation = nul
               style={{
                 padding: '0.5rem 1rem',
                 border: 'none',
-                background: currentLocation ? '#3b82f6' : '#9ca3af',
+                background: currentLocation ? 'var(--color-primary)' : 'var(--color-border)',
                 color: 'white',
                 borderRadius: '6px',
                 cursor: currentLocation ? 'pointer' : 'not-allowed',

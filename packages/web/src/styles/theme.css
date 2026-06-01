@@ -33,8 +33,19 @@
   --color-warning-bg: #fef3c7;
   --color-danger: #dc2626;
   --color-danger-bg: #fecaca;
+  --color-danger-hover: #b91c1c;
   --color-info: #2d5a87;
   --color-info-bg: #dbeafe;
+
+  /* Status text — accessible dark-on-tint, pairs with the matching -bg token */
+  --color-success-text: #166534;
+  --color-warning-text: #92400e;
+  --color-danger-text: #991b1b;
+  --color-info-text: #0c4a6e;
+
+  /* Elevated "high" tier — orange step between warning (amber) and danger (red) */
+  --color-high: #c2410c;
+  --color-high-bg: #fed7aa;
 
   /* Typography */
   --font-family: Calibri, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -200,4 +211,86 @@
   max-width: var(--max-width);
   margin: 0 auto;
   padding: var(--space-lg) var(--space-base) calc(var(--nav-height-bottom) + var(--space-lg));
+}
+
+/* ==========================================================================
+   Shared status + form utilities
+   Use these instead of hardcoding status hex or repeating inline form styles.
+   ========================================================================== */
+
+/* Status badge modifiers — extend the base .badge (pill, xs, 600 weight) */
+.badge--success { background: var(--color-success-bg);   color: var(--color-success-text); }
+.badge--warning { background: var(--color-warning-bg);   color: var(--color-warning-text); }
+.badge--danger  { background: var(--color-danger-bg);    color: var(--color-danger-text); }
+.badge--info    { background: var(--color-info-bg);      color: var(--color-info-text); }
+.badge--high    { background: var(--color-high-bg);      color: var(--color-high); }
+.badge--neutral { background: var(--color-surface-warm); color: var(--color-text-muted); }
+
+/* Alert / inline banner */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.alert--success { background: var(--color-success-bg); border-color: var(--color-success); color: var(--color-success-text); }
+.alert--warning { background: var(--color-warning-bg); border-color: var(--color-warning); color: var(--color-warning-text); }
+.alert--danger  { background: var(--color-danger-bg);  border-color: var(--color-danger);  color: var(--color-danger-text); }
+.alert--info    { background: var(--color-info-bg);    border-color: var(--color-info);    color: var(--color-info-text); }
+
+/* Form field helpers */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-base);
+}
+
+.form-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-olive-light);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.form-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
 }

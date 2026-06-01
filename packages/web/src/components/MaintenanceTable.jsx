@@ -18,20 +18,20 @@ export default function MaintenanceTable({ assetId }) {
 
 function StatusBadge({ status }) {
   const colors = {
-    scheduled: { bg: '#dbeafe', color: '#1e40af' },
-    in_progress: { bg: '#fef3c7', color: '#92400e' },
-    completed: { bg: '#dcfce7', color: '#166534' },
-    cancelled: { bg: '#fee2e2', color: '#991b1b' }
+    scheduled: { bg: 'var(--color-info-bg)', color: 'var(--color-info-text)' },
+    in_progress: { bg: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' },
+    completed: { bg: 'var(--color-success-bg)', color: 'var(--color-success-text)' },
+    cancelled: { bg: 'var(--color-danger-bg)', color: 'var(--color-danger-text)' }
   };
 
-  const style = colors[status] || { bg: '#f3f4f6', color: '#374151' };
+  const style = colors[status] || { bg: 'var(--color-surface-warm)', color: 'var(--color-text)' };
 
   return (
     <span style={{
       background: style.bg,
       color: style.color,
       padding: '0.25rem 0.5rem',
-      borderRadius: '999px',
+      borderRadius: 'var(--radius-pill)',
       fontSize: '0.7rem',
       fontWeight: '600',
       textTransform: 'capitalize'
@@ -43,10 +43,10 @@ function StatusBadge({ status }) {
 
 function PriorityBadge({ color, isOverdue, daysInfo }) {
   const colorMap = {
-    red: { bg: '#fef2f2', color: '#dc2626' },
+    red: { bg: 'var(--color-danger-bg)', color: 'var(--color-danger)' },
     orange: { bg: '#fff7ed', color: '#ea580c' },
     yellow: { bg: '#fefce8', color: '#ca8a04' },
-    blue: { bg: '#eff6ff', color: '#2563eb' }
+    blue: { bg: 'var(--color-olive-light)', color: 'var(--color-primary-hover)' }
   };
 
   const style = colorMap[color] || colorMap.blue;
@@ -67,7 +67,7 @@ function PriorityBadge({ color, isOverdue, daysInfo }) {
       background: style.bg,
       color: style.color,
       padding: '0.25rem 0.5rem',
-      borderRadius: '999px',
+      borderRadius: 'var(--radius-pill)',
       fontSize: '0.7rem',
       fontWeight: '600',
       display: 'inline-flex',

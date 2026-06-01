@@ -576,8 +576,8 @@ function CompanyCreationForm() {
         .form-section {
           margin-bottom: 32px;
           padding: 20px;
-          background: #f8fafc;
-          border-radius: 8px;
+          background: var(--color-surface-warm);
+          border-radius: var(--radius-md);
           border: 1px solid #e2e8f0;
         }
 
@@ -602,15 +602,15 @@ function CompanyCreationForm() {
         .form-group label {
           margin-bottom: 6px;
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text);
           font-size: 0.9rem;
         }
 
         .form-group input,
         .form-group textarea {
           padding: 10px 12px;
-          border: 2px solid #e5e7eb;
-          border-radius: 6px;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-sm);
           font-size: 0.95rem;
           transition: border-color 0.2s ease;
         }
@@ -618,7 +618,7 @@ function CompanyCreationForm() {
         .form-group input:focus,
         .form-group textarea:focus {
           outline: none;
-          border-color: #3b82f6;
+          border-color: var(--color-primary);
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
@@ -642,22 +642,22 @@ function CompanyCreationForm() {
 
         .subscription-option {
           padding: 20px;
-          border: 2px solid #e5e7eb;
-          border-radius: 8px;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-md);
           cursor: pointer;
           transition: all 0.2s ease;
           background: white;
         }
 
         .subscription-option:hover {
-          border-color: #3b82f6;
+          border-color: var(--color-primary);
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         .subscription-option.selected {
-          border-color: #3b82f6;
-          background: #eff6ff;
+          border-color: var(--color-primary);
+          background: var(--color-olive-light);
         }
 
         .subscription-option h5 {
@@ -669,7 +669,7 @@ function CompanyCreationForm() {
         .subscription-option .price {
           font-size: 1.25rem;
           font-weight: 700;
-          color: #3b82f6;
+          color: var(--color-primary);
           margin-bottom: 4px;
         }
 
@@ -687,7 +687,7 @@ function CompanyCreationForm() {
 
         .subscription-option .description {
           font-size: 0.9rem;
-          color: #374151;
+          color: var(--color-text);
           margin-bottom: 12px;
           font-style: italic;
         }
@@ -710,7 +710,7 @@ function CompanyCreationForm() {
           content: "✓";
           position: absolute;
           left: 0;
-          color: #10b981;
+          color: var(--color-success);
           font-weight: bold;
         }
 
@@ -724,7 +724,7 @@ function CompanyCreationForm() {
 
         .pricing-preview h5 {
           margin: 0 0 8px 0;
-          color: #374151;
+          color: var(--color-text);
           font-size: 1rem;
         }
 
@@ -739,7 +739,7 @@ function CompanyCreationForm() {
 
         .pricing-breakdown div:last-child {
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text);
           border-top: 1px solid #e2e8f0;
           padding-top: 8px;
           margin-top: 8px;
@@ -749,16 +749,16 @@ function CompanyCreationForm() {
         .no-subscriptions {
           padding: 20px;
           text-align: center;
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          border-radius: 8px;
-          color: #991b1b;
+          background: var(--color-danger-bg);
+          border: 1px solid var(--color-danger-bg);
+          border-radius: var(--radius-md);
+          color: var(--color-danger-text);
         }
 
         .trial-section {
           background: white;
           padding: 16px;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           border: 1px solid #e2e8f0;
         }
 
@@ -787,15 +787,15 @@ function CompanyCreationForm() {
           display: block;
           margin-bottom: 6px;
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text);
           font-size: 0.9rem;
         }
 
         .trial-controls input {
           width: 100px;
           padding: 8px 10px;
-          border: 2px solid #e5e7eb;
-          border-radius: 6px;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-sm);
         }
 
         .form-actions {
@@ -804,11 +804,11 @@ function CompanyCreationForm() {
         }
 
         .submit-button {
-          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
           color: white;
           padding: 14px 28px;
           border: none;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           font-size: 1rem;
           font-weight: 600;
           cursor: pointer;
@@ -830,20 +830,20 @@ function CompanyCreationForm() {
         .result {
           margin-top: 24px;
           padding: 20px;
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           border: 2px solid;
         }
 
         .result.success {
           background: #f0fdf4;
-          border-color: #16a34a;
-          color: #166534;
+          border-color: var(--color-success);
+          color: var(--color-success-text);
         }
 
         .result.error {
-          background: #fef2f2;
-          border-color: #dc2626;
-          color: #991b1b;
+          background: var(--color-danger-bg);
+          border-color: var(--color-danger);
+          color: var(--color-danger-text);
         }
 
         .result h4 {

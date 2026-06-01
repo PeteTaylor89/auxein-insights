@@ -6,8 +6,9 @@ import {companiesService, propertyService} from '@vineyard/shared';
 import RegionalClimateHistory from '../components/climate/RegionalClimateHistory';
 import ArticlesCarousel from '../components/ArticlesCarousel';
 import PhenologyPanel from '../components/phenology/PhenologyPanel';
+import SprayProgramPanel from '../components/spray/SprayProgramPanel';
 import { Link } from 'react-router'
-import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned} from "lucide-react"
+import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned, Droplets} from "lucide-react"
 import './Insights.css';
 
 // Insight pill cards, in display order.
@@ -16,6 +17,7 @@ const INSIGHT_CARDS = [
   { key: 'climateprojection', label: 'Climate Projections', Icon: ChartSpline },
   { key: 'currentseason', label: 'Current Season', Icon: CloudSunRain },
   { key: 'phenology', label: 'Phenology', Icon: Grape },
+  { key: 'sprayprogram', label: 'Spray Program', Icon: Droplets },
   { key: 'disease', label: 'Disease', Icon: ShieldCheck },
   { key: 'biosecurity', label: 'Biosecurity', Icon: Bug },
   { key: 'blockchain', label: 'BlockChain', Icon: ShieldCheck },
@@ -168,6 +170,22 @@ function Insights() {
                 </>
               )}
             </div>
+          </div>
+        );
+      case 'sprayprogram':
+        return (
+          <div className="content-container">
+            <div className="container-title">
+              <span>Spray Program{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span>
+              <button
+                className="close-insight-btn"
+                onClick={() => setActiveInsight(null)}
+                aria-label="Close Spray Program"
+              >
+                ×
+              </button>
+            </div>
+            <SprayProgramPanel selectedPropertyId={selectedPropertyId} />
           </div>
         );
       case 'disease':

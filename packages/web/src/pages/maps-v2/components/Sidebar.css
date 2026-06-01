@@ -32,7 +32,7 @@
   display: flex;
   flex: 1;
   gap: 2px;
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   border-radius: var(--radius-sm);
   padding: 2px;
 }
@@ -79,7 +79,7 @@
 }
 
 .v2-sidebar-toggle:hover {
-  background: #f3f4f6;
+  background: var(--color-surface-warm);
   color: var(--color-text);
 }
 
