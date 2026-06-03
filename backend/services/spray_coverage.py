@@ -60,9 +60,55 @@ def _flow_to_l_per_s(value, unit):
     return None
 
 
-def _resolve_spray_inputs(task, db):
-    """Return (asset, swath_m, flow_l_s, target_lha, tol_min, tol_max) or None
-    if the task isn't spray-capable (no asset with swath + resolvable flow)."""
+def _resolve_asset_flow(asset, db, ref_date=None, task_calibration_id=None):
+    """Resolve an asset's flow rate to L/s using the same priority as the compute
+    path: an explicitly linked calibration -> the most recent calibration on/before
+    ref_date -> the asset's inline calibration spec. Returns (flow_l_s, rate_seen),
+    where rate_seen is True if *a* rate value was found but couldn't be converted
+    (e.g. an L/ha application rate) — to distinguish 'wrong unit' from 'no cal'."""
+    flow_l_s = None
+    rate_seen = False
+    cal = None
+    if task_calibration_id:
+        cal = db.query(AssetCalibration).filter(AssetCalibration.id == task_calibration_id).first()
+    if cal is None:
+        if ref_date is None:
+            ref_date = datetime.utcnow().date()
+        cal = (
+            db.query(AssetCalibration)
+            .filter(
+                AssetCalibration.asset_id == asset.id,
+                AssetCalibration.calibration_date <= ref_date,
+            )
+            .order_by(AssetCalibration.calibration_date.desc())
+            .first()
+        )
+    if cal is not None:
+        raw_val = cal.measured_value if cal.measured_value is not None else cal.target_value
+        if raw_val is not None:
+            rate_seen = True
+        flow_l_s = _flow_to_l_per_s(raw_val, cal.unit_of_measure)
+    if flow_l_s is None:
+        if asset.calibration_target_value is not None:
+            rate_seen = True
+        flow_l_s = _flow_to_l_per_s(asset.calibration_target_value, asset.calibration_unit_of_measure)
+    return flow_l_s, rate_seen
+
+
+def _evaluate_spray_inputs(task, db):
+    """Shared resolver for both the compute path and the readiness diagnostic.
+
+    Returns (inputs, missing, info):
+      - inputs: (asset, swath_m, flow_l_s, target_lha, tol_min, tol_max) when the
+        task has a swath-width asset + a flow rate resolvable to L/s, else None.
+      - missing: list of machine codes explaining why inputs is None
+        ('asset_swath' | 'flow_calibration' | 'flow_unit').
+      - info: diagnostic fields (asset summary, flow_l_s, target_lha) — populated
+        as far as resolution got, for surfacing in the UI.
+    """
+    missing = []
+    info = {"asset": None, "flow_l_s": None, "target_lha": None}
+
     task_assets = db.query(TaskAsset).filter(TaskAsset.task_id == task.id).all()
     chosen = None
     for ta in task_assets:
@@ -74,45 +120,114 @@ def _resolve_spray_inputs(task, db):
             if chosen is None:
                 chosen = ta
     if chosen is None:
-        return None
+        missing.append("asset_swath")
+        return None, missing, info
 
     asset = chosen.asset
     swath_m = float(asset.swath_width_m)
+    info["asset"] = {"id": asset.id, "name": asset.name, "swath_width_m": swath_m}
 
-    # Flow rate: the calibration linked to this task's asset usage, else the most
-    # recent flow calibration on/before the task date, else the asset's inline spec.
-    flow_l_s = None
-    cal = None
-    if chosen.calibration_id:
-        cal = db.query(AssetCalibration).filter(AssetCalibration.id == chosen.calibration_id).first()
-    if cal is None:
-        ref_dt = task.actual_end_time or task.actual_start_time or datetime.utcnow()
-        ref_date = ref_dt.date() if hasattr(ref_dt, "date") else ref_dt
-        cal = (
-            db.query(AssetCalibration)
-            .filter(
-                AssetCalibration.asset_id == asset.id,
-                AssetCalibration.calibration_date <= ref_date,
-            )
-            .order_by(AssetCalibration.calibration_date.desc())
-            .first()
-        )
-    if cal is not None:
-        flow_l_s = _flow_to_l_per_s(
-            cal.measured_value if cal.measured_value is not None else cal.target_value,
-            cal.unit_of_measure,
-        )
-    if flow_l_s is None:
-        flow_l_s = _flow_to_l_per_s(asset.calibration_target_value, asset.calibration_unit_of_measure)
+    # Flow rate -> L/s (shared resolver; task usage's linked calibration wins,
+    # then latest calibration on/before the task date, then the asset inline spec).
+    ref_dt = task.actual_end_time or task.actual_start_time or datetime.utcnow()
+    ref_date = ref_dt.date() if hasattr(ref_dt, "date") else ref_dt
+    flow_l_s, rate_seen = _resolve_asset_flow(
+        asset, db, ref_date=ref_date, task_calibration_id=chosen.calibration_id
+    )
     if flow_l_s is None or flow_l_s <= 0:
-        return None
+        # A rate exists but isn't a volumetric flow (e.g. L/ha) -> 'flow_unit';
+        # nothing recorded at all -> 'flow_calibration'.
+        missing.append("flow_unit" if rate_seen else "flow_calibration")
+        return None, missing, info
+
+    info["flow_l_s"] = flow_l_s
 
     # Target application rate (L/ha) for tolerance shading — best-effort from the
     # planned rate on the task asset; ±10% band.
     target_lha = float(chosen.planned_rate) if chosen.planned_rate is not None else None
     tol_min = target_lha * 0.9 if target_lha else None
     tol_max = target_lha * 1.1 if target_lha else None
-    return asset, swath_m, flow_l_s, target_lha, tol_min, tol_max
+    info["target_lha"] = target_lha
+    return (asset, swath_m, flow_l_s, target_lha, tol_min, tol_max), missing, info
+
+
+def _resolve_spray_inputs(task, db):
+    """Return (asset, swath_m, flow_l_s, target_lha, tol_min, tol_max) or None
+    if the task isn't spray-capable (no asset with swath + resolvable flow)."""
+    inputs, _missing, _info = _evaluate_spray_inputs(task, db)
+    return inputs
+
+
+def assess_spray_readiness(task, db):
+    """Non-mutating diagnostic: would completing this task produce a spray
+    coverage raster, and if not, what's missing? Mirrors the preconditions in
+    compute_spray_coverage so the web UI can flag gaps before a tester walks away.
+
+    `missing` codes: 'asset_swath', 'flow_calibration', 'flow_unit', 'block',
+    'block_geometry', 'gps_track'.
+
+    `config_ready` = asset + flow + block + geometry are configured, independent
+    of the GPS track (which only exists after the task runs). `capable` =
+    config_ready AND a usable track (>=2 points) is already present.
+    """
+    inputs, missing, info = _evaluate_spray_inputs(task, db)
+    missing = list(missing)
+
+    if not task.block_id:
+        missing.append("block")
+    else:
+        block = db.query(VineyardBlock).filter(VineyardBlock.id == task.block_id).first()
+        if not block or block.geometry is None:
+            missing.append("block_geometry")
+
+    # config-level readiness is judged before the runtime GPS check
+    config_ready = len(missing) == 0
+
+    gps_points = db.query(TaskGPSTrack).filter(TaskGPSTrack.task_id == task.id).count()
+    has_gps = gps_points >= 2
+    if not has_gps:
+        missing.append("gps_track")
+
+    return {
+        "config_ready": config_ready,
+        "capable": config_ready and has_gps,
+        "missing": missing,
+        "has_gps": has_gps,
+        "gps_points": gps_points,
+        "asset": info["asset"],
+        "flow_l_s": info["flow_l_s"],
+        "target_lha": info["target_lha"],
+    }
+
+
+def assess_asset_spray_capability(asset, db):
+    """Asset-level pre-check for the task wizard, where no task (and no GPS track)
+    exists yet. Does this asset have a swath width + a flow rate resolvable to L/s?
+    Mirrors the asset portion of compute_spray_coverage's preconditions — the block
+    and GPS-track checks are known client-side at task-creation time.
+
+    `missing` codes: 'asset_swath', 'flow_calibration', 'flow_unit'.
+    """
+    swath = asset.swath_width_m
+    has_swath = swath is not None and float(swath) > 0
+    flow_l_s, rate_seen = _resolve_asset_flow(asset, db)
+    has_flow = flow_l_s is not None and flow_l_s > 0
+
+    missing = []
+    if not has_swath:
+        missing.append("asset_swath")
+    if not has_flow:
+        missing.append("flow_unit" if rate_seen else "flow_calibration")
+
+    return {
+        "asset_id": asset.id,
+        "spray_capable": has_swath and has_flow,
+        "has_swath": has_swath,
+        "swath_width_m": float(swath) if has_swath else None,
+        "has_flow": has_flow,
+        "flow_l_s": flow_l_s,
+        "missing": missing,
+    }
 
 
 def _dec(x, places):

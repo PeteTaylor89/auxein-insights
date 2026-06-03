@@ -1112,5 +1112,24 @@ def delete_calibration_spec(
     spec.is_active = False
     db.add(spec)
     db.commit()
-    
+
     return {"message": "File association removed successfully"}
+
+
+@router.get("/{asset_id}/spray-capability")
+def get_asset_spray_capability(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Asset-level spray-coverage pre-check for the task wizard: does this asset
+    have a swath width + a flow rate resolvable to L/s? Lets the create flow flag a
+    misconfigured sprayer before the task exists (block + GPS are known client-side).
+    Returns {spray_capable, has_swath, swath_width_m, has_flow, flow_l_s, missing[]}."""
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    if not current_user.is_auxein_admin and asset.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    from services.spray_coverage import assess_asset_spray_capability
+    return assess_asset_spray_capability(asset, db)

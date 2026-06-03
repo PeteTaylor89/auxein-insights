@@ -55,6 +55,16 @@ const assetOperations = {
   },
 
   /**
+   * Asset-level spray-coverage capability (swath + flow resolvable to L/s).
+   * Used by the task wizard to flag a misconfigured sprayer before the task exists.
+   * @returns {{ spray_capable, has_swath, swath_width_m, has_flow, flow_l_s, missing }}
+   */
+  getSprayCapability: async (assetId) => {
+    const res = await api.get(`/assets/${assetId}/spray-capability`);
+    return res.data;
+  },
+
+  /**
    * Create new asset
    * @param {Object} payload - Asset data
    */
@@ -339,7 +349,7 @@ const calibrationOperations = {
    * pending schedule of this type is NOT auto-rewritten.
    */
   updateSpec: async (specId, payload) => {
-    const res = await api.patch(`/calibration-specs/${specId}`, payload);
+    const res = await api.patch(`/assets/calibration-specs/${specId}`, payload);
     return res.data;
   },
 
@@ -348,7 +358,7 @@ const calibrationOperations = {
    * stops on next completion of this type.
    */
   deleteSpec: async (specId) => {
-    const res = await api.delete(`/calibration-specs/${specId}`);
+    const res = await api.delete(`/assets/calibration-specs/${specId}`);
     return res.data;
   },
 

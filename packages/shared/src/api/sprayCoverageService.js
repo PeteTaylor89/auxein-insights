@@ -24,6 +24,14 @@ const sprayCoverageService = {
     return res.data;
   },
 
+  // Readiness diagnostic: will completing this task build a coverage raster,
+  // and if not, what's missing? `asset` is null when no swath-width asset is
+  // attached (UI shows nothing in that case).
+  getReadiness: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/spray-coverage/readiness`);
+    return res.data;
+  },
+
   // Multi-block: blocks (other than the task's own) the track appears to have sprayed.
   getCandidates: async (taskId) => {
     const res = await api.get(`/tasks/tasks/${taskId}/spray-coverage/candidates`);

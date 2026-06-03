@@ -464,8 +464,45 @@ function MapsPageInner() {
       drawing.startDrawLine();
     };
 
-    map.on('click', handleSplitSelect);
-    return () => map.off('click', handleSplitSelect);
+    // Touch tap bridge — MapboxDraw suppresses tap->click on tablets (see the
+    // main interaction effect for the full rationale). Detect a genuine tap and
+    // run the same selection logic; never preventDefault so Draw is unaffected.
+    const TAP_MOVE_PX = 10;
+    const TAP_MAX_MS = 500;
+    let tapStart = null;
+    let lastTapHandledAt = 0;
+
+    const onTouchStart = (e) => {
+      tapStart = (e.points && e.points.length === 1)
+        ? { x: e.point.x, y: e.point.y, t: Date.now() }
+        : null;
+    };
+    const onTouchEnd = (e) => {
+      if (!tapStart) return;
+      const moved = Math.hypot(e.point.x - tapStart.x, e.point.y - tapStart.y);
+      const elapsed = Date.now() - tapStart.t;
+      tapStart = null;
+      if (moved <= TAP_MOVE_PX && elapsed <= TAP_MAX_MS) {
+        lastTapHandledAt = Date.now();
+        handleSplitSelect(e);
+      }
+    };
+    const onTouchCancel = () => { tapStart = null; };
+    const onClick = (e) => {
+      if (Date.now() - lastTapHandledAt < 700) return;
+      handleSplitSelect(e);
+    };
+
+    map.on('click', onClick);
+    map.on('touchstart', onTouchStart);
+    map.on('touchend', onTouchEnd);
+    map.on('touchcancel', onTouchCancel);
+    return () => {
+      map.off('click', onClick);
+      map.off('touchstart', onTouchStart);
+      map.off('touchend', onTouchEnd);
+      map.off('touchcancel', onTouchCancel);
+    };
   }, [map, mapReady, isSelecting, selectBlock, drawing]);
 
   // --- Block edit handlers ---
@@ -766,11 +803,52 @@ function MapsPageInner() {
       map.getCanvas().style.cursor = features?.length ? 'pointer' : '';
     };
 
-    map.on('click', handleClick);
+    // --- Touch tap support (tablets) -------------------------------------
+    // MapboxDraw is always attached to the map (see useDrawingController). On
+    // touch devices its event handling suppresses Mapbox's tap->click
+    // synthesis, so the `click` listener never fires on a tablet tap (works
+    // fine with a mouse). Bridge it: detect a genuine tap via touchstart/
+    // touchend and run the same selection logic. We never call preventDefault,
+    // so Draw's own drawing gestures are unaffected. A timestamp guard
+    // suppresses the duplicate synthesized click on hybrid touch+mouse devices.
+    const TAP_MOVE_PX = 10;   // matches map clickTolerance
+    const TAP_MAX_MS = 500;
+    let tapStart = null;
+    let lastTapHandledAt = 0;
+
+    const onTouchStart = (e) => {
+      tapStart = (e.points && e.points.length === 1)
+        ? { x: e.point.x, y: e.point.y, t: Date.now() }
+        : null; // ignore multi-touch (pinch / rotate)
+    };
+    const onTouchEnd = (e) => {
+      if (!tapStart) return;
+      const moved = Math.hypot(e.point.x - tapStart.x, e.point.y - tapStart.y);
+      const elapsed = Date.now() - tapStart.t;
+      tapStart = null;
+      if (moved <= TAP_MOVE_PX && elapsed <= TAP_MAX_MS) {
+        lastTapHandledAt = Date.now();
+        handleClick(e); // MapTouchEvent carries point + lngLat
+      }
+    };
+    const onTouchCancel = () => { tapStart = null; };
+    const onClick = (e) => {
+      // skip the synthesized click that follows a tap we already handled
+      if (Date.now() - lastTapHandledAt < 700) return;
+      handleClick(e);
+    };
+
+    map.on('click', onClick);
+    map.on('touchstart', onTouchStart);
+    map.on('touchend', onTouchEnd);
+    map.on('touchcancel', onTouchCancel);
     map.on('mousemove', onMouseMove);
 
     return () => {
-      map.off('click', handleClick);
+      map.off('click', onClick);
+      map.off('touchstart', onTouchStart);
+      map.off('touchend', onTouchEnd);
+      map.off('touchcancel', onTouchCancel);
       map.off('mousemove', onMouseMove);
     };
   }, [map, mapReady]);

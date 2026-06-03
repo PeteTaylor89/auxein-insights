@@ -25,7 +25,7 @@ from db.models.vineyard_row import VineyardRow
 from db.models.asset import Asset, AssetMaintenance, TaskAsset, StockMovement, AssetCalibration, AssetCalibrationSchedule
 from db.models.risk_action import RiskAction
 from services.gps_processing import process_gps_track
-from services.spray_coverage import compute_spray_coverage, detect_spray_blocks
+from services.spray_coverage import compute_spray_coverage, detect_spray_blocks, assess_spray_readiness
 from services.property_service import get_visible_property_ids, verify_block_access
 from db.models.timesheet import TimesheetDay, TimeEntry, TimesheetStatus
 from services.timesheet_rules import create_entry as ts_create_entry
@@ -2673,6 +2673,21 @@ def recompute_spray_coverage(
             detail="Task is not spray-capable (needs an asset with swath width + flow calibration) or has no usable GPS track within the block",
         )
     return _serialize_spray_coverage(cov)
+
+
+@router.get("/tasks/{task_id}/spray-coverage/readiness")
+def spray_coverage_readiness(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Will completing this task produce a spray-coverage raster, and if not,
+    what's missing? Non-mutating — the web TaskDetail uses this to show a chip
+    (and a completion-time warning) so a misconfigured spray task doesn't fail
+    silently in a tester's hands. `asset` is null when no swath-width asset is
+    attached; the UI shows nothing in that case."""
+    task = check_task_access(db, task_id, current_user)
+    return assess_spray_readiness(task, db)
 
 
 class SprayConfirmRequest(BaseModel):

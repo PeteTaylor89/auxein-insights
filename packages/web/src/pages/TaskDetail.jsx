@@ -1,9 +1,9 @@
 // pages/TaskDetail.jsx — Task detail view with row progress, equipment check, consumable completion
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation, Droplets } from 'lucide-react';
 import RiskHazardChips from '../components/risks/RiskHazardChips';
-import { tasksService } from '@vineyard/shared';
+import { tasksService, sprayCoverageService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
 import { TaskStatusBadge } from '../components/TaskManagement';
@@ -38,6 +38,23 @@ function InfoItem({ label, children }) {
   );
 }
 
+// Spray-coverage readiness: human-readable reasons for each missing precondition.
+const SPRAY_MISSING_LABELS = {
+  asset_swath: 'attach an implement with a swath width',
+  flow_calibration: 'record a flow-rate calibration',
+  flow_unit: 'flow rate must be volumetric (L/s, L/min or L/hr) — not L/ha',
+  block: 'assign the task to a block',
+  block_geometry: 'the block needs a mapped boundary',
+  gps_track: 'a GPS track is recorded during the task',
+};
+
+// Reasons that block a raster regardless of run state (exclude the runtime GPS track).
+function spraySetupText(spray) {
+  const codes = (spray?.missing || []).filter(c => c !== 'gps_track');
+  if (!codes.length) return 'Spray coverage will be generated from the GPS track on completion.';
+  return 'No coverage will be generated — ' + codes.map(c => SPRAY_MISSING_LABELS[c] || c).join('; ') + '.';
+}
+
 function TaskDetail() {
   const { taskId } = useParams();
   const navigate = useNavigate();
@@ -55,6 +72,9 @@ function TaskDetail() {
   const [completionNotes, setCompletionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
+
+  // Spray-coverage readiness (web-only signal; null until fetched / when N/A)
+  const [spray, setSpray] = useState(null);
 
   // Edit modal
   const [showEdit, setShowEdit] = useState(false);
@@ -78,6 +98,17 @@ function TaskDetail() {
   }, [taskId]);
 
   useEffect(() => { loadTask(); }, [loadTask]);
+
+  // Spray-coverage readiness — refreshes when status changes (e.g. after a track
+  // is recorded or the task completes). Contractors don't reach this page on web.
+  useEffect(() => {
+    if (!taskId || userTypeRole === 'contractor') return;
+    let cancelled = false;
+    sprayCoverageService.getReadiness(taskId)
+      .then(d => { if (!cancelled) setSpray(d); })
+      .catch(() => { if (!cancelled) setSpray(null); });
+    return () => { cancelled = true; };
+  }, [taskId, userTypeRole, task?.status]);
 
   // ── Start Task Flow (P1) ──────────────────────────────────────────
   const handleStartClick = async () => {
@@ -318,6 +349,17 @@ function TaskDetail() {
                 {task.requires_gps_tracking && (
                   <InfoItem label={<><Navigation size={12} style={{ verticalAlign: -2 }} /> GPS tracking</>}>
                     <span className="td-pill td-pill--olive">Enabled</span>
+                  </InfoItem>
+                )}
+                {spray?.asset && (
+                  <InfoItem label={<><Droplets size={12} style={{ verticalAlign: -2 }} /> Spray coverage</>}>
+                    {spray.capable ? (
+                      <span className="badge badge--success" title={`${spray.asset.name} · swath ${spray.asset.swath_width_m} m`}>Ready</span>
+                    ) : spray.config_ready ? (
+                      <span className="badge badge--neutral" title={spraySetupText(spray)}>On completion</span>
+                    ) : (
+                      <span className="badge badge--warning" title={spraySetupText(spray)}>Needs setup</span>
+                    )}
                   </InfoItem>
                 )}
                 {Array.isArray(task.tags) && task.tags.length > 0 && (
@@ -574,6 +616,12 @@ function TaskDetail() {
             <div className="td-modal">
               <h3><CheckCircle size={16} /> Complete Task</h3>
               {actionError && <div className="td-error">{actionError}</div>}
+              {spray?.asset && !spray.config_ready && (
+                <div className="alert alert--warning" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12 }}>
+                  <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span>{spraySetupText(spray)}</span>
+                </div>
+              )}
 
               {consumables.length > 0 && (
                 <div className="td-consumables">

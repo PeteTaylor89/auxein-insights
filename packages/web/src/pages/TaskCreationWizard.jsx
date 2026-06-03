@@ -6,7 +6,7 @@ import { useAuth } from '@vineyard/shared';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
-  Wrench, Package, FileText, AlertCircle, Plus, Settings, Star
+  Wrench, Package, FileText, AlertCircle, Plus, Settings, Star, Droplets, Check
 } from 'lucide-react';
 import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService, contractorManagementService, byNatural } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
@@ -99,6 +99,8 @@ function TaskCreationWizard() {
 
   // UI state
   const [selectedEquipment, setSelectedEquipment] = useState('');
+  const [equipmentRates, setEquipmentRates] = useState({});  // equipId -> target application rate (L/ha) string
+  const [sprayCaps, setSprayCaps] = useState({});            // assetId -> server spray-capability result (or null on error)
   const [selectedUser, setSelectedUser] = useState('');
 
   useEffect(() => {
@@ -378,6 +380,49 @@ function TaskCreationWizard() {
     );
   };
 
+  // Spray-coverage helpers — a "spray implement" is any equipment with a swath
+  // width (the asset payload already carries swath_width_m).
+  const getEquipAsset = (equipId) => equipmentAssets.find(a => a.id === equipId) || null;
+  const isSprayImplement = (equipId) => {
+    const a = getEquipAsset(equipId);
+    return !!a && a.swath_width_m != null && Number(a.swath_width_m) > 0;
+  };
+
+  // Flow resolution is server-authoritative (latest calibration / inline spec), so
+  // fetch capability for each selected swath-implement we haven't checked yet.
+  useEffect(() => {
+    const ids = taskAssets.required_equipment.filter(
+      (id) => isSprayImplement(id) && sprayCaps[id] === undefined
+    );
+    if (ids.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(ids.map(async (id) => {
+        try { return [id, await assetService.getSprayCapability(id)]; }
+        catch { return [id, null]; }
+      }));
+      if (cancelled) return;
+      setSprayCaps((prev) => {
+        const next = { ...prev };
+        for (const [id, cap] of results) next[id] = cap;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskAssets.required_equipment, equipmentAssets]);
+
+  // One checklist row for the spray-coverage readiness panel.
+  const sprayCheckRow = (ok, label, hint) => (
+    <div className="vp-flex-row" style={{ alignItems: 'center', gap: 8, fontSize: 'var(--font-size-sm)', marginTop: 4 }}>
+      {ok
+        ? <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
+        : <AlertCircle size={14} color="var(--color-warning)" style={{ flexShrink: 0 }} />}
+      <span>{label}</span>
+      {!ok && hint && <span style={{ color: 'var(--color-text-muted)' }}>— {hint}</span>}
+    </div>
+  );
+
   const getAvailableConsumables = (currentAssetId = null) => {
     const usedIds = taskAssets.required_consumables
       .map(c => c.asset_id)
@@ -437,7 +482,9 @@ function TaskCreationWizard() {
               asset_id: equipId,
               asset_type: 'equipment',
               is_required: true,
-              quantity: 1
+              quantity: 1,
+              planned_rate: equipmentRates[equipId] != null && equipmentRates[equipId] !== ''
+                ? parseFloat(equipmentRates[equipId]) : null,
             }));
             await Promise.all(eqPayloads.map(p => tasksService.addTaskAsset(newTask.id, p)));
           }
@@ -519,7 +566,9 @@ function TaskCreationWizard() {
           asset_id: equipId,
           asset_type: 'equipment',
           is_required: true,
-          quantity: 1
+          quantity: 1,
+          planned_rate: equipmentRates[equipId] != null && equipmentRates[equipId] !== ''
+            ? parseFloat(equipmentRates[equipId]) : null,
         }));
         await Promise.all(assetPayloads.map(p => tasksService.addTaskAsset(newTask.id, p)));
       }
@@ -1003,21 +1052,80 @@ function TaskCreationWizard() {
 
             {taskAssets.required_equipment.length > 0 ? (
               <div className="vp-flex-col">
-                {taskAssets.required_equipment.map((equipId) => (
-                  <div key={equipId} className="vp-selected-item">
-                    <span>{getAssetName(equipId)}</span>
-                    <button
-                      onClick={() => handleRemoveEquipment(equipId)}
-                      className="vp-btn-remove"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
+                {taskAssets.required_equipment.map((equipId) => {
+                  const spray = isSprayImplement(equipId);
+                  const cap = sprayCaps[equipId];
+                  return (
+                    <div key={equipId} className="vp-flex-col" style={{ gap: 6 }}>
+                      <div className="vp-selected-item">
+                        <span>
+                          {getAssetName(equipId)}
+                          {spray && (
+                            <span className="badge badge--info" style={{ marginLeft: 8 }}>
+                              <Droplets size={11} style={{ verticalAlign: -1 }} /> Sprayer
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveEquipment(equipId)}
+                          className="vp-btn-remove"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      {spray && (
+                        <div className="vp-flex-row" style={{ gap: 8, alignItems: 'center', paddingLeft: 4 }}>
+                          <label style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Target rate</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={equipmentRates[equipId] ?? ''}
+                            onChange={(e) => setEquipmentRates((prev) => ({ ...prev, [equipId]: e.target.value }))}
+                            placeholder="L/ha (optional)"
+                            className="vp-input"
+                            style={{ maxWidth: 160 }}
+                          />
+                          {cap && !cap.has_flow && (
+                            <span className="badge badge--warning">No L/s flow calibration</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="vp-empty-state">No required equipment</p>
             )}
+
+            {(() => {
+              const sprayIds = taskAssets.required_equipment.filter(isSprayImplement);
+              if (sprayIds.length === 0) return null;
+              const flowLoading = sprayIds.some((id) => sprayCaps[id] === undefined);
+              const flowOk = sprayIds.some((id) => sprayCaps[id]?.has_flow);
+              const blockChosen = !!formData.block_id || blockRows.some((r) => r.selected);
+              const gpsOn = !!formData.requires_gps_tracking;
+              const ready = flowOk && blockChosen && gpsOn;
+              return (
+                <div className="alert alert--info" style={{ marginTop: 'var(--space-md)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+                    <Droplets size={16} /> Spray coverage map
+                  </div>
+                  {sprayCheckRow(true, 'Spray implement attached (swath set)')}
+                  {flowLoading
+                    ? <div className="vp-flex-row" style={{ gap: 8, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginTop: 4 }}>Checking flow calibration…</div>
+                    : sprayCheckRow(flowOk, 'Flow calibration in L/s', 'record a flow calibration (L/s) on the asset')}
+                  {sprayCheckRow(blockChosen, 'Block assigned', 'select a block for this task')}
+                  {sprayCheckRow(gpsOn, 'GPS tracking enabled', 'enable GPS tracking for this task')}
+                  <div style={{ marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                    {ready
+                      ? 'A coverage map will be generated when this task is completed with a GPS track.'
+                      : 'Resolve the items above so a coverage map can be generated on completion.'}
+                  </div>
+                </div>
+              );
+            })()}
           </FormSection>
 
           {/* Required Consumables */}
