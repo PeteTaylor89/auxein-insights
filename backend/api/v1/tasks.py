@@ -431,6 +431,8 @@ def create_task(
 
     # Merge template defaults with provided data (provided data takes precedence)
     task_dict = task_data.model_dump(exclude_unset=True)
+    # assigned_user_ids is not a Task column — pull it out before constructing.
+    assigned_user_ids = task_dict.pop('assigned_user_ids', None) or []
     for key, value in template_defaults.items():
         if key not in task_dict or task_dict[key] is None:
             task_dict[key] = value
@@ -453,6 +455,19 @@ def create_task(
     )
 
     db.add(task)
+    db.flush()  # Get task ID for assignments
+
+    # Inline assignment — one TaskAssignment per user (first is primary) so the
+    # task appears in each assignee's feed. De-duped to avoid double rows.
+    for idx, user_id in enumerate(dict.fromkeys(assigned_user_ids)):
+        db.add(TaskAssignment(
+            task_id=task.id,
+            user_id=user_id,
+            assigned_by=current_user.id,
+            role="assignee",
+            is_primary=(idx == 0),
+        ))
+
     db.commit()
     db.refresh(task)
 

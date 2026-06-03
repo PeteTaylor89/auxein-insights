@@ -597,7 +597,14 @@ def refresh_token(
     db: Session = Depends(get_db),
 ) -> Any:
     """
-    Refresh access token.
+    Refresh access token. Supports BOTH company users and contractors.
+
+    The account table is chosen from the token's `user_type` claim, NOT assumed
+    to be `User`. A contractor's `sub` is a Contractor id; querying `User` with
+    it (the old behaviour) either 404'd — silently killing the contractor's
+    session once the access token expired mid-job — or, worse, collided with an
+    unrelated `User` that happened to share the same integer id, minting a
+    company-user token for a contractor (identity confusion / privilege bug).
     """
     try:
         clean_token = token_data.refresh_token.strip()
@@ -608,12 +615,18 @@ def refresh_token(
                 status_code=403,
                 detail=f"Invalid token type: {token_type}",
             )
-        user_id = payload.get("sub")
-        if user_id is None:
+        account_id = payload.get("sub")
+        if account_id is None:
             raise HTTPException(
                 status_code=403,
                 detail="User ID not found in token",
             )
+        # None (legacy tokens without the claim) falls through to the User table,
+        # matching the old default behaviour.
+        is_contractor = payload.get("user_type") == "contractor"
+        client_type = payload.get("client_type")
+    except HTTPException:
+        raise
     except JWTError as e:
         raise HTTPException(
             status_code=403,
@@ -624,33 +637,54 @@ def refresh_token(
             status_code=403,
             detail=f"Token verification failed: {str(e)}",
         )
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Check if user can still login
-    if not user.can_login:
+
+    if is_contractor:
+        account = db.query(Contractor).filter(Contractor.id == account_id).first()
+    else:
+        account = db.query(User).filter(User.id == account_id).first()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Check the account can still log in (locked / suspended / unverified / inactive)
+    if not account.can_login:
         raise HTTPException(
             status_code=403,
-            detail="User account is not in good standing"
+            detail="Account is not in good standing"
         )
-    
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    
-    # Include enhanced claims so refreshed tokens retain user_type info
-    token_data = {
-        "user_type": "company_user",
-        "user_type_role": user.user_type,
-        "role": user.role,
-        "company_id": user.company_id,
-    }
+
+    # Rebuild enhanced claims in the SAME shape login issues them (auth.py login
+    # STEP 7) so refreshed tokens carry the correct identity downstream.
+    if is_contractor:
+        company_ids = [rel.company_id for rel in account.get_active_company_relationships()]
+        new_token_data = {
+            "user_type": "contractor",
+            "user_type_role": "contractor",
+            "client_type": client_type or "mobile",
+            "role": None,
+            "company_id": None,
+            "company_ids": company_ids,
+            "contractor_id": account.id,
+        }
+    else:
+        new_token_data = {
+            "user_type": "company_user",
+            "user_type_role": account.user_type,
+            "client_type": client_type or "web",
+            "role": account.role,
+            "company_id": account.company_id,
+            "company_ids": None,
+            "contractor_id": None,
+        }
+
     new_access_token, _ = create_access_token(
-        user.id, expires_delta=access_token_expires, extra_data=token_data
+        account.id, expires_delta=access_token_expires, extra_data=new_token_data
     )
     new_refresh_token, _ = create_refresh_token(
-        user.id, expires_delta=refresh_token_expires, extra_data=token_data
+        account.id, expires_delta=refresh_token_expires, extra_data=new_token_data
     )
 
     return {

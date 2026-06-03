@@ -18,13 +18,14 @@ from db.models.contractor_assignment import ContractorAssignment
 from db.models.contractor_movement import ContractorMovement
 from db.models.contractor_training import ContractorTraining
 from db.models.company import Company
-from db.models.task import Task
+from db.models.task import Task, TaskStatus
 from db.models.block import VineyardBlock
 from db.models.property import Property
 from db.models.incident import Incident
 from db.models.observation_template import ObservationTemplate
 from db.models.observation_run import ObservationRun, ObservationSpot
 from api.deps import get_current_user, get_current_user_or_contractor, get_current_contractor
+from api.v1.tasks import generate_task_number
 from core.security.password import get_password_hash, verify_password, is_password_strong
 from services import file_storage
 from schemas.contractor import (
@@ -961,14 +962,15 @@ def create_my_assignment(
     db: Session = Depends(get_db),
     current_contractor: Contractor = Depends(get_current_contractor),
 ) -> Dict[str, Any]:
-    """Contractor self-logs work they're doing for a company. Creates a
-    ContractorAssignment with task_id=NULL — work_description is the title."""
+    """Contractor self-logs work they're doing for a company. Creates a real
+    Task row (so the work surfaces in the company task system/reports) and a
+    ContractorAssignment linked to it via task_id."""
     _ensure_contractor_can_use_company(db, current_contractor, payload.company_id)
 
     # The blocks_involved JSON list scopes the assignment to specific blocks.
     blocks_involved = [payload.block_id] if payload.block_id is not None else []
 
-    # assigned_by is required on the model (FK to users.id). For self-logged work
+    # assigned_by / created_by are required FKs to users.id. For self-logged work
     # there is no company user assigner — but we can't use 0/NULL because of FK
     # constraints. Use the first active manager/admin from that company as a
     # synthetic assigner so the audit trail still resolves.
@@ -988,10 +990,34 @@ def create_my_assignment(
             detail="Company has no active admin or manager to record this assignment against",
         )
 
+    # In-progress now if no future schedule was set.
+    starting_now = payload.scheduled_start is None
+
+    # Create the backing Task. Title is the work description (clamped to the
+    # column width); category defaults to general for ad-hoc contractor work.
+    task = Task(
+        company_id=payload.company_id,
+        task_number=generate_task_number(db, payload.company_id),
+        title=payload.work_description[:200],
+        task_category="general",
+        description=payload.work_description,
+        block_id=payload.block_id,
+        scheduled_start_date=payload.scheduled_start.date() if payload.scheduled_start else None,
+        scheduled_start_time=payload.scheduled_start,
+        priority=payload.priority or "medium",
+        estimated_hours=payload.estimated_hours,
+        status=TaskStatus.in_progress if starting_now else TaskStatus.scheduled,
+        created_by=assigner.id,
+    )
+    if starting_now:
+        task.actual_start_time = datetime.now(timezone.utc)
+    db.add(task)
+    db.flush()  # Get task.id for the assignment FK
+
     assignment = ContractorAssignment(
         contractor_id=current_contractor.id,
         company_id=payload.company_id,
-        task_id=None,
+        task_id=task.id,
         assignment_type=payload.assignment_type or "general_work",
         work_description=payload.work_description,
         priority=payload.priority or "medium",
@@ -999,10 +1025,10 @@ def create_my_assignment(
         scheduled_start=payload.scheduled_start,
         scheduled_end=payload.scheduled_end,
         blocks_involved=blocks_involved,
-        status="in_progress" if payload.scheduled_start is None else "assigned",
+        status="in_progress" if starting_now else "assigned",
         assigned_by=assigner.id,
     )
-    if payload.scheduled_start is None:
+    if starting_now:
         # Self-log of work happening now
         assignment.actual_start = datetime.now(timezone.utc)
     db.add(assignment)
@@ -1011,6 +1037,7 @@ def create_my_assignment(
 
     return {
         "id": assignment.id,
+        "task_id": assignment.task_id,
         "status": assignment.status,
         "company_id": assignment.company_id,
         "work_description": assignment.work_description,

@@ -1,7 +1,7 @@
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 
-export default function FilledInput({ label, required, value, onChangeText, placeholder, multiline, numberOfLines, keyboardType, editable = true, style, secureTextEntry, autoCapitalize, autoCorrect }) {
+export default function FilledInput({ label, required, value, onChangeText, placeholder, multiline, numberOfLines, keyboardType, editable = true, style, secureTextEntry, autoCapitalize, autoCorrect, error }) {
   const isFilled = value != null && String(value).trim().length > 0;
 
   return (
@@ -15,6 +15,7 @@ export default function FilledInput({ label, required, value, onChangeText, plac
         style={[
           styles.input,
           isFilled && styles.inputFilled,
+          error && styles.inputError,
           multiline && styles.inputMultiline,
           !editable && styles.inputDisabled,
         ]}
@@ -30,6 +31,7 @@ export default function FilledInput({ label, required, value, onChangeText, plac
         autoCapitalize={autoCapitalize}
         autoCorrect={autoCorrect}
       />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -61,6 +63,15 @@ const styles = StyleSheet.create({
   inputFilled: {
     borderColor: colors.successLight,
     backgroundColor: '#f0fdf4',
+  },
+  inputError: {
+    borderColor: colors.danger,
+    backgroundColor: '#fef2f2',
+  },
+  errorText: {
+    fontSize: 11,
+    color: colors.danger,
+    marginTop: 4,
   },
   inputMultiline: {
     minHeight: 80,

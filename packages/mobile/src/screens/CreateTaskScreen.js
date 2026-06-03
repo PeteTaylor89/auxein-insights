@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, propertyService } from '../api/services';
+import { useAuth } from '../contexts/AuthContext';
 import {
   SectionCard, FilledInput, BottomActionBar, BlockPickerModal, useToast,
 } from '../components';
@@ -31,6 +32,7 @@ const PRIORITIES = [
 
 export default function CreateTaskScreen({ navigation }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [properties, setProperties] = useState([]);
 
@@ -54,22 +56,32 @@ export default function CreateTaskScreen({ navigation }) {
   const [templateId, setTemplateId] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
-  // Assignees — only surfaced in template mode (mirrors web TaskQuickCreate).
-  // Backend accepts assigned_user_ids: List[int] for multi-assign.
+  // Assignees — surfaced in both manual and template modes. Backend accepts
+  // assigned_user_ids: List[int] for multi-assign. Defaults to the creator so
+  // the task always lands in their own feed (the feed is assignment-scoped).
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState([]);
   const [assigneeUsers, setAssigneeUsers] = useState([]); // for label rendering
+  const [didInitAssignee, setDidInitAssignee] = useState(false);
+
+  // Seed the assignee with the current user once, so a brand-new task is
+  // self-assigned by default. The user can still clear or change it.
+  useEffect(() => {
+    if (didInitAssignee || !user?.id) return;
+    setAssigneeIds([user.id]);
+    setAssigneeUsers([user]);
+    setDidInitAssignee(true);
+  }, [user, didInitAssignee]);
 
   const handleTemplateSelect = (tpl) => {
     setTemplateId(tpl.id);
     setSelectedTemplate(tpl);
   };
 
+  // Assignees are mode-independent now, so clearing the template keeps them.
   const clearTemplate = () => {
     setTemplateId(null);
     setSelectedTemplate(null);
-    setAssigneeIds([]);
-    setAssigneeUsers([]);
   };
 
   const handleAssigneesConfirm = (ids, allUsers) => {
@@ -133,6 +145,7 @@ export default function CreateTaskScreen({ navigation }) {
             : undefined,
           priority,
           requires_gps_tracking: requiresGps,
+          assigned_user_ids: assigneeIds.length > 0 ? assigneeIds : undefined,
         };
         const hrs = parseFloat(estimatedHours);
         if (!isNaN(hrs) && hrs > 0) {
@@ -329,8 +342,7 @@ export default function CreateTaskScreen({ navigation }) {
             )}
           </SectionCard>
 
-          {inTemplateMode && (
-          <SectionCard icon="users" title="Assign to (optional)">
+          <SectionCard icon="users" title="Assign to">
             <TouchableOpacity
               style={styles.pickerRow}
               onPress={() => setShowAssigneePicker(true)}
@@ -357,7 +369,6 @@ export default function CreateTaskScreen({ navigation }) {
               <Feather name="chevron-right" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </SectionCard>
-          )}
 
           {!inTemplateMode && (
           <SectionCard icon="clock" title="Effort & tracking">

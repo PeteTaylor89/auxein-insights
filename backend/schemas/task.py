@@ -76,6 +76,9 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     """Schema for creating a new task"""
     template_id: Optional[int] = None  # Create from template
+    # Optional inline assignment — creates one TaskAssignment per user so the
+    # task surfaces in each assignee's feed. Mirrors TaskQuickCreate.
+    assigned_user_ids: Optional[List[int]] = Field(default_factory=list)
 
 
 class TaskQuickCreate(BaseModel):

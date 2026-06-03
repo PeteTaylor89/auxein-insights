@@ -74,11 +74,27 @@ export default function CreateVisitorScreen({ navigation }) {
     setPpeRequired(prev => prev.includes(item) ? prev.filter(p => p !== item) : [...prev, item]);
   };
 
+  // Per-field hints mirror the backend VisitorCreate rules. Only show once the
+  // user has typed something — a pristine field stays quiet (the disabled
+  // primary button + the "*" already signal that it's required).
+  const errors = useMemo(() => ({
+    firstName: firstName.trim() && firstName.trim().length < 2 ? 'At least 2 characters' : null,
+    lastName: lastName.trim() && lastName.trim().length < 2 ? 'At least 2 characters' : null,
+    phone: phone.trim() && phone.trim().length < 7 ? 'At least 7 digits' : null,
+    email: email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Enter a valid email' : null,
+    emergencyName: emergencyName.trim() && emergencyName.trim().length < 2 ? 'At least 2 characters' : null,
+    emergencyPhone: emergencyPhone.trim() && emergencyPhone.trim().length < 7 ? 'At least 7 digits' : null,
+  }), [firstName, lastName, phone, email, emergencyName, emergencyPhone]);
+
   const canAdvance = useMemo(() => {
     if (step === 0) {
-      return firstName.trim() && lastName.trim() && phone.trim() && email.trim() && purpose;
+      // Match backend VisitorCreate rules: names >= 2 chars, phone >= 7 chars,
+      // valid email. Catches the visitor on this step instead of failing at submit.
+      return firstName.trim().length >= 2 && lastName.trim().length >= 2
+        && phone.trim().length >= 7 && /^\S+@\S+\.\S+$/.test(email.trim()) && purpose;
     }
-    if (step === 1) return emergencyName.trim() && emergencyPhone.trim();
+    // Emergency phone is also validated server-side (>= 7 chars).
+    if (step === 1) return emergencyName.trim().length >= 2 && emergencyPhone.trim().length >= 7;
     if (step === 2) return inductionCompleted && safetyBriefingAccepted;
     return true;
   }, [step, firstName, lastName, phone, email, purpose, emergencyName, emergencyPhone, inductionCompleted, safetyBriefingAccepted]);
@@ -119,7 +135,9 @@ export default function CreateVisitorScreen({ navigation }) {
         driverLicense: driverLicense.trim(),
         purpose,
         hostName: hostName.trim(),
-        expectedDuration,
+        // Omit when unselected so the backend default (4h) applies — sending ''
+        // makes the service's int('') call throw a validation error.
+        ...(expectedDuration ? { expectedDuration } : {}),
         inductionCompleted,
         safetyBriefingAccepted,
         ppeRequired,
@@ -168,14 +186,14 @@ export default function CreateVisitorScreen({ navigation }) {
               <SectionCard icon="user" title="Visitor details" subtitle="Who's coming on site?">
                 <View style={styles.row}>
                   <View style={styles.col}>
-                    <FilledInput label="First name *" value={firstName} onChangeText={setFirstName} placeholder="First name" />
+                    <FilledInput label="First name *" value={firstName} onChangeText={setFirstName} placeholder="First name" error={errors.firstName} />
                   </View>
                   <View style={styles.col}>
-                    <FilledInput label="Last name *" value={lastName} onChangeText={setLastName} placeholder="Last name" />
+                    <FilledInput label="Last name *" value={lastName} onChangeText={setLastName} placeholder="Last name" error={errors.lastName} />
                   </View>
                 </View>
-                <FilledInput label="Phone *" value={phone} onChangeText={setPhone} placeholder="Mobile number" keyboardType="phone-pad" />
-                <FilledInput label="Email *" value={email} onChangeText={setEmail} placeholder="email@example.com" keyboardType="email-address" autoCapitalize="none" />
+                <FilledInput label="Phone *" value={phone} onChangeText={setPhone} placeholder="Mobile number" keyboardType="phone-pad" error={errors.phone} />
+                <FilledInput label="Email *" value={email} onChangeText={setEmail} placeholder="email@example.com" keyboardType="email-address" autoCapitalize="none" error={errors.email} />
                 <View style={styles.row}>
                   <View style={styles.col}>
                     <FilledInput label="Company" value={company} onChangeText={setCompany} placeholder="Company name" />
@@ -214,8 +232,8 @@ export default function CreateVisitorScreen({ navigation }) {
           {step === 1 && (
             <>
               <SectionCard icon="phone" title="Emergency contact" subtitle="In case something goes wrong">
-                <FilledInput label="Contact name *" value={emergencyName} onChangeText={setEmergencyName} placeholder="Emergency contact name" />
-                <FilledInput label="Contact phone *" value={emergencyPhone} onChangeText={setEmergencyPhone} placeholder="Emergency contact phone" keyboardType="phone-pad" />
+                <FilledInput label="Contact name *" value={emergencyName} onChangeText={setEmergencyName} placeholder="Emergency contact name" error={errors.emergencyName} />
+                <FilledInput label="Contact phone *" value={emergencyPhone} onChangeText={setEmergencyPhone} placeholder="Emergency contact phone" keyboardType="phone-pad" error={errors.emergencyPhone} />
               </SectionCard>
 
               <SectionCard icon="truck" title="Vehicle (optional)">
