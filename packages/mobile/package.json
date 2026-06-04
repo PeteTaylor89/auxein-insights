@@ -6,7 +6,12 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "version:show": "node scripts/bump-build.mjs --show",
+    "bump:build": "node scripts/bump-build.mjs",
+    "bump:patch": "node scripts/bump-build.mjs patch",
+    "bump:minor": "node scripts/bump-build.mjs minor",
+    "bump:major": "node scripts/bump-build.mjs major"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
