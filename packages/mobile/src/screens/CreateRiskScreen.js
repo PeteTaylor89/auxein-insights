@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  ActivityIndicator, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -12,7 +12,7 @@ import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { riskService, propertyService, fileService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
 import {
-  StepIndicator, FilledInput, SectionCard, PhotoGrid, BottomActionBar, useToast,
+  StepIndicator, FilledInput, SectionCard, PhotoGrid, BottomActionBar, KeyboardAvoider, useToast,
 } from '../components';
 
 const STEPS = ['Type', 'Detail'];
@@ -190,10 +190,7 @@ export default function CreateRiskScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoider>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -370,18 +367,18 @@ export default function CreateRiskScreen({ navigation }) {
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      <BottomActionBar
-        secondaryLabel={step === 0 ? 'Cancel' : 'Back'}
-        secondaryIcon={step === 0 ? 'x' : 'arrow-left'}
-        onSecondary={handleBack}
-        primaryLabel={submitting ? 'Logging...' : (step === STEPS.length - 1 ? 'Log risk' : 'Next step')}
-        primaryIcon={step === STEPS.length - 1 ? 'send' : 'arrow-right'}
-        primaryColor="red"
-        onPrimary={handleNext}
-        disabled={submitting}
-      />
+        <BottomActionBar
+          secondaryLabel={step === 0 ? 'Cancel' : 'Back'}
+          secondaryIcon={step === 0 ? 'x' : 'arrow-left'}
+          onSecondary={handleBack}
+          primaryLabel={submitting ? 'Logging...' : (step === STEPS.length - 1 ? 'Log risk' : 'Next step')}
+          primaryIcon={step === STEPS.length - 1 ? 'send' : 'arrow-right'}
+          primaryColor="red"
+          onPrimary={handleNext}
+          disabled={submitting}
+        />
+      </KeyboardAvoider>
     </View>
   );
 }

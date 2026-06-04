@@ -10,7 +10,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
-import { FilledInput, useToast } from '../components';
+import { FilledInput, KeyboardAvoider, useToast } from '../components';
 import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
 const csvFromArray = (arr) => Array.isArray(arr) ? arr.join(', ') : '';
@@ -127,6 +127,7 @@ export default function CheckInScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -268,6 +269,7 @@ export default function CheckInScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

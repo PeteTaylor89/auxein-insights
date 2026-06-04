@@ -1101,7 +1101,24 @@ function TaskCreationWizard() {
 
             {(() => {
               const sprayIds = taskAssets.required_equipment.filter(isSprayImplement);
-              if (sprayIds.length === 0) return null;
+              if (sprayIds.length === 0) {
+                // Equipment attached but none has a swath width -> not spray-capable.
+                // Surface a discoverability hint (was: render nothing) so users know
+                // how to turn the hero feature on.
+                if (taskAssets.required_equipment.length === 0) return null;
+                return (
+                  <div className="alert alert--info" style={{ marginTop: 'var(--space-md)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+                      <Droplets size={16} /> Spray coverage map
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
+                      None of the attached equipment is set up for spray coverage. To map
+                      application rate, give an implement a <strong>swath width</strong> and a{' '}
+                      <strong>Spray Output Rate (L/s)</strong> calibration on its asset record, then attach it here.
+                    </div>
+                  </div>
+                );
+              }
               const flowLoading = sprayIds.some((id) => sprayCaps[id] === undefined);
               const flowOk = sprayIds.some((id) => sprayCaps[id]?.has_flow);
               const blockChosen = !!formData.block_id || blockRows.some((r) => r.selected);
@@ -1115,7 +1132,7 @@ function TaskCreationWizard() {
                   {sprayCheckRow(true, 'Spray implement attached (swath set)')}
                   {flowLoading
                     ? <div className="vp-flex-row" style={{ gap: 8, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginTop: 4 }}>Checking flow calibration…</div>
-                    : sprayCheckRow(flowOk, 'Flow calibration in L/s', 'record a flow calibration (L/s) on the asset')}
+                    : sprayCheckRow(flowOk, 'Spray Output Rate (L/s) calibrated', 'record a Spray Output Rate (L/s) calibration on the asset')}
                   {sprayCheckRow(blockChosen, 'Block assigned', 'select a block for this task')}
                   {sprayCheckRow(gpsOn, 'GPS tracking enabled', 'enable GPS tracking for this task')}
                   <div style={{ marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>

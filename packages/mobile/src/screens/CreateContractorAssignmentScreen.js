@@ -10,7 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
-import { FilledInput, useToast } from '../components';
+import { FilledInput, KeyboardAvoider, useToast } from '../components';
 import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
 const PRIORITIES = [
@@ -152,6 +152,7 @@ export default function CreateContractorAssignmentScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -311,6 +312,7 @@ export default function CreateContractorAssignmentScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

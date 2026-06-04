@@ -10,7 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
-import { FilledInput, SeveritySelector, useToast } from '../components';
+import { FilledInput, SeveritySelector, KeyboardAvoider, useToast } from '../components';
 import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
 const TYPES = [
@@ -162,6 +162,7 @@ export default function ContractorCreateIncidentScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -336,6 +337,7 @@ export default function ContractorCreateIncidentScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Alert, Switch, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Switch, Platform,
   TouchableWithoutFeedback, Keyboard, Modal, FlatList,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
-import { SectionCard, GpsSection, BottomActionBar, PhotoGrid } from '../components';
+import { SectionCard, GpsSection, BottomActionBar, KeyboardAvoider, PhotoGrid } from '../components';
 
 export default function SpotCaptureScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -731,7 +731,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
         </Text>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoider>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
             {/* Spot card — wraps GPS + fields + photos + timestamp */}
@@ -817,30 +817,30 @@ export default function SpotCaptureScreen({ route, navigation }) {
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
 
-      {/* Fixed bottom action bar.
-          Both buttons save the current spot. The difference is what happens
-          AFTER the save:
-            • Secondary "Save & next spot" stays here, clears the form
-            • Primary "Save & finish run" closes the run + leaves the screen
-          The "(N)" counter on the finish button shows how many spots are
-          already in this run, so the user knows what they're completing. */}
-      <BottomActionBar
-        secondaryLabel="Save & next spot"
-        secondaryIcon="plus-circle"
-        onSecondary={handleSaveAndNext}
-        primaryLabel={
-          saving
-            ? 'Saving…'
-            : spots.length > 0
-              ? `Save & finish (${spots.length + 1})`
-              : 'Save & finish run'
-        }
-        primaryIcon="check-circle"
-        onPrimary={handleSaveAndFinish}
-        disabled={saving}
-      />
+        {/* Fixed bottom action bar.
+            Both buttons save the current spot. The difference is what happens
+            AFTER the save:
+              • Secondary "Save & next spot" stays here, clears the form
+              • Primary "Save & finish run" closes the run + leaves the screen
+            The "(N)" counter on the finish button shows how many spots are
+            already in this run, so the user knows what they're completing. */}
+        <BottomActionBar
+          secondaryLabel="Save & next spot"
+          secondaryIcon="plus-circle"
+          onSecondary={handleSaveAndNext}
+          primaryLabel={
+            saving
+              ? 'Saving…'
+              : spots.length > 0
+                ? `Save & finish (${spots.length + 1})`
+                : 'Save & finish run'
+          }
+          primaryIcon="check-circle"
+          onPrimary={handleSaveAndFinish}
+          disabled={saving}
+        />
+      </KeyboardAvoider>
 
       {/* Reference data picker modal */}
       {renderPickerModal()}

@@ -11,7 +11,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService, fileService } from '../api/services';
-import { FilledInput, PhotoGrid, useToast } from '../components';
+import { FilledInput, PhotoGrid, KeyboardAvoider, useToast } from '../components';
 import useImageCapture from '../hooks/useImageCapture';
 import useActiveCheckIn from '../hooks/useActiveCheckIn';
 
@@ -154,6 +154,7 @@ export default function ContractorCreateObservationScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -293,6 +294,7 @@ export default function ContractorCreateObservationScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

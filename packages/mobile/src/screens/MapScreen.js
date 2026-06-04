@@ -930,7 +930,7 @@ export default function MapScreen({ navigation, route }) {
       )}
 
       <TouchableOpacity
-        style={[styles.recenter, !permissionGranted && styles.recenterDisabled]}
+        style={[styles.recenter, { bottom: 24 + insets.bottom }, !permissionGranted && styles.recenterDisabled]}
         onPress={recenter}
         disabled={!permissionGranted}
         accessibilityLabel="Recenter map on my location"

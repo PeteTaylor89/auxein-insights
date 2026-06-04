@@ -2,14 +2,14 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, StatusBar, ActivityIndicator,
+  StatusBar, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { assetService, propertyService } from '../api/services';
 import {
-  SectionCard, FilledInput, BottomActionBar, useToast,
+  SectionCard, FilledInput, BottomActionBar, KeyboardAvoider, useToast,
   ASSET_CATEGORY_ICONS,
 } from '../components';
 
@@ -109,10 +109,7 @@ export default function CreateAssetScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoider>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -249,18 +246,18 @@ export default function CreateAssetScreen({ navigation }) {
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      <BottomActionBar
-        secondaryLabel="Cancel"
-        secondaryIcon="x"
-        onSecondary={() => navigation.goBack()}
-        primaryLabel={submitting ? 'Creating...' : 'Create asset'}
-        primaryIcon="check"
-        primaryColor="green"
-        onPrimary={handleSubmit}
-        disabled={submitting || !canSubmit}
-      />
+        <BottomActionBar
+          secondaryLabel="Cancel"
+          secondaryIcon="x"
+          onSecondary={() => navigation.goBack()}
+          primaryLabel={submitting ? 'Creating...' : 'Create asset'}
+          primaryIcon="check"
+          primaryColor="green"
+          onPrimary={handleSubmit}
+          disabled={submitting || !canSubmit}
+        />
+      </KeyboardAvoider>
     </View>
   );
 }

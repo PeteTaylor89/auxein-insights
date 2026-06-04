@@ -7,7 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
-import { FilledInput, useToast } from '../components';
+import { FilledInput, KeyboardAvoider, useToast } from '../components';
 
 // Mirrors backend is_password_strong rules so the user gets immediate feedback.
 const checkStrength = (pw) => {
@@ -65,6 +65,7 @@ export default function ChangeContractorPasswordScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -157,6 +158,7 @@ export default function ChangeContractorPasswordScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

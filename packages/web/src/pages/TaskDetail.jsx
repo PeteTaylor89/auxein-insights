@@ -41,12 +41,24 @@ function InfoItem({ label, children }) {
 // Spray-coverage readiness: human-readable reasons for each missing precondition.
 const SPRAY_MISSING_LABELS = {
   asset_swath: 'attach an implement with a swath width',
-  flow_calibration: 'record a flow-rate calibration',
-  flow_unit: 'flow rate must be volumetric (L/s, L/min or L/hr) — not L/ha',
+  flow_calibration: 'record a Spray Output Rate (L/s) calibration on the implement',
+  flow_unit: 'output rate must be volumetric (L/s, L/min or L/hr) — not L/ha',
   block: 'assign the task to a block',
   block_geometry: 'the block needs a mapped boundary',
   gps_track: 'a GPS track is recorded during the task',
 };
+
+// Off-state guidance when equipment is attached but nothing is spray-capable
+// (no swath asset, so flow/block were never even evaluated). Discoverability hint.
+function spraySetupOffText(spray) {
+  const codes = (spray?.missing || []).filter(
+    c => c !== 'gps_track' && c !== 'block' && c !== 'block_geometry'
+  );
+  if (!codes.length || codes.includes('asset_swath')) {
+    return 'Give an attached implement a swath width and a Spray Output Rate (L/s) calibration on its asset to map coverage.';
+  }
+  return 'To map coverage — ' + codes.map(c => SPRAY_MISSING_LABELS[c] || c).join('; ') + '.';
+}
 
 // Reasons that block a raster regardless of run state (exclude the runtime GPS track).
 function spraySetupText(spray) {
@@ -351,7 +363,7 @@ function TaskDetail() {
                     <span className="td-pill td-pill--olive">Enabled</span>
                   </InfoItem>
                 )}
-                {spray?.asset && (
+                {spray?.asset ? (
                   <InfoItem label={<><Droplets size={12} style={{ verticalAlign: -2 }} /> Spray coverage</>}>
                     {spray.capable ? (
                       <span className="badge badge--success" title={`${spray.asset.name} · swath ${spray.asset.swath_width_m} m`}>Ready</span>
@@ -361,7 +373,16 @@ function TaskDetail() {
                       <span className="badge badge--warning" title={spraySetupText(spray)}>Needs setup</span>
                     )}
                   </InfoItem>
-                )}
+                ) : (spray && equipmentChecks.length > 0) ? (
+                  // Equipment attached but none is spray-capable — show the path to enable
+                  // it (was hidden entirely behind `spray?.asset`).
+                  <InfoItem label={<><Droplets size={12} style={{ verticalAlign: -2 }} /> Spray coverage</>}>
+                    <span className="badge badge--neutral" title={spraySetupOffText(spray)}>Off</span>
+                    <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      {spraySetupOffText(spray)}
+                    </div>
+                  </InfoItem>
+                ) : null}
                 {Array.isArray(task.tags) && task.tags.length > 0 && (
                   <InfoItem label={<><Tag size={12} style={{ verticalAlign: -2 }} /> Tags</>}>
                     <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>

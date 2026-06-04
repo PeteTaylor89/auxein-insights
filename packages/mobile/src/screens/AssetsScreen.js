@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { assetService } from '../api/services';
 import { ASSET_CATEGORY_ICONS, SkeletonCard } from '../components';
@@ -28,6 +29,7 @@ const STATUS_COLORS = {
 };
 
 export default function AssetsScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
@@ -148,7 +150,7 @@ export default function AssetsScreen({ navigation }) {
 
       {/* Create FAB */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: spacing.lg + insets.bottom }]}
         onPress={() => navigation.navigate('CreateAsset')}
         activeOpacity={0.85}
       >

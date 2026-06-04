@@ -8,7 +8,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { timesheetService, tasksService } from '../api/services';
-import { useToast } from '../components';
+import { KeyboardAvoider, useToast } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 
 const HOUR_QUICK_PICKS = [0.5, 1, 2, 4, 8];
@@ -99,6 +99,7 @@ export default function TimesheetEntryEditScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -184,6 +185,7 @@ export default function TimesheetEntryEditScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

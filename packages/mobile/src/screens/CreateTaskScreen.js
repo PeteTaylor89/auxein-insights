@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, StatusBar, Switch,
+  Platform, StatusBar, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, propertyService } from '../api/services';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  SectionCard, FilledInput, BottomActionBar, BlockPickerModal, useToast,
+  SectionCard, FilledInput, BottomActionBar, BlockPickerModal, KeyboardAvoider, useToast,
 } from '../components';
 import TaskTemplatePickerModal from '../components/TaskTemplatePickerModal';
 import AssigneePickerModal from '../components/AssigneePickerModal';
@@ -188,10 +188,7 @@ export default function CreateTaskScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoider>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -423,18 +420,17 @@ export default function CreateTaskScreen({ navigation }) {
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
-      </KeyboardAvoidingView>
-
-      <BottomActionBar
-        secondaryLabel="Cancel"
-        secondaryIcon="x"
-        onSecondary={() => navigation.goBack()}
-        primaryLabel={submitting ? 'Creating...' : 'Create task'}
-        primaryIcon="check"
-        primaryColor="green"
-        onPrimary={handleSubmit}
-        disabled={submitting}
-      />
+        <BottomActionBar
+          secondaryLabel="Cancel"
+          secondaryIcon="x"
+          onSecondary={() => navigation.goBack()}
+          primaryLabel={submitting ? 'Creating...' : 'Create task'}
+          primaryIcon="check"
+          primaryColor="green"
+          onPrimary={handleSubmit}
+          disabled={submitting}
+        />
+      </KeyboardAvoider>
 
       <BlockPickerModal
         visible={showBlockPicker}

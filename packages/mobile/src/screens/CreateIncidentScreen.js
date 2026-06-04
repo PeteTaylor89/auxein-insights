@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  ActivityIndicator, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -13,7 +13,7 @@ import { incidentService, propertyService, fileService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
 import {
   StepIndicator, FilledInput, SeveritySelector,
-  SectionCard, PhotoGrid, BottomActionBar, useToast,
+  SectionCard, PhotoGrid, BottomActionBar, KeyboardAvoider, useToast,
 } from '../components';
 
 const STEPS = ['Type', 'Details', 'Injury', 'Actions'];
@@ -219,10 +219,7 @@ export default function CreateIncidentScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoider>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -454,18 +451,18 @@ export default function CreateIncidentScreen({ navigation }) {
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      <BottomActionBar
-        secondaryLabel={step === 0 ? 'Cancel' : 'Back'}
-        secondaryIcon={step === 0 ? 'x' : 'arrow-left'}
-        onSecondary={handleBack}
-        primaryLabel={submitting ? 'Submitting...' : (step === totalSteps - 1 ? 'Submit report' : 'Next step')}
-        primaryIcon={step === totalSteps - 1 ? 'send' : 'arrow-right'}
-        primaryColor="red"
-        onPrimary={handleNext}
-        disabled={submitting}
-      />
+        <BottomActionBar
+          secondaryLabel={step === 0 ? 'Cancel' : 'Back'}
+          secondaryIcon={step === 0 ? 'x' : 'arrow-left'}
+          onSecondary={handleBack}
+          primaryLabel={submitting ? 'Submitting...' : (step === totalSteps - 1 ? 'Submit report' : 'Next step')}
+          primaryIcon={step === totalSteps - 1 ? 'send' : 'arrow-right'}
+          primaryColor="red"
+          onPrimary={handleNext}
+          disabled={submitting}
+        />
+      </KeyboardAvoider>
     </View>
   );
 }

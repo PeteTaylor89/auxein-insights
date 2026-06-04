@@ -5,6 +5,7 @@ import {
   RefreshControl, ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { getUnifiedFeedCached } from '../services/tasksCache';
 import FeedItemModal from '../components/FeedItemModal';
@@ -20,6 +21,7 @@ const SOURCE_LABELS = {
 const FILTERS = ['all', 'task', 'maintenance', 'calibration', 'risk_action'];
 
 export default function TasksScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -235,7 +237,7 @@ export default function TasksScreen({ navigation }) {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: spacing.lg + insets.bottom }]}
         onPress={() => navigation.navigate('CreateTask')}
         activeOpacity={0.85}
       >

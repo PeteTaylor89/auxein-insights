@@ -6,7 +6,7 @@
 import { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, StatusBar,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { visitorService } from '../api/services';
 import {
-  StepIndicator, FilledInput, SectionCard, BottomActionBar, useToast,
+  StepIndicator, FilledInput, SectionCard, BottomActionBar, KeyboardAvoider, useToast,
 } from '../components';
 
 const STEPS = ['Details', 'Emergency', 'H&S', 'Review'];
@@ -170,10 +170,7 @@ export default function CreateVisitorScreen({ navigation }) {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoider>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -361,18 +358,18 @@ export default function CreateVisitorScreen({ navigation }) {
 
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      <BottomActionBar
-        secondaryLabel={step === 0 ? 'Cancel' : 'Back'}
-        secondaryIcon={step === 0 ? 'x' : 'arrow-left'}
-        onSecondary={handleBack}
-        primaryLabel={submitting ? 'Signing in...' : (step === STEPS.length - 1 ? 'Sign in' : 'Next')}
-        primaryIcon={step === STEPS.length - 1 ? 'check' : 'arrow-right'}
-        primaryColor="primary"
-        onPrimary={handleNext}
-        disabled={submitting}
-      />
+        <BottomActionBar
+          secondaryLabel={step === 0 ? 'Cancel' : 'Back'}
+          secondaryIcon={step === 0 ? 'x' : 'arrow-left'}
+          onSecondary={handleBack}
+          primaryLabel={submitting ? 'Signing in...' : (step === STEPS.length - 1 ? 'Sign in' : 'Next')}
+          primaryIcon={step === STEPS.length - 1 ? 'check' : 'arrow-right'}
+          primaryColor="primary"
+          onPrimary={handleNext}
+          disabled={submitting}
+        />
+      </KeyboardAvoider>
     </View>
   );
 }

@@ -8,7 +8,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { contractorService } from '../api/services';
-import { FilledInput, useToast } from '../components';
+import { FilledInput, KeyboardAvoider, useToast } from '../components';
 
 const CONTRACTOR_TYPES = [
   { value: 'individual', label: 'Individual' },
@@ -82,6 +82,7 @@ export default function EditContractorProfileScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
@@ -184,6 +185,7 @@ export default function EditContractorProfileScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      </KeyboardAvoider>
     </View>
   );
 }

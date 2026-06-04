@@ -565,7 +565,7 @@ export default function TaskDetailScreen({ route, navigation }) {
 
       {/* Action Bar */}
       {!isCompleted && (
-        <View style={styles.actionBar}>
+        <View style={[styles.actionBar, { paddingBottom: spacing.lg + insets.bottom }]}>
           {isStartable && (
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnPrimary]}

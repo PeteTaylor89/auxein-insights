@@ -299,7 +299,7 @@ export default function HomeScreen({ navigation }) {
           onPress={() => setFabOpen(false)}
         />
       )}
-      <View style={styles.fabStack} pointerEvents="box-none">
+      <View style={[styles.fabStack, { bottom: spacing.lg + insets.bottom }]} pointerEvents="box-none">
         {fabOpen && (
           <>
             <FabOption

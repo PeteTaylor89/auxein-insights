@@ -11,7 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { timesheetService, tasksService } from '../api/services';
-import { useToast } from '../components';
+import { KeyboardAvoider, useToast } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 
 const STATUS_STYLE = {
@@ -186,8 +186,10 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <KeyboardAvoider>
       <ScrollView
         style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: spacing.base, paddingBottom: spacing.xxl + insets.bottom }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />}
       >
@@ -323,6 +325,7 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
           </View>
         </SafeAreaView>
       )}
+      </KeyboardAvoider>
     </View>
   );
 }

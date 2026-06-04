@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from db.models.task import Task
 from db.models.task_gps_track import TaskGPSTrack
 from db.models.block import VineyardBlock
-from db.models.asset import Asset, TaskAsset, AssetCalibration
+from db.models.asset import Asset, TaskAsset, AssetCalibration, AssetCalibrationSpec
 from db.models.spray_coverage import SprayCoverage
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_CELL_SIZE_M = 2.0
 DEFAULT_SPEED_BAND_KMH = (2.0, 20.0)   # exclude near-stationary creep + transit
 MAX_CELLS = 200_000                     # guard against runaway grids
+
+# Only these calibration types represent total boom/implement output (L/s) — the
+# quantity the coverage model needs (paired with swath + speed). A generic
+# `flow_rate` is per-nozzle (typically L/min) and would be silently misread as
+# whole-sprayer output, so it is intentionally excluded.
+SPRAY_FLOW_TYPES = ("spray_output_rate", "fert_output_rate")
 
 
 def _flow_to_l_per_s(value, unit):
@@ -61,16 +67,28 @@ def _flow_to_l_per_s(value, unit):
 
 
 def _resolve_asset_flow(asset, db, ref_date=None, task_calibration_id=None):
-    """Resolve an asset's flow rate to L/s using the same priority as the compute
-    path: an explicitly linked calibration -> the most recent calibration on/before
-    ref_date -> the asset's inline calibration spec. Returns (flow_l_s, rate_seen),
-    where rate_seen is True if *a* rate value was found but couldn't be converted
-    (e.g. an L/ha application rate) — to distinguish 'wrong unit' from 'no cal'."""
+    """Resolve an asset's flow rate to L/s. Priority (most to least authoritative):
+      1. an explicitly task-linked calibration EVENT
+      2. the most recent calibration EVENT on/before ref_date
+      3. an active calibration SPEC whose target converts to a volumetric L/s
+         (the new multi-spec config — arms coverage without a completed event)
+      4. the asset's legacy inline calibration columns
+    Returns (flow_l_s, rate_seen), where rate_seen is True if *a* rate value was
+    found but couldn't be converted (e.g. an L/ha application rate) — to
+    distinguish 'wrong unit' from 'no calibration at all'."""
     flow_l_s = None
     rate_seen = False
     cal = None
     if task_calibration_id:
-        cal = db.query(AssetCalibration).filter(AssetCalibration.id == task_calibration_id).first()
+        # An explicit task link wins, but only if it's an output-rate calibration.
+        cal = (
+            db.query(AssetCalibration)
+            .filter(
+                AssetCalibration.id == task_calibration_id,
+                AssetCalibration.calibration_type.in_(SPRAY_FLOW_TYPES),
+            )
+            .first()
+        )
     if cal is None:
         if ref_date is None:
             ref_date = datetime.utcnow().date()
@@ -78,6 +96,7 @@ def _resolve_asset_flow(asset, db, ref_date=None, task_calibration_id=None):
             db.query(AssetCalibration)
             .filter(
                 AssetCalibration.asset_id == asset.id,
+                AssetCalibration.calibration_type.in_(SPRAY_FLOW_TYPES),
                 AssetCalibration.calibration_date <= ref_date,
             )
             .order_by(AssetCalibration.calibration_date.desc())
@@ -88,7 +107,32 @@ def _resolve_asset_flow(asset, db, ref_date=None, task_calibration_id=None):
         if raw_val is not None:
             rate_seen = True
         flow_l_s = _flow_to_l_per_s(raw_val, cal.unit_of_measure)
+
+    # No usable calibration event -> fall back to an active calibration SPEC's
+    # target. A spec whose target converts to a volumetric L/s enables coverage
+    # without first completing a measured calibration. Restricted to output-rate
+    # spec types (a per-nozzle flow_rate is the wrong quantity).
     if flow_l_s is None:
+        specs = (
+            db.query(AssetCalibrationSpec)
+            .filter(
+                AssetCalibrationSpec.asset_id == asset.id,
+                AssetCalibrationSpec.is_active == True,  # noqa: E712
+                AssetCalibrationSpec.calibration_type.in_(SPRAY_FLOW_TYPES),
+            )
+            .all()
+        )
+        for spec in specs:
+            if spec.target_value is not None:
+                rate_seen = True
+            converted = _flow_to_l_per_s(spec.target_value, spec.unit_of_measure)
+            if converted is not None:
+                flow_l_s = converted
+                break
+
+    # Final fallback: the legacy inline calibration columns — only when the
+    # asset's inline calibration type is an output rate.
+    if flow_l_s is None and asset.calibration_type in SPRAY_FLOW_TYPES:
         if asset.calibration_target_value is not None:
             rate_seen = True
         flow_l_s = _flow_to_l_per_s(asset.calibration_target_value, asset.calibration_unit_of_measure)
