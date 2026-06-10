@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "countries": [
+    {
+      "name": "New Zealand",
+      "code": "NZ",
+      "aliases": ["NZ", "Aotearoa"],
+      "children": [
+        { "name": "Northland", "children": [] },
+        { "name": "Auckland", "children": [
+          { "name": "Matakana" },
+          { "name": "Kumeu" },
+          { "name": "Waiheke Island" }
+        ]},
+        { "name": "Waikato", "children": [] },
+        { "name": "Gisborne", "children": [] },
+        { "name": "Hawke's Bay", "aliases": ["Hawkes Bay"], "children": [
+          { "name": "Gimblett Gravels" },
+          { "name": "Bridge Pa Triangle" },
+          { "name": "Central Hawke's Bay" }
+        ]},
+        { "name": "Wairarapa", "children": [
+          { "name": "Martinborough" },
+          { "name": "Gladstone" },
+          { "name": "Masterton" }
+        ]},
+        { "name": "Nelson", "children": [
+          { "name": "Moutere Hills" },
+          { "name": "Waimea Plains" }
+        ]},
+        { "name": "Marlborough", "children": [
+          { "name": "Wairau Valley" },
+          { "name": "Southern Valleys" },
+          { "name": "Awatere Valley" }
+        ]},
+        { "name": "North Canterbury", "children": [
+          { "name": "Waipara Valley" },
+          { "name": "Waikari" }
+        ]},
+        { "name": "Canterbury", "children": [] },
+        { "name": "Waitaki Valley", "children": [] },
+        { "name": "Central Otago", "children": [
+          { "name": "Gibbston" },
+          { "name": "Bannockburn" },
+          { "name": "Cromwell" },
+          { "name": "Bendigo" },
+          { "name": "Wanaka" },
+          { "name": "Alexandra" }
+        ]}
+      ]
+    },
+    {
+      "name": "Australia",
+      "code": "AU",
+      "aliases": ["AU", "Oz"],
+      "children": [
+        { "name": "Barossa", "children": [
+          { "name": "Barossa Valley" },
+          { "name": "Eden Valley" }
+        ]},
+        { "name": "Adelaide Hills", "children": [] },
+        { "name": "Clare Valley", "children": [] },
+        { "name": "McLaren Vale", "children": [] },
+        { "name": "Langhorne Creek", "children": [] },
+        { "name": "Coonawarra", "children": [] },
+        { "name": "Padthaway", "children": [] },
+        { "name": "Wrattonbully", "children": [] },
+        { "name": "Riverland", "children": [] },
+        { "name": "Yarra Valley", "children": [] },
+        { "name": "Mornington Peninsula", "children": [] },
+        { "name": "Geelong", "children": [] },
+        { "name": "Macedon Ranges", "children": [] },
+        { "name": "Heathcote", "children": [] },
+        { "name": "Goulburn Valley", "children": [] },
+        { "name": "Rutherglen", "children": [] },
+        { "name": "Beechworth", "children": [] },
+        { "name": "King Valley", "children": [] },
+        { "name": "Grampians", "children": [] },
+        { "name": "Hunter Valley", "aliases": ["Hunter"], "children": [] },
+        { "name": "Mudgee", "children": [] },
+        { "name": "Orange", "children": [] },
+        { "name": "Canberra District", "children": [] },
+        { "name": "Hilltops", "children": [] },
+        { "name": "Tumbarumba", "children": [] },
+        { "name": "Riverina", "children": [] },
+        { "name": "Margaret River", "children": [] },
+        { "name": "Great Southern", "children": [] },
+        { "name": "Geographe", "children": [] },
+        { "name": "Pemberton", "children": [] },
+        { "name": "Swan District", "children": [] },
+        { "name": "Tasmania", "children": [
+          { "name": "Tamar Valley" },
+          { "name": "Coal River Valley" },
+          { "name": "Pipers River" },
+          { "name": "Derwent Valley" }
+        ]}
+      ]
+    },
+    {
+      "name": "France",
+      "code": "FR",
+      "children": [
+        { "name": "Bordeaux", "children": [
+          { "name": "Médoc" },
+          { "name": "Pauillac" },
+          { "name": "Margaux" },
+          { "name": "Saint-Estèphe" },
+          { "name": "Saint-Julien" },
+          { "name": "Pessac-Léognan" },
+          { "name": "Saint-Émilion" },
+          { "name": "Pomerol" },
+          { "name": "Sauternes" }
+        ]},
+        { "name": "Burgundy", "aliases": ["Bourgogne"], "children": [
+          { "name": "Chablis" },
+          { "name": "Côte de Nuits" },
+          { "name": "Côte de Beaune" },
+          { "name": "Côte Chalonnaise" },
+          { "name": "Mâconnais" }
+        ]},
+        { "name": "Champagne", "children": [] },
+        { "name": "Rhône", "aliases": ["Rhone"], "children": [
+          { "name": "Côte-Rôtie" },
+          { "name": "Hermitage" },
+          { "name": "Châteauneuf-du-Pape" },
+          { "name": "Gigondas" }
+        ]},
+        { "name": "Loire", "children": [
+          { "name": "Sancerre" },
+          { "name": "Pouilly-Fumé" },
+          { "name": "Vouvray" },
+          { "name": "Muscadet" },
+          { "name": "Chinon" }
+        ]},
+        { "name": "Alsace", "children": [] },
+        { "name": "Beaujolais", "children": [] },
+        { "name": "Languedoc", "children": [] },
+        { "name": "Provence", "children": [] }
+      ]
+    },
+    {
+      "name": "Italy",
+      "code": "IT",
+      "children": [
+        { "name": "Piedmont", "aliases": ["Piemonte"], "children": [
+          { "name": "Barolo" },
+          { "name": "Barbaresco" },
+          { "name": "Langhe" }
+        ]},
+        { "name": "Tuscany", "aliases": ["Toscana"], "children": [
+          { "name": "Chianti Classico" },
+          { "name": "Brunello di Montalcino" },
+          { "name": "Bolgheri" },
+          { "name": "Vino Nobile di Montepulciano" }
+        ]},
+        { "name": "Veneto", "children": [
+          { "name": "Valpolicella" },
+          { "name": "Soave" },
+          { "name": "Prosecco" }
+        ]},
+        { "name": "Friuli-Venezia Giulia", "children": [] },
+        { "name": "Sicily", "aliases": ["Sicilia"], "children": [
+          { "name": "Etna" }
+        ]}
+      ]
+    },
+    {
+      "name": "Spain",
+      "code": "ES",
+      "aliases": ["España"],
+      "children": [
+        { "name": "Rioja", "children": [] },
+        { "name": "Ribera del Duero", "children": [] },
+        { "name": "Priorat", "children": [] },
+        { "name": "Rías Baixas", "children": [] },
+        { "name": "Jerez", "aliases": ["Sherry"], "children": [] }
+      ]
+    },
+    {
+      "name": "Germany",
+      "code": "DE",
+      "aliases": ["Deutschland"],
+      "children": [
+        { "name": "Mosel", "children": [] },
+        { "name": "Rheingau", "children": [] },
+        { "name": "Pfalz", "children": [] },
+        { "name": "Nahe", "children": [] },
+        { "name": "Baden", "children": [] }
+      ]
+    },
+    {
+      "name": "United States",
+      "code": "US",
+      "aliases": ["USA", "America"],
+      "children": [
+        { "name": "Napa Valley", "children": [
+          { "name": "Oakville" },
+          { "name": "Rutherford" },
+          { "name": "Stags Leap District" },
+          { "name": "Howell Mountain" }
+        ]},
+        { "name": "Sonoma County", "children": [
+          { "name": "Russian River Valley" },
+          { "name": "Sonoma Coast" },
+          { "name": "Alexander Valley" }
+        ]},
+        { "name": "Paso Robles", "children": [] },
+        { "name": "Santa Barbara", "children": [
+          { "name": "Sta. Rita Hills" }
+        ]},
+        { "name": "Willamette Valley", "children": [] },
+        { "name": "Columbia Valley", "children": [] }
+      ]
+    }
+  ]
+}

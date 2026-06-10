@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { seedBuiltins } from './templates/seed';
+import { seedGeo } from './templates/geo-seed';
 import {
   CaptureScreen,
   EventsScreen,
@@ -23,9 +24,10 @@ const NAV: { to: string; label: string }[] = [
 ];
 
 export default function App() {
-  // Seed builtin templates (CMS deductive grid) on first run.
+  // Seed builtin templates (CMS deductive grid) + geo reference tree on first run.
   useEffect(() => {
     void seedBuiltins();
+    void seedGeo();
   }, []);
 
   return (
