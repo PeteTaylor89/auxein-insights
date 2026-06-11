@@ -65,6 +65,17 @@
   gap: var(--space-md);
 }
 
+/* Bottom action bar — mirrors the header actions below the form. */
+.template-editor-footer {
+  max-width: var(--max-width);
+  margin: 0 auto var(--space-2xl);
+  padding: var(--space-lg);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
 /* Error */
 .template-editor-error {
   max-width: var(--max-width);
@@ -370,6 +381,10 @@
   }
 
   .template-editor-actions button {
+    flex: 1;
+  }
+
+  .template-editor-footer button {
     flex: 1;
   }
 }

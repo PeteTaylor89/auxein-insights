@@ -5,6 +5,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-reac
 import { calendarService, propertyService, tasksService, riskManagementService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import CalendarView from '../components/calendar/CalendarView';
+import HelpTip from '../components/HelpTip';
 import './Calendar.css';
 
 const EVENT_TYPES = [
@@ -117,6 +118,7 @@ function Calendar() {
           <div className="calendar-title-row">
             <CalendarIcon size={24} />
             <h1 className="section-title">Calendar</h1>
+            <HelpTip topic="calendar.overview" />
           </div>
 
           <div className="calendar-controls">

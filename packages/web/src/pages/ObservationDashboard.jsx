@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles } from 'lucide-react';
 import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import HelpTip from '../components/HelpTip';
 import './ObservationDashboard.css';
 import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
 import { getInsightKind } from '../utils/observationInsight';
@@ -246,7 +247,7 @@ function ManagementTab({ StatusBadge }) {
   return (
     <div>
       <div className="od-tab-header">
-        <h2>Observation Management ({runs.length})</h2>
+        <span className="help-tip-head"><h2>Observation Management ({runs.length})</h2><HelpTip topic="obs.runs" /></span>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <button className="od-btn od-btn--primary" onClick={() => navigate('/observations/schedule')}>
             <Plus size={14} /> Schedule Observation
@@ -396,7 +397,7 @@ function TemplatesTab() {
   return (
     <div>
       <div className="od-tab-header">
-        <h2>Observation Templates ({templates.length})</h2>
+        <span className="help-tip-head"><h2>Observation Templates ({templates.length})</h2><HelpTip topic="obs.templates" /></span>
       </div>
 
       {templates.length > 0 ? (
@@ -497,7 +498,7 @@ function TaskTemplatesTab() {
   return (
     <div>
       <div className="od-tab-header">
-        <h2>Task Templates ({filteredTemplates.length})</h2>
+        <span className="help-tip-head"><h2>Task Templates ({filteredTemplates.length})</h2><HelpTip topic="obs.taskTemplates" /></span>
       </div>
 
       <div className="od-filters">
@@ -1006,7 +1007,7 @@ function TasksTab() {
   return (
     <div>
       <div className="od-tab-header">
-        <h2>Tasks ({sortedTasks.length})</h2>
+        <span className="help-tip-head"><h2>Tasks ({sortedTasks.length})</h2><HelpTip topic="obs.tasks" /></span>
       </div>
 
       <TaskFilters

@@ -147,6 +147,9 @@ function MapsPageInner() {
 
   // Drawing state
   const [drawMode, setDrawMode] = useState('idle'); // idle | draw_polygon | draw_spatial | split | edit | draw_property | edit_property_geometry
+  // The currently-open Mapbox feature popup, so action buttons inside it (Edit,
+  // Split) can dismiss it before opening the side panel / entering a draw mode.
+  const activePopupRef = useRef(null);
   const [drawGeometry, setDrawGeometry] = useState(null);
   const [drawArea, setDrawArea] = useState(0);
   const [drawCentroid, setDrawCentroid] = useState(null);
@@ -309,6 +312,19 @@ function MapsPageInner() {
     drawing.clearDraft();
     startSplit();
   }, [drawing, startSplit]);
+
+  // Split started straight from a block's popup — the block is already chosen,
+  // so skip the "click a block to split" step and go right to drawing the line.
+  const handleSplitBlockFromPopup = useCallback((feature) => {
+    activePopupRef.current?.remove();
+    if (!feature) return;
+    setDrawMode('split');
+    drawing.freeze();
+    drawing.clearDraft();
+    startSplit();          // → selecting
+    selectBlock(feature);  // → drawing_line (pre-selected)
+    drawing.startDrawLine();
+  }, [drawing, startSplit, selectBlock]);
 
   const handleCancelDraw = useCallback(() => {
     setDrawMode('idle');
@@ -505,6 +521,57 @@ function MapsPageInner() {
     };
   }, [map, mapReady, isSelecting, selectBlock, drawing]);
 
+  // When a split finishes (success or the hook's internal cancel), the split
+  // state returns to idle — bring drawMode back too so the toolbar + line
+  // dimming reset (previously the toolbar stayed stuck in "Split Mode").
+  useEffect(() => {
+    if (!isSplitting && drawMode === 'split') {
+      setDrawMode('idle');
+      drawing.freeze();
+    }
+  }, [isSplitting, drawMode, drawing]);
+
+  // Dim existing block / area / parcel outlines + fills while drawing or
+  // splitting, so the active draw geometry reads clearly against them. Block
+  // vertex editing ('edit') is excluded: there we KEEP the original outline
+  // solid white and draw the edited shape as a white dotted line on top, so the
+  // two read in direct contrast (see DRAW_STYLES in useDrawingController).
+  const dimRestoreRef = useRef(null);
+  useEffect(() => {
+    if (!map) return;
+    const DIM = [
+      ['v2-blocks-fill', 'fill-opacity', 0.04],
+      ['v2-blocks-outline', 'line-opacity', 0.22],
+      ['v2-spatial-fill', 'fill-opacity', 0.04],
+      ['v2-spatial-outline', 'line-opacity', 0.22],
+      ['v2-parcels-fill', 'fill-opacity', 0.03],
+      ['v2-parcels-outline', 'line-opacity', 0.22],
+    ];
+    const shouldDim = drawMode !== 'idle' && drawMode !== 'edit';
+    if (shouldDim) {
+      // Capture originals once, then apply the dimmed values.
+      if (!dimRestoreRef.current) {
+        const saved = [];
+        for (const [id, prop] of DIM) {
+          if (map.getLayer(id)) {
+            let orig;
+            try { orig = map.getPaintProperty(id, prop); } catch { orig = undefined; }
+            saved.push([id, prop, orig]);
+          }
+        }
+        dimRestoreRef.current = saved;
+      }
+      for (const [id, prop, dim] of DIM) {
+        if (map.getLayer(id)) { try { map.setPaintProperty(id, prop, dim); } catch { /* layer gone */ } }
+      }
+    } else if (dimRestoreRef.current) {
+      for (const [id, prop, orig] of dimRestoreRef.current) {
+        if (map.getLayer(id)) { try { map.setPaintProperty(id, prop, orig); } catch { /* layer gone */ } }
+      }
+      dimRestoreRef.current = null;
+    }
+  }, [map, drawMode]);
+
   // --- Block edit handlers ---
   const handleOpenBlockEdit = useCallback(async (blockId) => {
     try {
@@ -685,6 +752,8 @@ function MapsPageInner() {
   flyToBlockRef.current = flyToBlock;
   const handleOpenBlockEditRef = useRef(handleOpenBlockEdit);
   handleOpenBlockEditRef.current = handleOpenBlockEdit;
+  const handleSplitBlockFromPopupRef = useRef(handleSplitBlockFromPopup);
+  handleSplitBlockFromPopupRef.current = handleSplitBlockFromPopup;
   const handleOpenSpatialEditRef = useRef(handleOpenSpatialEdit);
   handleOpenSpatialEditRef.current = handleOpenSpatialEdit;
   const navigateRef = useRef(navigate);
@@ -784,11 +853,12 @@ function MapsPageInner() {
           />
         ) });
       } else if (layerId === 'v2-blocks-fill') {
-        showReactPopup(map, { lngLat, content: (
+        activePopupRef.current = showReactPopup(map, { lngLat, content: (
           <BlockPopupContent
             feature={topFeature}
             onFlyTo={flyToBlockRef.current}
-            onEdit={handleOpenBlockEditRef.current}
+            onEdit={(id) => { activePopupRef.current?.remove(); handleOpenBlockEditRef.current(id); }}
+            onSplit={(feature) => handleSplitBlockFromPopupRef.current(feature)}
             isAuxeinAdmin={isAuxeinAdminRef.current}
             onAssignCompany={handleOpenBlockCompanyAssignRef.current}
           />

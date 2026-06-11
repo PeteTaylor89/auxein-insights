@@ -7,6 +7,7 @@ import RegionalClimateHistory from '../components/climate/RegionalClimateHistory
 import ArticlesCarousel from '../components/ArticlesCarousel';
 import PhenologyPanel from '../components/phenology/PhenologyPanel';
 import SprayProgramPanel from '../components/spray/SprayProgramPanel';
+import HelpTip from '../components/HelpTip';
 import { Link } from 'react-router'
 import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned, Droplets} from "lucide-react"
 import './Insights.css';
@@ -93,7 +94,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Climate History</span>
+              <span className="help-tip-head"><span>Climate History</span><HelpTip topic="insights.climate" /></span>
 
               <button
                 className="close-insight-btn"
@@ -110,7 +111,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Phenology Analysis</span>
+              <span className="help-tip-head"><span>Phenology Analysis</span><HelpTip topic="insights.phenology" /></span>
               <button 
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -126,7 +127,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Climate Projections</span>
+              <span className="help-tip-head"><span>Climate Projections</span><HelpTip topic="insights.climateprojection" /></span>
               <button 
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -145,7 +146,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Current Season Climate{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span>
+              <span className="help-tip-head"><span>Current Season Climate{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.currentseason" /></span>
               <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -176,7 +177,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Spray Program{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span>
+              <span className="help-tip-head"><span>Spray Program{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.sprayprogram" /></span>
               <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -192,7 +193,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Disease Risk Analysis</span>
+              <span className="help-tip-head"><span>Disease Risk Analysis</span><HelpTip topic="insights.disease" /></span>
               <button 
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -211,7 +212,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Biosecurity Monitoring</span>
+              <span className="help-tip-head"><span>Biosecurity Monitoring</span><HelpTip topic="insights.biosecurity" /></span>
               <button 
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -230,7 +231,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>BlockChain</span>
+              <span className="help-tip-head"><span>BlockChain</span><HelpTip topic="insights.blockchain" /></span>
               <button 
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
@@ -249,7 +250,7 @@ function Insights() {
         return (
           <div className="content-container">
             <div className="container-title">
-              <span>Industry Insights</span>
+              <span className="help-tip-head"><span>Industry Insights</span><HelpTip topic="insights.industry" /></span>
               <button 
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}

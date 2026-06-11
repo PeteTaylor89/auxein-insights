@@ -1,6 +1,7 @@
 // src/components/admin/InvitationForm.jsx
 import { useState } from 'react';
 import {invitationService} from '@vineyard/shared';
+import HelpTip from '../HelpTip';
 
 function InvitationForm({ onInvitationSent, companyStats }) {
   const [formData, setFormData] = useState({
@@ -69,7 +70,7 @@ function InvitationForm({ onInvitationSent, companyStats }) {
 
   return (
     <div className="invitation-form">
-      <h3>Invite Team Member</h3>
+      <h3 className="help-tip-head">Invite Team Member<HelpTip topic="manage.invite" /></h3>
       
       {companyStats && (
         <div className="user-limit-info">

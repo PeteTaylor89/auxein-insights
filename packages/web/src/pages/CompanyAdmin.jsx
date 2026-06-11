@@ -11,6 +11,7 @@ import ContractorRelationships from '../components/admin/ContractorRelationships
 import ForecastPointPicker from '../components/ForecastPointPicker';
 import BlockStatusBadge from '../components/BlockStatusBadge';
 import FeedbackModal from '../components/FeedbackModal';
+import HelpTip from '../components/HelpTip';
 import TaskReport from '../components/reports/TaskReport';
 import ContractorReport from '../components/reports/ContractorReport';
 import ObservationReport from '../components/reports/ObservationReport';
@@ -373,7 +374,7 @@ function PropertiesTab() {
   return (
     <div className="ca-section">
       <div className="ca-section-header">
-        <h2 className="ca-section-title">Properties</h2>
+        <h2 className="ca-section-title help-tip-head">Properties<HelpTip topic="manage.properties" /></h2>
         {canManage && !showCreate && (
           <button className="ca-btn-primary" onClick={() => setShowCreate(true)}>
             <Plus size={14} /> New Property
@@ -594,9 +595,10 @@ function PropertiesTab() {
 function RelationshipsTab() {
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">
+      <h2 className="ca-section-title help-tip-head">
         <Handshake size={18} style={{ verticalAlign: 'middle', marginRight: 'var(--space-xs)' }} />
         Contractor Relationships
+        <HelpTip topic="manage.relationships" />
       </h2>
       <p className="ca-section-desc">
         Manage the contractors who work for your company. Add a relationship to make a contractor assignable to tasks.
@@ -685,7 +687,7 @@ function BlocksTab() {
   return (
     <div className="ca-section">
       <div className="ca-section-header">
-        <h2 className="ca-section-title">Blocks</h2>
+        <h2 className="ca-section-title help-tip-head">Blocks<HelpTip topic="manage.blocks" /></h2>
       </div>
       <p className="ca-section-desc">
         Edit block details and manage rows. Block geometry is edited via the map.
@@ -1218,7 +1220,7 @@ function TimesheetsTab() {
 
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Timesheet Overview</h2>
+      <h2 className="ca-section-title help-tip-head">Timesheet Overview<HelpTip topic="manage.timesheets" /></h2>
       <div className="ca-stats-grid">
         <div className="stat-card"><div className="stat-value">{summary.pending_approval}</div><div className="stat-label">Pending Approval</div></div>
         <div className="stat-card"><div className="stat-value">{summary.by_status?.approved || 0}</div><div className="stat-label">Approved</div></div>
@@ -1251,7 +1253,7 @@ function TimesheetsTab() {
 function TrainingTab() {
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Training</h2>
+      <h2 className="ca-section-title help-tip-head">Training<HelpTip topic="manage.training" /></h2>
       <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
         <GraduationCap size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
         <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Training modules — coming soon</h3>
@@ -1272,7 +1274,7 @@ function TrainingTab() {
 function SubscriptionsTab() {
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Subscriptions</h2>
+      <h2 className="ca-section-title help-tip-head">Subscriptions<HelpTip topic="manage.subscriptions" /></h2>
       <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
         <CreditCard size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
         <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Subscriptions — coming soon</h3>
@@ -1292,7 +1294,7 @@ function SubscriptionsTab() {
 function CompliancePlansTab() {
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Plans / Compliance</h2>
+      <h2 className="ca-section-title help-tip-head">Plans / Compliance<HelpTip topic="manage.compliance" /></h2>
       <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
         <ShieldCheck size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
         <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Plans &amp; Compliance — coming soon</h3>
@@ -1373,7 +1375,7 @@ function AliasesTab() {
   return (
     <div className="ca-section">
       <div className="ca-section-header">
-        <h2 className="ca-section-title">External System Aliases</h2>
+        <h2 className="ca-section-title help-tip-head">External System Aliases<HelpTip topic="manage.aliases" /></h2>
         <button className="ca-btn-primary" onClick={() => setShowForm(!showForm)}>
           {showForm ? <X size={14} /> : <Plus size={14} />}
           {showForm ? 'Cancel' : 'Add Alias'}
@@ -1500,7 +1502,7 @@ function GrapeLinkTab() {
 
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">GrapeLink Setup</h2>
+      <h2 className="ca-section-title help-tip-head">GrapeLink Setup<HelpTip topic="manage.grapelink" /></h2>
       <p className="ca-section-desc">Set GrapeLink grower IDs and property codes for compliance exports.</p>
       <div style={{ padding: 'var(--space-md)', background: 'var(--color-info-bg, #dbeafe)', borderLeft: '3px solid var(--color-info, #2d5a87)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-base)', fontSize: 'var(--font-size-sm)' }}>
         <strong>Full integration coming.</strong> For now you can record your GrapeLink identifiers here so Auxein can match them up when the live export pipeline ships. Spray diary, harvest, and compliance push-through are on the roadmap.
@@ -1618,7 +1620,7 @@ function WeatherTab() {
 
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Weather & Climate Settings</h2>
+      <h2 className="ca-section-title help-tip-head">Weather & Climate Settings<HelpTip topic="manage.weather" /></h2>
       <p className="ca-section-desc">Set the forecast point and climate zone for each property. The climate zone links to regional insights data.</p>
       <table className="ca-table">
         <thead>
@@ -1719,7 +1721,7 @@ function WeatherTab() {
 function CalendarSyncTab() {
   return (
     <div className="ca-section">
-      <h2 className="ca-section-title">Calendar Sync</h2>
+      <h2 className="ca-section-title help-tip-head">Calendar Sync<HelpTip topic="manage.calendar" /></h2>
       <div className="ca-empty" style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
         <Calendar size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
         <h3 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Calendar sync — coming soon</h3>
@@ -1765,7 +1767,7 @@ function ReportsTab() {
     <div className="ca-section">
       <div className="reports-page">
         <div className="reports-header">
-          <h2 className="ca-section-title" style={{ margin: 0 }}>Reports</h2>
+          <h2 className="ca-section-title help-tip-head" style={{ margin: 0 }}>Reports<HelpTip topic="manage.reports" /></h2>
           <div className="reports-filters">
             {properties.length > 0 && (
               <label>

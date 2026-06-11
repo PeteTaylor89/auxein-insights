@@ -1,6 +1,7 @@
 // src/components/admin/CompanyUserManagement.jsx
 import { useState, useEffect } from 'react';
 import {adminService} from '@vineyard/shared';
+import HelpTip from '../HelpTip';
 
 // Small avatar pill shown beside each user in the team list. Renders the
 // uploaded avatar when present, otherwise initials on an olive disc.
@@ -146,7 +147,7 @@ function CompanyUserManagement({ companyId }) {
 
   return (
     <div className="company-user-management">
-      <h3>Team Management</h3>
+      <h3 className="help-tip-head">Team Management<HelpTip topic="manage.users" /></h3>
       <p>Manage your company's team members</p>
 
       {/* Filters */}

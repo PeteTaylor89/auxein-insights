@@ -6,6 +6,7 @@ import {
   Wrench, Package
 } from 'lucide-react';
 import { tasksService, assetService } from '@vineyard/shared';
+import HelpTip from '../components/HelpTip';
 import './TaskTemplateEditor.css';
 
 function TaskTemplateEditor() {
@@ -167,7 +168,7 @@ function TaskTemplateEditor() {
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h1>{isEditMode ? 'Edit Template' : 'Create Task Template'}</h1>
+              <span className="help-tip-head"><h1>{isEditMode ? 'Edit Template' : 'Create Task Template'}</h1><HelpTip topic="taskTemplate.general" /></span>
               <p>{isEditMode ? 'Update template details' : 'Create a reusable task template'}</p>
             </div>
           </div>
@@ -200,7 +201,7 @@ function TaskTemplateEditor() {
         <div className="template-editor-column">
           {/* Basic Info */}
           <div className="te-section">
-            <div className="te-section-header"><Info size={18} /><h3>Basic Information</h3></div>
+            <div className="te-section-header"><Info size={18} /><h3>Basic Information</h3><HelpTip topic="taskTemplate.basic" /></div>
 
             <div className="te-field">
               <label className="te-field-label">Template Name<span className="te-required">*</span></label>
@@ -230,7 +231,7 @@ function TaskTemplateEditor() {
 
           {/* Settings */}
           <div className="te-section">
-            <div className="te-section-header"><Settings size={18} /><h3>Default Settings</h3></div>
+            <div className="te-section-header"><Settings size={18} /><h3>Default Settings</h3><HelpTip topic="taskTemplate.settings" /></div>
 
             <div className="te-field">
               <label className="te-field-label">Default Priority</label>
@@ -248,7 +249,7 @@ function TaskTemplateEditor() {
             </div>
 
             <div className="te-field">
-              <label className="te-field-label">Options</label>
+              <label className="te-field-label help-tip-head">Options<HelpTip topic="taskTemplate.options" /></label>
               <div className="te-checkbox-group">
                 <label className="te-checkbox">
                   <input type="checkbox" checked={formData.quick_create_enabled} onChange={(e) => set('quick_create_enabled', e.target.checked)} />
@@ -275,7 +276,7 @@ function TaskTemplateEditor() {
         <div className="template-editor-column">
           {/* Required Equipment */}
           <div className="te-section">
-            <div className="te-section-header"><Wrench size={18} /><h3>Required Equipment</h3></div>
+            <div className="te-section-header"><Wrench size={18} /><h3>Required Equipment</h3><HelpTip topic="taskTemplate.equipment" /></div>
             <div className="te-add-row">
               <select className="te-select" value={selectedEquipment} onChange={(e) => setSelectedEquipment(e.target.value)} disabled={loadingAssets || availableEquipment().length === 0} style={{ flex: 1 }}>
                 <option value="">{loadingAssets ? 'Loading...' : availableEquipment().length === 0 ? 'No equipment available' : 'Select equipment...'}</option>
@@ -297,7 +298,7 @@ function TaskTemplateEditor() {
 
           {/* Optional Equipment */}
           <div className="te-section">
-            <div className="te-section-header"><Wrench size={18} /><h3>Optional Equipment</h3></div>
+            <div className="te-section-header"><Wrench size={18} /><h3>Optional Equipment</h3><HelpTip topic="taskTemplate.equipment" /></div>
             <div className="te-add-row">
               <select className="te-select" value={selectedOptionalEquipment} onChange={(e) => setSelectedOptionalEquipment(e.target.value)} disabled={loadingAssets || availableOptionalEquipment().length === 0} style={{ flex: 1 }}>
                 <option value="">{loadingAssets ? 'Loading...' : availableOptionalEquipment().length === 0 ? 'No equipment available' : 'Select equipment...'}</option>
@@ -319,7 +320,7 @@ function TaskTemplateEditor() {
 
           {/* Required Consumables */}
           <div className="te-section">
-            <div className="te-section-header"><Package size={18} /><h3>Required Consumables</h3></div>
+            <div className="te-section-header"><Package size={18} /><h3>Required Consumables</h3><HelpTip topic="taskTemplate.consumables" /></div>
             <button className="te-add-full" onClick={addConsumable}><Plus size={16} /> Add Consumable</button>
             {formData.required_consumables.length > 0 ? (
               <div className="te-item-list" style={{ marginTop: 'var(--space-md)' }}>
@@ -349,6 +350,16 @@ function TaskTemplateEditor() {
             ) : <p className="te-empty" style={{ marginTop: 'var(--space-md)' }}>No consumables required</p>}
           </div>
         </div>
+      </div>
+
+      {/* Footer actions — mirror the header so Save/Cancel are reachable at the bottom of a long form too. */}
+      <div className="template-editor-footer">
+        <button className="btn-ghost" onClick={handleCancel} disabled={saving}>
+          <X size={16} /> Cancel
+        </button>
+        <button className="btn-primary" onClick={handleSave} disabled={saving}>
+          <Save size={16} /> {saving ? 'Saving...' : 'Save Template'}
+        </button>
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 // components/tasks/RowProgressPanel.jsx — Row-level task progress panel (Grow V1, R7)
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronRight, RotateCw, Check, SkipForward, Star, MessageSquare, Save, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, RotateCw, Check, SkipForward, Star, MessageSquare, Save, X, ClipboardList } from 'lucide-react';
 import { taskRowService, usersService, byNatural } from '@vineyard/shared';
+import RowTaskCreateModal from './RowTaskCreateModal';
 import './RowProgressPanel.css';
 
 const STATUS_LABELS = {
@@ -37,8 +38,10 @@ function StarRating({ value, onChange, readOnly }) {
   );
 }
 
-function RowProgressPanel({ taskId, canEdit }) {
+function RowProgressPanel({ taskId, canEdit, task }) {
   const [expanded, setExpanded] = useState(true);
+  // Row to spin a follow-up task from (null = modal closed).
+  const [taskModalRow, setTaskModalRow] = useState(null);
   const [rows, setRows] = useState([]);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -480,9 +483,12 @@ function RowProgressPanel({ taskId, canEdit }) {
                             )}
                           </div>
 
-                          {/* Save button for notes/quality changes */}
+                          {/* Save + create-follow-up-task actions */}
                           {canEdit && (
                             <div className="rp-detail-actions">
+                              <button className="rp-btn rp-btn--ghost" onClick={() => setTaskModalRow(row)} title="Create a follow-up task from this row">
+                                <ClipboardList size={14} /> Create task
+                              </button>
                               <button className="rp-btn rp-btn--primary" onClick={() => handleSaveNotes(row.id)} disabled={saving}>
                                 <Save size={14} /> {saving ? 'Saving...' : 'Save Changes'}
                               </button>
@@ -498,6 +504,13 @@ function RowProgressPanel({ taskId, canEdit }) {
           )}
         </div>
       )}
+
+      <RowTaskCreateModal
+        open={!!taskModalRow}
+        row={taskModalRow}
+        parentTask={task}
+        onClose={() => setTaskModalRow(null)}
+      />
     </div>
   );
 }

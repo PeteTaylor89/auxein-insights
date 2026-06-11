@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Sliders, Search, AlertTriangle, CheckCircle, XCircle, Clock, ExternalLink, X, Camera, Thermometer, User, FileText, Wrench, Save, Upload } from 'lucide-react';
 import { assetService, useAuth } from '@vineyard/shared';
+import HelpTip from '../components/HelpTip';
 import './Calibrations.css';
 import '../components/asset-components.css';
 
@@ -181,6 +182,7 @@ export default function CalibrationsTab() {
           <option value="all">All types</option>
           {allTypes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
         </select>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex' }}><HelpTip topic="assets.calibrations" /></span>
       </div>
 
       {error && <div className="cal-error"><AlertTriangle size={16} /> {error}</div>}

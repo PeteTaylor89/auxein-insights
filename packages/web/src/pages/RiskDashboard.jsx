@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { riskManagementService, usersService, adminService, api } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import HelpTip from '../components/HelpTip';
 import './RiskManagement.css';
 
 function RiskDashboard() {
@@ -207,7 +208,7 @@ function RiskDashboard() {
           {activeTab === 'risks' && (
             <div>
               <div className="rm-section-header">
-                <h2>Risks ({risks.length})</h2>
+                <span className="help-tip-head"><h2>Risks ({risks.length})</h2><HelpTip topic="risk.risks" /></span>
                 <div className="rm-filters">
                   <select className="rm-filter-select" value={riskFilters.risk_level} onChange={(e) => setRiskFilters(prev => ({ ...prev, risk_level: e.target.value }))}>
                     <option value="">All Risks</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
@@ -246,7 +247,7 @@ function RiskDashboard() {
           {activeTab === 'actions' && (
             <div>
               <div className="rm-section-header">
-                <h2>Risk Actions / Controls ({actions.length})</h2>
+                <span className="help-tip-head"><h2>Risk Actions / Controls ({actions.length})</h2><HelpTip topic="risk.actions" /></span>
                 <div className="rm-filters">
                   <select className="rm-filter-select" value={actionFilters.status} onChange={(e) => setActionFilters(prev => ({ ...prev, status: e.target.value }))}>
                     <option value="">All Status</option><option value="planned">In Progress</option><option value="completed">Completed</option><option value="overdue">Overdue</option>
@@ -298,7 +299,7 @@ function RiskDashboard() {
           {activeTab === 'incidents' && (
             <div>
               <div className="rm-section-header">
-                <h2>Incident Register ({incidents.length})</h2>
+                <span className="help-tip-head"><h2>Incident Register ({incidents.length})</h2><HelpTip topic="risk.incidents" /></span>
                 <div className="rm-filters">
                   <select className="rm-filter-select" value={incidentFilters.status} onChange={(e) => setIncidentFilters(prev => ({ ...prev, status: e.target.value }))}>
                     <option value="">All Status</option><option value="open">Open</option><option value="closed">Closed</option><option value="investigating">Investigating</option>

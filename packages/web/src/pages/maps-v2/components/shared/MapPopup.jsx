@@ -1,7 +1,7 @@
 // maps-v2/components/shared/MapPopup.jsx — React-rendered Mapbox popups
 import { createRoot } from 'react-dom/client';
 import mapboxgl from 'mapbox-gl';
-import { MapPin, Grape, Ruler, Map, Building2, Leaf, Binoculars, ClipboardList, TriangleAlert, Wrench, ExternalLink, Landmark } from 'lucide-react';
+import { MapPin, Grape, Ruler, Map, Building2, Leaf, Binoculars, ClipboardList, TriangleAlert, Wrench, ExternalLink, Landmark, Scissors } from 'lucide-react';
 
 export function showReactPopup(map, { lngLat, content, popupOptions = {} }) {
   const container = document.createElement('div');
@@ -21,7 +21,7 @@ export function showReactPopup(map, { lngLat, content, popupOptions = {} }) {
   return popup;
 }
 
-export function BlockPopupContent({ feature, onFlyTo, onEdit, isAuxeinAdmin, onAssignCompany }) {
+export function BlockPopupContent({ feature, onFlyTo, onEdit, onSplit, isAuxeinAdmin, onAssignCompany }) {
   const p = feature?.properties || {};
   return (
     <div className="v2-popup">
@@ -37,6 +37,7 @@ export function BlockPopupContent({ feature, onFlyTo, onEdit, isAuxeinAdmin, onA
       </div>
       <div className="v2-popup-footer">
         {onEdit && p.id && <button className="v2-popup-btn v2-popup-btn--accent" onClick={() => onEdit(p.id)}>Edit Block</button>}
+        {onSplit && p.id && <button className="v2-popup-btn" onClick={() => onSplit(feature)} style={{ marginTop: 6 }}><Scissors size={14} /> Split Block</button>}
         {isAuxeinAdmin && onAssignCompany && p.id && (
           <button className="v2-popup-btn" onClick={() => onAssignCompany(p.id)} style={{ marginTop: 6, background: '#7c3aed', color: '#fff' }}>
             <Building2 size={14} /> Assign Company

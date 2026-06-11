@@ -1,0 +1,148 @@
+/* HelpTip — anchored (?) help popover. Visual language mirrors the Insights
+   app: white card, olive accent, soft shadow. Uses theme.css tokens. */
+
+.help-tip__btn {
+  /* padding:0 dodges the global `button { padding: 8px 16px }` trap in index.css
+     that otherwise clips small fixed-size icon buttons. */
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-muted, #666666);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  border-radius: 50%;
+  vertical-align: middle;
+  transition: color 0.15s ease;
+}
+
+.help-tip__btn:hover,
+.help-tip__btn[aria-expanded="true"] {
+  color: var(--color-olive, #5B6830);
+}
+
+.help-tip__btn:focus-visible {
+  outline: 2px solid var(--color-olive, #5B6830);
+  outline-offset: 2px;
+}
+
+/* Wrapper to keep a heading and its (?) tip grouped together as one unit,
+   so a space-between header doesn't push them apart. */
+.help-tip-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.help-tip__pop {
+  position: fixed;
+  z-index: 11000;
+  box-sizing: border-box;
+  background: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  padding: 14px 16px;
+  font-family: var(--font-family, system-ui, sans-serif);
+  animation: help-tip-in 0.12s ease-out;
+}
+
+@keyframes help-tip-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.help-tip__title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-olive, #5B6830);
+  margin-bottom: 6px;
+}
+
+.help-tip__body {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--color-text, #2F2F2F);
+}
+
+.help-tip__body p { margin: 0 0 8px; }
+.help-tip__body p:last-child { margin-bottom: 0; }
+.help-tip__body ul { margin: 0 0 8px; padding-left: 18px; }
+.help-tip__body ul:last-child { margin-bottom: 0; }
+.help-tip__body li { margin-bottom: 4px; }
+.help-tip__body strong { color: var(--color-charcoal, #2F2F2F); }
+.help-tip__body a { color: var(--color-terracotta, #D1583B); }
+
+.help-tip__todo {
+  color: var(--color-text-muted, #666666);
+  font-style: italic;
+}
+
+/* Sub-label introducing the bullet list ("What you can do"). */
+.help-tip__label {
+  margin: 10px 0 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-olive, #5B6830);
+}
+
+/* Closing practical note(s). One divider above the whole group; each tip
+   is its own line. */
+.help-tip__tips {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+.help-tip__tip {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #666666);
+}
+
+.help-tip__tip:last-child {
+  margin-bottom: 0;
+}
+
+/* "Coming soon" badge for unbuilt modules. */
+.help-tip__soon {
+  display: inline-block;
+  margin: 0 0 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-warning-bg, #fef3c7);
+  color: var(--color-warning-text, #92400e);
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Caret — a rotated square peeking from the card edge toward the icon.
+   Horizontal position is set inline (tracks the icon centre). */
+.help-tip__caret {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  background: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  transform: rotate(45deg);
+}
+
+.help-tip__pop--bottom .help-tip__caret {
+  top: -6px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.help-tip__pop--top .help-tip__caret {
+  bottom: -6px;
+  border-left: none;
+  border-top: none;
+}

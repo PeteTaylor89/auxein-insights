@@ -1,9 +1,9 @@
 // pages/TaskDetail.jsx — Task detail view with row progress, equipment check, consumable completion
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation, Droplets } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation, Droplets, ClipboardList } from 'lucide-react';
 import RiskHazardChips from '../components/risks/RiskHazardChips';
-import { tasksService, sprayCoverageService } from '@vineyard/shared';
+import { tasksService, sprayCoverageService, taskRowService, byNatural } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
 import { TaskStatusBadge } from '../components/TaskManagement';
@@ -88,6 +88,10 @@ function TaskDetail() {
   // Spray-coverage readiness (web-only signal; null until fetched / when N/A)
   const [spray, setSpray] = useState(null);
 
+  // Row notes/issues, rolled up into the "Field Notes" summary card.
+  const [rows, setRows] = useState([]);
+  const [copiedNotes, setCopiedNotes] = useState(false);
+
   // Edit modal
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -121,6 +125,54 @@ function TaskDetail() {
       .catch(() => { if (!cancelled) setSpray(null); });
     return () => { cancelled = true; };
   }, [taskId, userTypeRole, task?.status]);
+
+  // Row notes/issues — only block-scoped tasks have rows. Refreshes on status
+  // change (e.g. after completion); the live per-row view is the Row Progress panel.
+  useEffect(() => {
+    if (!taskId || !task?.block_id) { setRows([]); return; }
+    let cancelled = false;
+    taskRowService.listRows(taskId)
+      .then(d => { if (!cancelled) setRows(Array.isArray(d) ? d : []); })
+      .catch(() => { if (!cancelled) setRows([]); });
+    return () => { cancelled = true; };
+  }, [taskId, task?.block_id, task?.status]);
+
+  // Roll every row's issues_found + notes into one ordered list (issues first).
+  const fieldNotes = useMemo(() => {
+    const entries = [];
+    for (const r of rows) {
+      const label = r.row_number ? `Row ${r.row_number}` : `#${r.id}`;
+      if (r.issues_found && r.issues_found.trim()) {
+        entries.push({ id: `${r.id}-i`, label, text: r.issues_found.trim(), isIssue: true });
+      }
+      if (r.notes && r.notes.trim()) {
+        entries.push({ id: `${r.id}-n`, label, text: r.notes.trim(), isIssue: false });
+      }
+    }
+    entries.sort((a, b) => {
+      if (a.isIssue !== b.isIssue) return a.isIssue ? -1 : 1; // issues first
+      return byNatural('label')(a, b);
+    });
+    return entries;
+  }, [rows]);
+
+  const fieldNotesText = useMemo(
+    () => fieldNotes.map(e => `${e.label}: ${e.text}`).join('\n'),
+    [fieldNotes],
+  );
+
+  const copyFieldNotes = async () => {
+    try {
+      await navigator.clipboard.writeText(fieldNotesText);
+      setCopiedNotes(true);
+      setTimeout(() => setCopiedNotes(false), 1500);
+    } catch { /* clipboard blocked — no-op */ }
+  };
+
+  // Seed the completion-notes textarea with the rolled-up field notes (append).
+  const insertFieldNotes = () => {
+    setCompletionNotes(prev => (prev?.trim() ? `${prev.trim()}\n${fieldNotesText}` : fieldNotesText));
+  };
 
   // ── Start Task Flow (P1) ──────────────────────────────────────────
   const handleStartClick = async () => {
@@ -320,6 +372,30 @@ function TaskDetail() {
           propertyId={task.property_id || task.block?.property_id || null}
         />
 
+        {/* Field Notes — rolled up from row notes/issues. Read-only summary. */}
+        {fieldNotes.length > 0 && (
+          <div className="vp-card td-card td-fieldnotes">
+            <div className="td-fieldnotes-head">
+              <h3 className="td-card-title">
+                <ClipboardList size={16} style={{ verticalAlign: -3, marginRight: 6 }} />
+                Field Notes <span className="td-fieldnotes-count">({fieldNotes.length})</span>
+              </h3>
+              <button className="td-tool-btn" onClick={copyFieldNotes} title="Copy all to clipboard">
+                <FileText size={14} /> {copiedNotes ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <ul className="td-fieldnotes-list">
+              {fieldNotes.map(e => (
+                <li key={e.id} className={`td-fieldnote${e.isIssue ? ' td-fieldnote--issue' : ''}`}>
+                  {e.isIssue && <AlertTriangle size={13} className="td-fieldnote-icon" />}
+                  <span className="td-fieldnote-row">{e.label}</span>
+                  <span className="td-fieldnote-text">{e.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Two-column body */}
         <div className="td-grid">
           {/* Left column — Overview + Description */}
@@ -475,7 +551,7 @@ function TaskDetail() {
 
         {/* Row Progress Panel */}
         {task.block_id && (
-          <RowProgressPanel taskId={parseInt(taskId)} canEdit={canEdit} />
+          <RowProgressPanel taskId={parseInt(taskId)} canEdit={canEdit} task={task} />
         )}
 
         {/* ── P1: Equipment Check Modal ──────────────────────────────── */}
@@ -692,7 +768,14 @@ function TaskDetail() {
               )}
 
               <div className="td-notes-section">
-                <label>Completion Notes</label>
+                <div className="td-notes-label-row">
+                  <label>Completion Notes</label>
+                  {fieldNotes.length > 0 && (
+                    <button type="button" className="td-notes-insert" onClick={insertFieldNotes}>
+                      <ClipboardList size={13} /> Insert field notes ({fieldNotes.length})
+                    </button>
+                  )}
+                </div>
                 <textarea
                   value={completionNotes}
                   onChange={(e) => setCompletionNotes(e.target.value)}
@@ -797,6 +880,40 @@ function TaskDetail() {
           display: block; font-size: var(--font-size-sm); font-weight: 500;
           color: var(--color-text); margin-bottom: var(--space-xs);
         }
+        .td-notes-label-row {
+          display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
+        }
+        .td-notes-label-row label { margin-bottom: 0; }
+        .td-notes-insert {
+          display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px;
+          background: var(--color-olive-light); color: var(--color-primary);
+          border: 1px solid var(--color-olive-border); border-radius: var(--radius-sm);
+          font-size: var(--font-size-xs); font-weight: 600; cursor: pointer;
+          margin-bottom: var(--space-xs);
+        }
+        .td-notes-insert:hover { background: var(--color-olive-border); }
+
+        /* Field Notes summary card */
+        .td-fieldnotes { margin-bottom: var(--space-base); }
+        .td-fieldnotes-head {
+          display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
+          margin-bottom: var(--space-sm);
+        }
+        .td-fieldnotes-head .td-card-title { margin: 0; }
+        .td-fieldnotes-count { color: var(--color-text-muted); font-weight: 500; }
+        .td-fieldnotes-list { list-style: none; margin: 0; padding: 0; }
+        .td-fieldnote {
+          display: flex; align-items: baseline; gap: var(--space-sm);
+          padding: var(--space-xs) 0; border-top: 1px solid var(--color-border);
+          font-size: var(--font-size-sm); line-height: 1.5;
+        }
+        .td-fieldnote:first-child { border-top: none; }
+        .td-fieldnote-icon { color: var(--color-warning); flex-shrink: 0; align-self: center; }
+        .td-fieldnote-row {
+          flex-shrink: 0; min-width: 64px; font-weight: 600; color: var(--color-text);
+        }
+        .td-fieldnote-text { color: var(--color-text); }
+        .td-fieldnote--issue .td-fieldnote-text { color: var(--color-text); font-weight: 500; }
         .td-modal-actions {
           display: flex; justify-content: flex-end; gap: var(--space-sm);
           padding-top: var(--space-md); border-top: 1px solid var(--color-border);

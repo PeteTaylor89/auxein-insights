@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { assetService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
+import HelpTip from '../components/HelpTip';
 import QuickStockAdjustment from '../components/QuickStockAdjustment';
 import CalibrationsTab from './Calibrations';
 import './AssetsDashboard.css';
@@ -217,7 +218,7 @@ function EquipmentTab({ StatusBadge }) {
   return (
     <div>
       <div className="ad-section-header">
-        <h2>Equipment & Vehicles ({filtered.length})</h2>
+        <span className="help-tip-head"><h2>Equipment & Vehicles ({filtered.length})</h2><HelpTip topic="assets.equipment" /></span>
         <button className="ad-btn-primary" onClick={() => navigate('/assets/equipment/new')}>
           <Plus size={14} /> Register Equipment
         </button>
@@ -342,7 +343,7 @@ function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
   return (
     <div>
       <div className="ad-section-header">
-        <h2>Consumables ({filtered.length})</h2>
+        <span className="help-tip-head"><h2>Consumables ({filtered.length})</h2><HelpTip topic="assets.consumables" /></span>
         <button className="ad-btn-primary" onClick={() => navigate('/assets/consumables/new')}>
           <Plus size={14} /> Register Consumable
         </button>
@@ -487,7 +488,7 @@ function MaintenanceTab({ StatusBadge }) {
   return (
     <div>
       <div className="ad-section-header">
-        <h2>Maintenance Schedule ({filtered.length})</h2>
+        <span className="help-tip-head"><h2>Maintenance Schedule ({filtered.length})</h2><HelpTip topic="assets.maintenance" /></span>
         <button className="ad-btn-primary" onClick={() => navigate('/assets/maintenance/new')}>
           <Plus size={14} /> Schedule Maintenance
         </button>

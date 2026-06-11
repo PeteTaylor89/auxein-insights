@@ -681,19 +681,23 @@ body.maps-fullscreen .app-main {
 /* ---- Split flow ---- */
 .v2-split-flow {
   position: absolute;
-  bottom: 50px;
+  /* Sits just below the drawing toolbar (top: 10px) so the split helper +
+     confirm live in the same top zone as New Block / Split / Cancel. */
+  top: 58px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
+  gap: var(--space-base);
+  padding: var(--space-base) var(--space-xl);
   background: var(--color-surface);
+  border: 2px solid var(--color-accent);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  z-index: 10;
+  z-index: 11;
   font-family: var(--font-family);
-  max-width: 500px;
+  max-width: min(620px, calc(100% - 24px));
+  width: max-content;
 }
 
 .v2-split-flow-icon {
@@ -707,8 +711,8 @@ body.maps-fullscreen .app-main {
 }
 
 .v2-split-flow-message {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-size: var(--font-size-md);
+  font-weight: 600;
   color: var(--color-text);
 }
 
@@ -727,12 +731,12 @@ body.maps-fullscreen .app-main {
 .v2-split-flow-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 10px 18px;
   border: none;
   border-radius: var(--radius-sm);
   font-family: var(--font-family);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;

@@ -1,0 +1,164 @@
+/* RowTaskCreateModal — quick create-a-task-from-a-row modal. Brand-styled to
+   match the app's other modals (olive/terracotta, theme.css tokens). */
+
+.rtc-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+}
+
+.rtc-modal {
+  position: relative;
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-lg, 24px);
+}
+
+.rtc-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-muted, #666);
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex;
+}
+.rtc-close:hover { background: var(--color-surface-warm, #f5f5f5); color: var(--color-text, #2F2F2F); }
+
+.rtc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 var(--space-base, 16px);
+  font-size: var(--font-size-lg, 1.125rem);
+  color: var(--color-primary, #5B6830);
+}
+
+.rtc-label {
+  display: block;
+  margin: var(--space-md, 12px) 0 4px;
+  font-size: var(--font-size-sm, 0.8125rem);
+  font-weight: 600;
+  color: var(--color-text, #2F2F2F);
+}
+
+.rtc-input,
+.rtc-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-sm, 8px);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm, 0.8125rem);
+}
+.rtc-input:focus,
+.rtc-textarea:focus { outline: none; border-color: var(--color-primary, #5B6830); }
+.rtc-textarea { resize: vertical; }
+
+.rtc-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md, 12px);
+}
+
+.rtc-assignees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.rtc-assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 999px;
+  font-size: var(--font-size-sm, 0.8125rem);
+  cursor: pointer;
+}
+.rtc-assignee.checked {
+  border-color: var(--color-primary, #5B6830);
+  background: var(--color-olive-light, rgba(91, 104, 48, 0.1));
+  color: var(--color-primary, #5B6830);
+}
+.rtc-assignee input { margin: 0; }
+
+.rtc-hint {
+  margin: 4px 0 0;
+  font-size: var(--font-size-sm, 0.8125rem);
+  color: var(--color-text-muted, #666);
+}
+
+.rtc-error {
+  margin-top: var(--space-md, 12px);
+  padding: 8px 12px;
+  background: var(--color-danger-bg, #fecaca);
+  color: var(--color-danger-text, #991b1b);
+  border-radius: var(--radius-sm, 6px);
+  font-size: var(--font-size-sm, 0.8125rem);
+}
+
+.rtc-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm, 8px);
+  margin-top: var(--space-lg, 24px);
+}
+
+.rtc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #2F2F2F);
+  font-size: var(--font-size-sm, 0.8125rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+.rtc-btn:hover { background: var(--color-surface-warm, #f5f5f5); }
+.rtc-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.rtc-btn--accent {
+  background: var(--color-accent, #D1583B);
+  border-color: var(--color-accent, #D1583B);
+  color: #fff;
+}
+.rtc-btn--accent:hover { background: var(--color-accent-hover, #B84A2E); }
+
+.rtc-success { text-align: center; padding: var(--space-base, 16px) 0; }
+.rtc-success-icon {
+  width: 56px; height: 56px; margin: 0 auto var(--space-md, 12px);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--color-olive-light, rgba(91, 104, 48, 0.1));
+  color: var(--color-primary, #5B6830);
+}
+.rtc-success-title { margin: 0 0 4px; color: var(--color-text, #2F2F2F); }
+.rtc-success-body { margin: 0; color: var(--color-text-muted, #666); font-size: var(--font-size-sm, 0.8125rem); }
+.rtc-success .rtc-actions { justify-content: center; }
+
+.rtc-spin { animation: rtc-spin 1s linear infinite; }
+@keyframes rtc-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 480px) {
+  .rtc-grid2 { grid-template-columns: 1fr; }
+  .rtc-modal { max-width: 100%; }
+}
