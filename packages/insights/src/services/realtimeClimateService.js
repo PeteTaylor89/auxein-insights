@@ -112,6 +112,18 @@ export const getGddProgress = async (slug, params = {}) => {
   return fetchApi(`/gdd-progress/${slug}${query}`);
 };
 
+/**
+ * Get hourly climate (temperature etc.) for a recent window.
+ * @param {string} slug - Zone slug
+ * @param {Object} params - Query parameters
+ * @param {number} params.days - Days of hourly history (1-30, default 10)
+ * @returns {Promise<{zone, days, start, end, points}>}
+ */
+export const getHourlyClimate = async (slug, params = {}) => {
+  const query = buildQuery(params);
+  return fetchApi(`/hourly/${slug}${query}`);
+};
+
 // =============================================================================
 // PHENOLOGY
 // =============================================================================
@@ -322,6 +334,7 @@ export default {
   getZonesWithData,
   getCurrentSeason,
   getGddProgress,
+  getHourlyClimate,
   getVarieties,
   getPhenology,
   getDiseasePressure,

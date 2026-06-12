@@ -60,6 +60,9 @@ class ClimateZone(Base):
     history = relationship("ClimateHistoryMonthly", back_populates="zone", cascade="all, delete-orphan")
     baseline = relationship("ClimateBaselineMonthly", back_populates="zone", cascade="all, delete-orphan")
     projections = relationship("ClimateProjection", back_populates="zone", cascade="all, delete-orphan")
+    season_stats = relationship("ClimateZoneSeasonStats", back_populates="zone", cascade="all, delete-orphan")
+    season_baseline = relationship("ClimateZoneSeasonBaseline", back_populates="zone", cascade="all, delete-orphan")
+    projection_extremes = relationship("ClimateProjectionExtremes", back_populates="zone", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<ClimateZone(id={self.id}, name='{self.name}')>"
@@ -115,10 +118,18 @@ class ClimateHistoryMonthly(Base):
     # Solar radiation (MJ/m²)
     solar_mean = Column(Numeric(8, 2), nullable=True)
     solar_sd = Column(Numeric(8, 2), nullable=True)
-    
+
+    # Max 1-day rainfall (Rx1day, mm) — monthly extreme-rainfall event
+    rx1day_mean = Column(Numeric(8, 2), nullable=True)
+    rx1day_sd = Column(Numeric(8, 2), nullable=True)
+
+    # Frost days (Tmin < 0) — monthly count (0 over summer; peaks in winter)
+    frost_days_mean = Column(Numeric(6, 2), nullable=True)
+    frost_days_sd = Column(Numeric(6, 2), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=func.now())
-    
+
     # Relationships
     zone = relationship("ClimateZone", back_populates="history")
     
@@ -154,10 +165,18 @@ class ClimateBaselineMonthly(Base):
     tmin = Column(Numeric(6, 2), nullable=True)
     rain = Column(Numeric(8, 2), nullable=True)
     gdd = Column(Numeric(8, 2), nullable=True)
-    
+
+    # Max 1-day rainfall baseline (Rx1day, mm)
+    rx1day_mean = Column(Numeric(8, 2), nullable=True)
+    rx1day_sd = Column(Numeric(8, 2), nullable=True)
+
+    # Frost days baseline (monthly normal count)
+    frost_days_mean = Column(Numeric(6, 2), nullable=True)
+    frost_days_sd = Column(Numeric(6, 2), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=func.now())
-    
+
     # Relationships
     zone = relationship("ClimateZone", back_populates="baseline")
     
@@ -256,3 +275,128 @@ class ClimateProjection(Base):
             '2080_2099': 'End of century (2080-2099)',
         }
         return names.get(self.period, self.period)
+
+
+class ClimateZoneSeasonStats(Base):
+    """
+    Per-season seasonal extreme metrics for each zone (1987-2024 modelled,
+    plus 'observed' rows folded in from the live daily series as seasons complete).
+
+    Definitions (ETCCDI-style): FD = Tmin < 0°C; spring frost = FD in Sep-Nov;
+    last frost = last spring frost (Jul-Dec); TX30 = Tmax > 30; R99p = 99th
+    percentile of wet-day (>=1mm) rainfall (mm). mean/sd are spatial across the
+    zone's model grid (sd is null for live 'observed' rows — single IDW series).
+    """
+    __tablename__ = "climate_zone_season_stats"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=False)
+    vintage_year = Column(Integer, nullable=False)  # Sep(y-1)-Apr(y) growing season
+
+    # Frost
+    last_frost_doy = Column(Numeric(6, 2), nullable=True)  # mean DOY of last spring frost
+    last_frost_date = Column(String(10), nullable=True)    # e.g. '30-Sep'
+    early_frost_mean = Column(Numeric(6, 2), nullable=True)  # spring (SON) frost count
+    early_frost_sd = Column(Numeric(6, 2), nullable=True)
+    frost_days_mean = Column(Numeric(6, 2), nullable=True)   # FD total
+    frost_days_sd = Column(Numeric(6, 2), nullable=True)
+
+    # Heat
+    hot_days30_mean = Column(Numeric(6, 2), nullable=True)   # TX30
+    hot_days30_sd = Column(Numeric(6, 2), nullable=True)
+
+    # Extreme rainfall intensity
+    r99p_mean = Column(Numeric(8, 2), nullable=True)
+    r99p_sd = Column(Numeric(8, 2), nullable=True)
+
+    # Provenance: 'modelled' (CSV 1987-2024) | 'observed' (live fold-in)
+    source = Column(String(12), nullable=False, server_default='modelled')
+
+    created_at = Column(DateTime, default=func.now())
+
+    zone = relationship("ClimateZone", back_populates="season_stats")
+
+    __table_args__ = (
+        UniqueConstraint('zone_id', 'vintage_year', name='uq_season_stats_zone_vintage'),
+        Index('idx_season_stats_zone_vintage', 'zone_id', 'vintage_year'),
+    )
+
+    def __repr__(self):
+        return f"<ClimateZoneSeasonStats(zone_id={self.zone_id}, vintage_year={self.vintage_year}, source='{self.source}')>"
+
+
+class ClimateZoneSeasonBaseline(Base):
+    """
+    Seasonal extreme baseline (the 1987-2006 'normal') for each zone — one row
+    per zone. Comparison reference for history and live current-season cards.
+    """
+    __tablename__ = "climate_zone_season_baseline"
+
+    id = Column(Integer, primary_key=True, index=True)
+    zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=False)
+    baseline_period = Column(String(20), nullable=True)  # e.g. '1987-2006'
+
+    last_frost_doy_mean = Column(Numeric(6, 2), nullable=True)
+    last_frost_doy_sd = Column(Numeric(6, 2), nullable=True)
+    last_frost_date = Column(String(10), nullable=True)
+    early_frost_mean = Column(Numeric(6, 2), nullable=True)
+    early_frost_sd = Column(Numeric(6, 2), nullable=True)
+    frost_days_mean = Column(Numeric(6, 2), nullable=True)
+    frost_days_sd = Column(Numeric(6, 2), nullable=True)
+    hot_days30_mean = Column(Numeric(6, 2), nullable=True)
+    hot_days30_sd = Column(Numeric(6, 2), nullable=True)
+    r99p_mean = Column(Numeric(8, 2), nullable=True)
+    r99p_sd = Column(Numeric(8, 2), nullable=True)
+
+    created_at = Column(DateTime, default=func.now())
+
+    zone = relationship("ClimateZone", back_populates="season_baseline")
+
+    __table_args__ = (
+        UniqueConstraint('zone_id', name='uq_season_baseline_zone'),
+    )
+
+    def __repr__(self):
+        return f"<ClimateZoneSeasonBaseline(zone_id={self.zone_id}, period='{self.baseline_period}')>"
+
+
+class ClimateProjectionExtremes(Base):
+    """
+    Projected seasonal extremes by SSP scenario and period (one row per
+    zone/ssp/period). Holds baseline + delta + projected for frost days,
+    spring frost, hot days (TX30) and R99p.
+    """
+    __tablename__ = "climate_projection_extremes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=False)
+    ssp = Column(String(10), nullable=False)      # 'SSP126', 'SSP245', 'SSP370'
+    period = Column(String(20), nullable=False)   # '2021_2040', '2041_2060', '2080_2099'
+
+    frost_days_baseline = Column(Numeric(8, 2), nullable=True)
+    frost_days_delta = Column(Numeric(8, 2), nullable=True)
+    frost_days_projected = Column(Numeric(8, 2), nullable=True)
+
+    spring_frost_baseline = Column(Numeric(8, 2), nullable=True)
+    spring_frost_delta = Column(Numeric(8, 2), nullable=True)
+    spring_frost_projected = Column(Numeric(8, 2), nullable=True)
+
+    hot_days30_baseline = Column(Numeric(8, 2), nullable=True)
+    hot_days30_delta = Column(Numeric(8, 2), nullable=True)
+    hot_days30_projected = Column(Numeric(8, 2), nullable=True)
+
+    r99p_baseline = Column(Numeric(8, 2), nullable=True)
+    r99p_delta = Column(Numeric(8, 2), nullable=True)
+    r99p_projected = Column(Numeric(8, 2), nullable=True)
+
+    created_at = Column(DateTime, default=func.now())
+
+    zone = relationship("ClimateZone", back_populates="projection_extremes")
+
+    __table_args__ = (
+        UniqueConstraint('zone_id', 'ssp', 'period', name='uq_projection_extremes'),
+        Index('idx_projection_extremes_zone', 'zone_id'),
+    )
+
+    def __repr__(self):
+        return f"<ClimateProjectionExtremes(zone_id={self.zone_id}, ssp='{self.ssp}', period='{self.period}')>"

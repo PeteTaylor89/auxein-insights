@@ -57,6 +57,211 @@
   animation: spin 1s linear infinite;
 }
 
+/* Off-season note on the Current Season explorer (winter / dormant) */
+.season-offseason-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  color: #2563EB;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.season-offseason-note svg {
+  flex-shrink: 0;
+}
+
+/* GDD base toggle (Base-10 / Base-0) inside the GDD summary card */
+.gdd-card-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gdd-base-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-color, #E5E7EB);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-secondary, #F9FAFB);
+}
+
+.gdd-base-toggle button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #6B7280);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gdd-base-toggle button.active {
+  background: #3D405B;
+  color: #fff;
+}
+
+/* Threshold metric cards — frost / hot days / extreme rainfall */
+.extremes-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #6B7280);
+  margin: 0.25rem 0 0.5rem 0;
+}
+
+.extremes-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 0.5rem 0 1.25rem 0;
+}
+
+.extreme-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #E5E7EB);
+  border-left-width: 3px;
+}
+
+.extreme-card.frost { border-left-color: #2563EB; }
+.extreme-card.hot { border-left-color: #C26B5A; }
+.extreme-card.rain { border-left-color: #0EA5E9; }
+
+.extreme-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.extreme-card.frost .extreme-icon { background: rgba(37, 99, 235, 0.1); color: #2563EB; }
+.extreme-card.hot .extreme-icon { background: rgba(194, 107, 90, 0.12); color: #C26B5A; }
+.extreme-card.rain .extreme-icon { background: rgba(14, 165, 233, 0.1); color: #0EA5E9; }
+
+.extreme-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.extreme-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #6B7280);
+  font-weight: 500;
+}
+
+.extreme-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary, #1F2937);
+}
+
+.extreme-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #6B7280);
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .extremes-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Hourly temperature chart (10-day window + zoom) */
+.hourly-temp-chart {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hourly-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.hourly-window,
+.hourly-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6B7280);
+}
+
+.hourly-window .days-btn {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color, #E5E7EB);
+  border-radius: 6px;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-secondary, #6B7280);
+  cursor: pointer;
+}
+
+.hourly-window .days-btn.active {
+  background: #3D405B;
+  border-color: #3D405B;
+  color: #fff;
+}
+
+.zoom-hint {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.zoom-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 500;
+  border: 1px solid var(--border-color, #E5E7EB);
+  border-radius: 6px;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #1F2937);
+  cursor: pointer;
+}
+
+.zoom-reset-btn:hover {
+  border-color: #3D405B;
+}
+
+.hourly-chart-container {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+}
+
+@media (max-width: 640px) {
+  .zoom-hint {
+    display: none;
+  }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

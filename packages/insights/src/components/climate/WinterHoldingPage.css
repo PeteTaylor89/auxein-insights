@@ -1,0 +1,85 @@
+/* packages/insights/src/components/climate/WinterHoldingPage.css */
+
+.winter-holding-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3.5rem 2rem;
+  background: var(--bg-primary, #ffffff);
+  border-radius: 8px;
+}
+
+.winter-holding-icon {
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-bottom: 1.25rem;
+  color: #3B82F6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.winter-holding-page h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.35rem;
+  color: var(--text-primary, #1F2937);
+}
+
+.winter-holding-page > p {
+  margin: 0 0 1.5rem 0;
+  max-width: 420px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #6B7280);
+}
+
+.winter-reopen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.08);
+  color: #2563EB;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.winter-reopen em {
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.winter-alt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.75rem;
+}
+
+.winter-alt-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border-color, #E5E7EB);
+  border-radius: 8px;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #1F2937);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.winter-alt-actions button:hover {
+  background: var(--bg-secondary, #F9FAFB);
+  border-color: #3B82F6;
+  color: #2563EB;
+}

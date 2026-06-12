@@ -58,6 +58,21 @@ class DailyClimateData(BaseModel):
     confidence: Optional[str] = None
 
 
+class SeasonExtremes(BaseModel):
+    """Season-to-date threshold metrics derived from daily data."""
+    # Frost (Tmin <= 0C)
+    last_frost_date: Optional[date] = None  # most recent frost in the growing season
+    frost_days_total: int = 0
+    early_frost_count: int = 0  # frost days in Sept-Nov
+    # Heat (Tmax > 30C)
+    hot_days_count: int = 0
+    # Rainfall
+    max_1day_rainfall: Optional[Decimal] = None
+    max_1day_rainfall_date: Optional[date] = None
+    heavy_rain_days_count: int = 0  # days >= heavy_rain_threshold_mm
+    heavy_rain_threshold_mm: Decimal = Decimal('25')
+
+
 class SeasonSummary(BaseModel):
     """Summary of current growing season to date."""
     vintage_year: int
@@ -65,19 +80,23 @@ class SeasonSummary(BaseModel):
     season_start: date  # July 1
     latest_data_date: date
     days_into_season: int
-    
+
     # Accumulated totals
     gdd_total: Optional[Decimal] = None
+    gdd_base: str = 'base10'  # which GDD base the totals/comparison use
     rainfall_total: Optional[Decimal] = None
-    
+
     # Averages
     temp_mean_avg: Optional[Decimal] = None
     temp_max_avg: Optional[Decimal] = None
     temp_min_avg: Optional[Decimal] = None
-    
+
     # Baseline comparison
     gdd_vs_baseline: Optional[BaselineComparison] = None
     rainfall_vs_baseline: Optional[BaselineComparison] = None
+
+    # Threshold metrics (frost / hot days / extreme rainfall)
+    extremes: Optional[SeasonExtremes] = None
 
 
 class CurrentSeasonResponse(BaseModel):
@@ -93,7 +112,8 @@ class SeasonProgressResponse(BaseModel):
     zone: ClimateZoneBrief
     vintage_year: int
     label: str
-    
+    gdd_base: str = 'base10'  # which GDD base the daily series uses
+
     # Current position
     current_date: date
     current_gdd: Decimal
@@ -108,6 +128,30 @@ class SeasonProgressResponse(BaseModel):
     
     # Key milestones
     milestones: List[Dict[str, Any]]
+
+
+# =============================================================================
+# HOURLY CLIMATE (10-day window)
+# =============================================================================
+
+class HourlyClimatePoint(BaseModel):
+    """A single hour of zone-aggregated climate data."""
+    timestamp: datetime  # local time
+    temp_mean: Optional[Decimal] = None
+    temp_min: Optional[Decimal] = None
+    temp_max: Optional[Decimal] = None
+    rh_mean: Optional[Decimal] = None
+    precipitation: Optional[Decimal] = None
+    is_wet_hour: Optional[bool] = None
+
+
+class HourlyClimateResponse(BaseModel):
+    """Hourly climate series for a zone over a recent window."""
+    zone: ClimateZoneBrief
+    days: int
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+    points: List[HourlyClimatePoint]
 
 
 # =============================================================================

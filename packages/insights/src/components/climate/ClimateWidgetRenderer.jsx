@@ -694,25 +694,35 @@ function historicalTrendChart(data, metric, includeBaseline) {
 
   const m = metric || 'gdd';
   const baseline = data?.baseline || {};
+  const baselineExtremes = data?.baseline_extremes || {};
   const ordered = [...seasons].reverse(); // API returns most-recent-first; chart wants chronological
   const labels = ordered.map(s => s.season_label);
+  const num = (v) => (v != null ? Number(v) : null);
   const valueFor = (s) => {
     switch (m) {
-      case 'gdd': return s.gdd_total != null ? Number(s.gdd_total) : null;
-      case 'rain': return s.rain_total != null ? Number(s.rain_total) : null;
-      case 'tmean': return s.tmean_avg != null ? Number(s.tmean_avg) : null;
-      case 'tmax': return s.tmax_avg != null ? Number(s.tmax_avg) : null;
-      case 'tmin': return s.tmin_avg != null ? Number(s.tmin_avg) : null;
+      case 'gdd': return num(s.gdd_total);
+      case 'rain': return num(s.rain_total);
+      case 'tmean': return num(s.tmean_avg);
+      case 'tmax': return num(s.tmax_avg);
+      case 'tmin': return num(s.tmin_avg);
+      case 'frost_days': return num(s.extremes?.frost_days?.mean);
+      case 'early_frost': return num(s.extremes?.early_frost?.mean);
+      case 'hot_days30': return num(s.extremes?.hot_days30?.mean);
+      case 'r99p': return num(s.extremes?.r99p?.mean);
       default: return null;
     }
   };
   const baselineFor = () => {
     switch (m) {
-      case 'gdd': return baseline.gdd_total != null ? Number(baseline.gdd_total) : null;
-      case 'rain': return baseline.rain_total != null ? Number(baseline.rain_total) : null;
-      case 'tmean': return baseline.tmean_avg != null ? Number(baseline.tmean_avg) : null;
-      case 'tmax': return baseline.tmax_avg != null ? Number(baseline.tmax_avg) : null;
-      case 'tmin': return baseline.tmin_avg != null ? Number(baseline.tmin_avg) : null;
+      case 'gdd': return num(baseline.gdd_total);
+      case 'rain': return num(baseline.rain_total);
+      case 'tmean': return num(baseline.tmean_avg);
+      case 'tmax': return num(baseline.tmax_avg);
+      case 'tmin': return num(baseline.tmin_avg);
+      case 'frost_days': return num(baselineExtremes.frost_days?.mean);
+      case 'early_frost': return num(baselineExtremes.early_frost?.mean);
+      case 'hot_days30': return num(baselineExtremes.hot_days30?.mean);
+      case 'r99p': return num(baselineExtremes.r99p?.mean);
       default: return null;
     }
   };
@@ -741,7 +751,10 @@ function historicalTrendChart(data, metric, includeBaseline) {
     });
   }
 
-  const unitTitle = m === 'gdd' ? 'GDD (°C·days)' : m === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)';
+  const unitTitle = m === 'gdd' ? 'GDD (°C·days)' :
+    (m === 'rain' || m === 'r99p') ? 'Rainfall (mm)' :
+    (m === 'frost_days' || m === 'early_frost' || m === 'hot_days30') ? 'Days' :
+    'Temperature (°C)';
   const ChartComponent = m === 'rain' ? Bar : Line;
   const options = m === 'rain'
     ? getResponsiveBarChartOptions({ yAxis: { title: { text: unitTitle, display: true } } })

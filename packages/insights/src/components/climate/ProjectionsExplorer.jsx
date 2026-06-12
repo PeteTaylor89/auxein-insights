@@ -10,14 +10,25 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { ArrowRight, AlertTriangle, Info, TrendingUp } from 'lucide-react';
-import { 
+import {
   getZoneProjections,
   SSP_SCENARIOS,
   PROJECTION_PERIODS,
+  EXTREME_METRICS,
   formatMetricValue,
   formatPercentDiff,
   getGrowingSeasonLabels,
 } from '../../services/publicClimateService';
+
+const PROJECTION_EXTREME_KEYS = ['frost_days', 'spring_frost', 'hot_days30', 'r99p'];
+
+// Short explainers for each projected extreme (shown as card tooltips + footnote)
+const PROJECTION_EXTREME_INFO = {
+  frost_days: 'Frost days — nights below 0°C across the whole year (most occur in winter).',
+  spring_frost: 'Spring frost — frost nights during spring (Sep–Nov), when budburst and flowering are most vulnerable.',
+  hot_days30: 'Hot days — days reaching above 30°C (summer heat stress).',
+  r99p: 'Extreme Rain (R99p) — the one-day rainfall total exceeded on only the most extreme 1% of wet days.',
+};
 
 const ProjectionsExplorer = ({ zone }) => {
   const [projectionsData, setProjectionsData] = useState(null);
@@ -209,6 +220,54 @@ const ProjectionsExplorer = ({ zone }) => {
   };
 
   const isRainfall = chartMetric === 'rain';
+  const isExtreme = chartMetric === 'frost_days' || chartMetric === 'hot_days30';
+
+  // Frost/hot days have no monthly breakdown — show their trajectory across
+  // periods (Baseline → 3 future periods) for the selected SSP.
+  const extremesChartData = useMemo(() => {
+    if (!isExtreme || !projectionsData?.projections) return null;
+    const periods = ['2021_2040', '2041_2060', '2080_2099'];
+    const forSSP = projectionsData.projections.filter(p => p.scenario.code === selectedSSP);
+    const withMetric = forSSP.find(p => p.extremes?.[chartMetric]?.baseline != null);
+    if (!withMetric) return null;
+    const baseline = Number(withMetric.extremes[chartMetric].baseline);
+    const color = SSP_SCENARIOS[selectedSSP]?.color || '#3B82F6';
+    const data = [baseline, ...periods.map(pc => {
+      const m = forSSP.find(p => p.period.code === pc)?.extremes?.[chartMetric];
+      return m && m.projected != null ? Number(m.projected) : null;
+    })];
+    return {
+      labels: ['Baseline', ...periods.map(pc => PROJECTION_PERIODS[pc]?.label || pc)],
+      datasets: [{
+        label: EXTREME_METRICS[chartMetric]?.label || chartMetric,
+        data,
+        backgroundColor: data.map((_, i) => (i === 0 ? '#9CA3AF' : color)),
+        borderRadius: 4,
+      }],
+    };
+  }, [isExtreme, projectionsData, selectedSSP, chartMetric]);
+
+  const extremesChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      title: {
+        display: isExtreme,
+        text: isExtreme ? `${EXTREME_METRICS[chartMetric]?.label} — ${SSP_SCENARIOS[selectedSSP]?.name}` : '',
+        font: { size: 15, weight: 'bold' },
+        padding: { bottom: 16 },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.parsed.y == null ? 'N/A' : Number(ctx.parsed.y).toFixed(1)} days`,
+        },
+      },
+    },
+    scales: {
+      y: { beginAtZero: true, title: { display: true, text: 'Days per year' } },
+    },
+  };
 
   if (!zone) {
     return (
@@ -341,7 +400,29 @@ const ProjectionsExplorer = ({ zone }) => {
                 </span>
               </div>
             </div>
+            {selectedProjection.extremes && PROJECTION_EXTREME_KEYS.map((key) => {
+              const m = selectedProjection.extremes[key];
+              if (!m || m.projected == null) return null;
+              const meta = EXTREME_METRICS[key];
+              const delta = Number(m.delta);
+              return (
+                <div className="summary-card" key={key} title={PROJECTION_EXTREME_INFO[key]}>
+                  <div className="summary-content">
+                    <span className="summary-label">{meta.label}</span>
+                    <span className="summary-value">{formatMetricValue(m.projected, key)}</span>
+                    <span className="summary-change neutral">
+                      {delta >= 0 ? '+' : ''}{delta.toFixed(1)} {meta.unit} vs baseline ({formatMetricValue(m.baseline, key)})
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          {selectedProjection.extremes && (
+            <p className="projection-extremes-note">
+              <Info size={13} /> Frost days are counted across the whole year; spring frost is the Sep–Nov subset.
+            </p>
+          )}
         </div>
       )}
 
@@ -372,22 +453,42 @@ const ProjectionsExplorer = ({ zone }) => {
           >
             GDD
           </button>
+          <button
+            className={`chart-type-btn ${chartMetric === 'frost_days' ? 'active' : ''}`}
+            onClick={() => setChartMetric('frost_days')}
+          >
+            Frost days
+          </button>
+          <button
+            className={`chart-type-btn ${chartMetric === 'hot_days30' ? 'active' : ''}`}
+            onClick={() => setChartMetric('hot_days30')}
+          >
+            Hot days
+          </button>
         </div>
       </div>
 
       {/* Chart */}
-      {chartData && (
-        <div className="chart-container">
-          {isRainfall ? (
-            <Bar data={chartData} options={chartOptions} />
-          ) : (
-            <Line data={chartData} options={chartOptions} />
-          )}
-        </div>
+      {isExtreme ? (
+        extremesChartData && (
+          <div className="chart-container">
+            <Bar data={extremesChartData} options={extremesChartOptions} />
+          </div>
+        )
+      ) : (
+        chartData && (
+          <div className="chart-container">
+            {isRainfall ? (
+              <Bar data={chartData} options={chartOptions} />
+            ) : (
+              <Line data={chartData} options={chartOptions} />
+            )}
+          </div>
+        )
       )}
 
       {/* Monthly Details Table */}
-      {selectedProjection?.monthly && (
+      {!isExtreme && selectedProjection?.monthly && (
         <div className="monthly-details">
           <h4>Monthly Breakdown</h4>
           <div className="monthly-table-wrapper">

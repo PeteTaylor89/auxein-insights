@@ -264,19 +264,37 @@ export const getGrowingSeasonLabels = () => {
 };
 
 /**
+ * Extreme-metric metadata (frost / hot days / R99p / Rx1day) shared by the
+ * history + projections explorers. Colours are data-viz, not brand chrome.
+ */
+export const EXTREME_METRICS = {
+  frost_days:   { key: 'frost_days',   label: 'Frost days',     short: 'Frost',   unit: 'days', color: '#2563EB' },
+  spring_frost: { key: 'spring_frost', label: 'Spring frost',   short: 'Spring frost', unit: 'days', color: '#7EC8E3' },
+  hot_days30:   { key: 'hot_days30',   label: 'Hot days >30°C', short: 'Hot days', unit: 'days', color: '#C26B5A' },
+  r99p:         { key: 'r99p',         label: 'R99p extreme rain', short: 'R99p', unit: 'mm', color: '#0EA5E9' },
+  rx1day:       { key: 'rx1day',       label: 'Max 1-day rain', short: 'Rx1day', unit: 'mm', color: '#0EA5E9' },
+};
+
+/**
  * Format a value with appropriate units
- * @param {number} value 
- * @param {string} metric - gdd, rain, tmean, tmax, tmin
+ * @param {number} value
+ * @param {string} metric - gdd, rain, tmean, tmax, tmin, frost_days, hot_days30, r99p, rx1day
  * @returns {string}
  */
 export const formatMetricValue = (value, metric) => {
   if (value === null || value === undefined) return 'N/A';
-  
+
   switch (metric) {
     case 'gdd':
       return `${Math.round(value)} °C·days`;
     case 'rain':
-      return `${Math.round(value)} mm`;
+    case 'r99p':
+    case 'rx1day':
+      return `${Number(value).toFixed(1)} mm`;
+    case 'frost_days':
+    case 'spring_frost':
+    case 'hot_days30':
+      return `${Number(value).toFixed(1)} days`;
     case 'tmean':
     case 'tmax':
     case 'tmin':
@@ -312,6 +330,7 @@ export default {
   PROJECTION_PERIODS,
   GROWING_SEASON_MONTHS,
   MONTH_NAMES,
+  EXTREME_METRICS,
   getGrowingSeasonLabels,
   formatMetricValue,
   formatPercentDiff,

@@ -11,7 +11,7 @@ const WIDGET_TYPES = [
   { value: 'season_comparison', label: 'Season Comparison', metrics: ['gdd', 'tmean', 'rain'], modes: ['chart', 'table'] },
   { value: 'current_season_summary', label: 'Current Season Summary', metrics: [], modes: ['table'] },
   { value: 'recent_observations', label: 'Recent Observations', metrics: [], modes: ['table'] },
-  { value: 'historical_trend', label: 'Historical Trend (single zone)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
+  { value: 'historical_trend', label: 'Historical Trend (single zone)', metrics: ['gdd', 'rain', 'tmean', 'tmax', 'frost_days', 'early_frost', 'hot_days30', 'r99p'], modes: ['chart'] },
   { value: 'region_trend_compare', label: 'Region Trend Comparison (fixed)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
   { value: 'region_trend_compare_interactive', label: 'Region Trend Comparison (reader picks)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
   { value: 'projection_outlook', label: 'Climate Projection (stat block)', metrics: [], modes: ['chart'] },
@@ -23,6 +23,10 @@ const METRIC_LABELS = {
   tmax: 'Max Temperature',
   tmin: 'Min Temperature',
   rain: 'Rainfall',
+  frost_days: 'Frost Days',
+  early_frost: 'Spring Frost',
+  hot_days30: 'Hot Days >30°C',
+  r99p: 'Extreme Rain (R99p)',
 };
 
 const SEASON_LIMIT_OPTIONS = [

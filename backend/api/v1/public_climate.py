@@ -24,6 +24,9 @@ from db.models.climate import (
     ClimateHistoryMonthly,
     ClimateBaselineMonthly,
     ClimateProjection,
+    ClimateZoneSeasonStats,
+    ClimateZoneSeasonBaseline,
+    ClimateProjectionExtremes,
 )
 from schemas.public_climate import (
     RegionsListResponse,
@@ -41,6 +44,10 @@ from schemas.public_climate import (
     SeasonSummary,
     SeasonVsBaseline,
     SeasonRanking,
+    SeasonExtremes,
+    SeasonExtremesBaseline,
+    ProjectionExtremeMetric,
+    ProjectionExtremes,
     ProjectionsResponse,
     ScenarioPeriodProjection,
     SSPScenario,
@@ -105,6 +112,16 @@ METRIC_LABELS = {
     "tmean": "Mean Temperature (°C)",
     "tmax": "Max Temperature (°C)",
     "tmin": "Min Temperature (°C)",
+}
+
+# Seasonal extreme metrics — one value per zone per season, read directly from
+# climate_zone_season_stats / climate_zone_season_baseline (NOT aggregated from
+# monthly history). Map: metric -> (column attr [same on stats + baseline], label).
+SEASON_EXTREME_FIELDS = {
+    "frost_days": ("frost_days_mean", "Frost Days"),
+    "early_frost": ("early_frost_mean", "Spring Frost"),
+    "hot_days30": ("hot_days30_mean", "Hot Days >30°C"),
+    "r99p": ("r99p_mean", "Extreme Rain (R99p)"),
 }
 
 
@@ -172,6 +189,71 @@ def calculate_season_baseline(db: Session, zone_id: int) -> SeasonBaseline:
         tmax_avg=to_decimal(tmax_avg),
         tmin_avg=to_decimal(tmin_avg),
     )
+
+
+def build_season_extremes(s: Optional[ClimateZoneSeasonStats]) -> Optional[SeasonExtremes]:
+    """Map a season-stats row to the SeasonExtremes schema."""
+    if not s:
+        return None
+    return SeasonExtremes(
+        last_frost_doy=s.last_frost_doy,
+        last_frost_date=s.last_frost_date,
+        early_frost=ClimateValue(mean=s.early_frost_mean, sd=s.early_frost_sd),
+        frost_days=ClimateValue(mean=s.frost_days_mean, sd=s.frost_days_sd),
+        hot_days30=ClimateValue(mean=s.hot_days30_mean, sd=s.hot_days30_sd),
+        r99p=ClimateValue(mean=s.r99p_mean, sd=s.r99p_sd),
+        source=s.source,
+    )
+
+
+def build_season_extremes_baseline(b: Optional[ClimateZoneSeasonBaseline]) -> Optional[SeasonExtremesBaseline]:
+    """Map a season-baseline row to the SeasonExtremesBaseline schema."""
+    if not b:
+        return None
+    return SeasonExtremesBaseline(
+        baseline_period=b.baseline_period,
+        last_frost_doy=ClimateValue(mean=b.last_frost_doy_mean, sd=b.last_frost_doy_sd),
+        last_frost_date=b.last_frost_date,
+        early_frost=ClimateValue(mean=b.early_frost_mean, sd=b.early_frost_sd),
+        frost_days=ClimateValue(mean=b.frost_days_mean, sd=b.frost_days_sd),
+        hot_days30=ClimateValue(mean=b.hot_days30_mean, sd=b.hot_days30_sd),
+        r99p=ClimateValue(mean=b.r99p_mean, sd=b.r99p_sd),
+    )
+
+
+def build_projection_extremes(p: Optional[ClimateProjectionExtremes]) -> Optional[ProjectionExtremes]:
+    """Map a projection-extremes row to the ProjectionExtremes schema."""
+    if not p:
+        return None
+
+    def metric(baseline, delta, projected):
+        return ProjectionExtremeMetric(baseline=baseline, delta=delta, projected=projected)
+
+    return ProjectionExtremes(
+        frost_days=metric(p.frost_days_baseline, p.frost_days_delta, p.frost_days_projected),
+        spring_frost=metric(p.spring_frost_baseline, p.spring_frost_delta, p.spring_frost_projected),
+        hot_days30=metric(p.hot_days30_baseline, p.hot_days30_delta, p.hot_days30_projected),
+        r99p=metric(p.r99p_baseline, p.r99p_delta, p.r99p_projected),
+    )
+
+
+def season_extreme_value(db: Session, zone_id: int, vintage_year: int, metric: str) -> Optional[Decimal]:
+    """Per-season value of a seasonal-extreme metric from climate_zone_season_stats."""
+    attr = SEASON_EXTREME_FIELDS[metric][0]
+    row = db.query(ClimateZoneSeasonStats).filter(
+        ClimateZoneSeasonStats.zone_id == zone_id,
+        ClimateZoneSeasonStats.vintage_year == vintage_year,
+    ).first()
+    return to_decimal(getattr(row, attr)) if row else None
+
+
+def season_extreme_baseline(db: Session, zone_id: int, metric: str) -> Optional[Decimal]:
+    """Baseline (1987-2006 normal) value of a seasonal-extreme metric."""
+    attr = SEASON_EXTREME_FIELDS[metric][0]
+    row = db.query(ClimateZoneSeasonBaseline).filter(
+        ClimateZoneSeasonBaseline.zone_id == zone_id,
+    ).first()
+    return to_decimal(getattr(row, attr)) if row else None
 
 
 # =============================================================================
@@ -282,6 +364,8 @@ def get_zone_baseline(slug: str, db: Session = Depends(get_db)):
             tmin=b.tmin,
             rain=b.rain,
             gdd=b.gdd,
+            rx1day=b.rx1day_mean,
+            frost_days=b.frost_days_mean,
         ) for b in baseline_records
     ]
     
@@ -356,6 +440,8 @@ def get_zone_history(
             gdd=ClimateValue(mean=r.gdd_mean, sd=r.gdd_sd),
             rain=ClimateValue(mean=r.rain_mean, sd=r.rain_sd),
             solar=ClimateValue(mean=r.solar_mean, sd=r.solar_sd),
+            rx1day=ClimateValue(mean=r.rx1day_mean, sd=r.rx1day_sd),
+            frost_days=ClimateValue(mean=r.frost_days_mean, sd=r.frost_days_sd),
         ) for r in records
     ]
     
@@ -402,10 +488,22 @@ def get_zone_seasons(
     Excludes truncated seasons (85/86 and 23/24).
     """
     zone = get_zone_or_404(db, slug)
-    
+
     # Get baseline
     baseline = calculate_season_baseline(db, zone.id)
-    
+
+    # Seasonal extremes (per vintage) + baseline extremes
+    stats_by_vintage = {
+        s.vintage_year: s for s in db.query(ClimateZoneSeasonStats).filter(
+            ClimateZoneSeasonStats.zone_id == zone.id
+        ).all()
+    }
+    baseline_extremes = build_season_extremes_baseline(
+        db.query(ClimateZoneSeasonBaseline).filter(
+            ClimateZoneSeasonBaseline.zone_id == zone.id
+        ).first()
+    )
+
     # Get available vintage years (excluding truncated seasons)
     vintage_query = db.query(
         ClimateHistoryMonthly.vintage_year
@@ -502,11 +600,13 @@ def get_zone_seasons(
             solar_total=solar_total,
             vs_baseline=vs_baseline,
             rankings=rankings if rankings else None,
+            extremes=build_season_extremes(stats_by_vintage.get(vintage_year)),
         ))
-    
+
     return SeasonsResponse(
         zone=get_zone_brief(zone),
         baseline=baseline,
+        baseline_extremes=baseline_extremes,
         seasons=seasons,
     )
 
@@ -551,6 +651,13 @@ def get_zone_projections(
     baseline_records = {
         b.month: b for b in db.query(ClimateBaselineMonthly).filter(
             ClimateBaselineMonthly.zone_id == zone.id
+        ).all()
+    }
+
+    # Projected seasonal extremes, keyed by (ssp, period)
+    extremes_by_key = {
+        (e.ssp, e.period): e for e in db.query(ClimateProjectionExtremes).filter(
+            ClimateProjectionExtremes.zone_id == zone.id
         ).all()
     }
     
@@ -648,6 +755,7 @@ def get_zone_projections(
             period=PROJECTION_PERIODS[period_code],
             monthly=monthly,
             season_summary=season_summary,
+            extremes=build_projection_extremes(extremes_by_key.get((ssp_code, period_code))),
         ))
     
     return ProjectionsResponse(
@@ -776,10 +884,11 @@ def compare_zones(
     
     if len(zone_slugs) > 5:
         raise HTTPException(status_code=400, detail="Maximum 5 zones can be compared")
-    
-    if metric not in METRIC_LABELS:
-        raise HTTPException(status_code=400, detail=f"Invalid metric. Valid: {list(METRIC_LABELS.keys())}")
-    
+
+    if metric not in METRIC_LABELS and metric not in SEASON_EXTREME_FIELDS:
+        valid = list(METRIC_LABELS.keys()) + list(SEASON_EXTREME_FIELDS.keys())
+        raise HTTPException(status_code=400, detail=f"Invalid metric. Valid: {valid}")
+
     # Validate no truncated season requested
     if vintage_year and vintage_year in EXCLUDED_VINTAGE_YEARS:
         raise HTTPException(
@@ -808,10 +917,31 @@ def compare_zones(
         })
     
     for zone_obj in zone_objs:
+        if metric in SEASON_EXTREME_FIELDS:
+            # Seasonal extreme: one value per zone, straight from season_stats /
+            # season_baseline (no monthly breakdown).
+            baseline_value = season_extreme_baseline(db, zone_obj.id, metric)
+            if vintage_year:
+                value = season_extreme_value(db, zone_obj.id, vintage_year, metric)
+                vs_baseline = calc_pct_diff(value, baseline_value) if (value is not None and baseline_value) else None
+            else:
+                value = baseline_value
+                vs_baseline = None
+
+            comparison_items.append(ZoneComparisonItem(
+                zone_id=zone_obj.id,
+                zone_name=zone_obj.name,
+                zone_slug=zone_obj.slug,
+                region_name=zone_obj.region.name if zone_obj.region else None,
+                value=value,
+                vs_baseline=vs_baseline,
+            ))
+            continue
+
         # Get baseline for comparison reference
         baseline = calculate_season_baseline(db, zone_obj.id)
         baseline_value = getattr(baseline, f"{metric}_total" if metric in ["gdd", "rain"] else f"{metric}_avg", None)
-        
+
         if vintage_year:
             # Get season data for specific vintage
             season_data = db.query(ClimateHistoryMonthly).filter(
@@ -819,15 +949,15 @@ def compare_zones(
                 ClimateHistoryMonthly.vintage_year == vintage_year,
                 ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS)
             ).all()
-            
+
             if season_data:
                 if metric in ["gdd", "rain", "solar"]:
                     value = to_decimal(sum(getattr(r, f"{metric}_mean") or 0 for r in season_data))
                 else:
                     value = to_decimal(sum(getattr(r, f"{metric}_mean") or 0 for r in season_data) / len(season_data))
-                
+
                 vs_baseline = calc_pct_diff(value, baseline_value) if baseline_value else None
-                
+
                 # Add to chart data
                 data_by_month = {r.month: r for r in season_data}
                 for item in chart_data["monthly"]:
@@ -841,7 +971,7 @@ def compare_zones(
             # Use baseline values
             value = baseline_value
             vs_baseline = None
-            
+
             # Add baseline to chart data
             baseline_months = db.query(ClimateBaselineMonthly).filter(
                 ClimateBaselineMonthly.zone_id == zone_obj.id,
@@ -852,7 +982,7 @@ def compare_zones(
                 b = data_by_month.get(item["month"])
                 if b:
                     item[zone_obj.slug] = float(getattr(b, metric)) if getattr(b, metric) else None
-        
+
         comparison_items.append(ZoneComparisonItem(
             zone_id=zone_obj.id,
             zone_name=zone_obj.name,
@@ -867,7 +997,7 @@ def compare_zones(
     
     return ZonesCompareResponse(
         metric=metric,
-        metric_label=METRIC_LABELS[metric],
+        metric_label=METRIC_LABELS.get(metric) or SEASON_EXTREME_FIELDS[metric][1],
         vintage_year=vintage_year,
         comparison_type="season" if vintage_year else "baseline",
         zones=comparison_items,
@@ -894,8 +1024,9 @@ def compare_zones_seasons(
         raise HTTPException(status_code=400, detail="At least one zone slug required")
     if len(zone_slugs) > 5:
         raise HTTPException(status_code=400, detail="Maximum 5 zones can be compared")
-    if metric not in METRIC_LABELS:
-        raise HTTPException(status_code=400, detail=f"Invalid metric. Valid: {list(METRIC_LABELS.keys())}")
+    if metric not in METRIC_LABELS and metric not in SEASON_EXTREME_FIELDS:
+        valid = list(METRIC_LABELS.keys()) + list(SEASON_EXTREME_FIELDS.keys())
+        raise HTTPException(status_code=400, detail=f"Invalid metric. Valid: {valid}")
 
     zone_objs = db.query(ClimateZone).options(
         joinedload(ClimateZone.region)
@@ -910,11 +1041,14 @@ def compare_zones_seasons(
     zones_by_slug = {z.slug: z for z in zone_objs}
     ordered_zones = [zones_by_slug[s] for s in zone_slugs]
 
+    is_extreme = metric in SEASON_EXTREME_FIELDS
     is_total_metric = metric in ("gdd", "rain")
-    metric_col = getattr(ClimateHistoryMonthly, f"{metric}_mean")
-    agg_expr = func.sum(metric_col) if is_total_metric else func.avg(metric_col)
+    if not is_extreme:
+        metric_col = getattr(ClimateHistoryMonthly, f"{metric}_mean")
+        agg_expr = func.sum(metric_col) if is_total_metric else func.avg(metric_col)
 
-    # Union of vintage years across all selected zones
+    # Union of vintage years across all selected zones (monthly history is the
+    # full season index; season_stats covers the same modelled range).
     vintage_query = db.query(ClimateHistoryMonthly.vintage_year).filter(
         ClimateHistoryMonthly.zone_id.in_([z.id for z in ordered_zones]),
         ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
@@ -928,21 +1062,30 @@ def compare_zones_seasons(
 
     zones_trends = []
     for zone_obj in ordered_zones:
-        baseline = calculate_season_baseline(db, zone_obj.id)
-        baseline_value = getattr(
-            baseline, f"{metric}_total" if is_total_metric else f"{metric}_avg", None
-        )
+        if is_extreme:
+            baseline_value = season_extreme_baseline(db, zone_obj.id, metric)
+            attr = SEASON_EXTREME_FIELDS[metric][0]
+            stat_rows = db.query(ClimateZoneSeasonStats).filter(
+                ClimateZoneSeasonStats.zone_id == zone_obj.id,
+                ClimateZoneSeasonStats.vintage_year.in_(vintage_years),
+            ).all()
+            value_by_year = {r.vintage_year: getattr(r, attr) for r in stat_rows}
+        else:
+            baseline = calculate_season_baseline(db, zone_obj.id)
+            baseline_value = getattr(
+                baseline, f"{metric}_total" if is_total_metric else f"{metric}_avg", None
+            )
 
-        rows = db.query(
-            ClimateHistoryMonthly.vintage_year.label("vintage_year"),
-            agg_expr.label("value"),
-        ).filter(
-            ClimateHistoryMonthly.zone_id == zone_obj.id,
-            ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
-            ClimateHistoryMonthly.vintage_year.in_(vintage_years),
-        ).group_by(ClimateHistoryMonthly.vintage_year).all()
+            rows = db.query(
+                ClimateHistoryMonthly.vintage_year.label("vintage_year"),
+                agg_expr.label("value"),
+            ).filter(
+                ClimateHistoryMonthly.zone_id == zone_obj.id,
+                ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
+                ClimateHistoryMonthly.vintage_year.in_(vintage_years),
+            ).group_by(ClimateHistoryMonthly.vintage_year).all()
 
-        value_by_year = {r.vintage_year: r.value for r in rows}
+            value_by_year = {r.vintage_year: r.value for r in rows}
 
         series = [
             ZoneSeasonValue(
@@ -958,13 +1101,13 @@ def compare_zones_seasons(
             zone_name=zone_obj.name,
             zone_slug=zone_obj.slug,
             region_name=zone_obj.region.name if zone_obj.region else None,
-            baseline=baseline_value,
+            baseline=to_decimal(baseline_value),
             series=series,
         ))
 
     return ZonesSeasonsCompareResponse(
         metric=metric,
-        metric_label=METRIC_LABELS[metric],
+        metric_label=METRIC_LABELS.get(metric) or SEASON_EXTREME_FIELDS[metric][1],
         vintage_years=vintage_years,
         zones=zones_trends,
     )

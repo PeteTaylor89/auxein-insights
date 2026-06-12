@@ -15,7 +15,7 @@ Endpoints:
 - /regional-overview - All zones summary
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,6 +28,7 @@ from db.models.climate import ClimateZone
 from db.models.realtime_climate import (
     ClimateZoneDaily,
     ClimateZoneDailyBaseline,
+    ClimateZoneHourly,
     PhenologyEstimate,
     PhenologyThreshold,
     DiseasePressure,
@@ -37,8 +38,11 @@ from schemas.realtime_climate import (
     BaselineComparison,
     DailyClimateData,
     SeasonSummary,
+    SeasonExtremes,
     CurrentSeasonResponse,
     SeasonProgressResponse,
+    HourlyClimatePoint,
+    HourlyClimateResponse,
     VarietyPhenology,
     PhenologyStage,
     PhenologyResponse,
@@ -81,6 +85,28 @@ DISEASE_NAMES = {
     'powdery_mildew': 'Powdery Mildew',
     'botrytis': 'Botrytis (Grey Rot)',
 }
+
+# GDD base options. Live daily GDD is derived from temp_mean so both bases are
+# available without a stored base-10 column on climate_zone_daily.
+GDD_BASES = {'base0': 0.0, 'base10': 10.0}
+DEFAULT_GDD_BASE = 'base10'
+FROST_THRESHOLD_C = 0.0       # Tmin <= 0C
+HOT_DAY_THRESHOLD_C = 30.0    # Tmax > 30C
+HEAVY_RAIN_THRESHOLD_MM = 25.0  # NIWA "heavy rain day"
+
+
+def daily_gdd_from_mean(temp_mean, base_temp: float) -> float:
+    """Daily GDD from a mean temperature for a given base (0 or 10)."""
+    if temp_mean is None:
+        return 0.0
+    return max(0.0, float(temp_mean) - base_temp)
+
+
+def baseline_daily_gdd_col(base_temp: float):
+    """The matching daily baseline GDD column for a base."""
+    if base_temp == 10.0:
+        return ClimateZoneDailyBaseline.gdd_base10_avg
+    return ClimateZoneDailyBaseline.gdd_base0_avg
 
 
 # =============================================================================
@@ -285,6 +311,7 @@ def list_zones_with_current_data(
 def get_current_season_climate(
     zone_slug: str,
     recent_days: int = Query(14, ge=1, le=90, description="Number of recent days to include"),
+    base: str = Query(DEFAULT_GDD_BASE, description="GDD base: 'base10' (default) or 'base0'"),
     db: Session = Depends(get_db)
 ):
     """
@@ -317,21 +344,17 @@ def get_current_season_climate(
     days_into_season = max(0, (latest_date - growing_season_start).days + 1)
     doy = date_to_day_of_vintage(latest_date)
 
-    # Get August 31 offset from ACTUAL current season data (for adjusting actual GDD)
-    # Find the actual GDD cumulative on or near August 31 (day 62)
-    actual_aug31_offset = Decimal('0')
-    for d in season_data:
-        d_doy = date_to_day_of_vintage(d.date)
-        if d_doy <= 62 and d.gdd_cumulative:
-            actual_aug31_offset = Decimal(str(d.gdd_cumulative))
-            break  # season_data is desc ordered, so first match <= 62 is closest to Aug 31
-
-    # Calculate season totals (GDD adjusted to September 1 start using ACTUAL offset)
-    gdd_raw = Decimal(str(season_data[0].gdd_cumulative)) if season_data[0].gdd_cumulative else Decimal('0')
-    gdd_total = to_decimal(max(Decimal('0'), gdd_raw - actual_aug31_offset)) if doy >= 63 else to_decimal(Decimal('0'))
+    base = base if base in GDD_BASES else DEFAULT_GDD_BASE
+    base_temp = GDD_BASES[base]
 
     # Filter to growing season data only (Sep 1 onwards, day_of_vintage >= 63)
     growing_data = [d for d in season_data if d.date >= growing_season_start]
+
+    # Season GDD total from Sep 1, derived from daily mean temp for the chosen
+    # base (live table only stores base-0; deriving from temp_mean covers both).
+    gdd_total = to_decimal(
+        sum(daily_gdd_from_mean(d.temp_mean, base_temp) for d in growing_data)
+    ) if doy >= 63 else to_decimal(Decimal('0'))
 
     rainfall_total = to_decimal(sum(float(d.rainfall_mm or 0) for d in growing_data))
 
@@ -345,8 +368,35 @@ def get_current_season_climate(
     temps_min = [float(d.temp_min) for d in growing_data if d.temp_min]
     temp_min_avg = to_decimal(sum(temps_min) / len(temps_min)) if temps_min else None
 
-    # Get baseline for comparison (already adjusted to September 1 in helper function)
-    baseline_gdd = get_baseline_gdd_for_day(db, zone.id, doy)
+    # Baseline cumulative GDD from Sep 1 (day 63) to current doy, matching base
+    baseline_gdd = None
+    if doy >= 63:
+        baseline_gdd = db.query(func.sum(baseline_daily_gdd_col(base_temp))).filter(
+            ClimateZoneDailyBaseline.zone_id == zone.id,
+            ClimateZoneDailyBaseline.day_of_vintage >= 63,
+            ClimateZoneDailyBaseline.day_of_vintage <= doy,
+        ).scalar()
+
+    # Threshold metrics (frost / hot days / extreme rainfall) over the season
+    frost_days = [d for d in growing_data if d.temp_min is not None and float(d.temp_min) <= FROST_THRESHOLD_C]
+    rain_days = [d for d in growing_data if d.rainfall_mm is not None]
+    wettest = max(rain_days, key=lambda d: float(d.rainfall_mm), default=None)
+    extremes = SeasonExtremes(
+        last_frost_date=max((d.date for d in frost_days), default=None),
+        frost_days_total=len(frost_days),
+        early_frost_count=sum(1 for d in frost_days if d.date.month in (9, 10, 11)),
+        hot_days_count=sum(
+            1 for d in growing_data
+            if d.temp_max is not None and float(d.temp_max) > HOT_DAY_THRESHOLD_C
+        ),
+        max_1day_rainfall=to_decimal(wettest.rainfall_mm) if wettest else None,
+        max_1day_rainfall_date=wettest.date if wettest else None,
+        heavy_rain_days_count=sum(
+            1 for d in growing_data
+            if d.rainfall_mm is not None and float(d.rainfall_mm) >= HEAVY_RAIN_THRESHOLD_MM
+        ),
+        heavy_rain_threshold_mm=Decimal(str(HEAVY_RAIN_THRESHOLD_MM)),
+    )
 
     # Calculate baseline rainfall total (from Sep 1 = day 63)
     baseline_rain = db.query(
@@ -365,12 +415,14 @@ def get_current_season_climate(
         latest_data_date=latest_date,
         days_into_season=days_into_season,
         gdd_total=gdd_total,
+        gdd_base=base,
         rainfall_total=rainfall_total,
         temp_mean_avg=temp_mean_avg,
         temp_max_avg=temp_max_avg,
         temp_min_avg=temp_min_avg,
-        gdd_vs_baseline=calc_baseline_comparison(gdd_total, baseline_gdd) if baseline_gdd else None,
+        gdd_vs_baseline=calc_baseline_comparison(gdd_total, to_decimal(baseline_gdd)) if baseline_gdd else None,
         rainfall_vs_baseline=calc_baseline_comparison(rainfall_total, to_decimal(baseline_rain)) if baseline_rain else None,
+        extremes=extremes,
     )
     
     # Get recent days data
@@ -419,6 +471,7 @@ def get_current_season_climate(
 def get_gdd_progress(
     zone_slug: str,
     vintage_year: Optional[int] = Query(None, description="Vintage year (default: current)"),
+    base: str = Query(DEFAULT_GDD_BASE, description="GDD base: 'base10' (default) or 'base0'"),
     db: Session = Depends(get_db)
 ):
     """
@@ -450,68 +503,60 @@ def get_gdd_progress(
     ).order_by(ClimateZoneDailyBaseline.day_of_vintage).all()
     baseline_by_doy = {b.day_of_vintage: b for b in baseline_data}
     
-    # Get August 31 offset from BASELINE (for adjusting baseline values)
-    baseline_aug31_offset = get_aug31_gdd_offset(db, zone.id)
+    base = base if base in GDD_BASES else DEFAULT_GDD_BASE
+    base_temp = GDD_BASES[base]
 
-    # Get August 31 offset from ACTUAL current season data (for adjusting actual values)
-    # Find the actual GDD cumulative on or near August 31 (day 62)
-    actual_aug31_offset = Decimal('0')
-    season_data_by_doy = {date_to_day_of_vintage(d.date): d for d in season_data}
-
-    # Look for Aug 31 (day 62) or closest day before Sep 1
-    for check_doy in [62, 61, 60, 59]:
-        if check_doy in season_data_by_doy:
-            aug31_data = season_data_by_doy[check_doy]
-            if aug31_data.gdd_cumulative:
-                actual_aug31_offset = Decimal(str(aug31_data.gdd_cumulative))
-            break
-
-    # Build time series with September 1 adjusted GDD
+    # Build cumulative GDD series from Sep 1 (day_of_vintage >= 63) for the chosen
+    # base. Actual is derived from daily mean temp; baseline accumulates the daily
+    # baseline average for the matching base. Both start at 0 on Sep 1.
     daily_data = []
     latest = season_data[-1]
+    cum_actual = 0.0
+    cum_baseline = 0.0
+    cum_actual_base0 = 0.0  # phenology milestones are base-0 calibrated
+    baseline_cum_by_doy = {}  # doy -> cumulative baseline from Sep 1
 
     for d in season_data:
         doy = date_to_day_of_vintage(d.date)
         baseline = baseline_by_doy.get(doy)
 
-        # Adjust ACTUAL GDD using ACTUAL August 31 offset
-        gdd_actual_raw = float(d.gdd_cumulative) if d.gdd_cumulative else 0
-        gdd_actual = max(0, gdd_actual_raw - float(actual_aug31_offset)) if doy >= 63 else 0
+        if doy >= 63:
+            cum_actual += daily_gdd_from_mean(d.temp_mean, base_temp)
+            cum_actual_base0 += daily_gdd_from_mean(d.temp_mean, 0.0)
+            gdd_baseline = None
+            if baseline is not None:
+                col = baseline.gdd_base10_avg if base_temp == 10.0 else baseline.gdd_base0_avg
+                cum_baseline += float(col) if col is not None else 0.0
+                baseline_cum_by_doy[doy] = cum_baseline
+                gdd_baseline = round(cum_baseline, 1)
+            daily_data.append({
+                "date": str(d.date),
+                "day_of_vintage": doy,
+                "gdd_actual": round(cum_actual, 1),
+                "gdd_baseline": gdd_baseline,
+            })
+        else:
+            daily_data.append({
+                "date": str(d.date),
+                "day_of_vintage": doy,
+                "gdd_actual": None,
+                "gdd_baseline": None,
+            })
 
-        # Adjust BASELINE GDD using BASELINE August 31 offset
-        gdd_baseline = None
-        if baseline and baseline.gdd_base0_cumulative_avg:
-            gdd_baseline_raw = float(baseline.gdd_base0_cumulative_avg)
-            gdd_baseline = max(0, gdd_baseline_raw - float(baseline_aug31_offset)) if doy >= 63 else 0
-
-        daily_data.append({
-            "date": str(d.date),
-            "day_of_vintage": doy,
-            "gdd_actual": gdd_actual if doy >= 63 else None,
-            "gdd_baseline": gdd_baseline,
-        })
-
-    # Calculate current position vs baseline (September 1 adjusted)
+    # Current position vs baseline
     current_doy = date_to_day_of_vintage(latest.date)
-    current_gdd_raw = Decimal(str(latest.gdd_cumulative)) if latest.gdd_cumulative else Decimal('0')
-    current_gdd = max(Decimal('0'), current_gdd_raw - actual_aug31_offset) if current_doy >= 63 else Decimal('0')
+    current_gdd = Decimal(str(round(cum_actual, 2))) if current_doy >= 63 else Decimal('0')
+    current_gdd_base0 = cum_actual_base0 if current_doy >= 63 else 0.0
+    baseline_gdd = Decimal(str(round(cum_baseline, 2))) if (current_doy >= 63 and baseline_cum_by_doy) else None
 
-    baseline_current = baseline_by_doy.get(current_doy)
-    baseline_gdd = None
-    if baseline_current and baseline_current.gdd_base0_cumulative_avg:
-        baseline_gdd_raw = Decimal(str(baseline_current.gdd_base0_cumulative_avg))
-        baseline_gdd = max(Decimal('0'), baseline_gdd_raw - baseline_aug31_offset) if current_doy >= 63 else Decimal('0')
-
-    # Estimate days ahead/behind by finding where baseline equals current GDD
-    # (using September 1 adjusted values)
+    # Estimate days ahead/behind: the day whose baseline cumulative first reaches
+    # the current actual GDD.
     days_vs_baseline = None
     if baseline_gdd and current_gdd:
-        for doy, b in sorted(baseline_by_doy.items()):
-            if doy >= 63 and b.gdd_base0_cumulative_avg:
-                adjusted_baseline = float(b.gdd_base0_cumulative_avg) - float(baseline_aug31_offset)
-                if adjusted_baseline >= float(current_gdd):
-                    days_vs_baseline = current_doy - doy
-                    break
+        for doy in sorted(baseline_cum_by_doy.keys()):
+            if baseline_cum_by_doy[doy] >= float(current_gdd):
+                days_vs_baseline = current_doy - doy
+                break
 
     # Get phenology milestones (default to Pinot Noir)
     # Thresholds are calibrated from September 1, so use adjusted current_gdd
@@ -532,13 +577,14 @@ def get_gdd_progress(
                 milestones.append({
                     "name": stage,
                     "gdd_threshold": float(gdd_threshold),
-                    "reached": float(current_gdd) >= float(gdd_threshold) if current_gdd else False,
+                    "reached": current_gdd_base0 >= float(gdd_threshold),
                 })
-    
+
     return SeasonProgressResponse(
         zone=get_zone_brief(zone),
         vintage_year=vintage_year,
         label=get_season_label(vintage_year),
+        gdd_base=base,
         current_date=latest.date,
         current_gdd=current_gdd,
         days_into_season=(latest.date - get_season_start(vintage_year)).days + 1,
@@ -546,6 +592,61 @@ def get_gdd_progress(
         days_vs_baseline=days_vs_baseline,
         daily_data=daily_data,
         milestones=milestones,
+    )
+
+
+# =============================================================================
+# ENDPOINTS: HOURLY CLIMATE
+# =============================================================================
+
+@router.get("/hourly/{zone_slug}", response_model=HourlyClimateResponse)
+def get_hourly_climate(
+    zone_slug: str,
+    days: int = Query(10, ge=1, le=30, description="Days of hourly history (default 10)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Hourly zone-aggregated climate for a recent window (default 10 days).
+
+    Reads the pre-computed ``climate_zone_hourly`` table (the same source the
+    disease models use), so no on-the-fly interpolation is needed.
+    """
+    zone = get_zone_or_404(db, zone_slug)
+
+    # Anchor the window on the latest hour we actually have, not wall-clock now,
+    # so the chart is never blank when ingestion lags.
+    latest = db.query(func.max(ClimateZoneHourly.timestamp_local)).filter(
+        ClimateZoneHourly.zone_id == zone.id
+    ).scalar()
+
+    if latest is None:
+        return HourlyClimateResponse(zone=get_zone_brief(zone), days=days, points=[])
+
+    cutoff = latest - timedelta(days=days)
+    rows = db.query(ClimateZoneHourly).filter(
+        ClimateZoneHourly.zone_id == zone.id,
+        ClimateZoneHourly.timestamp_local > cutoff,
+    ).order_by(ClimateZoneHourly.timestamp_local).all()
+
+    points = [
+        HourlyClimatePoint(
+            timestamp=r.timestamp_local,
+            temp_mean=to_decimal(r.temp_mean),
+            temp_min=to_decimal(r.temp_min),
+            temp_max=to_decimal(r.temp_max),
+            rh_mean=to_decimal(r.rh_mean),
+            precipitation=to_decimal(r.precipitation),
+            is_wet_hour=r.is_wet_hour,
+        )
+        for r in rows
+    ]
+
+    return HourlyClimateResponse(
+        zone=get_zone_brief(zone),
+        days=days,
+        start=rows[0].timestamp_local if rows else None,
+        end=rows[-1].timestamp_local if rows else None,
+        points=points,
     )
 
 

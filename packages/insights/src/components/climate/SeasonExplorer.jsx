@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
-import { TrendingUp, TrendingDown, Minus, Calendar, Droplets, Thermometer, Sun, BarChart3, LineChart, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Calendar, Droplets, Thermometer, Sun, BarChart3, LineChart, MapPin, ChevronLeft, ChevronRight, Snowflake, Flame, CloudRain } from 'lucide-react';
 import {
   getZoneSeasons,
   getZoneHistory,
@@ -35,6 +35,11 @@ import {
 const SEASON_MONTH_LABELS = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
 const SEASON_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4];
 
+// Full vintage year (Jul→Jun) — used for the monthly frost view so the winter
+// frost peak (Jul/Aug) is visible, not just the growing season.
+const VINTAGE_MONTH_LABELS = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+const VINTAGE_MONTH_ORDER = [7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
+
 // Chart colors
 const CHART_COLORS = [
   { main: '#3B82F6', light: '#93C5FD', fill: 'rgba(59, 130, 246, 0.15)' },  // Blue
@@ -45,6 +50,59 @@ const CHART_COLORS = [
 ];
 
 const BASELINE_COLOR = { main: '#6B7280', light: '#9CA3AF', fill: 'rgba(107, 114, 128, 0.1)' };
+
+// Overview trend dataset labels per metric (incl. seasonal extremes)
+const OVERVIEW_METRIC_LABELS = {
+  gdd: 'Season GDD',
+  rain: 'Season Rainfall (mm)',
+  tmean: 'Season Avg Temp (°C)',
+  tmax: 'Season Max Temp (°C)',
+  frost_days: 'Frost days',
+  early_frost: 'Spring frost (Sep–Nov)',
+  hot_days30: 'Hot days >30°C',
+  r99p: 'Extreme Rain (mm)',
+};
+
+// Extreme metrics selectable on the Overview trend (per-season values).
+// `early_frost` reads SeasonExtremes.early_frost (the SON spring-frost count).
+const OVERVIEW_EXTREME_METRICS = [
+  { key: 'frost_days', label: 'Frost' },
+  { key: 'early_frost', label: 'Spring Frost' },
+  { key: 'hot_days30', label: 'Hot days' },
+  { key: 'r99p', label: 'Extreme Rain' },
+];
+
+// Per-season extreme keys (baseline lookup on the Overview trend)
+const SEASON_EXTREME_KEYS = ['frost_days', 'early_frost', 'hot_days30', 'r99p'];
+
+// Which views each non-base metric is valid in (base metrics work everywhere).
+// frost_days = annual total in Overview/Zone-compare-trend, per-month in
+// Monthly/Season-compare. Seasonal extremes compare only in the zone-compare
+// Trend sub-mode (single value per season); rx1day is monthly-grained.
+const METRIC_VALID_VIEWS = {
+  frost_days: ['overview', 'monthly', 'season-compare', 'zone-compare'],
+  early_frost: ['overview', 'zone-compare'],
+  hot_days30: ['overview', 'zone-compare'],
+  r99p: ['overview', 'zone-compare'],
+  rx1day: ['monthly', 'season-compare'],
+};
+
+// Seasonal extremes that compare across zones via the Trend sub-mode only.
+const ZONE_COMPARE_EXTREMES = [
+  { key: 'frost_days', label: 'Frost' },
+  { key: 'early_frost', label: 'Spring Frost' },
+  { key: 'hot_days30', label: 'Hot days' },
+  { key: 'r99p', label: 'Extreme Rain' },
+];
+
+// Short explainers shown under the chart when a metric is selected.
+const METRIC_EXPLAINERS = {
+  frost_days: 'Frost days — nights below 0°C. Most occur in winter; summer months are typically zero.',
+  early_frost: 'Spring frost — frost nights during spring (Sep–Nov), when budburst and flowering are most vulnerable.',
+  hot_days30: 'Hot days — days reaching above 30°C (summer).',
+  r99p: 'Extreme Rain (R99p) — the one-day rainfall total exceeded on only the most extreme 1% of wet days.',
+  rx1day: 'Max 1-day Rain (Rx1day) — the wettest single day in each month.',
+};
 
 const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange }) => {
   const [seasonsData, setSeasonsData] = useState(null);
@@ -65,6 +123,23 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   const [seasonPage, setSeasonPage] = useState(0);
 
   const seasonsPerPage = 6;
+
+  // Keep the selected metric valid for the active view: per-season extremes
+  // only apply in Overview, Rx1day only in Monthly.
+  useEffect(() => {
+    const allowed = METRIC_VALID_VIEWS[chartMetric];
+    if (allowed && !allowed.includes(viewMode)) setChartMetric('gdd');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
+
+  // Seasonal extremes compare only in the zone-compare Trend sub-mode.
+  useEffect(() => {
+    if (viewMode === 'zone-compare' && zoneCompareMode !== 'trend' &&
+        ['frost_days', 'early_frost', 'hot_days30', 'r99p'].includes(chartMetric)) {
+      setChartMetric('gdd');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneCompareMode, viewMode]);
 
   // Load seasons when zone changes
   useEffect(() => {
@@ -111,9 +186,10 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
     const loadMonthlyData = async () => {
       try {
         setLoading(true);
+        // Fetch all 12 months so the frost view can show the winter peak;
+        // non-frost metrics still display the growing-season subset.
         const data = await getZoneHistory(zone.slug, {
           vintage_year: selectedSeason,
-          months: SEASON_MONTH_ORDER.join(',')
         });
         setMonthlyData(data);
       } catch (err) {
@@ -171,6 +247,8 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
     switch (metric) {
       case 'gdd': return monthData.gdd;
       case 'rain': return monthData.rain;
+      case 'rx1day': return monthData.rx1day;
+      case 'frost_days': return monthData.frost_days;
       case 'tmean': return monthData.tmean;
       case 'tmax': return monthData.tmax;
       case 'tmin': return monthData.tmin;
@@ -184,7 +262,8 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
 
     const limit = Math.min(seasonLimit, seasonsData.seasons.length);
     const seasons = [...seasonsData.seasons].slice(0, limit).reverse(); // Chronological
-    const isRainfall = chartMetric === 'rain';
+    // Rainfall + Extreme Rain render as columns; everything else as a line.
+    const isRainfall = chartMetric === 'rain' || chartMetric === 'r99p';
     
     const getValue = (s) => {
       switch (chartMetric) {
@@ -192,14 +271,17 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         case 'rain': return s.rain_total;
         case 'tmean': return s.tmean_avg;
         case 'tmax': return s.tmax_avg;
+        case 'frost_days': return s.extremes?.frost_days?.mean;
+        case 'early_frost': return s.extremes?.early_frost?.mean;
+        case 'hot_days30': return s.extremes?.hot_days30?.mean;
+        case 'r99p': return s.extremes?.r99p?.mean;
         default: return s.gdd_total;
       }
     };
 
     const datasets = [{
-      label: chartMetric === 'gdd' ? 'Season GDD' : 
-             chartMetric === 'rain' ? 'Season Rainfall (mm)' : 
-             chartMetric === 'tmean' ? 'Season Avg Temp (°C)' : 'Season Max Temp (°C)',
+      type: isRainfall ? 'bar' : 'line',
+      label: OVERVIEW_METRIC_LABELS[chartMetric] || OVERVIEW_METRIC_LABELS.gdd,
       data: seasons.map(s => getValue(s) ? Number(getValue(s)) : null),
       borderColor: CHART_COLORS[0].main,
       backgroundColor: isRainfall ? CHART_COLORS[0].main + '99' : CHART_COLORS[0].fill,
@@ -209,15 +291,20 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
       pointHoverRadius: 7,
     }];
 
-    // Add baseline line
-    if (seasonsData.baseline && includeLTA) {
-      const baselineValue = chartMetric === 'gdd' ? seasonsData.baseline.gdd_total :
-                          chartMetric === 'rain' ? seasonsData.baseline.rain_total :
-                          chartMetric === 'tmean' ? seasonsData.baseline.tmean_avg :
-                          seasonsData.baseline.tmax_avg;
+    // Add baseline line — always a dashed line, even over rainfall columns
+    if (includeLTA) {
+      const baselineValue =
+        chartMetric === 'gdd' ? seasonsData.baseline?.gdd_total :
+        chartMetric === 'rain' ? seasonsData.baseline?.rain_total :
+        chartMetric === 'tmean' ? seasonsData.baseline?.tmean_avg :
+        chartMetric === 'tmax' ? seasonsData.baseline?.tmax_avg :
+        SEASON_EXTREME_KEYS.includes(chartMetric)
+          ? seasonsData.baseline_extremes?.[chartMetric]?.mean
+          : null;
       if (baselineValue) {
         datasets.push({
-          label: 'LTA (1986-2005)',
+          type: 'line',
+          label: 'LTA baseline',
           data: seasons.map(() => Number(baselineValue)),
           borderColor: BASELINE_COLOR.main,
           borderDash: [5, 5],
@@ -237,18 +324,24 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   // Build chart data for monthly view (single season with SD bands)
   const monthlyChartData = useMemo(() => {
     if (!monthlyData?.data || monthlyData.data.length === 0) return null;
-    
-    const isRainfall = chartMetric === 'rain';
-    
-    // Sort by growing season order
-    const sortedData = [...monthlyData.data].sort((a, b) => {
-      return SEASON_MONTH_ORDER.indexOf(a.month) - SEASON_MONTH_ORDER.indexOf(b.month);
-    });
+
+    const isRainfall = chartMetric === 'rain' || chartMetric === 'rx1day' || chartMetric === 'frost_days';
+
+    // Frost spans the full vintage year (winter peak); other metrics show the
+    // growing season only.
+    const monthOrder = chartMetric === 'frost_days' ? VINTAGE_MONTH_ORDER : SEASON_MONTH_ORDER;
+    const monthLabels = chartMetric === 'frost_days' ? VINTAGE_MONTH_LABELS : SEASON_MONTH_LABELS;
+
+    const sortedData = monthlyData.data
+      .filter(d => monthOrder.includes(d.month))
+      .sort((a, b) => monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month));
 
     const getValue = (d) => {
       switch (chartMetric) {
         case 'gdd': return d.gdd?.mean;
         case 'rain': return d.rain?.mean;
+        case 'rx1day': return d.rx1day?.mean;
+        case 'frost_days': return d.frost_days?.mean;
         case 'tmean': return d.tmean?.mean;
         case 'tmax': return d.tmax?.mean;
         default: return d.gdd?.mean;
@@ -259,6 +352,8 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
       switch (chartMetric) {
         case 'gdd': return d.gdd?.sd;
         case 'rain': return d.rain?.sd;
+        case 'rx1day': return d.rx1day?.sd;
+        case 'frost_days': return d.frost_days?.sd;
         case 'tmean': return d.tmean?.sd;
         case 'tmax': return d.tmax?.sd;
         default: return d.gdd?.sd;
@@ -304,6 +399,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
 
     // Main data line/bars
     datasets.push({
+      type: isRainfall ? 'bar' : 'line',
       label: `${selectedSeason - 1}/${String(selectedSeason).slice(2)}`,
       data: values,
       borderColor: CHART_COLORS[0].main,
@@ -317,28 +413,29 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
       errorBars: isRainfall ? sds : null,
     });
 
-    // Add baseline from monthly data
+    // Add baseline from monthly data — always a dashed line
     if (baselineData?.monthly && includeLTA) {
-      const baselineValues = SEASON_MONTH_ORDER.map(month => {
+      const baselineValues = monthOrder.map(month => {
         const v = getBaselineMonthlyValue(month, chartMetric);
         return v != null ? Number(v) : null;
       });
-      
+
       datasets.push({
-        label: 'LTA (1986-2005)',
+        type: 'line',
+        label: 'LTA baseline',
         data: baselineValues,
         borderColor: BASELINE_COLOR.main,
-        backgroundColor: isRainfall ? BASELINE_COLOR.main + '60' : 'transparent',
-        borderDash: isRainfall ? [] : [5, 5],
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
         borderWidth: 2,
-        pointRadius: isRainfall ? 0 : 3,
+        pointRadius: 0,
         fill: false,
         order: 0,
       });
     }
 
     return {
-      labels: SEASON_MONTH_LABELS,
+      labels: monthLabels,
       datasets,
     };
   }, [monthlyData, chartMetric, selectedSeason, baselineData, includeLTA]);
@@ -376,7 +473,9 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         title: {
           display: true,
           text: chartMetric === 'gdd' ? 'GDD (°C·days)' :
-                chartMetric === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)',
+                (chartMetric === 'rain' || chartMetric === 'r99p' || chartMetric === 'rx1day') ? 'Rainfall (mm)' :
+                (chartMetric === 'frost_days' || chartMetric === 'early_frost' || chartMetric === 'hot_days30') ? 'Days' :
+                'Temperature (°C)',
         }
       },
       x: {
@@ -460,7 +559,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
 
   if (!seasonsData) return null;
 
-  const isRainfall = chartMetric === 'rain';
+  const isRainfall = chartMetric === 'rain' || chartMetric === 'r99p';
 
   return (
     <div className="season-explorer">
@@ -566,6 +665,56 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
           >
             Max Temp
           </button>
+          {viewMode === 'overview' && OVERVIEW_EXTREME_METRICS.map(m => (
+            <button
+              key={m.key}
+              className={`chart-type-btn ${chartMetric === m.key ? 'active' : ''}`}
+              onClick={() => setChartMetric(m.key)}
+            >
+              {m.label}
+            </button>
+          ))}
+          {viewMode === 'monthly' && (
+            <>
+              <button
+                className={`chart-type-btn ${chartMetric === 'rx1day' ? 'active' : ''}`}
+                onClick={() => setChartMetric('rx1day')}
+              >
+                Max 1-day Rain
+              </button>
+              <button
+                className={`chart-type-btn ${chartMetric === 'frost_days' ? 'active' : ''}`}
+                onClick={() => setChartMetric('frost_days')}
+              >
+                Frost days
+              </button>
+            </>
+          )}
+          {viewMode === 'season-compare' && (
+            <>
+              <button
+                className={`chart-type-btn ${chartMetric === 'rx1day' ? 'active' : ''}`}
+                onClick={() => setChartMetric('rx1day')}
+              >
+                Max 1-day Rain
+              </button>
+              <button
+                className={`chart-type-btn ${chartMetric === 'frost_days' ? 'active' : ''}`}
+                onClick={() => setChartMetric('frost_days')}
+              >
+                Frost days
+              </button>
+            </>
+          )}
+          {viewMode === 'zone-compare' && zoneCompareMode === 'trend' && ZONE_COMPARE_EXTREMES.map(m => (
+            <button
+              key={m.key}
+              className={`chart-type-btn ${chartMetric === m.key ? 'active' : ''}`}
+              onClick={() => setChartMetric(m.key)}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
         
         {(viewMode === 'overview' || (viewMode === 'zone-compare' && zoneCompareMode === 'trend')) && (
@@ -649,6 +798,32 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         </div>
       )}
 
+      {/* Metric explainer */}
+      {METRIC_EXPLAINERS[chartMetric] && (
+        <div className="metric-explainer">{METRIC_EXPLAINERS[chartMetric]}</div>
+      )}
+
+      {/* Monthly view: frost/hot days are seasonal totals, surfaced here */}
+      {viewMode === 'monthly' && selectedSeason && (() => {
+        const sel = seasonsData.seasons?.find(s => s.vintage_year === selectedSeason);
+        const ex = sel?.extremes;
+        if (!ex) return null;
+        return (
+          <div className="monthly-extremes-summary">
+            <span className="mes-label">{sel.season_label} season:</span>
+            <span className="mes-chip" title="Frost nights below 0°C across the year (spring = Sep–Nov)">
+              <Snowflake size={13} />{Number(ex.frost_days?.mean ?? 0).toFixed(0)} frost ({Number(ex.early_frost?.mean ?? 0).toFixed(0)} spring)
+            </span>
+            <span className="mes-chip" title="Days above 30°C">
+              <Flame size={13} />{Number(ex.hot_days30?.mean ?? 0).toFixed(0)} hot days
+            </span>
+            <span className="mes-chip" title="R99p — one-day extreme rainfall intensity">
+              <CloudRain size={13} />{Number(ex.r99p?.mean ?? 0).toFixed(0)}mm extreme rain
+            </span>
+          </div>
+        );
+      })()}
+
       {/* Chart */}
       <div className="chart-container">
         {viewMode === 'overview' && overviewChartData && (
@@ -676,7 +851,53 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
             baselineData={baselineData}
           />
         )}
-        
+
+        {/* Seasonal extremes side-by-side for the selected seasons */}
+        {viewMode === 'season-compare' && (() => {
+          const rows = comparisonSeasons
+            .map(vy => seasonsData.seasons?.find(s => s.vintage_year === vy))
+            .filter(s => s && s.extremes);
+          if (rows.length === 0) return null;
+          const bx = seasonsData.baseline_extremes;
+          const cell = (v) => Number(v ?? 0).toFixed(0);
+          return (
+            <div className="compare-extremes">
+              <h4>Seasonal extremes</h4>
+              <table className="compare-extremes-table">
+                <thead>
+                  <tr>
+                    <th>Season</th>
+                    <th>Frost days</th>
+                    <th>Spring frost</th>
+                    <th>Hot days &gt;30°C</th>
+                    <th>Extreme rain</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(s => (
+                    <tr key={s.vintage_year}>
+                      <td>{s.season_label}</td>
+                      <td>{cell(s.extremes.frost_days?.mean)}</td>
+                      <td>{cell(s.extremes.early_frost?.mean)}</td>
+                      <td>{cell(s.extremes.hot_days30?.mean)}</td>
+                      <td>{cell(s.extremes.r99p?.mean)} mm</td>
+                    </tr>
+                  ))}
+                  {bx && (
+                    <tr className="baseline-row">
+                      <td>LTA baseline</td>
+                      <td>{cell(bx.frost_days?.mean)}</td>
+                      <td>{cell(bx.early_frost?.mean)}</td>
+                      <td>{cell(bx.hot_days30?.mean)}</td>
+                      <td>{cell(bx.r99p?.mean)} mm</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
         {viewMode === 'zone-compare' && zoneCompareMode !== 'trend' && (
           <ZoneCompareChart
             mainZone={zone}
@@ -776,6 +997,22 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
                   )}
                 </div>
               </div>
+              {season.extremes && (
+                <div className="season-card-extremes">
+                  <span className="extreme-chip" title="Frost days (Tmin < 0°C)">
+                    <Snowflake size={12} />{Number(season.extremes.frost_days?.mean ?? 0).toFixed(0)}
+                  </span>
+                  <span className="extreme-chip" title="Hot days (Tmax > 30°C)">
+                    <Flame size={12} />{Number(season.extremes.hot_days30?.mean ?? 0).toFixed(0)}
+                  </span>
+                  <span className="extreme-chip" title="R99p extreme rainfall (mm)">
+                    <CloudRain size={12} />{Number(season.extremes.r99p?.mean ?? 0).toFixed(0)}mm
+                  </span>
+                  {season.extremes.source === 'observed' && (
+                    <span className="extreme-chip observed" title="Computed from live station data">obs</span>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -792,7 +1029,10 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const isRainfall = metric === 'rain';
+  const isRainfall = metric === 'rain' || metric === 'rx1day' || metric === 'frost_days';
+  // Frost spans the full vintage year (winter peak); others show Sep–Apr.
+  const monthOrder = metric === 'frost_days' ? VINTAGE_MONTH_ORDER : SEASON_MONTH_ORDER;
+  const monthLabels = metric === 'frost_days' ? VINTAGE_MONTH_LABELS : SEASON_MONTH_LABELS;
 
   useEffect(() => {
     if (!zone?.slug || seasons.length === 0) {
@@ -805,26 +1045,28 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
         setLoading(true);
         
         // Load monthly data for each season
-        const seasonDataPromises = seasons.map(year => 
+        const seasonDataPromises = seasons.map(year =>
           getZoneHistory(zone.slug, {
             vintage_year: year,
-            months: SEASON_MONTH_ORDER.join(',')
+            months: monthOrder.join(',')
           })
         );
-        
+
         const results = await Promise.all(seasonDataPromises);
-        
+
         const datasets = [];
 
         results.forEach((result, idx) => {
-          const sortedData = [...(result.data || [])].sort((a, b) => 
-            SEASON_MONTH_ORDER.indexOf(a.month) - SEASON_MONTH_ORDER.indexOf(b.month)
-          );
-          
+          const sortedData = (result.data || [])
+            .filter(d => monthOrder.includes(d.month))
+            .sort((a, b) => monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month));
+
           const values = sortedData.map(d => {
             switch (metric) {
               case 'gdd': return d.gdd?.mean;
               case 'rain': return d.rain?.mean;
+              case 'rx1day': return d.rx1day?.mean;
+              case 'frost_days': return d.frost_days?.mean;
               case 'tmean': return d.tmean?.mean;
               case 'tmax': return d.tmax?.mean;
               default: return d.gdd?.mean;
@@ -835,6 +1077,8 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
             switch (metric) {
               case 'gdd': return d.gdd?.sd;
               case 'rain': return d.rain?.sd;
+              case 'rx1day': return d.rx1day?.sd;
+              case 'frost_days': return d.frost_days?.sd;
               case 'tmean': return d.tmean?.sd;
               case 'tmax': return d.tmax?.sd;
               default: return d.gdd?.sd;
@@ -881,35 +1125,38 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
           });
         });
 
-        // Add LTA baseline
+        // Add LTA baseline — always a dashed line
         if (includeLTA && baselineData?.monthly) {
-          const baselineValues = SEASON_MONTH_ORDER.map(month => {
+          const baselineValues = monthOrder.map(month => {
             const monthData = baselineData.monthly.find(m => m.month === month);
             if (!monthData) return null;
             switch (metric) {
               case 'gdd': return monthData.gdd;
               case 'rain': return monthData.rain;
+              case 'rx1day': return monthData.rx1day;
+              case 'frost_days': return monthData.frost_days;
               case 'tmean': return monthData.tmean;
               case 'tmax': return monthData.tmax;
               default: return null;
             }
           }).map(v => v != null ? Number(v) : null);
-          
+
           datasets.push({
-            label: 'LTA (1986-2005)',
+            type: 'line',
+            label: 'LTA baseline',
             data: baselineValues,
             borderColor: BASELINE_COLOR.main,
-            backgroundColor: isRainfall ? BASELINE_COLOR.main + '60' : 'transparent',
-            borderDash: isRainfall ? [] : [5, 5],
+            backgroundColor: 'transparent',
+            borderDash: [5, 5],
             borderWidth: 2,
-            pointRadius: isRainfall ? 0 : 3,
+            pointRadius: 0,
             fill: false,
             order: 100,
           });
         }
 
         setChartData({
-          labels: SEASON_MONTH_LABELS,
+          labels: monthLabels,
           datasets,
         });
       } catch (err) {
@@ -962,11 +1209,12 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
             title: {
               display: true,
               text: metric === 'gdd' ? 'GDD (°C·days)' :
-                    metric === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)',
+                    (metric === 'rain' || metric === 'rx1day') ? 'Rainfall (mm)' :
+                    metric === 'frost_days' ? 'Frost days' : 'Temperature (°C)',
             }
           },
           x: {
-            title: { display: true, text: 'Growing Season Month' }
+            title: { display: true, text: metric === 'frost_days' ? 'Month (Jul–Jun)' : 'Growing Season Month' }
           }
         },
       }}
@@ -1325,17 +1573,23 @@ const ZoneTrendChart = ({ mainZone, comparisonZones = [], metric, seasonLimit, s
             text: `${metric === 'gdd' ? 'Season GDD' :
                     metric === 'rain' ? 'Season Rainfall' :
                     metric === 'tmean' ? 'Season Avg Temp' :
-                    metric === 'tmax' ? 'Season Max Temp' : 'Season Min Temp'} by zone`,
+                    metric === 'tmax' ? 'Season Max Temp' :
+                    metric === 'frost_days' ? 'Frost days (annual)' :
+                    metric === 'early_frost' ? 'Spring frost (Sep–Nov)' :
+                    metric === 'hot_days30' ? 'Hot days >30°C' :
+                    metric === 'r99p' ? 'Extreme rain (R99p)' : 'Season Min Temp'} by zone`,
             font: { size: 14, weight: 'bold' },
           }
         },
         scales: {
           y: {
-            beginAtZero: metric === 'gdd' || metric === 'rain',
+            beginAtZero: metric !== 'tmean' && metric !== 'tmax',
             title: {
               display: true,
               text: metric === 'gdd' ? 'GDD (°C·days)' :
-                    metric === 'rain' ? 'Rainfall (mm)' : 'Temperature (°C)',
+                    (metric === 'rain' || metric === 'r99p') ? 'Rainfall (mm)' :
+                    (metric === 'frost_days' || metric === 'early_frost' || metric === 'hot_days30') ? 'Days' :
+                    'Temperature (°C)',
             }
           },
           x: {

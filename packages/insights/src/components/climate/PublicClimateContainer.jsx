@@ -24,7 +24,9 @@ import {
 import ZoneSelector from './ZoneSelector';
 import ZoneSelectorRealtime from './ZoneSelectorRealtime';
 import ClimateAbout from './ClimateAbout';
+import WinterHoldingPage from './WinterHoldingPage';
 import { ClimateErrorBoundary } from './ClimateErrorCard';
+import { isGrowingSeason } from '../../utils/season';
 
 const CurrentSeasonExplorer = lazy(() => import('./CurrentSeasonExplorer'));
 const PhenologyExplorer = lazy(() => import('./PhenologyExplorer'));
@@ -60,6 +62,7 @@ const VIEW_CONFIG = {
     component: PhenologyExplorer,
     allowComparison: false,
     useRealtimeSelector: true,
+    seasonGated: true,
     icon: Grape,
   },
   disease: {
@@ -69,6 +72,7 @@ const VIEW_CONFIG = {
     component: DiseasePressureExplorer,
     allowComparison: false,
     useRealtimeSelector: true,
+    seasonGated: true,
     icon: ShieldCheck,
   },
   seasons: {
@@ -172,6 +176,8 @@ const PublicClimateContainer = ({
 
   const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.currentseason;
   const ContentComponent = currentViewConfig.component;
+  const inSeason = isGrowingSeason();
+  const showWinterHolding = currentViewConfig.seasonGated && !inSeason;
 
   const handleZoneChange = (zone) => {
     // In demo mode, only allow Waipara - redirect others to auth
@@ -317,15 +323,23 @@ const PublicClimateContainer = ({
 
       {/* Main Content */}
       <div className="climate-content" role="tabpanel" aria-label={currentViewConfig.label}>
-        <ClimateErrorBoundary key={activeView}>
-          <Suspense fallback={<div className="climate-explorer-loading"><Loader size={20} className="spin" /> Loading explorer...</div>}>
-            <ContentComponent
-              zone={selectedZone}
-              comparisonZones={comparisonZones}
-              onComparisonZonesChange={handleComparisonZonesChange}
-            />
-          </Suspense>
-        </ClimateErrorBoundary>
+        {showWinterHolding ? (
+          <WinterHoldingPage
+            feature={currentViewConfig.label}
+            onViewChange={handleViewChange}
+          />
+        ) : (
+          <ClimateErrorBoundary key={activeView}>
+            <Suspense fallback={<div className="climate-explorer-loading"><Loader size={20} className="spin" /> Loading explorer...</div>}>
+              <ContentComponent
+                zone={selectedZone}
+                comparisonZones={comparisonZones}
+                onComparisonZonesChange={handleComparisonZonesChange}
+                inSeason={inSeason}
+              />
+            </Suspense>
+          </ClimateErrorBoundary>
+        )}
       </div>
 
       {/* Data Attribution */}

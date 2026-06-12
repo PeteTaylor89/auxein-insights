@@ -80,6 +80,8 @@ class MonthlyBaseline(BaseModel):
     tmin: Optional[Decimal] = None
     rain: Optional[Decimal] = None
     gdd: Optional[Decimal] = None
+    rx1day: Optional[Decimal] = None  # max 1-day rainfall baseline (mm)
+    frost_days: Optional[Decimal] = None  # monthly frost-day normal
 
 
 class SeasonBaseline(BaseModel):
@@ -116,6 +118,49 @@ class MonthlyHistory(BaseModel):
     gdd: ClimateValue
     rain: ClimateValue
     solar: ClimateValue
+    rx1day: ClimateValue = ClimateValue()  # max 1-day rainfall (mm)
+    frost_days: ClimateValue = ClimateValue()  # monthly frost-day count
+
+
+# =============================================================================
+# SEASONAL EXTREMES (frost / hot days / R99p) + projections
+# =============================================================================
+
+class SeasonExtremes(BaseModel):
+    """Per-season extreme metrics for a zone. source = modelled | observed."""
+    last_frost_doy: Optional[Decimal] = None
+    last_frost_date: Optional[str] = None
+    early_frost: ClimateValue = ClimateValue()   # spring (SON) frost count
+    frost_days: ClimateValue = ClimateValue()    # FD (Tmin < 0)
+    hot_days30: ClimateValue = ClimateValue()    # TX30 (Tmax > 30)
+    r99p: ClimateValue = ClimateValue()          # 99th-pctile wet-day rain (mm)
+    source: Optional[str] = None
+
+
+class SeasonExtremesBaseline(BaseModel):
+    """Seasonal extreme baseline (1987-2006 normal) for a zone."""
+    baseline_period: Optional[str] = None
+    last_frost_doy: ClimateValue = ClimateValue()
+    last_frost_date: Optional[str] = None
+    early_frost: ClimateValue = ClimateValue()
+    frost_days: ClimateValue = ClimateValue()
+    hot_days30: ClimateValue = ClimateValue()
+    r99p: ClimateValue = ClimateValue()
+
+
+class ProjectionExtremeMetric(BaseModel):
+    """Baseline / delta / projected for one projected extreme metric."""
+    baseline: Optional[Decimal] = None
+    delta: Optional[Decimal] = None
+    projected: Optional[Decimal] = None
+
+
+class ProjectionExtremes(BaseModel):
+    """Projected seasonal extremes for one SSP scenario/period."""
+    frost_days: Optional[ProjectionExtremeMetric] = None
+    spring_frost: Optional[ProjectionExtremeMetric] = None
+    hot_days30: Optional[ProjectionExtremeMetric] = None
+    r99p: Optional[ProjectionExtremeMetric] = None
 
 
 class HistoryResponse(BaseModel):
@@ -159,12 +204,14 @@ class SeasonSummary(BaseModel):
     solar_total: Optional[Decimal] = None
     vs_baseline: Optional[SeasonVsBaseline] = None
     rankings: Optional[List[SeasonRanking]] = None
+    extremes: Optional[SeasonExtremes] = None
 
 
 class SeasonsResponse(BaseModel):
     """Response for zone seasons endpoint."""
     zone: ClimateZoneBrief
     baseline: SeasonBaseline
+    baseline_extremes: Optional[SeasonExtremesBaseline] = None
     seasons: List[SeasonSummary] = []
 
 
@@ -217,6 +264,7 @@ class ScenarioPeriodProjection(BaseModel):
     period: ProjectionPeriod
     monthly: List[MonthlyProjection] = []
     season_summary: Optional[SeasonProjectionSummary] = None
+    extremes: Optional[ProjectionExtremes] = None
 
 
 class ProjectionsResponse(BaseModel):
