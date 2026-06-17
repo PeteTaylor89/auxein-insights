@@ -53,7 +53,7 @@ export default function GrowPrivacyContent() {
                   &quot;our&quot;) develops and operates the Auxein Grow mobile application
                   (&quot;Auxein Grow&quot;, the &quot;App&quot;), distributed through Google Play
                   and the Apple App Store under the package identifier
-                  <code className="text-charcoal bg-sand px-1 rounded mx-1">co.nz.auxein.grow</code>.
+                  <code className="text-charcoal bg-sand px-1 rounded mx-1">nz.co.auxein.grow</code>.
                 </p>
                 <p className="text-charcoal-600 mb-4">
                   This policy explains specifically how Auxein Grow collects, uses, stores, shares,

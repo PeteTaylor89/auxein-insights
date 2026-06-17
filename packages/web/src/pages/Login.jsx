@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@vineyard/shared';
 import Logo from '../assets/logo-mark.png';
 import SiteBanner from '../components/SiteBanner';
+import AppStoreBadges from '../components/AppStoreBadges';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -11,7 +12,7 @@ function Login() {
   });
   const [successMessage, setSuccessMessage] = useState('');
 
-  const { login, error, loading } = useAuth();
+  const { login, error, loading, loginMobileOnly } = useAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -85,9 +86,17 @@ function Login() {
             </div>
           )}
 
-          {error && (
+          {error && !loginMobileOnly && (
             <div className="error-message">
               {error}
+            </div>
+          )}
+
+          {loginMobileOnly && (
+            <div className="login-mobile-only">
+              <h3>Use the Auxein Grow app</h3>
+              <p>{error}</p>
+              <AppStoreBadges />
             </div>
           )}
 

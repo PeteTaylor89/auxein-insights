@@ -1697,6 +1697,26 @@ button.stat-card,
   font-size: var(--font-size-base);
 }
 
+.login-mobile-only {
+  padding: 18px 16px;
+  background: var(--color-surface-warm, #faf7f0);
+  border: 1px solid var(--color-border, #e5e0d5);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.login-mobile-only h3 {
+  margin: 0 0 6px;
+  font-size: var(--font-size-lg, 1.1rem);
+  color: var(--color-text, #2a2a2a);
+}
+
+.login-mobile-only p {
+  margin: 0 0 14px;
+  color: var(--color-text-muted, #6b6b6b);
+  font-size: var(--font-size-base);
+}
+
 .login-button {
   padding: 13px 20px;
   background: var(--color-accent);

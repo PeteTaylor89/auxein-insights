@@ -185,6 +185,17 @@ class Settings(BaseSettings):
     INSIGHTS_FRONTEND_URL: str = os.getenv("INSIGHTS_FRONTEND_URL", "http://localhost:5174")
     INSIGHTS_SUPPORT_EMAIL: str = os.getenv("INSIGHTS_SUPPORT_EMAIL", "insights@auxein.co.nz")
 
+    # Mobile app store listings + the public host that serves email badge images.
+    # An empty store URL hides the download badges in branded emails (kill switch
+    # until a store link is live). Badge PNGs live at MARKETING_BASE_URL/images/badges/.
+    GROW_APP_STORE_URL: str = os.getenv(
+        "GROW_APP_STORE_URL", "https://apps.apple.com/us/app/auxein-grow/id6774847550"
+    )
+    GROW_PLAY_STORE_URL: str = os.getenv(
+        "GROW_PLAY_STORE_URL", "https://play.google.com/store/apps/details?id=nz.co.auxein.grow"
+    )
+    MARKETING_BASE_URL: str = os.getenv("MARKETING_BASE_URL", "https://auxein.co.nz")
+
     # MetOcean forecast API. Replaces the previous client-side direct call (key
     # was leaking in the web bundle). Backend proxies + caches so mobile + web
     # share one provider. TTL matches the previous browser-cache TTL (3 h).

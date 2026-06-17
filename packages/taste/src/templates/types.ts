@@ -37,6 +37,9 @@ export interface TemplateSection {
   id: string;
   label: string; // e.g. "Sight", "Nose", "Palate", "Conclusions"
   fields: TemplateField[];
+  // Deductive sections (Initial/Final Conclusion) — only shown when tasting blind.
+  // Hidden for a known/non-blind note (you already know the wine).
+  blind_only?: boolean;
 }
 
 // Denormalised copy pinned onto a note at capture time so the note renders

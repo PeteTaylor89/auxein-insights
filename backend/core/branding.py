@@ -35,6 +35,15 @@ class Brand:
     support_email: str     # user-facing "need help?" address
     frontend_url: str      # base URL for links inside emails (no trailing slash)
     from_name: str         # SMTP From: display name
+    # Mobile app download links + hosted badge images for email CTAs. Empty
+    # strings mean "no mobile app" — the email badge helper renders nothing.
+    app_store_url: str = ""
+    play_store_url: str = ""
+    app_store_badge_url: str = ""
+    play_store_badge_url: str = ""
+
+
+_MARKETING = settings.MARKETING_BASE_URL.rstrip("/")
 
 
 GROW = Brand(
@@ -43,6 +52,10 @@ GROW = Brand(
     support_email=settings.GROW_SUPPORT_EMAIL,
     frontend_url=settings.GROW_FRONTEND_URL.rstrip("/"),
     from_name="Auxein Grow",
+    app_store_url=settings.GROW_APP_STORE_URL,
+    play_store_url=settings.GROW_PLAY_STORE_URL,
+    app_store_badge_url=f"{_MARKETING}/images/badges/app-store-badge.png",
+    play_store_badge_url=f"{_MARKETING}/images/badges/google-play-badge.png",
 )
 
 

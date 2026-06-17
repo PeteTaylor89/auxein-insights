@@ -169,7 +169,7 @@ PLATFORM: dict[str, list[str]] = {
     UserType.auxein_admin:    ["web"],
     UserType.company_admin:   ["web", "mobile"],
     UserType.company_manager: ["web", "mobile"],
-    UserType.company_user:    ["mobile", "web_limited"],
+    UserType.company_user:    ["mobile"],
     UserType.contractor:      ["web", "mobile"],
 }
 

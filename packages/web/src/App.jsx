@@ -45,9 +45,14 @@ const MapsPage = lazy(() => import('./pages/maps-v2/MapsPage'));
 const Admin = lazy(() => import('./pages/Admin'));
 const CompanyAdmin = lazy(() => import('./pages/CompanyAdmin'));
 
-// Protected route — auth + non-contractor.
-// Contractors are mobile-only in V1; they get bounced to the landing page so
-// they never see the manager-oriented web surface.
+// Mobile-only roles: contractors and standard users both work in the app, not
+// the web client. They get bounced to the landing page so they never see the
+// manager-oriented web surface. (New logins are also blocked server-side; this
+// guard additionally covers any already-cached web token.)
+const MOBILE_ONLY_ROLES = ['contractor', 'company_user'];
+const isMobileOnlyRole = (role) => MOBILE_ONLY_ROLES.includes(role);
+
+// Protected route — auth + web-eligible role.
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading, initialLoading, userTypeRole } = useAuth();
 
@@ -59,15 +64,15 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (userTypeRole === 'contractor') {
+  if (isMobileOnlyRole(userTypeRole)) {
     return <Navigate to="/contractor-mobile-only" replace />;
   }
 
   return children;
 }
 
-// Contractor-only guard for /contractor-mobile-only. Non-contractors hitting
-// this route get bounced home — they have no business there.
+// Guard for /contractor-mobile-only. Web-eligible roles hitting this route get
+// bounced home — they have no business there.
 function ContractorOnlyRoute({ children }) {
   const { isAuthenticated, loading, initialLoading, userTypeRole } = useAuth();
 
@@ -79,14 +84,14 @@ function ContractorOnlyRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (userTypeRole !== 'contractor') {
+  if (!isMobileOnlyRole(userTypeRole)) {
     return <Navigate to="/" replace />;
   }
 
   return children;
 }
 
-// Auth route — redirects post-auth users away from /login. Contractors go
+// Auth route — redirects post-auth users away from /login. Mobile-only roles go
 // straight to their landing page so the AppLayout chrome never flashes.
 function AuthRoute({ children }) {
   const { isAuthenticated, loading, initialLoading, userTypeRole } = useAuth();
@@ -96,7 +101,7 @@ function AuthRoute({ children }) {
   }
 
   if (isAuthenticated) {
-    const dest = userTypeRole === 'contractor' ? '/contractor-mobile-only' : '/';
+    const dest = isMobileOnlyRole(userTypeRole) ? '/contractor-mobile-only' : '/';
     return <Navigate to={dest} replace />;
   }
 

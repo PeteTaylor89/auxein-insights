@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { TemplateField, TemplateSection } from '@/templates/types';
 
 type Values = Record<string, unknown>;
@@ -10,28 +10,45 @@ interface Props {
   onAddOption?: (fieldKey: string, groupLabel: string | null, term: string) => void;
 }
 
-// Renders a template (or pinned snapshot) as the tasting grid. Pure: parent owns values.
+type AddOption = Props['onAddOption'];
+
+// Renders all the fields of one section. Shared by GridRenderer (flat) and
+// SectionWalk (one section at a time, guided forward walk).
+export function SectionFields({
+  fields,
+  values,
+  onChange,
+  onAddOption,
+}: {
+  fields: TemplateField[];
+  values: Values;
+  onChange: (key: string, value: unknown) => void;
+  onAddOption?: AddOption;
+}) {
+  return (
+    <>
+      {fields.map((field) => (
+        <div className="grid-field" key={field.id}>
+          <div className="grid-field-label">
+            {field.label}
+            {field.required && <span className="req">*</span>}
+          </div>
+          {field.help && <div className="grid-field-help">{field.help}</div>}
+          <FieldWidget field={field} value={values[field.key]} onChange={(v) => onChange(field.key, v)} onAddOption={onAddOption} />
+        </div>
+      ))}
+    </>
+  );
+}
+
+// Renders a template (or pinned snapshot) as a flat grid. Pure: parent owns values.
 export function GridRenderer({ sections, values, onChange, onAddOption }: Props) {
   return (
     <>
       {sections.map((section) => (
         <div className="grid-section" key={section.id}>
           <h2 className="grid-section-label">{section.label}</h2>
-          {section.fields.map((field) => (
-            <div className="grid-field" key={field.id}>
-              <div className="grid-field-label">
-                {field.label}
-                {field.required && <span className="req">*</span>}
-              </div>
-              {field.help && <div className="grid-field-help">{field.help}</div>}
-              <FieldWidget
-                field={field}
-                value={values[field.key]}
-                onChange={(v) => onChange(field.key, v)}
-                onAddOption={onAddOption}
-              />
-            </div>
-          ))}
+          <SectionFields fields={section.fields} values={values} onChange={onChange} onAddOption={onAddOption} />
         </div>
       ))}
     </>
@@ -47,17 +64,25 @@ function FieldWidget({
   field: TemplateField;
   value: unknown;
   onChange: (v: unknown) => void;
-  onAddOption?: Props['onAddOption'];
+  onAddOption?: AddOption;
 }) {
   switch (field.type) {
-    case 'single_select':
-      return <SingleSelect options={field.options ?? []} value={value as string | undefined} onChange={onChange} />;
+    case 'single_select': {
+      const opts = field.options ?? [];
+      // Short ordered scales (Low→High etc.) read better as a segmented rotator;
+      // long lists (hue, colour) stay as wrapping chips.
+      const segmented = opts.length >= 2 && opts.length <= 6 && opts.every((o) => o.length <= 12);
+      return segmented ? (
+        <Segmented options={opts} value={value as string | undefined} onChange={onChange} />
+      ) : (
+        <SingleSelect options={opts} value={value as string | undefined} onChange={onChange} />
+      );
+    }
     case 'multi_select':
       return <MultiSelect options={field.options ?? []} value={(value as string[]) ?? []} onChange={onChange} />;
     case 'tag_structured':
-      // Only the freeform descriptor fields get "+ add" — fixed-response fields don't.
       return (
-        <TagGroups
+        <DescriptorPicker
           field={field}
           value={(value as string[]) ?? []}
           onChange={onChange}
@@ -65,7 +90,7 @@ function FieldWidget({
         />
       );
     case 'boolean':
-      return <BoolToggle value={value as boolean | undefined} onChange={onChange} />;
+      return <Segmented options={['Yes', 'No']} value={value === true ? 'Yes' : value === false ? 'No' : undefined} onChange={(v) => onChange(v === 'Yes' ? true : v === 'No' ? false : undefined)} />;
     case 'scale':
     case 'score':
       return <ScaleInput field={field} value={value as number | undefined} onChange={onChange} />;
@@ -74,18 +99,35 @@ function FieldWidget({
         <input
           className="form-input"
           type="number"
+          inputMode="decimal"
           value={value === undefined || value === null ? '' : (value as number)}
           onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
         />
       );
     case 'text_long':
-      return (
-        <textarea className="form-input" rows={3} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
-      );
+      return <textarea className="form-input" rows={3} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />;
     case 'text_short':
     default:
       return <input className="form-input" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />;
   }
+}
+
+// Connected segmented bar (the "rotator" for ordered scales).
+function Segmented({ options, value, onChange }: { options: string[]; value?: string; onChange: (v: unknown) => void }) {
+  return (
+    <div className="segmented">
+      {options.map((opt) => (
+        <button
+          key={opt}
+          type="button"
+          className={value === opt ? 'segmented-item segmented-item--active' : 'segmented-item'}
+          onClick={() => onChange(value === opt ? undefined : opt)}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 // Inline "+ add" that expands into a text field, commits on Enter / blur.
@@ -149,8 +191,9 @@ function MultiSelect({ options, value, onChange }: { options: string[]; value: s
   );
 }
 
-// Grouped descriptor chips (CMS aroma/flavour). Values are flat term strings.
-function TagGroups({
+// Grouped descriptor chips + a type-ahead that searches every group at once.
+// Values are flat term strings. Searching is the fast path; groups are the browse path.
+function DescriptorPicker({
   field,
   value,
   onChange,
@@ -161,48 +204,84 @@ function TagGroups({
   onChange: (v: unknown) => void;
   onAdd?: (group: string | null, term: string) => void;
 }) {
+  const [query, setQuery] = useState('');
   const toggle = (term: string) => onChange(value.includes(term) ? value.filter((v) => v !== term) : [...value, term]);
-  return (
-    <div className="tag-groups">
-      {(field.groups ?? []).map((group) => {
-        const count = group.options.filter((o) => value.includes(o)).length;
-        return (
-          <details className="tag-group" key={group.label} open={count > 0}>
-            <summary className="tag-group-summary">
-              {group.label}
-              {count > 0 && <span className="badge">{count}</span>}
-            </summary>
-            <div className="chip-row">
-              {group.options.map((opt) => (
-                <button key={opt} className={value.includes(opt) ? 'chip chip--active' : 'chip'} onClick={() => toggle(opt)}>
-                  {opt}
-                </button>
-              ))}
-              {onAdd && (
-                <AddChip
-                  onAdd={(term) => {
-                    onAdd(group.label, term);
-                    if (!value.includes(term)) onChange([...value, term]);
-                  }}
-                />
-              )}
-            </div>
-          </details>
-        );
-      })}
-    </div>
-  );
-}
 
-function BoolToggle({ value, onChange }: { value?: boolean; onChange: (v: unknown) => void }) {
+  // Flat index of {term, group} across all groups, for the type-ahead.
+  const index = useMemo(
+    () => (field.groups ?? []).flatMap((g) => g.options.map((term) => ({ term, group: g.label }))),
+    [field.groups],
+  );
+  const q = query.trim().toLowerCase();
+  const matches = q ? index.filter((x) => x.term.toLowerCase().includes(q)).slice(0, 30) : [];
+
   return (
-    <div className="chip-row">
-      <button className={value === true ? 'chip chip--active' : 'chip'} onClick={() => onChange(value === true ? undefined : true)}>
-        Yes
-      </button>
-      <button className={value === false ? 'chip chip--active' : 'chip'} onClick={() => onChange(value === false ? undefined : false)}>
-        No
-      </button>
+    <div className="descriptor-picker">
+      {value.length > 0 && (
+        <div className="chip-row chip-row--selected">
+          {value.map((term) => (
+            <button key={term} className="chip chip--active" onClick={() => toggle(term)}>
+              {term} ✕
+            </button>
+          ))}
+        </div>
+      )}
+
+      <input
+        className="form-input"
+        placeholder="Search descriptors…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+
+      {q ? (
+        <div className="chip-row">
+          {matches.map((m) => (
+            <button key={`${m.group}:${m.term}`} className={value.includes(m.term) ? 'chip chip--active' : 'chip'} onClick={() => toggle(m.term)}>
+              {m.term}
+            </button>
+          ))}
+          {matches.length === 0 && onAdd && (
+            <AddChip
+              onAdd={(term) => {
+                onAdd(null, term); // ungrouped add when nothing matched the search
+                if (!value.includes(term)) onChange([...value, term]);
+                setQuery('');
+              }}
+            />
+          )}
+          {matches.length === 0 && !onAdd && <span className="grid-field-help">No match</span>}
+        </div>
+      ) : (
+        <div className="tag-groups">
+          {(field.groups ?? []).map((group) => {
+            const count = group.options.filter((o) => value.includes(o)).length;
+            return (
+              <details className="tag-group" key={group.label} open={count > 0}>
+                <summary className="tag-group-summary">
+                  {group.label}
+                  {count > 0 && <span className="badge">{count}</span>}
+                </summary>
+                <div className="chip-row">
+                  {group.options.map((opt) => (
+                    <button key={opt} className={value.includes(opt) ? 'chip chip--active' : 'chip'} onClick={() => toggle(opt)}>
+                      {opt}
+                    </button>
+                  ))}
+                  {onAdd && (
+                    <AddChip
+                      onAdd={(term) => {
+                        onAdd(group.label, term);
+                        if (!value.includes(term)) onChange([...value, term]);
+                      }}
+                    />
+                  )}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

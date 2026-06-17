@@ -59,6 +59,7 @@ export interface Note extends BaseRow {
   template_snapshot: TemplateSnapshot; // denormalised so old notes render unchanged
   values: Record<string, unknown>; // keyed by TemplateField.key
   general_notes: string; // free text — thoughts, winemaker notes, context (not template-driven)
+  tasted_at: string | null; // ISO date the wine was tasted (defaults today; editable for backdated notes)
   blind: boolean;
   revealed: boolean; // display gate only — data is always stored
   score: number | null;
@@ -71,6 +72,7 @@ export interface Flight extends BaseRow {
   event_id: string | null;
   name: string;
   blind: boolean;
+  general_notes: string; // flight-level notes captured during the tasting
   note_ids: string[]; // ordered
 }
 

@@ -522,6 +522,526 @@ body {
   z-index: 20;
 }
 
+/* --- Wines / picker / geo typeahead (P5) --- */
+.template-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-card-main.as-button {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+}
+
+.wine-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wine-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wine-picker-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: inherit;
+  width: 100%;
+}
+
+.wine-picker-row:active {
+  background: #eef0e7;
+}
+
+.wine-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--brand);
+  border-radius: 9px;
+  background: #f3f5ec;
+}
+
+.geo-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.geo-search {
+  position: relative;
+}
+
+.geo-results {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.geo-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+}
+
+.geo-result:active {
+  background: #eef0e7;
+}
+
+.geo-result--empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.geo-result-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.geo-result-path {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.geo-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.geo-linked {
+  font-size: 12px;
+  color: var(--brand-dark);
+  margin: 0;
+}
+
+/* --- Forms: toggles + labelled selects (P5) --- */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.toggle-row input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brand);
+  flex: none;
+}
+
+.field-label-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.field-label-block .form-select {
+  width: 100%;
+}
+
+/* --- Capture: tasting context (P5) --- */
+.context-details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.context-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.context-summary::-webkit-details-marker {
+  display: none;
+}
+
+.context-current {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.context-body {
+  margin-top: 6px;
+}
+
+/* --- Flight detail (P5) --- */
+.flight-note {
+  align-items: center;
+}
+
+.flight-note-pos {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 999px;
+  background: #eef0e7;
+  color: var(--brand-dark);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+}
+
+/* ===== Redesign (tasting flow) ===== */
+
+/* --- Home hub --- */
+.home-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.home-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 92px;
+}
+
+.home-tile:active {
+  background: #eef0e7;
+}
+
+.home-tile--primary,
+.home-tile--primary:active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.home-tile-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.home-tile-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.home-tile--primary .home-tile-sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* card-as-button (recent feed, wines list, flight rows) */
+.template-card.as-button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.score-pill {
+  flex: none;
+  min-width: 34px;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* --- Segmented "rotator" (ordered scales, Yes/No) --- */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.segmented-item {
+  flex: 1 1 auto;
+  min-width: 60px;
+  padding: 9px 6px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.segmented-item:last-child {
+  border-right: none;
+}
+
+.segmented-item--active {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* --- Descriptor autopicker --- */
+.descriptor-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chip-row--selected {
+  margin-bottom: 2px;
+}
+
+/* --- Guided section walk --- */
+.walk {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.walk-section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.walk-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font: inherit;
+}
+
+.walk-header-label {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.walk-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.walk-chevron {
+  color: var(--muted);
+}
+
+.walk-body {
+  padding: 0 14px 14px;
+}
+
+.walk-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.walk-progress {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.walk-nav-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.walk-nav-btns .btn {
+  margin-top: 0;
+}
+
+/* --- Capture workspace bar --- */
+.capture-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  background: var(--bg);
+}
+
+.capture-bar .btn {
+  margin-top: 0;
+}
+
+.capture-bar-title {
+  font-weight: 700;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.capture-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.capture-sub .btn {
+  margin-top: 0;
+}
+
+.capture-pos {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.form-input--inline {
+  width: auto;
+  flex: none;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.reveal-block {
+  border-color: var(--brand);
+}
+
+/* --- Wine fields disclosures --- */
+.wine-fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.wine-fields > .capture-wine-row:first-of-type {
+  margin-top: 8px;
+}
+
+.sub-disclosure {
+  margin-top: 10px;
+}
+
+.sub-disclosure > summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-dark);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.sub-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* --- Wine review --- */
+.review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.review-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-list {
+  margin: 0;
+}
+
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.review-row:last-child {
+  border-bottom: none;
+}
+
+.review-row dt {
+  color: var(--muted);
+  font-size: 13px;
+  flex: none;
+}
+
+.review-row dd {
+  margin: 0;
+  text-align: right;
+  font-size: 14px;
+}
+
+.review-notes {
+  margin: 12px 0 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
 .app-nav {
   flex: none;
   display: flex;

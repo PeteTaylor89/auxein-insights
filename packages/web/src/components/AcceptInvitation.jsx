@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
+import AppStoreBadges from './AppStoreBadges';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
+// Roles that map to the mobile-only company_user account type. After setup
+// these users sign in through the app, not the web client.
+const MOBILE_ONLY_ROLES = ['user', 'viewer'];
 
 function AcceptInvitation() {
   // Get token from URL params
@@ -17,6 +22,8 @@ function AcceptInvitation() {
     last_name: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   });
+
+  const isMobileOnlyRole = MOBILE_ONLY_ROLES.includes(invitation?.role);
 
   useEffect(() => {
     if (token) {
@@ -97,13 +104,16 @@ function AcceptInvitation() {
       console.log('Account created successfully:', result);
       
       setSuccess(true);
-      
-      // Redirect after success with user info
-      setTimeout(() => {
-        const message = `Welcome ${result.username}! Your account has been created successfully.`;
-        window.location.href = `/login?message=${encodeURIComponent(message)}&email=${encodeURIComponent(invitation.email)}`;
-      }, 2000);
-      
+
+      // Mobile-only users finish in the app, so don't bounce them to web login.
+      // Managers/admins continue to the web login as before.
+      if (!isMobileOnlyRole) {
+        setTimeout(() => {
+          const message = `Welcome ${result.username}! Your account has been created successfully.`;
+          window.location.href = `/login?message=${encodeURIComponent(message)}&email=${encodeURIComponent(invitation.email)}`;
+        }, 2000);
+      }
+
     } catch (err) {
       setError(err.message || 'Failed to accept invitation');
     } finally {
@@ -159,6 +169,29 @@ function AcceptInvitation() {
 
   // Success state
   if (success) {
+    // Mobile-only users (role "user"/"viewer") sign in through the app — make
+    // that the explicit next step instead of sending them to the web login.
+    if (isMobileOnlyRole) {
+      return (
+        <div className="accept-invitation-page">
+          <div className="card success-card">
+            <div className="success-icon">📱</div>
+            <h1>Account Created!</h1>
+            <p>Welcome to {invitation?.company?.name}!</p>
+            <p style={{ margin: '16px 0 8px' }}>
+              Your account is for the <strong>Auxein Grow mobile app</strong>. Download the app and
+              sign in with the username and password you just created.
+            </p>
+            <div style={{ margin: '20px 0' }}>
+              <AppStoreBadges />
+            </div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
+              The web app is reserved for managers and admins.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="accept-invitation-page">
         <div className="card success-card">
@@ -214,7 +247,14 @@ function AcceptInvitation() {
 
         <div className="form-container">
           <h3>Create Your Account</h3>
-          
+
+          {isMobileOnlyRole && (
+            <div className="personal-message" style={{ marginBottom: '24px' }}>
+              <strong>📱 Heads up:</strong> Your account is for the Auxein Grow mobile app.
+              Set your username and password here, then sign in on the app.
+            </div>
+          )}
+
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="first_name">First Name *</label>

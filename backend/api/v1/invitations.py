@@ -1,6 +1,6 @@
 # app/api/v1/invitations.py
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Header
 from datetime import datetime, timezone  
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -25,7 +25,11 @@ def create_invitation(
     current_user: User = Depends(get_current_user)
     ):
 
-    
+    # Note: no explicit permission gate here — the web app is the only surface
+    # that creates invitations, and the /auth/login client-type block already
+    # restricts web access to managers and admins (standard users + contractors
+    # are mobile-only). See [[web-mobile-access-rule]].
+
     # Get company
     company = db.query(Company).filter(Company.id == current_user.company_id).first()
     if not company:
@@ -258,28 +262,34 @@ def accept_invitation(
 @router.post("/login-temp")
 def login_with_temp_credentials(
     login_data: dict,  # {"token": "...", "password": "..."}
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    client_type: Optional[str] = Header(None, alias="x-client-type"),  # "web" | "mobile"
 ):
     """Login directly using temporary credentials from invitation"""
-    
+
+    # Normalise client type (missing/unknown → web, the safe default that blocks
+    # mobile-only accounts).
+    if client_type not in ["web", "mobile"]:
+        client_type = "web"
+
     token = login_data.get("token")
     password = login_data.get("password")
-    
+
     if not token or not password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token and password are required"
         )
-    
+
     # Find invitation
     invitation = db.query(Invitation).filter(Invitation.token == token).first()
-    
+
     if not invitation or not invitation.is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired invitation"
         )
-    
+
     # Verify temporary password
     from core.security.password import verify_password
     if not invitation.temporary_password or not verify_password(password, invitation.temporary_password):
@@ -287,7 +297,26 @@ def login_with_temp_credentials(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid temporary password"
         )
-    
+
+    # Mirror the /auth/login client-type gate so this path isn't a bypass: the
+    # web app is for managers/admins; standard users (company_user) are
+    # mobile-only. Same structured MOBILE_ONLY 403 the web login screen handles.
+    role_to_user_type = {
+        "admin": "company_admin",
+        "manager": "company_manager",
+        "user": "company_user",
+        "viewer": "company_user",
+    }
+    effective_user_type = role_to_user_type.get(invitation.role, "company_user")
+    if client_type == "web" and effective_user_type == "company_user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "MOBILE_ONLY",
+                "message": "This account uses the Auxein Grow mobile app. Please sign in from the app on your phone.",
+            },
+        )
+
     # Check if user already exists for this invitation
     existing_user = db.query(User).filter(User.email == invitation.email).first()
     
@@ -322,14 +351,6 @@ def login_with_temp_credentials(
             while db.query(User).filter(User.username == suggested_username).first():
                 suggested_username = f"{base_username}{counter}"
                 counter += 1
-        
-        # Map invitation role to 5-tier user_type
-        role_to_user_type = {
-            "admin": "company_admin",
-            "manager": "company_manager",
-            "user": "company_user",
-            "viewer": "company_user",
-        }
 
         new_user = User(
             email=invitation.email,

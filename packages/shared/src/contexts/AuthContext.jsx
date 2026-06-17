@@ -18,6 +18,9 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // True when a login was refused because the account is mobile-app-only
+  // (contractors + standard users). Drives the "use the app" notice on /login.
+  const [loginMobileOnly, setLoginMobileOnly] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   
@@ -58,7 +61,8 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError('');
-      
+      setLoginMobileOnly(false);
+
       const response = await authService.login(email, password);
       
       // Store enhanced auth data using the service
@@ -101,13 +105,16 @@ export const AuthProvider = ({ children }) => {
       console.error('Login error:', err);
       setUserType(null);
       setUserTypeRole(null);
-      
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
+
+      const detail = err.response?.data?.detail;
+      // Mobile-app-only accounts come back as a structured 403 from the backend.
+      if (detail && typeof detail === 'object' && detail.code === 'MOBILE_ONLY') {
+        setLoginMobileOnly(true);
+        setError(detail.message || 'This account uses the Auxein Grow mobile app.');
+      } else if (typeof detail === 'string') {
+        setError(detail);
       } else if (err.response?.status === 400) {
         setError('Invalid email/username or password');
-      } else if (err.response?.status === 403) {
-        setError('Access denied. Contractors can only use the mobile app.');
       } else if (err.response?.status === 423) {
         setError('Account is temporarily locked due to failed login attempts.');
       } else {
@@ -159,6 +166,7 @@ export const AuthProvider = ({ children }) => {
     setUserTypeRole(null);
     setIsAuthenticated(false);
     setError('');
+    setLoginMobileOnly(false);
     navigate('/login');
   };
 
@@ -207,6 +215,7 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     error,
+    loginMobileOnly,   // login refused because account is mobile-app-only
     isAuthenticated,
     initialLoading,
     login,
@@ -214,7 +223,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshAuthToken,
     refreshProfile,
-    clearError: () => setError(''),
+    clearError: () => { setError(''); setLoginMobileOnly(false); },
 
     // Enhanced auth values
     userType,         // routing key: "company_user" | "contractor"

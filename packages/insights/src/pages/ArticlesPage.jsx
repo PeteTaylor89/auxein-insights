@@ -148,10 +148,7 @@ function ArticlesPage() {
                         <Calendar size={14} />
                         {formatDate(article.published_at)}
                       </span>
-                      <span className="article-meta-item">
-                        <Eye size={14} />
-                        {article.view_count}
-                      </span>
+
                       <span className="article-meta-item">
                         <Heart size={14} />
                         {article.like_count}

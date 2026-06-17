@@ -6,19 +6,20 @@ import {
   CaptureScreen,
   EventsScreen,
   FlightsScreen,
+  HomeScreen,
   SettingsScreen,
   StatsScreen,
   TemplatesScreen,
   WinesScreen,
 } from './screens';
 
-// Primary nav lives in a bottom bar (touch-first; thumb-reachable on phone/iPad).
+// Primary nav (bottom bar, touch-first). Capture is reached via Home/flights,
+// not a tab; Stats is reached from Home/Settings (P6 placeholder).
 const NAV: { to: string; label: string }[] = [
-  { to: '/capture', label: 'Capture' },
-  { to: '/flights', label: 'Flights' },
-  { to: '/events', label: 'Events' },
+  { to: '/home', label: 'Home' },
   { to: '/wines', label: 'Wines' },
-  { to: '/stats', label: 'Stats' },
+  { to: '/events', label: 'Events' },
+  { to: '/flights', label: 'Flights' },
   { to: '/templates', label: 'Grids' },
   { to: '/settings', label: 'Settings' },
 ];
@@ -39,7 +40,8 @@ export default function App() {
 
       <main className="app-main">
         <Routes>
-          <Route path="/" element={<Navigate to="/capture" replace />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<HomeScreen />} />
           <Route path="/capture" element={<CaptureScreen />} />
           <Route path="/flights" element={<FlightsScreen />} />
           <Route path="/events" element={<EventsScreen />} />
@@ -47,7 +49,7 @@ export default function App() {
           <Route path="/stats" element={<StatsScreen />} />
           <Route path="/templates" element={<TemplatesScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
-          <Route path="*" element={<Navigate to="/capture" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </main>
 

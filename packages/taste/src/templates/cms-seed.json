@@ -1,7 +1,7 @@
 {
   "id": "builtin-cms-deductive",
   "name": "CMS Deductive",
-  "version": 3,
+  "version": 4,
   "sections": [
     {
       "id": "sight",
@@ -141,6 +141,7 @@
     {
       "id": "initial_conclusion",
       "label": "Initial Conclusion",
+      "blind_only": true,
       "fields": [
         { "id": "ic_climate", "key": "ic_climate", "label": "Climate", "type": "single_select", "options": ["Cool", "Cool / Mod", "Moderate", "Mod / Warm", "Warm"] },
         { "id": "ic_variety", "key": "ic_variety", "label": "Grape variety / blend", "type": "text_short" },
@@ -151,6 +152,7 @@
     {
       "id": "final_conclusion",
       "label": "Final Conclusion",
+      "blind_only": true,
       "fields": [
         { "id": "fc_vintage", "key": "fc_vintage", "label": "Vintage", "type": "number" },
         { "id": "fc_variety", "key": "fc_variety", "label": "Grape variety / blend", "type": "text_short" },

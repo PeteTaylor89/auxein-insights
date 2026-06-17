@@ -384,12 +384,24 @@ def login_access_token(
             detail="Incorrect username/email or password"
         )
     
-    # STEP 4: Client type validation
-    if client_type == "web" and user_type == "contractor":
-        raise HTTPException(
-            status_code=403,
-            detail="Contractors can only access the mobile application"
+    # STEP 4: Client type validation. The web app is for managers and admins.
+    # Contractors and standard users (company_user role) work in the mobile app,
+    # so they are blocked from the web client. The structured detail lets the web
+    # login screen show a "use the app" notice (with store badges) instead of a
+    # generic error — distinct from the suspended/inactive 403s below.
+    if client_type == "web":
+        is_standard_user = (
+            user_type == "company_user"
+            and getattr(authenticated_user, "user_type", None) == "company_user"
         )
+        if user_type == "contractor" or is_standard_user:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "MOBILE_ONLY",
+                    "message": "This account uses the Auxein Grow mobile app. Please sign in from the app on your phone.",
+                },
+            )
     
     # STEP 5: Account status validation
     if user_type == "company_user":

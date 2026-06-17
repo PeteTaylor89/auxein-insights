@@ -230,6 +230,47 @@ def get_base_email_styles():
 
 
 
+def get_app_badges_html(brand: Brand = GROW) -> str:
+    """Centered App Store + Google Play download badges for branded emails.
+
+    Returns "" when the brand has no store links configured, so callers can drop
+    {get_app_badges_html(brand)} into any template unconditionally. Uses a table
+    layout (not flexbox) and explicit img dimensions for email-client safety.
+    Apple's badge is rendered at 40px tall; Google's at 48px so their cap-heights
+    visually match (the Play badge carries more internal padding).
+    """
+    if not (brand.app_store_url and brand.play_store_url):
+        return ""
+
+    return f"""
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 25px auto 5px auto;">
+        <tr>
+            <td align="center" style="padding: 0 6px;">
+                <a href="{brand.app_store_url}" target="_blank" style="text-decoration: none;">
+                    <img src="{brand.app_store_badge_url}" alt="Download Auxein Grow on the App Store" height="40" width="119" style="height: 40px; width: 119px; border: 0; display: block;">
+                </a>
+            </td>
+            <td align="center" style="padding: 0 6px;">
+                <a href="{brand.play_store_url}" target="_blank" style="text-decoration: none;">
+                    <img src="{brand.play_store_badge_url}" alt="Get Auxein Grow on Google Play" height="48" width="162" style="height: 48px; width: 162px; border: 0; display: block;">
+                </a>
+            </td>
+        </tr>
+    </table>
+    """
+
+
+def get_app_badges_text(brand: Brand = GROW) -> str:
+    """Plain-text equivalent of get_app_badges_html. Returns "" if no store links."""
+    if not (brand.app_store_url and brand.play_store_url):
+        return ""
+    return (
+        f"\n    Get the {brand.display_name} mobile app:\n"
+        f"    - App Store: {brand.app_store_url}\n"
+        f"    - Google Play: {brand.play_store_url}\n"
+    )
+
+
 def get_verification_email_template(username: str, verification_link: str, brand: Brand = GROW) -> tuple[str, str]:
     """Get verification email template"""
     
@@ -531,6 +572,12 @@ def send_admin_welcome_email(
                         </ul>
                     </div>
 
+                    <div style="text-align: center; margin: 30px 0 10px 0;">
+                        <h3 style="margin-bottom: 5px;">Take {brand.display_name} into the vineyard</h3>
+                        <p style="margin: 0 0 10px 0;">Download the mobile app for field observations, tasks and GPS coverage.</p>
+                        {get_app_badges_html(brand)}
+                    </div>
+
                     <p>Need help? Contact our support team at <a href="mailto:{brand.support_email}">{brand.support_email}</a></p>
                     
                     <p>Welcome to the {brand.display_name} community!</p>
@@ -569,9 +616,9 @@ def send_admin_welcome_email(
     - Track Observations
     - Assign Tasks
     - Generate Reports
-    
+    {get_app_badges_text(brand)}
     Need help? Contact {brand.support_email}
-    
+
     Welcome to the {brand.display_name} community!
     
     Best regards,
@@ -604,8 +651,9 @@ def send_invitation_email(
     invitation_link = f"{brand.frontend_url}/accept-invitation?token={invitation_token}"
     login_link = f"{brand.frontend_url}/login"
     
-    # Logo URL - update this to match your hosted logo location
-    logo_url = f"/images/App_Logo_September 2025.jpg"  # Assumes logo is in public/images/
+    # Hosted logo on the marketing CDN — email clients fetch images over HTTPS,
+    # so this must be an absolute URL (a relative path renders as a broken image).
+    logo_url = f"{settings.MARKETING_BASE_URL.rstrip('/')}/images/logo-full.png"
     
     html_content = f"""
     <!DOCTYPE html>
@@ -790,7 +838,13 @@ def send_invitation_email(
                             <li><strong>Get Help:</strong> Contact {brand.support_email} if you need assistance</li>
                         </ol>
                     </div>
-                    
+
+                    <div style="text-align: center; margin: 30px 0 10px 0;">
+                        <h4 style="margin-bottom: 5px;">Get the {brand.display_name} mobile app</h4>
+                        <p style="margin: 0 0 10px 0;">Capture observations and tasks from the field on iOS and Android.</p>
+                        {get_app_badges_html(brand)}
+                    </div>
+
                     <p class="text-muted" style="font-size: 14px;">This invitation will expire in 7 days. If you need a new invitation, please contact {inviter_name} or your system administrator.</p>
                     
                     <p>Welcome to the team!</p>
@@ -824,7 +878,7 @@ def send_invitation_email(
     Complete Account Setup: {invitation_link}
     
     {f'SECURITY: Please change your password after first login.' if temporary_password else ''}
-    
+    {get_app_badges_text(brand)}
     This invitation expires in 7 days.
     
     Welcome to the team!
@@ -1078,8 +1132,10 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
                     </ul>
                 </div>
                 
-                <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
-                    <strong>📱 Important:</strong> The mobile app is currently in development. For now, you can access everything through our web platform. You'll be notified when the mobile app is available!
+                <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 15px 15px 5px 15px; margin: 20px 0; text-align: center;">
+                    <strong>📱 Get the mobile app</strong>
+                    <p style="margin: 5px 0 10px 0;">Check in, capture observations and log work from the field on iOS and Android.</p>
+                    {get_app_badges_html(brand)}
                 </div>
                 
                 <h3>🎯 What Makes {brand.display_name} Different?</h3>
@@ -1139,8 +1195,8 @@ def get_contractor_welcome_email_template(contractor_name: str, business_name: s
     - Maintain insurance - Keep your certificates current for continuous work eligibility
     - Professional communication - Quick responses and clear updates build trust
     
-    IMPORTANT: The mobile app is currently in development. For now, you can access everything through our web platform. You'll be notified when the mobile app is available!
-    
+    Get the mobile app - check in, capture observations and log work from the field:
+    {get_app_badges_text(brand)}
     What Makes {brand.display_name} Different?
     - Fair Payment Terms - Transparent rates and timely payments
     - Reputation System - Build your profile with verified reviews

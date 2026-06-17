@@ -14,18 +14,17 @@ function Placeholder({ title, blurb }: { title: string; blurb: string }) {
   );
 }
 
+// Home launcher (default landing).
+export { HomeScreen } from '@/features/home/HomeScreen';
+
 // Real capture grid lives in features/capture (P4).
 export { CaptureScreen } from '@/features/capture/CaptureScreen';
 
-export const FlightsScreen = (): ReactNode => (
-  <Placeholder title="Flights" blurb="Ordered notes with on-the-go wine swap. Built in P5." />
-);
-export const EventsScreen = (): ReactNode => (
-  <Placeholder title="Events" blurb="Event-level general notes. Built in P5." />
-);
-export const WinesScreen = (): ReactNode => (
-  <Placeholder title="Wines" blurb="Wine entity + geo typeahead. Built in P5." />
-);
+// P5 features.
+export { WinesScreen } from '@/features/wines/WinesScreen';
+export { EventsScreen } from '@/features/events/EventsScreen';
+export { FlightsScreen } from '@/features/flights/FlightsScreen';
+
 export const StatsScreen = (): ReactNode => (
   <Placeholder title="Stats" blurb="Client-side dashboard over Dexie. Built in P6." />
 );
