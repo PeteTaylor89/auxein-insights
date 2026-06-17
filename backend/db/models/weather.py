@@ -54,6 +54,13 @@ class WeatherData(Base):
     quality = Column(String(20), default='GOOD')
     created_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
 
+    # Observation provenance (Phase B0 — two-tier provisional/authoritative).
+    # source: SYNOP | GHCNH | GHCND | <legacy source code>.
+    # quality_rank: 1=PROVISIONAL, 2=CONFIRMED, 3=AUTHORITATIVE (default).
+    source = Column(String(20), nullable=True)
+    quality_flags = Column(JSONB, nullable=True)
+    quality_rank = Column(Integer, nullable=False, server_default=text('3'))
+
 class IngestionLog(Base):
     __tablename__ = 'ingestion_log'
     

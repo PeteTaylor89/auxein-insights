@@ -461,32 +461,42 @@ The 60-day window covers the GHCN archive lag plus the later NIWA restatement co
 
 Concrete, reviewable phases. Each mirrors the existing ingestion conventions: `ingestion/config/{src}_sites.py` (station dicts) → `ingestion/setup_{src}_stations.py` (idempotent seeder, dry-run) → `ingestion/sources/{src}.py` (class) → `run_ingestion.py --source {src}` → GH Actions cron. Prod-safety per platform-plan §1a (new columns nullable/defaulted; old code unaffected). User handles git; user runs the app.
 
-### Decisions needed before B0 (small)
-1. **Seed scope:** all 54 SYNOP stations, or just the 24 in-zone + gap-fill subset? → *Rec: seed all 54* (cheap); set `zone_id` + `contributes_to_regional=true` only for the in-zone ones, leave the ~30 national-context stations `zone_id=NULL, contributes_to_regional=false`.
-2. **Live transport:** Ogimet HTTP now, Unidata LDM later? → *Rec: Ogimet for v1.*
-3. **Quality lifecycle storage:** `quality` string vs add `quality_rank SMALLINT`? → *Rec: add `quality_rank`* (clean guard SQL).
-4. **Insights provisional UX:** badge <2-wk points vs withhold? → *Defer; UI, not ingestion.*
+### Decisions (locked 2026-06-17)
+1. **Seed scope:** **all 54** stations. In-zone → `zone_id` set + `contributes_to_regional=true`. **Not in a wine zone → `zone_id` NULL, `region` NULL, `contributes_to_regional=false`** (national-context only).
+2. **Live transport:** **Unidata IDD/LDM** for all stations, live, from now — *plus* NOAA. (Ogimet is dev-bootstrap only, not prod.) This makes the live tier a **persistent service**, not a GH cron — see B2/B5 infra notes + new decisions below.
+3. **Backfill:** NOAA **GHCN-Daily from 2022-01-01**; NOAA **GHCNh hourly from 2025-09-01**.
+4. **Quality storage:** add `quality_rank SMALLINT`.
+5. **Insights provisional UX:** deferred (FE, not ingestion).
 
-### Phase B0 — Schema & catalog groundwork *(migration, ~1d)*
-- **Migration** `add_obs_provenance` (≤32-char slug): on `weather_data` add `source VARCHAR(20)`, `quality_flags JSONB`, `quality_rank SMALLINT DEFAULT 3` — all nullable/defaulted (old inserts default to authoritative-rank, unaffected).
-- Seed `data_sources`: `SYNOP_GTS` (rest, no creds, country NZ-or-global), `NOAA_GHCND`, `NOAA_GHCNH` (rest, no creds, global). `ON CONFLICT DO NOTHING`.
-- Seed `measurement_catalog`: add `dew_point`, `pressure_msl`, `wind_speed`, `wind_direction` (reuse existing `temp`/`rh`/`rainfall`/`pressure`).
-- **Accept:** `alembic upgrade head` clean on a prod snapshot; existing ingestion still writes (defaults fill new cols); `probe` selects show new cols.
+### New infra decisions (block B2 go-live, NOT B0/B1/B3)
+- **LDM host:** the `ldmd` daemon needs an always-on host. *Rec: a small dedicated instance (e.g. t4g.small EC2 or a Fargate task) in `ap-southeast-2`*, separate from the EB API box so lifecycles don't couple. Decode→RDS runs there.
+- **IDD feed access:** request an upstream `IDS|DDPLUS` feed (SYNOP/METAR) from a Unidata relay — free for legitimate use; needs a one-time registration/email and a feedme/upstream host. Pin down before B2 go-live.
 
-### Phase B1 — Station crosswalk + seed *(config + seeder, ~1.5d)*
+> **Catalog correction:** `measurement_catalog` already has `temp/rh/rainfall/pressure/wind_speed/wind_direction/dewpoint`. So B0 adds **only `pressure_msl`**, not four codes. SYNOP maps station pressure→`pressure`, MSL→`pressure_msl`, dew point→`dewpoint`.
+
+### Phase B0 — Schema & catalog groundwork *(migration, ~1d)* — **BUILT 2026-06-17**
+- **Migration** `add_obs_provenance` (down_rev `add_monthly_frost`): on the **real table `timeseries_observations`** (not the `weather_data` view) add `source VARCHAR(20)` (nullable), `quality_flags JSONB` (nullable), `quality_rank SMALLINT NOT NULL DEFAULT 3` (existing rows → authoritative). All adds are metadata-only (constant default) — no table rewrite, prod-safe. Then `CREATE OR REPLACE VIEW weather_data AS SELECT *` so the new cols are visible to callers that write through the view.
+- Seed `data_sources`: `SYNOP_GTS` (api_pattern `ldm`, no creds, global), `NOAA_GHCND` + `NOAA_GHCNH` (rest, no creds, global). `ON CONFLICT DO NOTHING`.
+- Seed `measurement_catalog`: add **`pressure_msl`** only (others already exist).
+- **Accept:** `alembic upgrade head` clean on a prod snapshot; existing ingestion still writes (defaults fill new cols); selects show new cols; `weather_data` view exposes them.
+
+### Phase B1 — Station crosswalk + seed *(config + seeder, ~1.5d)* — **BUILT + SEEDED 2026-06-17**
 - `ingestion/config/synop_sites.py` — generate the 54 stations from `isd-history.csv` (already pulled). Each entry: `{ wmo_block, ghcn_id, icao, name, lat, lon, elevation, region, zone_id, measurements:['temp','dew_point','rh','pressure','pressure_msl','wind_speed','wind_direction','rainfall'], contributes_to_regional }`. **Crosswalk validated by coords/name, not string math** (§2e — Paraparaumu/Invercargill drift).
 - `ingestion/setup_synop_stations.py` — mirror `setup_gdc_stations.py`; INSERT into `weather_stations` with platform columns set: `data_source='SYNOP_GTS'`, `data_source_id`, `country_id=NZ`, `source_id=wmo_block`, `ingest_cadence_minutes=60`, `visibility='public'`, `contributes_to_regional`, `is_high_resolution=false`, `notes` JSONB `{ghcn_id, icao, wmo_block}`, `zone_id` from §2d map. Idempotent (skip existing by `station_code`+source), dry-run.
 - **Accept:** `--dry-run` shows 54; live insert creates 54 rows; in-zone subset has `zone_id` + `contributes_to_regional=true`; spot-check Paraparaumu maps `93420`↔`NZM00093420` and links ghcn_id correctly.
 
-### Phase B2 — Live SYNOP ingest class *(~4d)*
-- `ingestion/sources/synop.py` `SynopIngestion`: `get_active_stations` (SYNOP_GTS), `fetch_synop(wmo, start, end)` (Ogimet `getsynop`, ~48h sliding window), `decode_synop` (FM-12 via `pymetdecoder`), `parse_response` → rows `{station_id, timestamp(UTC), variable, value, unit, quality='PROVISIONAL', quality_rank=1, source='SYNOP', quality_flags}`; derive `rh` from T+Td (Magnus). `insert_data` = **upsert-with-precedence** (§9.6 — `WHERE EXCLUDED.quality_rank >= weather_data.quality_rank`). `log_ingestion`. `run(start,end,station_code,dry_run)`.
-- `run_ingestion.py`: add `--source synop`; `requirements.txt`: add `pymetdecoder`.
-- **Accept:** `--dry-run --station <wmo>` decodes + prints; live run inserts PROVISIONAL rows for the ~40 reporting stations; re-run is idempotent (no dup, no downgrade); `ingestion_log` SUCCESS; values sanity-match GHCNh.
+### Phase B2 — Live SYNOP via Unidata LDM *(~6d — incl. infra)*
+Persistent service, **not** a GH cron. Two parts:
+- **Infra (host + feed):** provision the LDM host (decision above); install `ldm`/`ldmd`; register the `IDS|DDPLUS` upstream feed; `ldmd.conf` `REQUEST IDS|DDPLUS ".*" <upstream>`; `pqact.conf` filters the NZ surface bulletins (WMO headers `^S[MNI].* NZ` / region-V SYNOP collectives) and `EXEC`s the decoder, keeping product volume tiny.
+- **Decoder service** `ingestion/sources/synop_ldm.py`: receives raw FM-12 bulletins from `pqact`, decodes via `pymetdecoder`, resolves WMO block → `station_id` via the crosswalk, writes rows `{station_id, timestamp(UTC), variable, value, unit, quality='PROVISIONAL', quality_rank=1, source='SYNOP', quality_flags}` (derive `rh` from T+Td Magnus) using **upsert-with-precedence** into `timeseries_observations` (§9.6 — `WHERE EXCLUDED.quality_rank >= timeseries_observations.quality_rank`). Logs to `ingestion_log`.
+- **Dev bootstrap:** an Ogimet-backed `--source synop` path in `run_ingestion.py` for testing the decoder + DB write *without* the LDM node (recent ~4-mo window only). Reuses the same decode/insert functions.
+- `requirements.txt`: add `pymetdecoder`.
+- **Accept:** Ogimet-bootstrap dry-run decodes + inserts PROVISIONAL for the ~40 reporting stations, idempotent + no downgrade, values match GHCNh; then LDM node streams the same rows live (continuous), `ingestion_log` healthy.
 
 ### Phase B3 — NOAA ingest class (authoritative + deep backfill) *(~4d)*
 - `ingestion/sources/noaa.py` `NoaaIngestion`: modes — **GHCNh hourly** (deep history → `weather_data`, `quality='AUTHORITATIVE', quality_rank=3, source='GHCNH'`) and **GHCN-Daily** (→ daily layer, authoritative). NCEI data service keyed on `ghcn_id` (from crosswalk) + bulk CSV for whole-history backfills. Chunked date windows + batched `execute_values` + progress prints (B1.8 lessons). Map `*_ATTRIBUTES` source/quality flags → `quality_flags`.
-- `run_ingestion.py`: `--source noaa [--backfill] [--start --end]`.
-- **Accept:** deep-backfill Paraparaumu + a Marlborough-coastal station; AUTHORITATIVE rows present; overlapping hours equal the SYNOP value (≤0.1°C); promotion guard means it overwrites PROVISIONAL but a later SYNOP re-run can't clobber it.
+- `run_ingestion.py`: `--source noaa [--mode daily|hourly] [--start --end]`. **Backfill targets (locked): GHCN-Daily from `2022-01-01`; GHCNh hourly from `2025-09-01`** — both to present.
+- **Accept:** GHCN-Daily backfill 2022-01-01→now lands in the daily layer; GHCNh hourly 2025-09-01→now lands AUTHORITATIVE in `timeseries_observations`; overlapping hours equal the SYNOP value (≤0.1°C); promotion guard overwrites PROVISIONAL but a later SYNOP re-run can't clobber it.
 
 ### Phase B4 — Reconciliation / data-audit pipeline *(daily cron job, ~3d)*
 - `ingestion/reconcile_synop.py` (or `backend/scripts/`): the daily audit + promotion pass.
@@ -494,10 +504,10 @@ Concrete, reviewable phases. Each mirrors the existing ingestion conventions: `i
   - **Audit checks → report + `ingestion_log`:** (a) provisional rows older than `lag_days+buffer` still un-promoted → *source-gap* flag; (b) |provisional − authoritative| > threshold → *QC-divergence* flag (keep authoritative, log delta); (c) active SYNOP device with no live obs in 48h AND no authoritative → *dead-station* flag; (d) crosswalk integrity — every active SYNOP device resolves to a `ghcn_id` or is tagged `live_only`.
 - **Accept:** dry-run lists would-promote counts; live run promotes + recomputes; emits audit summary (promoted N, diverged N, stale N, dead N); idempotent; safe to re-run same day.
 
-### Phase B5 — Cron wiring *(~0.5d)*
-- New `.github/workflows/synop-live.yml` — `cron: '15 * * * *'` (hourly) or `'15 */3 * * *'` (3-hourly) → `run_ingestion.py --source synop`. Same env block as `weather-ingestion.yml`.
-- New `.github/workflows/synop-reconcile.yml` — daily (after `daily-processing`) → `--source noaa --backfill` recent window **then** `reconcile_synop.py`. Or fold the reconcile step into `daily-processing.yml`.
-- **Accept:** `workflow_dispatch` green on both; schedules registered; first scheduled tick writes rows + audit log.
+### Phase B5 — Service + cron wiring *(~1d)*
+- **LDM = persistent service** (systemd unit on the host), not a cron — runs continuously, auto-restart. Monitored via `ldmadmin watch` + a heartbeat into `ingestion_log`.
+- New `.github/workflows/synop-reconcile.yml` — daily (after `daily-processing`) → `run_ingestion.py --source noaa --mode hourly` recent window **then** `reconcile_synop.py`. Or fold into `daily-processing.yml`. Same env block as `weather-ingestion.yml`.
+- **Accept:** LDM systemd unit survives reboot + streams continuously; reconcile workflow `workflow_dispatch` green; first scheduled tick promotes provisional + writes audit log.
 
 ### Phase B6 — Zone flow-through + provisional badging *(verify, ~0.5d + UI later)*
 - Verify `zone_aggregation` recursive CTE already aggregates SYNOP `contributes_to_regional=true` devices into their zones (no code change expected — confirm on a backdated day).
@@ -506,15 +516,15 @@ Concrete, reviewable phases. Each mirrors the existing ingestion conventions: `i
 ### Rollup
 | Phase | Deliverable | Effort | Depends |
 |---|---|---|---|
-| B0 | Migration + catalog seed | ~1d | — |
-| B1 | 54-station crosswalk + seeder | ~1.5d | B0 |
-| B2 | Live SYNOP class (Ogimet) | ~4d | B1 |
-| B3 | NOAA class (authoritative/backfill) | ~4d | B1 |
-| B4 | Reconcile/audit daily pass | ~3d | B2, B3 |
-| B5 | Cron wiring | ~0.5d | B2, B4 |
-| B6 | Zone flow-through verify | ~0.5d | B2 |
-| **Total** | | **~14.5d** | B2∥B3 parallelable |
+| B0 | Migration + catalog seed | ~1d | — | ✅ applied to DB |
+| B1 | 54-station crosswalk + seeder | ~1.5d | B0 | ✅ seeded (54 rows) |
+| B2 | Live SYNOP via Unidata LDM (+infra) | ~6d | B1 | needs host+feed |
+| B3 | NOAA class (daily 2022 + hourly 2025-09) | ~4d | B1 | |
+| B4 | Reconcile/audit daily pass | ~3d | B2, B3 | |
+| B5 | Service + cron wiring | ~1d | B2, B4 | |
+| B6 | Zone flow-through verify | ~0.5d | B2 | |
+| **Total** | | **~17d** | B2∥B3 parallelable | |
 
-**Critical path:** B0 → B1 → (B2 ∥ B3) → B4 → B5. B3 is also the N1 NOAA class from §6 — same code, so this absorbs that scope.
+**Critical path:** B0 → B1 → (B2 ∥ B3) → B4 → B5. B3 is also the N1 NOAA class from §6 — same code, so this absorbs that scope. The LDM infra (host + IDD feed) is the long-lead item — start that procurement in parallel with B1/B3.
 
 *End of scope — 2026-06-17.*
