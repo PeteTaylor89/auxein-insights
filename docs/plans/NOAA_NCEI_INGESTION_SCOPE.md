@@ -493,9 +493,14 @@ Persistent service, **not** a GH cron. Two parts:
 - `requirements.txt`: add `pymetdecoder`.
 - **Accept:** Ogimet-bootstrap dry-run decodes + inserts PROVISIONAL for the ~40 reporting stations, idempotent + no downgrade, values match GHCNh; then LDM node streams the same rows live (continuous), `ingestion_log` healthy.
 
-### Phase B3 — NOAA ingest class (authoritative + deep backfill) *(~4d)*
-- `ingestion/sources/noaa.py` `NoaaIngestion`: modes — **GHCNh hourly** (deep history → `weather_data`, `quality='AUTHORITATIVE', quality_rank=3, source='GHCNH'`) and **GHCN-Daily** (→ daily layer, authoritative). NCEI data service keyed on `ghcn_id` (from crosswalk) + bulk CSV for whole-history backfills. Chunked date windows + batched `execute_values` + progress prints (B1.8 lessons). Map `*_ATTRIBUTES` source/quality flags → `quality_flags`.
-- `run_ingestion.py`: `--source noaa [--mode daily|hourly] [--start --end]`. **Backfill targets (locked): GHCN-Daily from `2022-01-01`; GHCNh hourly from `2025-09-01`** — both to present.
+### Phase B3 — NOAA ingest class (authoritative + deep backfill) *(~4d)* — **BUILT 2026-06-19 (dry-run tested, no DB writes yet)**
+- `ingestion/sources/noaa.py` `NoaaIngestion`: modes — **GHCNh hourly** and **GHCN-Daily** (authoritative). Built & smoke-tested:
+  - **Hourly:** fetches per-station-per-year `.psv` bulk files from `…/hourly/access/by-year/{YEAR}/psv/GHCNh_{ghcnh_id}_{YEAR}.psv` (verified live; values already metric °C/hPa/m·s⁻¹/%/mm, DATE = ISO-8601 UTC). Maps 8 elements → `temp/dewpoint/rh/pressure/pressure_msl/wind_direction/wind_speed/rainfall`. Writes **directly to `timeseries_observations`** (the real table — `weather_data` is a SELECT* view and Postgres rejects `ON CONFLICT` on views) with `quality='AUTHORITATIVE', quality_rank=3, source='GHCNH'`, via **upsert-with-precedence** (`WHERE EXCLUDED.quality_rank >= timeseries_observations.quality_rank` — promotes provisional SYNOP, never downgrades, idempotent). Skips empty + ISD bad-QC (`2/3/6/7`) + out-of-bounds values; stores non-clean QC in `quality_flags`. `psycopg2.execute_values` page_size 1000.
+  - **Daily:** NCEI **data service** (`dataset=daily-summaries&units=metric` — returns °C/mm already; the bulk CSV ships raw tenths, so the API is used) for `TMAX/TMIN/PRCP/TAVG`. Computes `temp_mean` (TAVG, else (TMAX+TMIN)/2) + `gdd_base0/base10`; upserts `weather_data_daily` on `(station_id, date)`. **NB:** `weather_data_daily` has no provenance column → unconditional upsert; guarding vs a SYNOP-derived daily rollup is B4.
+  - Stations resolved from seeded SYNOP devices via `notes->>'ghcnh_id'` (46 stations) / `notes->>'ghcnd_id'` (7 stations). Polite sequential fetch + retry/backoff; 404 (missing station-year) skipped silently.
+- `run_ingestion.py`: `--source noaa --mode {hourly,daily} [--start --end --station --dry-run]` (NOAA excluded from `all`). Also runnable standalone: `python -m ingestion.sources.noaa --mode hourly`. **Backfill targets (locked, default when no `--start`): GHCN-Daily from `2022-01-01`; GHCNh hourly from `2025-09-01`** — both to present.
+- **Dry-run verified 2026-06-19:** hourly SYNOP_93110 parsed 478 recs/3 days; daily returned data for 6/7 ghcnd stations (Tara Hills `NZ000937470` returns no rows for the probe window — its record may start later / id variant; verify on full-range run).
+- **NEXT (run, the user executes):** dry-run the full fleet, then live `--mode hourly` (2025-09-01→now) + `--mode daily` (2022-01-01→now) against prod. No migration needed (B0 already applied).
 - **Accept:** GHCN-Daily backfill 2022-01-01→now lands in the daily layer; GHCNh hourly 2025-09-01→now lands AUTHORITATIVE in `timeseries_observations`; overlapping hours equal the SYNOP value (≤0.1°C); promotion guard overwrites PROVISIONAL but a later SYNOP re-run can't clobber it.
 
 ### Phase B4 — Reconciliation / data-audit pipeline *(daily cron job, ~3d)*
@@ -519,7 +524,7 @@ Persistent service, **not** a GH cron. Two parts:
 | B0 | Migration + catalog seed | ~1d | — | ✅ applied to DB |
 | B1 | 54-station crosswalk + seeder | ~1.5d | B0 | ✅ seeded (54 rows) |
 | B2 | Live SYNOP via Unidata LDM (+infra) | ~6d | B1 | needs host+feed |
-| B3 | NOAA class (daily 2022 + hourly 2025-09) | ~4d | B1 | |
+| B3 | NOAA class (daily 2022 + hourly 2025-09) | ~4d | B1 | ✅ built (dry-run tested); backfill run pending |
 | B4 | Reconcile/audit daily pass | ~3d | B2, B3 | |
 | B5 | Service + cron wiring | ~1d | B2, B4 | |
 | B6 | Zone flow-through verify | ~0.5d | B2 | |

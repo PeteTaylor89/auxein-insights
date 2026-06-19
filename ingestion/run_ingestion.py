@@ -18,15 +18,22 @@ from sources.gw import GWIngestion
 from sources.hbrc import HBRCIngestion
 from sources.tdc import TDCIngestion
 from sources.gdc import GDCIngestion
+from sources.noaa import NoaaIngestion
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'all'],
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'noaa', 'all'],
         default='all',
-        help='Data source to ingest'
+        help='Data source to ingest (noaa is a backfill, excluded from "all")'
+    )
+    parser.add_argument(
+        '--mode',
+        choices=['hourly', 'daily'],
+        default='hourly',
+        help='NOAA only: GHCNh hourly (default) or GHCN-Daily'
     )
     parser.add_argument(
         '--period',
@@ -238,6 +245,23 @@ def main():
             print("✓ GDC ingestion complete\n")
         except Exception as e:
             print(f"✗ GDC ingestion failed: {e}\n")
+            success = False
+
+    # Run NOAA NCEI ingestion (backfill/authoritative — explicit only, not 'all')
+    if args.source == 'noaa':
+        try:
+            print(f"▶ Starting NOAA ingestion (mode={args.mode})...\n")
+            ingester = NoaaIngestion()
+            ingester.run(
+                mode=args.mode,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                station_code=args.station,
+            )
+            print("✓ NOAA ingestion complete\n")
+        except Exception as e:
+            print(f"✗ NOAA ingestion failed: {e}\n")
             success = False
 
     print(f"{'='*70}")
