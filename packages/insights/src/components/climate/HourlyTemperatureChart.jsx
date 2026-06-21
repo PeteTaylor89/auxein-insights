@@ -137,8 +137,8 @@ const HourlyTemperatureChart = ({ zone }) => {
         labels: {
           usePointStyle: true,
           boxWidth: 8,
-          padding: 14,
-          font: { size: 12 },
+          padding: 8,
+          font: { size: 11 },
           filter: (item) => item.text !== 'Max', // hide the invisible band edge
         },
       },

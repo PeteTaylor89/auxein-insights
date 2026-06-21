@@ -1,0 +1,130 @@
+/* =============================================================================
+   MOBILE GUARDRAILS — climate explorers
+   packages/insights/src/components/climate/climate-mobile-guardrails.css
+
+   Imported LAST in PublicClimateContainer.jsx so it wins the cascade over the
+   four overlapping mobile layers (PublicClimate.css, RealtimeClimate.css,
+   mobile-responsive.css, climate-mobile-responsive.css).
+
+   Job: stop the 5 climate explorers overflowing their card on mobile —
+   sideways page scroll, charts / tables / the tab bar escaping the container.
+   Everything is scoped under .public-climate-container, so the landing page,
+   map explorer and widget are untouched. This layer changes WIDTH & OVERFLOW
+   only — the existing (carefully tuned) chart heights are left alone.
+
+   Root cause it fixes: edge-to-edge strips use negative horizontal margins
+   hardcoded to the DESKTOP gutter (tab bar -24px, tables -16px) while mobile
+   shrinks the container padding to 8–10px → the strips bleed past the card and
+   drag the whole page sideways. We pin one gutter value and make every strip
+   bleed by exactly that, then clip anything stray.
+   ============================================================================= */
+
+.public-climate-container {
+  --cc-pad: 12px;        /* single source of truth for the mobile side gutter */
+  max-width: 100%;
+  /* clip (not hidden): kills horizontal bleed WITHOUT coercing overflow-y to
+     auto, so the zone-selector dropdown can still overhang the card */
+  overflow-x: clip;
+}
+
+/* Intrinsically-sized / replaced elements never exceed their box */
+.public-climate-container canvas,
+.public-climate-container img,
+.public-climate-container table {
+  max-width: 100%;
+}
+
+/* Chart holders may shrink below their content width (flex/grid children
+   default to min-width:auto, which is what lets a wide canvas force overflow) */
+.public-climate-container .chart-container,
+.public-climate-container .chart-section,
+.public-climate-container .hourly-temp-chart,
+.public-climate-container .hourly-chart-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  /* Pin the horizontal gutter so edge-to-edge children can match it exactly.
+     Left/right only — preserves existing top/bottom padding + safe-area inset. */
+  .public-climate-container {
+    padding-left: var(--cc-pad);
+    padding-right: var(--cc-pad);
+  }
+
+  /* Edge-to-edge strips: bleed out by EXACTLY the gutter, then pad back in so
+     content stays aligned. Previously -16/-24px against an 8–10px gutter. */
+  .public-climate-container .climate-view-tabs-wrapper,
+  .public-climate-container .monthly-table-wrapper,
+  .public-climate-container .recent-days-table-wrapper,
+  .public-climate-container .comparison-results,
+  .public-climate-container .variety-chips,
+  .public-climate-container .key-dates-summary {
+    margin-left: calc(-1 * var(--cc-pad));
+    margin-right: calc(-1 * var(--cc-pad));
+    padding-left: var(--cc-pad);
+    padding-right: var(--cc-pad);
+  }
+
+  /* Horizontal scroll strips keep scrolling internally instead of widening the
+     page (wide data tables) */
+  .public-climate-container .monthly-table-wrapper,
+  .public-climate-container .recent-days-table-wrapper,
+  .public-climate-container .comparison-results,
+  .public-climate-container .compare-extremes {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* =============================================================================
+   PHASE 2 — button groups wrap (nothing scrolled off-screen) + chart overlaps
+   ============================================================================= */
+
+/* Hourly chart is mounted inside the shared fixed-height .chart-container, but
+   its inner container has min-height:320px → it overflowed the 240–350px box
+   and crashed into the table below. Let the box grow to fit it instead. */
+.public-climate-container .chart-container--hourly {
+  /* !important is required: the existing mobile rules clamp .chart-container
+     height with !important, which would otherwise keep the overflow */
+  height: auto !important;
+  min-height: 380px;
+}
+
+@media (max-width: 768px) {
+  /* Every button group WRAPS so all options stay visible — no horizontal
+     scroll, no flex:1 crush that overlapped/clipped the labels. Buttons size
+     to their own label and flow onto the next row like badges. */
+  .public-climate-container .climate-view-tabs,
+  .public-climate-container .chart-section .chart-controls,
+  .public-climate-container .chart-metric-selector,
+  .public-climate-container .view-mode-selector,
+  .public-climate-container .compare-type-toggle,
+  .public-climate-container .season-pills {
+    display: flex;
+    flex-direction: row;   /* override the column stacking some groups inherit */
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow: visible;
+    justify-content: flex-start;
+  }
+
+  .public-climate-container .view-tab,
+  .public-climate-container .chart-section .chart-tab,
+  .public-climate-container .chart-type-btn,
+  .public-climate-container .mode-btn,
+  .public-climate-container .season-pill {
+    flex: 0 0 auto;     /* size to label — never stretch or shrink to unreadable */
+    width: auto;
+    min-width: 0;
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* Tabs now wrap into view, so the scroll-fade hints are misleading */
+  .public-climate-container .climate-view-tabs-wrapper::before,
+  .public-climate-container .climate-view-tabs-wrapper::after {
+    display: none;
+  }
+}

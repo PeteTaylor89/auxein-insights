@@ -252,7 +252,7 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
     plugins: {
       legend: {
         position: 'top',
-        labels: { usePointStyle: true, padding: 15 },
+        labels: { usePointStyle: true, padding: 8 },
       },
       tooltip: {
         mode: 'index',
@@ -291,8 +291,8 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
         labels: {
           usePointStyle: true,
           boxWidth: 8,
-          padding: 14,
-          font: { size: 12 },
+          padding: 8,
+          font: { size: 11 },
         },
       },
       tooltip: {
@@ -591,7 +591,7 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
           </button>
         </div>
 
-        <div className="chart-container">
+        <div className={`chart-container${activeChart === 'hourly' ? ' chart-container--hourly' : ''}`}>
           {inSeason && activeChart === 'gdd' && gddChartData && (
             <Line data={gddChartData} options={lineChartOptions} />
           )}

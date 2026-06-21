@@ -178,17 +178,17 @@ const ProjectionsExplorer = ({ zone }) => {
         position: 'top',
         labels: {
           usePointStyle: true,
-          padding: 20,
+          padding: 8,
           filter: (item) => !item.text.includes('SD'), // Hide SD from legend
         }
       },
       title: {
         display: true,
-        text: `${chartMetric === 'tmean' ? 'Mean Temperature' : 
+        text: `${chartMetric === 'tmean' ? 'Mean Temperature' :
                chartMetric === 'tmax' ? 'Maximum Temperature' :
                chartMetric === 'rain' ? 'Rainfall' : 'GDD'} - Growing Season`,
-        font: { size: 16, weight: 'bold' },
-        padding: { bottom: 20 },
+        font: { size: 13, weight: 'bold' },
+        padding: { bottom: 6 },
       },
       tooltip: {
         mode: 'index',

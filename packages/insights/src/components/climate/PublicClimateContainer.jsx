@@ -17,6 +17,7 @@
  */
 
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import '../../utils/chartDefaults'; // compact Chart.js legends app-wide (side-effect)
 import {
   X, Info, HelpCircle, CloudSunRain, Grape,
   ShieldCheck, History, ChartSpline, Loader
@@ -43,6 +44,7 @@ import {
 import './PublicClimate.css';
 import './RealtimeClimate.css';
 import './climate-mobile-responsive.css';
+import './climate-mobile-guardrails.css'; // must stay LAST — wins the mobile cascade
 import { getZone } from '../../services/publicClimateService';
 
 const VIEW_CONFIG = {

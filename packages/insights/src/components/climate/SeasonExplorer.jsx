@@ -449,7 +449,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         position: 'top',
         labels: {
           usePointStyle: true,
-          padding: 15,
+          padding: 8,
           filter: (item) => !item.text.includes('SD'), // Hide SD from legend
         }
       },
@@ -469,7 +469,10 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
     },
     scales: {
       y: {
-        beginAtZero: chartMetric !== 'tmean' && chartMetric !== 'tmax',
+        // GDD seasonal totals sit well above 0 (~600+), so let the axis
+        // auto-scale to the data range like the temperature metrics rather
+        // than anchoring at 0 and squashing everything against the top.
+        beginAtZero: chartMetric !== 'tmean' && chartMetric !== 'tmax' && chartMetric !== 'gdd',
         title: {
           display: true,
           text: chartMetric === 'gdd' ? 'GDD (°C·days)' :
@@ -560,6 +563,9 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   if (!seasonsData) return null;
 
   const isRainfall = chartMetric === 'rain' || chartMetric === 'r99p';
+  // Monthly view renders these as columns (must match the monthlyChartData
+  // builder, which sets the main series type:'bar' + a dashed-line LTA).
+  const monthlyIsBar = chartMetric === 'rain' || chartMetric === 'rx1day' || chartMetric === 'frost_days';
 
   return (
     <div className="season-explorer">
@@ -835,7 +841,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         )}
         
         {viewMode === 'monthly' && monthlyChartData && (
-          isRainfall ? (
+          monthlyIsBar ? (
             <Bar data={monthlyChartData} options={getBarChartOptions()} />
           ) : (
             <Line data={monthlyChartData} options={getLineChartOptions()} />
@@ -851,52 +857,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
             baselineData={baselineData}
           />
         )}
-
-        {/* Seasonal extremes side-by-side for the selected seasons */}
-        {viewMode === 'season-compare' && (() => {
-          const rows = comparisonSeasons
-            .map(vy => seasonsData.seasons?.find(s => s.vintage_year === vy))
-            .filter(s => s && s.extremes);
-          if (rows.length === 0) return null;
-          const bx = seasonsData.baseline_extremes;
-          const cell = (v) => Number(v ?? 0).toFixed(0);
-          return (
-            <div className="compare-extremes">
-              <h4>Seasonal extremes</h4>
-              <table className="compare-extremes-table">
-                <thead>
-                  <tr>
-                    <th>Season</th>
-                    <th>Frost days</th>
-                    <th>Spring frost</th>
-                    <th>Hot days &gt;30°C</th>
-                    <th>Extreme rain</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(s => (
-                    <tr key={s.vintage_year}>
-                      <td>{s.season_label}</td>
-                      <td>{cell(s.extremes.frost_days?.mean)}</td>
-                      <td>{cell(s.extremes.early_frost?.mean)}</td>
-                      <td>{cell(s.extremes.hot_days30?.mean)}</td>
-                      <td>{cell(s.extremes.r99p?.mean)} mm</td>
-                    </tr>
-                  ))}
-                  {bx && (
-                    <tr className="baseline-row">
-                      <td>LTA baseline</td>
-                      <td>{cell(bx.frost_days?.mean)}</td>
-                      <td>{cell(bx.early_frost?.mean)}</td>
-                      <td>{cell(bx.hot_days30?.mean)}</td>
-                      <td>{cell(bx.r99p?.mean)} mm</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
 
         {viewMode === 'zone-compare' && zoneCompareMode !== 'trend' && (
           <ZoneCompareChart
@@ -921,6 +881,54 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         
         {loading && <div className="chart-loading-overlay">Loading...</div>}
       </div>
+
+      {/* Seasonal extremes side-by-side for the selected seasons.
+          Lives OUTSIDE .chart-container so it flows below the chart instead of
+          overlapping the fixed-height canvas box. */}
+      {viewMode === 'season-compare' && (() => {
+        const rows = comparisonSeasons
+          .map(vy => seasonsData.seasons?.find(s => s.vintage_year === vy))
+          .filter(s => s && s.extremes);
+        if (rows.length === 0) return null;
+        const bx = seasonsData.baseline_extremes;
+        const cell = (v) => Number(v ?? 0).toFixed(0);
+        return (
+          <div className="compare-extremes">
+            <h4>Seasonal extremes</h4>
+            <table className="compare-extremes-table">
+              <thead>
+                <tr>
+                  <th>Season</th>
+                  <th>Frost days</th>
+                  <th>Spring frost</th>
+                  <th>Hot days &gt;30°C</th>
+                  <th>Extreme rain</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(s => (
+                  <tr key={s.vintage_year}>
+                    <td>{s.season_label}</td>
+                    <td>{cell(s.extremes.frost_days?.mean)}</td>
+                    <td>{cell(s.extremes.early_frost?.mean)}</td>
+                    <td>{cell(s.extremes.hot_days30?.mean)}</td>
+                    <td>{cell(s.extremes.r99p?.mean)} mm</td>
+                  </tr>
+                ))}
+                {bx && (
+                  <tr className="baseline-row">
+                    <td>LTA baseline</td>
+                    <td>{cell(bx.frost_days?.mean)}</td>
+                    <td>{cell(bx.early_frost?.mean)}</td>
+                    <td>{cell(bx.hot_days30?.mean)}</td>
+                    <td>{cell(bx.r99p?.mean)} mm</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {/* Season Cards - 6 per page with pagination */}
       <div className="seasons-section">
