@@ -11,7 +11,7 @@ from db.session import get_db
 from db.models.research import ResearchReport, ResearchSection
 from db.models.research_engagement import ResearchFile, ResearchComment, ResearchLike
 from db.models.public_user import PublicUser
-from core.public_security import get_current_public_user, get_optional_public_user
+from core.public_security import get_current_public_user, get_optional_public_user, get_insights_user
 from core.admin_security import require_admin
 from schemas.research import (
     ResearchListItem, ResearchDetail, ResearchListResponse,
@@ -154,7 +154,7 @@ async def get_citation(
 
 @router.post("/public/research/{report_id}/like", status_code=201)
 async def like_report(report_id: int, db: Session = Depends(get_db),
-                      current_user: PublicUser = Depends(get_current_public_user)):
+                      current_user: PublicUser = Depends(get_insights_user)):
     """Toggle like on a research report (authenticated users only)."""
     report = db.query(ResearchReport).filter(ResearchReport.id == report_id).first()
     if not report:
@@ -172,7 +172,7 @@ async def like_report(report_id: int, db: Session = Depends(get_db),
 
 @router.delete("/public/research/{report_id}/like")
 async def unlike_report(report_id: int, db: Session = Depends(get_db),
-                        current_user: PublicUser = Depends(get_current_public_user)):
+                        current_user: PublicUser = Depends(get_insights_user)):
     """Remove like from a research report (authenticated users only)."""
     like = db.query(ResearchLike).filter(
         ResearchLike.report_id == report_id, ResearchLike.user_id == current_user.id
@@ -215,7 +215,7 @@ async def list_comments(report_id: int, db: Session = Depends(get_db)):
 @router.post("/public/research/{report_id}/comments", response_model=ResearchCommentResponse, status_code=201)
 async def add_comment(report_id: int, data: ResearchCommentCreate,
                       db: Session = Depends(get_db),
-                      current_user: PublicUser = Depends(get_current_public_user)):
+                      current_user: PublicUser = Depends(get_insights_user)):
     """Add a comment to a research report (authenticated users only)."""
     report = db.query(ResearchReport).filter(ResearchReport.id == report_id).first()
     if not report:
@@ -242,7 +242,7 @@ async def add_comment(report_id: int, data: ResearchCommentCreate,
 
 @router.delete("/public/research/comments/{comment_id}")
 async def delete_comment(comment_id: int, db: Session = Depends(get_db),
-                         current_user: PublicUser = Depends(get_current_public_user)):
+                         current_user: PublicUser = Depends(get_insights_user)):
     """Soft-delete a comment. Users can delete their own; admins can delete any."""
     comment = db.query(ResearchComment).filter(ResearchComment.id == comment_id).first()
     if not comment:

@@ -28,7 +28,8 @@ from core.public_security import (
     create_access_token,
     generate_verification_token,
     generate_reset_token,
-    get_current_public_user
+    get_current_public_user,
+    get_insights_user
 )
 from services.email_service import email_service
 
@@ -135,7 +136,16 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
-    
+
+    # Projection rows (Grow-origin) carry no password — they authenticate via the
+    # Grow token / SSO handoff, never here. Reject before verify_password (which
+    # would otherwise raise on a NULL hash).
+    if not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
+
     # Verify password
     if not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
@@ -178,17 +188,52 @@ async def login(
     )
 
 # ============================================
+# GROW -> INSIGHTS SSO EXCHANGE
+# ============================================
+
+@router.post("/exchange", response_model=PublicUserToken)
+async def exchange_sso_token(
+    current_user: PublicUser = Depends(get_insights_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Grow -> Insights SSO handoff.
+
+    Accepts a Grow (access) token in the Authorization header — get_insights_user
+    resolves / lazily provisions the caller's Insights projection row — and
+    exchanges it for a NATIVE Insights public_access token. The SPA then runs an
+    ordinary 7-day Insights session (no Grow-token expiry/refresh mismatch).
+    Idempotent if called with an Insights token. Counts as an Insights login.
+    """
+    current_user.last_login = datetime.now(timezone.utc)
+    current_user.last_active = datetime.now(timezone.utc)
+    current_user.login_count = (current_user.login_count or 0) + 1
+    db.commit()
+    db.refresh(current_user)
+
+    access_token = create_access_token(
+        data={"user_id": current_user.id, "email": current_user.email}
+    )
+    return PublicUserToken(
+        access_token=access_token,
+        token_type="bearer",
+        user=PublicUserResponse.from_orm(current_user),
+    )
+
+# ============================================
 # GET CURRENT USER
 # ============================================
 
 @router.get("/me", response_model=PublicUserResponse)
 async def get_current_user_info(
-    current_user: PublicUser = Depends(get_current_public_user)
+    current_user: PublicUser = Depends(get_insights_user)
 ):
     """
     Get current authenticated user's information including marketing preferences.
-    
-    Requires valid JWT token in Authorization header.
+
+    Accepts either an Insights (public_access) token or a Grow (access) token —
+    the gate resolves both to the caller's Insights profile. Requires a valid JWT
+    in the Authorization header.
     """
     return PublicUserResponse.from_orm(current_user)
 

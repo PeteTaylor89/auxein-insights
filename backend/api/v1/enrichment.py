@@ -12,7 +12,7 @@ from db.models.user_enrichment import UserEvent, UserProfile
 from db.models.public_user import PublicUser
 from db.models.article import Article
 from db.models.research import ResearchReport
-from core.public_security import get_current_public_user
+from core.public_security import get_current_public_user, get_insights_user
 from core.admin_security import require_admin
 from schemas.enrichment import (
     EventCreate, EventBatchCreate, UserProfileResponse, UserProfileListItem,
@@ -86,7 +86,7 @@ def update_user_profile(db: Session, user_id: int):
 @router.post("/public/events", status_code=201)
 async def record_event(
     data: EventCreate, db: Session = Depends(get_db),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
 ):
     """Record a structured engagement event for the current user."""
     event = UserEvent(
@@ -103,7 +103,7 @@ async def record_event(
 @router.post("/public/events/batch", status_code=201)
 async def record_events_batch(
     data: EventBatchCreate, db: Session = Depends(get_db),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
 ):
     """Record a batch of engagement events (max 50)."""
     for ev in data.events:

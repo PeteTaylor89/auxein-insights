@@ -5,6 +5,16 @@ import { startEventTracking, stopEventTracking } from '../utils/eventTracker';
 
 const PublicAuthContext = createContext(null);
 
+// Grow -> Insights SSO handoff: Grow opens us with #insights_sso=<grow_token>.
+const readSsoTokenFromHash = () => {
+  const m = (window.location.hash || '').match(/[#&]insights_sso=([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+};
+const clearSsoHash = () => {
+  // Strip the token from the URL (and history entry) without a reload.
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+};
+
 export const PublicAuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,6 +23,24 @@ export const PublicAuthProvider = ({ children }) => {
   // Check for existing auth on mount
   useEffect(() => {
     const checkAuth = async () => {
+      // Grow -> Insights SSO: exchange the handed-off Grow token for a native
+      // Insights session, then carry on as a normal logged-in user.
+      const ssoToken = readSsoTokenFromHash();
+      if (ssoToken) {
+        try {
+          const response = await publicAuthService.exchangeGrowToken(ssoToken);
+          setUser(response.user);
+          setIsAuthenticated(true);
+          startEventTracking();
+          clearSsoHash();
+          setLoading(false);
+          return;
+        } catch (error) {
+          // Exchange failed (expired/invalid token) — fall through to normal check.
+          clearSsoHash();
+        }
+      }
+
       const token = publicAuthService.getToken();
       const storedUser = publicAuthService.getStoredUser();
 

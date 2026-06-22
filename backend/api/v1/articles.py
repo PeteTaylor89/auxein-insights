@@ -11,7 +11,7 @@ from db.session import get_db
 from db.models.article import Article
 from db.models.article_engagement import ArticleComment, ArticleLike
 from db.models.public_user import PublicUser
-from core.public_security import get_current_public_user, get_optional_public_user
+from core.public_security import get_current_public_user, get_optional_public_user, get_insights_user
 from core.admin_security import require_admin
 from schemas.article import (
     ArticleListItem,
@@ -215,7 +215,7 @@ async def record_article_view(
 async def like_article(
     article_id: int,
     db: Session = Depends(get_db),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
 ):
     """Toggle like on an article (authenticated users only)."""
     article = db.query(Article).filter(Article.id == article_id).first()
@@ -240,7 +240,7 @@ async def like_article(
 async def unlike_article(
     article_id: int,
     db: Session = Depends(get_db),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
 ):
     """Remove like from an article (authenticated users only)."""
     like = (
@@ -301,7 +301,7 @@ async def add_comment(
     article_id: int,
     data: CommentCreate,
     db: Session = Depends(get_db),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
 ):
     """Add a comment to an article (authenticated users only)."""
     article = db.query(Article).filter(Article.id == article_id).first()
@@ -345,7 +345,7 @@ async def add_comment(
 async def delete_comment(
     comment_id: int,
     db: Session = Depends(get_db),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
 ):
     """Soft-delete a comment. Users can delete their own; admins can delete any."""
     comment = db.query(ArticleComment).filter(ArticleComment.id == comment_id).first()

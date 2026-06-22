@@ -19,7 +19,7 @@ from db.session import get_db
 from db.models.geographical_indication import GeographicalIndication
 from db.models.wine_region import WineRegion
 from api.v1.public_auth import get_current_public_user, PublicUser
-from core.public_security import get_any_authenticated_user
+from core.public_security import get_any_authenticated_user, get_insights_user
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class GIDetail(BaseModel):
 @router.get("", response_model=List[GIListItem])
 async def list_gis(
     region_slug: Optional[str] = Query(None, description="Filter by parent region slug"),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -232,7 +232,7 @@ async def get_gis_geojson(
 @router.get("/{slug}", response_model=GIDetail)
 async def get_gi_detail(
     slug: str,
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -289,7 +289,7 @@ async def get_gi_detail(
 @router.get("/{slug}/bounds")
 async def get_gi_bounds(
     slug: str,
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """

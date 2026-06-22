@@ -18,7 +18,7 @@ import logging
 from db.session import get_db
 from db.models.wine_region import WineRegion
 from api.v1.public_auth import get_current_public_user, PublicUser
-from core.public_security import get_any_authenticated_user
+from core.public_security import get_any_authenticated_user, get_insights_user
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class RegionDetail(BaseModel):
 
 @router.get("", response_model=List[RegionListItem])
 async def list_regions(
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -222,7 +222,7 @@ async def get_regions_geojson(
 @router.get("/{slug}", response_model=RegionDetail)
 async def get_region_detail(
     slug: str,
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -268,7 +268,7 @@ async def get_region_detail(
 @router.get("/{slug}/bounds")
 async def get_region_bounds(
     slug: str,
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """

@@ -201,6 +201,11 @@ async def get_any_authenticated_user(
         user = db.query(User).filter(User.id == int(sub)).first()
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Pro user not found: {sub}")
+        if user.user_type == "contractor":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Contractors cannot access Insights",
+            )
         return user
 
     else:
@@ -210,6 +215,78 @@ async def get_any_authenticated_user(
             detail=f"Invalid token type: {token_type}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_insights_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """
+    Canonical Insights gate. Resolves EITHER token type to a single PublicUser
+    identity, so all downstream Insights code stays single-table:
+
+      - public_access token  -> the PublicUser directly
+      - access token (Grow)  -> the matching PublicUser (by verified email)
+
+    One-way by construction: Grow routes use get_current_user(), which rejects
+    public_access tokens, so Insights subscribers never gain Grow access.
+
+    A Grow token is resolved (and lazily provisioned) to a linked projection row
+    by ensure_insights_profile — link by grow_user_id, else adopt by email, else
+    create. So every Grow user gets an Insights identity on first crossing.
+    """
+    from db.models.public_user import PublicUser
+    from db.models.user import User
+    from services.insights_profile import ensure_insights_profile
+
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token_type = payload.get("type")
+
+    # --- Insights-native subscriber ---
+    if token_type == "public_access":
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: no user_id")
+        public_user = db.query(PublicUser).filter(PublicUser.id == user_id).first()
+        if public_user is None or not public_user.can_login:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Public user not found or inactive")
+        public_user.update_last_active()
+        db.commit()
+        return public_user
+
+    # --- Grow user crossing into Insights ---
+    if token_type == "access":
+        sub = payload.get("sub")
+        if sub is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: no sub")
+        grow_user = db.query(User).filter(User.id == int(sub)).first()
+        if grow_user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Grow user not found")
+        if grow_user.user_type == "contractor":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Contractors cannot access Insights",
+            )
+
+        # Link / adopt / create the projection row, then return it.
+        public_user = ensure_insights_profile(db, grow_user)
+        public_user.update_last_active()
+        db.commit()
+        return public_user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=f"Invalid token type: {token_type}",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def get_optional_public_user(

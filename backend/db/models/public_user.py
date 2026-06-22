@@ -1,5 +1,5 @@
 # db/models/public_user.py - Public User Model with Marketing & User Segmentation
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ARRAY
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ARRAY, ForeignKey
 from sqlalchemy.sql import func
 from db.base_class import Base
 from datetime import datetime, timezone
@@ -9,7 +9,9 @@ class PublicUser(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(100), unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    # Nullable: Grow projection rows (origin='grow') carry no password and can
+    # never password-login — see ensure_insights_profile + the /login guard.
+    hashed_password = Column(String, nullable=True)
     first_name = Column(String(50), nullable=True)
     last_name = Column(String(50), nullable=True)
 
@@ -59,6 +61,11 @@ class PublicUser(Base):
     key_concerns = Column(ARRAY(String), nullable=True)
     vineyard_size = Column(String(50), nullable=True)
     profiling_completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Grow -> Insights link (one-way SSO). A 'grow' origin row is a password-less
+    # projection of a Grow users.id; 'signup' is a self-registered subscriber.
+    grow_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, unique=True)
+    origin = Column(String(20), nullable=False, default="signup", server_default="signup")
 
     def __repr__(self):
         return f"<PublicUser(id={self.id}, email='{self.email}', type='{self.user_type}', verified={self.is_verified})>"

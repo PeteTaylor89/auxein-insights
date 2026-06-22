@@ -12,8 +12,10 @@ const publicApi = axios.create({
 // Request interceptor for adding the public auth token
 publicApi.interceptors.request.use(
   (config) => {
+    // Don't clobber an explicit Authorization (e.g. the Grow token passed to the
+    // SSO exchange call) with the stored Insights token.
     const token = localStorage.getItem('public_access_token');
-    if (token) {
+    if (token && !config.headers['Authorization']) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;

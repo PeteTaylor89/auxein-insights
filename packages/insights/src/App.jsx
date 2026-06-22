@@ -34,11 +34,14 @@ import AdminEmailCampaignEditor from './pages/admin/AdminEmailCampaignEditor';
 // Auth
 import { PublicAuthProvider } from './contexts/PublicAuthContext';
 import AdminRoute from './components/AdminRoute';
+import GrowConsentBanner from './components/GrowConsentBanner';
 import usePageTracking from './hooks/usePageTracking';
 
 function AppRoutes() {
   usePageTracking();
   return (
+    <>
+    <GrowConsentBanner />
     <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
@@ -72,6 +75,7 @@ function AppRoutes() {
           {/* Catch all route - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+    </>
   );
 }
 

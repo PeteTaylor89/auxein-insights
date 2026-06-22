@@ -17,7 +17,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from api.deps import get_db
-from core.public_security import get_current_public_user
+from core.public_security import get_current_public_user, get_insights_user
 from db.models.public_user import PublicUser
 from pydantic import BaseModel, Field
 
@@ -486,7 +486,7 @@ To reply to the user, use: {user_email}
 async def query_block_at_point(
     lng: float = Query(..., description="Longitude (e.g., 172.1234)", ge=-180, le=180),
     lat: float = Query(..., description="Latitude (e.g., -41.5678)", ge=-90, le=90),
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -603,7 +603,7 @@ async def query_block_at_point(
 
 @router.get("/stats")
 async def get_public_stats(
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -648,7 +648,7 @@ async def get_public_stats(
 
 @router.get("/regions")
 async def get_regions(
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -701,7 +701,7 @@ async def get_regions(
 async def report_block_issue(
     issue: IssueReport,
     background_tasks: BackgroundTasks,
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -773,7 +773,7 @@ async def report_block_issue(
 
 @router.get("/geojson")
 async def get_blocks_geojson(
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -856,7 +856,7 @@ async def get_blocks_geojson(
 @router.get("/{block_id}")
 async def get_block_by_id(
     block_id: int,
-    current_user: PublicUser = Depends(get_current_public_user),
+    current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """

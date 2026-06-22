@@ -101,6 +101,14 @@ function SiteHeader() {
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
+  // Grow -> Insights SSO: hand the current Grow token to the Insights SPA, which
+  // exchanges it for a native Insights session (see /public/auth/exchange).
+  const openInsights = () => {
+    const token = localStorage.getItem('accessToken');
+    const insightsUrl = import.meta.env.VITE_INSIGHTS_URL || 'https://insights.auxein.co.nz';
+    window.open(`${insightsUrl}/#insights_sso=${token}`, '_blank', 'noopener');
+  };
+
   const isActive = (path) => location.pathname === path;
 
   const headerHidden = isMobile && scrollDirection === 'down' && !isAtTop && !mobileMenuOpen;
@@ -164,6 +172,10 @@ function SiteHeader() {
                         System Admin
                       </Link>
                     )}
+                    <button className="user-dropdown-item" onClick={() => { openInsights(); setUserMenuOpen(false); }}>
+                      <Lightbulb size={16} />
+                      Open Insights
+                    </button>
                     <button className="user-dropdown-item" onClick={handleLogout}>
                       <LogOut size={16} />
                       Sign Out
@@ -243,6 +255,10 @@ function SiteHeader() {
                     System Admin
                   </Link>
                 )}
+                <button className="mobile-nav-item" onClick={() => { closeMobileMenu(); openInsights(); }}>
+                  <Lightbulb size={18} />
+                  Open Insights
+                </button>
                 <button className="mobile-nav-item mobile-logout" onClick={() => { closeMobileMenu(); handleLogout(); }}>
                   <LogOut size={18} />
                   Sign Out

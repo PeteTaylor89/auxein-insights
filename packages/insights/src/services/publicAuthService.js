@@ -28,9 +28,28 @@ const publicAuthService = {
   },
 
   // ============================================
+  // GROW -> INSIGHTS SSO EXCHANGE
+  // ============================================
+
+  // Trade a Grow access token for a native Insights session. The Grow token is
+  // sent explicitly (not the stored Insights token) to /public/auth/exchange.
+  exchangeGrowToken: async function(growToken) {
+    const response = await publicApi.post('/public/auth/exchange', null, {
+      headers: { Authorization: `Bearer ${growToken}` },
+    });
+
+    if (response.data.access_token) {
+      localStorage.setItem('public_access_token', response.data.access_token);
+      localStorage.setItem('public_user', JSON.stringify(response.data.user));
+    }
+
+    return response.data;
+  },
+
+  // ============================================
   // GET CURRENT USER
   // ============================================
-  
+
   getCurrentUser: async function() {
     const response = await publicApi.get('/public/auth/me');
     return response.data;
@@ -144,6 +163,7 @@ const publicAuthService = {
 export const {
   signup,
   login,
+  exchangeGrowToken,
   getCurrentUser,
   updateProfile,
   updateMarketingPreferences,

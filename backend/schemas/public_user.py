@@ -138,6 +138,7 @@ class PublicUserResponse(BaseModel):
     is_verified: bool
     is_admin: bool = False
     subscription_tier: str = "free"
+    origin: str = "signup"  # 'grow' => projection row crossed over from Grow
     
     # Timestamps
     created_at: datetime

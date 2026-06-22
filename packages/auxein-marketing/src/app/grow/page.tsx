@@ -223,11 +223,31 @@ export default function InsightsProPage() {
 
         <Container className="relative z-10">
           <div className="max-w-4xl mx-auto text-center">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-olive/10 text-olive text-sm font-semibold mb-6">
-                <span className="w-2 h-2 rounded-full bg-terracotta animate-pulse" />
-                Coming May 2026
-              </span>
+            <motion.div
+              className="flex flex-wrap items-center justify-center gap-3 mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Button
+                href="/contact/?inquiry=auxein-grow"
+                size="sm"
+                className="rounded-full bg-olive text-white hover:bg-olive-600"
+              >
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse mr-2" />
+                Grow is Live — Enquire
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+              <Button
+                href="https://insights.auxein.co.nz"
+                external
+                size="sm"
+                variant="secondary"
+                className="rounded-full"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Free Regional Insights
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </motion.div>
 
             <motion.h1
@@ -261,7 +281,7 @@ export default function InsightsProPage() {
                 href="/contact/?inquiry=auxein-grow"
                 className="bg-olive text-white hover:bg-olive-600"
               >
-                Join the Waitlist
+                Enquire
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </motion.div>
@@ -435,7 +455,7 @@ export default function InsightsProPage() {
               href="/contact/?inquiry=auxein-grow"
               className="bg-olive text-white hover:bg-olive-600"
             >
-              Join the Waitlist
+              Enquire
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </motion.div>
