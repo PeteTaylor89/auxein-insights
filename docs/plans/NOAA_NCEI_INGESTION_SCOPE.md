@@ -493,6 +493,15 @@ Persistent service, **not** a GH cron. Two parts:
 - `requirements.txt`: add `pymetdecoder`.
 - **Accept:** Ogimet-bootstrap dry-run decodes + inserts PROVISIONAL for the ~40 reporting stations, idempotent + no downgrade, values match GHCNh; then LDM node streams the same rows live (continuous), `ingestion_log` healthy.
 
+> **UPDATE 2026-06-22 — Ogimet bootstrap BUILT + a cheaper v1 "always-on" path.** `ingestion/sources/synop.py` (`SynopIngestion`) is built and validated against live data (see §B2.1). Crucial realisation: **Ogimet is plain HTTP, so the live provisional tier needs NO persistent host.** A scheduled **GitHub Actions cron** (`.github/workflows/synop-live.yml`, mirroring `weather-ingestion.yml`) running `run_ingestion.py --source synop` every ~3h is a perfectly good "always-on" for the provisional tier — cloud, no infra, managed from the repo/CLI. **This becomes the v1 live transport; Unidata LDM is demoted to v2** (only needed when Ogimet rate-limits bite or for sub-hourly global firehose scale). The two infra decisions (LDM host + IDD feed) are therefore **no longer on the v1 critical path.**
+
+#### B2.1 — Ogimet bootstrap, as built (2026-06-22)
+- **Decoder:** self-contained minimal FM-12 (land AAXX) parser — **no `pymetdecoder` dependency** (not installed; the LDM/v2 path may swap it in if fuller cloud/weather decoding is wanted). Reads Section-1 groups only (stops at first `222/333/444/555/666` separator), maps temp / dewpoint / station+MSL pressure / wind, derives RH (Magnus), decodes precip with the accumulation-window code stashed in `quality_flags.synop_tr`. Every value sanity-bounded; ambiguous groups skipped, not guessed.
+- **Validated** against live Auckland 93110: temp/dewpoint/pressure/MSL/wind/RH all correct; section-3 stop confirmed (so a section-3 `2xxxx` group is not misread as dewpoint); pressure thousands-reconstruction correct incl. high-elevation (`39550`→955.0); knots→m/s when `iw∈{3,4}`.
+- **Writes** PROVISIONAL (`quality='PROVISIONAL', source='SYNOP', quality_rank=1`) into `timeseries_observations` via the **same upsert-with-precedence guard** as B3 — a provisional row never clobbers a CONFIRMED/AUTHORITATIVE one; the B3/B4 NOAA pass promotes it in place. Default window = last 48 h sliding re-pull (§9.7). `--reconcile` thinly delegates to `NoaaIngestion` (hourly+daily, last 60 d).
+- **Live coverage (full-fleet dry-run 2026-06-22, 48 h):** ~19.5k obs across ~48–50 reporting stations. The non-reporting ones are the **ICAO aerodromes** (Wellington Intl/Christchurch Intl/Hokitika/Haast/Auckland Intl/Gisborne/Tauranga) — they transmit **METAR, not SYNOP**, so Ogimet has no synoptic bulletin (the optional METAR/aviationweather fallback, S3, would fill these 5–7 if wanted). All `NZM000…` M-net stations report cleanly.
+- **Still untested:** the actual DB **write** path (only `--dry-run` exercised) — smoke-test a single-station live write before enabling the cron.
+
 ### Phase B3 — NOAA ingest class (authoritative + deep backfill) *(~4d)* — **BUILT 2026-06-19 (dry-run tested, no DB writes yet)**
 - `ingestion/sources/noaa.py` `NoaaIngestion`: modes — **GHCNh hourly** and **GHCN-Daily** (authoritative). Built & smoke-tested:
   - **Hourly:** fetches per-station-per-year `.psv` bulk files from `…/hourly/access/by-year/{YEAR}/psv/GHCNh_{ghcnh_id}_{YEAR}.psv` (verified live; values already metric °C/hPa/m·s⁻¹/%/mm, DATE = ISO-8601 UTC). Maps 8 elements → `temp/dewpoint/rh/pressure/pressure_msl/wind_direction/wind_speed/rainfall`. Writes **directly to `timeseries_observations`** (the real table — `weather_data` is a SELECT* view and Postgres rejects `ON CONFLICT` on views) with `quality='AUTHORITATIVE', quality_rank=3, source='GHCNH'`, via **upsert-with-precedence** (`WHERE EXCLUDED.quality_rank >= timeseries_observations.quality_rank` — promotes provisional SYNOP, never downgrades, idempotent). Skips empty + ISD bad-QC (`2/3/6/7`) + out-of-bounds values; stores non-clean QC in `quality_flags`. `psycopg2.execute_values` page_size 1000.
@@ -509,6 +518,24 @@ Persistent service, **not** a GH cron. Two parts:
   - **Audit checks → report + `ingestion_log`:** (a) provisional rows older than `lag_days+buffer` still un-promoted → *source-gap* flag; (b) |provisional − authoritative| > threshold → *QC-divergence* flag (keep authoritative, log delta); (c) active SYNOP device with no live obs in 48h AND no authoritative → *dead-station* flag; (d) crosswalk integrity — every active SYNOP device resolves to a `ghcn_id` or is tagged `live_only`.
 - **Accept:** dry-run lists would-promote counts; live run promotes + recomputes; emits audit summary (promoted N, diverged N, stale N, dead N); idempotent; safe to re-run same day.
 
+#### B4.1 — `daily_aggregation` provenance guard (PREREQUISITE for any historical backdate) — scoped 2026-06-22
+**Why this exists.** `backend/scripts/daily_aggregation.py` recomputes `weather_data_daily` from hourly `weather_data` and **upserts unconditionally — no `quality_rank`/`source` guard** (`upsert_daily_record`, ~L144-161). With SYNOP/GHCNh now present, that bites the **4 in-zone stations that also have authoritative GHCN-Daily** (Auckland 93110, Gisborne 93292, Christchurch Aero 93781, Tara Hills 93747) across the 2025-09→present overlap:
+1. **Rainfall → 0 corruption.** GHCNh carries **no hourly precip** (confirmed: 0 rainfall rows in the 2M-row backfill), so the hourly `SUM` is NULL → coalesced to `Decimal('0')` (L132) → would **overwrite the real GHCN-Daily PRCP with zero.** This is a latent bug for *any* rainfall-less station and also makes the **forward nightly cron** write `rainfall=0` for SYNOP daily rows — fix needed regardless of backdate.
+2. **TMAX/TMIN downgrade.** Hourly spot-derived extremes replace true daily extremes (the "use with caution" GHCN `H`-flag problem).
+
+**The forward cron mostly dodges this** (GHCN-Daily lags ~2 wk so "yesterday" has no authoritative row yet, and the cron never revisits old dates) — **but a backdate hits it head-on.** So the guard is a hard prerequisite before re-running the pipeline over historical dates.
+
+**The guard (small, ~15 lines in `daily_aggregation.py`):**
+- When `rainfall_record_count == 0` → write `rainfall_mm = NULL`, **not** `0` (never clobber a real daily PRCP with an absent-source zero).
+- Before overwriting an existing `weather_data_daily` row, **skip the fields that an authoritative GHCN-Daily value already populated for that (station, date).** `weather_data_daily` has no provenance column, so resolve "is this row authoritative?" by checking for a matching `source='GHCND'/'GHCNH'` provenance signal — cheapest is a `(station_id, date)` lookup against the NOAA-written set, or add a `source VARCHAR`/`quality_rank` column to `weather_data_daily` (mirrors the B0 change on `timeseries_observations`; cleanest, makes the guard a one-line `WHERE`). **Recommended:** add the column — it future-proofs the daily layer the same way B0 did the sub-daily layer.
+
+**Then the scoped backdate (B6 flow-through):**
+- Per affected zone (the 12 in-zone climate zones), loop `run_daily_processing.py --zone-id N --start 2025-09-01 --end <today>` (steps re-run daily→hourly→zone→phenology→disease). `daily_aggregation` now respects authoritative rows; `zone_aggregation`'s recursive CTE already includes `contributes_to_regional` SYNOP devices (no code change — confirm on one backdated day first).
+- **Caveat to flag to the user before running:** backdating **shifts already-published 2025-26 season figures** for those 12 zones (airport SYNOP blended into zones that already have council/Harvest data). Intended, but visible.
+- **Out of scope here:** climate *history*/baseline tables (`climate_history_monthly`, `climate_baseline_monthly`, `climate_zone_daily_baseline`) are **not** fed by `daily_processing` (they come from NIWA BCSD / upload scripts). GHCNh depth is only 2025-09→present so there's no climatology depth to roll up yet — that's the separate "calculate my climate history" rollup TODO.
+
+**Accept:** with the guard in place, a backdate over a GHCN-Daily station-day leaves authoritative TMAX/TMIN/PRCP intact (verify Auckland 93110 on a 2025-10 day: PRCP unchanged, not zeroed); rainfall-less SYNOP days show NULL not 0; one-zone backdated day shows SYNOP folded into `climate_zone_daily`.
+
 ### Phase B5 — Service + cron wiring *(~1d)*
 - **LDM = persistent service** (systemd unit on the host), not a cron — runs continuously, auto-restart. Monitored via `ldmadmin watch` + a heartbeat into `ingestion_log`.
 - New `.github/workflows/synop-reconcile.yml` — daily (after `daily-processing`) → `run_ingestion.py --source noaa --mode hourly` recent window **then** `reconcile_synop.py`. Or fold into `daily-processing.yml`. Same env block as `weather-ingestion.yml`.
@@ -523,13 +550,15 @@ Persistent service, **not** a GH cron. Two parts:
 |---|---|---|---|
 | B0 | Migration + catalog seed | ~1d | — | ✅ applied to DB |
 | B1 | 54-station crosswalk + seeder | ~1.5d | B0 | ✅ seeded (54 rows) |
-| B2 | Live SYNOP via Unidata LDM (+infra) | ~6d | B1 | needs host+feed |
-| B3 | NOAA class (daily 2022 + hourly 2025-09) | ~4d | B1 | ✅ built (dry-run tested); backfill run pending |
-| B4 | Reconcile/audit daily pass | ~3d | B2, B3 | |
+| B2 (v1) | Live SYNOP via **Ogimet GH-cron** | ~0.5d | B1 | ✅ bootstrap built + dry-run validated; cron + live write smoke-test pending |
+| B2 (v2) | Live SYNOP via Unidata LDM (+infra) | ~6d | B1 | ⏸ deferred — only if Ogimet rate-limits; needs host+feed |
+| B3 | NOAA class (daily 2022 + hourly 2025-09) | ~4d | B1 | ✅ built + **backfill RUN 2026-06-22** (2.02M hourly + 9.1k daily landed) |
+| B4 | Reconcile/audit daily pass | ~3d | B3 | |
+| B4.1 | `daily_aggregation` provenance guard | ~0.5d | B3 | prereq for any backdate; fixes PRCP→0 |
 | B5 | Service + cron wiring | ~1d | B2, B4 | |
-| B6 | Zone flow-through verify | ~0.5d | B2 | |
-| **Total** | | **~17d** | B2∥B3 parallelable | |
+| B6 | Zone flow-through verify + scoped backdate | ~0.5d | B4.1 | |
+| **Total** | | **~10d** (LDM removed from v1) | B2∥B3 parallelable | |
 
-**Critical path:** B0 → B1 → (B2 ∥ B3) → B4 → B5. B3 is also the N1 NOAA class from §6 — same code, so this absorbs that scope. The LDM infra (host + IDD feed) is the long-lead item — start that procurement in parallel with B1/B3.
+**Critical path (revised 2026-06-22):** B0 → B1 → B3 (✅ done) → **B4.1 guard → B6 backdate**, with B2-v1 (Ogimet cron) standing up in parallel. B3 is also the N1 NOAA class from §6 — same code, so this absorbs that scope. **The LDM infra (host + IDD feed) is off the v1 critical path** — Ogimet HTTP via GH-cron covers the provisional tier without a persistent host; promote to LDM (v2) only if Ogimet throttling forces it.
 
 *End of scope — 2026-06-17.*

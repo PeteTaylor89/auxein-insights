@@ -19,15 +19,16 @@ from sources.hbrc import HBRCIngestion
 from sources.tdc import TDCIngestion
 from sources.gdc import GDCIngestion
 from sources.noaa import NoaaIngestion
+from sources.synop import SynopIngestion
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'noaa', 'all'],
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'noaa', 'synop', 'all'],
         default='all',
-        help='Data source to ingest (noaa is a backfill, excluded from "all")'
+        help='Data source to ingest (noaa/synop are backfill/bootstrap, excluded from "all")'
     )
     parser.add_argument(
         '--mode',
@@ -75,6 +76,11 @@ def main():
         dest='credential_ref',
         help='Harvest only: scope ingestion to devices using this api_credential_ref '
              '(e.g., harvest/codc to backfill just that customer). Omit to run the whole fleet.'
+    )
+    parser.add_argument(
+        '--reconcile',
+        action='store_true',
+        help='SYNOP only: run the NOAA authoritative pass to promote provisional rows'
     )
     parser.add_argument(
         '--interval',
@@ -262,6 +268,23 @@ def main():
             print("✓ NOAA ingestion complete\n")
         except Exception as e:
             print(f"✗ NOAA ingestion failed: {e}\n")
+            success = False
+
+    # Run SYNOP live ingestion (provisional/bootstrap — explicit only, not 'all')
+    if args.source == 'synop':
+        try:
+            print(f"▶ Starting SYNOP ingestion (Ogimet bootstrap)...\n")
+            ingester = SynopIngestion()
+            ingester.run(
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                station_code=args.station,
+                reconcile=args.reconcile,
+            )
+            print("✓ SYNOP ingestion complete\n")
+        except Exception as e:
+            print(f"✗ SYNOP ingestion failed: {e}\n")
             success = False
 
     print(f"{'='*70}")

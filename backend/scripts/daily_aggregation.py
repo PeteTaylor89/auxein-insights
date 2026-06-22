@@ -129,7 +129,13 @@ def aggregate_station_day(
         'humidity_min': row['humidity_min'],
         'humidity_max': row['humidity_max'],
         'humidity_mean': row['humidity_mean'],
-        'rainfall_mm': row['rainfall_sum'] if row['rainfall_sum'] is not None else Decimal('0'),
+        # B4.1 guard: leave NULL when there are no rainfall obs — do NOT fabricate
+        # a 0mm reading for rainfall-less stations (GHCNh/SYNOP carry no/sparse
+        # hourly precip). A spurious 0 pollutes zone rainfall averages and, on a
+        # historical backdate, would clobber a real authoritative daily PRCP.
+        # SUM returns NULL iff no rainfall rows matched (a genuine 0mm day still
+        # sums to 0, which is kept).
+        'rainfall_mm': row['rainfall_sum'],
         'solar_radiation': row['solar_sum'],
         'gdd_base0': gdd_base0,
         'gdd_base10': gdd_base10,
