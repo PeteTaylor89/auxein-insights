@@ -4,6 +4,7 @@ import { X, Frame } from 'lucide-react';
 
 const TOOL_PRESETS = [
   { label: 'Trend or Blip tool', src: '/tools/trend-or-blip.html', height: 1100 },
+  { label: 'Video (16:9)', height: 420 },
 ];
 
 function IframeInserter({ editor, onClose }) {
@@ -26,9 +27,9 @@ function IframeInserter({ editor, onClose }) {
   };
 
   const applyPreset = (preset) => {
-    setSrc(preset.src);
+    if (preset.src) setSrc(preset.src);
     setHeight(preset.height);
-    if (!title) setTitle(preset.label);
+    if (preset.src && !title) setTitle(preset.label);
   };
 
   const fieldStyle = { width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' };
@@ -82,6 +83,9 @@ function IframeInserter({ editor, onClose }) {
               style={fieldStyle}
               autoFocus
             />
+            <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px' }}>
+              For video, use the embed URL — youtube.com/embed/ID or player.vimeo.com/video/ID (not the watch/share link).
+            </div>
           </div>
 
           <div>

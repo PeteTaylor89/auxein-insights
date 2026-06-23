@@ -54,6 +54,8 @@ function IframeNodeView({ node, updateAttributes, deleteNode, selected }) {
           width="100%"
           height={safeHeight}
           sandbox={sandbox}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          allowFullScreen
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
           style={{ border: '1px solid #e5e7eb', borderRadius: '8px', display: 'block' }}
