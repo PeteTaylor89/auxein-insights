@@ -407,6 +407,13 @@ def get_current_season_climate(
         ClimateZoneDailyBaseline.day_of_vintage <= doy
     ).scalar()
 
+    # Rainfall coverage: fraction of growing-season days with >=1 rain-reporting
+    # station. Near-100% for council-gauged zones; very low for SYNOP/GHCNh-only
+    # zones (hourly synoptic carries no precip), where rainfall reads artificially dry.
+    rainfall_coverage_pct = to_decimal(
+        round(100 * sum(1 for d in growing_data if (d.stations_with_rain or 0) > 0) / len(growing_data))
+    ) if growing_data else None
+
     # Build season summary (season_start = Sep 1 growing season start)
     season_summary = SeasonSummary(
         vintage_year=vintage_year,
@@ -422,6 +429,7 @@ def get_current_season_climate(
         temp_min_avg=temp_min_avg,
         gdd_vs_baseline=calc_baseline_comparison(gdd_total, to_decimal(baseline_gdd)) if baseline_gdd else None,
         rainfall_vs_baseline=calc_baseline_comparison(rainfall_total, to_decimal(baseline_rain)) if baseline_rain else None,
+        rainfall_coverage_pct=rainfall_coverage_pct,
         extremes=extremes,
     )
     

@@ -396,6 +396,13 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
   const { season } = seasonData;
   const gddComparison = season.gdd_vs_baseline;
   const rainComparison = season.rainfall_vs_baseline;
+  // SYNOP/GHCNh-only zones have sparse precip, so the rainfall total/baseline
+  // read artificially dry. Council-gauged zones sit ~16-53% on this metric
+  // (rainfall arrives sparse/laggy), while pure-SYNOP zones are 1-6% — so 10%
+  // cleanly isolates the affected zones with margin. Below it we badge + hide
+  // the misleading comparison.
+  const rainfallLimited =
+    season.rainfall_coverage_pct != null && Number(season.rainfall_coverage_pct) < 10;
 
   return (
     <div className="current-season-explorer">
@@ -479,10 +486,10 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
           <div className="card-content">
             <span className="card-label">Total Rainfall</span>
             <span className="card-value">{formatRainfall(season.rainfall_total)}</span>
-            {rainComparison && (
+            {rainComparison && !rainfallLimited && (
               <div className="card-comparison">
                 <TrendIcon value={Number(rainComparison.difference_pct)} inverted />
-                <span 
+                <span
                   className="comparison-value"
                   style={{ color: getStatusColor(rainComparison.status === 'ahead' ? 'behind' : rainComparison.status === 'behind' ? 'ahead' : 'normal') }}
                 >
@@ -490,7 +497,17 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
                 </span>
               </div>
             )}
+            {rainfallLimited && (
+              <div className="card-comparison">
+                <span className="comparison-value comparison-muted">
+                  Limited rain-gauge coverage
+                </span>
+              </div>
+            )}
           </div>
+          {rainfallLimited && (
+            <div className="status-badge rainfall-limited">Limited data</div>
+          )}
         </div>
 
         {/* Temperature Card */}

@@ -95,6 +95,11 @@ class SeasonSummary(BaseModel):
     gdd_vs_baseline: Optional[BaselineComparison] = None
     rainfall_vs_baseline: Optional[BaselineComparison] = None
 
+    # Fraction of growing-season days that had at least one rain-reporting
+    # station. Low for SYNOP/GHCNh-only zones (hourly synoptic carries no
+    # precip), where the rainfall total/baseline read artificially dry.
+    rainfall_coverage_pct: Optional[Decimal] = None
+
     # Threshold metrics (frost / hot days / extreme rainfall)
     extremes: Optional[SeasonExtremes] = None
 

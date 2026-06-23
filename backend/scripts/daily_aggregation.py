@@ -157,8 +157,16 @@ def upsert_daily_record(db, record: dict) -> bool:
     if existing:
         # Update
         for key, value in record.items():
-            if key not in ('station_id', 'date'):
-                setattr(existing, key, value)
+            if key in ('station_id', 'date'):
+                continue
+            # B4.1 guard: never overwrite an existing non-NULL value with NULL.
+            # GHCNh hourly carries no precip, so re-aggregating a station-day that
+            # already has an authoritative GHCN-Daily PRCP (or any source-supplied
+            # value) must not clobber it back to NULL. Genuinely new fields and
+            # real updates (non-None values) still apply.
+            if value is None and getattr(existing, key) is not None:
+                continue
+            setattr(existing, key, value)
     else:
         # Insert
         new_record = WeatherDataDaily(**record)

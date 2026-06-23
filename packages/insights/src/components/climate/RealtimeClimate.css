@@ -455,6 +455,18 @@
   color: #4B5563;
 }
 
+/* Limited rain-gauge coverage (SYNOP/GHCNh-only zones) */
+.status-badge.rainfall-limited {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.comparison-value.comparison-muted {
+  color: var(--text-secondary, #6B7280);
+  font-style: italic;
+  font-weight: 500;
+}
+
 /* Milestones */
 .milestones-section {
   margin-bottom: 1.5rem;
