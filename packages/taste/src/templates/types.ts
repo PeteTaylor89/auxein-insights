@@ -3,6 +3,8 @@
 // Only the type definitions live here in P2 (the notes row references them);
 // the CMS seed + builder UI land in P3.
 
+import type { ReconciliationType, ScoreSystem } from '@/reconcile';
+
 export type FieldType =
   | 'single_select' // chip set, pick one
   | 'multi_select' // chip set, pick many
@@ -26,9 +28,16 @@ export interface TemplateField {
   key: string; // machine key, snake_case (used in export mapping)
   label: string;
   type: FieldType;
+  // EPIC 1 — every field declares how it reconciles (BUILD_SPEC 1.1 / D1/D2):
+  //   ordinal → projected onto the CMS 5-band standard (uses `scale`, or the
+  //             single_select `options` as ordered labels)
+  //   score   → normalised onto 0..100 (uses `score_system`)
+  //   none    → raw only (categorical selects, tags, text, booleans, numbers)
+  reconciliation_type: ReconciliationType;
   options?: string[]; // single_select / multi_select
   groups?: TemplateOptionGroup[]; // tag_structured — grouped descriptor chips
   scale?: { min: number; max: number; step?: number; labels?: string[] };
+  score_system?: ScoreSystem; // type 'score' — parker/ucdavis/stars/percent/custom
   required?: boolean;
   help?: string;
 }

@@ -1,5 +1,6 @@
 // Storage row shapes for Dexie (and, later, the taste.* Postgres mirror).
 // Spec §4 + dev-plan §5.3. Every synced row carries the BaseRow sync columns.
+import type { ReconciledValue } from '@/reconcile';
 import type { TemplateSection, TemplateSnapshot } from '@/templates/types';
 
 // Common columns on every user-scoped, sync-tracked row.
@@ -12,6 +13,10 @@ export interface BaseRow {
 }
 
 export type TemplateKind = 'cms' | 'custom';
+
+// Glass colour/type for the flight rack — the observed pour, set from the rack
+// (visible even when blind). Useful tasting metadata; feeds stats later.
+export type GlassColor = 'red' | 'white' | 'rose' | 'sparkling';
 
 export interface Template extends BaseRow {
   name: string;
@@ -57,14 +62,20 @@ export interface Note extends BaseRow {
   template_id: string;
   template_version: number; // pinned version the note was captured against
   template_snapshot: TemplateSnapshot; // denormalised so old notes render unchanged
-  values: Record<string, unknown>; // keyed by TemplateField.key
+  // Non-destructive reconciliation envelope per field (EPIC 1): { raw, raw_scale?, canonical? }.
+  // Keyed by TemplateField.key. Raw is always read back verbatim; canonical is derived.
+  values: Record<string, ReconciledValue>;
   general_notes: string; // free text — thoughts, winemaker notes, context (not template-driven)
   tasted_at: string | null; // ISO date the wine was tasted (defaults today; editable for backdated notes)
   blind: boolean;
   revealed: boolean; // display gate only — data is always stored
+  // Pre-reveal deductive guesses (raw values of blind_only-section fields), frozen
+  // at reveal time so Epic 5 can grade them against the revealed truth. Null when known.
+  blind_conclusions: Record<string, unknown> | null;
   score: number | null;
   flight_id: string | null;
   flight_position: number | null;
+  glass_color: GlassColor | null; // observed pour colour/type (flight rack); null if unset
   photos: string[]; // Photo id refs
 }
 

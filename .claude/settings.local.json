@@ -34,7 +34,10 @@
       "WebFetch(domain:support.google.com)",
       "Bash(Get-ChildItem -Path A:\\\\auxein-insights-V0.1\\\\backend -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "Skill(deep-research)",
+      "WebSearch",
+      "WebFetch(domain:www.hbrc.govt.nz)"
     ]
   }
 }

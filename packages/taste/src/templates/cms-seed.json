@@ -1,35 +1,35 @@
 {
   "id": "builtin-cms-deductive",
   "name": "CMS Deductive",
-  "version": 4,
+  "version": 5,
   "sections": [
     {
       "id": "sight",
       "label": "Sight",
       "fields": [
-        { "id": "sight_clarity", "key": "sight_clarity", "label": "Clarity", "type": "single_select", "options": ["Clear", "Slightly Cloudy", "Cloudy"] },
-        { "id": "sight_brightness", "key": "sight_brightness", "label": "Brightness", "type": "single_select", "options": ["Dull", "Bright", "Brilliant"] },
-        { "id": "sight_concentration", "key": "sight_concentration", "label": "Concentration", "type": "single_select", "options": ["Pale / Translucent", "Medium", "Deep", "Opaque"] },
-        { "id": "sight_gas", "key": "sight_gas", "label": "Gas evidence", "type": "boolean" },
-        { "id": "sight_sediment", "key": "sight_sediment", "label": "Sediment / particles", "type": "boolean" },
-        { "id": "sight_colour_white", "key": "sight_colour_white", "label": "Colour — white", "type": "single_select", "options": ["Straw", "Yellow", "Gold", "Amber"] },
-        { "id": "sight_colour_red", "key": "sight_colour_red", "label": "Colour — red", "type": "single_select", "options": ["Purple", "Ruby", "Garnet"] },
-        { "id": "sight_hue", "key": "sight_hue", "label": "Hue", "type": "single_select", "options": ["Silver", "Green", "Orange", "Purple", "Ruby", "Garnet", "Brown"] },
-        { "id": "sight_rim", "key": "sight_rim", "label": "Rim variation", "type": "text_short", "help": "Colour change from centre to edge" },
-        { "id": "sight_extract", "key": "sight_extract", "label": "Extract / stain", "type": "single_select", "options": ["None", "Light", "Medium", "Heavy"] },
-        { "id": "sight_viscosity", "key": "sight_viscosity", "label": "Viscosity / tears", "type": "single_select", "options": ["Low", "Med-", "Medium", "Med+", "High"] }
+        { "id": "sight_clarity", "key": "sight_clarity", "label": "Clarity", "type": "single_select", "reconciliation_type": "none", "options": ["Clear", "Slightly Cloudy", "Cloudy"] },
+        { "id": "sight_brightness", "key": "sight_brightness", "label": "Brightness", "type": "single_select", "reconciliation_type": "none", "options": ["Dull", "Bright", "Brilliant"] },
+        { "id": "sight_concentration", "key": "sight_concentration", "label": "Concentration", "type": "single_select", "reconciliation_type": "none", "options": ["Pale / Translucent", "Medium", "Deep", "Opaque"] },
+        { "id": "sight_gas", "key": "sight_gas", "label": "Gas evidence", "type": "boolean", "reconciliation_type": "none" },
+        { "id": "sight_sediment", "key": "sight_sediment", "label": "Sediment / particles", "type": "boolean", "reconciliation_type": "none" },
+        { "id": "sight_colour_white", "key": "sight_colour_white", "label": "Colour — white", "type": "single_select", "reconciliation_type": "none", "options": ["Straw", "Yellow", "Gold", "Amber"] },
+        { "id": "sight_colour_red", "key": "sight_colour_red", "label": "Colour — red", "type": "single_select", "reconciliation_type": "none", "options": ["Purple", "Ruby", "Garnet"] },
+        { "id": "sight_hue", "key": "sight_hue", "label": "Hue", "type": "single_select", "reconciliation_type": "none", "options": ["Silver", "Green", "Orange", "Purple", "Ruby", "Garnet", "Brown"] },
+        { "id": "sight_rim", "key": "sight_rim", "label": "Rim variation", "type": "text_short", "reconciliation_type": "none", "help": "Colour change from centre to edge" },
+        { "id": "sight_extract", "key": "sight_extract", "label": "Extract / stain", "type": "single_select", "reconciliation_type": "none", "options": ["None", "Light", "Medium", "Heavy"] },
+        { "id": "sight_viscosity", "key": "sight_viscosity", "label": "Viscosity / tears", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Low", "Med-", "Medium", "Med+", "High"] }
       ]
     },
     {
       "id": "nose",
       "label": "Nose — Aroma",
       "fields": [
-        { "id": "nose_condition", "key": "nose_condition", "label": "Clean / faulty", "type": "multi_select", "options": ["TCA", "H2S", "VA", "Brett", "Oxidation", "Other"], "help": "Leave empty if clean" },
-        { "id": "nose_intensity", "key": "nose_intensity", "label": "Intensity", "type": "single_select", "options": ["Delicate", "Moderate", "Powerful"] },
-        { "id": "nose_fruit_condition", "key": "nose_fruit_condition", "label": "Fruit condition", "type": "single_select", "options": ["Tart / Unripe", "Ripe", "Tropical", "Overripe", "Jammy", "Baked"] },
-        { "id": "nose_age", "key": "nose_age", "label": "Age assessment", "type": "single_select", "options": ["Youthful", "Vinous"] },
+        { "id": "nose_condition", "key": "nose_condition", "label": "Clean / faulty", "type": "multi_select", "reconciliation_type": "none", "options": ["TCA", "H2S", "VA", "Brett", "Oxidation", "Other"], "help": "Leave empty if clean" },
+        { "id": "nose_intensity", "key": "nose_intensity", "label": "Intensity", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Delicate", "Moderate", "Powerful"] },
+        { "id": "nose_fruit_condition", "key": "nose_fruit_condition", "label": "Fruit condition", "type": "single_select", "reconciliation_type": "none", "options": ["Tart / Unripe", "Ripe", "Tropical", "Overripe", "Jammy", "Baked"] },
+        { "id": "nose_age", "key": "nose_age", "label": "Age assessment", "type": "single_select", "reconciliation_type": "none", "options": ["Youthful", "Vinous"] },
         {
-          "id": "nose_primary_fruit", "key": "nose_primary_fruit", "label": "Primary fruit", "type": "tag_structured",
+          "id": "nose_primary_fruit", "key": "nose_primary_fruit", "label": "Primary fruit", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Citrus", "options": ["Lemon", "Lime", "Grapefruit", "Orange", "Blood Orange", "Tangerine", "Peel / Rind", "Pith"] },
             { "label": "Orchard", "options": ["Green Apple", "Yellow Apple", "Red Apple", "Baked Apple", "Quince", "Unripe Pear", "Overripe Pear", "Fig"] },
@@ -44,7 +44,7 @@
           ]
         },
         {
-          "id": "nose_non_fruit", "key": "nose_non_fruit", "label": "Non-fruit", "type": "tag_structured",
+          "id": "nose_non_fruit", "key": "nose_non_fruit", "label": "Non-fruit", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Flower", "options": ["Apple Blossom", "Citrus Blossom", "Acacia", "Lily", "Gardenia", "Lilac", "Iris", "Jasmine", "Honeysuckle", "Chamomile"] },
             { "label": "Herb", "options": ["Rosemary", "Thyme", "Basil", "Lemongrass", "Eucalyptus", "Mint", "Lavender", "Dill", "Chive", "Parsley", "Fennel", "Oregano"] },
@@ -56,7 +56,7 @@
           ]
         },
         {
-          "id": "nose_secondary", "key": "nose_secondary", "label": "Secondary (winemaking)", "type": "tag_structured",
+          "id": "nose_secondary", "key": "nose_secondary", "label": "Secondary (winemaking)", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Oak", "options": ["Vanilla", "Toast", "Smoke", "Caramel", "Chocolate", "Coffee", "Cedar", "Coconut"] },
             { "label": "Malolactic Fermentation", "options": ["Butter", "Cream", "Custard", "Nuts", "Honeysuckle", "Diacetyl", "Brioche", "Yogurt"] },
@@ -66,7 +66,7 @@
           ]
         },
         {
-          "id": "nose_tertiary", "key": "nose_tertiary", "label": "Tertiary (aged)", "type": "tag_structured",
+          "id": "nose_tertiary", "key": "nose_tertiary", "label": "Tertiary (aged)", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Tertiary (Whites)", "options": ["Nutty", "Honey", "Chamomile", "Petrol / Diesel", "Straw / Hay", "Mushroom", "Truffle", "Olive Oil"] },
             { "label": "Tertiary (Reds)", "options": ["Damp Earth", "Forest Floor", "Truffle", "Leather", "Game", "Prune", "Dried Fruits", "Raisin", "Beetroot", "Tobacco", "Sun Dried Tomato", "Balsamic", "Chinese Tea", "Farmyard"] }
@@ -78,11 +78,11 @@
       "id": "palate_structure",
       "label": "Palate — Structure",
       "fields": [
-        { "id": "palate_sweetness", "key": "palate_sweetness", "label": "Sweetness", "type": "single_select", "options": ["Bone Dry", "Dry", "Off Dry", "Sweet", "Dessert"] },
-        { "id": "palate_tannin", "key": "palate_tannin", "label": "Tannin", "type": "single_select", "options": ["Low", "Med-", "Medium", "Med+", "High"] },
-        { "id": "palate_acid", "key": "palate_acid", "label": "Acid", "type": "single_select", "options": ["Low", "Med-", "Medium", "Med+", "High"] },
-        { "id": "palate_alcohol", "key": "palate_alcohol", "label": "Alcohol", "type": "single_select", "options": ["Low", "Med-", "Medium", "Med+", "High"] },
-        { "id": "palate_body", "key": "palate_body", "label": "Body / texture", "type": "single_select", "options": ["Tart", "Light", "Medium", "Full", "Creamy", "Round"] }
+        { "id": "palate_sweetness", "key": "palate_sweetness", "label": "Sweetness", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Bone Dry", "Dry", "Off Dry", "Sweet", "Dessert"] },
+        { "id": "palate_tannin", "key": "palate_tannin", "label": "Tannin", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Low", "Med-", "Medium", "Med+", "High"] },
+        { "id": "palate_acid", "key": "palate_acid", "label": "Acid", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Low", "Med-", "Medium", "Med+", "High"] },
+        { "id": "palate_alcohol", "key": "palate_alcohol", "label": "Alcohol", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Low", "Med-", "Medium", "Med+", "High"] },
+        { "id": "palate_body", "key": "palate_body", "label": "Body / texture", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Light", "Med-", "Medium", "Med+", "Full"], "help": "Weight low→high. Texture (creamy, round) goes in tasting notes." }
       ]
     },
     {
@@ -90,7 +90,7 @@
       "label": "Palate — Flavour",
       "fields": [
         {
-          "id": "flavour_primary_fruit", "key": "flavour_primary_fruit", "label": "Primary fruit", "type": "tag_structured",
+          "id": "flavour_primary_fruit", "key": "flavour_primary_fruit", "label": "Primary fruit", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Citrus", "options": ["Lemon", "Lime", "Grapefruit", "Orange", "Blood Orange", "Tangerine", "Peel / Rind", "Pith"] },
             { "label": "Orchard", "options": ["Green Apple", "Yellow Apple", "Red Apple", "Baked Apple", "Quince", "Unripe Pear", "Overripe Pear", "Fig"] },
@@ -105,7 +105,7 @@
           ]
         },
         {
-          "id": "flavour_non_fruit", "key": "flavour_non_fruit", "label": "Non-fruit", "type": "tag_structured",
+          "id": "flavour_non_fruit", "key": "flavour_non_fruit", "label": "Non-fruit", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Flower", "options": ["Apple Blossom", "Citrus Blossom", "Acacia", "Lily", "Gardenia", "Lilac", "Iris", "Jasmine", "Honeysuckle", "Chamomile"] },
             { "label": "Herb", "options": ["Rosemary", "Thyme", "Basil", "Lemongrass", "Eucalyptus", "Mint", "Lavender", "Dill", "Chive", "Parsley", "Fennel", "Oregano"] },
@@ -117,7 +117,7 @@
           ]
         },
         {
-          "id": "flavour_secondary", "key": "flavour_secondary", "label": "Secondary", "type": "tag_structured",
+          "id": "flavour_secondary", "key": "flavour_secondary", "label": "Secondary", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Oak", "options": ["Vanilla", "Toast", "Smoke", "Caramel", "Chocolate", "Coffee", "Cedar", "Coconut"] },
             { "label": "Malolactic Fermentation", "options": ["Butter", "Cream", "Custard", "Nuts", "Honeysuckle", "Diacetyl", "Brioche", "Yogurt"] },
@@ -127,15 +127,23 @@
           ]
         },
         {
-          "id": "flavour_tertiary", "key": "flavour_tertiary", "label": "Tertiary", "type": "tag_structured",
+          "id": "flavour_tertiary", "key": "flavour_tertiary", "label": "Tertiary", "type": "tag_structured", "reconciliation_type": "none",
           "groups": [
             { "label": "Tertiary (Whites)", "options": ["Nutty", "Honey", "Chamomile", "Petrol / Diesel", "Straw / Hay", "Mushroom", "Truffle", "Olive Oil"] },
             { "label": "Tertiary (Reds)", "options": ["Damp Earth", "Forest Floor", "Truffle", "Leather", "Game", "Prune", "Dried Fruits", "Raisin", "Beetroot", "Tobacco", "Sun Dried Tomato", "Balsamic", "Chinese Tea", "Farmyard"] }
           ]
         },
-        { "id": "palate_balance", "key": "palate_balance", "label": "Balance", "type": "text_short", "help": "Does any element dominate?" },
-        { "id": "palate_finish", "key": "palate_finish", "label": "Length / finish", "type": "single_select", "options": ["Short", "Med-", "Medium", "Med+", "Long"] },
-        { "id": "palate_complexity", "key": "palate_complexity", "label": "Complexity", "type": "single_select", "options": ["Low", "Moderate", "Complex"] }
+        { "id": "palate_balance", "key": "palate_balance", "label": "Balance", "type": "text_short", "reconciliation_type": "none", "help": "Does any element dominate?" },
+        { "id": "palate_finish", "key": "palate_finish", "label": "Length / finish", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Short", "Med-", "Medium", "Med+", "Long"] },
+        { "id": "palate_complexity", "key": "palate_complexity", "label": "Complexity", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Low", "Moderate", "Complex"] }
+      ]
+    },
+    {
+      "id": "assessment",
+      "label": "Assessment",
+      "fields": [
+        { "id": "quality_level", "key": "quality_level", "label": "Quality level", "type": "single_select", "reconciliation_type": "ordinal", "options": ["Faulty", "Acceptable", "Good", "Very Good", "Outstanding"] },
+        { "id": "score", "key": "score", "label": "Score", "type": "score", "reconciliation_type": "score", "score_system": { "system": "percent", "min": 0, "max": 100 }, "scale": { "min": 0, "max": 100, "step": 1 }, "help": "Optional overall score — normalised onto 0–100 for stats" }
       ]
     },
     {
@@ -143,10 +151,10 @@
       "label": "Initial Conclusion",
       "blind_only": true,
       "fields": [
-        { "id": "ic_climate", "key": "ic_climate", "label": "Climate", "type": "single_select", "options": ["Cool", "Cool / Mod", "Moderate", "Mod / Warm", "Warm"] },
-        { "id": "ic_variety", "key": "ic_variety", "label": "Grape variety / blend", "type": "text_short" },
-        { "id": "ic_countries", "key": "ic_countries", "label": "Possible countries", "type": "text_short" },
-        { "id": "ic_age_range", "key": "ic_age_range", "label": "Age range", "type": "single_select", "options": ["1-3 yrs", "3-5 yrs", "5-10 yrs", "10 yrs+"] }
+        { "id": "ic_climate", "key": "ic_climate", "label": "Climate", "type": "single_select", "reconciliation_type": "none", "options": ["Cool", "Cool / Mod", "Moderate", "Mod / Warm", "Warm"] },
+        { "id": "ic_variety", "key": "ic_variety", "label": "Grape variety / blend", "type": "text_short", "reconciliation_type": "none" },
+        { "id": "ic_countries", "key": "ic_countries", "label": "Possible countries", "type": "text_short", "reconciliation_type": "none" },
+        { "id": "ic_age_range", "key": "ic_age_range", "label": "Age range", "type": "single_select", "reconciliation_type": "none", "options": ["1-3 yrs", "3-5 yrs", "5-10 yrs", "10 yrs+"] }
       ]
     },
     {
@@ -154,11 +162,11 @@
       "label": "Final Conclusion",
       "blind_only": true,
       "fields": [
-        { "id": "fc_vintage", "key": "fc_vintage", "label": "Vintage", "type": "number" },
-        { "id": "fc_variety", "key": "fc_variety", "label": "Grape variety / blend", "type": "text_short" },
-        { "id": "fc_country", "key": "fc_country", "label": "Country of origin", "type": "text_short" },
-        { "id": "fc_region", "key": "fc_region", "label": "Region / appellation", "type": "text_short" },
-        { "id": "fc_quality", "key": "fc_quality", "label": "Quality hierarchy", "type": "text_short", "help": "e.g. AOC / DOCG, Grand / Premier Cru, Reserva, Gran Reserva" }
+        { "id": "fc_vintage", "key": "fc_vintage", "label": "Vintage", "type": "number", "reconciliation_type": "none" },
+        { "id": "fc_variety", "key": "fc_variety", "label": "Grape variety / blend", "type": "text_short", "reconciliation_type": "none" },
+        { "id": "fc_country", "key": "fc_country", "label": "Country of origin", "type": "text_short", "reconciliation_type": "none" },
+        { "id": "fc_region", "key": "fc_region", "label": "Region / appellation", "type": "text_short", "reconciliation_type": "none" },
+        { "id": "fc_quality", "key": "fc_quality", "label": "Quality hierarchy", "type": "text_short", "reconciliation_type": "none", "help": "e.g. AOC / DOCG, Grand / Premier Cru, Reserva, Gran Reserva" }
       ]
     }
   ]

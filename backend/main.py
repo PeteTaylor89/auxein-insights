@@ -103,10 +103,12 @@ allowed_origins = [
     "https://app.auxein.co.nz",
     "https://grow.auxein.co.nz",
     "https://insights.auxein.co.nz",
+    "https://taste.auxein.co.nz",
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://localhost:5175",
 ]
 
 app.add_middleware(

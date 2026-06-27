@@ -1,20 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Camera } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { db, meta, newBase, nowIso, repo, uuidv4 } from '@/db';
+import { db, meta, newBase, nowIso, repo } from '@/db';
 import type { Flight, Note, Photo, TasteEvent, Template, Wine } from '@/db';
-import type { TemplateSnapshot } from '@/templates/types';
+import type { TemplateSection, TemplateSnapshot } from '@/templates/types';
+import { reconcileNoteValues } from '@/templates/factory';
 import { SectionWalk } from './SectionWalk';
 import { WineFields, emptyWine } from '../wines/WineFields';
+import { GlassRack } from './GlassRack';
+import { usePhotoUrl } from './usePhotoUrl';
+import { emptyGlass, glassHasContent, nextColor } from './glass';
+import type { Glass } from './glass';
+
+// The pre-reveal deductive guesses to freeze for Epic 5 grading: the raw answered
+// values of every blind_only section field, snapshotted the moment before reveal.
+function blindConclusionSnapshot(sections: TemplateSection[], values: Record<string, unknown>): Record<string, unknown> {
+  const snap: Record<string, unknown> = {};
+  for (const s of sections) {
+    if (!s.blind_only) continue;
+    for (const f of s.fields) {
+      const v = values[f.key];
+      if (v !== undefined && v !== '') snap[f.key] = v;
+    }
+  }
+  return snap;
+}
+
+const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 const CMS_ID = 'builtin-cms-deductive';
 const today = () => new Date().toISOString().slice(0, 10);
 
 type SessionState = { mode?: 'quick' | 'flight'; flightId?: string };
 
-// The tasting workspace. Two phases: a quick SETUP (grid + blind + date, and a
-// flight name/event when starting a flight) then TASTE — wines are added inline,
-// one continuous forward pass each. Blind = deductive: taste → conclusions →
-// Reveal → enter identity. The Wines tab is the review archive, not this.
+// The tasting workspace. Quick taste = one glass. A flight = a rack of glasses you
+// switch between freely (tap glass 4, then 6, then 1); each glass holds its own
+// in-progress note and persists to Dexie the moment it has content. Blind = the
+// wine identity is hidden per glass until you reveal it.
 export function CaptureScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,20 +53,17 @@ export function CaptureScreen() {
   const [eventId, setEventId] = useState<string | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [flightName, setFlightName] = useState('');
+  const [glassesCount, setGlassesCount] = useState(1);
   const [blind, setBlind] = useState(false);
   const [tastedAt, setTastedAt] = useState(today());
 
-  // Per-wine state (reset between pours).
-  const [wine, setWine] = useState<Wine>(emptyWine());
-  const [values, setValues] = useState<Record<string, unknown>>({});
-  const [generalNotes, setGeneralNotes] = useState('');
-  const [revealed, setRevealed] = useState(false);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [noteId, setNoteId] = useState(() => uuidv4());
+  // The rack. Quick mode keeps exactly one glass and hides the rack UI.
+  const [glasses, setGlasses] = useState<Glass[]>([]);
+  const [activeId, setActiveId] = useState('');
+  const active = glasses.find((g) => g.id === activeId) ?? null;
 
   const [flightNotesOpen, setFlightNotesOpen] = useState(false);
   const [error, setError] = useState('');
-  const [savedTick, setSavedTick] = useState(0);
 
   const pickTemplate = (all: Template[], id: string) => {
     setTemplateId(id);
@@ -59,28 +78,36 @@ export function CaptureScreen() {
       setTemplates(all);
       setEvents(await repo.events.list());
       const def = await meta.get<string>('default_template_id');
-      const id = def && all.some((t) => t.id === def) ? def : all.find((t) => t.id === CMS_ID)?.id ?? all[0]?.id ?? '';
-      pickTemplate(all, id);
+      const fallbackId = def && all.some((t) => t.id === def) ? def : all.find((t) => t.id === CMS_ID)?.id ?? all[0]?.id ?? '';
 
+      // Resume an existing flight: rebuild the rack from its notes.
       if (init.flightId) {
         const f = await repo.flights.get(init.flightId);
         if (f) {
+          const notes = (await Promise.all(f.note_ids.map((id) => repo.notes.get(id)))).filter(
+            (n): n is Note => !!n && !n.deleted,
+          );
+          const built = await Promise.all(notes.map(noteToGlass));
+          const rack = built.length > 0 ? built : [emptyGlass()];
+          pickTemplate(all, notes[0]?.template_id ?? fallbackId);
           setFlight(f);
           setMode('flight');
           setBlind(f.blind);
+          setTastedAt(notes[0]?.tasted_at ?? today());
+          setGlasses(rack);
+          setActiveId(rack[0].id);
           setPhase('taste');
           return;
         }
       }
+
+      pickTemplate(all, fallbackId);
       setPhase('setup');
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const changeTemplate = (id: string) => {
-    pickTemplate(templates, id);
-    setValues({});
-  };
+  const changeTemplate = (id: string) => pickTemplate(templates, id);
 
   // Sections to walk: blind keeps the deductive conclusion sections; a known
   // (non-blind) note hides them.
@@ -89,20 +116,15 @@ export function CaptureScreen() {
     [template, blind],
   );
 
-  const startTasting = async () => {
-    if (mode === 'flight') {
-      if (!flightName.trim()) {
-        setError('Name the flight to start.');
-        return;
-      }
-      const f = await repo.flights.save({ ...newFlight(eventId, blind), name: flightName.trim() });
-      setFlight(f);
-    }
-    setError('');
-    setPhase('taste');
-  };
+  // ---- per-glass editor mutations (always target the active glass) ---------
+  const patchActive = (patch: Partial<Glass>) =>
+    setGlasses((gs) => gs.map((g) => (g.id === activeId ? { ...g, ...patch } : g)));
 
-  const setValue = (key: string, value: unknown) => setValues((v) => ({ ...v, [key]: value }));
+  const setValue = (key: string, value: unknown) =>
+    setGlasses((gs) => gs.map((g) => (g.id === activeId ? { ...g, values: { ...g.values, [key]: value } } : g)));
+
+  const setWine = (w: Wine) => patchActive({ wine: w });
+  const setGeneralNotes = (text: string) => patchActive({ generalNotes: text });
 
   // Persist an added descriptor back to the live template (bumps version) so it
   // sticks for future notes; the note's pinned snapshot includes it too.
@@ -127,7 +149,9 @@ export function CaptureScreen() {
   };
 
   const addPhotos = async (files: FileList | null) => {
-    if (!files) return;
+    if (!files || !active) return;
+    const id = active.id;
+    const added: Photo[] = [];
     for (const file of Array.from(files)) {
       let width: number | null = null;
       let height: number | null = null;
@@ -139,15 +163,16 @@ export function CaptureScreen() {
       } catch {
         /* dimensions are best-effort */
       }
-      const photo: Photo = { ...newBase(), note_id: noteId, blob: file, s3_key: null, status: 'local', width, height, taken_at: nowIso() };
+      const photo: Photo = { ...newBase(), note_id: id, blob: file, s3_key: null, status: 'local', width, height, taken_at: nowIso() };
       await db.photos.put(photo);
-      setPhotos((p) => [...p, photo]);
+      added.push(photo);
     }
+    setGlasses((gs) => gs.map((g) => (g.id === id ? { ...g, photos: [...g.photos, ...added] } : g)));
   };
 
-  const removePhoto = async (id: string) => {
-    await db.photos.delete(id);
-    setPhotos((p) => p.filter((x) => x.id !== id));
+  const removePhoto = async (photoId: string) => {
+    await db.photos.delete(photoId);
+    setGlasses((gs) => gs.map((g) => (g.id === activeId ? { ...g, photos: g.photos.filter((p) => p.id !== photoId) } : g)));
   };
 
   const saveFlightNotes = async (text: string) => {
@@ -156,31 +181,25 @@ export function CaptureScreen() {
     setFlight(f);
   };
 
-  const resetWine = () => {
-    setWine(emptyWine());
-    setValues({});
-    setGeneralNotes('');
-    setPhotos([]);
-    setRevealed(false);
-    setNoteId(uuidv4());
+  // Blind reveal (per glass): freeze the deductive guesses BEFORE the truth is
+  // entered, then unlock identity entry for this glass.
+  const reveal = () => {
+    if (!active) return;
+    patchActive({ revealed: true, blindConclusions: blindConclusionSnapshot(template?.sections ?? [], active.values) });
   };
 
-  const save = async () => {
-    if (!template) {
-      setError('No grid selected.');
-      return;
+  // ---- persistence ---------------------------------------------------------
+  // Write a glass to Dexie as a Note (+ Wine) when it has content. The wine is
+  // saved only once it has an identity; otherwise the note carries no wine_id and
+  // stays out of the Wines archive.
+  const persistGlass = async (glass: Glass, index: number) => {
+    if (!template || !glassHasContent(glass)) return;
+    const identified = glass.wine.producer.trim() || glass.wine.label.trim();
+    let wineId = '';
+    if (identified) {
+      const savedWine = await repo.wines.save({ ...glass.wine, producer: glass.wine.producer.trim(), label: glass.wine.label.trim() });
+      wineId = savedWine.id;
     }
-    if (blind && !revealed) {
-      setError('Reveal the wine before saving.');
-      return;
-    }
-    if (!wine.producer.trim() && !wine.label.trim()) {
-      setError('Add the wine — producer or label.');
-      return;
-    }
-
-    const savedWine = await repo.wines.save({ ...wine, producer: wine.producer.trim(), label: wine.label.trim() });
-
     const snapshot: TemplateSnapshot = {
       template_id: template.id,
       name: template.name,
@@ -188,42 +207,114 @@ export function CaptureScreen() {
       sections: template.sections,
     };
     const scoreField = template.sections.flatMap((s) => s.fields).find((f) => f.type === 'score');
-    const score = scoreField ? ((values[scoreField.key] as number) ?? null) : null;
-    const position = flight ? flight.note_ids.length : null;
+    const score = scoreField ? ((glass.values[scoreField.key] as number) ?? null) : null;
+    const reconciledValues = reconcileNoteValues(template.sections, glass.values);
 
     const note: Note = {
       ...newBase(),
-      id: noteId,
-      wine_id: savedWine.id,
+      id: glass.id,
+      wine_id: wineId,
       event_id: flight?.event_id ?? eventId,
       template_id: template.id,
       template_version: template.version,
       template_snapshot: snapshot,
-      values,
-      general_notes: generalNotes.trim(),
+      values: reconciledValues,
+      general_notes: glass.generalNotes.trim(),
       tasted_at: tastedAt || today(),
       blind,
-      revealed: blind ? revealed : true,
+      revealed: blind ? glass.revealed : true,
+      blind_conclusions: blind ? (glass.blindConclusions ?? blindConclusionSnapshot(template.sections, glass.values)) : null,
       score,
       flight_id: flight?.id ?? null,
-      flight_position: position,
-      photos: photos.map((p) => p.id),
+      flight_position: flight ? index : null,
+      glass_color: glass.glassColor,
+      photos: glass.photos.map((p) => p.id),
     };
     await repo.notes.save(note);
+  };
 
-    if (flight) {
-      const f = await repo.flights.save({ ...flight, note_ids: [...flight.note_ids, note.id] });
-      setFlight(f);
+  // Keep flight.note_ids = the content glasses, in rack order.
+  const syncFlight = async (current: Glass[]) => {
+    if (!flight) return;
+    const ids = current.filter(glassHasContent).map((g) => g.id);
+    if (sameIds(ids, flight.note_ids)) return;
+    const f = await repo.flights.save({ ...flight, note_ids: ids });
+    setFlight(f);
+  };
+
+  const flushActive = async (current = glasses) => {
+    const idx = current.findIndex((g) => g.id === activeId);
+    if (idx >= 0) await persistGlass(current[idx], idx);
+    await syncFlight(current);
+  };
+
+  // ---- rack interactions ---------------------------------------------------
+  const switchTo = async (id: string) => {
+    if (id === activeId) return;
+    await flushActive();
+    setActiveId(id);
+  };
+
+  const addGlass = async () => {
+    await flushActive();
+    const g = emptyGlass();
+    setGlasses((gs) => [...gs, g]);
+    setActiveId(g.id);
+  };
+
+  const cycleColor = async (id: string) => {
+    const g = glasses.find((x) => x.id === id);
+    if (!g) return;
+    const updated = { ...g, glassColor: nextColor(g.glassColor) };
+    setGlasses((gs) => gs.map((x) => (x.id === id ? updated : x)));
+    // Persist immediately for an already-real glass that isn't the active one
+    // (the active glass flushes when you leave it).
+    if (id !== activeId && glassHasContent(updated)) {
+      await persistGlass(updated, glasses.findIndex((x) => x.id === id));
     }
+  };
 
-    setError('');
-    setSavedTick((n) => n + 1);
-
+  // ---- start / finish ------------------------------------------------------
+  const startTasting = async () => {
     if (mode === 'flight') {
-      resetWine(); // forward to the next pour, context kept
+      if (!flightName.trim()) {
+        setError('Name the flight to start.');
+        return;
+      }
+      const f = await repo.flights.save({ ...newFlight(eventId, blind), name: flightName.trim() });
+      setFlight(f);
+      const initial = Array.from({ length: Math.max(1, glassesCount) }, () => emptyGlass());
+      setGlasses(initial);
+      setActiveId(initial[0].id);
     } else {
-      navigate('/wines'); // quick taste = one wine, drop into the review archive
+      const g = emptyGlass();
+      setGlasses([g]);
+      setActiveId(g.id);
     }
+    setError('');
+    setPhase('taste');
+  };
+
+  const finishFlight = async () => {
+    await flushActive();
+    navigate('/flights');
+  };
+
+  const saveQuick = async () => {
+    if (!template || !active) {
+      setError('No grid selected.');
+      return;
+    }
+    if (blind && !active.revealed) {
+      setError('Reveal the wine before saving.');
+      return;
+    }
+    if (!(active.wine.producer.trim() || active.wine.label.trim())) {
+      setError('Add the wine — producer or label.');
+      return;
+    }
+    await persistGlass(active, 0);
+    navigate('/wines');
   };
 
   if (phase === 'loading') return <section className="screen"><p className="screen-blurb">Opening…</p></section>;
@@ -249,6 +340,18 @@ export function CaptureScreen() {
                     <option key={ev.id} value={ev.id}>{ev.name}</option>
                   ))}
                 </select>
+              </label>
+              <label className="field-label-block">
+                <span className="grid-field-help">Glasses (add more later)</span>
+                <input
+                  className="form-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={24}
+                  value={glassesCount}
+                  onChange={(e) => setGlassesCount(Math.min(24, Math.max(1, Number(e.target.value) || 1)))}
+                />
               </label>
             </>
           )}
@@ -280,8 +383,10 @@ export function CaptureScreen() {
   }
 
   // ---- TASTE -------------------------------------------------------------
-  const position = flight ? flight.note_ids.length + 1 : 0;
-  const saveLabel = blind && !revealed ? 'Reveal first' : mode === 'flight' ? 'Save & next ›' : 'Save note';
+  const isFlight = !!flight;
+  const blindLocked = blind && !(active?.revealed ?? false);
+  const primaryLabel = isFlight ? 'Finish' : blindLocked ? 'Reveal first' : 'Save note';
+  const onPrimary = isFlight ? finishFlight : saveQuick;
 
   return (
     <section className="screen">
@@ -290,18 +395,30 @@ export function CaptureScreen() {
           {flight ? flight.name : 'Quick taste'}
           {blind && <span className="badge">blind</span>}
         </div>
-        <button className="btn" disabled={blind && !revealed} onClick={() => void save()}>{saveLabel}</button>
+        <div className="capture-bar-actions">
+          <PhotoButton onAdd={addPhotos} />
+          <button className="btn" disabled={!isFlight && blindLocked} onClick={() => void onPrimary()}>{primaryLabel}</button>
+        </div>
       </div>
 
+      {isFlight && (
+        <GlassRack
+          glasses={glasses}
+          activeId={activeId}
+          blind={blind}
+          onSelect={(id) => void switchTo(id)}
+          onAdd={() => void addGlass()}
+          onCycleColor={(id) => void cycleColor(id)}
+        />
+      )}
+
       <div className="capture-sub">
-        {flight && <span className="capture-pos">Wine {position}</span>}
         <input className="form-input form-input--inline" type="date" value={tastedAt} max={today()} onChange={(e) => setTastedAt(e.target.value)} />
         {flight && (
           <button className="btn btn--ghost" onClick={() => setFlightNotesOpen((o) => !o)}>
             Flight notes{flight.general_notes ? ' •' : ''}
           </button>
         )}
-        {flight && <button className="btn btn--ghost" onClick={() => navigate('/flights')}>Finish</button>}
       </div>
 
       {flight && flightNotesOpen && (
@@ -318,35 +435,52 @@ export function CaptureScreen() {
       )}
 
       {/* Known wine: identity up front. Blind wine: hidden until reveal. */}
-      {!blind && (
+      {active && !blind && (
         <div className="grid-section">
           <h2 className="grid-section-label">Wine</h2>
-          <WineFields wine={wine} onChange={setWine} compact />
+          <WineFields wine={active.wine} onChange={setWine} compact />
         </div>
       )}
 
-      <SectionWalk key={noteId} sections={sections} values={values} onChange={setValue} onAddOption={addOption} />
+      <SectionWalk key={activeId} sections={sections} values={active?.values ?? {}} onChange={setValue} onAddOption={addOption} />
 
       <div className="grid-section">
         <h2 className="grid-section-label">Notes</h2>
-        <textarea className="form-input" rows={3} placeholder="Your impression, context…" value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)} />
-        <PhotoStrip photos={photos} onAdd={addPhotos} onRemove={removePhoto} />
+        <textarea className="form-input" rows={3} placeholder="Your impression, context…" value={active?.generalNotes ?? ''} onChange={(e) => setGeneralNotes(e.target.value)} />
+        <PhotoStrip photos={active?.photos ?? []} onAdd={addPhotos} onRemove={removePhoto} />
       </div>
 
-      {blind && !revealed && (
-        <button className="btn btn--block" onClick={() => setRevealed(true)}>Reveal the wine ›</button>
+      {active && blind && !active.revealed && (
+        <button className="btn btn--block" onClick={reveal}>Reveal the wine ›</button>
       )}
-      {blind && revealed && (
+      {active && blind && active.revealed && (
         <div className="grid-section reveal-block">
           <h2 className="grid-section-label">The wine</h2>
-          <WineFields wine={wine} onChange={setWine} compact />
+          <WineFields wine={active.wine} onChange={setWine} compact />
         </div>
       )}
 
       {error && <p className="form-error">{error}</p>}
-      {savedTick > 0 && <Toast tick={savedTick} label={mode === 'flight' ? 'Saved — next pour' : 'Note saved ✓'} />}
     </section>
   );
+}
+
+// Rebuild a glass editor-state from a persisted note (+ its wine + photos).
+async function noteToGlass(note: Note): Promise<Glass> {
+  const wine = (note.wine_id ? await repo.wines.get(note.wine_id) : undefined) ?? emptyWine();
+  const photos = (await Promise.all(note.photos.map((id) => db.photos.get(id)))).filter((p): p is Photo => !!p);
+  const values: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(note.values)) values[k] = v?.raw;
+  return {
+    id: note.id,
+    glassColor: note.glass_color ?? null,
+    wine,
+    values,
+    generalNotes: note.general_notes,
+    revealed: note.revealed,
+    blindConclusions: note.blind_conclusions,
+    photos,
+  };
 }
 
 // emptyFlight lives in flights/FlightForm; re-declared minimally here to avoid a
@@ -355,14 +489,24 @@ function newFlight(eventId: string | null, blind: boolean): Flight {
   return { ...newBase(), event_id: eventId, name: '', blind, general_notes: '', note_ids: [] };
 }
 
-function Toast({ tick, label }: { tick: number; label: string }) {
-  const [show, setShow] = useState(true);
-  useEffect(() => {
-    setShow(true);
-    const t = window.setTimeout(() => setShow(false), 2000);
-    return () => window.clearTimeout(t);
-  }, [tick]);
-  return show ? <div className="toast">{label}</div> : null;
+function PhotoButton({ onAdd }: { onAdd: (files: FileList | null) => void }) {
+  return (
+    <label className="btn btn--ghost capture-photo-btn" title="Add a photo">
+      <Camera size={16} aria-hidden />
+      <span>Photo</span>
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        hidden
+        onChange={(e) => {
+          onAdd(e.target.files);
+          e.target.value = '';
+        }}
+      />
+    </label>
+  );
 }
 
 function PhotoStrip({
@@ -380,7 +524,7 @@ function PhotoStrip({
         <Thumb key={p.id} photo={p} onRemove={() => onRemove(p.id)} />
       ))}
       <label className="photo-add">
-        +
+        <Camera size={20} aria-hidden />
         <input
           type="file"
           accept="image/*"
@@ -398,10 +542,9 @@ function PhotoStrip({
 }
 
 function Thumb({ photo, onRemove }: { photo: Photo; onRemove: () => void }) {
-  const url = useMemo(() => (photo.blob ? URL.createObjectURL(photo.blob) : ''), [photo.blob]);
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  const url = usePhotoUrl(photo);
   return (
-    <div className="photo-thumb" style={{ backgroundImage: `url(${url})` }}>
+    <div className="photo-thumb" style={url ? { backgroundImage: `url(${url})` } : undefined}>
       <button className="photo-del" onClick={onRemove} aria-label="Remove photo">✕</button>
     </div>
   );

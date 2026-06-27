@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { seedBuiltins } from './templates/seed';
 import { seedGeo } from './templates/geo-seed';
+import { startAutoSync } from './sync/controller';
 import {
   CaptureScreen,
   EventsScreen,
@@ -13,22 +14,25 @@ import {
   WinesScreen,
 } from './screens';
 
-// Primary nav (bottom bar, touch-first). Capture is reached via Home/flights,
-// not a tab; Stats is reached from Home/Settings (P6 placeholder).
-const NAV: { to: string; label: string }[] = [
+// Primary nav (bottom bar, touch-first): 4 tabs around a center capture FAB.
+// Events / Grids / Settings live on Home (the hub), not the bar.
+const NAV_LEFT: { to: string; label: string }[] = [
   { to: '/home', label: 'Home' },
   { to: '/wines', label: 'Wines' },
-  { to: '/events', label: 'Events' },
+];
+const NAV_RIGHT: { to: string; label: string }[] = [
   { to: '/flights', label: 'Flights' },
-  { to: '/templates', label: 'Grids' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/stats', label: 'Insights' },
 ];
 
 export default function App() {
+  const navigate = useNavigate();
+
   // Seed builtin templates (CMS deductive grid) + geo reference tree on first run.
   useEffect(() => {
     void seedBuiltins();
     void seedGeo();
+    startAutoSync(); // opportunistic cloud sync (no-op until signed in)
   }, []);
 
   return (
@@ -54,7 +58,19 @@ export default function App() {
       </main>
 
       <nav className="app-nav">
-        {NAV.map((item) => (
+        {NAV_LEFT.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => (isActive ? 'nav-item nav-item--active' : 'nav-item')}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+        <button className="nav-fab" aria-label="New tasting" onClick={() => navigate('/capture', { state: { mode: 'quick' } })}>
+          +
+        </button>
+        {NAV_RIGHT.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

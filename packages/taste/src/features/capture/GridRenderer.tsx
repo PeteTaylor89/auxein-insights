@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import type { TemplateField, TemplateSection } from '@/templates/types';
+import { AromaModal } from './AromaModal';
 
 type Values = Record<string, unknown>;
 interface Props {
@@ -69,31 +71,22 @@ function FieldWidget({
   switch (field.type) {
     case 'single_select': {
       const opts = field.options ?? [];
-      // Short ordered scales (Low→High etc.) read better as a segmented rotator;
-      // long lists (hue, colour) stay as wrapping chips.
-      const segmented = opts.length >= 2 && opts.length <= 6 && opts.every((o) => o.length <= 12);
-      return segmented ? (
-        <Segmented options={opts} value={value as string | undefined} onChange={onChange} />
-      ) : (
-        <SingleSelect options={opts} value={value as string | undefined} onChange={onChange} />
-      );
+      // Ordinal scales (acid/tannin/body…) read as a slider; categorical picks (clarity,
+      // colour…) as uniform pills. One consistent language, no segmented bars.
+      if (field.reconciliation_type === 'ordinal' && opts.length >= 2) {
+        return <OrdinalSlider options={opts} value={value as string | undefined} onChange={onChange} />;
+      }
+      return <SinglePills options={opts} value={value as string | undefined} onChange={onChange} />;
     }
     case 'multi_select':
-      return <MultiSelect options={field.options ?? []} value={(value as string[]) ?? []} onChange={onChange} />;
+      return <MultiPills options={field.options ?? []} value={(value as string[]) ?? []} onChange={onChange} />;
     case 'tag_structured':
-      return (
-        <DescriptorPicker
-          field={field}
-          value={(value as string[]) ?? []}
-          onChange={onChange}
-          onAdd={onAddOption ? (group, term) => onAddOption(field.key, group, term) : undefined}
-        />
-      );
+      return <AromaField field={field} value={(value as string[]) ?? []} onChange={onChange} onAddOption={onAddOption} />;
     case 'boolean':
-      return <Segmented options={['Yes', 'No']} value={value === true ? 'Yes' : value === false ? 'No' : undefined} onChange={(v) => onChange(v === 'Yes' ? true : v === 'No' ? false : undefined)} />;
+      return <BoolPills value={value as boolean | undefined} onChange={onChange} />;
     case 'scale':
     case 'score':
-      return <ScaleInput field={field} value={value as number | undefined} onChange={onChange} />;
+      return <NumberSlider field={field} value={value as number | undefined} onChange={onChange} />;
     case 'number':
       return (
         <input
@@ -112,187 +105,123 @@ function FieldWidget({
   }
 }
 
-// Connected segmented bar (the "rotator" for ordered scales).
-function Segmented({ options, value, onChange }: { options: string[]; value?: string; onChange: (v: unknown) => void }) {
-  return (
-    <div className="segmented">
-      {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          className={value === opt ? 'segmented-item segmented-item--active' : 'segmented-item'}
-          onClick={() => onChange(value === opt ? undefined : opt)}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// Inline "+ add" that expands into a text field, commits on Enter / blur.
-function AddChip({ onAdd }: { onAdd: (term: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState('');
-  const commit = () => {
-    const t = text.trim();
-    if (t) onAdd(t);
-    setText('');
-    setOpen(false);
-  };
-  if (!open) {
-    return (
-      <button className="chip chip--add" onClick={() => setOpen(true)}>
-        + Add
-      </button>
-    );
-  }
-  return (
-    <input
-      className="chip-add-input"
-      autoFocus
-      value={text}
-      placeholder="New…"
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') {
-          setText('');
-          setOpen(false);
-        }
-      }}
-    />
-  );
-}
-
-function SingleSelect({ options, value, onChange }: { options: string[]; value?: string; onChange: (v: unknown) => void }) {
+// Uniform single-choice pills (clears on re-tap).
+function SinglePills({ options, value, onChange }: { options: string[]; value?: string; onChange: (v: unknown) => void }) {
   return (
     <div className="chip-row">
       {options.map((opt) => (
-        <button key={opt} className={value === opt ? 'chip chip--active' : 'chip'} onClick={() => onChange(value === opt ? undefined : opt)}>
-          {opt}
-        </button>
+        <button key={opt} className={value === opt ? 'chip chip--active' : 'chip'} onClick={() => onChange(value === opt ? undefined : opt)}>{opt}</button>
       ))}
     </div>
   );
 }
 
-function MultiSelect({ options, value, onChange }: { options: string[]; value: string[]; onChange: (v: unknown) => void }) {
+function MultiPills({ options, value, onChange }: { options: string[]; value: string[]; onChange: (v: unknown) => void }) {
   const toggle = (opt: string) => onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
   return (
     <div className="chip-row">
       {options.map((opt) => (
-        <button key={opt} className={value.includes(opt) ? 'chip chip--active' : 'chip'} onClick={() => toggle(opt)}>
-          {opt}
-        </button>
+        <button key={opt} className={value.includes(opt) ? 'chip chip--active' : 'chip'} onClick={() => toggle(opt)}>{opt}</button>
       ))}
     </div>
   );
 }
 
-// Grouped descriptor chips + a type-ahead that searches every group at once.
-// Values are flat term strings. Searching is the fast path; groups are the browse path.
-function DescriptorPicker({
-  field,
-  value,
-  onChange,
-  onAdd,
-}: {
-  field: TemplateField;
-  value: string[];
-  onChange: (v: unknown) => void;
-  onAdd?: (group: string | null, term: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const toggle = (term: string) => onChange(value.includes(term) ? value.filter((v) => v !== term) : [...value, term]);
-
-  // Flat index of {term, group} across all groups, for the type-ahead.
-  const index = useMemo(
-    () => (field.groups ?? []).flatMap((g) => g.options.map((term) => ({ term, group: g.label }))),
-    [field.groups],
-  );
-  const q = query.trim().toLowerCase();
-  const matches = q ? index.filter((x) => x.term.toLowerCase().includes(q)).slice(0, 30) : [];
-
+function BoolPills({ value, onChange }: { value?: boolean; onChange: (v: unknown) => void }) {
   return (
-    <div className="descriptor-picker">
-      {value.length > 0 && (
-        <div className="chip-row chip-row--selected">
-          {value.map((term) => (
-            <button key={term} className="chip chip--active" onClick={() => toggle(term)}>
-              {term} ✕
-            </button>
-          ))}
-        </div>
-      )}
-
-      <input
-        className="form-input"
-        placeholder="Search descriptors…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-
-      {q ? (
-        <div className="chip-row">
-          {matches.map((m) => (
-            <button key={`${m.group}:${m.term}`} className={value.includes(m.term) ? 'chip chip--active' : 'chip'} onClick={() => toggle(m.term)}>
-              {m.term}
-            </button>
-          ))}
-          {matches.length === 0 && onAdd && (
-            <AddChip
-              onAdd={(term) => {
-                onAdd(null, term); // ungrouped add when nothing matched the search
-                if (!value.includes(term)) onChange([...value, term]);
-                setQuery('');
-              }}
-            />
-          )}
-          {matches.length === 0 && !onAdd && <span className="grid-field-help">No match</span>}
-        </div>
-      ) : (
-        <div className="tag-groups">
-          {(field.groups ?? []).map((group) => {
-            const count = group.options.filter((o) => value.includes(o)).length;
-            return (
-              <details className="tag-group" key={group.label} open={count > 0}>
-                <summary className="tag-group-summary">
-                  {group.label}
-                  {count > 0 && <span className="badge">{count}</span>}
-                </summary>
-                <div className="chip-row">
-                  {group.options.map((opt) => (
-                    <button key={opt} className={value.includes(opt) ? 'chip chip--active' : 'chip'} onClick={() => toggle(opt)}>
-                      {opt}
-                    </button>
-                  ))}
-                  {onAdd && (
-                    <AddChip
-                      onAdd={(term) => {
-                        onAdd(group.label, term);
-                        if (!value.includes(term)) onChange([...value, term]);
-                      }}
-                    />
-                  )}
-                </div>
-              </details>
-            );
-          })}
-        </div>
-      )}
+    <div className="chip-row">
+      <button className={value === true ? 'chip chip--active' : 'chip'} onClick={() => onChange(value === true ? undefined : true)}>Yes</button>
+      <button className={value === false ? 'chip chip--active' : 'chip'} onClick={() => onChange(value === false ? undefined : false)}>No</button>
     </div>
   );
 }
 
-function ScaleInput({ field, value, onChange }: { field: TemplateField; value?: number; onChange: (v: unknown) => void }) {
+// Discrete labelled slider for ordinal scales — the signature taste slider.
+function OrdinalSlider({ options, value, onChange }: { options: string[]; value?: string; onChange: (v: unknown) => void }) {
+  const n = options.length;
+  const idx = value ? options.indexOf(value) : -1;
+  const pos = idx >= 0 ? idx : Math.floor((n - 1) / 2);
+  const fill = n > 1 ? (pos / (n - 1)) * 100 : 0;
+  return (
+    <div className={idx >= 0 ? 'oslider oslider--set' : 'oslider'}>
+      <div className="oslider-current">{idx >= 0 ? options[idx] : 'Not set'}</div>
+      <input
+        className="oslider-range"
+        type="range"
+        min={0}
+        max={n - 1}
+        step={1}
+        value={pos}
+        onChange={(e) => onChange(options[Number(e.target.value)])}
+        style={{ ['--fill' as string]: `${fill}%` }}
+      />
+      <div className="oslider-ends">
+        <span>{options[0]}</span>
+        <span>{options[n - 1]}</span>
+      </div>
+    </div>
+  );
+}
+
+function NumberSlider({ field, value, onChange }: { field: TemplateField; value?: number; onChange: (v: unknown) => void }) {
   const scale = field.scale ?? { min: 1, max: 5, step: 1 };
   const set = value ?? scale.min;
+  const fill = scale.max > scale.min ? ((set - scale.min) / (scale.max - scale.min)) * 100 : 0;
   return (
-    <div className="scale-input">
-      <input type="range" min={scale.min} max={scale.max} step={scale.step ?? 1} value={set} onChange={(e) => onChange(Number(e.target.value))} />
-      <span className="scale-value">{value === undefined ? '—' : value}</span>
+    <div className="oslider oslider--set">
+      <div className="oslider-current">{value === undefined ? '—' : value}</div>
+      <input
+        className="oslider-range"
+        type="range"
+        min={scale.min}
+        max={scale.max}
+        step={scale.step ?? 1}
+        value={set}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ ['--fill' as string]: `${fill}%` }}
+      />
+      <div className="oslider-ends">
+        <span>{scale.min}</span>
+        <span>{scale.max}</span>
+      </div>
+    </div>
+  );
+}
+
+// Descriptor field: selected aromas as pills + a button that opens the wheel modal.
+function AromaField({
+  field,
+  value,
+  onChange,
+  onAddOption,
+}: {
+  field: TemplateField;
+  value: string[];
+  onChange: (v: unknown) => void;
+  onAddOption?: AddOption;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="aroma-field">
+      {value.length > 0 && (
+        <div className="chip-row">
+          {value.map((term) => (
+            <button key={term} className="chip chip--active" onClick={() => onChange(value.filter((v) => v !== term))}>{term} ✕</button>
+          ))}
+        </div>
+      )}
+      <button className="btn btn--ghost aroma-open" onClick={() => setOpen(true)}>
+        <Plus size={15} /> Add aromas
+      </button>
+      {open && (
+        <AromaModal
+          field={field}
+          value={value}
+          onChange={onChange}
+          onAdd={onAddOption ? (g, t) => onAddOption(field.key, g, t) : undefined}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { db, repo } from '@/db';
 import type { Note, Photo, Wine } from '@/db';
+import type { ReconciledValue } from '@/reconcile';
+import type { TemplateField } from '@/templates/types';
 import { WineForm } from './WineForm';
 import { wineLabel, wineOrigin } from './wineLabel';
+import { usePhotoUrl } from '../capture/usePhotoUrl';
 
 // Wines = the review archive: wines you've tasted, newest first, each opening a
 // read-only review of its note(s). Wines are created during tasting (Capture),
@@ -97,6 +100,27 @@ const renderValue = (v: unknown): string => {
   return String(v);
 };
 
+const answered = (v: ReconciledValue | undefined): boolean => {
+  const r = v?.raw;
+  return r !== undefined && r !== null && r !== '' && !(Array.isArray(r) && r.length === 0);
+};
+
+// Read display: ordinal fields render as a compact filled bar (using the stored
+// canonical position) so the review mirrors the capture sliders; everything else
+// is text.
+function ReviewValue({ field, val }: { field: TemplateField; val?: ReconciledValue }) {
+  const canonical = val?.canonical as { position?: number } | undefined;
+  if (field.reconciliation_type === 'ordinal' && typeof canonical?.position === 'number') {
+    return (
+      <div className="rslider">
+        <span className="rslider-track"><span className="rslider-fill" style={{ width: `${Math.round(canonical.position * 100)}%` }} /></span>
+        <span className="rslider-label">{renderValue(val?.raw)}</span>
+      </div>
+    );
+  }
+  return <>{renderValue(val?.raw)}</>;
+}
+
 function WineReview({ wine, notes, onBack, onEdit }: { wine: Wine; notes: Note[]; onBack: () => void; onEdit: () => void }) {
   const fmt = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : '');
   return (
@@ -130,9 +154,8 @@ function NoteReview({ note, fmt }: { note: Note; fmt: (d: string | null) => stri
     () =>
       note.template_snapshot.sections.flatMap((s) =>
         s.fields
-          .map((f) => ({ label: f.label, value: renderValue(note.values[f.key]) }))
-          .filter((r) => r.value)
-          .map((r) => ({ ...r, section: s.label })),
+          .map((f) => ({ field: f, val: note.values[f.key] as ReconciledValue | undefined }))
+          .filter((r) => answered(r.val)),
       ),
     [note],
   );
@@ -152,8 +175,8 @@ function NoteReview({ note, fmt }: { note: Note; fmt: (d: string | null) => stri
       <dl className="review-list">
         {rows.map((r, i) => (
           <div className="review-row" key={i}>
-            <dt>{r.label}</dt>
-            <dd>{r.value}</dd>
+            <dt>{r.field.label}</dt>
+            <dd><ReviewValue field={r.field} val={r.val} /></dd>
           </div>
         ))}
       </dl>
@@ -172,7 +195,6 @@ function NoteReview({ note, fmt }: { note: Note; fmt: (d: string | null) => stri
 }
 
 function ReviewThumb({ photo }: { photo: Photo }) {
-  const url = useMemo(() => (photo.blob ? URL.createObjectURL(photo.blob) : ''), [photo.blob]);
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
-  return <div className="photo-thumb" style={{ backgroundImage: `url(${url})` }} />;
+  const url = usePhotoUrl(photo);
+  return <div className="photo-thumb" style={url ? { backgroundImage: `url(${url})` } : undefined} />;
 }

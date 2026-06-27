@@ -4,15 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { db, newBase, repo } from '@/db';
 import type { Wine } from '@/db';
-
-function Placeholder({ title, blurb }: { title: string; blurb: string }) {
-  return (
-    <section className="screen">
-      <h1 className="screen-title">{title}</h1>
-      <p className="screen-blurb">{blurb}</p>
-    </section>
-  );
-}
+import { TASTE_EXPORT_SCHEMA, exportToFile } from '@/export/exportData';
+import { SyncPanel } from '@/features/sync/SyncPanel';
 
 // Home launcher (default landing).
 export { HomeScreen } from '@/features/home/HomeScreen';
@@ -25,9 +18,8 @@ export { WinesScreen } from '@/features/wines/WinesScreen';
 export { EventsScreen } from '@/features/events/EventsScreen';
 export { FlightsScreen } from '@/features/flights/FlightsScreen';
 
-export const StatsScreen = (): ReactNode => (
-  <Placeholder title="Stats" blurb="Client-side dashboard over Dexie. Built in P6." />
-);
+// P6 dashboard + blind accuracy.
+export { StatsScreen } from '@/features/stats/StatsScreen';
 
 // Real builder lives in features/templates (P3).
 export { TemplatesScreen } from '@/features/templates/TemplatesScreen';
@@ -38,6 +30,21 @@ type Counts = Record<(typeof TABLES)[number], number>;
 export const SettingsScreen = (): ReactNode => {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [log, setLog] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
+
+  const doExport = useCallback(async (includePhotoData: boolean) => {
+    setExporting(true);
+    setExportMsg('');
+    try {
+      const { notes, photos } = await exportToFile({ includePhotoData });
+      setExportMsg(`Exported ${notes} notes · ${photos} photos${includePhotoData ? ' (with image data)' : ''}.`);
+    } catch (e) {
+      setExportMsg(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     const entries = await Promise.all(TABLES.map(async (t) => [t, await db.table(t).count()] as const));
@@ -79,7 +86,21 @@ export const SettingsScreen = (): ReactNode => {
   return (
     <section className="screen">
       <h1 className="screen-title">Settings</h1>
-      <p className="screen-blurb">Saved style, export, account. Built in P7.</p>
+      <p className="screen-blurb">Your data is stored on this device. Export a portable copy anytime.</p>
+
+      <SyncPanel />
+
+      <h2 className="screen-subtitle">Export</h2>
+      <p className="screen-blurb">Versioned JSON ({TASTE_EXPORT_SCHEMA}) — notes keep both the raw entry and its reconciled value.</p>
+      <div className="settings-actions">
+        <button className="btn" disabled={exporting} onClick={() => void doExport(false)}>
+          {exporting ? 'Exporting…' : 'Export JSON'}
+        </button>
+        <button className="btn btn--ghost" disabled={exporting} onClick={() => void doExport(true)}>
+          Export with photos
+        </button>
+      </div>
+      {exportMsg && <p className="form-help">{exportMsg}</p>}
 
       <h2 className="screen-subtitle">Storage (P2 diagnostics)</h2>
       <div className="kv">

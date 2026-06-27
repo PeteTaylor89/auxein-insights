@@ -16,8 +16,8 @@ export default defineConfig({
         name: 'Auxein Taste',
         short_name: 'Taste',
         description: 'Local-first wine tasting notes — template-driven grid capture, fully offline.',
-        theme_color: '#5B6830',
-        background_color: '#ffffff',
+        theme_color: '#7B2E3C',
+        background_color: '#F6F1E7',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -53,9 +53,16 @@ export default defineConfig({
   server: {
     port: 5175, // 5173=pro, 5174=insights
     proxy: {
-      // Taste data calls hit taste-api in prod; in dev proxy to the local backend.
+      // Auth (public login) → the main API. In prod, VITE_API_URL points at it.
       '/api': {
         target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Data (sync/bootstrap) → the isolated taste-api. In prod, VITE_TASTE_API_URL
+      // points at taste-api.auxein.co.nz.
+      '/taste': {
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false,
       },

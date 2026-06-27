@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { TemplateSection } from '@/templates/types';
 import { SectionFields } from './GridRenderer';
+import { sectionIcon } from './icons';
 
 type Values = Record<string, unknown>;
 
@@ -27,7 +28,10 @@ export function SectionWalk({ sections, values, onChange, onAddOption }: Props) 
         return (
           <div className={isOpen ? 'walk-section walk-section--open' : 'walk-section'} key={section.id}>
             <button className="walk-header" onClick={() => setOpen(isOpen ? -1 : i)}>
-              <span className="walk-header-label">{section.label}</span>
+              <span className="walk-header-label">
+                <span className="walk-header-icon">{sectionIcon(section.label)}</span>
+                {section.label}
+              </span>
               <span className="walk-header-meta">
                 {count > 0 && <span className="badge">{count}</span>}
                 <span className="walk-chevron">{isOpen ? '▾' : '▸'}</span>

@@ -1,9 +1,28 @@
 # Auxein Taste — Development Plan (Claude Code build doc)
 
 **Owner:** Pete Taylor / Auxein
-**Status:** Planned — locked decisions, not yet started (no code as of 2026-06-06)
-**Source spec:** [`AUXEIN_TASTE_MVP_SPEC.md`](./AUXEIN_TASTE_MVP_SPEC.md)
-**This doc:** canonical resume pointer for the build. Supersedes the deleted earlier `TASTE_DEV_PLAN.md`.
+**Status:** In build — P1–P5.1 shipped (frontend, untested in-browser). **Reconciliation retrofit (R1–R3) in progress.**
+**Canonical spec (2026-06-27):** [`TASTE_BUILD_SPEC.md`](./TASTE_BUILD_SPEC.md) — **supersedes** the earlier `AUXEIN_TASTE_MVP_SPEC.md` for scope/priority.
+**This doc:** canonical resume pointer for the build (build order, repo grounding, backend dev/deploy).
+
+---
+
+## Decision update — 2026-06-27 (reconciliation retrofit)
+
+`TASTE_BUILD_SPEC.md` landed and is now the canonical product spec. It reframes Taste
+around a **reconciliation engine** (its Epic 1) that the P1–P5.1 build does not have.
+Confirmed decisions this session:
+
+- **BUILD_SPEC supersedes; retrofit (do NOT restart).** The existing UI / CMS workbook
+  seed / geo tree / builder / capture / flights all stand and map to BUILD_SPEC Epics 2–3.
+  We insert a reconciliation retrofit (**R1–R3**, see §8) before resuming the phase order,
+  rather than rebuilding from scratch.
+- **Auth = reuse `public_users` SSO** (this doc's original decision). **This OVERRIDES
+  BUILD_SPEC D3** ("own `taste.user` table"). There is **no Taste user table** — identity is
+  the existing Insights public JWT → `public_users.id`. Build the `external_auth_id` seam
+  in the wide-schema mapping only; do not create a user table or auth surface.
+- **No real captured data yet** → the `Note.values` reshape (R3) is free: bump the Dexie
+  schema version / wipe, no data migration to engineer.
 
 ---
 
@@ -224,6 +243,63 @@ Common columns on every row: `id` UUID PK (client-gen), `user_id` int, `created_
 - Independent deploy: pushing Taste never redeploys Grow/Insights.
 - Runbook `docs/runbooks/deploy-taste-api.md`.
 
+### 5.7 Backend dev & deploy workflow (concrete) — added 2026-06-27
+
+**Why a second EB app (not a router prefix on `backend/`).** The whole point of Taste is
+isolation: its own health/scale/logs, and a Grow/Insights deploy must never risk Taste
+(and vice-versa). The cost is one extra t3.micro + one EB env. Locked per §1.
+
+#### Local dev loop
+- **Module**: new `backend_taste/` beside `backend/` — its own FastAPI app, `requirements.txt`,
+  and **its own venv** (`backend_taste/venv`). Do not share `backend/venv` — dependency drift
+  between the two services must be allowed.
+- **Run it**: add a root script `dev:taste-api` mirroring `dev:backend` but pointing at
+  `backend_taste` on **port 8001** (8000 is Grow/Insights), e.g.
+  `cd backend_taste && venv\Scripts\python -m uvicorn main:app --reload --port 8001`.
+  Add `dev:taste-stack` = `concurrently` of `dev:taste-api` + `dev:taste` (like `dev:regional`).
+- **Frontend proxy**: point `packages/taste/vite.config.ts` `server.proxy['/api']` (or a new
+  `/taste` proxy) at `http://localhost:8001` so the PWA's data calls hit the Taste API locally.
+  *(Auth login still calls the existing main API's `/api/v1/public/auth/login` — see §5.5.)*
+- **DB in dev**: same shared RDS, schema `taste`. The **first** Alembic migration runs
+  `CREATE SCHEMA IF NOT EXISTS taste`. Use the **same `DATABASE_URL`** as `backend/` (one
+  instance, different schema). `.env` for `backend_taste` carries `DATABASE_URL`, `SECRET_KEY`
+  (must match the main API so the public JWT validates), `UPLOADS_S3_BUCKET`.
+- **Migrations**: own root `alembic_taste.ini` + `alembic_taste/` with
+  `version_table='alembic_version'`, **`version_table_schema='taste'`** — a separate history
+  table inside the `taste` schema, so it never tangles with the Grow chain at `public.alembic_version`.
+  Run `alembic -c alembic_taste.ini upgrade head`. Keep slugs ≤32 chars (documented limit).
+
+#### Provision (one-time, P10) — mirror the Insights/Grow infra pattern
+1. **EB application + environment** `auxein-taste-api` (t3.micro, single instance or LB), same
+   region (ap-southeast-2), `Procfile` = `gunicorn main:app -k uvicorn.workers.UvicornWorker`,
+   health path `/taste/health`. Reuse the `backend/.ebextensions/` patterns.
+2. **Env vars** on the EB env: `DATABASE_URL` (shared RDS), `SECRET_KEY` (**identical** to main
+   API), `UPLOADS_S3_BUCKET`. Set via `eb setenv` or the saved-config pattern in
+   [`project_aws_infra`].
+3. **RDS access**: put the Taste EB env's instances in the **same security group / subnet** that
+   already reaches the shared RDS (the main API's SG). No new DB, no new credentials.
+4. **DNS + TLS**: `taste-api.auxein.co.nz` CNAME → EB env URL; ACM cert on the EB load balancer
+   (region ap-southeast-2, **not** us-east-1 — that's only for CloudFront/SPA certs).
+5. **CORS**: `backend_taste/main.py` has its **own** allow-list = `https://taste.auxein.co.nz` +
+   `http://localhost:5175`. Do **not** import or extend `backend/main.py`'s list.
+
+#### Deploy (each release)
+- From **`backend_taste/`**: `eb deploy auxein-taste-api`. ⚠️ Per [`project_eb_deploy_from_directory`],
+  EB ships the **working directory** (`sc:null`), not git HEAD — commit/clean first so on-disk
+  state == intended state.
+- **Migrations run separately from deploy** (EB does not auto-migrate): after a successful deploy,
+  run `alembic -c alembic_taste.ini upgrade head` against the shared RDS (same as the Grow flow).
+- **Frontend (`taste.auxein.co.nz`)** deploys independently: `npm run build:taste` →
+  `aws s3 sync dist/ s3://<taste-bucket>/ --delete` → CloudFront invalidation `/*`
+  (SW + `index.html` served `no-cache`). See §4.4.
+- **Two separate runbooks**: `docs/runbooks/deploy-taste-api.md` (backend) and
+  `docs/runbooks/deploy-taste.md` (PWA). Provision steps captured in
+  `docs/runbooks/provision-s3-buckets.md` (extend for the Taste bucket + the new EB env).
+
+**Isolation invariants (must hold):** Taste never imports a Grow/Insights model; never writes
+outside schema `taste`; never shares the EB process or Alembic history; its only shared
+primitives are the RDS *instance*, the S3 bucket, and the JWT `SECRET_KEY`.
+
 ---
 
 ## 6. Photo lifecycle (offline-safe)
@@ -253,12 +329,16 @@ Common columns on every row: `id` UUID PK (client-gen), `user_id` int, `created_
 | **P3** | ✅ **BUILT 2026-06-07** Template types (done P2) + CMS deductive seed + custom builder UI | no |
 | **P4** | ✅ **BUILT 2026-06-07** Grid-renderer note capture (template-driven) + local-blob photo capture | no |
 | **P5** | ✅ **BUILT 2026-06-13** Wine + event + flight + blind/reveal + on-the-go wine swap | no |
-| **P6** | Stats dashboard (client-side over Dexie) | no |
-| **P7** | Local JSON export + `wide_schema_mapping.md` | no |
-| — | **← fully usable personal app** | — |
-| **P8** | `backend_taste` service: `taste` schema migration, bootstrap + sync; wire outbox/pull | yes |
-| **P9** | Presign/confirm + S3 photo upload on sync | yes |
-| **P10** | Provision EB env + S3/CloudFront/Route53 + DNS/certs; ship PWA; write runbooks | yes |
+| **R1** | ✅ **BUILT 2026-06-27** Reconciliation engine (BUILD_SPEC Epic 1) — pure `src/reconcile/`, unit-tested. No UI. | no |
+| **R2** | ✅ **BUILT 2026-06-27** Template model + CMS classification: `reconciliation_type` (required) + `score_system` on `TemplateField`; builder forces the choice + validates; CMS seed reclassified + new Assessment section (score axis); cms-seed v4→v5 | no |
+| **R3** | ✅ **BUILT 2026-06-27** Value shape + blind set: `Note.values` → `{raw, raw_scale?, canonical?}` (built at save via `reconcileNoteValues`); `Note.blind_conclusions` frozen at reveal; reader unwraps `.raw`; Dexie v1→v2 clears note-shaped stores | no |
+| **P6** | ✅ **BUILT 2026-06-27** Stats dashboard (client-side over Dexie) + blind accuracy on the five D6 dimensions (Epic 5). Pure `src/stats/` (dashboard + blindAccuracy, unit-tested) → `features/stats/StatsScreen` | no |
+| **P7** | ✅ **BUILT 2026-06-27** Local JSON export (`auxein.taste.v1`, raw+canonical, optional base64 photos) via `src/export/` + Settings UI; `docs/taste_plan/wide_schema_mapping.md` authored | no |
+| — | **← fully usable personal app (P1–P7 complete)** | — |
+| **D1** | **Design/mobile polish — claret/cream colour + Grow-style compact** (Pete: refs in `design_ideas`, then "refer to Grow management page: pills, clean lines, fonts, much more compact"). **Sub-pass 1 ✅** foundation · **Sub-pass 2 ✅** reskin → **2b ✅ re-tuned to Grow** (Calibri, compact 13–14px, pill badges, thin lines, dense; serif dropped). Sub-pass 3 (taste-slider component + per-screen detailing) remains | no |
+| **P8** | `backend_taste` service: `taste` schema migration, bootstrap + sync; wire outbox/pull. **Backend half ✅ BUILT 2026-06-27** (service+migration+endpoints, generic-records store). **Frontend sync wiring ✅ BUILT 2026-06-28** (auth seam + tasteApi + sync engine/triggers + Settings panel). | yes |
+| **P9** | Presign/confirm + S3 photo upload on sync ✅ **BUILT 2026-06-28** (backend endpoints + frontend upload-on-sync + remote display) | yes |
+| **P10** | Provision EB env + S3/CloudFront/Route53 + DNS/certs; ship PWA; write runbooks. **Runbooks + prod wiring ✅ BUILT 2026-06-28**; AWS provisioning = Pete-run (deploy stage). | yes |
 
 Working agreement: each phase auto-builds, then pauses for your review before the next. Builds are **not** run by Claude — Pete tests the app.
 
@@ -318,4 +398,306 @@ Working agreement: each phase auto-builds, then pauses for your review before th
 
 Smoke test: Home → Quick taste (pick grid, leave blind off) → wine details up front, walk grid (no conclusions), Save → lands in Wines. Then Home → Start a flight (blind on) → name it → taste: identity hidden, walk incl. conclusions, Reveal, enter wine, Save & next → wine 2 starts fresh, Flight notes persists; open Flights → reorder/reveal; Wines shows both with scores.
 
-Next action: **P6 — Stats dashboard (client-side over Dexie)**. Then P7 (export + `wide_schema_mapping.md`) → fully usable app → P8–P10 (backend service + infra). This doc is the source of truth; update the phase table and "Open items" as phases land.
+**R1 shipped 2026-06-27** — reconciliation engine, BUILD_SPEC Epic 1. `src/reconcile/index.ts`:
+pure, dependency-free (no Dexie/DOM import) so it's unit-testable in isolation. Exports:
+`CMS_BANDS` + `SCORE_SYSTEMS` constants; types `ReconciliationType` / `OrdinalScale` /
+`ScoreSystem` / `CanonicalOrdinal` / `CanonicalScore` / `ReconciledValue`; functions
+`toCanonicalOrdinal` (numeric position-banding + 1:1 CMS-label mapping, clamps 0..4, no phantom
+6th band, label/numeric-string handling), `bandLabel`, `isCmsLabels`, `toNormalisedScore`
+(parker/ucdavis/stars/percent + explicit `{min,max}`, clamped 0..100), `renderInScale` (Story 1.4
+lossy-direction render via `position`), and the non-destructive constructors `buildOrdinalValue` /
+`buildScoreValue` / `buildRawValue` + a `reconcile(type, raw, {scale|score_system})` dispatcher
+(Story 1.5 — never stores canonical instead of raw; unanswered → raw only). Tests:
+`src/reconcile/reconcile.test.ts` (vitest). **`vitest` added to taste devDeps + `test`/`test:watch`
+scripts** — run `npm install` (in `packages/taste`) then `npm test`. Engine math independently
+verified 32/32 via a plain-node mirror; **vitest suite untested by Pete** (needs the install).
+
+**R2 shipped 2026-06-27** — template model + CMS classification. `TemplateField` gains a
+**required** `reconciliation_type` ('ordinal'|'score'|'none') + optional `score_system`
+(`src/templates/types.ts` imports both from `@/reconcile`; no cycle — reconcile imports nothing).
+`src/templates/factory.ts` adds: `RECON_TYPES` + `SCORE_SYSTEM_OPTIONS` (builder selectors),
+`defaultReconciliation(type)` (score→score, scale→ordinal, else none), `defaultScoreSystem()`,
+and the template→engine bridges `ordinalScaleForField()` (numeric `scale` wins, else a
+single_select's `options` ARE the ordered labels — single source of truth, survives "+ add"
+merges) / `scoreSystemForField()` / `fieldReconError()` (BUILD_SPEC 1.1 validation). `newField`
+now stamps reconciliation_type (+ score_system for score). Builder (`TemplateBuilder.tsx`): a
+"Reconciles" selector + hint on every field card, a score-system picker for score fields
+(`changeRecon` / `changeScoreSystem` sync min/max + slider scale), `changeType` re-suggests the
+default, and `handleSave` blocks ordinal/score fields lacking a scale def. CMS seed: every field
+carries `reconciliation_type`; the nine structural fields → `ordinal` (tannin/acid/alcohol/
+viscosity use the exact CMS Low…High labels → 1:1 band map; finish/intensity/complexity/sweetness
+band by position); descriptors/categoricals/conclusions → `none`; **new non-blind `Assessment`
+section** with `quality_level` (ordinal Faulty…Outstanding) + `score` (percent 0–100, the score
+axis). **`palate_body` options changed** `Tart/Light/Medium/Full/Creamy/Round` → monotonic
+`Light/Med-/Medium/Med+/Full` (the old list wasn't a valid ordinal scale; texture terms move to
+notes). cms-seed **v4→v5** (mergeSeed re-applies reclassification from the seed; ⚠️ it also unions
+the OLD body options back as if user-added — **clear app storage / wipe Dexie so v5 seeds clean**,
+which R3's schema bump will force anyway). `src/index.css` adds `.recon-row`/`.recon-hint`.
+Typecheck: `npx tsc --noEmit` clean except the known `vitest`-not-installed error in the R1 test
+file (run `npm install` in `packages/taste`). **Untested in-browser** — Pete: wipe storage, open
+Grids → duplicate CMS → confirm each field shows a Reconciles control + the Assessment section.
+
+**R3 shipped 2026-06-27** — value shape + blind set. `Note.values` is now
+`Record<string, ReconciledValue>` (`{raw, raw_scale?, canonical?}`) and `Note` gains
+`blind_conclusions: Record<string, unknown> | null` (`db/types.ts` imports `ReconciledValue` from
+`@/reconcile`). **Key design: widgets stay raw during editing; the envelope is built once at save**
+via `reconcileNoteValues(sections, rawValues)` (new in `factory.ts` — routes each field through
+`reconcile()` using `ordinalScaleForField`/`scoreSystemForField`, defensively falling back to
+raw-only). So **`GridRenderer`/`SectionWalk` need no change** — reconciliation lives in one place.
+`CaptureScreen`: a `reveal()` helper freezes `blind_conclusions` (raw answered values of
+`blind_only` sections) the moment before the truth is entered; save reconciles values + sets
+`blind_conclusions` (null when known); `resetWine` clears it. Reader `WinesScreen`/`NoteReview`
+unwraps `note.values[key]?.raw`. **Dexie v1→v2** (`schema.ts`): same indexes, an `.upgrade()`
+clears `notes`/`photos`/`outbox` and resets `flights.note_ids` (pre-R3 flat-value notes are
+shape-incompatible; no production data). `npx tsc --noEmit` clean bar the known `vitest` test
+error. **Untested in-browser** — Pete (after `npm install`, wipe storage): capture a non-blind
+note (ordinal/score fields project; raw shows unchanged in the Wines review); a blind flight note
+(fill conclusions → Reveal → enter wine → Save) — `blind_conclusions` should hold the pre-reveal
+guesses for Epic 5.
+
+**P6 shipped 2026-06-27** — stats dashboard + blind accuracy (Epic 5). Two **pure, dependency-free**
+modules under `src/stats/`: `dashboard.ts` (`computeDashboard(notes, wines, {month})` → totals /
+this-month / blind·known / by-template / by-variety / by-region / vintage spread / **score
+distribution via the canonical `normalised_score`** + average / over-time) and `blindAccuracy.ts`
+(`computeBlindStats` → grades only revealed blind notes on the five D6 dims — variety / country /
+region / vintage(±band, default 2) / age-range — comparing `blind_conclusions` against the revealed
+wine; pooled per-dimension + per-variety + per-region + monthly-trend accuracy). Guess resolution
+matches conclusion field keys/labels by dimension pattern, preferring final over initial. **Two real
+bugs caught by the verification mirrors:** the age pattern `/age/i` matched "vint·age" so `fc_vintage`
+hijacked the age dim → fixed to `/(?<![a-z])age/i`; and the top score band only caught exactly 100 →
+fixed to `>= 90` (inclusive 90–100). UI `features/stats/StatsScreen.tsx` (stat cards, accuracy panel
+with per-dimension bars, count-bar breakdowns) + Home "Insights" tile + `.stat-*`/`.bar*` CSS. Tests
+`src/stats/blindAccuracy.test.ts` (vitest); blind-grading verified 20/20 + dashboard banding/score
+checks via node mirrors. `npx tsc --noEmit` clean bar the two known `vitest`-not-installed test
+errors. **Untested in-browser** — Pete (after `npm install`): wipe storage, capture a few notes incl.
+a blind flight with conclusions, open Home → Insights.
+
+**P7 shipped 2026-06-27** — local JSON export + wide-schema mapping. `src/export/exportData.ts`:
+`buildExport({includePhotoData})` dumps live (non-deleted) Dexie data as `{schema:'auxein.taste.v1',
+exported_at, entities:{templates,events,wines,notes,flights,photos}}` — note `values` carry both raw
+and canonical (verbatim, proving D1/D5); photos export as S3 keys + metadata, optionally base64
+(`data_base64`) for a fully-local archive; geoRegions/outbox/meta excluded. `downloadJson` +
+`exportToFile` (dated filename). Settings screen gains an **Export** section (JSON / Export with
+photos, with a result line). `docs/taste_plan/wide_schema_mapping.md` authored — every v1 entity/field
+→ wide-schema destination or "v1-only / derive later", incl. the geo `geo_ref_id → GeoRegion.gi_id →
+geography.gi_id` path and the raw/canonical audit. `npx tsc --noEmit` clean bar the two known `vitest`
+test errors. **Untested in-browser** — Pete (after `npm install`): Settings → Export JSON, confirm the
+file downloads and notes carry `{raw, canonical}`.
+
+**P1–P7 milestone reached: fully usable personal app (zero backend).**
+
+**D1 in progress — design/mobile polish (decided 2026-06-27: run NOW before backend; Pete: use my
+judgement, no render refs; the `frontend-design` skill is NOT installed in this env, so work from the
+brand tokens — #5B6830 brand, Auxein mark).** Pure CSS/markup, no logic change.
+
+**D1 design direction (decided 2026-06-27):** Pete supplied refs in `docs/taste_plan/design_ideas/`
+(Vivino-style wine apps — deep wine-red chrome, center-FAB nav, bipolar taste sliders, round-icon
+chips, big stat numbers) and chose **"editorial wine + cream"**: claret + cream paper, **serif** wine
+names/display, olive demoted to a quiet tertiary. (No styling skill is installed in this env — the
+spec's `frontend-design` is absent; `DesignSync` only syncs to claude.ai design-system projects — so
+the reskin is hand-built from the brand tokens.)
+
+**D1 sub-pass 2 ✅ BUILT 2026-06-27 — editorial reskin.** `src/index.css`: new palette
+(`--claret #7b2e3c` / `--claret-dark` / `--claret-tint`, `--paper #f6f1e7` cream bg, `--surface
+#fffdf8` warm white, `--ink #2a2018`, `--muted` warm, `--olive` tertiary, `--gold`); **aliased
+`--brand`→claret + `--bg`→paper** so all prior `var(--brand)`/`var(--bg)` usages recolour for free;
+`--font-serif` (system serif stack — offline PWA) on wine names, screen titles, masthead, big stat
+numbers; `.screen-title` gets a short claret underline rule; editorial masthead (serif claret
+"Auxein", italic "Taste"); recoloured all hardcoded olive tints (`#eef0e7`→`var(--brand-tint)`);
+**center capture FAB** in the bottom nav (`.nav-fab`, claret, lifted). `App.tsx`: nav restructured to
+4 tabs (Home·Wines·[FAB]·Flights·Insights) — **Events/Grids/Settings moved to Home** via a new
+`.home-links` row (`HomeScreen.tsx`). PWA `theme_color`→`#7B2E3C` + bg cream (`vite.config.ts` +
+`index.html`). CSS verified balanced (194/194) + no undefined vars; `tsc` clean bar the known vitest
+errors. **Untested on device.**
+
+**D1 sub-pass 1 ✅ BUILT 2026-06-27 — foundation (`src/index.css` only):** expanded `:root` tokens
+(spacing `--s1..6`, radii `--r-*`, `--shadow-card`, `--brand-tint`, `--danger`, `--tap: 44px`); body
+base 16px + line-height + `text-size-adjust`; global touch resets (`-webkit-tap-highlight-color`
+transparent, `touch-action: manipulation`) + `:focus-visible` ring; **44px min tap targets** on `.btn`
+(+disabled/active), `.segmented-item`, larger `.icon-btn` (40px), `.chip` (40px); **`.form-input`
+font-size 16px (kills iOS focus-zoom)** + focus ring + custom select chevron; card elevation on
+grid-section/template-card/stat-card/stat-panel/home-tile/kv; ≤640px centred layout for tablet/desktop;
+taller home tiles. CSS verified balanced (187/187 braces) + no undefined `var()`. **Untested on device.**
+
+**D1 sub-pass 2b — re-tuned to Grow (2026-06-27).** Pete: "refer to the Grow management page — pills,
+clean lines, fonts, a lot more compact, too bulky still." Studied `packages/web/src/styles/theme.css`
++ `CompanyAdmin.css`: **Calibri** font (`--font-sans: Calibri,…`; `--font-serif` re-aliased to it, so
+the editorial serif is dropped), compact 13–14px scale, pill `.badge` (`2px 10px`/11px/600), thin 1px
+lines, dense rhythm. Compacted everything: screen-title 27→19 (underline rule removed), screen padding
+24→16, btn 44→40, chip 40→32, segmented 44→36, icon-btn 40→34, input 44→40 (kept 16px font for iOS),
+cards 14→11–12 padding + radius 12→10, home tiles de-bulked (min-height 92→0), stat numbers 28→22 /
+accuracy 38→30, list/grid gaps tightened; removed the stray sub-pass-1 `.home-tile{min-height:88px}`.
+Claret/cream colour kept (Pete's earlier pick); only density/type/structure moved to Grow. CSS
+balanced (192/192) + no undefined vars; `tsc` clean bar known vitest errors. **Untested on device.**
+
+**D1 sub-pass 2c + builder redesign (2026-06-27).** Pete: "still bulky / not refined — clean tight pill
+style for selectors, especially capture; and the create-template page must NOT use free-text fields —
+a bank of fields users pick from, adjusting only params that still reconcile."
+- **Capture selectors tightened** (`index.css`): `.chip` 32→28px / `3px 11px`, `.segmented` pill radius +
+  item 36→30px, accordion `.walk-*` de-bulked (header 14→10/12, radius 12→10), grid fields/sections +
+  descriptor groups tightened. Clean tight pills throughout capture.
+- **Field-bank builder** (replaces free-text creation): new `src/templates/fieldBank.ts` (`FIELD_BANK`
+  = the reconcilable CMS canon grouped by section + `instantiateField`); `TemplateBuilder.tsx` rewritten
+  — "+ Add fields" opens a bank picker (pills, grouped, already-added greyed); added fields show as
+  read-only cards with a recon tag and ONLY constrained params (score-system for score, numeric min/max
+  for `scale` fields, required) — no label/option/type/recon free editing. `fieldReconError` still gates
+  save. Section labels use a `<datalist>` of the bank categories. `tsc` clean; CSS balanced (210/210).
+  **Untested in-browser.**
+
+**D1 sub-pass 3 ✅ BUILT 2026-06-27 — capture redesign (Pete: "uninspiring/boring, pills different
+sizes/untidy; want sliders, icons, an aroma-wheel modal instead of long lists").** Decided via
+AskUserQuestion: aroma-wheel **modal** (category tiles → terms) + **both** icon mediums (lucide for
+chrome, emoji for aroma categories). Added `lucide-react ^0.510.0` to taste deps (already hoisted at
+repo root via Grow). New: `src/features/capture/icons.tsx` (`sectionIcon` lucide Eye/Wind/Wine/Grape/
+Award/ClipboardList by section keyword; `aromaEmoji` per descriptor category), `AromaModal.tsx`
+(full-screen: selected pills + search + colour-coded emoji **category tiles** → term chips + add-your-
+own), and a rewritten `GridRenderer.tsx`: **ordinal single_selects → discrete labelled slider**
+(`.oslider`, claret `--fill` gradient + thumb, current-band label) — kills the segmented bars;
+**all categorical/multi/boolean → one uniform `.chip` pill** (fixes the different-sizes mess);
+**tag_structured → AromaField** (selected pills + "Add aromas" → modal); scale/score → numeric slider.
+`SectionWalk` headers gained the lucide section icon. **CSS cleaned**: removed 21 now-dead rule blocks
+(`.segmented*`, `.descriptor-picker`, `.tag-group*`, `.scale-input/value`, `.chip--add`,
+`.recon-*`, `.field-card`, `.group-*`); added `.oslider*`, `.aroma-*`, `.walk-header-icon`. Balanced
+(219/219), `tsc` clean bar known vitest. **Untested in-browser** — needs `npm install` (lucide).
+
+**D1 sub-pass 4 ✅ BUILT 2026-06-27 — WineReview ordinal mini-sliders.** `WinesScreen.tsx`: review rows
+now carry the full `{field, val}`; ordinal fields render via a new `ReviewValue` as a compact read-only
+bar (`.rslider` — claret fill to the stored `canonical.position` + the raw band label) so the review
+mirrors the capture slider and surfaces the reconciliation; everything else stays text. `tsc` clean,
+CSS balanced (223/223). **Untested on device.**
+
+**D1 remaining (optional, low priority):** per-screen phone audit of the Events/Flights/Grids lists +
+empty states. The true radial SVG aroma wheel was offered but Pete picked the tile modal.
+
+**P8 backend half ✅ BUILT 2026-06-27 — `backend_taste/` service.** Pete chose P8 next (durability/sync).
+**Design deviation (flagged for veto):** instead of the dev-plan's 7 typed tables, a single generic
+**`taste.records`** store (`id` client-UUID PK, `entity`, `user_id` int, `payload` JSONB, `updated_at`,
+`version`, `deleted`) — client is SoR, server is a durable LWW relay; far less bug surface in a backend
+I can't run here, and a later migration can normalise if server-side querying is needed. Files: `core/
+config.py` (lean settings, DATABASE_URL from env, no Secrets-Manager coupling), `core/auth.py`
+(`get_current_taste_user` → decode public JWT with shared SECRET_KEY → `public_users.id`; no DB query,
+no Taste user table), `db/base.py` (own engine/session/Base), `db/models.py` (`Record` + `ENTITIES`),
+`api/health.py|bootstrap.py|sync.py` (`GET /taste/health`, `GET /taste/bootstrap`, `POST /taste/sync`
+with LWW-by-updated_at + soft-delete + delta pull), `main.py` (own CORS allow-list, `/taste` prefix),
+`requirements.txt` / `Procfile` / `.ebextensions/01_python.config` (health `/taste/health`, port 8000)
+/ `alembic_taste.ini` + `alembic_taste/env.py` (`version_table_schema='taste'`, creates schema) +
+`versions/0001_init_taste.py` / `.env.example` / `README.md`. Root scripts `dev:taste-api` (port 8001)
++ `dev:taste-stack`. **All Python `py_compile`-clean (system py3.13); not run against a DB.** Needs a
+`backend_taste/venv` + `pip install -r requirements.txt` + `.env` + `alembic -c alembic_taste.ini
+upgrade head` before it serves.
+
+**P8 remaining (frontend sync wiring) — NEXT:** `packages/taste/src/services/tasteApi.ts` (axios/fetch
+to taste-api with the public token), `src/sync/` (push outbox → `POST /taste/sync`, apply pull deltas
+LWW into Dexie, `last_pulled_at` in `meta`, online-event + manual triggers), an auth seam (read the
+public token; the SPA logs in via the main API's `/api/v1/public/auth/login`), and the Vite proxy /
+API-base wiring (data calls → :8001 local, taste-api in prod). Then P9 (photos) → P10 (infra/deploy).
+
+Then **P8–P10 — backend service + infra** (per §5 incl. §5.7 dev/deploy): `backend_taste` `taste`
+schema, bootstrap+sync, presign/S3 photos, EB env + DNS.
+
+**Flight glass-rack + photo UX ✅ BUILT 2026-06-28 (untested in-browser).** Replaces the
+forward-only "Save & next" flight flow with a **persistent rack of glasses you switch between
+freely** (tap glass 4 → 6 → 1, non-linear). Decided via AskUserQuestion: tap-a-dot to cycle
+colour + a camera button in the save bar.
+- **Model**: new `Note.glass_color: GlassColor|null` (`'red'|'white'|'rose'|'sparkling'`, observed
+  pour — visible even blind; feeds stats later) in `db/types.ts`. Non-indexed → **no Dexie bump**.
+- **`features/capture/glass.ts`** (new): `Glass` editor-state interface (own wine/values/photos/
+  reveal per glass), `emptyGlass`, `glassHasContent` (identity OR any value OR photo OR notes),
+  `GLASS_COLOR_HEX`/`_LABEL`, `nextColor` (cycle none→red→white→rosé→sparkling→none).
+- **`features/capture/GlassRack.tsx`** (new): horizontal rack — numbered glasses tinted by colour
+  (lucide `Wine` fill), tap glass body to select, tap colour dot to cycle, "+" to add a glass,
+  wine label or "Hidden"/"—" beneath.
+- **`CaptureScreen.tsx`** (rewritten): glasses array + `activeId`; all editor mutations target the
+  active glass. Each glass **persists to Dexie as a Note (+ Wine) the moment it has content** —
+  flushed when you switch away / add a glass / Finish (so jumping between glasses is lossless and
+  survives leaving the screen). Wine saved only once it has identity → **empty/untouched glasses
+  never pollute the Wines archive or stats** (note carries no wine_id). Blind reveal is **per glass**.
+  Setup gains a **"Glasses" count** (default 1) for flight mode; flight bar primary is **Finish**
+  (rack drives the flow), quick-taste stays a single glass → Save → /wines. Resuming a flight
+  (`init.flightId`) rebuilds the rack from its notes via `noteToGlass`.
+- **Photo UX**: prominent **camera button (lucide `Camera` + "Photo") in the sticky save bar**
+  opening the camera directly; the in-note strip's "+" is now a camera icon too.
+- `index.css`: `.rack*` / `.capture-bar-actions` / `.capture-photo-btn` added (braces 236/236).
+- `npx tsc --noEmit` **clean** (vitest/lucide now installed — the previously-known test errors are
+  gone). **Untested in-browser** — Pete: Home → Start a flight, set 3 glasses, taste glass 1, tap
+  glass 3 then 1 (state persists), cycle a glass colour, add a photo from the bar, Finish; open
+  Flights to confirm the rack's wines landed in order.
+
+**P8 frontend sync wiring ✅ BUILT 2026-06-28 (untested — needs the backend running).** Connects
+the PWA's Dexie outbox to the `backend_taste` `/taste/sync` relay. Local-first preserved: sync is
+opportunistic and a complete no-op until signed in, so P1–P7 still work with zero backend.
+- **Auth seam** `src/auth/publicAuth.ts`: NO Taste user table — identity is the existing Insights
+  public JWT. `login(email,password)` POSTs the **main API** `{VITE_API_URL||'/api'}/public/auth/login`
+  → stores `public_access_token` + `public_user` (same keys Insights uses). `getToken`/`isAuthed`/
+  `logout`/`clearToken`.
+- **Client** `src/services/tasteApi.ts`: `fetch` wrapper to the **taste-api** (`{VITE_TASTE_API_URL||''}
+  /taste/*`), attaches the bearer token, clears it on 401. `tasteSync`/`tasteBootstrap`/`tasteHealth`.
+- **Engine** `src/sync/engine.ts`: `syncNow()` drains the outbox (ordered by seq) → `POST /taste/sync`
+  `{outbox, last_pulled_at}` → on success deletes exactly the sent seqs, applies pull deltas, stores
+  `last_pulled_at = server_time` in `meta`. Single-flight + offline/unauthed guards. Photo `blob` is
+  stripped from any payload (binary syncs via presign in P9; notes still carry photo id refs). Tiny
+  pub/sub (`subscribeSync`/`getSyncStatus`) drives the UI. `src/sync/pull.ts`: LWW apply (by
+  `updated_at`, parsed to ms) written **direct to the Dexie table, never via repo** (no re-enqueue loop).
+- **Triggers** `src/sync/controller.ts`: `startAutoSync()` — initial pass on boot + `online` event +
+  60s heartbeat; wired in `App.tsx`. (First sync sends `last_pulled_at:null` → server returns ALL the
+  user's rows, so `/sync` doubles as bootstrap; `tasteBootstrap` kept for completeness, unused.)
+- **UI** `src/features/sync/SyncPanel.tsx` in Settings: signed-out → email/password sign-in (optional,
+  explains local-first); signed-in → status (up-to-date/syncing/offline/error) + pending-change count +
+  last-synced + **Sync now** + Sign out. `index.css` `.sync-panel`/`.sync-form`.
+- **Vite**: added `/taste` proxy → `http://localhost:8001` (auth `/api` stays → :8000).
+- `npx tsc --noEmit` **clean**; CSS braces 238/238. **Untested** — to exercise sync Pete needs
+  `backend_taste` up (`venv` + `pip install -r requirements.txt` + `.env` with shared `SECRET_KEY` +
+  `alembic -c alembic_taste.ini upgrade head`) on :8001, and the main API reachable on :8000 (or set
+  `VITE_API_URL` to prod) for login. Without them the app is unaffected (stays local-only). **Next:
+  P9** (presign + S3 photo upload on sync) → **P10** (provision EB env + S3/CloudFront/Route53 + DNS).
+
+**P9 presign + S3 photo upload on sync ✅ BUILT 2026-06-28 (untested — needs S3 + backend).**
+Implements the dev-plan §6 photo lifecycle: blobs captured locally, uploaded to S3 on sync,
+displayed from the local blob (instant/offline) or a presigned URL (cross-device).
+- **Backend** `backend_taste/services/file_storage.py` (standalone — can't import `backend/`):
+  `presign_put` / `presign_get` / `object_exists` via boto3, reusing the shared `UPLOADS_S3_BUCKET`.
+  `api/photos.py` (registered in `main.py`): `POST /taste/photos/presign {note_id, photo_id?,
+  content_type}` → `{s3_key, upload_url}` (PUT); `POST /taste/photos/confirm {s3_key}` → HEAD-checks
+  then `{view_url}` (GET); `GET /taste/photos/view?key=` → `{view_url}` for cross-device display.
+  Objects are keyed `taste/<user_id>/<note_id>/<photo_id><ext>` and **every call asserts the key
+  belongs to the caller** (prefix check). 503 when S3 unconfigured (dev) → client skips gracefully.
+  `boto3` already in requirements; all `py_compile`/`compileall`-clean (not run against AWS).
+- **Frontend** `src/services/photoSync.ts`: `syncPhotos()` uploads every `status==='local'` photo
+  with a blob — presign → **direct `fetch` PUT to S3** → confirm → `repo.photos.save({s3_key,
+  status:'synced'})` (keeps the blob for instant local display; enqueues the sans-blob metadata so it
+  reaches other devices). Best-effort per photo (failure stays 'local', retried next sync). Wired
+  into `engine.syncNow()` **before** the outbox drain so photo metadata rides the same push.
+  `resolvePhotoUrl()` returns a cached presigned GET for blob-less photos. `tasteApi.ts` gained
+  `tastePresign`/`tasteConfirm`/`tastePhotoView`.
+- **Display** `src/features/capture/usePhotoUrl.ts`: a hook returning the blob object-URL (revoked on
+  cleanup) or the remote presigned URL; both thumbnail renderers (CaptureScreen `Thumb`,
+  WinesScreen `ReviewThumb`) now use it.
+- `npx tsc --noEmit` **clean**; `npx vitest run` **36/36 pass**. **Untested end-to-end** — needs the
+  taste-api up with `UPLOADS_S3_BUCKET` set + the EB instance role's S3 perms (or local AWS creds).
+  Without S3 the app is unaffected: photos stay local. **Next: P10** (provision EB env + S3 prefix /
+  CloudFront / Route53 / DNS + runbooks) — the last phase.
+
+**P10 infra prep ✅ BUILT 2026-06-28 (code + runbooks; AWS provisioning is Pete-run at deploy).** The
+actual EB/S3/CloudFront/Route53 provisioning is outward-facing AWS work for Pete; this delivers the
+turnkey config + step-by-step runbooks so the deploy is mechanical.
+- **Prod FE wiring**: `packages/taste/.env.production` (`VITE_API_URL=https://api.auxein.co.nz/api/v1`,
+  `VITE_TASTE_API_URL=https://taste-api.auxein.co.nz`). **Fixed** the dev auth-base default `/api`→
+  **`/api/v1`** in `auth/publicAuth.ts` (the public-login path is `/api/v1/public/auth/login`; the
+  Vite `/api`→:8000 proxy still covers it in dev).
+- **Main API CORS**: added `https://taste.auxein.co.nz` + `http://localhost:5175` to
+  `backend/main.py` `allowed_origins` (Taste's cross-origin login). Ships on the next main-API deploy.
+- **Runbooks** (`docs/runbooks/`): `provision-taste-infra.md` (one-time: EB env `auxein-taste-prod`
+  under app `auxein-taste-api`, env vars incl. shared `SECRET_KEY`/`DATABASE_URL` + `UPLOADS_S3_BUCKET=
+  auxein-uploads`, RDS SG access, ACM on the ALB + Route53 for taste-api, then the SPA bucket
+  `auxein-taste-web` + CloudFront OAC + us-east-1 ACM + Route53 for taste.auxein.co.nz; photos reuse
+  `auxein-uploads` under `taste/<user_id>/...`, no new bucket/IAM since the default instance role
+  already has `AuxeinUploadsRW`), `deploy-taste-api.md` (eb deploy from working dir + `alembic -c
+  alembic_taste.ini upgrade head`), `deploy-taste.md` (build → `s3 sync` with immutable-asset vs
+  no-cache HTML/SW split → CloudFront invalidation → end-to-end smoke).
+- `npx tsc --noEmit` clean; backend `main.py` compiles. **Provisioning + end-to-end test pending
+  (Pete runs the deploy next).** After provisioning, update `project_aws_infra` with the new bucket/
+  CF id/EB env/ACM ARNs.
+
+**P1–P10 code-complete.** Remaining is the live AWS provisioning + the full end-to-end deploy/test.
+
+This doc is the source of truth; update the phase table + resume pointer as phases land.

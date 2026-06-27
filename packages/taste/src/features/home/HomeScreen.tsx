@@ -40,6 +40,18 @@ export function HomeScreen() {
           <span className="home-tile-title">My wines</span>
           <span className="home-tile-sub">Review what you've tasted</span>
         </button>
+        <button className="home-tile" onClick={() => navigate('/stats')}>
+          <span className="home-tile-title">Insights</span>
+          <span className="home-tile-sub">Totals, scores, blind accuracy</span>
+        </button>
+      </div>
+
+      <div className="home-links">
+        <button className="home-link" onClick={() => navigate('/events')}>Events</button>
+        <span className="home-link-dot">·</span>
+        <button className="home-link" onClick={() => navigate('/templates')}>Grids</button>
+        <span className="home-link-dot">·</span>
+        <button className="home-link" onClick={() => navigate('/settings')}>Settings</button>
       </div>
 
       <h2 className="screen-subtitle">Recent</h2>
