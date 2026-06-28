@@ -44,13 +44,19 @@ class SyncIn(BaseModel):
 @router.post("/sync")
 def sync(body: SyncIn, db: Session = Depends(get_db), user_id: int = Depends(get_current_taste_user)):
     applied: List[str] = []
+    # Records added/updated earlier in THIS same batch. The client outbox often
+    # carries several mutations for one id (each edit re-enqueues the row); since
+    # the session is autoflush=False, a fresh db.query wouldn't see the pending
+    # INSERT, so a repeat id would be inserted twice → records_pkey UniqueViolation.
+    # Reuse the in-flight row instead.
+    seen: dict[str, Record] = {}
 
     # ---- push ----
     for m in body.outbox:
         if m.entity not in ENTITIES:
             continue
         incoming_ts = parse_iso(m.updated_at)
-        existing = db.query(Record).filter(Record.id == m.id, Record.user_id == user_id).first()
+        existing = seen.get(m.id) or db.query(Record).filter(Record.id == m.id, Record.user_id == user_id).first()
 
         # Last-write-wins: a strictly-newer server row wins; still ack the client.
         if existing and existing.updated_at and existing.updated_at > incoming_ts:
@@ -65,18 +71,19 @@ def sync(body: SyncIn, db: Session = Depends(get_db), user_id: int = Depends(get
             existing.updated_at = incoming_ts
             existing.version = m.version
             existing.deleted = deleted
+            seen[m.id] = existing
         else:
-            db.add(
-                Record(
-                    id=m.id,
-                    entity=m.entity,
-                    user_id=user_id,
-                    payload=payload,
-                    updated_at=incoming_ts,
-                    version=m.version,
-                    deleted=deleted,
-                )
+            rec = Record(
+                id=m.id,
+                entity=m.entity,
+                user_id=user_id,
+                payload=payload,
+                updated_at=incoming_ts,
+                version=m.version,
+                deleted=deleted,
             )
+            db.add(rec)
+            seen[m.id] = rec
         applied.append(m.id)
 
     db.commit()
