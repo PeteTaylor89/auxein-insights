@@ -700,4 +700,18 @@ turnkey config + step-by-step runbooks so the deploy is mechanical.
 
 **P1–P10 code-complete.** Remaining is the live AWS provisioning + the full end-to-end deploy/test.
 
+**Typed tables — generic `records` store VETOED 2026-06-28 (Pete: "I want an actual DB").** The P8
+single-table relay is replaced by **6 real typed tables** in schema `taste`: `templates`, `events`,
+`wines`, `notes`, `flights`, `photos`. `backend_taste/db/models.py` — scalar client fields become
+real columns (producer/vintage/geo_*/score/tasted_at/glass_color/…); nested/variable data stays JSONB
+(sections/values/variety/attendees/note_ids/template_snapshot/blind_conclusions/photos). A `SyncMixin`
+does generic payload↔columns mapping (column names == client field names) so the sync wire protocol is
+unchanged — **no frontend change**. `api/sync.py`+`bootstrap.py` route each entity to its table (LWW by
+updated_at + the same in-batch dup-id coalescing that fixed the `records_pkey` UniqueViolation 500).
+Migration `0002_typed_tables` drops `records` (was empty — every sync had been rolling back) and creates
+the typed tables from the models. Models import-validated (mapper config + the `values` column) via
+backend/venv. Needs `alembic -c alembic_taste.ini upgrade head` + `eb deploy auxein-taste-prod`.
+Also: `seedGeo` now self-heals (reseeds when `geoRegions` is empty regardless of the version meta) — the
+empty-table-with-stale-version state was silently breaking the origin typeahead.
+
 This doc is the source of truth; update the phase table + resume pointer as phases land.

@@ -1,5 +1,6 @@
-# POST /taste/sync — push the client outbox, pull deltas (Story 6.2).
-# Conflict policy v1: last-write-wins by updated_at. Soft-delete propagates.
+# POST /taste/sync — push the client outbox, pull deltas. Typed tables: each
+# mutation routes to its entity's table. Conflict policy v1: last-write-wins by
+# updated_at. Soft-delete propagates.
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from core.auth import get_current_taste_user
 from db.base import get_db
-from db.models import ENTITIES, Record
+from db.models import ENTITY_MODELS
 
 router = APIRouter()
 
@@ -44,63 +45,46 @@ class SyncIn(BaseModel):
 @router.post("/sync")
 def sync(body: SyncIn, db: Session = Depends(get_db), user_id: int = Depends(get_current_taste_user)):
     applied: List[str] = []
-    # Records added/updated earlier in THIS same batch. The client outbox often
-    # carries several mutations for one id (each edit re-enqueues the row); since
-    # the session is autoflush=False, a fresh db.query wouldn't see the pending
-    # INSERT, so a repeat id would be inserted twice → records_pkey UniqueViolation.
-    # Reuse the in-flight row instead.
-    seen: dict[str, Record] = {}
+    # Rows touched in THIS batch (the outbox often has several mutations per id;
+    # autoflush is off, so reuse the in-flight row instead of re-querying/-inserting).
+    seen: dict = {}
 
     # ---- push ----
     for m in body.outbox:
-        if m.entity not in ENTITIES:
+        model = ENTITY_MODELS.get(m.entity)
+        if model is None:
             continue
         incoming_ts = parse_iso(m.updated_at)
-        existing = seen.get(m.id) or db.query(Record).filter(Record.id == m.id, Record.user_id == user_id).first()
+        key = (m.entity, m.id)
+        existing = seen.get(key) or db.query(model).filter(model.id == m.id, model.user_id == user_id).first()
 
         # Last-write-wins: a strictly-newer server row wins; still ack the client.
-        if existing and existing.updated_at and existing.updated_at > incoming_ts:
+        if existing is not None and existing.updated_at and existing.updated_at > incoming_ts:
             applied.append(m.id)
             continue
 
+        payload = m.payload if isinstance(m.payload, dict) else {}
         deleted = m.op == "delete"
-        payload = m.payload if m.payload is not None else (existing.payload if existing else {})
-        if existing:
-            existing.entity = m.entity
-            existing.payload = payload
-            existing.updated_at = incoming_ts
-            existing.version = m.version
-            existing.deleted = deleted
-            seen[m.id] = existing
-        else:
-            rec = Record(
-                id=m.id,
-                entity=m.entity,
-                user_id=user_id,
-                payload=payload,
-                updated_at=incoming_ts,
-                version=m.version,
-                deleted=deleted,
-            )
-            db.add(rec)
-            seen[m.id] = rec
+        if existing is None:
+            existing = model(id=m.id)
+            db.add(existing)
+        # For a delete with no payload, apply({}) preserves the row's columns and
+        # only flips the soft-delete flag.
+        existing.apply(payload, user_id, incoming_ts, m.version, deleted)
+        seen[key] = existing
         applied.append(m.id)
 
     db.commit()
 
     # ---- pull (everything changed since last_pulled_at, incl. deletes) ----
-    q = db.query(Record).filter(Record.user_id == user_id)
-    if body.last_pulled_at:
-        q = q.filter(Record.updated_at > parse_iso(body.last_pulled_at))
-
+    since = parse_iso(body.last_pulled_at) if body.last_pulled_at else None
     pull: dict[str, list] = {}
-    for r in q.all():
-        data = dict(r.payload) if isinstance(r.payload, dict) else {"_payload": r.payload}
-        # Overlay the authoritative sync fields so the client applies LWW correctly.
-        data["id"] = r.id
-        data["updated_at"] = r.updated_at.isoformat() if r.updated_at else None
-        data["version"] = r.version
-        data["deleted"] = r.deleted
-        pull.setdefault(r.entity, []).append(data)
+    for entity, model in ENTITY_MODELS.items():
+        q = db.query(model).filter(model.user_id == user_id)
+        if since is not None:
+            q = q.filter(model.updated_at > since)
+        rows = q.all()
+        if rows:
+            pull[entity] = [r.to_client() for r in rows]
 
     return {"applied": applied, "pull": pull, "server_time": datetime.now(timezone.utc).isoformat()}

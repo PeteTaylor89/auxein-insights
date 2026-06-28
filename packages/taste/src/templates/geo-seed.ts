@@ -88,10 +88,14 @@ function flatten(file: GeoSeedFile): GeoRegion[] {
 export async function seedGeo(): Promise<void> {
   const file = geoSeed as GeoSeedFile;
   const installed = (await meta.get<number>(SEED_META_KEY, 0)) ?? 0;
-  if (installed >= file.version) return;
+  const count = await geo.count();
+  // Self-heal: reseed if the corpus is stale OR the table is empty despite the
+  // version flag (geoRegions cleared without the meta row) — that empty state is
+  // what silently broke the origin typeahead.
+  if (installed >= file.version && count > 0) return;
 
   const rows = flatten(file);
-  if (installed > 0) await db.geoRegions.clear(); // re-seed: drop the old corpus
+  if (count > 0) await db.geoRegions.clear(); // re-seed: drop the old corpus
   await geo.bulkSeed(rows);
   await meta.set(SEED_META_KEY, file.version);
 }
