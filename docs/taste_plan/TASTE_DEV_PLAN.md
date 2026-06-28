@@ -26,6 +26,35 @@ Confirmed decisions this session:
 
 ---
 
+## Decision update — 2026-06-28 (server-backed rearchitecture — SUPERSEDES offline-first)
+
+**Offline-first VETOED** ("I want an actual DB"; "this needs to work anywhere, not flaky"). Dexie-as-
+source-of-truth + the sync engine + client-side seeding were the flakiness source (vanishing grid/regions,
+sync 500s). Taste now follows the **Insights pattern**: Postgres (taste-api) is the system of record; the
+SPA is a thin REST client. Generic single-table `taste.records` also vetoed → **real typed tables**.
+
+- **Backend (`backend_taste`)** — REST CRUD per entity under `/taste/v1/{templates,events,wines,notes,
+  flights,photos}` (GET list/detail · POST · PATCH · soft-DELETE; user-scoped; FK filters `?wine_id=`/
+  `?flight_id=`/`?event_id=`/`?note_id=`) via generic `api/crud.py` + `schemas.py` + `api/rest.py`. Six typed
+  tables (`db/models.py`). Builtin CMS template is a **global** row (`templates.user_id` NULL, read-only)
+  seeded by `scripts/seed_taste_templates.py`. **`taste.regions`** (151 rows) seeded by
+  `scripts/seed_taste_regions.py` from the canonical `geo-seed.json`; served at `GET /taste/v1/regions`.
+  Migrations `0002_typed_tables` + `0003_regions_global_templates` **applied to prod DB**. Legacy
+  `/taste/sync` + `/taste/bootstrap` kept temporarily (remove after frontend bake). Swagger left ON in prod
+  for testing (auth-gated data; revisit before public launch).
+- **Frontend (`packages/taste`)** — `db/api.ts` (REST client, bearer token, 401→sign-out), `db/repo.ts`
+  (API-backed `repo`/`geo`/`meta`, **same signatures** so screens are drop-in; `geo` caches the 151 regions
+  in memory; `meta` = localStorage device-prefs). Photos upload straight to S3 (`services/photoSync.ts`
+  `uploadPhoto`). Sign-in gate in `App.tsx` (`auth/SignInScreen.tsx` + `subscribeAuth`). **Deleted**:
+  `sync/`, `templates/seed.ts`, `templates/geo-seed.ts`, `db/schema.ts` (Dexie). Typechecks clean. Needs
+  `eb deploy auxein-taste-prod` (ships the v1 API) before the SPA works.
+- **Next epic (noted, not built):** short/long-form **Articles with two-way links to tasting notes** —
+  mirror Insights' Tiptap-JSON article model + an `article_tasting_note_links` join table (like `ArticleLike`).
+
+The §0/§1 text below describes the original offline-first design and is **superseded** by this section.
+
+---
+
 ## 0. One-paragraph summary
 
 A personal, local-first PWA for wine tasting notes captured in a template-driven grid, fully usable offline (Dexie/IndexedDB is the system of record at capture), syncing to a **separate** FastAPI service when online. Taste is provisioned **off to the side** of Grow/Insights: its own Elastic Beanstalk environment, its own Postgres `taste` schema, its own Alembic history. It shares only the RDS *instance*, the S3 bucket, and the JWT `SECRET_KEY` — it never reads or writes a Grow/Insights table, and identifies the user by validating the existing Insights public JWT (`public_users.id`).

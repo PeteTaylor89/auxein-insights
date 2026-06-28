@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { db, repo } from '@/db';
+import { repo } from '@/db';
 import type { TasteEvent } from '@/db';
 import { EventForm, emptyEvent } from './EventForm';
 
@@ -37,10 +37,10 @@ export function EventsScreen() {
 
   const remove = async (ev: TasteEvent) => {
     // Detach notes/flights from a deleted event (don't orphan their FK).
-    const notes = await db.notes.where('event_id').equals(ev.id).toArray();
-    for (const n of notes) if (!n.deleted) await repo.notes.save({ ...n, event_id: null });
-    const flights = await db.flights.where('event_id').equals(ev.id).toArray();
-    for (const f of flights) if (!f.deleted) await repo.flights.save({ ...f, event_id: null });
+    const notes = await repo.notes.listBy({ event_id: ev.id });
+    for (const n of notes) await repo.notes.save({ ...n, event_id: null });
+    const flights = await repo.flights.listBy({ event_id: ev.id });
+    for (const f of flights) await repo.flights.save({ ...f, event_id: null });
     await repo.events.remove(ev.id);
     await load();
   };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { db, repo } from '@/db';
+import { repo } from '@/db';
 import type { Note, Photo, Wine } from '@/db';
 import type { ReconciledValue } from '@/reconcile';
 import type { TemplateField } from '@/templates/types';
@@ -144,10 +144,8 @@ function NoteReview({ note, fmt }: { note: Note; fmt: (d: string | null) => stri
   const [photos, setPhotos] = useState<Photo[]>([]);
   useEffect(() => {
     if (note.photos.length === 0) return;
-    void Promise.all(note.photos.map((id) => db.photos.get(id))).then((rows) =>
-      setPhotos(rows.filter((p): p is Photo => !!p)),
-    );
-  }, [note.photos]);
+    void repo.photos.listBy({ note_id: note.id }).then(setPhotos).catch(() => {});
+  }, [note.id, note.photos.length]);
 
   // Only show answered fields, in the pinned snapshot's order.
   const rows = useMemo(

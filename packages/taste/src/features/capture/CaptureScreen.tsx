@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { db, meta, newBase, nowIso, repo } from '@/db';
+import { meta, newBase, repo } from '@/db';
 import type { Flight, Note, Photo, TasteEvent, Template, Wine } from '@/db';
 import type { TemplateSection, TemplateSnapshot } from '@/templates/types';
 import { reconcileNoteValues } from '@/templates/factory';
+import { uploadPhoto } from '@/services/photoSync';
 import { SectionWalk } from './SectionWalk';
 import { WineFields, emptyWine } from '../wines/WineFields';
 import { GlassRack } from './GlassRack';
@@ -148,30 +149,28 @@ export function CaptureScreen() {
     setTemplates((ts) => ts.map((t) => (t.id === savedTpl.id ? savedTpl : t)));
   };
 
+  // Upload straight to S3 + persist the Photo row. The note id is the glass id, so
+  // photos can be added before the note itself is first saved.
   const addPhotos = async (files: FileList | null) => {
     if (!files || !active) return;
     const id = active.id;
     const added: Photo[] = [];
     for (const file of Array.from(files)) {
-      let width: number | null = null;
-      let height: number | null = null;
       try {
-        const bmp = await createImageBitmap(file);
-        width = bmp.width;
-        height = bmp.height;
-        bmp.close();
-      } catch {
-        /* dimensions are best-effort */
+        added.push(await uploadPhoto(file, id));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Photo upload failed');
       }
-      const photo: Photo = { ...newBase(), note_id: id, blob: file, s3_key: null, status: 'local', width, height, taken_at: nowIso() };
-      await db.photos.put(photo);
-      added.push(photo);
     }
-    setGlasses((gs) => gs.map((g) => (g.id === id ? { ...g, photos: [...g.photos, ...added] } : g)));
+    if (added.length) setGlasses((gs) => gs.map((g) => (g.id === id ? { ...g, photos: [...g.photos, ...added] } : g)));
   };
 
   const removePhoto = async (photoId: string) => {
-    await db.photos.delete(photoId);
+    try {
+      await repo.photos.remove(photoId);
+    } catch {
+      /* best-effort; still drop it from the glass */
+    }
     setGlasses((gs) => gs.map((g) => (g.id === activeId ? { ...g, photos: g.photos.filter((p) => p.id !== photoId) } : g)));
   };
 
@@ -468,7 +467,7 @@ export function CaptureScreen() {
 // Rebuild a glass editor-state from a persisted note (+ its wine + photos).
 async function noteToGlass(note: Note): Promise<Glass> {
   const wine = (note.wine_id ? await repo.wines.get(note.wine_id) : undefined) ?? emptyWine();
-  const photos = (await Promise.all(note.photos.map((id) => db.photos.get(id)))).filter((p): p is Photo => !!p);
+  const photos = note.photos.length ? await repo.photos.listBy({ note_id: note.id }) : [];
   const values: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(note.values)) values[k] = v?.raw;
   return {

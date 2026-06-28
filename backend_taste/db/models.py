@@ -75,6 +75,9 @@ class SyncMixin:
 class Template(SyncMixin, Base):
     __tablename__ = "templates"
     __table_args__ = SCHEMA
+    # NULL user_id = a global builtin template, visible to everyone (the CMS grid).
+    # A real user_id = a template that user created/duplicated.
+    user_id = Column(Integer, nullable=True, index=True)
     name = Column(String)
     kind = Column(String)
     is_builtin = Column(Boolean, default=False)
@@ -152,6 +155,25 @@ class Photo(SyncMixin, Base):
     width = Column(Integer)
     height = Column(Integer)
     taken_at = Column(String)
+
+
+class Region(Base):
+    """Global wine-geography reference data (countries → regions → subregions →
+    vineyards). Server-owned, seeded from seed_data; NOT user-scoped and never
+    soft-deleted. `id` is a deterministic slug; wines reference it via geo_ref_id.
+    """
+
+    __tablename__ = "regions"
+    __table_args__ = SCHEMA
+    id = Column(String, primary_key=True)
+    parent_id = Column(String, index=True)
+    level = Column(Integer, nullable=False, default=0)  # 0=country .. 3=vineyard
+    kind = Column(String)  # country | region | subregion | vineyard
+    name = Column(String, nullable=False, index=True)
+    country_code = Column(String, index=True)
+    path = Column(String)  # "New Zealand > Marlborough > Wairau Valley"
+    aliases = Column(JSONB)
+    gi_id = Column(String)  # optional link to Insights GI
 
 
 # Wire entity name -> model. Order matters for bootstrap/pull (templates/wines

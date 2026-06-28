@@ -1,6 +1,7 @@
-// Data layer barrel. Import from '@/db' everywhere.
-export { db, TasteDB } from './schema';
+// Data layer barrel. Import from '@/db' everywhere. Server-backed (taste-api v1);
+// see repo.ts. No Dexie — the server is the system of record.
 export { repo, geo, meta } from './repo';
 export type { Repo } from './repo';
+export { api, ApiError, qs } from './api';
 export { uuidv4, nowIso, newBase } from './ids';
 export type * from './types';

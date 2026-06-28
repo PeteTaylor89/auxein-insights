@@ -1,101 +1,145 @@
-import type { Table } from 'dexie';
-import { db } from './schema';
-import { nowIso } from './ids';
-import type { BaseRow, GeoRegion, Meta, OutboxOp, SyncEntity } from './types';
+// Data access. The server (taste-api) is the system of record; every call here is
+// a REST request. Screens fetch on mount and re-fetch after a mutation, so there
+// is no client store to drift — open the app on any device, sign in, and the same
+// data loads. `repo`/`geo`/`meta` keep the signatures the screens already use, so
+// this is a drop-in replacement for the old Dexie layer.
+import { ApiError, api, qs } from './api';
+import type { BaseRow, Flight, GeoRegion, Note, Photo, TasteEvent, Template, Wine } from './types';
 
-// Enqueue a pending mutation. Runs inside the caller's rw transaction so the
-// entity write and its outbox entry commit atomically.
-async function enqueue(entity: SyncEntity, op: OutboxOp, row: BaseRow): Promise<void> {
-  await db.outbox.add({
-    entity,
-    op,
-    id: row.id,
-    payload: op === 'delete' ? null : row,
-    updated_at: row.updated_at,
-    version: row.version,
-  });
-}
+type Params = Record<string, string | number | boolean | undefined | null>;
 
-// Upsert: stamp updated_at, bump version, preserve created_at, then enqueue.
-async function put<T extends BaseRow>(table: Table<T, string>, entity: SyncEntity, row: T): Promise<T> {
-  return db.transaction('rw', table, db.outbox, async () => {
-    const existing = await table.get(row.id);
-    const stamped: T = {
-      ...row,
-      created_at: existing?.created_at ?? row.created_at ?? nowIso(),
-      updated_at: nowIso(),
-      version: (existing?.version ?? 0) + 1,
-      deleted: row.deleted ?? false,
-    };
-    await table.put(stamped);
-    await enqueue(entity, 'upsert', stamped);
-    return stamped;
-  });
-}
-
-// Soft delete: flip `deleted`, bump version, enqueue a delete mutation.
-async function softDelete<T extends BaseRow>(table: Table<T, string>, entity: SyncEntity, id: string): Promise<void> {
-  await db.transaction('rw', table, db.outbox, async () => {
-    const existing = await table.get(id);
-    if (!existing || existing.deleted) return;
-    const stamped: T = { ...existing, deleted: true, updated_at: nowIso(), version: existing.version + 1 };
-    await table.put(stamped);
-    await enqueue(entity, 'delete', stamped);
-  });
-}
+// Ids we've seen this session (from any get/list/save). save() uses this to pick
+// POST (new) vs PATCH (existing) without a probe round-trip; a 409 falls back to
+// PATCH, so it is correct even if the set is cold.
+const known = new Set<string>();
 
 export interface Repo<T extends BaseRow> {
   get(id: string): Promise<T | undefined>;
-  list(): Promise<T[]>; // non-deleted only
-  save(row: T): Promise<T>;
-  remove(id: string): Promise<void>;
+  list(): Promise<T[]>;
+  listBy(params: Params): Promise<T[]>;
+  save(row: T): Promise<T>; // upsert
+  remove(id: string): Promise<void>; // soft delete
 }
 
-function makeRepo<T extends BaseRow>(table: Table<T, string>, entity: SyncEntity): Repo<T> {
+function makeRepo<T extends BaseRow>(path: string): Repo<T> {
+  const base = `/${path}`;
+  const remember = (rows: T[]): T[] => {
+    rows.forEach((r) => known.add(r.id));
+    return rows;
+  };
   return {
-    get: (id) => table.get(id),
-    list: () => table.filter((r) => !r.deleted).toArray(),
-    save: (row) => put(table, entity, row),
-    remove: (id) => softDelete(table, entity, id),
+    async get(id) {
+      try {
+        const r = await api.get<T>(`${base}/${id}`);
+        known.add(r.id);
+        return r;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return undefined;
+        throw e;
+      }
+    },
+    async list() {
+      return remember(await api.get<T[]>(base));
+    },
+    async listBy(params) {
+      return remember(await api.get<T[]>(`${base}${qs(params)}`));
+    },
+    async save(row) {
+      if (known.has(row.id)) {
+        const r = await api.patch<T>(`${base}/${row.id}`, row);
+        known.add(r.id);
+        return r;
+      }
+      try {
+        const r = await api.post<T>(base, row);
+        known.add(r.id);
+        return r;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) {
+          const r = await api.patch<T>(`${base}/${row.id}`, row);
+          known.add(r.id);
+          return r;
+        }
+        throw e;
+      }
+    },
+    async remove(id) {
+      await api.del(`${base}/${id}`);
+    },
   };
 }
 
-// User-scoped, sync-tracked entities.
 export const repo = {
-  templates: makeRepo(db.templates, 'template'),
-  events: makeRepo(db.events, 'event'),
-  wines: makeRepo(db.wines, 'wine'),
-  notes: makeRepo(db.notes, 'note'),
-  flights: makeRepo(db.flights, 'flight'),
-  photos: makeRepo(db.photos, 'photo'),
+  templates: makeRepo<Template>('templates'),
+  events: makeRepo<TasteEvent>('events'),
+  wines: makeRepo<Wine>('wines'),
+  notes: makeRepo<Note>('notes'),
+  flights: makeRepo<Flight>('flights'),
+  photos: makeRepo<Photo>('photos'),
 };
 
-// Reference data — no soft-delete, no outbox (seed-shipped, not user mutations).
+// ---- reference data: regions ------------------------------------------------
+// Global, server-seeded. Fetched once and cached in memory; the typeahead filters
+// the cache locally, so it stays instant after the first load.
+let regionCache: GeoRegion[] | null = null;
+let regionLoad: Promise<GeoRegion[]> | null = null;
+
+async function allRegions(): Promise<GeoRegion[]> {
+  if (regionCache) return regionCache;
+  if (!regionLoad) {
+    regionLoad = api
+      .get<GeoRegion[]>('/regions')
+      .then((rows) => {
+        regionCache = rows;
+        return rows;
+      })
+      .catch((e) => {
+        regionLoad = null; // allow retry on next call
+        throw e;
+      });
+  }
+  return regionLoad;
+}
+
 export const geo = {
-  get: (id: string) => db.geoRegions.get(id),
-  byCountry: (countryCode: string) => db.geoRegions.where('country_code').equals(countryCode).toArray(),
-  children: (parentId: string) => db.geoRegions.where('parent_id').equals(parentId).toArray(),
+  async get(id: string): Promise<GeoRegion | undefined> {
+    return (await allRegions()).find((r) => r.id === id);
+  },
+  async byCountry(countryCode: string): Promise<GeoRegion[]> {
+    return (await allRegions()).filter((r) => r.country_code === countryCode);
+  },
+  async children(parentId: string): Promise<GeoRegion[]> {
+    return (await allRegions()).filter((r) => r.parent_id === parentId);
+  },
   async search(query: string, limit = 20): Promise<GeoRegion[]> {
     const q = query.trim().toLowerCase();
     if (!q) return [];
+    const all = await allRegions();
     const hits: GeoRegion[] = [];
-    await db.geoRegions.each((r) => {
-      if (hits.length >= limit) return;
-      const inName = r.name.toLowerCase().includes(q) || r.path.toLowerCase().includes(q);
+    for (const r of all) {
+      if (hits.length >= limit) break;
+      const inName = r.name.toLowerCase().includes(q) || (r.path ?? '').toLowerCase().includes(q);
       const inAlias = r.aliases?.some((a) => a.toLowerCase().includes(q));
       if (inName || inAlias) hits.push(r);
-    });
+    }
     return hits;
   },
-  bulkSeed: (rows: GeoRegion[]) => db.geoRegions.bulkPut(rows),
-  count: () => db.geoRegions.count(),
 };
 
-// Key/value app state.
+// ---- device-local key/value (prefs: default template, UI state) -------------
+// Not server data — just per-device preferences in localStorage.
+const MK = (key: string) => `taste:meta:${key}`;
+
 export const meta = {
   async get<V = unknown>(key: string, fallback?: V): Promise<V | undefined> {
-    const row = await db.meta.get(key);
-    return (row?.value as V) ?? fallback;
+    try {
+      const raw = localStorage.getItem(MK(key));
+      return raw == null ? fallback : (JSON.parse(raw) as V);
+    } catch {
+      return fallback;
+    }
   },
-  set: (key: string, value: unknown) => db.meta.put({ key, value } satisfies Meta),
+  async set(key: string, value: unknown): Promise<void> {
+    localStorage.setItem(MK(key), JSON.stringify(value));
+  },
 };

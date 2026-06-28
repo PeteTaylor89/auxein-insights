@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { seedBuiltins } from './templates/seed';
-import { seedGeo } from './templates/geo-seed';
-import { startAutoSync } from './sync/controller';
+import { isAuthed, subscribeAuth } from './auth/publicAuth';
+import { SignInScreen } from './auth/SignInScreen';
 import {
   CaptureScreen,
   EventsScreen,
@@ -28,12 +27,12 @@ const NAV_RIGHT: { to: string; label: string }[] = [
 export default function App() {
   const navigate = useNavigate();
 
-  // Seed builtin templates (CMS deductive grid) + geo reference tree on first run.
-  useEffect(() => {
-    void seedBuiltins();
-    void seedGeo();
-    startAutoSync(); // opportunistic cloud sync (no-op until signed in)
-  }, []);
+  // Server-backed: gate the app on sign-in (the only seed/reference data —
+  // regions + the builtin grid — lives on the server, fetched on demand).
+  const [authed, setAuthed] = useState(isAuthed());
+  useEffect(() => subscribeAuth(() => setAuthed(isAuthed())), []);
+
+  if (!authed) return <SignInScreen />;
 
   return (
     <div className="app-shell">

@@ -20,6 +20,20 @@ export interface PublicUser {
   [k: string]: unknown;
 }
 
+// Auth-change subscription so the app shell can flip between the sign-in gate and
+// the app the moment a token is set/cleared (incl. a 401 from the API client).
+type AuthListener = () => void;
+const listeners = new Set<AuthListener>();
+function emitAuth(): void {
+  listeners.forEach((l) => l());
+}
+export function subscribeAuth(cb: AuthListener): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -39,6 +53,7 @@ export function isAuthed(): boolean {
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  emitAuth();
 }
 
 export async function login(email: string, password: string): Promise<PublicUser | null> {
@@ -55,10 +70,11 @@ export async function login(email: string, password: string): Promise<PublicUser
   if (data?.access_token) {
     localStorage.setItem(TOKEN_KEY, data.access_token);
     localStorage.setItem(USER_KEY, JSON.stringify(data.user ?? null));
+    emitAuth();
   }
   return data?.user ?? null;
 }
 
 export function logout(): void {
-  clearToken();
+  clearToken(); // emits
 }
