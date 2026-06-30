@@ -1,6 +1,6 @@
 # Deploy — Taste PWA (packages/taste → S3/CloudFront)
 
-**AWS profile:** `eb-cli` · **Bucket:** `auxein-taste-web` · **CloudFront:** `<taste-dist-id>` (fill in after provisioning)
+**AWS profile:** `eb-cli` · **Bucket:** `auxein-taste-web` · **CloudFront:** `E1EIEGH40S0ECX` (domain `d3b8297mozm63z.cloudfront.net`)
 
 Static SPA deploy for `taste.auxein.co.nz`. Same manual pattern as Insights. First-time infra is in
 `provision-taste-infra.md`.
@@ -40,13 +40,17 @@ aws s3 cp dist/manifest.webmanifest  s3://auxein-taste-web/manifest.webmanifest 
 ## 3. Invalidate CloudFront
 
 ```powershell
-aws cloudfront create-invalidation --distribution-id <taste-dist-id> --paths "/*" --profile eb-cli
+aws cloudfront create-invalidation --distribution-id E1EIEGH40S0ECX --paths "/*" --profile eb-cli
 ```
 
 ## 4. Smoke
 
-- [ ] `https://taste.auxein.co.nz` loads; install the PWA (Add to Home Screen)
-- [ ] Airplane mode → app still boots (offline shell); capture a note locally
-- [ ] Settings → Account & sync → sign in (Insights account) → **Sync now** → status "Up to date"
-- [ ] Capture a photo → Sync → object appears in `auxein-uploads` under `taste/<user_id>/<note_id>/...`
-- [ ] Second device / browser: sign in → bootstrap pulls your notes; photo displays via presigned URL
+> Server-backed (online-only) since the 2026-06-28 rearchitecture — the app is a thin REST client.
+> There is no offline shell / "Sync now"; data round-trips to `taste-api` on every action.
+
+- [ ] `https://taste.auxein.co.nz` loads; install the PWA (Add to Home Screen) → standalone docked app
+- [ ] Sign in (Insights account) → grid loads the **builtin (global) CMS template** from the server
+- [ ] Origin typeahead returns regions (`GET /taste/v1/regions`, 151 rows)
+- [ ] Capture a flight → real rows land in `taste.wines` / `taste.notes` (verify via Swagger)
+- [ ] Capture a photo → uploads direct to S3 → object appears in `auxein-uploads` under `taste/<user_id>/<note_id>/...`
+- [ ] Second device / browser: sign in → the same notes load from the server; photo displays via presigned URL
