@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { repo } from '@/db';
 import type { Note, Photo, Wine } from '@/db';
 import type { ReconciledValue } from '@/reconcile';
@@ -11,6 +12,7 @@ import { usePhotoUrl } from '../capture/usePhotoUrl';
 // read-only review of its note(s). Wines are created during tasting (Capture),
 // not here — so there's no "+ New". Edit exists only to correct identity.
 export function WinesScreen() {
+  const navigate = useNavigate();
   const [wines, setWines] = useState<Wine[]>([]);
   const [notesByWine, setNotesByWine] = useState<Record<string, Note[]>>({});
   const [openId, setOpenId] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export function WinesScreen() {
         notes={notesByWine[wine.id] ?? []}
         onBack={() => setOpenId(null)}
         onEdit={() => setEditing(structuredClone(wine))}
+        onEditNote={(noteId) => navigate('/capture', { state: { noteId } })}
       />
     );
   }
@@ -121,7 +124,7 @@ function ReviewValue({ field, val }: { field: TemplateField; val?: ReconciledVal
   return <>{renderValue(val?.raw)}</>;
 }
 
-function WineReview({ wine, notes, onBack, onEdit }: { wine: Wine; notes: Note[]; onBack: () => void; onEdit: () => void }) {
+function WineReview({ wine, notes, onBack, onEdit, onEditNote }: { wine: Wine; notes: Note[]; onBack: () => void; onEdit: () => void; onEditNote: (noteId: string) => void }) {
   const fmt = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString() : '');
   return (
     <section className="screen">
@@ -134,13 +137,13 @@ function WineReview({ wine, notes, onBack, onEdit }: { wine: Wine; notes: Note[]
       <p className="screen-blurb">{[wine.variety.join(', '), wineOrigin(wine)].filter(Boolean).join(' · ')}</p>
 
       {notes.map((note) => (
-        <NoteReview key={note.id} note={note} fmt={fmt} />
+        <NoteReview key={note.id} note={note} fmt={fmt} onEdit={() => onEditNote(note.id)} />
       ))}
     </section>
   );
 }
 
-function NoteReview({ note, fmt }: { note: Note; fmt: (d: string | null) => string }) {
+function NoteReview({ note, fmt, onEdit }: { note: Note; fmt: (d: string | null) => string; onEdit: () => void }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   useEffect(() => {
     if (note.photos.length === 0) return;
@@ -165,6 +168,7 @@ function NoteReview({ note, fmt }: { note: Note; fmt: (d: string | null) => stri
         <span className="review-head-meta">
           {note.blind && <span className="badge">blind</span>}
           {note.score != null && <span className="score-pill">{note.score}</span>}
+          <button className="btn btn--ghost" onClick={onEdit}>Edit note</button>
         </span>
       </div>
 

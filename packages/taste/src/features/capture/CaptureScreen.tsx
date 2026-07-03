@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { meta, newBase, repo } from '@/db';
+import { meta, newBase, repo, vocab } from '@/db';
 import type { Flight, Note, Photo, TasteEvent, Template, Wine } from '@/db';
 import type { TemplateSection, TemplateSnapshot } from '@/templates/types';
 import { reconcileNoteValues } from '@/templates/factory';
@@ -32,7 +32,7 @@ const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((
 const CMS_ID = 'builtin-cms-deductive';
 const today = () => new Date().toISOString().slice(0, 10);
 
-type SessionState = { mode?: 'quick' | 'flight'; flightId?: string };
+type SessionState = { mode?: 'quick' | 'flight'; flightId?: string; noteId?: string };
 
 // The tasting workspace. Quick taste = one glass. A flight = a rack of glasses you
 // switch between freely (tap glass 4, then 6, then 1); each glass holds its own
@@ -64,22 +64,49 @@ export function CaptureScreen() {
   const active = glasses.find((g) => g.id === activeId) ?? null;
 
   const [flightNotesOpen, setFlightNotesOpen] = useState(false);
+  // The note being edited (re-opened from the Wines archive). When set, capture runs
+  // in single-glass quick mode against that note's id; its event/flight associations
+  // are preserved on save rather than reset to the setup state.
+  const [editNote, setEditNote] = useState<Note | null>(null);
   const [error, setError] = useState('');
 
   const pickTemplate = (all: Template[], id: string) => {
     setTemplateId(id);
     const picked = all.find((t) => t.id === id);
-    setTemplate(picked ? structuredClone(picked) : null);
+    setTemplate(picked ? mergeVocab(picked) : null);
   };
 
   useEffect(() => {
     void (async () => {
+      await vocab.loadAll(); // prime user vocab so template merges read synchronously
       const all = await repo.templates.list();
       all.sort((a, b) => Number(b.is_builtin) - Number(a.is_builtin) || a.name.localeCompare(b.name));
       setTemplates(all);
       setEvents(await repo.events.list());
       const def = await meta.get<string>('default_template_id');
       const fallbackId = def && all.some((t) => t.id === def) ? def : all.find((t) => t.id === CMS_ID)?.id ?? all[0]?.id ?? '';
+
+      // Edit an existing note: reopen it as a single glass in quick mode. Uses the
+      // live template if it still exists (so any grown vocab shows), else rebuilds
+      // the grid from the note's pinned snapshot so old notes always render.
+      if (init.noteId) {
+        const note = await repo.notes.get(init.noteId);
+        if (note && !note.deleted) {
+          const tpl = all.find((t) => t.id === note.template_id) ?? snapshotToTemplate(note);
+          const glass = await noteToGlass(note);
+          setTemplateId(tpl.id);
+          setTemplate(mergeVocab(tpl));
+          setEditNote(note);
+          setMode('quick');
+          setBlind(note.blind);
+          setTastedAt(note.tasted_at ?? today());
+          setEventId(note.event_id);
+          setGlasses([glass]);
+          setActiveId(glass.id);
+          setPhase('taste');
+          return;
+        }
+      }
 
       // Resume an existing flight: rebuild the rack from its notes.
       if (init.flightId) {
@@ -127,9 +154,10 @@ export function CaptureScreen() {
   const setWine = (w: Wine) => patchActive({ wine: w });
   const setGeneralNotes = (text: string) => patchActive({ generalNotes: text });
 
-  // Persist an added descriptor back to the live template (bumps version) so it
-  // sticks for future notes; the note's pinned snapshot includes it too.
-  const addOption = async (fieldKey: string, groupLabel: string | null, term: string) => {
+  // A descriptor the user typed in. Add it to this session's grid immediately, and
+  // persist it to their tasting vocabulary (not the template — the builtin CMS grid
+  // is global/read-only). Next tasting the merge folds it back into the picker.
+  const addOption = (fieldKey: string, groupLabel: string | null, term: string) => {
     if (!template) return;
     const next = structuredClone(template);
     for (const section of next.sections) {
@@ -144,9 +172,8 @@ export function CaptureScreen() {
         }
       }
     }
-    const savedTpl = await repo.templates.save(next);
-    setTemplate(savedTpl);
-    setTemplates((ts) => ts.map((t) => (t.id === savedTpl.id ? savedTpl : t)));
+    setTemplate(next);
+    void vocab.add(fieldKey, term, groupLabel);
   };
 
   // Upload straight to S3 + persist the Photo row. The note id is the glass id, so
@@ -209,11 +236,15 @@ export function CaptureScreen() {
     const score = scoreField ? ((glass.values[scoreField.key] as number) ?? null) : null;
     const reconciledValues = reconcileNoteValues(template.sections, glass.values);
 
+    // Editing an existing note: keep its original event/flight placement (quick-mode
+    // edit shouldn't detach it from a flight or event it belonged to).
+    const editing = editNote && editNote.id === glass.id ? editNote : null;
+
     const note: Note = {
       ...newBase(),
       id: glass.id,
       wine_id: wineId,
-      event_id: flight?.event_id ?? eventId,
+      event_id: editing ? editing.event_id : flight?.event_id ?? eventId,
       template_id: template.id,
       template_version: template.version,
       template_snapshot: snapshot,
@@ -224,8 +255,8 @@ export function CaptureScreen() {
       revealed: blind ? glass.revealed : true,
       blind_conclusions: blind ? (glass.blindConclusions ?? blindConclusionSnapshot(template.sections, glass.values)) : null,
       score,
-      flight_id: flight?.id ?? null,
-      flight_position: flight ? index : null,
+      flight_id: editing ? editing.flight_id : flight?.id ?? null,
+      flight_position: editing ? editing.flight_position : flight ? index : null,
       glass_color: glass.glassColor,
       photos: glass.photos.map((p) => p.id),
     };
@@ -391,7 +422,7 @@ export function CaptureScreen() {
     <section className="screen">
       <div className="capture-bar">
         <div className="capture-bar-title">
-          {flight ? flight.name : 'Quick taste'}
+          {flight ? flight.name : editNote ? 'Edit note' : 'Quick taste'}
           {blind && <span className="badge">blind</span>}
         </div>
         <div className="capture-bar-actions">
@@ -482,6 +513,48 @@ async function noteToGlass(note: Note): Promise<Glass> {
   };
 }
 
+// Fold the user's saved vocabulary into a template clone so their added terms show
+// in the pickers. tag_structured groups gain terms tagged with that group's label;
+// flat select fields gain the group-less terms saved under their key. Local only —
+// never persisted back onto the (possibly builtin, read-only) template.
+function mergeVocab(tpl: Template): Template {
+  const next = structuredClone(tpl);
+  for (const section of next.sections) {
+    for (const field of section.fields) {
+      const rows = vocab.rows(field.key);
+      if (rows.length === 0) continue;
+      if (field.type === 'tag_structured' && field.groups) {
+        for (const g of field.groups) {
+          for (const r of rows) {
+            if (r.group_label === g.label && !g.options.includes(r.term)) g.options.push(r.term);
+          }
+        }
+      } else if (field.type === 'single_select' || field.type === 'multi_select') {
+        field.options = field.options ?? [];
+        for (const r of rows) {
+          if (r.group_label == null && !field.options.includes(r.term)) field.options.push(r.term);
+        }
+      }
+    }
+  }
+  return next;
+}
+
+// Rebuild a Template from a note's pinned snapshot — the fallback when editing a
+// note whose live template was deleted, so the grid still renders exactly as saved.
+function snapshotToTemplate(note: Note): Template {
+  const snap = note.template_snapshot;
+  return {
+    ...newBase(),
+    id: snap.template_id,
+    name: snap.name,
+    version: snap.version,
+    kind: 'custom',
+    is_builtin: false,
+    sections: snap.sections,
+  };
+}
+
 // emptyFlight lives in flights/FlightForm; re-declared minimally here to avoid a
 // circular import (capture → flights → capture).
 function newFlight(eventId: string | null, blind: boolean): Flight {
@@ -496,7 +569,6 @@ function PhotoButton({ onAdd }: { onAdd: (files: FileList | null) => void }) {
       <input
         type="file"
         accept="image/*"
-        capture="environment"
         multiple
         hidden
         onChange={(e) => {
@@ -527,7 +599,6 @@ function PhotoStrip({
         <input
           type="file"
           accept="image/*"
-          capture="environment"
           multiple
           hidden
           onChange={(e) => {

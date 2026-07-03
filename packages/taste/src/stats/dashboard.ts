@@ -31,7 +31,10 @@ export interface DashboardStats {
   blind: number;
   known: number;
   byTemplate: Count[];
-  byVariety: Count[];
+  byVariety: Count[]; // per-grape participation (a blend contributes to each grape)
+  byBlend: Count[]; // multi-grape wines, keyed by their composition ("Merlot / Cabernet")
+  varietal: number; // notes whose wine is a single grape
+  blendNotes: number; // notes whose wine is a blend (2+ grapes)
   byRegion: Count[];
   vintageSpread: { vintage: number; count: number }[];
   score: ScoreStats;
@@ -73,12 +76,25 @@ export function computeDashboard(
   const wineOf = (n: DashNote) => wines[n.wine_id];
 
   const varieties: string[] = [];
+  const blends: string[] = [];
   const regions: string[] = [];
   const vintages: number[] = [];
+  let varietal = 0;
+  let blendNotes = 0;
   for (const n of notes) {
     const w = wineOf(n);
     if (!w) continue;
-    for (const v of w.variety ?? []) if (v) varieties.push(v);
+    const grapes = (w.variety ?? []).filter(Boolean);
+    for (const v of grapes) varieties.push(v);
+    // A blend (2+ grapes) is tagged as a blend: it still adds to each grape's
+    // participation above, but is also counted once under its composition, so it
+    // isn't silently read as a set of separate varietal wines.
+    if (grapes.length >= 2) {
+      blendNotes += 1;
+      blends.push([...grapes].sort((a, b) => a.localeCompare(b)).join(' / '));
+    } else if (grapes.length === 1) {
+      varietal += 1;
+    }
     if (w.geo_region) regions.push(w.geo_region);
     if (w.vintage != null) vintages.push(w.vintage);
   }
@@ -94,6 +110,9 @@ export function computeDashboard(
     known: notes.filter((n) => !n.blind).length,
     byTemplate: tally(notes.map((n) => n.template_snapshot?.name || 'Untitled grid')).sort(byCountDesc),
     byVariety: tally(varieties).sort(byCountDesc),
+    byBlend: tally(blends).sort(byCountDesc),
+    varietal,
+    blendNotes,
     byRegion: tally(regions).sort(byCountDesc),
     vintageSpread: tally(vintages.map(String))
       .map((c) => ({ vintage: Number(c.key), count: c.count }))

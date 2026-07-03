@@ -4,6 +4,7 @@
 // data loads. `repo`/`geo`/`meta` keep the signatures the screens already use, so
 // this is a drop-in replacement for the old Dexie layer.
 import { ApiError, api, qs } from './api';
+import { uuidv4 } from './ids';
 import type { BaseRow, Flight, GeoRegion, Note, Photo, TasteEvent, Template, Wine } from './types';
 
 type Params = Record<string, string | number | boolean | undefined | null>;
@@ -123,6 +124,73 @@ export const geo = {
       if (inName || inAlias) hits.push(r);
     }
     return hits;
+  },
+};
+
+// ---- user tasting vocabulary ------------------------------------------------
+// Terms the user has added while tasting (varieties, regions, aroma/taste
+// descriptors) so their pickers grow with use and sync across devices. Cached per
+// dimension; resilient — a not-yet-deployed endpoint degrades to builtin options
+// only (never blanks a picker).
+export interface VocabTerm {
+  id: string;
+  dimension: string;
+  group_label: string | null;
+  term: string;
+}
+
+const vocabCache = new Map<string, VocabTerm[]>();
+let vocabLoadedAll = false;
+
+export const vocab = {
+  // Prime the cache with every dimension in one request (used at capture load so
+  // the template merge can read synchronously).
+  async loadAll(): Promise<void> {
+    try {
+      const rows = await api.get<VocabTerm[]>('/vocab');
+      vocabCache.clear();
+      for (const r of rows) {
+        const list = vocabCache.get(r.dimension) ?? [];
+        list.push(r);
+        vocabCache.set(r.dimension, list);
+      }
+      vocabLoadedAll = true;
+    } catch {
+      /* endpoint not up / offline — leave cache as-is, pickers show builtins */
+    }
+  },
+  // Fetch one dimension (cache hit after loadAll, or a not-yet-loaded dimension).
+  async list(dimension: string): Promise<VocabTerm[]> {
+    if (vocabLoadedAll || vocabCache.has(dimension)) return vocabCache.get(dimension) ?? [];
+    try {
+      const rows = await api.get<VocabTerm[]>(`/vocab${qs({ dimension })}`);
+      vocabCache.set(dimension, rows);
+      return rows;
+    } catch {
+      return [];
+    }
+  },
+  // Synchronous cache read of every term for a dimension (call after loadAll/list).
+  rows(dimension: string): VocabTerm[] {
+    return vocabCache.get(dimension) ?? [];
+  },
+  // Persist a term. Best-effort: the caller has already applied it locally, so a
+  // failure (endpoint down) is non-fatal — we still cache it for this session.
+  async add(dimension: string, term: string, groupLabel: string | null = null): Promise<void> {
+    const clean = term.trim();
+    if (!clean) return;
+    const cached = vocabCache.get(dimension) ?? [];
+    const dup = cached.some((v) => v.group_label === groupLabel && v.term.toLowerCase() === clean.toLowerCase());
+    const local: VocabTerm = { id: uuidv4(), dimension, group_label: groupLabel, term: clean };
+    if (!dup) {
+      cached.push(local);
+      vocabCache.set(dimension, cached);
+    }
+    try {
+      await api.post<VocabTerm>('/vocab', { id: local.id, dimension, group_label: groupLabel, term: clean });
+    } catch {
+      /* kept locally for this session; retried next add */
+    }
   },
 };
 

@@ -157,6 +157,20 @@ class Photo(SyncMixin, Base):
     taken_at = Column(String)
 
 
+class Vocab(SyncMixin, Base):
+    """Per-user tasting vocabulary — terms the user has added while tasting so their
+    pickers grow with use and sync across devices. `dimension` buckets the term:
+    'variety', 'region', or a template field key (aroma/taste descriptors);
+    `group_label` scopes descriptor terms to their aroma group (NULL otherwise).
+    """
+
+    __tablename__ = "vocab"
+    __table_args__ = SCHEMA
+    dimension = Column(String, nullable=False, index=True)
+    group_label = Column(String)
+    term = Column(String, nullable=False)
+
+
 class Region(Base):
     """Global wine-geography reference data (countries → regions → subregions →
     vineyards). Server-owned, seeded from seed_data; NOT user-scoped and never

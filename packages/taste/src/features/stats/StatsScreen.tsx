@@ -78,8 +78,18 @@ export function StatsScreen() {
         </>
       )}
 
-      <h2 className="screen-subtitle">By variety</h2>
+      <h2 className="screen-subtitle">By grape</h2>
+      {(dash.varietal > 0 || dash.blendNotes > 0) && (
+        <p className="screen-blurb">{dash.varietal} varietal · {dash.blendNotes} blend{dash.blendNotes === 1 ? '' : 's'} — grapes below count each blend component.</p>
+      )}
       <CountBars rows={dash.byVariety.slice(0, 10)} empty="No varieties recorded." />
+
+      {dash.byBlend.length > 0 && (
+        <>
+          <h2 className="screen-subtitle">Blends</h2>
+          <CountBars rows={dash.byBlend.slice(0, 10)} />
+        </>
+      )}
 
       <h2 className="screen-subtitle">By region</h2>
       <CountBars rows={dash.byRegion.slice(0, 10)} empty="No regions recorded." />

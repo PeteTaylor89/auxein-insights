@@ -5,7 +5,7 @@
 from fastapi import APIRouter
 
 import schemas as s
-from api import regions
+from api import regions, vocab
 from api.crud import make_crud_router
 from db.models import Event, Flight, Note, Photo, Template, Wine
 
@@ -32,3 +32,4 @@ for path, model, out, create, update, owner_optional in _ENTITIES:
     )
 
 api_router.include_router(regions.router, tags=["regions"])
+api_router.include_router(vocab.router, tags=["vocab"])

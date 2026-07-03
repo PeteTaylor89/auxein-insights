@@ -170,6 +170,21 @@ class PhotoOut(PhotoFields, _Out):
     pass
 
 
+# ---------------------------------------------------------------- vocab
+class VocabFields(BaseModel):
+    dimension: str
+    group_label: Optional[str] = None
+    term: str
+
+
+class VocabCreate(VocabFields):
+    id: str
+
+
+class VocabOut(VocabFields, _Out):
+    pass
+
+
 # ---------------------------------------------------------------- region (read-only)
 class RegionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

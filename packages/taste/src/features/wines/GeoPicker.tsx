@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { geo } from '@/db';
+import { geo, vocab } from '@/db';
 import type { GeoRegion } from '@/db';
 
 // The discrete geo block on a Wine (dev-plan §4.5). Free entry always works;
@@ -18,9 +18,12 @@ interface Props {
 }
 
 // Map a picked node to the four discrete fields via its materialised path
-// ("New Zealand › Marlborough › Wairau Valley" → country/region/subregion by depth).
+// ("New Zealand > Marlborough > Wairau Valley" → country/region/subregion by depth).
+// Split on ">" tolerant of surrounding spaces — the seed writes " > " but we must
+// not depend on the exact separator (a mismatch left geo_region empty, so bank
+// picks vanished from the "By region" stats).
 function fromNode(node: GeoRegion): GeoValue {
-  const seg = node.path.split(' › ');
+  const seg = node.path.split('>').map((s) => s.trim());
   return {
     geo_country: seg[0] ?? '',
     geo_region: seg[1] ?? '',
@@ -35,6 +38,21 @@ export function GeoPicker({ value, onChange }: Props) {
   const [hits, setHits] = useState<GeoRegion[]>([]);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  // The user's own saved regions (free-typed on past tastings) — quick-picks that
+  // fill the Region field, so a region not in the bank still grows their vocab.
+  const [savedRegions, setSavedRegions] = useState<string[]>([]);
+  useEffect(() => {
+    void vocab.list('region').then((rows) => setSavedRegions(rows.map((r) => r.term)));
+  }, []);
+
+  const saveRegion = () => {
+    const r = value.geo_region.trim();
+    if (!r || savedRegions.some((x) => x.toLowerCase() === r.toLowerCase())) return;
+    setSavedRegions((s) => [...s, r]);
+    void vocab.add('region', r);
+  };
+  const canSaveRegion = value.geo_region.trim() !== '' && !savedRegions.some((x) => x.toLowerCase() === value.geo_region.trim().toLowerCase());
 
   useEffect(() => {
     let live = true;
@@ -93,6 +111,16 @@ export function GeoPicker({ value, onChange }: Props) {
         )}
       </div>
 
+      {savedRegions.length > 0 && (
+        <div className="chip-row" style={{ marginTop: 8 }}>
+          {savedRegions.map((r) => (
+            <button key={r} type="button" className={value.geo_region === r ? 'chip chip--active' : 'chip'} onClick={() => setField('geo_region', r)}>
+              {r}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="geo-fields">
         <input
           className="form-input"
@@ -119,6 +147,11 @@ export function GeoPicker({ value, onChange }: Props) {
           onChange={(e) => setField('geo_vineyard', e.target.value)}
         />
       </div>
+      {canSaveRegion && (
+        <button type="button" className="btn btn--ghost" style={{ marginTop: 8 }} onClick={saveRegion}>
+          + Save region to my list
+        </button>
+      )}
       {value.geo_ref_id && <p className="geo-linked">✓ Linked to known region</p>}
     </div>
   );

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { newBase } from '@/db';
+import { useEffect, useMemo, useState } from 'react';
+import { newBase, vocab } from '@/db';
 import type { Wine } from '@/db';
 import { GeoPicker } from './GeoPicker';
 import type { GeoValue } from './GeoPicker';
@@ -40,6 +40,24 @@ interface Props {
 // (inline). No chrome / save — the parent owns persistence.
 export function WineFields({ wine, onChange, compact = false }: Props) {
   const [varietyDraft, setVarietyDraft] = useState('');
+  // The user's saved varieties (added on past tastings) join the builtin quick-picks.
+  const [savedVarieties, setSavedVarieties] = useState<string[]>([]);
+  useEffect(() => {
+    void vocab.list('variety').then((rows) => setSavedVarieties(rows.map((r) => r.term)));
+  }, []);
+
+  const quickVarieties = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const v of [...VARIETIES, ...savedVarieties]) {
+      if (!seen.has(v)) {
+        seen.add(v);
+        out.push(v);
+      }
+    }
+    return out;
+  }, [savedVarieties]);
+
   const set = <K extends keyof Wine>(key: K, value: Wine[K]) => onChange({ ...wine, [key]: value });
 
   const geoValue: GeoValue = {
@@ -55,7 +73,11 @@ export function WineFields({ wine, onChange, compact = false }: Props) {
 
   const addVariety = () => {
     const v = varietyDraft.trim();
-    if (v && !wine.variety.includes(v)) set('variety', [...wine.variety, v]);
+    if (v) {
+      if (!wine.variety.includes(v)) set('variety', [...wine.variety, v]);
+      if (!savedVarieties.some((x) => x.toLowerCase() === v.toLowerCase())) setSavedVarieties((s) => [...s, v]);
+      void vocab.add('variety', v); // remember it for future tastings
+    }
     setVarietyDraft('');
   };
 
@@ -77,12 +99,12 @@ export function WineFields({ wine, onChange, compact = false }: Props) {
       <details className="sub-disclosure">
         <summary>Variety {wine.variety.length > 0 && <span className="badge">{wine.variety.length}</span>}</summary>
         <div className="chip-row">
-          {VARIETIES.map((v) => (
+          {quickVarieties.map((v) => (
             <button key={v} type="button" className={wine.variety.includes(v) ? 'chip chip--active' : 'chip'} onClick={() => toggleVariety(v)}>
               {v}
             </button>
           ))}
-          {wine.variety.filter((v) => !VARIETIES.includes(v)).map((v) => (
+          {wine.variety.filter((v) => !quickVarieties.includes(v)).map((v) => (
             <button key={v} type="button" className="chip chip--active" onClick={() => toggleVariety(v)}>
               {v}
             </button>
