@@ -241,8 +241,8 @@ class SiteRiskSummary(BaseModel):
     is_high_risk: bool
     is_review_overdue: bool
     created_at: datetime
-    next_review_due: datetime
-    
+    next_review_due: Optional[datetime] = None
+
     class Config:
         from_attributes = True
 

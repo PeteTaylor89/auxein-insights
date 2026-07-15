@@ -32,7 +32,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'Property Management',
         description:
-          'Organise your vineyard into named properties with owner, location, GrapeLink ID, and user defined settings.'
+          'Organise your vineyard into named properties with owner, location, External IDs, and user defined settings.'
       },
       {
         name: 'Block Mapping',
@@ -74,7 +74,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'Spray Tasks',
         description:
-          'Log spray applications with product, rate, block, operator, and GPS-tracked spray run coverage, auto-generating GrapeLink-compliant records.',
+          'Log spray applications with product, rate, block, operator, and GPS-tracked spray run coverage, assisted generation of spray diary records.',
       },
       {
         name: 'Cost Tracking',
@@ -89,7 +89,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'GPS Tractor Tracking',
         description:
-          'Record GPS tracks for tractor-based tasks with row-level progress logging.',
+          'Record GPS tracks for tractor-based tasks with progress logging.',
       },
     ],
   },
@@ -101,7 +101,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'Observation Engine',
         description:
-          'Log structured field observations across 12 categories - disease, phenology, vine health, pest, irrigation, weather event, and more - from web or mobile.',
+          'Log structured field observations across disease, phenology, vine health, pest, irrigation, weather event, and more - from web or mobile.',
       },
       {
         name: 'Observation Templates',
@@ -143,7 +143,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'Downy Mildew Model',
         description:
-          'Peer-reviewed infection risk model driven by on-site or local weather station data with daily risk index - model links to observations and spray records.',
+          'Peer-reviewed infection risk model driven by on-site or local weather data with daily risk index - model links to observations and spray records.',
       },
       {
         name: 'Powdery Mildew Model',
@@ -177,11 +177,6 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
     label: 'Compliance & Traceability',
     icon: ClipboardCheck,
     features: [
-      {
-        name: 'GrapeLink Export',
-        description:
-          'Generate a property-scoped, GrapeLink-formatted spray diary export with one click.',
-      },
       {
         name: 'ACVM Chemical Database - coming soon',
         description:

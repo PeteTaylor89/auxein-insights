@@ -49,7 +49,7 @@ ALLOWED_MIME_TYPES = {
 
 def validate_file(file: UploadFile) -> None:
     """Validate file type and size"""
-    if file.size > MAX_FILE_SIZE:
+    if file.size is not None and file.size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File size {file.size} exceeds maximum allowed size of {MAX_FILE_SIZE} bytes"
