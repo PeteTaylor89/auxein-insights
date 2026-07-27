@@ -1,0 +1,576 @@
+<!doctype html>
+<!--
+  SOURCE TEMPLATE — do not open this file, and do not edit index.html.
+
+  `analyze.py` injects the graph into the __GRAPH_JSON__ marker below and writes
+  the result to index.html, which is the file you actually open. Edit this
+  template, then re-run `python docs/architecture/analyze.py`.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture map — as built</title>
+<style>
+  :root {
+    --bg:#0f1218; --panel:#161b24; --line:#2a3340; --text:#e6edf3; --dim:#8b98a8;
+    --module:#5b6b80; --pkg:#1b2230; --pkgline:#3a4658; --accent:#58a6ff;
+    --db:#4f8ef7; --http:#f59e0b; --cloud:#a78bfa; --queue:#ec4899; --fs:#34d399; --config:#fbbf24;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text);
+              font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+  #app { display:flex; height:100%; }
+  #main { flex:1; position:relative; min-width:0; }
+  #cy { position:absolute; inset:0; }
+
+  #bar { position:absolute; top:0; left:0; right:0; z-index:5; display:flex; gap:8px;
+         align-items:center; flex-wrap:wrap; padding:10px 12px;
+         background:linear-gradient(var(--bg),rgba(15,18,24,.85) 70%,transparent); }
+  #bar input, #bar select, #bar button {
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:6px 10px; font:inherit; font-size:13px; }
+  #bar button { cursor:pointer; }
+  #bar button:hover { border-color:var(--accent); color:var(--accent); }
+  #bar input { min-width:200px; }
+  #hits { position:absolute; top:44px; left:12px; z-index:6; background:var(--panel);
+          border:1px solid var(--line); border-radius:6px; max-height:260px; overflow:auto;
+          min-width:240px; display:none; }
+  #hits div { padding:6px 10px; cursor:pointer; border-bottom:1px solid var(--line); }
+  #hits div:last-child { border-bottom:0; }
+  #hits div:hover { background:#1e2635; color:var(--accent); }
+  #hits .sub { color:var(--dim); font-size:11px; }
+
+  #legend { position:absolute; left:12px; bottom:12px; z-index:5; background:rgba(22,27,36,.92);
+            border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:12px;
+            max-width:260px; }
+  #legend h4 { margin:0 0 6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+               color:var(--dim); font-weight:600; }
+  #legend .row { display:flex; align-items:center; gap:8px; margin:3px 0; }
+  #legend .sw { width:12px; height:12px; border-radius:3px; flex:none; }
+  #legend .ln { width:22px; height:0; border-top:2px solid var(--module); flex:none; }
+  #legend hr { border:0; border-top:1px solid var(--line); margin:8px 0; }
+
+  #panel { width:380px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+           overflow:auto; padding:16px; }
+  #panel h2 { margin:0 0 2px; font-size:16px; word-break:break-all; }
+  #panel .path { color:var(--dim); font-size:12px; font-family:ui-monospace,Menlo,Consolas,monospace;
+                 word-break:break-all; margin-bottom:12px; }
+  #panel h3 { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim);
+              margin:16px 0 6px; font-weight:600; }
+  #panel .doc { white-space:pre-wrap; background:#0f141c; border:1px solid var(--line);
+                border-radius:6px; padding:10px; font-size:13px; color:#c9d5e1; }
+  #panel .chip { display:inline-block; background:#0f141c; border:1px solid var(--line);
+                 border-radius:4px; padding:2px 7px; margin:0 4px 4px 0; font-size:12px;
+                 font-family:ui-monospace,Menlo,Consolas,monospace; }
+  #panel .stat { display:flex; justify-content:space-between; border-bottom:1px solid var(--line);
+                 padding:5px 0; font-size:13px; }
+  #panel .stat span:first-child { color:var(--dim); }
+  #panel a.link { display:block; color:var(--accent); text-decoration:none; padding:4px 0;
+                  font-size:13px; font-family:ui-monospace,Menlo,Consolas,monospace;
+                  word-break:break-all; cursor:pointer; }
+  #panel a.link:hover { text-decoration:underline; }
+  #panel .kind { color:var(--dim); font-family:ui-sans-serif,system-ui,sans-serif; font-size:11px; }
+  #panel .empty { color:var(--dim); font-style:italic; font-size:13px; }
+  #panel button.wide { width:100%; margin:2px 0 10px; padding:7px; cursor:pointer;
+    background:#0f141c; color:var(--accent); border:1px solid var(--line); border-radius:6px;
+    font:inherit; font-size:13px; }
+  #panel button.wide:hover { border-color:var(--accent); }
+  .muted { color:var(--dim); }
+  #err { margin:14px; padding:12px; border:1px solid #7f1d1d; background:#2a1315;
+         border-radius:8px; color:#fecaca; font-size:13px; }
+  @media (max-width:900px) { #panel { display:none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="main">
+    <div id="bar">
+      <input id="q" type="search" placeholder="Search packages and modules…" autocomplete="off">
+      <button id="collapse">Collapse all</button>
+      <button id="expand">Expand all</button>
+      <select id="filter">
+        <option value="all">All edges</option>
+        <option value="import">Imports only</option>
+        <option value="dataflow">Dataflows only</option>
+        <option value="runtime">Runtime imports only</option>
+      </select>
+      <button id="fit">Fit</button>
+      <span id="status" class="muted"></span>
+    </div>
+    <div id="hits"></div>
+    <div id="cy"></div>
+    <div id="legend"></div>
+  </div>
+  <div id="panel"><p class="empty">Click any node to inspect it.</p></div>
+</div>
+
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/layout-base@2.0.1/layout-base.js"></script>
+<script src="https://unpkg.com/cose-base@2.2.0/cose-base.js"></script>
+<script src="https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
+
+<script id="inline-graph" type="application/json">__GRAPH_JSON__</script>
+
+<script>
+(function () {
+  "use strict";
+
+  // Cytoscape parses its own style values and does NOT resolve CSS custom
+  // properties — `var(--x)` is rejected as invalid and the property silently
+  // falls back to its default. So graph colours are literals here, and the
+  // :root CSS variables above style only the surrounding HTML chrome. Keep the
+  // two in step by hand; they are intentionally duplicated.
+  var C = {
+    module: "#5b6b80", moduleEdge: "#7d8fa6", pkg: "#1b2230", pkgLine: "#3a4658",
+    collapsed: "#243044", accent: "#58a6ff", edge: "#4a5768", edgeFaint: "#3d4757",
+    flow: "#9aa7b8", bg: "#0f1218", text: "#c9d5e1"
+  };
+
+  var CATS = {
+    db:     { hex: "#4f8ef7", label: "Database" },
+    http:   { hex: "#f59e0b", label: "HTTP / external API" },
+    cloud:  { hex: "#a78bfa", label: "Cloud / storage" },
+    queue:  { hex: "#ec4899", label: "Queue / tasks" },
+    fs:     { hex: "#34d399", label: "Filesystem" },
+    config: { hex: "#fbbf24", label: "Config / secrets" }
+  };
+
+  function fail(msg) {
+    document.getElementById("panel").innerHTML = '<div id="err"><b>Could not render.</b><br>' + msg + "</div>";
+    document.getElementById("status").textContent = "error";
+  }
+
+  // Prefer graph.json so an edit to it shows up on reload; fall back to the copy
+  // inlined at generate time, which is what happens over file:// where fetch is
+  // blocked by CORS. Either way the page opens standalone.
+  function loadGraph() {
+    var inline = null;
+    try {
+      var raw = document.getElementById("inline-graph").textContent.trim();
+      if (raw && raw.charAt(0) === "{") inline = JSON.parse(raw);
+    } catch (e) { inline = null; }
+
+    return fetch("graph.json")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) { return { graph: j, src: "graph.json" }; })
+      .catch(function () {
+        if (inline) return { graph: inline, src: "inlined snapshot" };
+        throw new Error("graph.json could not be fetched and no inlined copy was found. " +
+                        "Re-run <code>python docs/architecture/analyze.py</code>.");
+      });
+  }
+
+  function build(graph) {
+    var byId = {};
+    graph.nodes.forEach(function (n) { byId[n.id] = n; });
+
+    // Compound parents. Every node declares its package; the package node is
+    // synthesised here so modules nest inside it and can be collapsed as a unit.
+    var pkgs = {};
+    graph.nodes.forEach(function (n) { if (n.package) pkgs[n.package] = true; });
+
+    var els = [];
+    Object.keys(pkgs).sort().forEach(function (p) {
+      els.push({ data: { id: "pkg:" + p, label: p, isPkg: true,
+                         ext: p.indexOf("external.") === 0 } });
+    });
+    graph.nodes.forEach(function (n) {
+      els.push({ data: {
+        id: n.id, label: n.label, parent: n.package ? "pkg:" + n.package : undefined,
+        kind: n.type, cat: n.category || "", loc: n.loc || 0,
+        doc: n.docstring || "", pub: n.public || [], path: n.path || ""
+      }});
+    });
+    graph.edges.forEach(function (e, i) {
+      if (!byId[e.source] || !byId[e.target]) return;
+      els.push({ data: {
+        id: "e" + i, source: e.source, target: e.target,
+        kind: e.type, label: e.label || "",
+        flavour: e.type === "import" ? (e.label || "runtime") : "flow"
+      }});
+    });
+    return els;
+  }
+
+  function styles() {
+    var s = [
+      { selector: "node", css: {
+          "label": "data(label)", "color": C.text, "font-size": "9px",
+          "text-valign": "center", "text-halign": "center", "text-wrap": "wrap",
+          "text-max-width": "80px", "min-zoomed-font-size": 7 }},
+      { selector: 'node[kind="module"]', css: {
+          "background-color": C.module, "shape": "round-rectangle",
+          "border-width": 1, "border-color": C.moduleEdge,
+          "width": "mapData(loc, 0, 800, 26, 78)", "height": "mapData(loc, 0, 800, 26, 78)" }},
+      { selector: "node[?isPkg]", css: {
+          "background-color": C.pkg, "background-opacity": .55,
+          "border-width": 1.5, "border-color": C.pkgLine, "shape": "round-rectangle",
+          "label": "data(label)", "font-size": "13px", "font-weight": "bold",
+          "color": "#9fb0c4", "text-valign": "top", "text-halign": "center",
+          "text-margin-y": -4, "padding": "16px", "min-zoomed-font-size": 0 }},
+      { selector: "node[?ext]", css: { "border-style": "dashed", "background-opacity": .3 }},
+      { selector: 'node[kind="external"]', css: {
+          "shape": "diamond", "width": 30, "height": 30, "border-width": 2,
+          "font-size": "9px", "text-valign": "bottom", "text-margin-y": 3 }},
+      { selector: "node:selected", css: { "border-width": 3, "border-color": C.accent }},
+      // A collapsed package has no visible children, so it needs an explicit
+      // size — a compound node otherwise sizes itself to its contents and would
+      // shrink to nothing.
+      { selector: "node.collapsed", css: {
+          "background-color": C.collapsed, "background-opacity": 1, "border-color": C.accent,
+          "border-width": 2, "shape": "round-rectangle", "text-valign": "center",
+          "font-size": "12px", "color": "#dbe6f2", "padding": "0px",
+          "width": 104, "height": 46 }},
+
+      { selector: "edge", css: {
+          "curve-style": "bezier", "width": 1, "line-color": C.edge,
+          "target-arrow-shape": "triangle", "arrow-scale": .6, "opacity": .5 }},
+      { selector: 'edge[kind="import"]', css: {
+          "line-color": C.edge, "target-arrow-color": C.edge, "width": 1, "opacity": .35 }},
+      { selector: 'edge[flavour="deferred"]', css: { "line-style": "dashed", "opacity": .5 }},
+      { selector: 'edge[flavour="type-only"]', css: {
+          "line-style": "dotted", "opacity": .28, "line-color": C.edgeFaint }},
+      { selector: 'edge[kind="dataflow"]', css: {
+          "width": 2, "opacity": .75, "line-color": C.flow, "target-arrow-color": C.flow }},
+      { selector: "edge.meta", css: {
+          "line-color": C.accent, "target-arrow-color": C.accent,
+          "width": "mapData(n, 1, 40, 1.5, 7)", "opacity": .75, "curve-style": "bezier" }},
+      { selector: "edge.hover", css: {
+          "label": "data(label)", "font-size": "10px", "color": "#fff", "opacity": 1,
+          "width": 3, "text-background-color": C.bg, "text-background-opacity": .9,
+          "text-background-padding": "3px", "z-index": 99 }},
+      { selector: "edge.dim", css: { "opacity": .05 }},
+      { selector: "node.dim", css: { "opacity": .12 }},
+      { selector: "edge.focus", css: {
+          "line-color": C.accent, "target-arrow-color": C.accent,
+          "opacity": 1, "width": 2.5, "z-index": 90 }}
+    ];
+    // Colour every category once, for both the external node and its dataflow edges.
+    Object.keys(CATS).forEach(function (c) {
+      s.push({ selector: 'node[cat="' + c + '"][kind="external"]',
+               css: { "background-color": CATS[c].hex, "border-color": CATS[c].hex,
+                      "color": CATS[c].hex }});
+      s.push({ selector: 'node[kind="module"][cat="' + c + '"]',
+               css: { "border-color": CATS[c].hex, "border-width": 2 }});
+      s.push({ selector: 'edge[kind="dataflow"][target^="ext:' + c + '"]',
+               css: { "line-color": CATS[c].hex, "target-arrow-color": CATS[c].hex }});
+      s.push({ selector: 'edge[kind="dataflow"][source^="ext:' + c + '"]',
+               css: { "line-color": CATS[c].hex, "target-arrow-color": CATS[c].hex }});
+    });
+    return s;
+  }
+
+  function legend() {
+    var h = ["<h4>Nodes</h4>",
+      '<div class="row"><span class="sw" style="background:#5b6b80"></span>Internal module '
+      + '<span class="muted">(size = LOC)</span></div>'];
+    Object.keys(CATS).forEach(function (c) {
+      h.push('<div class="row"><span class="sw" style="background:' + CATS[c].hex
+             + ';transform:rotate(45deg)"></span>' + CATS[c].label + "</div>");
+    });
+    h.push("<hr><h4>Edges</h4>");
+    h.push('<div class="row"><span class="ln" style="border-color:#4a5768"></span>Import</div>');
+    h.push('<div class="row"><span class="ln" style="border-color:#4a5768;border-top-style:dashed">'
+           + "</span>Deferred import <span class='muted'>(in-function)</span></div>");
+    h.push('<div class="row"><span class="ln" style="border-color:#3d4757;border-top-style:dotted">'
+           + "</span>Type-only <span class='muted'>(never runs)</span></div>");
+    h.push('<div class="row"><span class="ln" style="border-color:#9aa7b8;border-top-width:3px">'
+           + "</span>Dataflow <span class='muted'>(hover for label)</span></div>");
+    h.push('<div class="row"><span class="ln" style="border-color:#58a6ff;border-top-width:3px">'
+           + "</span>Collapsed <span class='muted'>(aggregate; width = count)</span></div>");
+    document.getElementById("legend").innerHTML = h.join("");
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // ---- collapse -----------------------------------------------------------
+  // Hiding a package's modules would also hide every edge touching them, so a
+  // collapsed package would float unconnected. Instead each real edge crossing
+  // a collapsed boundary is hidden and replaced by an aggregate "meta" edge
+  // between the visible representatives, carrying the count it stands for. The
+  // whole state is rebuilt from `collapsed` on every change, so toggles compose
+  // in any order and cannot drift.
+  function Collapser(cy) {
+    var collapsed = {};
+
+    function repOf(node) {
+      var p = node.data("parent");
+      return (p && collapsed[p]) ? p : node.id();
+    }
+
+    function apply() {
+      // batch() wraps only the style/data churn. Structural add/remove is kept
+      // outside it, which is what cytoscape's docs call for.
+      cy.edges(".meta").remove();
+
+      var agg = {};
+      cy.batch(function () {
+        cy.nodes("[?isPkg]").forEach(function (p) {
+          var on = !!collapsed[p.id()];
+          p.toggleClass("collapsed", on);
+          p.children().style("display", on ? "none" : "element");
+        });
+
+        cy.edges().forEach(function (e) {
+          var sN = e.source(), tN = e.target();
+          var s = repOf(sN), t = repOf(tN);
+          if (s === sN.id() && t === tN.id()) { e.style("display", "element"); return; }
+          e.style("display", "none");
+          if (s === t) return;            // wholly inside one collapsed package
+          var k = s + "" + t + "" + e.data("kind");
+          if (!agg[k]) agg[k] = { s: s, t: t, kind: e.data("kind"), n: 0 };
+          agg[k].n++;
+        });
+      });
+
+      var add = Object.keys(agg).map(function (k) {
+        var a = agg[k];
+        return { group: "edges", classes: "meta", data: {
+          id: "meta:" + a.s + ">" + a.t + ":" + a.kind,
+          source: a.s, target: a.t, kind: a.kind, n: a.n,
+          label: a.n + " " + a.kind + (a.n > 1 ? "s" : "") }};
+      });
+      if (add.length) cy.add(add);
+    }
+
+    return {
+      isCollapsed: function (id) { return !!collapsed[id]; },
+      toggle: function (id) { collapsed[id] ? delete collapsed[id] : collapsed[id] = true; apply(); },
+      // Opening a node's package is what makes it focusable after a search.
+      reveal: function (id) {
+        var n = cy.getElementById(id);
+        if (n.nonempty() && n.data("parent") && collapsed[n.data("parent")]) {
+          delete collapsed[n.data("parent")]; apply(); return true;
+        }
+        return false;
+      },
+      all: function (on) {
+        collapsed = {};
+        if (on) cy.nodes("[?isPkg]").forEach(function (p) { collapsed[p.id()] = true; });
+        apply();
+      },
+      count: function () { return Object.keys(collapsed).length; }
+    };
+  }
+
+  function render(cy, col) {
+    var panel = document.getElementById("panel");
+
+    function focus(id) {
+      var n = cy.getElementById(id);
+      if (!n || n.empty()) return;
+      // A node inside a collapsed package is hidden; open it before centring.
+      col.reveal(id);
+      cy.elements().unselect();
+      n.select();
+      cy.animate({ center: { eles: n }, zoom: Math.max(cy.zoom(), 1.1) }, { duration: 320 });
+      show(n);
+    }
+
+    function show(n) {
+      if (n.data("isPkg")) {
+        var kids = n.children();
+        var loc = kids.reduce(function (a, k) { return a + (k.data("loc") || 0); }, 0);
+        var isC = col.isCollapsed(n.id());
+        panel.innerHTML = "<h2>" + esc(n.data("label")) + "</h2>"
+          + '<div class="path">package</div>'
+          + '<button class="wide" data-toggle="' + esc(n.id()) + '">'
+          + (isC ? "Expand this package" : "Collapse this package") + "</button>"
+          + '<div class="stat"><span>Modules</span><span>' + kids.length + "</span></div>"
+          + '<div class="stat"><span>Lines</span><span>' + loc.toLocaleString() + "</span></div>"
+          + "<h3>Members</h3>"
+          + (kids.length ? kids.map(function (k) {
+              return '<a class="link" data-go="' + esc(k.id()) + '">' + esc(k.data("label")) + "</a>";
+            }).join("") : '<p class="empty">None.</p>');
+        wire();
+        return;
+      }
+
+      var inc = n.incomers("edge"), out = n.outgoers("edge");
+      function list(edges, dir) {
+        if (!edges.length) return '<p class="empty">None.</p>';
+        return edges.map(function (e) {
+          var other = dir === "in" ? e.source() : e.target();
+          var kind = e.data("kind") === "dataflow"
+            ? e.data("label") || "dataflow"
+            : (e.data("label") || "import");
+          return '<a class="link" data-go="' + esc(other.id()) + '">' + esc(other.id())
+               + ' <span class="kind">— ' + esc(kind) + "</span></a>";
+        }).join("");
+      }
+
+      var pub = n.data("pub") || [];
+      panel.innerHTML = "<h2>" + esc(n.data("label")) + "</h2>"
+        + '<div class="path">' + esc(n.data("path") || n.id()) + "</div>"
+        + '<div class="stat"><span>Type</span><span>' + esc(n.data("kind"))
+        + (n.data("cat") ? " · " + esc(n.data("cat")) : "") + "</span></div>"
+        + '<div class="stat"><span>Package</span><span>' + esc(n.data("parent") ?
+            String(n.data("parent")).replace("pkg:", "") : "—") + "</span></div>"
+        + (n.data("kind") === "module"
+            ? '<div class="stat"><span>Lines</span><span>' + n.data("loc") + "</span></div>" : "")
+        + "<h3>Docstring</h3>"
+        + (n.data("doc") ? '<div class="doc">' + esc(n.data("doc")) + "</div>"
+                         : '<p class="empty">None.</p>')
+        + (n.data("kind") === "module"
+            ? "<h3>Public interface" + (pub.length ? " (" + pub.length + ")" : "") + "</h3>"
+              + (pub.length ? pub.map(function (p) {
+                  return '<span class="chip">' + esc(p) + "</span>"; }).join("")
+                : '<p class="empty">Nothing public.</p>')
+            : "")
+        + "<h3>Depends on (" + out.length + ")</h3>" + list(out, "out")
+        + "<h3>Used by (" + inc.length + ")</h3>" + list(inc, "in");
+      wire();
+    }
+
+    function wire() {
+      Array.prototype.forEach.call(panel.querySelectorAll("[data-go]"), function (a) {
+        a.addEventListener("click", function () { focus(a.getAttribute("data-go")); });
+      });
+      Array.prototype.forEach.call(panel.querySelectorAll("[data-toggle]"), function (b) {
+        b.addEventListener("click", function () {
+          var id = b.getAttribute("data-toggle");
+          col.toggle(id);
+          show(cy.getElementById(id));
+        });
+      });
+    }
+
+    cy.on("tap", "node", function (e) { show(e.target); });
+    cy.on("tap", function (e) {
+      if (e.target === cy) {
+        cy.elements().removeClass("dim focus");
+        panel.innerHTML = '<p class="empty">Click any node to inspect it.</p>';
+      }
+    });
+    cy.on("mouseover", "edge", function (e) { e.target.addClass("hover"); });
+    cy.on("mouseout", "edge", function (e) { e.target.removeClass("hover"); });
+    // Selecting a node dims everything unrelated, so its neighbourhood reads clearly.
+    cy.on("select", "node", function (e) {
+      var n = e.target, keep = n.closedNeighborhood().union(n.ancestors());
+      cy.elements().addClass("dim");
+      keep.removeClass("dim");
+      n.connectedEdges().removeClass("dim").addClass("focus");
+    });
+    cy.on("unselect", "node", function () {
+      cy.elements().removeClass("dim focus");
+    });
+    return { focus: focus };
+  }
+
+  function search(cy, focus) {
+    var q = document.getElementById("q"), hits = document.getElementById("hits");
+    function close() { hits.style.display = "none"; }
+    q.addEventListener("input", function () {
+      var v = q.value.trim().toLowerCase();
+      if (!v) return close();
+      var found = cy.nodes().filter(function (n) {
+        return n.id().toLowerCase().indexOf(v) >= 0 ||
+               String(n.data("label")).toLowerCase().indexOf(v) >= 0;
+      });
+      // Packages first — searching is mostly a way to jump to one.
+      var arr = found.toArray().sort(function (a, b) {
+        return (b.data("isPkg") ? 1 : 0) - (a.data("isPkg") ? 1 : 0);
+      }).slice(0, 40);
+      if (!arr.length) { hits.innerHTML = '<div class="sub">No match.</div>'; }
+      else {
+        hits.innerHTML = arr.map(function (n) {
+          return '<div data-go="' + esc(n.id()) + '">' + esc(n.data("label"))
+               + '<div class="sub">' + (n.data("isPkg") ? "package" : esc(n.id())) + "</div></div>";
+        }).join("");
+        Array.prototype.forEach.call(hits.querySelectorAll("[data-go]"), function (d) {
+          d.addEventListener("click", function () {
+            focus(d.getAttribute("data-go")); close(); q.value = "";
+          });
+        });
+      }
+      hits.style.display = "block";
+    });
+    q.addEventListener("keydown", function (e) { if (e.key === "Escape") { close(); q.blur(); } });
+    document.addEventListener("click", function (e) {
+      if (!hits.contains(e.target) && e.target !== q) close();
+    });
+  }
+
+  function filters(cy) {
+    document.getElementById("filter").addEventListener("change", function (e) {
+      var v = e.target.value;
+      cy.edges().style("display", "element");
+      if (v === "import") cy.edges('[kind="dataflow"]').style("display", "none");
+      else if (v === "dataflow") cy.edges('[kind="import"]').style("display", "none");
+      else if (v === "runtime") cy.edges('[kind="import"][flavour!="runtime"]').style("display", "none");
+    });
+  }
+
+  var LAYOUT = {
+    name: "fcose", quality: "default", animate: false, randomize: true,
+    nodeSeparation: 90, idealEdgeLength: 90, nodeRepulsion: 8000,
+    gravity: 0.3, gravityCompound: 1.2, packComponents: true, tile: true,
+    padding: 30, nestingFactor: 0.2, numIter: 2500
+  };
+
+  loadGraph().then(function (res) {
+    var els;
+    try { els = build(res.graph); }
+    catch (e) { return fail("The graph could not be read: " + esc(e.message)); }
+
+    // Both extensions must register BEFORE the instance is constructed.
+    // fcose must register before the instance is constructed.
+    var hasFcose = false;
+    try {
+      if (window.cytoscapeFcose) { cytoscape.use(window.cytoscapeFcose); hasFcose = true; }
+    } catch (e) { hasFcose = false; }
+
+    var cy;
+    try {
+      cy = cytoscape({
+        container: document.getElementById("cy"),
+        elements: els,
+        style: styles(),
+        // cose is bundled with cytoscape, so a CDN miss on fcose degrades the
+        // layout rather than the page.
+        layout: hasFcose ? LAYOUT : { name: "cose", animate: false, padding: 30 },
+        wheelSensitivity: 0.25,
+        maxZoom: 4, minZoom: 0.05
+      });
+    } catch (e) { return fail("Cytoscape failed to start: " + esc(e.message)); }
+
+    var col = Collapser(cy);
+    var relayout = function () {
+      cy.layout(hasFcose ? LAYOUT : { name: "cose", animate: false, padding: 30 }).run();
+    };
+
+    document.getElementById("collapse").addEventListener("click", function () {
+      col.all(true); relayout();
+    });
+    document.getElementById("expand").addEventListener("click", function () {
+      col.all(false); relayout();
+    });
+    // Alt-click toggles one package. A plain click selects it, so the modifier
+    // keeps inspecting and restructuring apart.
+    cy.on("tap", "node", function (e) {
+      var n = e.target;
+      if (n.data("isPkg") && e.originalEvent && e.originalEvent.altKey) col.toggle(n.id());
+    });
+
+    document.getElementById("fit").addEventListener("click", function () { cy.fit(undefined, 40); });
+
+    var api = render(cy, col);
+    search(cy, api.focus);
+    filters(cy);
+    legend();
+
+    var mods = cy.nodes('[kind="module"]').length, exts = cy.nodes('[kind="external"]').length;
+    document.getElementById("status").textContent =
+      mods + " modules · " + exts + " integrations · " + cy.edges().length + " edges · " + res.src
+      + (hasFcose ? "" : " · fcose unavailable, using cose")
+      + " · alt-click a package to collapse it";
+  }).catch(function (e) { fail(e.message || String(e)); });
+})();
+</script>
+</body>
+</html>

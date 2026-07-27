@@ -37,7 +37,9 @@
       "Bash(Sort-Object)",
       "Skill(deep-research)",
       "WebSearch",
-      "WebFetch(domain:www.hbrc.govt.nz)"
+      "WebFetch(domain:www.hbrc.govt.nz)",
+      "Bash(python *)",
+      "Bash(C:/Auxein/auxein-insights-v0.1/backend/venv/Scripts/python.exe -c ' *)"
     ]
   }
 }

@@ -21,6 +21,9 @@ vineyard_backup.sql
 vineyard_data.sql
 vineyard_schema.sql
 
+# Ingestion probe dumps (regenerable via ingestion/scripts/probe_hilltop.py)
+ingestion/scripts/probes/*.json
+
 # Node modules
 node_modules/
 frontend/node_modules/
