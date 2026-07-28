@@ -4,6 +4,7 @@ API: Hilltop Server at https://hydro.marlborough.govt.nz/data.hts
 """
 
 import requests
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -25,12 +26,24 @@ class MDCIngestion:
         self.Session = get_ingestion_session()
         self.nz_tz = ZoneInfo('Pacific/Auckland')
         
-        # Map MDC measurement names to standard variable names
+        # Map MDC measurement name -> (canonical_variable, canonical_unit, scale).
+        # Canonical unit is authoritative (XML <Units> is unreliable — MDC metadata
+        # has unit errors, e.g. Air Temperature difference labelled mm). All codes
+        # exist in measurement_catalog (verified prod 2026-07-28). MDC wind is m/sec
+        # = canonical m/s (scale 1.0); the km/hr and knots variants are deliberately
+        # NOT mapped (same measurement, pre-converted — mapping them double-writes).
+        # Air Temperature Max/Min are NOT ingested — daily_aggregation derives them
+        # from Air Temperature. N-hour rainfall rollups / LAWA / Metservice excluded.
         self.measurement_map = {
-            'Air Temperature': ('temp', 'C'),
-            'Humidity': ('rh', 'percent'),
-            'Rainfall': ('rainfall', 'mm'),
-            'Rainfall 1 Hour': ('rainfall', 'mm'),
+            'Air Temperature': ('temp', 'C', 1.0),
+            'Humidity': ('rh', 'percent', 1.0),
+            'Rainfall': ('rainfall', 'mm', 1.0),
+            'Wind Speed': ('wind_speed', 'm/s', 1.0),
+            'Wind Gust': ('wind_gust', 'm/s', 1.0),
+            'Wind Direction': ('wind_direction', 'deg', 1.0),
+            'Barometric Pressure hPa': ('pressure', 'hPa', 1.0),
+            'Soil Temperature': ('soil_temp', 'C', 1.0),
+            'Soil Moisture': ('soil_moisture_vwc', 'percent', 1.0),
         }
     
     def get_active_stations(self):
@@ -94,14 +107,21 @@ class MDCIngestion:
         if interval:
             url += f"&Interval={quote(interval)}"
         
-        try:
-            print(f"      URL: {url}")
-            response = requests.get(url, timeout=60)
-            response.raise_for_status()
-            return response.text
-        except requests.exceptions.RequestException as e:
-            print(f"      API error: {e}")
-            return None
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"      URL: {url}")
+                response = requests.get(url, timeout=60)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries:
+                    wait = 5 * (3 ** (attempt - 1))  # 5s, 15s, 45s
+                    print(f"      Attempt {attempt}/{max_retries} failed ({e}), retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    print(f"      API error after {max_retries} attempts: {e}")
+                    return None
     
     def parse_response(self, station_id: int, xml_text: str, 
                        measurement: str) -> list:
@@ -130,38 +150,26 @@ class MDCIngestion:
             print(f"      Unknown measurement: {measurement}")
             return records
         
-        variable, default_unit = self.measurement_map[measurement]
-        
-        # Try to get unit from XML
-        unit = default_unit
-        units_elem = root.find('.//Units')
-        if units_elem is not None and units_elem.text:
-            xml_unit = units_elem.text
-            # Normalize units
-            if xml_unit == '%':
-                unit = 'percent'
-            elif xml_unit in ('°C', 'deg C'):
-                unit = 'C'
-            elif xml_unit == 'mm':
-                unit = 'mm'
-            else:
-                unit = xml_unit
-        
+        variable, unit, scale = self.measurement_map[measurement]
+        # `unit` is the canonical unit from the map (authoritative). We ignore the
+        # XML <Units> field: MDC metadata carries unit errors and pre-converted wind
+        # variants; the map decides the canonical unit + any value scale.
+
         # Parse data elements
         for elem in root.iter('E'):
             try:
                 t_elem = elem.find('T')
                 i1_elem = elem.find('I1')
-                
+
                 if t_elem is None or i1_elem is None:
                     continue
-                
+
                 # Parse timestamp (format: 2026-01-24T00:00:00)
                 timestamp = datetime.strptime(t_elem.text, '%Y-%m-%dT%H:%M:%S')
                 timestamp = timestamp.replace(tzinfo=self.nz_tz)
-                
-                # Parse value
-                value = float(i1_elem.text)
+
+                # Parse value and scale to the canonical unit
+                value = float(i1_elem.text) * scale
                 
                 records.append({
                     'station_id': station_id,
@@ -231,6 +239,17 @@ class MDCIngestion:
             except Exception as e:
                 print(f"      Failed to log ingestion: {e}")
     
+    def _year_chunks(self, start, end):
+        """Yield (chunk_start, chunk_end) split on calendar-year boundaries so deep
+        backfills stay bounded, per-year visible, and resumable (ON CONFLICT DO
+        NOTHING). A short incremental window stays a single chunk."""
+        cur = start
+        while cur < end:
+            year_end = datetime(cur.year + 1, 1, 1, tzinfo=self.nz_tz)
+            chunk_end = min(year_end, end)
+            yield cur, chunk_end
+            cur = chunk_end
+
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
             interval: str = None, station_code: str = None):
@@ -313,7 +332,7 @@ class MDCIngestion:
                     print(f"    ⚠ Unknown measurement '{measurement}', skipping")
                     continue
                 
-                variable, _ = self.measurement_map[measurement]
+                variable, _, _ = self.measurement_map[measurement]
                 
                 try:
                     # Calculate time window
@@ -334,36 +353,35 @@ class MDCIngestion:
                         continue
                     
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
-                    
-                    # Fetch from API
-                    xml_response = self.fetch_data(site_name, measurement, 
-                                                    start_time, end_time, interval)
-                    
-                    if not xml_response:
-                        if not dry_run:
-                            self.log_ingestion(station_id, start_time, 0, 0,
-                                              'FAILED', f'No response for {measurement}')
-                        continue
-                    
-                    # Parse response
-                    records = self.parse_response(station_id, xml_response, measurement)
-                    
-                    if not records:
-                        print(f"      No records parsed")
-                        continue
-                    
-                    station_parsed += len(records)
-                    
-                    if dry_run:
-                        print(f"      [DRY RUN] Would insert {len(records)} records")
-                        if records:
-                            print(f"      Sample: {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']}")
-                    else:
-                        # Insert into database
-                        inserted = self.insert_data(records)
-                        station_total += inserted
-                        print(f"      ✓ Inserted {inserted} records")
-                    
+
+                    # Fetch year-by-year so deep backfills stay bounded + resumable
+                    for chunk_start, chunk_end in self._year_chunks(start_time, end_time):
+                        xml_response = self.fetch_data(site_name, measurement,
+                                                        chunk_start, chunk_end, interval)
+
+                        if not xml_response:
+                            if not dry_run:
+                                self.log_ingestion(station_id, chunk_start, 0, 0,
+                                                  'FAILED', f'No response for {measurement} '
+                                                            f'{chunk_start.date()}..{chunk_end.date()}')
+                            continue
+
+                        records = self.parse_response(station_id, xml_response, measurement)
+
+                        if not records:
+                            print(f"      {chunk_start.year}: no records parsed")
+                            continue
+
+                        station_parsed += len(records)
+
+                        if dry_run:
+                            print(f"      [DRY RUN] {chunk_start.year}: would insert {len(records)} records "
+                                  f"(sample {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']})")
+                        else:
+                            inserted = self.insert_data(records)
+                            station_total += inserted
+                            print(f"      ✓ {chunk_start.year}: inserted {inserted} records")
+
                 except Exception as e:
                     print(f"      ✗ Error: {e}")
                     if not dry_run:
@@ -408,14 +426,17 @@ if __name__ == '__main__':
                         help='Fetch and parse but do not insert to database')
     parser.add_argument('--interval', type=str, default='30 minutes',
                         help='Data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes')
+    parser.add_argument('--station', type=str, metavar='STATION_CODE',
+                        help='Limit to a single station_code (useful for targeted backfills/testing)')
     args = parser.parse_args()
-    
+
     ingester = MDCIngestion()
     ingester.run(
-        period=args.period, 
+        period=args.period,
         backfill_days=args.days,
         start_date=args.start,
         end_date=args.end,
         dry_run=args.dry_run,
-        interval=args.interval
+        interval=args.interval,
+        station_code=args.station
     )

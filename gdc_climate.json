@@ -1,0 +1,4284 @@
+{
+ "agency": "gdc",
+ "base": "http://hilltop.gdc.govt.nz/data.hts",
+ "collection": "GDC_ClimateStations",
+ "filter": null,
+ "sites": {
+  "Fernside Station Telemetry Station": {
+   "lat": "-38.14791718",
+   "lon": "178.12950507",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1994-01-01T00:00:00",
+     "to": "2026-07-28T19:01:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2007-12-27T10:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2007-12-27T10:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2004-11-26T06:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2004-11-25T10:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2004-11-26T06:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1994-01-01T00:00:00",
+     "to": "2026-07-28T19:01:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2007-12-27T10:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2007-12-27T10:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2004-11-26T06:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2004-11-25T10:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2004-11-26T06:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-11-03T12:06:00",
+     "to": "2026-07-27T11:40:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2019-10-03T08:55:00",
+     "to": "2026-04-08T09:58:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2019-10-03T08:55:00",
+     "to": "2026-04-08T09:58:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-11-03T12:06:00",
+     "to": "2026-07-27T11:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2019-10-03T08:55:00",
+     "to": "2026-04-08T09:58:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2019-10-03T08:55:00",
+     "to": "2026-04-08T09:58:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Gisborne Airport Met Station": {
+   "lat": "-38.65927782",
+   "lon": "177.98312245",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2017-07-12T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2020-09-25T14:17:00",
+     "to": "2026-05-21T11:20:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2021-05-27T11:50:00",
+     "to": "2026-05-21T11:20:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2021-05-27T11:50:00",
+     "to": "2026-05-21T11:20:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2020-09-25T14:17:00",
+     "to": "2026-05-21T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2021-05-27T11:50:00",
+     "to": "2026-05-21T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2021-05-27T11:50:00",
+     "to": "2026-05-21T11:20:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Matawai Telemetry Station": {
+   "lat": "-38.35470875",
+   "lon": "177.55163717",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1989-01-11T10:23:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2010-04-15T16:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2010-04-15T16:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-03-24T08:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-03-24T08:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall (Telemetered)",
+     "from": "1989-01-11T10:23:00",
+     "to": "1997-03-24T08:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall (Telemetered)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall (Logger Data)",
+     "from": "1997-03-24T08:00:00",
+     "to": "2004-02-01T00:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall (Logger Data)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall (Unedited)",
+     "from": "1989-01-11T10:23:00",
+     "to": "1993-12-31T23:59:00",
+     "measurements": [
+      {
+       "name": "Rainfall (Unedited)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Gust (km/hr) (logger)",
+     "from": "2003-08-15T13:00:00",
+     "to": "2006-02-01T00:00:00",
+     "measurements": [
+      {
+       "name": "Wind Gust (km/hr) (logger)",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1989-01-11T10:23:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2010-04-15T16:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2010-04-15T16:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-03-24T08:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-03-24T08:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall (Telemetered)",
+     "from": "1989-01-11T10:23:00",
+     "to": "1997-03-24T08:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall (Logger Data)",
+     "from": "1997-03-24T08:00:00",
+     "to": "2004-02-01T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall (Unedited)",
+     "from": "1989-01-11T10:23:00",
+     "to": "1993-12-31T23:59:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Gust (km/hr) (logger)",
+     "from": "2003-08-15T13:00:00",
+     "to": "2006-02-01T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-13T09:55:00",
+     "to": "2026-07-06T10:10:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2018-03-21T10:30:00",
+     "to": "2026-07-06T10:10:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2018-03-21T10:30:00",
+     "to": "2026-07-06T10:10:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-13T09:55:00",
+     "to": "2026-07-06T10:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2018-03-21T10:30:00",
+     "to": "2026-07-06T10:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2018-03-21T10:30:00",
+     "to": "2026-07-06T10:10:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Poroporo Fire": {
+   "lat": "-37.79161569",
+   "lon": "178.37499041",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure (hPa)",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure (hPa)",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure (hPa)",
+     "from": "2014-11-14T15:20:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2021-01-21T10:00:00",
+     "to": "2026-01-28T10:42:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2020-05-14T13:15:00",
+     "to": "2025-11-26T12:10:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2021-05-14T13:15:00",
+     "to": "2026-01-28T10:42:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2021-01-21T10:00:00",
+     "to": "2026-01-28T10:42:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2020-05-14T13:15:00",
+     "to": "2025-11-26T12:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2021-05-14T13:15:00",
+     "to": "2026-01-28T10:42:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Pouawa Fire": {
+   "lat": "-38.60121884",
+   "lon": "178.14640168",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure (hPa)",
+     "from": "2014-11-23T23:10:00",
+     "to": "2015-02-11T13:00:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure (hPa)",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure (hPa)",
+     "from": "2014-11-23T23:10:00",
+     "to": "2015-02-11T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2021-01-12T11:05:00",
+     "to": "2026-05-26T11:25:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2023-05-10T09:30:00",
+     "to": "2026-05-26T11:25:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2023-05-10T09:30:00",
+     "to": "2026-05-26T11:25:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2021-01-12T11:05:00",
+     "to": "2026-05-26T11:25:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2023-05-10T09:30:00",
+     "to": "2026-05-26T11:25:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2023-05-10T09:30:00",
+     "to": "2026-05-26T11:25:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Raparapaririki": {
+   "lat": "-37.82624572",
+   "lon": "178.07245224",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2007-02-20T20:55:40",
+     "to": "2026-07-28T19:02:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2007-04-20T15:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2007-02-19T14:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2007-02-16T16:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2007-02-16T17:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2007-02-16T17:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2007-02-20T20:55:40",
+     "to": "2026-07-28T19:02:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2007-04-20T15:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2007-02-19T14:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2007-02-16T16:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2007-02-16T17:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2007-02-16T17:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2017-02-22T13:09:00",
+     "to": "2026-06-11T10:57:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2024-03-28T10:02:00",
+     "to": "2026-06-11T10:57:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2024-03-28T10:02:00",
+     "to": "2026-06-11T10:57:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2025-03-27T11:22:00",
+     "to": "2026-02-27T09:15:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction Check Data",
+       "units": null
+      },
+      {
+       "name": "Average Wind Direction Check Time",
+       "units": null
+      },
+      {
+       "name": "Average Wind Direction Recorder Value",
+       "units": null
+      },
+      {
+       "name": "Average Wind Direction Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2025-03-27T11:22:00",
+     "to": "2026-02-27T09:15:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed Check Data",
+       "units": "km/hr"
+      },
+      {
+       "name": "Average Wind Speed Check Time",
+       "units": null
+      },
+      {
+       "name": "Average Wind Speed Recorder Value",
+       "units": null
+      },
+      {
+       "name": "Average Wind Speed Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2017-02-22T13:09:00",
+     "to": "2026-06-11T10:57:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2024-03-28T10:02:00",
+     "to": "2026-06-11T10:57:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2024-03-28T10:02:00",
+     "to": "2026-06-11T10:57:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2025-03-27T11:22:00",
+     "to": "2026-02-27T09:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2025-03-27T11:22:00",
+     "to": "2026-02-27T09:15:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Waipaoa River at Kanakanaia": {
+   "lat": "-38.46156491",
+   "lon": "177.87667880",
+   "datasources": [
+    {
+     "datasource": "Water Level",
+     "from": "1916-01-01T00:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Water Level",
+       "units": "m"
+      },
+      {
+       "name": "Flow",
+       "units": "cumecs"
+      },
+      {
+       "name": "Sediment Concentration",
+       "units": "g/m3"
+      },
+      {
+       "name": "Flow Velocity",
+       "units": "m/sec"
+      },
+      {
+       "name": "Sediment Yield",
+       "units": "g/sec"
+      },
+      {
+       "name": "Specific Sediment Yield",
+       "units": "g/sec/ha"
+      },
+      {
+       "name": "Water Level/Staff Gauge Check Deviation",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Gauging Results",
+     "from": "1950-11-04T00:00:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": [
+      {
+       "name": "Stage",
+       "units": "metres"
+      },
+      {
+       "name": "Flow",
+       "units": "m3/sec"
+      },
+      {
+       "name": "Area",
+       "units": "sq m"
+      },
+      {
+       "name": "Velocity",
+       "units": "m/sec"
+      },
+      {
+       "name": "Maximum Depth",
+       "units": "m"
+      },
+      {
+       "name": "Slope",
+       "units": "m/m"
+      },
+      {
+       "name": "Width",
+       "units": "m"
+      },
+      {
+       "name": "Hydraulic Radius",
+       "units": "m"
+      },
+      {
+       "name": "Wetted Perimeter",
+       "units": "m"
+      },
+      {
+       "name": "Sediment Concentration",
+       "units": "mg/l"
+      },
+      {
+       "name": "Water Temperature",
+       "units": "C"
+      },
+      {
+       "name": "Stage Change",
+       "units": "m"
+      },
+      {
+       "name": "Methods and Verticals Code",
+       "units": null
+      },
+      {
+       "name": "Verticals and Samples Code",
+       "units": null
+      },
+      {
+       "name": "Gauging Number",
+       "units": null
+      },
+      {
+       "name": "Flow Difference",
+       "units": "%"
+      },
+      {
+       "name": "Sed Conc when Measured",
+       "units": "mg/l"
+      },
+      {
+       "name": "Stage Difference",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1946-08-02T09:00:00",
+     "to": "2026-07-28T19:01:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydrometric Gaugings",
+     "from": "2002-07-15T10:58:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Sections",
+     "from": "2002-07-15T10:58:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Temperature",
+     "from": "1973-11-07T09:30:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "Water Temperature",
+       "units": "deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Temperature (Logger)",
+     "from": "2015-03-14T19:10:00",
+     "to": "2026-04-08T14:02:06",
+     "measurements": [
+      {
+       "name": "Water Temperature (Logger)",
+       "units": "deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "pH (Field)",
+     "from": "1978-02-22T00:14:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "pH (Field)",
+       "units": "pH units"
+      }
+     ]
+    },
+    {
+     "datasource": "Turbidity (Field - FNU)",
+     "from": "2018-09-19T08:00:00",
+     "to": "2021-05-18T10:09:00",
+     "measurements": [
+      {
+       "name": "Turbidity (Field - FNU)",
+       "units": "FNU"
+      }
+     ]
+    },
+    {
+     "datasource": "Level",
+     "from": "2004-11-25T08:00:00",
+     "to": "2012-07-27T16:45:00",
+     "measurements": [
+      {
+       "name": "Level",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Salinity",
+     "from": "1973-11-07T09:30:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "Salinity",
+       "units": "ppt"
+      }
+     ]
+    },
+    {
+     "datasource": "Nitrogen Total",
+     "from": "2014-10-16T07:50:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Nitrogen Total",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Sodium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Sodium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "1 Day Minima",
+     "from": "2004-01-20T02:00:00",
+     "to": "2018-12-24T04:20:00",
+     "measurements": [
+      {
+       "name": "1 Day Minima",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "pH (Lab)",
+     "from": "2016-08-23T14:10:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "pH (Lab)",
+       "units": "pH units"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level Backup",
+     "from": "2013-02-11T11:45:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Water Level Backup",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Salinity (Lab)",
+     "from": "2018-01-15T13:10:00",
+     "to": "2018-01-15T13:10:00",
+     "measurements": [
+      {
+       "name": "Salinity (Lab)",
+       "units": "ppt"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2026-06-10T09:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Bottles sampled",
+     "from": "2001-01-12T17:00:00",
+     "to": "2003-08-19T12:30:00",
+     "measurements": [
+      {
+       "name": "Bottles sampled",
+       "units": "Bottles"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure (hPa)",
+     "from": "1994-04-28T10:00:00",
+     "to": "1996-07-31T08:10:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure (hPa)",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Turbidity (Logger)",
+     "from": "1996-09-04T16:15:00",
+     "to": "2005-01-19T09:30:00",
+     "measurements": [
+      {
+       "name": "Turbidity (Logger)",
+       "units": "NTU"
+      }
+     ]
+    },
+    {
+     "datasource": "Excalibur Turb (mg/l)",
+     "from": "1999-02-08T13:00:00",
+     "to": "2005-01-19T09:30:00",
+     "measurements": [
+      {
+       "name": "Excalibur Turb (mg/l)",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Flow Velocity",
+     "from": "1916-01-01T00:00:00",
+     "to": "2015-12-04T11:00:00",
+     "measurements": [
+      {
+       "name": "Flow Velocity",
+       "units": "m/sec"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level (Foxboro chart)",
+     "from": "1948-01-01T00:00:00",
+     "to": "2005-04-04T14:30:00",
+     "measurements": [
+      {
+       "name": "Water Level (Foxboro chart)",
+       "units": "Metres"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level (DO LOGGERDAT)",
+     "from": "1997-02-10T10:59:00",
+     "to": "2006-02-01T00:00:00",
+     "measurements": [
+      {
+       "name": "Water Level (DO LOGGERDAT)",
+       "units": "Metres"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level (Telemetry)",
+     "from": "1985-05-02T10:35:00",
+     "to": "2020-02-11T07:00:00",
+     "measurements": [
+      {
+       "name": "Water Level (Telemetry)",
+       "units": "Metres"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level (CAMPBELL LOG)",
+     "from": "1997-08-07T11:00:00",
+     "to": "2005-01-19T09:30:00",
+     "measurements": [
+      {
+       "name": "Water Level (CAMPBELL LOG)",
+       "units": "Metres"
+      }
+     ]
+    },
+    {
+     "datasource": "Total Coliforms CFU/100ml",
+     "from": "1978-06-18T13:53:00",
+     "to": "2003-03-12T08:47:00",
+     "measurements": [
+      {
+       "name": "Total Coliforms CFU/100ml",
+       "units": "CFU/100mls"
+      }
+     ]
+    },
+    {
+     "datasource": "Faecal Coliforms CFU/100ml",
+     "from": "1983-07-13T10:03:00",
+     "to": "2015-06-03T11:39:00",
+     "measurements": [
+      {
+       "name": "Faecal Coliforms CFU/100ml",
+       "units": "CFU/100mL"
+      }
+     ]
+    },
+    {
+     "datasource": "Enterococci CFU/100ml",
+     "from": "1992-02-04T10:50:00",
+     "to": "2013-08-08T08:50:00",
+     "measurements": [
+      {
+       "name": "Enterococci CFU/100ml",
+       "units": "CFU/100ml"
+      }
+     ]
+    },
+    {
+     "datasource": "Sulphate g/m3 SO4",
+     "from": "1979-01-04T09:45:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Sulphate g/m3 SO4",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Total Hardness  CaCO3",
+     "from": "1984-10-02T11:12:00",
+     "to": "2014-09-18T09:30:00",
+     "measurements": [
+      {
+       "name": "Total Hardness  CaCO3",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Chloride Cl",
+     "from": "1979-01-04T09:45:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Chloride Cl",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Iron",
+     "from": "1978-06-18T13:53:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Iron (Total)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Total Alkalinity CaCO3",
+     "from": "1984-10-02T11:12:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Total Alkalinity CaCO3",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Turbidity (Lab - NTU)",
+     "from": "1978-06-18T13:53:00",
+     "to": "2022-08-09T14:02:00",
+     "measurements": [
+      {
+       "name": "Turbidity (Lab - NTU)",
+       "units": "NTU"
+      }
+     ]
+    },
+    {
+     "datasource": "Total Suspended Solids",
+     "from": "1990-05-22T11:45:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Total Suspended Solids",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Oxygen g/m3",
+     "from": "1973-11-07T09:30:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "Dissolved Oxygen (g/m3)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Nitrate as N",
+     "from": "1978-06-18T13:53:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Nitrate as N",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Nitrite as N",
+     "from": "2003-04-09T09:58:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Nitrite as N",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Reactive Phosphorus",
+     "from": "1983-07-13T10:03:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Dissolved Reactive Phosphorus",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Calcium Hardness as CaCO3",
+     "from": "1979-01-04T09:45:00",
+     "to": "2014-09-18T09:30:00",
+     "measurements": [
+      {
+       "name": "Calcium Hardness as CaCO3",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Biochemical Oxygen Demand O2",
+     "from": "1990-07-04T11:45:00",
+     "to": "2014-09-18T09:30:00",
+     "measurements": [
+      {
+       "name": "Biochemical Oxygen Demand O2",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Ammoniacal Nitrogen as N",
+     "from": "1985-05-22T09:36:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Ammoniacal Nitrogen as N",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Potassium  K",
+     "from": "1990-11-07T11:00:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Potassium  K (Total)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Manganese Mn",
+     "from": "1979-01-04T09:45:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Manganese Mn",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Copper Cu",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Copper Cu",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Zinc Zn",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Zinc Zn",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Arsenic As",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Arsenic As",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Cadmium Cd",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Cadmium Cd",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Sodium Total",
+     "from": "1990-11-07T11:00:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Sodium Na",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Lead Pb",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Lead Pb",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Odour",
+     "from": "1973-11-07T09:30:00",
+     "to": "2000-06-14T09:16:00",
+     "measurements": [
+      {
+       "name": "Odour",
+       "units": "detectable"
+      }
+     ]
+    },
+    {
+     "datasource": "Magnesium Hardness CaCO3",
+     "from": "1984-10-02T11:12:00",
+     "to": "2003-03-12T08:47:00",
+     "measurements": [
+      {
+       "name": "Magnesium Hardness CaCO3",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Weather",
+     "from": "1973-11-07T09:30:00",
+     "to": "1991-06-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Weather",
+       "units": "unknown"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction",
+     "from": "1973-11-07T09:30:00",
+     "to": "1991-04-24T09:45:00",
+     "measurements": [
+      {
+       "name": "Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Rise/Fall",
+     "from": "1973-11-07T09:30:00",
+     "to": "1991-06-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Water Rise/Fall",
+       "units": "unknown"
+      }
+     ]
+    },
+    {
+     "datasource": "Tide",
+     "from": "1973-11-07T09:30:00",
+     "to": "1991-06-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Tide",
+       "units": "In;out;Mid etc"
+      }
+     ]
+    },
+    {
+     "datasource": "Distance Upstream",
+     "from": "1973-11-07T09:30:00",
+     "to": "1991-06-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Distance Upstream",
+       "units": "Metres (m)"
+      }
+     ]
+    },
+    {
+     "datasource": "Depth (Cross Section)",
+     "from": "1973-11-07T09:30:00",
+     "to": "1973-11-07T09:30:00",
+     "measurements": [
+      {
+       "name": "Depth (Cross Section)",
+       "units": "unknown"
+      }
+     ]
+    },
+    {
+     "datasource": "Depth from Surface",
+     "from": "1973-11-07T09:30:00",
+     "to": "1991-06-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Depth from Surface",
+       "units": "Metres (m)"
+      }
+     ]
+    },
+    {
+     "datasource": "Tin SN",
+     "from": "1992-09-12T09:30:00",
+     "to": "1992-12-17T00:00:00",
+     "measurements": [
+      {
+       "name": "Tin SN",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Total Phosphorus",
+     "from": "1990-05-22T11:45:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Total Phosphorus",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "E.Coli CFU/100mL",
+     "from": "1983-07-13T10:03:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "E.Coli CFU/100mL",
+       "units": "CFU/100mL"
+      }
+     ]
+    },
+    {
+     "datasource": "Chlorine Cl2 (FAC)",
+     "from": "1978-06-18T13:53:00",
+     "to": "1986-04-22T08:07:00",
+     "measurements": [
+      {
+       "name": "Chlorine Cl2 (FAC)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Nickel Ni",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Nickel Ni",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Boron B",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Boron B",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Aluminium Al",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Aluminium Al",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Calcium Ca",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Calcium Ca",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Magnesium",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Magnesium (Total)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Chromium Cr",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Chromium Cr",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Organic Carbon",
+     "from": "2025-11-06T11:59:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Dissolved Organic Carbon",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Count",
+     "from": "2004-11-25T08:00:00",
+     "to": "2017-11-15T13:10:00",
+     "measurements": [
+      {
+       "name": "Rainfall Count",
+       "units": " "
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level 3",
+     "from": "2012-03-12T13:00:00",
+     "to": "2026-07-28T18:00:00",
+     "measurements": [
+      {
+       "name": "Water Level 3",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Stage",
+     "from": "2016-02-16T12:45:00",
+     "to": "2016-02-16T12:45:00",
+     "measurements": [
+      {
+       "name": "Stage",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Total Oxidised Nitrogen",
+     "from": "2015-03-23T12:16:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Total Oxidised Nitrogen",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Organic Phosphorus",
+     "from": "2015-03-23T12:16:00",
+     "to": "2015-06-03T11:39:00",
+     "measurements": [
+      {
+       "name": "Dissolved Organic Phosphorus",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Oxygen %",
+     "from": "2015-03-23T12:16:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "Dissolved Oxygen (%)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Carbonate Alkalinity",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Carbonate Alkalinity",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Conductivity Specific (Field)",
+     "from": "1978-02-22T00:14:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "Conductivity Specific (Field) uS/cm at 25C",
+       "units": "us/cm"
+      }
+     ]
+    },
+    {
+     "datasource": "Boron (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Boron (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Clarity Tube (cm)-Field",
+     "from": "2018-09-19T08:00:00",
+     "to": "2026-06-16T10:23:00",
+     "measurements": [
+      {
+       "name": "Clarity Tube",
+       "units": "cm"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Inorganic Nitrogen (DIN)",
+     "from": "2016-07-07T14:20:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Dissolved Inorganic Nitrogen (DIN)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Cadmium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Cadmium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Bicarbonate Alkalinity (HCO3)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Bicarbonate Alkalinity (HCO3)",
+       "units": "mg/L"
+      },
+      {
+       "name": "Bicarbonate Alkalinity -DO NOT USE",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Iron (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Iron (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Potassium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Potassium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Calcium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Calcium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Magnesium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Magnesium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Copper (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Copper (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Arsenic (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Arsenic (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Nickel (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Nickel (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Chromium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Chromium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Zinc (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Zinc (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Lead (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Lead (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Turbidity (Field - NTU)",
+     "from": "2015-11-09T13:18:00",
+     "to": "2021-05-18T10:09:00",
+     "measurements": [
+      {
+       "name": "Turbidity (Field)",
+       "units": "NTU"
+      }
+     ]
+    },
+    {
+     "datasource": "Manganese (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Manganese (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Sum of Anions",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Sum of Anions",
+       "units": "meq/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Sum of Cations",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Sum of Cations",
+       "units": "meq/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Oxygen (Logger %)",
+     "from": "2024-02-19T13:36:38",
+     "to": "2026-04-09T10:12:06",
+     "measurements": [
+      {
+       "name": "Dissolved Oxygen (Logger %)",
+       "units": "%"
+      },
+      {
+       "name": "Dissolved Oxygen (Logger %) Altitude Adjusted",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Dissolved Oxygen (Logger mg/L)",
+     "from": "2024-02-19T13:36:38",
+     "to": "2026-04-09T10:12:06",
+     "measurements": [
+      {
+       "name": "Dissolved Oxygen (Logger mg/L)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Ion Difference (%)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Ion Difference (%)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Ion Difference (meq/L)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Ion Difference (meq/L)",
+       "units": "meq/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydroxide Alkalinity (as CaCO3)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Hydroxide Alkalinity (as CaCO3)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Sum of Anions + Cations",
+     "from": "2023-03-21T11:25:00",
+     "to": "2023-03-21T11:25:00",
+     "measurements": [
+      {
+       "name": "Sum of Anions + Cations",
+       "units": "meq/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Aluminium (Dissolved)",
+     "from": "2023-03-21T11:25:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Aluminium (Dissolved)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "MCI",
+     "from": "2016-01-22T11:50:00",
+     "to": "2025-02-27T00:00:00",
+     "measurements": [
+      {
+       "name": "MCI",
+       "units": "MCI"
+      }
+     ]
+    },
+    {
+     "datasource": "EPT % taxa richness",
+     "from": "2016-01-22T11:50:00",
+     "to": "2025-02-27T00:00:00",
+     "measurements": [
+      {
+       "name": "EPT % taxa richness",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Taxa Richness",
+     "from": "2016-01-22T11:50:00",
+     "to": "2025-02-27T00:00:00",
+     "measurements": [
+      {
+       "name": "Taxa Richness",
+       "units": "Species Count"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Temperature (Lab)",
+     "from": "2018-09-19T08:00:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Water Temperature (Lab)",
+       "units": "deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Water Temp Taken (Lab)",
+     "from": "2018-09-19T08:00:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Time Water Temp Taken (Lab)",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Turbidity (Lab - FNU)",
+     "from": "2019-09-10T10:14:00",
+     "to": "2026-07-21T10:23:00",
+     "measurements": [
+      {
+       "name": "Turbidity (Lab - FNU)",
+       "units": "FNU"
+      }
+     ]
+    },
+    {
+     "datasource": "Specific Conductivity (Field)",
+     "from": "2017-03-13T13:25:00",
+     "to": "2017-03-13T13:25:00",
+     "measurements": [
+      {
+       "name": "Specific Conductivity (Field)",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Chlorophyll-a (mg/m2)",
+     "from": "2017-01-26T00:00:00",
+     "to": "2025-12-02T10:51:00",
+     "measurements": [
+      {
+       "name": "Chlorophyll-a (mg/m2)",
+       "units": "mg/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Deposited Fine Sediment (Wolman)",
+     "from": "2019-01-25T00:00:00",
+     "to": "2025-12-02T10:50:00",
+     "measurements": [
+      {
+       "name": "Deposited Fine Sediment (Wolman)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Date Water Temp Taken (Lab)",
+     "from": "2020-10-13T09:00:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Date Water Temp Taken (Lab)",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "ASPM",
+     "from": "2016-01-22T00:00:00",
+     "to": "2025-02-27T00:00:00",
+     "measurements": [
+      {
+       "name": "ASPM",
+       "units": "ASPM"
+      }
+     ]
+    },
+    {
+     "datasource": "QMCI",
+     "from": "2016-01-22T00:00:00",
+     "to": "2025-02-27T00:00:00",
+     "measurements": [
+      {
+       "name": "QMCI",
+       "units": "QMCI"
+      }
+     ]
+    },
+    {
+     "datasource": "Black Disk (m)",
+     "from": "2024-11-07T10:49:00",
+     "to": "2025-02-11T11:19:00",
+     "measurements": [
+      {
+       "name": "Black Disk (m)",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "123Form_SOE_FW",
+     "from": "2022-12-20T09:23:00",
+     "to": "2026-07-21T10:22:00",
+     "measurements": []
+    },
+    {
+     "datasource": "123Form_BIO",
+     "from": "2024-04-12T12:59:00",
+     "to": "2025-12-02T10:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Deposited Fine Sediment (SAM2)",
+     "from": "2020-12-22T14:00:00",
+     "to": "2025-12-02T10:50:00",
+     "measurements": [
+      {
+       "name": "Deposited Fine Sediment (SAM2)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level 4",
+     "from": "2022-01-20T13:05:00",
+     "to": "2025-05-12T12:55:00",
+     "measurements": [
+      {
+       "name": "Water Level 4",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Silica (Dissolved Reactive)",
+     "from": "2025-11-06T11:59:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "Silica (Dissolved Reactive)",
+       "units": "mg/L"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydrometric Facecard",
+     "from": "2002-07-15T10:58:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "WQ Sample",
+     "from": "1973-11-07T09:30:00",
+     "to": "2026-07-21T10:24:00",
+     "measurements": [
+      {
+       "name": "WQ Sample",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level",
+     "from": "1916-01-01T00:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gauging Results",
+     "from": "1950-11-04T00:00:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1946-08-02T09:00:00",
+     "to": "2026-07-28T19:01:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Gaugings",
+     "from": "2002-07-15T10:58:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Sections",
+     "from": "2002-07-15T10:58:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Temperature (Logger)",
+     "from": "2015-03-14T19:10:00",
+     "to": "2026-04-08T14:02:06",
+     "measurements": []
+    },
+    {
+     "datasource": "Level",
+     "from": "2004-11-25T08:00:00",
+     "to": "2012-07-27T16:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "1 Day Minima",
+     "from": "2004-01-20T02:00:00",
+     "to": "2018-12-24T04:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level Backup",
+     "from": "2013-02-11T11:45:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2026-06-05T15:30:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2026-06-10T09:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Bottles sampled",
+     "from": "2001-01-12T17:00:00",
+     "to": "2003-08-19T12:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure (hPa)",
+     "from": "1994-04-28T10:00:00",
+     "to": "1996-07-31T08:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Turbidity (Logger)",
+     "from": "1996-09-04T16:15:00",
+     "to": "2005-01-19T09:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Excalibur Turb (mg/l)",
+     "from": "1999-02-08T13:00:00",
+     "to": "2005-01-19T09:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Flow Velocity",
+     "from": "1916-01-01T00:00:00",
+     "to": "2015-12-04T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level (Foxboro chart)",
+     "from": "1948-01-01T00:00:00",
+     "to": "2005-04-04T14:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level (DO LOGGERDAT)",
+     "from": "1997-02-10T10:59:00",
+     "to": "2006-02-01T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level (Telemetry)",
+     "from": "1985-05-02T10:35:00",
+     "to": "2020-02-11T07:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level (CAMPBELL LOG)",
+     "from": "1997-08-07T11:00:00",
+     "to": "2005-01-19T09:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Count",
+     "from": "2004-11-25T08:00:00",
+     "to": "2017-11-15T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level 3",
+     "from": "2012-03-12T13:00:00",
+     "to": "2026-07-28T18:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Dissolved Oxygen (Logger %)",
+     "from": "2024-02-19T13:36:38",
+     "to": "2026-04-09T10:12:06",
+     "measurements": []
+    },
+    {
+     "datasource": "Dissolved Oxygen (Logger mg/L)",
+     "from": "2024-02-19T13:36:38",
+     "to": "2026-04-09T10:12:06",
+     "measurements": []
+    },
+    {
+     "datasource": "123Form_SOE_FW",
+     "from": "2022-12-20T09:23:00",
+     "to": "2026-07-21T10:22:00",
+     "measurements": []
+    },
+    {
+     "datasource": "123Form_BIO",
+     "from": "2024-04-12T12:59:00",
+     "to": "2025-12-02T10:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level 4",
+     "from": "2022-01-20T13:05:00",
+     "to": "2025-05-12T12:55:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Facecard",
+     "from": "2002-07-15T10:58:00",
+     "to": "2026-06-02T10:28:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level",
+     "from": "1993-04-22T09:44:00",
+     "to": "2026-06-02T10:50:00",
+     "measurements": [
+      {
+       "name": "External S.G.",
+       "units": "m"
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Internal S.G.",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-11-02T12:45:00",
+     "to": "2026-04-09T13:40:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level",
+     "from": "1993-04-22T09:44:00",
+     "to": "2026-06-02T10:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-11-02T12:45:00",
+     "to": "2026-04-09T13:40:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Wharekahika River at Hicks Bay Rd Br": {
+   "lat": "-37.57137121",
+   "lon": "178.28161313",
+   "datasources": [
+    {
+     "datasource": "Water Level",
+     "from": "1993-05-20T09:58:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": [
+      {
+       "name": "Water Level",
+       "units": "m"
+      },
+      {
+       "name": "Flow",
+       "units": "cumecs"
+      },
+      {
+       "name": "Water Level (low to low detided)",
+       "units": "m"
+      },
+      {
+       "name": "Flow (low to low detided)",
+       "units": "cumecs"
+      },
+      {
+       "name": "Sediment Yield",
+       "units": "g/sec"
+      },
+      {
+       "name": "Specific Sediment Yield",
+       "units": "g/sec/ha"
+      },
+      {
+       "name": "Water Level/Staff Gauge Check Deviation",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Gauging Results",
+     "from": "1971-03-28T13:35:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": [
+      {
+       "name": "Stage",
+       "units": "metres"
+      },
+      {
+       "name": "Flow",
+       "units": "m3/sec"
+      },
+      {
+       "name": "Area",
+       "units": "sq m"
+      },
+      {
+       "name": "Velocity",
+       "units": "m/sec"
+      },
+      {
+       "name": "Maximum Depth",
+       "units": "m"
+      },
+      {
+       "name": "Slope",
+       "units": "m/m"
+      },
+      {
+       "name": "Width",
+       "units": "m"
+      },
+      {
+       "name": "Hydraulic Radius",
+       "units": "m"
+      },
+      {
+       "name": "Wetted Perimeter",
+       "units": "m"
+      },
+      {
+       "name": "Sediment Concentration",
+       "units": "mg/l"
+      },
+      {
+       "name": "Water Temperature",
+       "units": "C"
+      },
+      {
+       "name": "Stage Change",
+       "units": "m"
+      },
+      {
+       "name": "Methods and Verticals Code",
+       "units": null
+      },
+      {
+       "name": "Verticals and Samples Code",
+       "units": null
+      },
+      {
+       "name": "Gauging Number",
+       "units": null
+      },
+      {
+       "name": "Flow Difference",
+       "units": "%"
+      },
+      {
+       "name": "Sed Conc when Measured",
+       "units": "mg/l"
+      },
+      {
+       "name": "Stage Difference",
+       "units": "m"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2013-11-20T15:40:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydrometric Gaugings",
+     "from": "2006-10-30T09:45:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Sections",
+     "from": "2006-10-30T09:45:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Maxima",
+     "from": "1993-05-27T14:05:00",
+     "to": "1995-12-23T23:43:00",
+     "measurements": [
+      {
+       "name": "Maxima",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2017-11-20T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level (Foxboro chart)",
+     "from": "1993-05-20T09:58:00",
+     "to": "2004-10-28T07:35:00",
+     "measurements": [
+      {
+       "name": "Water Level (Foxboro chart)",
+       "units": "Metres"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydrometric Facecard",
+     "from": "2006-10-30T09:45:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level",
+     "from": "1993-05-20T09:58:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gauging Results",
+     "from": "1971-03-28T13:35:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2013-11-20T15:40:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Gaugings",
+     "from": "2006-10-30T09:45:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Sections",
+     "from": "2006-10-30T09:45:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maxima",
+     "from": "1993-05-27T14:05:00",
+     "to": "1995-12-23T23:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2017-03-30T14:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2017-11-20T13:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level (Foxboro chart)",
+     "from": "1993-05-20T09:58:00",
+     "to": "2004-10-28T07:35:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Facecard",
+     "from": "2006-10-30T09:45:00",
+     "to": "2026-07-23T08:43:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level",
+     "from": "2014-10-22T12:20:00",
+     "to": "2026-04-29T12:39:00",
+     "measurements": [
+      {
+       "name": "External S.G.",
+       "units": "m"
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Internal S.G.",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-15T16:05:00",
+     "to": "2026-04-29T12:39:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2024-06-11T13:50:00",
+     "to": "2026-03-04T15:05:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2024-06-11T13:50:00",
+     "to": "2026-03-04T15:05:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level",
+     "from": "2014-10-22T12:20:00",
+     "to": "2026-04-29T12:39:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-15T16:05:00",
+     "to": "2026-04-29T12:39:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2024-06-11T13:50:00",
+     "to": "2026-03-04T15:05:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2024-06-11T13:50:00",
+     "to": "2026-03-04T15:05:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Wharekopae School": {
+   "lat": "-38.53987297",
+   "lon": "177.49166497",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1994-01-01T00:00:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T18:51:34",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Historic",
+     "from": "2016-09-09T10:50:00",
+     "to": "2019-08-07T12:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall Historic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "123Form_TEL-Hydro",
+     "from": "2024-06-10T13:29:00",
+     "to": "2024-06-10T13:29:00",
+     "measurements": []
+    },
+    {
+     "datasource": "WQ Sample",
+     "from": "2024-06-10T13:29:00",
+     "to": "2024-06-10T13:29:00",
+     "measurements": [
+      {
+       "name": "WQ Sample",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1994-01-01T00:00:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2015-01-23T07:50:00",
+     "to": "2026-07-28T18:51:34",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Historic",
+     "from": "2016-09-09T10:50:00",
+     "to": "2019-08-07T12:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "123Form_TEL-Hydro",
+     "from": "2024-06-10T13:29:00",
+     "to": "2024-06-10T13:29:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-14T10:24:00",
+     "to": "2026-07-07T10:15:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-07-07T10:15:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-07-07T10:15:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-03-24T11:25:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction Check Data",
+       "units": null
+      },
+      {
+       "name": "Average Wind Direction Check Time",
+       "units": null
+      },
+      {
+       "name": "Average Wind Direction Recorder Value",
+       "units": null
+      },
+      {
+       "name": "Average Wind Direction Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-03-24T11:25:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed Check Data",
+       "units": "km/hr"
+      },
+      {
+       "name": "Average Wind Speed Check Time",
+       "units": null
+      },
+      {
+       "name": "Average Wind Speed Recorder Value",
+       "units": null
+      },
+      {
+       "name": "Average Wind Speed Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Historic",
+     "from": "2017-07-24T10:40:00",
+     "to": "2019-08-07T12:25:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-14T10:24:00",
+     "to": "2026-07-07T10:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-07-07T10:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-07-07T10:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-03-24T11:25:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2023-02-28T11:33:00",
+     "to": "2026-03-24T11:25:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Historic",
+     "from": "2017-07-24T10:40:00",
+     "to": "2019-08-07T12:25:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Wharerata at Radio Track Rd": {
+   "lat": "-38.92153572",
+   "lon": "177.84467448",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature",
+       "units": "\u00b0C"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-11-23T23:10:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2020-12-04T11:00:00",
+     "to": "2026-05-20T10:50:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2024-01-18T09:40:00",
+     "to": "2026-05-20T10:50:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Check Data",
+       "units": "\u00b0C"
+      },
+      {
+       "name": "Air Temperature Check Time",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Recorder",
+       "units": null
+      },
+      {
+       "name": "Air Temperature Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2024-03-25T12:40:00",
+     "to": "2026-05-20T10:50:00",
+     "measurements": [
+      {
+       "name": "RH Check Data",
+       "units": "%"
+      },
+      {
+       "name": "RH Check Time",
+       "units": null
+      },
+      {
+       "name": "RH Recorder Value",
+       "units": null
+      },
+      {
+       "name": "RH Check Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2020-12-04T11:00:00",
+     "to": "2026-05-20T10:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature",
+     "from": "2024-01-18T09:40:00",
+     "to": "2026-05-20T10:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2024-03-25T12:40:00",
+     "to": "2026-05-20T10:50:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Arowhana Repeater": {
+   "lat": "-38.11308512",
+   "lon": "177.86066682",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2013-04-09T13:00:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2013-04-09T13:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2013-04-09T13:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2013-04-09T13:00:00",
+     "to": "2026-07-28T19:02:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2013-04-09T13:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2013-04-09T13:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2019-05-23T14:35:00",
+     "to": "2026-02-27T07:20:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2019-05-23T14:35:00",
+     "to": "2026-02-27T07:20:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Wakaroa Trig": {
+   "lat": "-38.45344855",
+   "lon": "178.04142676",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:01:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Intensity/Check Gauge Deviation",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2003-08-22T06:00:00",
+     "to": "2018-01-19T07:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2003-08-22T07:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:01:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity",
+     "from": "2003-08-22T06:00:00",
+     "to": "2018-01-19T07:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2003-08-22T07:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2004-11-25T09:00:00",
+     "to": "2026-07-28T19:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-27T07:55:00",
+     "to": "2026-04-23T10:15:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Recorder Total",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-10-27T07:55:00",
+     "to": "2026-04-23T10:15:00",
+     "measurements": []
+    }
+   ]
+  }
+ }
+}
