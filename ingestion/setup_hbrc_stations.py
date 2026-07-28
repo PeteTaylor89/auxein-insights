@@ -29,6 +29,7 @@ def setup_hbrc_stations(dry_run: bool = False):
     
     with Session() as session:
         created = 0
+        updated = 0
         skipped = 0
         errors = 0
         
@@ -44,18 +45,10 @@ def setup_hbrc_stations(dry_run: bool = False):
                         skipped += 1
                         continue
                 
-                # Check if station already exists
-                result = session.execute(text("""
-                    SELECT station_id FROM weather_stations 
-                    WHERE station_code = :code AND data_source = 'HBRC'
-                """), {'code': station_code})
-                
-                if result.fetchone():
-                    print(f"  Station {station_code} already exists, skipping...")
-                    skipped += 1
-                    continue
-                
-                # Build notes JSON
+                # Build notes JSON. `measurements` is the field that MUST update on
+                # existing stations so they pick up newly-added variables — runtime
+                # ingestion reads notes->measurements from the DB, not the config file
+                # (editing the config alone changes nothing without this UPSERT).
                 notes_dict = {
                     "name": config['name'],
                     "site_name": config['site_name'],  # Exact API site name
@@ -63,7 +56,7 @@ def setup_hbrc_stations(dry_run: bool = False):
                     "subregion": config.get('subregion', ''),
                 }
                 notes_json = json.dumps(notes_dict)
-                
+
                 # Build params dict
                 params = {
                     'code': station_code,
@@ -75,32 +68,66 @@ def setup_hbrc_stations(dry_run: bool = False):
                     'region': config['region'],
                     'notes': notes_json
                 }
-                
-                if dry_run:
-                    print(f"  Would create station:")
-                    print(f"    Code: {station_code}")
-                    print(f"    Name: {config['name']}")
-                    print(f"    Site (API): {config['site_name']}")
-                    print(f"    Region: {config['region']}")
-                    print(f"    Coords: {config.get('lat')}, {config.get('lon')}")
-                    print(f"    Elevation: {config.get('elevation')}m")
-                    print(f"    Measurements: {config['measurements']}")
-                    created += 1
+
+                # UPSERT by (station_code, data_source). Branch explicitly rather than
+                # ON CONFLICT so we don't depend on a specific unique constraint.
+                existing = session.execute(text("""
+                    SELECT station_id FROM weather_stations
+                    WHERE station_code = :code AND data_source = 'HBRC'
+                """), {'code': station_code}).fetchone()
+
+                if existing:
+                    if dry_run:
+                        print(f"  Would UPDATE {station_code}: "
+                              f"measurements -> {config['measurements']}")
+                        updated += 1
+                    else:
+                        # elevation: COALESCE(:elevation, elevation) preserves an
+                        # elevation set out-of-band (populated manually from a dedicated
+                        # DEM source) — a null config value must never clobber it.
+                        # zone_id is deliberately left untouched (new stations are not
+                        # zoned; the interpolation model supersedes zone aggregation).
+                        session.execute(text("""
+                            UPDATE weather_stations SET
+                                station_name = :name,
+                                source_id    = :site_name,
+                                latitude     = :lat,
+                                longitude    = :lon,
+                                location     = ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
+                                elevation    = COALESCE(:elevation, elevation),
+                                region       = :region,
+                                notes        = CAST(:notes AS jsonb),
+                                is_active    = true
+                            WHERE station_id = :sid
+                        """), {**params, 'sid': existing[0]})
+                        session.commit()
+                        print(f"  ↻ Updated station: {station_code} ({config['name']})")
+                        updated += 1
                 else:
-                    # Insert new station with PostGIS POINT geometry
-                    session.execute(text("""
-                        INSERT INTO weather_stations 
-                            (station_code, station_name, data_source, source_id, 
-                             latitude, longitude, elevation, location, region, notes, is_active)
-                        VALUES 
-                            (:code, :name, 'HBRC', :site_name, :lat, :lon, :elevation,
-                             ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
-                             :region, CAST(:notes AS jsonb), true)
-                    """), params)
-                    
-                    session.commit()
-                    print(f"  ✓ Created station: {station_code} ({config['name']})")
-                    created += 1
+                    if dry_run:
+                        print(f"  Would create station:")
+                        print(f"    Code: {station_code}")
+                        print(f"    Name: {config['name']}")
+                        print(f"    Site (API): {config['site_name']}")
+                        print(f"    Region: {config['region']}")
+                        print(f"    Coords: {config.get('lat')}, {config.get('lon')}")
+                        print(f"    Elevation: {config.get('elevation')}m")
+                        print(f"    Measurements: {config['measurements']}")
+                        created += 1
+                    else:
+                        # Insert new station with PostGIS POINT geometry
+                        session.execute(text("""
+                            INSERT INTO weather_stations
+                                (station_code, station_name, data_source, source_id,
+                                 latitude, longitude, elevation, location, region, notes, is_active)
+                            VALUES
+                                (:code, :name, 'HBRC', :site_name, :lat, :lon, :elevation,
+                                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
+                                 :region, CAST(:notes AS jsonb), true)
+                        """), params)
+                        session.commit()
+                        print(f"  ✓ Created station: {station_code} ({config['name']})")
+                        created += 1
                 
             except Exception as e:
                 print(f"  ✗ Error creating station {station_code}: {e}")
@@ -119,6 +146,7 @@ def setup_hbrc_stations(dry_run: bool = False):
             print("SETUP COMPLETE")
         print("=" * 60)
         print(f"  Created: {created}")
+        print(f"  Updated: {updated}")
         print(f"  Skipped: {skipped}")
         print(f"  Errors:  {errors}")
         print(f"  Total:   {len(HBRC_SITES)}")

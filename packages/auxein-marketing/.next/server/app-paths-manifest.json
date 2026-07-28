@@ -1,14 +1,14 @@
 {
-  "/contact/page": "app/contact/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/robots.txt/route": "app/robots.txt/route.js",
   "/grow/page": "app/grow/page.js",
-  "/_not-found/page": "app/_not-found/page.js",
+  "/contact/page": "app/contact/page.js",
   "/page": "app/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/sitemap.xml/route": "app/sitemap.xml/route.js",
-  "/grow/privacy/page": "app/grow/privacy/page.js",
-  "/privacy/page": "app/privacy/page.js",
   "/terms/page": "app/terms/page.js",
   "/about/page": "app/about/page.js",
+  "/privacy/page": "app/privacy/page.js",
+  "/grow/privacy/page": "app/grow/privacy/page.js",
   "/solutions/page": "app/solutions/page.js"
 }

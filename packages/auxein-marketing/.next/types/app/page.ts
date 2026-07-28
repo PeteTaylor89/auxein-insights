@@ -1,4 +1,4 @@
-// File: C:\Auxein\auxein-insights-v0.1\packages\auxein-marketing\src\app\page.tsx
+// File: A:\auxein-insights-V0.1\packages\auxein-marketing\src\app\page.tsx
 import * as entry from '../../../src/app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

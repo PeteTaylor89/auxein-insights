@@ -32,17 +32,28 @@ class HBRCIngestion:
         self.Session = get_ingestion_session()
         self.nz_tz = ZoneInfo('Pacific/Auckland')
         
-        # Map HBRC measurement names to standard variable names
-        # TODO: Verify these against actual API MeasurementList responses
+        # Map HBRC measurement name -> (canonical_variable, canonical_unit, scale).
+        # `scale` multiplies the raw API value to reach the canonical unit; the
+        # canonical unit is authoritative (we do NOT trust the XML <Units> field —
+        # council metadata carries unit errors). All canonical codes below exist
+        # in measurement_catalog (verified against prod 2026-07-28).
+        # HBRC wind arrives in km/h; canonical wind is m/s -> scale 1/3.6.
         self.measurement_map = {
-            'Average Air Temperature': ('temp', 'C'),
-            'Air Temperature': ('temp', 'C'),           # Some sites may use this
-            'Rainfall': ('rainfall', 'mm'),
-            'Average Humidity': ('rh', 'percent'),
-            'Humidity': ('rh', 'percent'),               # Some sites may use this
-            'Solar Radiation': ('solar_radiation', 'W/m2'),
-            'Soil Temperature 100mm': ('soil_temp', 'C'),
-            'Soil Moisture': ('soil_moisture', 'percent'),
+            'Average Air Temperature': ('temp', 'C', 1.0),
+            'Air Temperature': ('temp', 'C', 1.0),            # Some sites may use this
+            'Rainfall': ('rainfall', 'mm', 1.0),
+            'Average Humidity': ('rh', 'percent', 1.0),
+            'Humidity': ('rh', 'percent', 1.0),               # Some sites may use this
+            'Solar Radiation': ('solar_radiation', 'W/m2', 1.0),
+            'Soil Temperature 100mm': ('soil_temp', 'C', 1.0),
+            # FIX (§3.5): canonical code is soil_moisture_vwc, not soil_moisture
+            # (the latter is uncatalogued and would be silently uningestable).
+            'Soil Moisture': ('soil_moisture_vwc', 'percent', 1.0),
+            # New breadth (§3.3). PET -> existing 'evapotranspiration' code (mm).
+            'PET Hourly': ('evapotranspiration', 'mm', 1.0),
+            'Average Wind Speed': ('wind_speed', 'm/s', 1.0 / 3.6),      # km/h -> m/s
+            'Average Wind Direction': ('wind_direction', 'deg', 1.0),
+            'Maximum Wind Speed': ('wind_gust', 'm/s', 1.0 / 3.6),       # km/h -> m/s
         }
     
     def get_active_stations(self):
@@ -169,25 +180,11 @@ class HBRCIngestion:
             print(f"      Unknown measurement: {measurement}")
             return records
         
-        variable, default_unit = self.measurement_map[measurement]
-        
-        # Try to get unit from XML
-        unit = default_unit
-        units_elem = root.find('.//Units')
-        if units_elem is not None and units_elem.text:
-            xml_unit = units_elem.text
-            # Normalize units
-            if xml_unit == '%':
-                unit = 'percent'
-            elif xml_unit in ('°C', 'deg C'):
-                unit = 'C'
-            elif xml_unit == 'mm':
-                unit = 'mm'
-            elif xml_unit in ('W/m2', 'W/m²', 'MJ/m2'):
-                unit = xml_unit
-            else:
-                unit = xml_unit
-        
+        variable, unit, scale = self.measurement_map[measurement]
+        # `unit` is the canonical unit from the map (authoritative). We deliberately
+        # ignore the XML <Units> field: HBRC wind reports km/h but we store the
+        # scaled m/s value, and council <Units> metadata is unreliable.
+
         # Parse data elements
         for elem in root.iter('E'):
             try:
@@ -204,9 +201,9 @@ class HBRCIngestion:
                 timestamp = datetime.strptime(t_elem.text, '%Y-%m-%dT%H:%M:%S')
                 timestamp = timestamp.replace(tzinfo=self.nz_tz)
                 
-                # Parse value
-                value = float(i1_elem.text)
-                
+                # Parse value and scale to the canonical unit (e.g. km/h -> m/s)
+                value = float(i1_elem.text) * scale
+
                 records.append({
                     'station_id': station_id,
                     'timestamp': timestamp,
@@ -275,6 +272,21 @@ class HBRCIngestion:
             except Exception as e:
                 print(f"      Failed to log ingestion: {e}")
     
+    def _year_chunks(self, start, end):
+        """Yield (chunk_start, chunk_end) split on calendar-year boundaries.
+
+        A single Hilltop GetData over many years returns an unwieldy (and on deep
+        history, failing) response — the doc's Phase-4 note. Chunking by year keeps
+        each request bounded, gives per-year progress, and is resumable (insert is
+        ON CONFLICT DO NOTHING). A short incremental window stays a single chunk.
+        """
+        cur = start
+        while cur < end:
+            year_end = datetime(cur.year + 1, 1, 1, tzinfo=self.nz_tz)
+            chunk_end = min(year_end, end)
+            yield cur, chunk_end
+            cur = chunk_end
+
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
             interval: str = None, station_code: str = None):
@@ -357,7 +369,7 @@ class HBRCIngestion:
                     print(f"    ⚠ Unknown measurement '{measurement}', skipping")
                     continue
                 
-                variable, _ = self.measurement_map[measurement]
+                variable, _, _ = self.measurement_map[measurement]
                 
                 try:
                     # Calculate time window
@@ -378,36 +390,35 @@ class HBRCIngestion:
                         continue
                     
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
-                    
-                    # Fetch from API
-                    xml_response = self.fetch_data(site_name, measurement, 
-                                                    start_time, end_time, interval)
-                    
-                    if not xml_response:
-                        if not dry_run:
-                            self.log_ingestion(station_id, start_time, 0, 0,
-                                              'FAILED', f'No response for {measurement}')
-                        continue
-                    
-                    # Parse response
-                    records = self.parse_response(station_id, xml_response, measurement)
-                    
-                    if not records:
-                        print(f"      No records parsed")
-                        continue
-                    
-                    station_parsed += len(records)
-                    
-                    if dry_run:
-                        print(f"      [DRY RUN] Would insert {len(records)} records")
-                        if records:
-                            print(f"      Sample: {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']}")
-                    else:
-                        # Insert into database
-                        inserted = self.insert_data(records)
-                        station_total += inserted
-                        print(f"      ✓ Inserted {inserted} records")
-                    
+
+                    # Fetch year-by-year so deep backfills stay bounded + resumable
+                    for chunk_start, chunk_end in self._year_chunks(start_time, end_time):
+                        xml_response = self.fetch_data(site_name, measurement,
+                                                        chunk_start, chunk_end, interval)
+
+                        if not xml_response:
+                            if not dry_run:
+                                self.log_ingestion(station_id, chunk_start, 0, 0,
+                                                  'FAILED', f'No response for {measurement} '
+                                                            f'{chunk_start.date()}..{chunk_end.date()}')
+                            continue
+
+                        records = self.parse_response(station_id, xml_response, measurement)
+
+                        if not records:
+                            print(f"      {chunk_start.year}: no records parsed")
+                            continue
+
+                        station_parsed += len(records)
+
+                        if dry_run:
+                            print(f"      [DRY RUN] {chunk_start.year}: would insert {len(records)} records "
+                                  f"(sample {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']})")
+                        else:
+                            inserted = self.insert_data(records)
+                            station_total += inserted
+                            print(f"      ✓ {chunk_start.year}: inserted {inserted} records")
+
                 except Exception as e:
                     print(f"      ✗ Error: {e}")
                     if not dry_run:
@@ -452,14 +463,17 @@ if __name__ == '__main__':
                         help='Fetch and parse but do not insert to database')
     parser.add_argument('--interval', type=str, default='30 minutes',
                         help='Data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes')
+    parser.add_argument('--station', type=str, metavar='STATION_CODE',
+                        help='Limit to a single station_code (useful for targeted backfills/testing)')
     args = parser.parse_args()
-    
+
     ingester = HBRCIngestion()
     ingester.run(
-        period=args.period, 
+        period=args.period,
         backfill_days=args.days,
         start_date=args.start,
         end_date=args.end,
         dry_run=args.dry_run,
-        interval=args.interval
+        interval=args.interval,
+        station_code=args.station
     )

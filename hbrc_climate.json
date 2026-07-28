@@ -1,0 +1,6729 @@
+{
+ "agency": "hbrc",
+ "base": "https://data.hbrc.govt.nz/Envirodata/EMAR.hts",
+ "collection": null,
+ "filter": "Climate",
+ "sites": {
+  "Awatoto Climate": {
+   "lat": "-39.54588740",
+   "lon": "176.91911176",
+   "datasources": [
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2012-02-13T14:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2012-02-13T13:50:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2012-02-13T13:50:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2012-02-13T14:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2012-02-13T14:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2012-05-10T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2012-05-10T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2012-05-10T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Direction",
+       "units": "Deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2012-02-13T13:50:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2014-06-01T00:10:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Bridge Pa Climate": {
+   "lat": "-39.64598405",
+   "lon": "176.76345837",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2008-09-04T16:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2003-07-03T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-05-15T12:59:00",
+     "to": "2026-07-07T11:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-02-21T09:42:00",
+     "to": "2026-07-28T12:59:36",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-02-21T10:00:00",
+     "to": "2016-06-16T10:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-02-21T09:42:00",
+     "to": "2016-06-16T10:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2003-07-03T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2008-09-04T16:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2008-09-05T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2008-09-04T16:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2008-09-05T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Av Air Temp (10m)",
+     "from": "2018-07-27T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Av Air Temp (10m)",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Av Humidity (10m)",
+     "from": "2018-07-27T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Av Humidity (10m)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2023-10-15T23:00:00",
+     "to": "2026-07-07T11:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-07-07T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2008-09-04T16:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2004-11-12T06:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-05-15T12:59:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-02-21T09:42:00",
+     "to": "2026-05-19T12:09:36",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-02-21T10:00:00",
+     "to": "2016-06-16T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-02-21T10:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-02-21T09:42:00",
+     "to": "2016-06-16T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2004-11-12T06:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2008-09-04T16:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2008-09-05T09:00:00",
+     "to": "2026-05-19T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2008-09-04T16:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2008-09-05T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Av Air Temp (10m)",
+     "from": "2018-07-27T19:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Av Humidity (10m)",
+     "from": "2018-07-27T19:00:00",
+     "to": "2026-05-19T13:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Cricklewood Climate": {
+   "lat": "-38.96875116",
+   "lon": "177.13443137",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2015-11-05T06:28:00",
+     "to": "2026-07-28T12:20:36",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-05-02T08:45:00",
+     "to": "2026-06-30T10:10:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-04-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-02-16T22:33:00",
+     "to": "2026-07-28T12:05:09",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-02-16T23:00:00",
+     "to": "2015-08-18T06:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-02-16T22:33:00",
+     "to": "2015-08-19T07:00:03",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-05-16T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-03-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-05-16T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-03-26T09:00:00",
+     "to": "2026-06-30T10:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2015-11-05T06:28:00",
+     "to": "2026-06-30T09:22:48",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-12-19T08:30:00",
+     "to": "2026-06-30T10:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-04-16T13:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-02-16T22:33:00",
+     "to": "2026-06-30T10:03:15",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-02-16T23:00:00",
+     "to": "2015-08-18T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-02-16T23:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-02-16T22:33:00",
+     "to": "2015-08-19T07:00:03",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-03-01T06:00:00",
+     "to": "2026-06-30T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-05-16T09:00:00",
+     "to": "2026-06-30T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-03-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-05-16T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Crownthorpe Climate": {
+   "lat": "-39.55680507",
+   "lon": "176.56226049",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2014-06-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2003-07-21T15:00:00",
+     "to": "2026-07-28T13:45:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2020-06-23T10:05:00",
+     "to": "2026-07-06T10:45:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-28T12:04:36",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1999-01-26T11:00:00",
+     "to": "2017-08-25T06:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1999-01-26T11:00:00",
+     "to": "2017-08-25T06:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2003-07-21T15:00:00",
+     "to": "2026-07-28T13:45:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2014-06-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-09-24T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2014-06-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-09-24T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2023-11-23T11:15:00",
+     "to": "2026-07-06T10:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-06T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2014-06-01T06:00:00",
+     "to": "2026-07-06T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2003-07-21T15:00:00",
+     "to": "2026-07-06T10:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2020-06-23T10:05:00",
+     "to": "2026-07-06T10:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-06T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-06T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-06T10:29:36",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1999-01-26T11:00:00",
+     "to": "2017-08-25T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-06T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1999-01-26T11:00:00",
+     "to": "2026-07-06T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1999-01-26T11:00:00",
+     "to": "2017-08-25T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2003-07-21T15:00:00",
+     "to": "2026-07-06T10:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2014-06-01T06:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-09-24T09:00:00",
+     "to": "2026-05-05T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2014-06-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-09-24T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Gwavas HQ Climate": {
+   "lat": "-39.73085139",
+   "lon": "176.44338419",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1988-02-05T14:15:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Minima",
+     "from": "2003-07-30T09:00:00",
+     "to": "2008-07-02T13:00:00",
+     "measurements": [
+      {
+       "name": "Minima",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-09-19T13:45:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-10-13T14:29:00",
+     "to": "2026-07-28T12:29:39",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-10-13T15:00:00",
+     "to": "2016-09-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-10-13T14:29:00",
+     "to": "2016-09-20T10:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2018-05-02T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2010-10-12T05:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2018-05-02T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-08T09:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1988-02-05T14:15:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-09-19T13:45:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-10-13T14:29:00",
+     "to": "2026-06-19T11:47:06",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-10-13T15:00:00",
+     "to": "2016-09-20T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-10-13T15:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-10-13T14:29:00",
+     "to": "2016-09-20T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2010-10-12T05:00:00",
+     "to": "2026-06-19T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2018-05-02T09:00:00",
+     "to": "2026-06-19T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2010-10-12T05:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2018-05-02T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Kaiwaka Tareha Climate": {
+   "lat": "-39.27191201",
+   "lon": "176.87056742",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-04-04T10:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1994-08-11T16:56:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1994-08-11T17:00:00",
+     "to": "2015-09-10T09:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1994-08-11T16:56:00",
+     "to": "2015-11-20T08:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2012-03-26T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-05-24T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-02-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-05-24T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-30T10:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-06-30T13:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-04-04T10:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1994-08-11T16:56:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1994-08-11T17:00:00",
+     "to": "2015-09-10T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1994-08-11T17:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1994-08-11T16:56:00",
+     "to": "2015-11-20T08:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2012-03-26T15:00:00",
+     "to": "2026-06-30T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-05-24T09:00:00",
+     "to": "2026-06-30T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-02-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-05-24T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Marewa Park Climate": {
+   "lat": "-39.50016200",
+   "lon": "176.89700131",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2006-01-17T00:00:00",
+     "to": "2008-04-30T13:20:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2006-01-17T00:00:00",
+     "to": "2008-04-10T06:10:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2008-05-01T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainomatic",
+     "from": "2006-03-29T14:15:00",
+     "to": "2006-11-30T14:15:00",
+     "measurements": [
+      {
+       "name": "Rainomatic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-01-17T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-01-17T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-01-29T09:40:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-01-29T09:50:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-01-29T09:40:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2006-01-29T09:30:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2006-01-16T14:40:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Direction",
+       "units": "Deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Hail",
+     "from": "2006-11-01T00:00:00",
+     "to": "2008-04-30T13:20:00",
+     "measurements": [
+      {
+       "name": "Hail",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PM2.5 Hourly",
+     "from": "2019-06-29T00:00:00",
+     "to": "2020-06-01T00:00:00",
+     "measurements": [
+      {
+       "name": "PM2.5 Hourly",
+       "units": "ug/m3/hour"
+      },
+      {
+       "name": "PM2.5 24hr Av VM",
+       "units": "ug/m3/daily"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-01-17T00:00:00",
+     "to": "2008-04-30T13:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2006-01-17T00:00:00",
+     "to": "2008-04-10T06:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2008-05-01T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainomatic",
+     "from": "2006-03-29T14:15:00",
+     "to": "2006-11-30T14:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-01-17T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-01-17T00:00:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-01-29T09:40:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-01-29T09:50:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-01-29T09:40:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2006-01-29T09:30:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2006-01-16T14:40:00",
+     "to": "2016-02-24T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hail",
+     "from": "2006-11-01T00:00:00",
+     "to": "2008-04-30T13:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PM2.5 Hourly",
+     "from": "2019-06-29T00:00:00",
+     "to": "2020-06-01T00:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Meeanee Climate": {
+   "lat": "-39.53907942",
+   "lon": "176.86178679",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2006-03-20T16:10:00",
+     "to": "2009-01-26T08:50:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2006-01-17T00:00:00",
+     "to": "2009-01-26T08:50:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2006-01-16T11:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2006-01-16T11:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Direction",
+       "units": "Deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Hail",
+     "from": "2006-11-02T00:00:00",
+     "to": "2009-01-26T08:50:00",
+     "measurements": [
+      {
+       "name": "Hail",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-03-20T16:10:00",
+     "to": "2009-01-26T08:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2006-01-17T00:00:00",
+     "to": "2009-01-26T08:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2006-01-16T11:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2006-01-17T00:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2006-01-16T11:00:00",
+     "to": "2012-02-02T07:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hail",
+     "from": "2006-11-02T00:00:00",
+     "to": "2009-01-26T08:50:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Ngamatea Climate": {
+   "lat": "-39.44646561",
+   "lon": "176.19687486",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1997-04-15T12:00:00",
+     "to": "2013-05-31T06:23:31",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-04-15T11:15:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-04-15T11:15:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1997-04-15T12:00:00",
+     "to": "2013-05-31T06:23:31",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-04-15T11:15:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-04-15T12:00:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-04-15T11:15:00",
+     "to": "2012-10-31T06:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Omakere Climate": {
+   "lat": "-40.02809311",
+   "lon": "176.79871717",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2005-06-24T08:15:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2012-11-21T20:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-04-08T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2006-07-11T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2012-08-16T11:15:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-07-11T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-07-11T11:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-06-21T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-06-21T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-06-21T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2016-03-03T09:15:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2016-05-12T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-05-13T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2016-05-12T10:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-05-13T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-03-31T11:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2005-06-24T08:15:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2012-11-21T20:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-04-08T17:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2006-07-11T11:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2012-08-16T11:15:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-07-11T11:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-07-11T11:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-06-21T06:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-06-21T06:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-06-21T06:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2012-11-20T12:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2016-07-20T09:00:00",
+     "to": "2026-07-01T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-07-20T09:00:00",
+     "to": "2026-07-01T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2016-05-12T10:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-05-13T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Onga Onga Climate": {
+   "lat": "-39.92741160",
+   "lon": "176.47343440",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2007-08-31T16:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2006-07-24T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2012-12-12T10:30:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-10-15T00:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-10-15T14:00:00",
+     "to": "2015-12-03T08:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-10-15T00:00:00",
+     "to": "2015-12-03T08:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2006-07-24T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2007-10-17T07:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2007-10-17T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2007-10-17T07:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2007-10-17T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-08T10:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2007-08-31T16:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2006-07-24T06:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2012-12-12T10:30:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-10-15T00:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-10-15T14:00:00",
+     "to": "2015-12-03T08:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-10-15T14:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-10-15T00:00:00",
+     "to": "2015-12-03T08:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2006-07-24T06:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2007-10-17T07:00:00",
+     "to": "2026-06-12T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2007-10-17T09:00:00",
+     "to": "2026-06-12T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2007-10-17T07:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2007-10-17T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Porangahau Climate": {
+   "lat": "-40.18833036",
+   "lon": "176.59736746",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2010-10-07T08:00:00",
+     "to": "2021-06-04T10:15:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2012-12-19T08:55:00",
+     "to": "2026-07-16T12:45:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2010-10-07T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2010-10-07T08:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2010-12-31T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture 100cm",
+     "from": "2016-11-07T10:15:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture 100cm",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-03-12T11:30:00",
+     "to": "2026-07-16T12:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2010-10-07T08:00:00",
+     "to": "2021-06-04T10:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2012-12-19T08:55:00",
+     "to": "2026-07-16T12:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2010-10-07T08:00:00",
+     "to": "2026-07-16T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2010-10-07T09:00:00",
+     "to": "2026-07-16T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2010-10-07T08:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2010-12-31T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture 100cm",
+     "from": "2016-11-07T10:15:00",
+     "to": "2026-07-16T12:45:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Pukeorapa Climate": {
+   "lat": "-38.94691343",
+   "lon": "177.72029374",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2014-09-21T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T12:25:35",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-01-24T14:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T12:18:10",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2016-04-29T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-04-29T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2016-04-29T08:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-04-29T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-09T09:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2014-09-21T19:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-01-24T14:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T12:49:55",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2014-10-14T10:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2016-04-29T08:00:00",
+     "to": "2026-06-02T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-04-29T09:00:00",
+     "to": "2026-05-31T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2016-04-29T08:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-04-29T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Ruakituri River at Tauwharetoi Climate": {
+   "lat": "-38.80358178",
+   "lon": "177.47984087",
+   "datasources": [
+    {
+     "datasource": "Water Level",
+     "from": "2013-07-03T11:45:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Stage",
+       "units": "mm"
+      },
+      {
+       "name": "Flow",
+       "units": "l/s"
+      },
+      {
+       "name": "Elevation Above Sea Level",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Gauging Results",
+     "from": "2013-09-19T11:58:00",
+     "to": "2026-02-19T14:06:06",
+     "measurements": [
+      {
+       "name": "Stage",
+       "units": "mm"
+      },
+      {
+       "name": "Flow",
+       "units": "l/s"
+      },
+      {
+       "name": "Area",
+       "units": "sq m"
+      },
+      {
+       "name": "Velocity",
+       "units": "m/sec"
+      },
+      {
+       "name": "MaxDepth",
+       "units": "mm"
+      },
+      {
+       "name": "Slope",
+       "units": null
+      },
+      {
+       "name": "Width",
+       "units": "mm"
+      },
+      {
+       "name": "Radius",
+       "units": null
+      },
+      {
+       "name": "Perimeter",
+       "units": null
+      },
+      {
+       "name": "SedimentConc",
+       "units": "mg/l"
+      },
+      {
+       "name": "Temperature",
+       "units": "deg C"
+      },
+      {
+       "name": "Stge Change",
+       "units": null
+      },
+      {
+       "name": "MethodVerts",
+       "units": null
+      },
+      {
+       "name": "VertsSamplePoints",
+       "units": null
+      },
+      {
+       "name": "GaugingNo",
+       "units": null
+      },
+      {
+       "name": "Flow Difference",
+       "units": "%"
+      },
+      {
+       "name": "Stage Difference",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2013-03-01T13:15:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydrometric Gaugings",
+     "from": "2013-09-19T11:58:00",
+     "to": "2019-05-28T08:46:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Sections",
+     "from": "2013-09-19T11:58:00",
+     "to": "2019-05-28T08:46:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Temperature",
+     "from": "2016-11-15T11:15:00",
+     "to": "2016-11-23T12:00:00",
+     "measurements": [
+      {
+       "name": "Water Temperature",
+       "units": "deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "RL Section",
+     "from": "2014-02-14T00:00:00",
+     "to": "2016-02-03T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T12:37:12",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainomatic",
+     "from": "2025-03-07T12:00:00",
+     "to": "2026-03-09T09:00:00",
+     "measurements": [
+      {
+       "name": "Rainomatic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2017-11-29T09:15:00",
+     "to": "2026-07-15T12:25:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T12:02:21",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2013-08-01T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2020-07-14T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-07-15T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2020-07-14T13:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-07-15T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level secondary",
+     "from": "2025-03-07T11:40:00",
+     "to": "2026-07-28T13:05:00",
+     "measurements": [
+      {
+       "name": "Stage secondary",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2023-11-27T10:20:00",
+     "to": "2026-07-15T12:25:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Facecard",
+     "from": "2013-09-19T11:58:00",
+     "to": "2026-02-19T14:06:06",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level",
+     "from": "2013-07-03T11:45:00",
+     "to": "2026-03-19T10:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gauging Results",
+     "from": "2013-09-19T11:58:00",
+     "to": "2026-02-19T14:06:06",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2013-03-01T13:15:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Gaugings",
+     "from": "2013-09-19T11:58:00",
+     "to": "2014-02-17T11:42:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hydrometric Sections",
+     "from": "2013-09-19T11:58:00",
+     "to": "2014-02-17T11:42:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Temperature",
+     "from": "2016-11-15T11:15:00",
+     "to": "2016-11-23T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:04:54",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainomatic",
+     "from": "2025-03-07T12:00:00",
+     "to": "2025-12-18T09:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2017-11-29T09:15:00",
+     "to": "2026-03-19T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T10:32:18",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2013-03-01T14:00:00",
+     "to": "2026-03-19T11:15:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2020-07-14T13:00:00",
+     "to": "2026-03-19T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-07-15T09:00:00",
+     "to": "2026-03-19T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2020-07-14T13:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-07-15T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level secondary",
+     "from": "2025-03-07T11:40:00",
+     "to": "2026-05-13T08:05:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Water Level",
+     "from": "2013-08-01T11:00:00",
+     "to": "2026-07-15T11:40:00",
+     "measurements": [
+      {
+       "name": "External S.G.",
+       "units": null
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Internal S.G.",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Water Level",
+     "from": "2024-03-06T12:25:00",
+     "to": "2025-10-09T07:55:00",
+     "measurements": []
+    }
+   ]
+  },
+  "St Johns Climate": {
+   "lat": "-39.63887215",
+   "lon": "176.85878736",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2006-02-08T00:00:00",
+     "to": "2008-08-05T11:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2006-02-08T00:00:00",
+     "to": "2008-08-05T11:30:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2006-02-04T02:30:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Direction",
+       "units": "Deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Hail",
+     "from": "2006-11-02T00:00:00",
+     "to": "2008-08-05T11:30:00",
+     "measurements": [
+      {
+       "name": "Hail",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-02-08T00:00:00",
+     "to": "2008-08-05T11:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2006-02-08T00:00:00",
+     "to": "2008-08-05T11:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Direction",
+     "from": "2006-02-08T00:00:00",
+     "to": "2016-02-24T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Hail",
+     "from": "2006-02-08T00:00:00",
+     "to": "2008-08-05T11:30:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Taharua Climate": {
+   "lat": "-39.01169826",
+   "lon": "176.28197475",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-01-29T12:30:00",
+     "to": "2026-06-09T13:45:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2009-08-31T18:00:00",
+     "to": "2026-07-28T12:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-09-10T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2009-08-31T18:00:00",
+     "to": "2020-10-14T12:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-15T11:45:00",
+     "to": "2026-06-09T13:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2018-01-29T12:30:00",
+     "to": "2026-06-09T13:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2008-12-16T15:00:00",
+     "to": "2026-06-09T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-09-10T09:00:00",
+     "to": "2026-06-09T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2009-08-31T18:00:00",
+     "to": "2020-10-14T12:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Te Aute Drumpeel Rd Climate": {
+   "lat": "-39.88845788",
+   "lon": "176.66151480",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-05-02T12:00:00",
+     "to": "2026-07-02T14:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T12:59:36",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-10-10T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2010-08-29T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-10-10T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-03-04T08:00:00",
+     "to": "2026-07-02T14:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T16:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-05-02T12:00:00",
+     "to": "2026-07-02T14:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T13:59:36",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2010-08-29T06:00:00",
+     "to": "2026-07-02T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-10-10T09:00:00",
+     "to": "2026-07-02T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2010-08-29T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-10-10T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Te Haroto Climate": {
+   "lat": "-39.15593512",
+   "lon": "176.61165449",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2016-02-25T14:45:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1998-12-16T12:28:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1998-12-16T13:00:00",
+     "to": "2015-09-29T08:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1998-12-16T12:28:00",
+     "to": "2015-11-20T08:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-04-22T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-02-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-04-22T09:00:00",
+     "to": "2020-10-13T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-01T09:30:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2016-02-25T14:45:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1998-12-16T12:28:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1998-12-16T13:00:00",
+     "to": "2015-09-29T08:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1998-12-16T12:28:00",
+     "to": "2015-11-20T08:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "1998-12-16T13:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-10T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-04-22T09:00:00",
+     "to": "2026-06-10T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-02-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-04-22T09:00:00",
+     "to": "2020-10-13T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Te Pohue No.2 Climate": {
+   "lat": "-39.26818401",
+   "lon": "176.68245633",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1994-12-19T16:10:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2017-11-30T13:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1995-09-22T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1995-09-22T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1995-09-22T00:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1995-09-22T17:00:00",
+     "to": "2015-09-17T09:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1995-10-10T12:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1995-09-22T17:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1995-09-22T00:00:00",
+     "to": "2015-11-23T12:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature",
+     "from": "2011-01-20T15:00:00",
+     "to": "2011-06-08T14:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-01-20T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2011-01-22T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-02-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-03-22T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-04-01T09:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1994-12-19T16:10:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2017-11-30T13:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1995-09-22T17:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1995-09-22T17:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1995-09-22T00:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1995-09-22T17:00:00",
+     "to": "2015-09-17T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1995-10-10T12:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1995-09-22T17:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1995-09-22T00:00:00",
+     "to": "2015-11-23T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature",
+     "from": "2011-01-20T15:00:00",
+     "to": "2011-06-08T14:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-01-20T15:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-02-01T06:00:00",
+     "to": "2026-06-10T10:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2011-01-22T09:00:00",
+     "to": "2026-06-10T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-02-01T06:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-03-22T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Tuai Climate": {
+   "lat": "-38.80706396",
+   "lon": "177.13200261",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature",
+     "from": "2014-05-29T11:00:00",
+     "to": "2014-08-28T15:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Hourly",
+     "from": "2014-05-29T11:00:00",
+     "to": "2014-08-28T15:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall Hourly",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2014-01-21T17:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2014-01-21T17:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "2012-02-28T09:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature",
+     "from": "2014-05-29T11:00:00",
+     "to": "2014-08-28T15:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Hourly",
+     "from": "2014-05-29T11:00:00",
+     "to": "2014-08-28T15:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2013-11-14T06:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2014-01-21T17:00:00",
+     "to": "2017-05-11T06:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Waihau Climate": {
+   "lat": "-39.39175346",
+   "lon": "176.56069520",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1984-12-20T13:45:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "1984-12-13T12:18:00",
+     "to": "2026-07-08T13:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1995-09-20T00:26:00",
+     "to": "2026-07-28T12:50:06",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1995-09-20T19:00:00",
+     "to": "2016-05-26T06:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1995-09-20T00:26:00",
+     "to": "2016-05-26T06:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-01-26T15:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-09-25T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-01-26T15:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-09-25T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2023-11-01T09:55:00",
+     "to": "2026-07-08T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1984-12-20T13:50:00",
+     "to": "2026-07-08T15:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "1984-12-13T12:18:00",
+     "to": "2026-07-08T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1995-09-20T00:26:00",
+     "to": "2026-07-08T12:21:33",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1995-09-20T19:00:00",
+     "to": "2016-05-26T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1995-09-20T19:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1995-09-20T00:26:00",
+     "to": "2016-05-26T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2011-01-19T23:00:00",
+     "to": "2026-07-08T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-01-26T15:00:00",
+     "to": "2026-05-14T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2020-09-25T09:00:00",
+     "to": "2026-05-14T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-01-26T15:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2020-09-25T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Waimarama Climate": {
+   "lat": "-39.84963896",
+   "lon": "176.96102416",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2015-01-06T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Minimum Wind Gust",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2017-06-19T11:08:00",
+     "to": "2026-06-15T14:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2014-10-31T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2014-10-31T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-10-07T10:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2015-06-05T09:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2016-04-06T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-04-06T09:00:00",
+     "to": "2026-07-28T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2016-04-06T08:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-04-06T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": [
+      {
+       "name": "PET Daily (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2023-10-11T07:33:00",
+     "to": "2026-06-15T14:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-06-16T06:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2015-01-06T08:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Minimum Wind Speed",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2017-06-19T11:08:00",
+     "to": "2026-05-05T11:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "2014-10-31T10:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "2014-10-31T10:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "2014-09-25T13:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "2014-10-07T10:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2015-01-06T08:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2016-04-06T08:00:00",
+     "to": "2026-05-05T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily",
+     "from": "2016-04-06T09:00:00",
+     "to": "2026-05-05T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2016-04-06T08:00:00",
+     "to": "2020-10-14T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Daily (Incremental)",
+     "from": "2016-04-06T09:00:00",
+     "to": "2020-10-14T09:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "Waipukurau Climate": {
+   "lat": "-39.99580965",
+   "lon": "176.53409244",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Checkgauge Difference",
+       "units": "%"
+      },
+      {
+       "name": "Consecutive Dry Days",
+       "units": "Days"
+      },
+      {
+       "name": "RainDayMonth",
+       "units": "Days >0.1 mm"
+      },
+      {
+       "name": "RainDays <10mm",
+       "units": "Days"
+      },
+      {
+       "name": "RainDays >10mm",
+       "units": "Days"
+      },
+      {
+       "name": "Rainfall Daily Difference",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-01-20T04:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "watts/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-01-20T04:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-05-14T11:00:00",
+     "to": "2026-07-02T11:30:00",
+     "measurements": [
+      {
+       "name": "Rainfall Periodic",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Air Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-04-20T12:25:00",
+     "to": "2026-07-28T12:11:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-04-20T13:00:00",
+     "to": "2024-07-16T11:00:00",
+     "measurements": [
+      {
+       "name": "Time Maximum Wind",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Speed",
+       "units": "km/h"
+      }
+     ]
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Average Wind Direction",
+       "units": "Deg "
+      }
+     ]
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-04-20T12:25:00",
+     "to": "2024-07-16T11:00:00",
+     "measurements": [
+      {
+       "name": "Maximum Wind Direction",
+       "units": "deg"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature",
+     "from": "2016-03-09T07:00:00",
+     "to": "2016-03-12T00:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Grass Temperature",
+     "from": "2001-12-03T08:00:00",
+     "to": "2016-03-12T00:00:00",
+     "measurements": [
+      {
+       "name": "Grass Temperature",
+       "units": "deg c"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2001-12-03T08:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Temperature 100mm",
+       "units": "Deg C"
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-01-20T04:00:00",
+     "to": "2026-07-28T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly",
+       "units": "mm"
+      },
+      {
+       "name": "PET Hourly Total",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-01-20T04:00:00",
+     "to": "2020-10-05T13:00:00",
+     "measurements": [
+      {
+       "name": "PET Hourly (Incremental)",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Hydro Monitoring Form",
+     "from": "2026-03-04T10:15:00",
+     "to": "2026-07-02T11:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2011-01-20T04:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2011-01-20T04:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall Periodic",
+     "from": "2013-05-14T11:00:00",
+     "to": "2026-07-02T11:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Air Temperature",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Humidity",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Speed",
+     "from": "1997-04-20T12:25:00",
+     "to": "2026-07-06T10:21:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Time Maximum Wind",
+     "from": "1997-04-20T13:00:00",
+     "to": "2024-07-16T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Speed",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Average Wind Direction",
+     "from": "1997-04-20T13:00:00",
+     "to": "2026-06-25T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Maximum Wind Direction",
+     "from": "1997-04-20T12:25:00",
+     "to": "2024-07-16T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature",
+     "from": "2016-03-09T07:00:00",
+     "to": "2016-03-12T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Grass Temperature",
+     "from": "2001-12-03T08:00:00",
+     "to": "2016-03-12T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Temperature 100mm",
+     "from": "2001-12-03T08:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly",
+     "from": "2011-01-20T04:00:00",
+     "to": "2026-07-06T11:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "PET Hourly (Incremental)",
+     "from": "2011-01-20T04:00:00",
+     "to": "2020-10-05T13:00:00",
+     "measurements": []
+    }
+   ]
+  }
+ }
+}
