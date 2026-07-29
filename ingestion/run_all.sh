@@ -14,16 +14,19 @@ LOG=/opt/auxein/logs; mkdir -p "$LOG"
 # --- non-secret config ---
 export ENV=staging
 export AWS_REGION=ap-southeast-2
-export RDS_SECRET_NAME='rds!db-49a041ba-9fc8-4df2-8fa6-ae50b09498ca'
 export RDS_DATABASE=auxein_db
 export RDS_ENDPOINT=auxein-db.cnmusikiqmmn.ap-southeast-2.rds.amazonaws.com
 export RDS_PORT=5432
 export VITE_API_URL=https://api.auxein.co.nz/api/v1
 export PYTHONIOENCODING=utf-8
 
-# --- secrets from SSM (instance IAM role decrypts) ---
+# --- secrets from SSM (instance IAM role decrypts). RDS creds via the RDS_USER/
+# RDS_PASSWORD env path (what the GitHub cron used); no RDS_SECRET_NAME so config
+# skips the Secrets Manager attempt. ---
 export SECRET_KEY=$(aws ssm get-parameter --name /auxein/ingest/SECRET_KEY --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
 export HARVEST_API_KEY=$(aws ssm get-parameter --name /auxein/ingest/HARVEST_API_KEY --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
+export RDS_USER=$(aws ssm get-parameter --name /auxein/ingest/RDS_USER --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
+export RDS_PASSWORD=$(aws ssm get-parameter --name /auxein/ingest/RDS_PASSWORD --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
 
 PY=/opt/auxein/.venv/bin/python
 SOURCES="${*:-harvest ecan mdc gw hbrc tdc gdc}"   # optional args = specific source(s)
