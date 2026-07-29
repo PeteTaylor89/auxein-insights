@@ -24,6 +24,10 @@ from db_connection import get_ingestion_session
 from config.tdc_sites import TDC_SITES, TDC_API_BASE
 from sources.http_util import get_with_hard_timeout
 
+# Cap incremental catch-up so a stale/gappy station can't spawn a runaway
+# multi-year sub-daily fetch (see hbrc.py).
+MAX_INCREMENTAL_DAYS = 30
+
 
 class TDCIngestion:
     """Ingestion class for TDC Hilltop weather data"""
@@ -34,12 +38,24 @@ class TDCIngestion:
         self.Session = get_ingestion_session()
         self.nz_tz = ZoneInfo('Pacific/Auckland')
 
-        # Map TDC measurement names to standard variable names
+        # Map TDC measurement name -> (canonical_variable, canonical_unit, scale).
+        # TDC/Nelson use variant names (continuous vs Hourly, 10 min vs hourly);
+        # multiple names map to one canonical var here, but the seed generator
+        # de-dupes per site so a station never carries two names for one var
+        # (which would double-write). Wind is km/hr -> m/s via 1/3.6.
         self.measurement_map = {
-            'Air Temperature (continuous)': ('temp', 'C'),
-            'Relative humidity': ('rh', 'percent'),
-            'Rainfall': ('rainfall', 'mm'),
-            'Solar Radiation': ('solar_radiation', 'W/m2'),
+            'Air Temperature (continuous)': ('temp', 'C', 1.0),
+            'Air Temperature (Hourly)': ('temp', 'C', 1.0),
+            'Relative Humidity (Hourly)': ('rh', 'percent', 1.0),
+            'Relative humidity': ('rh', 'percent', 1.0),
+            'Relative Humidity': ('rh', 'percent', 1.0),
+            'Rainfall': ('rainfall', 'mm', 1.0),
+            'Solar Radiation': ('solar_radiation', 'W/m2', 1.0),
+            'Wind Speed (10 min)': ('wind_speed', 'm/s', 1.0 / 3.6),      # km/hr -> m/s
+            'Wind Speed (hourly)': ('wind_speed', 'm/s', 1.0 / 3.6),
+            'Wind Direction (10 min)': ('wind_direction', 'deg', 1.0),
+            'Wind Direction (hourly)': ('wind_direction', 'deg', 1.0),
+            'Barometric Pressure': ('pressure', 'hPa', 1.0),
         }
 
         # Measurements that require Method=Total for hourly aggregation
@@ -148,20 +164,9 @@ class TDCIngestion:
             print(f"      Unknown measurement: {measurement}")
             return records
 
-        variable, default_unit = self.measurement_map[measurement]
-
-        unit = default_unit
-        units_elem = root.find('.//Units')
-        if units_elem is not None and units_elem.text:
-            xml_unit = units_elem.text
-            if xml_unit == '%':
-                unit = 'percent'
-            elif xml_unit in ('°C', 'deg C', 'degC'):
-                unit = 'C'
-            elif xml_unit == 'mm':
-                unit = 'mm'
-            else:
-                unit = xml_unit
+        variable, unit, scale = self.measurement_map[measurement]
+        # canonical unit from the map is authoritative (ignore XML <Units>); TDC
+        # wind is km/hr and we store the scaled m/s value.
 
         for elem in root.iter('E'):
             try:
@@ -177,7 +182,7 @@ class TDCIngestion:
                 timestamp = datetime.strptime(t_elem.text, '%Y-%m-%dT%H:%M:%S')
                 timestamp = timestamp.replace(tzinfo=self.nz_tz)
 
-                value = float(i1_elem.text)
+                value = float(i1_elem.text) * scale
 
                 records.append({
                     'station_id': station_id,
@@ -246,6 +251,16 @@ class TDCIngestion:
                 session.commit()
             except Exception as e:
                 print(f"      Failed to log ingestion: {e}")
+
+    def _year_chunks(self, start, end):
+        """Yield (chunk_start, chunk_end) split on calendar-year boundaries so deep
+        backfills stay bounded, per-year visible and resumable (see hbrc.py)."""
+        cur = start
+        while cur < end:
+            year_end = datetime(cur.year + 1, 1, 1, tzinfo=self.nz_tz)
+            chunk_end = min(year_end, end)
+            yield cur, chunk_end
+            cur = chunk_end
 
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
@@ -325,7 +340,7 @@ class TDCIngestion:
                     print(f"    ⚠ Unknown measurement '{measurement}', skipping")
                     continue
 
-                variable, _ = self.measurement_map[measurement]
+                variable, _, _ = self.measurement_map[measurement]
 
                 try:
                     if explicit_start:
@@ -343,33 +358,44 @@ class TDCIngestion:
                         print(f"    {measurement}: Already up to date")
                         continue
 
+                    # Cap incremental look-back (see hbrc.py) — no runaway catch-up.
+                    if not explicit_start:
+                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
+                        if start_time < floor:
+                            print(f"    ⚠ {measurement}: last data {start_time.date()} is "
+                                  f">{MAX_INCREMENTAL_DAYS}d old — clamping catch-up to "
+                                  f"{floor.date()} (gap needs a deliberate backfill)")
+                            start_time = floor
+
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
 
-                    xml_response = self.fetch_data(site_name, measurement,
-                                                    start_time, end_time, interval)
+                    # Fetch year-by-year so deep backfills stay bounded + resumable
+                    for chunk_start, chunk_end in self._year_chunks(start_time, end_time):
+                        xml_response = self.fetch_data(site_name, measurement,
+                                                        chunk_start, chunk_end, interval)
 
-                    if not xml_response:
-                        if not dry_run:
-                            self.log_ingestion(station_id, start_time, 0, 0,
-                                              'FAILED', f'No response for {measurement}')
-                        continue
+                        if not xml_response:
+                            if not dry_run:
+                                self.log_ingestion(station_id, chunk_start, 0, 0,
+                                                  'FAILED', f'No response for {measurement} '
+                                                            f'{chunk_start.date()}..{chunk_end.date()}')
+                            continue
 
-                    records = self.parse_response(station_id, xml_response, measurement)
+                        records = self.parse_response(station_id, xml_response, measurement)
 
-                    if not records:
-                        print(f"      No records parsed")
-                        continue
+                        if not records:
+                            print(f"      {chunk_start.year}: no records parsed")
+                            continue
 
-                    station_parsed += len(records)
+                        station_parsed += len(records)
 
-                    if dry_run:
-                        print(f"      [DRY RUN] Would insert {len(records)} records")
-                        if records:
-                            print(f"      Sample: {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']}")
-                    else:
-                        inserted = self.insert_data(records)
-                        station_total += inserted
-                        print(f"      ✓ Inserted {inserted} records")
+                        if dry_run:
+                            print(f"      [DRY RUN] {chunk_start.year}: would insert {len(records)} records "
+                                  f"(sample {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']})")
+                        else:
+                            inserted = self.insert_data(records)
+                            station_total += inserted
+                            print(f"      ✓ {chunk_start.year}: inserted {inserted} records")
 
                 except Exception as e:
                     print(f"      ✗ Error: {e}")
