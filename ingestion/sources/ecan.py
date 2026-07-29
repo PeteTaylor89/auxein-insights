@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 
 from config.ecan_sites import ECAN_SITES, ECAN_API_BASE, ECAN_ENDPOINTS, ECAN_PERIODS
+from sources.http_util import get_with_hard_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class ECANIngestion:
         
         try:
             logger.info(f"Fetching ECAN data: site={site_no}, variable={variable}, period={period}")
-            response = requests.get(url, params=params, timeout=30)
+            response = get_with_hard_timeout(url, total_timeout=60, params=params)
             response.raise_for_status()
             
             data = response.json()

@@ -14,6 +14,7 @@ from sqlalchemy import text
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from config.gw_sites import GW_SITES, GW_API_BASE
+from sources.http_util import get_with_hard_timeout
 
 
 class GWIngestion:
@@ -95,7 +96,7 @@ class GWIngestion:
         
         try:
             print(f"      URL: {url}")
-            response = requests.get(url, timeout=60)
+            response = get_with_hard_timeout(url, total_timeout=90)
             response.raise_for_status()
             return response.text
         except requests.exceptions.RequestException as e:

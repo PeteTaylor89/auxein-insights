@@ -8,6 +8,7 @@ from pathlib import Path
 # Import our DB connection utility
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
+from sources.http_util import get_with_hard_timeout
 
 # Backend service for credential resolution (Phase B1)
 backend_path = Path(__file__).parent.parent.parent / "backend"
@@ -119,20 +120,27 @@ class HarvestIngestion:
             print(f"    Fetching trace {trace_id}: {start_time.date()} to {end_time.date()}")
             
             while url and page_count < max_pages:
-                response = requests.get(url, params=params if page_count == 0 else None, timeout=30)
+                response = get_with_hard_timeout(
+                    url, total_timeout=60,
+                    params=params if page_count == 0 else None)
                 response.raise_for_status()
                 data = response.json()
-                
-                # Accumulate data
-                if 'data' in data and data['data']:
-                    all_data.extend(data['data'])
+
+                page_data = data.get('data') or []
+                if page_data:
+                    all_data.extend(page_data)
                     page_count += 1
-                
-                # Check for next page
-                if '_links' in data and 'next' in data['_links']:
+                else:
+                    # Empty page. Harvest still returns a 'next' link on empty
+                    # results, so following it just burns requests (one trace was
+                    # chasing ~18 empty pages). Stop as soon as a page is empty.
+                    break
+
+                # Follow pagination only while pages keep returning data
+                if data.get('_links', {}).get('next'):
                     url = data['_links']['next']
                     params = None  # Next URL already has params
-                    print(f"      Page {page_count}: {len(data['data'])} records (fetching more...)")
+                    print(f"      Page {page_count}: {len(page_data)} records (fetching more...)")
                 else:
                     break
             

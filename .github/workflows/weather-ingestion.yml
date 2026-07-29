@@ -25,10 +25,17 @@ on:
           - incremental
           - backfill
 
+# Never let ingestion runs pile up: a new run cancels an in-progress one.
+concurrency:
+  group: weather-ingestion
+  cancel-in-progress: true
+
 jobs:
   ingest-weather:
     runs-on: ubuntu-latest
-    
+    # Fail fast instead of running to GitHub's 6-hour default if something wedges.
+    timeout-minutes: 45
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

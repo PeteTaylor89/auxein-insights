@@ -15,6 +15,10 @@ from sqlalchemy import text
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from config.mdc_sites import MDC_SITES, MDC_API_BASE
+from sources.http_util import get_with_hard_timeout
+
+# Incremental runs must not turn into accidental multi-year fetches (see hbrc.py).
+MAX_INCREMENTAL_DAYS = 30
 
 
 class MDCIngestion:
@@ -111,7 +115,7 @@ class MDCIngestion:
         for attempt in range(1, max_retries + 1):
             try:
                 print(f"      URL: {url}")
-                response = requests.get(url, timeout=60)
+                response = get_with_hard_timeout(url, total_timeout=90)
                 response.raise_for_status()
                 return response.text
             except requests.exceptions.RequestException as e:
@@ -352,6 +356,16 @@ class MDCIngestion:
                         print(f"    {measurement}: Already up to date")
                         continue
                     
+                    # Cap incremental look-back so a stale/gappy station can't spawn
+                    # a runaway multi-year sub-daily catch-up (see hbrc.py).
+                    if not explicit_start:
+                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
+                        if start_time < floor:
+                            print(f"    ⚠ {measurement}: last data {start_time.date()} is "
+                                  f">{MAX_INCREMENTAL_DAYS}d old — clamping catch-up to "
+                                  f"{floor.date()} (gap needs a deliberate backfill)")
+                            start_time = floor
+
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
 
                     # Fetch year-by-year so deep backfills stay bounded + resumable

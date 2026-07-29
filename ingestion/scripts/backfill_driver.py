@@ -50,6 +50,9 @@ def main():
     ap.add_argument("--per-station-timeout", type=int, default=1200, help="seconds per station")
     ap.add_argument("--skip-existing-before", default=None,
                     help="YYYY-MM-DD; skip stations that already have data before this date")
+    ap.add_argument("--only", default=None,
+                    help="comma-separated station_code(s) to process exclusively "
+                         "(targeted re-run; ignores --skip-existing-before for these)")
     args = ap.parse_args()
 
     data_source, module = SOURCE_MODULE[args.source]
@@ -59,6 +62,12 @@ def main():
             "SELECT station_id, station_code FROM weather_stations "
             "WHERE data_source=:ds AND is_active=true ORDER BY station_code"
         ), {"ds": data_source}).fetchall()
+
+    only = None
+    if args.only:
+        only = {c.strip() for c in args.only.split(",")}
+        stations = [st for st in stations if st[1] in only]
+        args.skip_existing_before = None  # targeted re-run: always reprocess
 
     print(f"{data_source}: {len(stations)} active stations | start={args.start} "
           f"interval='{args.interval}' timeout={args.per_station_timeout}s "

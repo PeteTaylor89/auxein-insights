@@ -22,6 +22,7 @@ from sqlalchemy import text
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from config.tdc_sites import TDC_SITES, TDC_API_BASE
+from sources.http_util import get_with_hard_timeout
 
 
 class TDCIngestion:
@@ -110,7 +111,7 @@ class TDCIngestion:
         for attempt in range(1, max_retries + 1):
             try:
                 print(f"      URL: {url}")
-                response = requests.get(url, timeout=60)
+                response = get_with_hard_timeout(url, total_timeout=90)
                 response.raise_for_status()
                 return response.text
             except requests.exceptions.RequestException as e:
