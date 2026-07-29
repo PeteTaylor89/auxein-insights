@@ -8,6 +8,8 @@
 #   ./run_all.sh            # all sources (what cron runs)
 #   ./run_all.sh hbrc       # one source (timing / smoke test)
 set -uo pipefail
+# cron runs with a minimal PATH — make sure aws + coreutils are findable.
+export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 cd "$(dirname "$0")"                      # -> ingestion/
 LOG=/opt/auxein/logs; mkdir -p "$LOG"
 
