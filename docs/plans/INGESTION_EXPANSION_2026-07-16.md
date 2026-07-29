@@ -1,6 +1,38 @@
 # Ingestion Expansion — Findings (2026-07-16)
 
-**Status:** Discovery complete. **Build NOT started — paused 2026-07-16, to be picked up later.**
+---
+
+## STATUS UPDATE — 2026-07-28/29 (HBRC + MDC BUILT & backfilled)
+
+The discovery below (2026-07-16) has since been **executed for HBRC and MDC**:
+
+- **HBRC 9 → 93 stations**, **MDC 11 → 52 stations** — seeded from live probes via new
+  generators `ingestion/scripts/seed_hbrc_from_probe.py` / `seed_mdc_from_probe.py`
+  (match existing stations by API site-name to reuse codes; MDC uses an ANCHOR filter
+  to mine weather sites out of the MDCAWS2 hydrology/WQ network). Platform 145 → 270 stations.
+- **Elevation** filled from the **LINZ 8m DEM** (`nzdem8m` via Open Topo Data, keyless)
+  by `ingestion/scripts/fill_elevation_from_dem.py` — matches hand-entered values to the
+  decimetre. LINZ has no point-elevation API; this is the substitute.
+- **Deep-history backfill 2020 → present at DAILY interval** — floored at 2020-01-01
+  (practical; deeper later). Final coverage: **HBRC 85/93** stations with pre-2025 data
+  (474k pre-2025 rows), **MDC 48/52** (374k). Forward incremental stays **30-min**.
+- **Hang + the fix:** the raw single-process backfill (and the incremental cron) WEDGED —
+  a Hilltop request trickles past `requests`' timeout and hangs the whole process to
+  GitHub's 6-hour cap. Fixed by (1) `ingestion/scripts/backfill_driver.py` — per-station
+  subprocess with a hard timeout (`--skip-existing-before`, `--only`, `--source`); and
+  (2) `ingestion/sources/http_util.py` `get_with_hard_timeout()` wired into all sources +
+  an incremental 30-day look-back clamp + workflow `timeout-minutes`/`concurrency` guards +
+  a Harvest empty-page pagination fix. **Re-enable `weather-ingestion.yml` after deploy.**
+- **Leftover items:** 8 HBRC river/lake gauges returned no daily data (investigate);
+  a few gap stations (e.g. MDC Top Valley temp ends 2023) need a deliberate backfill pass;
+  minor transient recent-window FAILED chunks (next cron picks up).
+- **GDC (Gisborne) SCOPED, NOT BUILT (parked):** 12 climate + 65 rainfall live sites,
+  rainfall to **1946** (deepest on platform), wind km/hr, no solar/soil. Probes:
+  `gdc_climate.json`, `gdc_rain.json`. Southland + Northland remain gated on licensing.
+
+---
+
+**Status (original):** Discovery complete. **Build NOT started — paused 2026-07-16, to be picked up later.**
 Nothing in `ingestion/` has been modified. The only code added is a read-only probe tool
 (`ingestion/scripts/probe_hilltop.py`, §10).
 **Method:** Live probing of council APIs on 2026-07-16 + code review of `ingestion/`.

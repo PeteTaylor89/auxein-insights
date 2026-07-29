@@ -1,0 +1,2279 @@
+{
+ "agency": "tdc",
+ "base": "http://envdata.tasman.govt.nz/data.hts",
+ "collection": "WebWeather",
+ "filter": null,
+ "sites": {
+  "HY Motueka at Sportspark": {
+   "lat": "-41.11330380",
+   "lon": "173.00605069",
+   "datasources": [
+    {
+     "datasource": "Voltage",
+     "from": "2022-01-01T00:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Voltage",
+       "units": "Volts"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (continuous)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Relative humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "W/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (10 min)",
+       "units": "Deg N"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (10 min)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed 10 min (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Gust Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Gust Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2022-01-01T00:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2017-08-23T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "AQ Nelson at Blackwood St": {
+   "lat": "-41.29511685",
+   "lon": "173.24237590",
+   "datasources": [
+    {
+     "datasource": "Voltage",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Voltage",
+       "units": "Volts"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (continuous)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": [
+      {
+       "name": "Relative humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (10 min)",
+       "units": "Deg N"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (10 min)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed 10 min (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (Hourly)",
+     "from": "2015-09-02T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (Hourly)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature Hourly Max",
+     "from": "2015-09-03T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Hourly Max",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature Hourly Min",
+     "from": "2015-09-03T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Hourly Min",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity (Hourly)",
+     "from": "2015-09-03T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity (Hourly)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "<ID1624>",
+     "from": "2020-03-06T00:00:00",
+     "to": "2020-05-18T12:00:00",
+     "measurements": [
+      {
+       "name": "<ID1624>",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2013-02-07T21:10:00",
+     "to": "2026-07-29T13:10:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (hourly)",
+     "from": "2013-02-07T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (Hourly)",
+     "from": "2015-09-02T22:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature Hourly Max",
+     "from": "2015-09-03T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature Hourly Min",
+     "from": "2015-09-03T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity (Hourly)",
+     "from": "2015-09-03T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "<ID1624>",
+     "from": "2020-03-06T00:00:00",
+     "to": "2020-05-18T12:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "HY Nelson at Broads": {
+   "lat": "-41.28487442",
+   "lon": "173.27092700",
+   "datasources": [
+    {
+     "datasource": "Voltage",
+     "from": "2017-01-01T00:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Voltage",
+       "units": "Volts"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (continuous)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Relative humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (10 min)",
+       "units": "km/hr"
+      },
+      {
+       "name": "Wind Speed (10 min) m/s",
+       "units": "m/s"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (10 min)",
+       "units": "Deg N"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (10 min)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed 10 min (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Gust Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Gust Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (Hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (Hourly)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature Hourly Max",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Hourly Max",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature Hourly Min",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Hourly Min",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity (Hourly)",
+     "from": "2016-09-06T17:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity (Hourly)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2017-01-01T00:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T13:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (Hourly)",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature Hourly Max",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature Hourly Min",
+     "from": "2016-09-06T16:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity (Hourly)",
+     "from": "2016-09-06T17:00:00",
+     "to": "2026-07-29T12:00:00",
+     "measurements": []
+    }
+   ]
+  },
+  "HY Nelson at Princes Dr": {
+   "lat": "-41.28310651",
+   "lon": "173.25623150",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "4 hr MovAv",
+       "units": null
+      },
+      {
+       "name": "Rainfall 12hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 12hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 1day Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 1day Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 1hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 1hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 2day Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 2day Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 2hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 2hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 6hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 6hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall NZDT",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2022-01-01T00:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Voltage",
+       "units": "Volts"
+      }
+     ]
+    },
+    {
+     "datasource": "Raw Rainfall",
+     "from": "2015-06-18T15:20:00",
+     "to": "2022-08-23T13:45:00",
+     "measurements": [
+      {
+       "name": "Raw Rainfall",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Checkgauge Rainfall",
+     "from": "2015-06-18T15:30:00",
+     "to": "2022-08-23T13:45:00",
+     "measurements": [
+      {
+       "name": "Checkgauge Rainfall",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (continuous)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Relative humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "W/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (10 min)",
+       "units": "Deg N"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (10 min)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2013-05-29T09:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed 10 min (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (Hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (Hourly)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature Hourly Max",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Hourly Max",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature Hourly Min",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature Hourly Min",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative Humidity (Hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Relative Humidity (Hourly)",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation (Hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation (Hourly)",
+       "units": "W/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Form_Rainfall",
+     "from": "2019-04-03T13:00:00",
+     "to": "2023-08-11T11:20:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2022-01-01T00:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Raw Rainfall",
+     "from": "2015-06-18T15:20:00",
+     "to": "2022-08-23T13:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Checkgauge Rainfall",
+     "from": "2015-06-18T15:30:00",
+     "to": "2022-08-23T13:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2013-05-29T09:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (Hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature Hourly Max",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature Hourly Min",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative Humidity (Hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation (Hourly)",
+     "from": "2006-08-04T10:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2015-07-31T13:30:00",
+     "to": "2023-08-11T11:20:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": "mm"
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2016-04-28T13:00:00",
+     "to": "2021-04-16T09:10:00",
+     "measurements": []
+    }
+   ]
+  },
+  "HY Richmond Weather at Race Course": {
+   "lat": "-41.32732620",
+   "lon": "173.18547130",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "2006-03-24T06:10:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Synthetic Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "4 hr MovAv",
+       "units": null
+      },
+      {
+       "name": "Rainfall 12hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 12hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 1day Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 1day Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 1hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 1hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 2day Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 2day Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 2hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 2hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 6hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 6hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall NZDT",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2021-12-31T23:10:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Voltage",
+       "units": "Volts"
+      }
+     ]
+    },
+    {
+     "datasource": "Raw Rainfall",
+     "from": "2010-02-02T13:20:00",
+     "to": "2025-10-24T07:50:00",
+     "measurements": [
+      {
+       "name": "Raw Rainfall",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Checkgauge Rainfall",
+     "from": "2006-03-24T06:10:00",
+     "to": "2025-10-24T07:50:00",
+     "measurements": [
+      {
+       "name": "Checkgauge Rainfall",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2015-06-25T00:00:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (continuous)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2015-06-25T00:00:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Relative humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Solar Radiation",
+       "units": "W/m2"
+      }
+     ]
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2022-01-01T00:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Soil Moisture",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (10 min)",
+       "units": "km/hr"
+      },
+      {
+       "name": "Wind Speed (10 min) m/s",
+       "units": "m/s"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (10 min)",
+       "units": "Deg N"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (10 min)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed 10 min (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature 10m (continuous)",
+     "from": "2016-01-28T00:00:00",
+     "to": "2016-02-28T00:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature 10m (continuous)",
+       "units": "degC"
+      }
+     ]
+    },
+    {
+     "datasource": "Ensemble Rainfall Statistics",
+     "from": "2004-02-01T00:00:00",
+     "to": "2027-08-01T00:00:00",
+     "measurements": [
+      {
+       "name": "Precipitation Month Mean",
+       "units": null
+      },
+      {
+       "name": "Precipitation Month Median",
+       "units": null
+      },
+      {
+       "name": "Precipitation Month Min",
+       "units": null
+      },
+      {
+       "name": "Precipitation Month Max",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Sunshine Hours",
+     "from": "2021-12-31T23:10:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": [
+      {
+       "name": "Sunshine Hours",
+       "units": "hours"
+      }
+     ]
+    },
+    {
+     "datasource": "Form_Rainfall",
+     "from": "2019-07-25T11:00:00",
+     "to": "2026-04-24T09:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-03-24T06:10:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2021-12-31T23:10:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Raw Rainfall",
+     "from": "2010-02-02T13:20:00",
+     "to": "2025-10-24T07:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Checkgauge Rainfall",
+     "from": "2006-03-24T06:10:00",
+     "to": "2025-10-24T07:50:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "2015-06-25T00:00:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "2015-06-25T00:00:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Solar Radiation",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Soil Moisture",
+     "from": "2022-01-01T00:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2006-03-22T16:20:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2006-03-22T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature 10m (continuous)",
+     "from": "2016-01-28T00:00:00",
+     "to": "2016-02-28T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Ensemble Rainfall Statistics",
+     "from": "2004-02-01T00:00:00",
+     "to": "2026-08-01T00:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Sunshine Hours",
+     "from": "2021-12-31T23:10:00",
+     "to": "2026-07-29T13:40:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-03-24T06:10:00",
+     "to": "2026-04-24T09:00:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": "mm"
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-03-24T06:10:00",
+     "to": "2025-07-23T15:20:00",
+     "measurements": []
+    }
+   ]
+  },
+  "HY Richmond Weather at TDC Roof": {
+   "lat": "-41.34182694",
+   "lon": "173.18650448",
+   "datasources": [
+    {
+     "datasource": "Rainfall",
+     "from": "1995-06-23T14:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "Synthetic Rainfall",
+       "units": "mm"
+      },
+      {
+       "name": "4 hr MovAv",
+       "units": null
+      },
+      {
+       "name": "Rainfall 12hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 12hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 1day Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 1day Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 1hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 1hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 2day Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 2day Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 2hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 2hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall 6hr Return Period",
+       "units": "Years"
+      },
+      {
+       "name": "Rainfall 6hr Total",
+       "units": "mm"
+      },
+      {
+       "name": "Rainfall NZDT",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2012-12-21T04:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Voltage",
+       "units": "Volts"
+      }
+     ]
+    },
+    {
+     "datasource": "Raw Rainfall",
+     "from": "2011-01-06T12:00:00",
+     "to": "2026-01-20T13:00:00",
+     "measurements": [
+      {
+       "name": "Raw Rainfall",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Checkgauge Rainfall",
+     "from": "2012-01-12T13:00:00",
+     "to": "2026-01-20T13:05:00",
+     "measurements": [
+      {
+       "name": "Checkgauge Rainfall",
+       "units": "mm"
+      }
+     ]
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "1995-06-23T14:30:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Air Temperature (continuous)",
+       "units": "degC"
+      },
+      {
+       "name": "Air Temperature (virtual)",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "1995-06-23T14:30:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Barometric Pressure",
+       "units": "hPa"
+      }
+     ]
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "1995-06-23T14:30:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Relative humidity",
+       "units": "%"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed",
+     "from": "1995-06-23T14:30:00",
+     "to": "2006-05-16T12:30:00",
+     "measurements": [
+      {
+       "name": "Wind Speed",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction",
+     "from": "1995-06-23T14:30:00",
+     "to": "2006-05-16T12:30:00",
+     "measurements": [
+      {
+       "name": "Wind Direction",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Gust",
+     "from": "1995-06-23T14:30:00",
+     "to": "2006-05-16T12:30:00",
+     "measurements": [
+      {
+       "name": "Wind gust",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (10 min)",
+       "units": "km/hr"
+      },
+      {
+       "name": "Wind Speed (10 min) m/s",
+       "units": "m/s"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (10 min)",
+       "units": "Deg N"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Direction (10 min)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "SD Wind Speed (10 min)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed 10 min (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Speed (hourly)",
+       "units": "km/hr"
+      }
+     ]
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Wind Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": [
+      {
+       "name": "Gust Direction (hourly)",
+       "units": "DegN"
+      }
+     ]
+    },
+    {
+     "datasource": "Form_Rainfall",
+     "from": "2019-01-24T10:00:00",
+     "to": "2026-06-22T11:45:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "1995-06-23T14:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Voltage",
+     "from": "2012-12-21T04:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Raw Rainfall",
+     "from": "2011-01-06T12:00:00",
+     "to": "2026-01-20T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Checkgauge Rainfall",
+     "from": "2012-01-12T13:00:00",
+     "to": "2026-01-20T13:05:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Air Temperature (continuous)",
+     "from": "1995-06-23T14:30:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Barometric Pressure",
+     "from": "1995-06-23T14:30:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Relative humidity (%)",
+     "from": "1995-06-23T14:30:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed",
+     "from": "1995-06-23T14:30:00",
+     "to": "2006-05-16T12:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction",
+     "from": "1995-06-23T14:30:00",
+     "to": "2006-05-16T12:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Gust",
+     "from": "1995-06-23T14:30:00",
+     "to": "2006-05-16T12:30:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Direction (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "SD Wind Speed (10 min)",
+     "from": "2006-03-29T16:10:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed 10 min (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Speed (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Speed (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Wind Direction (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Gust Direction (hourly)",
+     "from": "2006-03-29T17:00:00",
+     "to": "2026-07-29T13:00:00",
+     "measurements": []
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2006-11-24T09:00:00",
+     "to": "2026-06-22T11:45:00",
+     "measurements": [
+      {
+       "name": "Check Gauge Total",
+       "units": "mm"
+      },
+      {
+       "name": "Recorder Time",
+       "units": null
+      },
+      {
+       "name": "Comment",
+       "units": null
+      }
+     ]
+    },
+    {
+     "datasource": "Rainfall",
+     "from": "2012-01-12T13:00:00",
+     "to": "2025-07-21T10:00:00",
+     "measurements": []
+    }
+   ]
+  }
+ }
+}

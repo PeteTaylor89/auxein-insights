@@ -2,13 +2,15 @@ name: Weather Data Ingestion
 
 on:
   schedule:
-    # Run every 6 hours at :05 past the hour (UTC time)
-    - cron: '5 */6 * * *'
-  
+    # Hourly at :05. Every source runs as its own parallel job (matrix below),
+    # so wall-clock is the slowest single source, not the sum, and one hung
+    # council can't take the others down.
+    - cron: '5 * * * *'
+
   workflow_dispatch:
     inputs:
       source:
-        description: 'Data source to ingest'
+        description: 'Source to ingest (all = every source in parallel)'
         required: true
         default: 'all'
         type: choice
@@ -16,6 +18,11 @@ on:
           - all
           - harvest
           - ecan
+          - mdc
+          - gw
+          - hbrc
+          - tdc
+          - gdc
       period:
         description: 'Ingestion period'
         required: true
@@ -25,38 +32,49 @@ on:
           - incremental
           - backfill
 
-# Never let ingestion runs pile up: a new run cancels an in-progress one.
-concurrency:
-  group: weather-ingestion
-  cancel-in-progress: true
-
 jobs:
-  ingest-weather:
+  ingest:
+    strategy:
+      # One source failing/timing out must NOT cancel the others.
+      fail-fast: false
+      matrix:
+        # Any non-dispatch trigger (the hourly schedule) and a manual "all" fan out
+        # to every source; a manual single-source dispatch runs just that one.
+        source: >-
+          ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.source == 'all')
+              && fromJSON('["harvest","ecan","mdc","gw","hbrc","tdc","gdc"]')
+              || fromJSON(format('["{0}"]', github.event.inputs.source)) }}
+
     runs-on: ubuntu-latest
+    # Per-source concurrency: parallel across sources, but a new run of the SAME
+    # source cancels an in-progress one so runs never pile up.
+    concurrency:
+      group: weather-ingest-${{ matrix.source }}
+      cancel-in-progress: true
     # Fail fast instead of running to GitHub's 6-hour default if something wedges.
     timeout-minutes: 45
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-      
+
       - name: Install Python dependencies
         run: |
           pip install boto3==1.34.0 pydantic==2.5.0 pydantic-settings==2.1.0
           cd ingestion
           pip install -r requirements.txt
-      
-      - name: Run weather data ingestion
+
+      - name: Run ${{ matrix.source }} ingestion
         env:
           ENV: staging
           AWS_REGION: ap-southeast-2
@@ -72,5 +90,4 @@ jobs:
           RDS_DATABASE: auxein_db
         run: |
           cd ingestion
-          python run_ingestion.py --source ${{ github.event.inputs.source || 'all' }} --period ${{ github.event.inputs.period || 'incremental' }}
-      
+          python run_ingestion.py --source ${{ matrix.source }} --period ${{ github.event.inputs.period || 'incremental' }}
