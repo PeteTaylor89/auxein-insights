@@ -34,6 +34,7 @@ SOURCE_MODULE = {  # data_source (DB) -> source script
     "gw":   ("GW",   "ingestion/sources/gw.py"),
     "tdc":  ("TDC",  "ingestion/sources/tdc.py"),
     "gdc":  ("GDC",  "ingestion/sources/gdc.py"),
+    "nrc":  ("NRC",  "ingestion/sources/nrc.py"),
 }
 
 

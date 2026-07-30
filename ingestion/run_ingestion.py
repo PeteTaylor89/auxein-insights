@@ -18,6 +18,8 @@ from sources.gw import GWIngestion
 from sources.hbrc import HBRCIngestion
 from sources.tdc import TDCIngestion
 from sources.gdc import GDCIngestion
+from sources.southland import SouthlandIngestion
+from sources.nrc import NRCIngestion
 from sources.noaa import NoaaIngestion
 from sources.synop import SynopIngestion
 
@@ -26,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'noaa', 'synop', 'all'],
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'noaa', 'synop', 'all'],
         default='all',
         help='Data source to ingest (noaa/synop are backfill/bootstrap, excluded from "all")'
     )
@@ -251,6 +253,44 @@ def main():
             print("✓ GDC ingestion complete\n")
         except Exception as e:
             print(f"✗ GDC ingestion failed: {e}\n")
+            success = False
+
+    # Run Southland (Environment Southland) ingestion
+    if args.source in ['southland', 'all']:
+        try:
+            print("▶ Starting Southland ingestion...\n")
+            ingester = SouthlandIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ Southland ingestion complete\n")
+        except Exception as e:
+            print(f"✗ Southland ingestion failed: {e}\n")
+            success = False
+
+    # Run NRC (Northland) ingestion
+    if args.source in ['nrc', 'all']:
+        try:
+            print("▶ Starting NRC ingestion...\n")
+            ingester = NRCIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ NRC ingestion complete\n")
+        except Exception as e:
+            print(f"✗ NRC ingestion failed: {e}\n")
             success = False
 
     # Run NOAA NCEI ingestion (backfill/authoritative — explicit only, not 'all')
