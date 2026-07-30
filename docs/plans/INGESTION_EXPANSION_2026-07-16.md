@@ -435,6 +435,60 @@ Materially different from HBRC's explicit CC-BY 4.0.
 
 ---
 
+## 5A. Otago (ORC) — probe results (added 2026-07-30)
+
+**Prior state:** wired into `probe_hilltop.py` AGENCIES but never actually probed.
+
+**Finding: ORC runs TWO endpoints, and the Hilltop one is FROZEN.**
+
+### 5A.1 Old Hilltop — `https://gisdata.orc.govt.nz/hilltop/{Global,Telemetry}.hts`
+
+Live Hilltop server (Agency=ORC, v2.10), no auth. `Global.hts` = 822 sites (archive),
+`Telemetry.hts` = 215 sites (live network). Collections are hydrology/water-quality
+dominated (WQ/LAWA/Macro/Wells/Flow); **no `Climate` collection.** Collection-tagged
+`SiteList` is unreliable — query by `Measurement=` instead.
+
+Weather streams (by measurement, Telemetry.hts):
+
+| Measurement | Live sites | Archive (Global) |
+|---|---|---|
+| Rainfall | 54 | 85 |
+| Air Temperature | 17 | 4 |
+| Relative Humidity | 3 | — |
+| Wind Speed | 0 | — |
+
+**BLOCKER — the public Hilltop export is frozen at ~2024-11-06.** Every "live" site
+(independent rainfall + air-temp) tops out at 2024-11-06; `GetData&From=2025-06-01`
+returns `Error: No data`. ~20 months stale. Air-temp is worse still — the 17 sites are
+mostly met sensors bolted to aging PM10 air-quality stations (Alexandra ends 2016,
+several others 2017–2020). **Usable only as a rainfall history source up to Nov 2024,
+not a live feed.**
+
+### 5A.2 Live data = AQUARIUS Web Portal — `https://envdata.orc.govt.nz/AQWebPortal`
+
+ORC moved live telemetry to **Aquatic Informatics AQUARIUS** (a *third* API shape after
+Hilltop and ES's bespoke JSON). Current data lives here; ingesting it needs a **new
+AQUARIUS client** (not a Hilltop clone). Feasible — AQUARIUS is common across NZ councils
+(Waikato/BoP/Taranaki/ORC) — but it's net-new integration work, not a `measurement_map`
+extension.
+
+### 5A.3 Assessment
+
+ORC's weather value is **rainfall density** — air temp/wind are thin and the prime
+**Central Otago viticulture sites (Alexandra, Cromwell, Clyde/Roxburgh) are ALREADY in
+production via Harvest** (`HARV_CODC_*`). So ORC adds spatial rainfall coverage, not new
+climate stations. Given the AQUARIUS integration cost, ORC is **lower priority than ES**.
+Licensing not yet verified (check ORC terms of use before any build).
+
+### 5A.4 District councils (Otago + Southland)
+
+Dunedin City, Clutha, Central Otago, Queenstown-Lakes, Waitaki (Otago); Invercargill City,
+Gore, Southland (Southland) — **none run public weather telemetry.** Regional councils
+(ORC, Environment Southland) are the data holders. CODC's climate sites are already
+covered via Harvest. **No district-council streams to add.**
+
+---
+
 ## 6. Northland (NRC) — probe results
 
 **Prior state:** ⚪ unknown in `NZ_COUNCIL_DATA_SOURCES.md`.

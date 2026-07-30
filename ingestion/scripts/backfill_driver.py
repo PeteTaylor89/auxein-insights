@@ -19,11 +19,13 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # ingestion/
 from db_connection import get_ingestion_session
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE_MODULE = {  # data_source (DB) -> source script
@@ -40,6 +42,19 @@ def station_pre_count(session, station_id, before):
         "SELECT count(*) FROM timeseries_observations "
         "WHERE station_id=:id AND timestamp < :b"
     ), {"id": station_id, "b": before}).scalar()
+
+
+def pre_count_retry(Session, station_id, before, retries=4):
+    """station_pre_count with its own session + retry, so a transient RDS
+    connection timeout (a NZ->Sydney network blip) doesn't abort an overnight run."""
+    for attempt in range(retries):
+        try:
+            with Session() as s:
+                return station_pre_count(s, station_id, before)
+        except OperationalError:
+            if attempt == retries - 1:
+                raise
+            time.sleep(5 * (attempt + 1))
 
 
 def main():
@@ -77,12 +92,11 @@ def main():
     done = skipped = timed_out = errored = 0
     for i, (sid, code) in enumerate(stations, 1):
         if args.skip_existing_before:
-            with Session() as s:
-                if station_pre_count(s, sid, args.skip_existing_before) > 0:
-                    skipped += 1
-                    print(f"[{i}/{len(stations)}] {code}: SKIP (already has data before "
-                          f"{args.skip_existing_before})", flush=True)
-                    continue
+            if pre_count_retry(Session, sid, args.skip_existing_before) > 0:
+                skipped += 1
+                print(f"[{i}/{len(stations)}] {code}: SKIP (already has data before "
+                      f"{args.skip_existing_before})", flush=True)
+                continue
         cmd = [sys.executable, str(REPO / module), "--station", code,
                "--start", args.start, "--interval", args.interval]
         try:
@@ -90,8 +104,7 @@ def main():
                                capture_output=True, text=True,
                                timeout=args.per_station_timeout)
             # count new pre-2025 rows for visibility
-            with Session() as s:
-                pre = station_pre_count(s, sid, "2025-01-01")
+            pre = pre_count_retry(Session, sid, "2025-01-01")
             tag = "OK" if r.returncode == 0 else f"RC={r.returncode}"
             if r.returncode != 0:
                 errored += 1

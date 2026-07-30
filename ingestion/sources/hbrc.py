@@ -108,9 +108,11 @@ class HBRCIngestion:
         """
         from urllib.parse import quote
         
-        # Format dates as DD/MM/YYYY for Hilltop
-        from_str = start_time.strftime('%d/%m/%Y')
-        to_str = end_time.strftime('%d/%m/%Y')
+        # Time-bearing ISO bounds, normalised to NZ local. A bare date makes Hilltop
+        # read `To` as that day's 00:00, freezing incremental runs at midnight NZ;
+        # and get_last_timestamp returns UTC-aware, so astimezone keeps From/To consistent.
+        from_str = start_time.astimezone(self.nz_tz).strftime('%Y-%m-%dT%H:%M:%S')
+        to_str = end_time.astimezone(self.nz_tz).strftime('%Y-%m-%dT%H:%M:%S')
         
         # Build URL manually to ensure %20 encoding (not +)
         url = (
