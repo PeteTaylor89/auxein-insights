@@ -663,9 +663,24 @@ low-coverage measurements from the report.
 
 ## 11. Resume here — pick-up checklist
 
-**State as of 2026-07-16:** discovery done, **no build work started**, nothing in `ingestion/`
-modified. New files added: this doc + `ingestion/scripts/probe_hilltop.py`.
-**Both are untracked — they need committing** (git is user-handled).
+> **STATUS 2026-07-31 — §§11.1-11.3 below are largely SUPERSEDED. Read this first.**
+>
+> The build happened. Shipped since 2026-07-16:
+> - **HBRC** expanded to 93 stations (84 active), **MDC** to 52, **GDC** to 65 — all with
+>   deep backfills, elevation, and the new variables. B4.1 was fixed before backfilling
+>   (guards now in `backend/scripts/daily_aggregation.py`).
+> - **Ingestion moved off GitHub Actions** to an hourly AWS EC2 box in Sydney
+>   (`ingestion/run_all.sh` + cron + `deploy.sh`); `weather-ingestion.yml` is the disabled
+>   fallback. See `docs/deployment-workbook.md` §2.
+> - **Southland (ES)** built + seeded (53 stations) and **NRC** built + seeded (41 rainfall
+>   stations, 2026-07-31). Both **licence-cleared 2026-07-30** — §5.4 and §6.2 are resolved,
+>   and §7's ES/NRC question is closed. MDC/GW/GDC/ECAN licensing is **still unverified**.
+> - Both new sources are wired into `run_all.sh` and the GH fallback matrix (2026-07-31).
+> - `probe_hilltop.py` dumps now live in `ingestion/scripts/probes/` (gitignored).
+>
+> **Still open:** the §5A ORC AQUARIUS client (not started, low priority); NRC's multi-depth
+> soil profiles (needs the data-model decision in §6.1 — V1 is rainfall-only); zone
+> assignment (§3.7) is now moot, superseded by the interpolation model.
 
 ### 11.1 Decisions required before writing code
 

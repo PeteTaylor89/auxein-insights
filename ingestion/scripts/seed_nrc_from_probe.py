@@ -19,8 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # ingestion/
 from db_connection import get_ingestion_session
 from sqlalchemy import text
 
-REPO = Path(__file__).resolve().parents[2]
-PROBE_FILE = REPO / "nrc_rain.json"
+PROBES = Path(__file__).resolve().parent / "probes"
+PROBE_FILE = PROBES / "nrc_rain.json"
 LIVE_CUTOFF = "2026-04"
 DATA_SOURCE = "NRC"
 REGION = "Northland"

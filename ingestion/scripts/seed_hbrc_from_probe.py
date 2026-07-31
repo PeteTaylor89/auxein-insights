@@ -29,9 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # ingestion/
 from db_connection import get_ingestion_session
 from sqlalchemy import text
 
-REPO = Path(__file__).resolve().parents[2]
-CLIMATE_JSON = REPO / "hbrc_climate.json"
-RAIN_JSON = REPO / "hbrc_rain.json"
+PROBES = Path(__file__).resolve().parent / "probes"
+CLIMATE_JSON = PROBES / "hbrc_climate.json"
+RAIN_JSON = PROBES / "hbrc_rain.json"
 LIVE_CUTOFF = "2026-04"  # matches probe_hilltop default; sites stale before this are dead
 REGION = "Hawke's Bay"
 

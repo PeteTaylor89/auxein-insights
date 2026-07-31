@@ -35,6 +35,9 @@ USAGE
     # then:
     python probe_hilltop.py --report hbrc_climate.json
 
+A bare --out/--report filename resolves into scripts/probes/ (gitignored — dumps are
+large regenerable artefacts, not source). Pass an absolute path to override.
+
 Read-only. Hits public endpoints only. No credentials required for any agency below.
 """
 import argparse
@@ -48,6 +51,20 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from pathlib import Path
+
+# Probe dumps are large regenerable artefacts, so they live in a gitignored dir
+# rather than the repo root. A bare filename resolves here; absolute paths pass through.
+PROBES = Path(__file__).resolve().parent / "probes"
+
+
+def probe_path(name):
+    p = Path(name)
+    if p.is_absolute() or p.parent != Path("."):
+        return p
+    PROBES.mkdir(exist_ok=True)
+    return PROBES / p.name
+
 
 AGENCIES = {
     # agency -> base .hts endpoint. All keyless.
@@ -200,15 +217,16 @@ def cmd_probe(args):
 
     payload = {"agency": args.agency, "base": base, "collection": args.collection,
                "filter": args.filter, "sites": out}
-    with open(args.out, "w", encoding="utf-8") as fh:
+    dest = probe_path(args.out)
+    with open(dest, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=1)
-    print(f"\nwrote {args.out}  ({len(out)} sites)")
-    cmd_report(argparse.Namespace(report=args.out, live_cutoff=args.live_cutoff,
+    print(f"\nwrote {dest}  ({len(out)} sites)")
+    cmd_report(argparse.Namespace(report=str(dest), live_cutoff=args.live_cutoff,
                                   min_sites=args.min_sites))
 
 
 def cmd_report(args):
-    with open(args.report, encoding="utf-8") as fh:
+    with open(probe_path(args.report), encoding="utf-8") as fh:
         payload = json.load(fh)
     sites = payload["sites"]
     live, dead = {}, {}

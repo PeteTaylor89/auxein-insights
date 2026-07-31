@@ -29,12 +29,12 @@ Regional Insights S3: `auxein-insights-webapp`, CloudFront `E1LDN7KQ7TOFXN`.
 ## 2. Weather Data Ingestion
 
 The platform ingests live weather from regional council + commercial APIs. **As of v2.0
-the 7 council/commercial sources run HOURLY from an AWS EC2 box in Sydney** (not GitHub
+the 9 council/commercial sources run HOURLY from an AWS EC2 box in Sydney** (not GitHub
 Actions). SYNOP and the daily-processing pipeline remain on GitHub Actions.
 
 **Why the move:** GitHub runners are in the US; ~180 ms RTT to NZ council APIs × a fresh
 TCP+TLS handshake per request × hundreds of sequential requests pushed a run past the
-45-min job cap. From Sydney (~30 ms to NZ) + keep-alive connection reuse, all 7 sources
+45-min job cap. From Sydney (~30 ms to NZ) + keep-alive connection reuse, all sources
 run in **~90 seconds**.
 
 ### 2.1 Sources
@@ -48,14 +48,21 @@ run in **~90 seconds**.
 | HBRC | Hilltop `data.hbrc.govt.nz/Envirodata/EMAR.hts` | Hawke's Bay | AWS box |
 | TDC | Hilltop `envdata.tasman.govt.nz/data.hts` (+ Nelson CC) | Tasman/Nelson | AWS box |
 | GDC | Hilltop `hilltop.gdc.govt.nz/data.hts` | Gisborne | AWS box |
+| Southland | bespoke JSON `envdata.es.govt.nz/services/*.ashx` | Southland | AWS box |
+| NRC | Hilltop `hilltop.nrc.govt.nz/data.hts` (rainfall only) | Northland | AWS box |
 | SYNOP / NOAA | Ogimet + NOAA NCEI | national | GitHub Actions (`synop-live.yml`) |
 
-Approx active stations: HBRC 84, GDC 65, SYNOP 54, HARVEST 47, MDC 47, TDC 43, GW 4,
-ECAN 4 (~350 total). Station lists are **DB-driven** (`weather_stations`), so new stations
-are picked up on the next hourly run without a code deploy.
+Approx active stations: HBRC 84, GDC 65, SYNOP 54, SOUTHLAND 53, MDC 47, HARVEST 43,
+TDC 43, NRC 41, GW 4, ECAN 4 (~440 total). Station lists are **DB-driven**
+(`weather_stations`), so new stations are picked up on the next hourly run without a
+code deploy.
+
+**Licensing:** Southland (ES) and NRC both require **written permission for commercial
+reuse** — cleared 2026-07-30. HBRC is CC-BY 4.0; TDC has an access agreement (Richmond
+Racecourse excluded). MDC / GW / GDC / ECAN are still unverified.
 
 - Entry point: `ingestion/run_ingestion.py --source <s> --period incremental`
-- Sources: `ingestion/sources/{harvest,ecan,mdc,gw,hbrc,tdc,gdc}.py`
+- Sources: `ingestion/sources/{harvest,ecan,mdc,gw,hbrc,tdc,gdc,southland,nrc}.py`
 - Shared HTTP helper: `ingestion/sources/http_util.py` (**hard per-request timeout** +
   keep-alive `requests.Session` — a hung council request can no longer wedge a run).
 - Incremental look-back is **clamped to 30 days** (a stale/gappy station can't trigger a
@@ -70,7 +77,7 @@ Full provisioning + setup steps: **`docs/runbooks/aws-ingestion-migration.md`**.
 - Repo at `/opt/auxein` (read-only GitHub **deploy key**), venv `/opt/auxein/.venv`,
   logs `/opt/auxein/logs`.
 - Secrets in **SSM SecureString** `/auxein/ingest/{SECRET_KEY,HARVEST_API_KEY,RDS_USER,RDS_PASSWORD}`.
-- **Wrapper** `ingestion/run_all.sh` runs the 7 sources ≤3 in parallel, each `timeout 40m`.
+- **Wrapper** `ingestion/run_all.sh` runs the 9 sources ≤3 in parallel, each `timeout 40m`.
   Invoke via **`bash run_all.sh`** (never `chmod +x` — avoids git mode-conflicts on pull).
 - **Cron** (`crontab -l`):
   ```
@@ -108,6 +115,10 @@ python ingestion/scripts/probe_hilltop.py --agency <hbrc|mdc|gw|tdc|gdc|nrc|orc>
   --collection "<Collection>" --out <src>_<coll>.json
 python ingestion/scripts/probe_hilltop.py --report <src>_<coll>.json   # live/dead + variables
 ```
+Dumps land in **`ingestion/scripts/probes/`** (gitignored — they are large regenerable
+artefacts, not source) and the seeders read from there. A bare `--out`/`--report`
+filename resolves into that dir; pass an absolute path to override. Southland is not
+Hilltop — `seed_southland_stations.py` probes the ES portal directly and needs no dump.
 The probe filters QA/derived series, splits live vs dead against a cutoff, and emits
 coords. Encodes the Hilltop gotchas (%20 not +, User-Agent, `DataSource/To` liveness,
 `Location=LatLong`, gzip sniffing).
@@ -153,11 +164,35 @@ can't wedge the run. `--skip-existing-before` makes it resumable; `--only CODE` 
 single station. History floor is 2020-01-01 (deeper later). Note some council servers are
 flaky for deep rainfall (e.g. GDC) — the driver logs the failures and moves on.
 
+Sources come in two **backfill styles** (`SOURCE_MODULE` in the driver):
+
+- **`range`** — the Hilltop councils. Arbitrary history via `--start` / `--interval`.
+- **`days`** — Environment Southland. Its API only accepts a look-back window anchored
+  to now and **caps at 365 days**, so `--start` is meaningless; use `--days`:
+  ```bash
+  python ingestion/scripts/backfill_driver.py --source southland --days 365 \
+    --per-station-timeout 900 --skip-existing-before 2026-07-25
+  ```
+
+> **Insert throughput.** Passing a list of dicts to `session.execute(text(...), records)`
+> gets you a psycopg2 **executemany — one round-trip per row**. Against RDS in Sydney that
+> is ~30-60 ms each, so one 365-day hourly series (~8,800 rows) takes 5-9 min and blows the
+> per-station timeout. Use `sources/db_util.py::bulk_upsert_observations`
+> (psycopg2 `execute_values`, pages of 1,000) instead — seconds, not minutes.
+>
+> Converted: `hbrc` `mdc` `gw` `tdc` `gdc` `southland` `nrc` (all smoke-tested 2026-07-31).
+> `noaa` and `synop` were already batched. **Still on the slow path: `harvest.py` and
+> `ecan.py`.** `harvest` is a clean drop-in. `ecan` is NOT — its `ON CONFLICT` updates
+> `unit` and does not touch `created_at`, so it needs a helper variant or a deliberate
+> decision to adopt the standard semantics. Any NEW source should use the helper from day one.
+
 ### 3.6 Wire the hourly run
 
-Each source is already a `--source` choice in `run_ingestion.py` and in the box's
-`run_all.sh` loop, so once seeded it's picked up on the next hourly tick. For a brand-new
-council, add its source name to the `run_all.sh` loop and push (the box auto-deploys).
+Add the source to the `--source` choices in `run_ingestion.py`, to the box's
+`run_all.sh` `SOURCES` list, and to the `weather-ingestion.yml` matrix + dispatch choices
+(the GH workflow is the disabled fallback — keep it in sync or the fallback silently drops
+the source). Push; the box auto-deploys. **Seeding alone is not enough** — a source absent
+from `run_all.sh` never runs, however many stations it has.
 
 ### 3.7 Verify
 

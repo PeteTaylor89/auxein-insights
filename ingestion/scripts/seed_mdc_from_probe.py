@@ -36,8 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # ingestion/
 from db_connection import get_ingestion_session
 from sqlalchemy import text
 
-REPO = Path(__file__).resolve().parents[2]
-PROBE_FILES = [REPO / "mdc_climate.json", REPO / "mdc_aws.json", REPO / "mdc_rain.json"]
+PROBES = Path(__file__).resolve().parent / "probes"
+PROBE_FILES = [PROBES / "mdc_climate.json", PROBES / "mdc_aws.json", PROBES / "mdc_rain.json"]
 LIVE_CUTOFF = "2026-04"
 REGION = "Marlborough"
 DATA_SOURCE = "MDC"

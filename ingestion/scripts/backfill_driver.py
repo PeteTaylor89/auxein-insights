@@ -11,9 +11,17 @@ A station that hangs is killed and skipped; the driver moves on. It is resumable
 `--skip-existing-before DATE` skips stations that already have data before DATE
 (i.e. already deep-backfilled), so re-runs don't refetch completed stations.
 
+Sources come in two backfill styles (see SOURCE_MODULE):
+  "range" — Hilltop councils; arbitrary history via --start/--interval.
+  "days"  — Environment Southland; forward-only API that only accepts a look-back
+            window anchored to now, capped at 365 days. --start is meaningless there.
+
 Usage:
     python ingestion/scripts/backfill_driver.py --source hbrc --start 01/01/2020 \
         --interval "1 day" --per-station-timeout 1200 --skip-existing-before 2021-01-01
+
+    python ingestion/scripts/backfill_driver.py --source southland --days 365 \
+        --per-station-timeout 1200 --skip-existing-before 2026-07-25
 """
 import argparse
 import os
@@ -28,14 +36,21 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 REPO = Path(__file__).resolve().parents[2]
-SOURCE_MODULE = {  # data_source (DB) -> source script
-    "hbrc": ("HBRC", "ingestion/sources/hbrc.py"),
-    "mdc":  ("MDC",  "ingestion/sources/mdc.py"),
-    "gw":   ("GW",   "ingestion/sources/gw.py"),
-    "tdc":  ("TDC",  "ingestion/sources/tdc.py"),
-    "gdc":  ("GDC",  "ingestion/sources/gdc.py"),
-    "nrc":  ("NRC",  "ingestion/sources/nrc.py"),
+SOURCE_MODULE = {  # source -> (data_source in DB, source script, backfill style)
+    "hbrc":      ("HBRC",      "ingestion/sources/hbrc.py",      "range"),
+    "mdc":       ("MDC",       "ingestion/sources/mdc.py",       "range"),
+    "gw":        ("GW",        "ingestion/sources/gw.py",        "range"),
+    "tdc":       ("TDC",       "ingestion/sources/tdc.py",       "range"),
+    "gdc":       ("GDC",       "ingestion/sources/gdc.py",       "range"),
+    "nrc":       ("NRC",       "ingestion/sources/nrc.py",       "range"),
+    "southland": ("SOUTHLAND", "ingestion/sources/southland.py", "days"),
 }
+
+# Per-style progress counter: how far back a row has to be to count as "backfilled".
+# Range sources reach deep history, so pre-2025 rows are the signal. Southland can
+# only ever reach ~12 months, so count everything instead.
+PROGRESS = {"range": ("2025-01-01", "pre-2025 rows"),
+            "days":  ("2100-01-01", "total rows")}
 
 
 def station_pre_count(session, station_id, before):
@@ -61,8 +76,10 @@ def pre_count_retry(Session, station_id, before, retries=4):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True, choices=sorted(SOURCE_MODULE))
-    ap.add_argument("--start", required=True, help="DD/MM/YYYY")
+    ap.add_argument("--start", help="DD/MM/YYYY (range-style sources only)")
     ap.add_argument("--interval", default="1 day")
+    ap.add_argument("--days", type=int, default=365,
+                    help="look-back window for days-style sources (ES caps at 365)")
     ap.add_argument("--per-station-timeout", type=int, default=1200, help="seconds per station")
     ap.add_argument("--skip-existing-before", default=None,
                     help="YYYY-MM-DD; skip stations that already have data before this date")
@@ -71,7 +88,11 @@ def main():
                          "(targeted re-run; ignores --skip-existing-before for these)")
     args = ap.parse_args()
 
-    data_source, module = SOURCE_MODULE[args.source]
+    data_source, module, style = SOURCE_MODULE[args.source]
+    if style == "range" and not args.start:
+        ap.error(f"--start is required for {args.source} (range-style backfill)")
+    progress_before, progress_label = PROGRESS[style]
+
     Session = get_ingestion_session()
     with Session() as s:
         stations = s.execute(text(
@@ -85,8 +106,10 @@ def main():
         stations = [st for st in stations if st[1] in only]
         args.skip_existing_before = None  # targeted re-run: always reprocess
 
-    print(f"{data_source}: {len(stations)} active stations | start={args.start} "
-          f"interval='{args.interval}' timeout={args.per_station_timeout}s "
+    window = (f"start={args.start} interval='{args.interval}'" if style == "range"
+              else f"look-back={args.days}d (forward-only API)")
+    print(f"{data_source}: {len(stations)} active stations | {window} "
+          f"timeout={args.per_station_timeout}s "
           f"skip-before={args.skip_existing_before or '-'}\n", flush=True)
 
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
@@ -98,20 +121,24 @@ def main():
                 print(f"[{i}/{len(stations)}] {code}: SKIP (already has data before "
                       f"{args.skip_existing_before})", flush=True)
                 continue
-        cmd = [sys.executable, str(REPO / module), "--station", code,
-               "--start", args.start, "--interval", args.interval]
+        if style == "days":
+            cmd = [sys.executable, str(REPO / module), "--station", code,
+                   "--period", "backfill", "--days", str(args.days)]
+        else:
+            cmd = [sys.executable, str(REPO / module), "--station", code,
+                   "--start", args.start, "--interval", args.interval]
         try:
             r = subprocess.run(cmd, cwd=str(REPO), env=env,
                                capture_output=True, text=True,
                                timeout=args.per_station_timeout)
-            # count new pre-2025 rows for visibility
-            pre = pre_count_retry(Session, sid, "2025-01-01")
+            # count backfilled rows for visibility
+            pre = pre_count_retry(Session, sid, progress_before)
             tag = "OK" if r.returncode == 0 else f"RC={r.returncode}"
             if r.returncode != 0:
                 errored += 1
             else:
                 done += 1
-            print(f"[{i}/{len(stations)}] {code}: {tag} | pre-2025 rows now {pre}", flush=True)
+            print(f"[{i}/{len(stations)}] {code}: {tag} | {progress_label} now {pre}", flush=True)
         except subprocess.TimeoutExpired:
             timed_out += 1
             print(f"[{i}/{len(stations)}] {code}: *** TIMEOUT after "

@@ -15,6 +15,7 @@ from sqlalchemy import text
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from config.mdc_sites import MDC_SITES, MDC_API_BASE
+from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
 
 # Incremental runs must not turn into accidental multi-year fetches (see hbrc.py).
@@ -197,21 +198,9 @@ class MDCIngestion:
         
         with self.Session() as session:
             try:
-                session.execute(
-                    text("""
-                        INSERT INTO weather_data 
-                            (station_id, timestamp, variable, value, unit, quality)
-                        VALUES (:station_id, :timestamp, :variable, :value, :unit, :quality)
-                        ON CONFLICT (station_id, timestamp, variable)
-                        DO UPDATE SET
-                            value = EXCLUDED.value,
-                            quality = EXCLUDED.quality,
-                            created_at = NOW()
-                    """),
-                    records
-                )
+                n = bulk_upsert_observations(session, records)
                 session.commit()
-                return len(records)
+                return n
             except Exception as e:
                 session.rollback()
                 print(f"      Database error: {e}")
