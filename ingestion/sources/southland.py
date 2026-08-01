@@ -8,10 +8,12 @@ Endpoints:
       (JSON despite the .xml suffix; `field` is the data.ashx query key, null = no data at that site)
   /services/data.ashx?s={site}&m={field}&i={days}
       -> {"name","dataStart","dataEnd","data":[{"measurement","units","data":[[epoch_ms,value],...]}]}
-      (values are [epoch_ms(UTC), value] pairs under data[0].data; data:null = invalid measurement)
+      (values are [epoch_ms, value] pairs under data[0].data; data:null = invalid measurement)
 
 Key differences from the Hilltop councils:
-  - JSON, not XML. Timestamps are UTC epoch-millis (no NZ-local conversion needed).
+  - JSON, not XML. The epoch-millis are NOT UTC: ES encodes NZ wall-clock as if it
+    were UTC, so every point reads 12h into the future unless corrected. See
+    ES_CLOCK_OFFSET below.
   - data.ashx caps at 365 days (i>365 silently returns 7 days; From/To ignored) -> FORWARD FEED
     ONLY. No deep history via the API. Incremental look-back is clamped to 30 days.
   - The measurement query key is the per-site `field` string, which varies across sites
@@ -38,6 +40,14 @@ from sources.http_util import get_with_hard_timeout
 # hard-caps at 365 days, so nothing deeper is reachable regardless.
 MAX_INCREMENTAL_DAYS = 30
 API_MAX_DAYS = 365
+
+# ES `epoch_ms` is NZ wall-clock rendered as though it were UTC, so rendering it as
+# UTC lands 12h in the future. The offset is FIXED NZST year-round, not DST-aware:
+# on spring-forward day (2025-09-28) every ES station still reports a 02:00 point and
+# a full continuous 24 hours, which a real local clock would have skipped. So subtract
+# a flat 12h -- localising to Pacific/Auckland instead would put NZDT-period data out
+# by an hour.
+ES_CLOCK_OFFSET = timedelta(hours=12)
 
 
 def canonical_for_field(field):
@@ -123,7 +133,7 @@ class SouthlandIngestion:
                     return None
 
     def parse_response(self, station_id: int, payload, field: str) -> list:
-        """Parse data.ashx JSON into records. Points are [epoch_ms(UTC), value]."""
+        """Parse data.ashx JSON into records. Points are [epoch_ms(NZST-as-UTC), value]."""
         records = []
         var_unit = canonical_for_field(field)
         if not var_unit or not payload:
@@ -140,7 +150,7 @@ class SouthlandIngestion:
                 epoch_ms, value = pt[0], pt[1]
                 if value is None:
                     continue
-                ts = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
+                ts = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc) - ES_CLOCK_OFFSET
                 records.append({
                     'station_id': station_id,
                     'timestamp': ts,
