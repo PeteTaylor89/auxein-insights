@@ -55,3 +55,9 @@ packages/mobile/auxein-gro-play-be8c6a8059a4.json
 packages/mobile/*.keystore
 packages/mobile/*.p8
 packages/mobile/AuthKey_*.p8
+
+# Interpolation grids — the national 500 m grid is 73 MB, too big for git history.
+# It is a production input, not a test fixture: keep it in S3
+# (s3://auxein-climate-surfaces/grids/) and fetch at run time.
+# VCDN_5km.csv (372 KB) IS committed — the parity suite needs it.
+backend/models/example data/VCDN_500m.csv

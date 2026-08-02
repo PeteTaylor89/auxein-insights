@@ -13,6 +13,8 @@ Usage:
     python scripts/daily_aggregation.py --date 2025-10-15        # Process specific date
     python scripts/daily_aggregation.py --start 2025-10-01 --end 2025-10-31  # Date range
     python scripts/daily_aggregation.py --dry-run                # Show what would be processed
+    python scripts/daily_aggregation.py --start 2025-07-29 --end 2026-07-28 --source SOUTHLAND
+                                                                 # Backfill one source only
 """
 
 import argparse
@@ -39,13 +41,21 @@ logger = logging.getLogger(__name__)
 NZ_TZ = pytz.timezone('Pacific/Auckland')
 
 
-def get_active_stations(db, zone_id: Optional[int] = None) -> List[dict]:
-    """Get active weather stations, optionally filtered by zone_id."""
+def get_active_stations(db, zone_id: Optional[int] = None,
+                        source: Optional[str] = None) -> List[dict]:
+    """Get active weather stations, optionally filtered by zone_id and/or data_source.
+
+    The source filter exists for backfilling a council that was seeded after the
+    rollup was already running: zone_id can't scope those (new stations are seeded
+    with a NULL zone), and without it every run walks all active stations per day.
+    """
     query = db.query(WeatherStation).filter(
         WeatherStation.is_active == True
     )
     if zone_id is not None:
         query = query.filter(WeatherStation.zone_id == zone_id)
+    if source is not None:
+        query = query.filter(WeatherStation.data_source == source.upper())
 
     stations = query.order_by(WeatherStation.station_id).all()
 
@@ -211,9 +221,11 @@ def run_daily_aggregation(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     dry_run: bool = False,
-    zone_id: Optional[int] = None
+    zone_id: Optional[int] = None,
+    source: Optional[str] = None
 ):
-    """Run daily aggregation for specified date(s), optionally filtered to a single zone."""
+    """Run daily aggregation for specified date(s), optionally filtered to a single
+    zone and/or data source."""
     
     # Determine dates to process
     if target_date:
@@ -235,6 +247,8 @@ def run_daily_aggregation(
     logger.info(f"Dates to process: {dates_to_process[0]} to {dates_to_process[-1]} ({len(dates_to_process)} days)")
     if zone_id is not None:
         logger.info(f"Zone filter: {zone_id}")
+    if source is not None:
+        logger.info(f"Source filter: {source.upper()}")
 
     if dry_run:
         logger.info("[DRY RUN MODE]")
@@ -243,8 +257,11 @@ def run_daily_aggregation(
 
     try:
         # Get active stations
-        stations = get_active_stations(db, zone_id=zone_id)
+        stations = get_active_stations(db, zone_id=zone_id, source=source)
         logger.info(f"Found {len(stations)} active weather stations")
+        if not stations:
+            logger.warning("No stations matched the filters — nothing to do.")
+            return
         
         # Process each date
         total_stats = {
@@ -286,6 +303,8 @@ def main():
     parser.add_argument('--end', type=str, help='End date for range (YYYY-MM-DD)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be processed without inserting')
     parser.add_argument('--zone-id', type=int, help='Process only stations in this zone')
+    parser.add_argument('--source', type=str,
+                        help='Process only stations from this data_source (e.g. SOUTHLAND, NRC)')
 
     args = parser.parse_args()
 
@@ -294,7 +313,8 @@ def main():
         start_date=args.start,
         end_date=args.end,
         dry_run=args.dry_run,
-        zone_id=args.zone_id
+        zone_id=args.zone_id,
+        source=args.source
     )
 
 
