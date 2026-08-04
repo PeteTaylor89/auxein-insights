@@ -1,6 +1,15 @@
 """
-GW (Greater Wellington Regional Council) weather data ingestion
-API: Hilltop Server at https://hilltop.gw.govt.nz/Data.hts
+WCRC (West Coast Regional Council) weather data ingestion
+API: Hilltop Server at https://hilltop.wcrc.govt.nz/data.hts
+
+West Coast is a rainfall network first and foremost: 58 live rain gauges with
+history to 1981, against only 2 air-temperature and 2 wind sites. That is the
+point of the source — the region is the wettest in the country and had no
+coverage on the platform at all, so it matters most to the precipitation
+surface.
+
+WCRC's Hilltop answers on ANY .hts path (every one reports the same
+DefaultFile), so the endpoint filename is not load-bearing.
 """
 
 import requests
@@ -13,68 +22,51 @@ from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
-from config.gw_sites import GW_SITES, GW_API_BASE
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
 
+WCRC_API_BASE = 'https://hilltop.wcrc.govt.nz/data.hts'
 
-class GWIngestion:
-    """Ingestion class for GW Hilltop weather data"""
-    
+# An incremental run whose last timestamp is ancient must not silently become a
+# multi-year sub-daily catch-up — that is the runaway that hung the hourly cron.
+# Oversized gaps get logged and left for a deliberate backfill.
+MAX_INCREMENTAL_DAYS = 30
+
+
+class WCRCIngestion:
+    """Ingestion class for WCRC Hilltop weather data"""
+
     def __init__(self):
-        self.data_source = 'GW'
-        self.base_url = GW_API_BASE
+        self.data_source = 'WCRC'
+        self.base_url = WCRC_API_BASE
         self.Session = get_ingestion_session()
         self.nz_tz = ZoneInfo('Pacific/Auckland')
-        
-        # Map GW measurement names to standard variable names.
+
+        # Map WCRC measurement name -> (canonical_variable, canonical_unit, scale).
         #
-        # GW publishes the same physical quantity under many names — sensor
-        # heights ("Air Temperature (1.2m)" / "(3m)" / "(10m)"), a national
-        # standardised series ("... (Lawa)"), "(Validated Data)" duplicates, and
-        # a large family of derived roll-ups ("- Daily Average", "1hr Average",
-        # "(24hr Mov Avg)", "(km/hr)"). Only raw observation series appear here:
-        # the roll-ups are recomputed in the aggregation layer, so ingesting
-        # them would double-count.
+        # WCRC names its rain series "Rainfall (raw)", not "Rainfall" — mapping
+        # only the bare name would silently ingest nothing from 58 of the 59
+        # live weather sites.
         #
-        # Several raw names still map to the same canonical variable. That is
-        # safe only because seed_gw_from_probe.py picks exactly ONE series per
-        # variable per site (see MEASUREMENT_PREFERENCE there) and writes it to
-        # notes.measurements — otherwise two heights would race to write the
-        # same (station, timestamp, variable) key.
+        # "BAM Air Temperature" is the air-quality analyser's internal cabinet
+        # temperature (Beta Attenuation Monitor), NOT an ambient screen reading,
+        # so it is deliberately excluded rather than mapped to `temp`.
         #
-        # Units are already canonical in GW's feed: Deg C, m/s, hPa, W/m2, %.
+        # Units in WCRC's feed are already canonical (mm, Deg C, m/s, W/m2,
+        # hPa) — no scaling needed, unlike HBRC/GDC/TDC which publish km/h.
         self.measurement_map = {
-            # Air temperature — preference order set at seed time.
-            'Air Temperature (Lawa)': ('temp', 'C'),
-            'Air Temperature': ('temp', 'C'),
-            'Air Temperature (1.2m)': ('temp', 'C'),
-            'Air Temperature (2m)': ('temp', 'C'),
-            'Air Temperature (3m)': ('temp', 'C'),
-            'Air Temperature (10m)': ('temp', 'C'),
-
-            'Relative Humidity': ('rh', 'percent'),
-            'Rainfall': ('rainfall', 'mm'),
-            'Solar Radiation': ('solar_radiation', 'W/m2'),
-            'Barometric Pressure': ('pressure', 'hPa'),
-
-            'Wind Speed (Lawa)': ('wind_speed', 'm/s'),
-            'Wind Speed': ('wind_speed', 'm/s'),
-            'Wind Speed (10m)': ('wind_speed', 'm/s'),
-            'Wind Direction (Lawa)': ('wind_direction', 'deg'),
-            'Wind Direction': ('wind_direction', 'deg'),
-            'Wind Direction (10m)': ('wind_direction', 'deg'),
-            'Max Wind Gust (10m)': ('wind_gust', 'm/s'),
-
-            # Canonical code is soil_moisture_vwc, not soil_moisture — the
-            # latter is uncatalogued and would silently fail to ingest.
-            'Soil Temperature 10cm': ('soil_temp', 'C'),
-            'Soil Temperature': ('soil_temp', 'C'),
-            'Soil Moisture Content': ('soil_moisture_vwc', 'percent'),
+            'Rainfall (raw)': ('rainfall', 'mm', 1.0),
+            'Rainfall': ('rainfall', 'mm', 1.0),
+            'Air Temperature': ('temp', 'C', 1.0),
+            'Relative Humidity': ('rh', 'percent', 1.0),
+            'Wind Speed': ('wind_speed', 'm/s', 1.0),
+            'Wind Direction': ('wind_direction', 'deg', 1.0),
+            'Solar Radiation': ('solar_radiation', 'W/m2', 1.0),
+            'Barometric Pressure': ('pressure', 'hPa', 1.0),
         }
-    
+
     def get_active_stations(self):
-        """Get all active GW stations from database"""
+        """Get all active WCRC stations from database"""
         with self.Session() as session:
             result = session.execute(text("""
                 SELECT station_id, station_code, source_id, notes
@@ -83,7 +75,7 @@ class GWIngestion:
                 ORDER BY station_code
             """), {'source': self.data_source})
             return result.fetchall()
-    
+
     def get_last_timestamp(self, station_id: int, variable: str) -> datetime:
         """Get last observation time for this station/variable"""
         with self.Session() as session:
@@ -92,37 +84,27 @@ class GWIngestion:
                 FROM weather_data
                 WHERE station_id = :station_id AND variable = :variable
             """), {'station_id': station_id, 'variable': variable})
-            
+
             last_time = result.scalar()
             if last_time:
                 if last_time.tzinfo is None:
                     last_time = last_time.replace(tzinfo=self.nz_tz)
                 return last_time
-            else:
-                # First run: start from 2 days ago
-                return datetime.now(self.nz_tz) - timedelta(days=2)
-    
-    def fetch_data(self, site_name: str, measurement: str, 
+            return datetime.now(self.nz_tz) - timedelta(days=2)
+
+    def fetch_data(self, site_name: str, measurement: str,
                    start_time: datetime, end_time: datetime,
                    interval: str = None) -> str:
-        """Fetch data from GW Hilltop API
-        
-        Args:
-            site_name: Exact site name for API
-            measurement: Measurement name (e.g., 'Air Temperature')
-            start_time: Start of time range
-            end_time: End of time range
-            interval: Optional aggregation interval (e.g., '30 minutes', '1 hour')
-        """
+        """Fetch data from WCRC Hilltop API"""
         from urllib.parse import quote
-        
-        # Time-bearing ISO bounds, normalised to NZ local. A bare date makes Hilltop
-        # read `To` as that day's 00:00, freezing incremental runs at midnight NZ;
-        # and get_last_timestamp returns UTC-aware, so astimezone keeps From/To consistent.
+
+        # Time-bearing ISO bounds, normalised to NZ local. A bare date makes
+        # Hilltop read `To` as that day's 00:00, which froze every council's
+        # incremental run at midnight NZ.
         from_str = start_time.astimezone(self.nz_tz).strftime('%Y-%m-%dT%H:%M:%S')
         to_str = end_time.astimezone(self.nz_tz).strftime('%Y-%m-%dT%H:%M:%S')
-        
-        # Build URL manually to ensure %20 encoding (not +)
+
+        # Built by hand so spaces encode as %20 — Hilltop does not decode `+`.
         url = (
             f"{self.base_url}"
             f"?Service=Hilltop"
@@ -132,10 +114,10 @@ class GWIngestion:
             f"&From={quote(from_str)}"
             f"&To={quote(to_str)}"
         )
-        
+
         if interval:
             url += f"&Interval={quote(interval)}"
-        
+
         try:
             print(f"      URL: {url}")
             response = get_with_hard_timeout(url, total_timeout=90)
@@ -144,67 +126,49 @@ class GWIngestion:
         except requests.exceptions.RequestException as e:
             print(f"      API error: {e}")
             return None
-    
-    def parse_response(self, station_id: int, xml_text: str, 
+
+    def parse_response(self, station_id: int, xml_text: str,
                        measurement: str) -> list:
         """Parse Hilltop XML response into records"""
         records = []
-        
+
         if not xml_text:
             return records
-        
-        # Check for error response
+
         if '<e>' in xml_text:
             import re
             match = re.search(r'<e>([^<]+)</e>', xml_text)
             error_msg = match.group(1) if match else xml_text[:300]
             print(f"      API error: {error_msg}")
             return records
-        
+
         try:
             root = ET.fromstring(xml_text)
         except ET.ParseError as e:
             print(f"      XML parse error: {e}")
             return records
-        
-        # Get variable mapping
+
         if measurement not in self.measurement_map:
             print(f"      Unknown measurement: {measurement}")
             return records
-        
-        variable, default_unit = self.measurement_map[measurement]
-        
-        # Try to get unit from XML
-        unit = default_unit
-        units_elem = root.find('.//Units')
-        if units_elem is not None and units_elem.text:
-            xml_unit = units_elem.text
-            # Normalize units
-            if xml_unit == '%':
-                unit = 'percent'
-            elif xml_unit in ('°C', 'deg C'):
-                unit = 'C'
-            elif xml_unit == 'mm':
-                unit = 'mm'
-            else:
-                unit = xml_unit
-        
-        # Parse data elements
+
+        # The canonical unit from the map is authoritative; the XML <Units>
+        # element is not trusted (councils publish inconsistent labels there).
+        variable, unit, scale = self.measurement_map[measurement]
+
         for elem in root.iter('E'):
             try:
                 t_elem = elem.find('T')
                 i1_elem = elem.find('I1')
-                
+
                 if t_elem is None or i1_elem is None:
                     continue
-                
-                # Parse timestamp (format: 2026-01-24T00:00:00)
+
                 timestamp = datetime.strptime(t_elem.text, '%Y-%m-%dT%H:%M:%S')
                 timestamp = timestamp.replace(tzinfo=self.nz_tz)
-                
-                # Parse value
-                value = float(i1_elem.text)
-                
+
+                value = float(i1_elem.text) * scale
+
                 records.append({
                     'station_id': station_id,
                     'timestamp': timestamp,
@@ -213,16 +177,16 @@ class GWIngestion:
                     'unit': unit,
                     'quality': 'GOOD'
                 })
-            except (ValueError, AttributeError) as e:
+            except (ValueError, AttributeError):
                 continue
-        
+
         return records
-    
+
     def insert_data(self, records: list) -> int:
         """Insert weather data records into database"""
         if not records:
             return 0
-        
+
         with self.Session() as session:
             try:
                 n = bulk_upsert_observations(session, records)
@@ -232,7 +196,7 @@ class GWIngestion:
                 session.rollback()
                 print(f"      Database error: {e}")
                 return 0
-    
+
     def log_ingestion(self, station_id: int, start_time: datetime,
                       records_processed: int, records_inserted: int,
                       status: str, error_msg: str = None):
@@ -260,24 +224,27 @@ class GWIngestion:
                 session.commit()
             except Exception as e:
                 print(f"      Failed to log ingestion: {e}")
-    
+
+    def _year_chunks(self, start, end):
+        """Yield (chunk_start, chunk_end) split on calendar-year boundaries.
+
+        A single Hilltop GetData over many years returns an unwieldy (and on
+        deep history, failing) response. Chunking keeps each request bounded,
+        gives per-year progress, and is resumable — the insert is an upsert.
+        """
+        cur = start
+        while cur < end:
+            year_end = datetime(cur.year + 1, 1, 1, tzinfo=self.nz_tz)
+            chunk_end = min(year_end, end)
+            yield cur, chunk_end
+            cur = chunk_end
+
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
             interval: str = None, station_code: str = None):
-        """
-        Main ingestion process
-        
-        Args:
-            period: 'incremental' (from last timestamp) or 'backfill' (historical)
-            backfill_days: Number of days to backfill (only used if period='backfill')
-            start_date: Explicit start date (DD/MM/YYYY) - overrides period logic
-            end_date: Explicit end date (DD/MM/YYYY) - defaults to today
-            dry_run: If True, fetch and parse but don't insert to database
-            interval: Data aggregation interval (e.g., '30 minutes', '1 hour')
-            station_code: Optional station code to filter to a single station
-        """
+        """Main ingestion process"""
         print(f"\n{'='*60}")
-        print(f"Starting GW ingestion at {datetime.now()}")
+        print(f"Starting WCRC ingestion at {datetime.now()}")
         print(f"Period: {period}")
         if start_date:
             print(f"Date range: {start_date} to {end_date or 'today'}")
@@ -288,8 +255,7 @@ class GWIngestion:
         if dry_run:
             print(f"*** DRY RUN - No data will be inserted ***")
         print(f"{'='*60}\n")
-        
-        # Parse explicit dates if provided
+
         explicit_start = None
         explicit_end = None
         if start_date:
@@ -298,123 +264,122 @@ class GWIngestion:
             explicit_end = datetime.strptime(end_date, '%d/%m/%Y').replace(tzinfo=self.nz_tz)
         else:
             explicit_end = datetime.now(self.nz_tz)
-        
+
         stations = self.get_active_stations()
-        
-        # Filter to single station if specified
+
         if station_code:
             stations = [s for s in stations if s[1] == station_code]
             if not stations:
-                print(f"⚠ Station '{station_code}' not found in active GW stations")
-                print(f"  Available stations:")
-                all_stations = self.get_active_stations()
-                for s in all_stations:
-                    print(f"    - {s[1]}")
+                print(f"⚠ Station '{station_code}' not found in active WCRC stations")
                 return
-        
-        print(f"Found {len(stations)} active GW station(s)\n")
-        
+
+        print(f"Found {len(stations)} active WCRC station(s)\n")
+
         total_inserted = 0
         total_parsed = 0
-        
+
         for station in stations:
             station_id = station[0]
-            station_code = station[1]
+            code = station[1]
             site_name = station[2]  # source_id = site name for API
             notes = station[3] or {}
-            
-            print(f"Processing: {station_code}")
+
+            print(f"Processing: {code}")
             print(f"  Site: {site_name}")
-            
-            # Get measurements from notes
+
             measurements = notes.get('measurements', [])
             if not measurements:
                 print(f"  ⚠ No measurements configured, skipping")
                 continue
-            
+
             print(f"  Measurements: {measurements}")
-            
+
             station_total = 0
             station_parsed = 0
-            
+
             for measurement in measurements:
-                # Skip unknown measurements
                 if measurement not in self.measurement_map:
                     print(f"    ⚠ Unknown measurement '{measurement}', skipping")
                     continue
-                
-                variable, _ = self.measurement_map[measurement]
-                
+
+                variable, _, _ = self.measurement_map[measurement]
+
                 try:
-                    # Calculate time window
                     if explicit_start:
                         start_time = explicit_start
                         end_time = explicit_end
                     else:
                         end_time = datetime.now(self.nz_tz)
-                        
+
                         if period == 'backfill' and backfill_days:
                             start_time = end_time - timedelta(days=backfill_days)
                         else:
                             start_time = self.get_last_timestamp(station_id, variable)
-                    
-                    # Skip if already up to date (within 1 hour) - only for incremental
+
                     if not explicit_start and start_time >= end_time - timedelta(hours=1):
                         print(f"    {measurement}: Already up to date")
                         continue
-                    
+
+                    # A stale last-timestamp must not spawn a years-long
+                    # sub-daily catch-up on the hourly cron.
+                    if not explicit_start:
+                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
+                        if start_time < floor:
+                            print(f"    ⚠ {measurement}: last data {start_time.date()} is "
+                                  f">{MAX_INCREMENTAL_DAYS}d old — clamping catch-up to "
+                                  f"{floor.date()} (gap needs a deliberate backfill)")
+                            start_time = floor
+
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
-                    
-                    # Fetch from API
-                    xml_response = self.fetch_data(site_name, measurement, 
-                                                    start_time, end_time, interval)
-                    
-                    if not xml_response:
-                        if not dry_run:
-                            self.log_ingestion(station_id, start_time, 0, 0,
-                                              'FAILED', f'No response for {measurement}')
-                        continue
-                    
-                    # Parse response
-                    records = self.parse_response(station_id, xml_response, measurement)
-                    
-                    if not records:
-                        print(f"      No records parsed")
-                        continue
-                    
-                    station_parsed += len(records)
-                    
-                    if dry_run:
-                        print(f"      [DRY RUN] Would insert {len(records)} records")
-                        if records:
-                            print(f"      Sample: {records[0]['timestamp']} = {records[0]['value']} {records[0]['unit']}")
-                    else:
-                        # Insert into database
-                        inserted = self.insert_data(records)
-                        station_total += inserted
-                        print(f"      ✓ Inserted {inserted} records")
-                    
+
+                    for chunk_start, chunk_end in self._year_chunks(start_time, end_time):
+                        xml_response = self.fetch_data(site_name, measurement,
+                                                       chunk_start, chunk_end, interval)
+
+                        if not xml_response:
+                            if not dry_run:
+                                self.log_ingestion(station_id, chunk_start, 0, 0,
+                                                   'FAILED', f'No response for {measurement} '
+                                                             f'{chunk_start.date()}..{chunk_end.date()}')
+                            continue
+
+                        records = self.parse_response(station_id, xml_response, measurement)
+
+                        if not records:
+                            print(f"      {chunk_start.year}: no records parsed")
+                            continue
+
+                        station_parsed += len(records)
+
+                        if dry_run:
+                            print(f"      [DRY RUN] {chunk_start.year}: would insert {len(records)} records")
+                            print(f"      Sample: {records[0]['timestamp']} = "
+                                  f"{records[0]['value']} {records[0]['unit']}")
+                        else:
+                            inserted = self.insert_data(records)
+                            station_total += inserted
+                            print(f"      ✓ {chunk_start.year}: inserted {inserted} records")
+
                 except Exception as e:
                     print(f"      ✗ Error: {e}")
                     if not dry_run:
                         self.log_ingestion(station_id, datetime.now(self.nz_tz), 0, 0,
-                                          'FAILED', str(e))
-            
-            # Log overall station result
+                                           'FAILED', str(e))
+
             if not dry_run and station_total > 0:
                 self.log_ingestion(station_id, datetime.now(self.nz_tz),
-                                  station_total, station_total, 'SUCCESS')
+                                   station_total, station_total, 'SUCCESS')
                 total_inserted += station_total
-            
+
             total_parsed += station_parsed
-            
+
             if dry_run:
                 print(f"  Total parsed: {station_parsed} records\n")
             else:
                 print(f"  Total inserted: {station_total} records\n")
-        
+
         print(f"{'='*60}")
-        print(f"GW ingestion complete at {datetime.now()}")
+        print(f"WCRC ingestion complete at {datetime.now()}")
         if dry_run:
             print(f"Total records parsed: {total_parsed} (DRY RUN - nothing inserted)")
         else:
@@ -424,8 +389,8 @@ class GWIngestion:
 
 if __name__ == '__main__':
     import argparse
-    
-    parser = argparse.ArgumentParser(description='Run GW weather data ingestion')
+
+    parser = argparse.ArgumentParser(description='Run WCRC weather data ingestion')
     parser.add_argument('--period', choices=['incremental', 'backfill'],
                         default='incremental', help='Ingestion period')
     parser.add_argument('--days', type=int, default=90,
@@ -437,16 +402,12 @@ if __name__ == '__main__':
     parser.add_argument('--dry-run', action='store_true',
                         help='Fetch and parse but do not insert to database')
     parser.add_argument('--interval', type=str, default='30 minutes',
-                        help='Data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes')
-    # run() has always supported a single-station filter, but it was never
-    # exposed here — and scripts/backfill_driver.py invokes this module with
-    # `--station <code>` for every station, so GW backfills through the driver
-    # died on an unrecognised-argument error before fetching anything.
+                        help='Data aggregation interval. Default: 30 minutes')
     parser.add_argument('--station', type=str,
-                        help='Limit to a single station_code (e.g. GW_TAUERU_AT_REWANUI)')
+                        help='Limit to a single station_code')
     args = parser.parse_args()
 
-    ingester = GWIngestion()
+    ingester = WCRCIngestion()
     ingester.run(
         period=args.period,
         backfill_days=args.days,

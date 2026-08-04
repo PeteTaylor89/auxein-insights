@@ -75,6 +75,14 @@ AGENCIES = {
     "tdc": "http://envdata.tasman.govt.nz/data.hts",
     "gdc": "http://hilltop.gdc.govt.nz/data.hts",
     "orc": "https://gisdata.orc.govt.nz/hilltop/Global.hts",
+    # WCRC answers on any .hts path (every one reports the same DefaultFile
+    # websitedata*.hts), so the filename here is not load-bearing.
+    "wcrc": "https://hilltop.wcrc.govt.nz/data.hts",
+    # Horizons runs two Hilltop servers: the environmental one below, and
+    # flood.horizons.govt.nz (flood-warning telemetry, older build). Probe both
+    # before deciding which carries the climate network.
+    "horizons": "https://hilltopserver.horizons.govt.nz/data.hts",
+    "horizons-flood": "https://flood.horizons.govt.nz/data.hts",
 }
 
 # GOTCHA 2: HBRC 403s without this.

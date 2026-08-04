@@ -2,6 +2,7 @@
 ECAN (Environment Canterbury) weather data ingestion
 """
 
+import json
 import requests
 from datetime import datetime, timezone, timedelta
 import pytz
@@ -18,8 +19,14 @@ from db_connection import get_ingestion_session
 
 from config.ecan_sites import ECAN_SITES, ECAN_API_BASE, ECAN_ENDPOINTS, ECAN_PERIODS
 from sources.http_util import get_with_hard_timeout
+from sources.db_util import bulk_upsert_observations
 
 logger = logging.getLogger(__name__)
+
+# ECan's own deepest published series starts in the 1970s; anything earlier is a
+# sentinel, not a reading. See transform_records().
+EARLIEST_PLAUSIBLE_YEAR = 1950
+
 
 class ECANIngestion:
     def __init__(self):
@@ -117,7 +124,19 @@ class ECANIngestion:
         for record in raw_records:
             try:
                 timestamp = self.parse_timestamp(record['DateTime'])
-                
+
+                # The feed occasionally emits an epoch-zero sentinel
+                # (1899-12-30, the OLE/Excel zero date) instead of a real
+                # reading time. One reached the DB from Ashley Gorge on the
+                # first full backfill and poisoned MIN(timestamp) for the whole
+                # source. Anything before the first electronic ECan record is
+                # not a real observation.
+                if timestamp.year < EARLIEST_PLAUSIBLE_YEAR:
+                    logger.warning(
+                        f"Skipping sentinel timestamp {record['DateTime']} "
+                        f"for station {station_id}")
+                    continue
+
                 # ECAN returns one variable per endpoint
                 # Find which field has the value (exclude site_no and DateTime)
                 value_keys = [k for k in record.keys() if k not in ['site_no', 'DateTime']]
@@ -156,31 +175,35 @@ class ECANIngestion:
         return units.get(variable, 'unknown')
     
     def insert_data(self, records: List[Dict]):
-        """Insert weather data records into database (same as Harvest)"""
+        """Batch-upsert observations.
+
+        Was an executemany (one round-trip per row); a 15-year daily series is
+        ~5,500 rows, which at ~30-60 ms each blew the backfill driver's timeout.
+        See sources/db_util.py.
+        """
         if not records:
             return 0
-        
+
         with self.Session() as session:
             try:
-                session.execute(
-                    text("""
-                        INSERT INTO weather_data 
-                            (station_id, timestamp, variable, value, unit, quality)
-                        VALUES (:station_id, :timestamp, :variable, :value, :unit, :quality)
-                        ON CONFLICT (station_id, timestamp, variable) 
-                        DO UPDATE SET
-                            value = EXCLUDED.value,
-                            unit = EXCLUDED.unit,
-                            quality = EXCLUDED.quality
-                    """),
-                    records
-                )
+                n = bulk_upsert_observations(session, records)
                 session.commit()
-                return len(records)
+                return n
             except Exception as e:
                 session.rollback()
                 logger.error(f"Database error: {e}")
                 return 0
+
+    def get_earliest_observation(self, station_id: int) -> Optional[datetime]:
+        """First observation already stored for this station, if any.
+
+        Guards the daily/hourly seam — see `run()`.
+        """
+        with self.Session() as session:
+            result = session.execute(text("""
+                SELECT MIN(timestamp) FROM weather_data WHERE station_id = :sid
+            """), {'sid': station_id})
+            return result.scalar()
     
     def log_ingestion(self, station_id: str, start_time: datetime, 
                       records_processed: int, records_inserted: int,
@@ -208,73 +231,108 @@ class ECANIngestion:
             except Exception as e:
                 logger.error(f"Failed to log ingestion: {e}")
     
+    def _variables_for(self, notes) -> List[str]:
+        """Variables to fetch, taken from the station row rather than a config dict.
+
+        The old path looked the station up in `ECAN_SITES` and skipped it if
+        absent, which capped ingestion at the four hand-picked sites even after
+        the full ~100-site catalogue was seeded. `notes` is written by
+        seed_ecan_from_probe.py.
+        """
+        if isinstance(notes, str):
+            try:
+                notes = json.loads(notes)
+            except (ValueError, TypeError):
+                notes = None
+        if isinstance(notes, dict):
+            for key in ('variables', 'measurements'):
+                vals = notes.get(key)
+                if vals:
+                    return [v for v in vals if v in ECAN_ENDPOINTS]
+        return ['rainfall']
+
     def run(self, period: str = 'incremental'):
         """
         Run ECAN ingestion for all active sites
-        
+
         Args:
             period: 'incremental' (2_Days) or 'backfill' (All)
+
+        **The daily/hourly seam.** ECan changes granularity with the window:
+        `2_Days`/`1_Week`/`2_Weeks`/`1_Month` return hourly readings, while
+        `3_Months`/`6_Months`/`1_Year`/`All` return one midnight-stamped DAILY
+        TOTAL per day. Both land in the same `rainfall` variable, so writing a
+        daily total for a day that already has hourly readings would make the
+        daily aggregation count that rain twice. On backfill we therefore keep
+        only rows strictly older than the station's earliest existing
+        observation, letting the hourly era own everything from that point on.
         """
         api_period = ECAN_PERIODS.get(period, '2_Days')
-        
+        is_backfill = period == 'backfill'
+
         print(f"\n{'='*60}")
         print(f"Starting ECAN ingestion at {datetime.now()}")
-        print(f"Period: {api_period}")
+        print(f"Period: {api_period}" + ("  (daily totals)" if is_backfill else "  (hourly)"))
         print(f"{'='*60}\n")
-        
+
         active_sites = self.get_active_sites()
-        
+
         if not active_sites:
             print("No active ECAN sites found in database")
             return
-        
+
         print(f"Found {len(active_sites)} active ECAN sites\n")
-        
+
         for site in active_sites:
             station_id = site[0]
             station_code = site[1]
             source_id = site[2]  # ECAN site_no
             notes = site[3]
-            
+
             print(f"Processing: {station_code}")
-            
-            # Get site config to know which variables to fetch
-            site_config = None
-            for code, config in ECAN_SITES.items():
-                if config['site_no'] == source_id:
-                    site_config = config
-                    break
-            
-            if not site_config:
-                print(f"  ✗ Site config not found\n")
+
+            variables = self._variables_for(notes)
+            if not variables:
+                print(f"  - no known variables for this site\n")
                 continue
-            
+
+            cutoff = self.get_earliest_observation(station_id) if is_backfill else None
+            if cutoff:
+                print(f"  (backfill capped at < {cutoff.isoformat()})")
+
             start_time = datetime.now(timezone.utc)
             total_processed = 0
             total_inserted = 0
-            
+
             # Fetch data for each variable
-            for variable in site_config['variables']:
+            for variable in variables:
                 try:
                     raw_records = self.fetch_site_data(source_id, variable, api_period)
-                    
+
                     if not raw_records:
                         print(f"  - {variable}: No data returned")
                         continue
-                    
+
                     transformed_records = self.transform_records(raw_records, station_id)
-                    
+
+                    if cutoff:
+                        kept = [r for r in transformed_records if r['timestamp'] < cutoff]
+                        if len(kept) != len(transformed_records):
+                            print(f"    dropped {len(transformed_records) - len(kept)} "
+                                  f"row(s) overlapping the existing hourly era")
+                        transformed_records = kept
+
                     if not transformed_records:
                         print(f"  ✗ {variable}: No valid records")
                         continue
-                    
+
                     records_inserted = self.insert_data(transformed_records)
-                    
+
                     total_processed += len(raw_records)
                     total_inserted += records_inserted
-                    
+
                     print(f"  ✓ {variable}: Inserted {records_inserted} records")
-                    
+
                 except Exception as e:
                     print(f"  ✗ Error processing {variable}: {e}")
                     self.log_ingestion(

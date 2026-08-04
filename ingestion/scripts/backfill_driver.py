@@ -43,6 +43,8 @@ SOURCE_MODULE = {  # source -> (data_source in DB, source script, backfill style
     "tdc":       ("TDC",       "ingestion/sources/tdc.py",       "range"),
     "gdc":       ("GDC",       "ingestion/sources/gdc.py",       "range"),
     "nrc":       ("NRC",       "ingestion/sources/nrc.py",       "range"),
+    "wcrc":      ("WCRC",      "ingestion/sources/wcrc.py",      "range"),
+    "horizons":  ("HORIZONS",  "ingestion/sources/horizons.py",  "range"),
     "southland": ("SOUTHLAND", "ingestion/sources/southland.py", "days"),
 }
 

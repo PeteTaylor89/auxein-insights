@@ -30,7 +30,8 @@ import pytz
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import text
+from sqlalchemy import func, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from db.session import SessionLocal
 from db.models.weather import WeatherStation
 from db.models.realtime_climate import WeatherDataDaily
@@ -39,6 +40,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 NZ_TZ = pytz.timezone('Pacific/Auckland')
+
+# Variable aliases, collapsed consistently with hourly_aggregation.py.
+TEMP_VARS = ('temp', 'temperature', 'air_temperature')
+RH_VARS = ('rh', 'humidity', 'relative_humidity')
+RAIN_VARS = ('rainfall', 'precipitation', 'precip', 'rain')
+SOLAR_VARS = ('solar_radiation', 'solar', 'radiation')
+
+# How many days each set-based query spans. Raw obs are yearly-partitioned, so a
+# month keeps every chunk inside one partition while bounding the scan.
+DEFAULT_CHUNK_DAYS = 31
 
 
 def get_active_stations(db, zone_id: Optional[int] = None,
@@ -157,6 +168,129 @@ def aggregate_station_day(
     return record
 
 
+def _build_record(station_id: int, target_date: date, row) -> dict:
+    """Shape one aggregated row into a weather_data_daily record.
+
+    Shared by the per-day and set-based paths so both derive GDD and apply the
+    B4.1 rainfall guard identically.
+    """
+    temp_mean = row['temp_mean']
+    gdd_base0 = None
+    gdd_base10 = None
+
+    if temp_mean is not None:
+        temp_mean = Decimal(str(temp_mean))
+        gdd_base0 = max(Decimal('0'), temp_mean)
+        gdd_base10 = max(Decimal('0'), temp_mean - Decimal('10'))
+
+    return {
+        'station_id': station_id,
+        'date': target_date,
+        'temp_min': row['temp_min'],
+        'temp_max': row['temp_max'],
+        'temp_mean': temp_mean,
+        'humidity_min': row['humidity_min'],
+        'humidity_max': row['humidity_max'],
+        'humidity_mean': row['humidity_mean'],
+        # B4.1 guard: leave NULL when there are no rainfall obs — do NOT fabricate
+        # a 0mm reading for rainfall-less stations (GHCNh/SYNOP carry no/sparse
+        # hourly precip). A spurious 0 pollutes zone rainfall averages and, on a
+        # historical backdate, would clobber a real authoritative daily PRCP.
+        # SUM returns NULL iff no rainfall rows matched (a genuine 0mm day still
+        # sums to 0, which is kept).
+        'rainfall_mm': row['rainfall_sum'],
+        'solar_radiation': row['solar_sum'],
+        'gdd_base0': gdd_base0,
+        'gdd_base10': gdd_base10,
+        'temp_record_count': row['temp_count'] or 0,
+        'humidity_record_count': row['humidity_count'] or 0,
+        'rainfall_record_count': row['rainfall_count'] or 0,
+    }
+
+
+# One GROUP BY over a whole (stations x date-range) block, instead of one query
+# per station-day. The per-day path cost ~1 RDS round-trip each; at ~1M
+# outstanding station-days that was over a dozen hours of pure latency and it
+# gated the surface backfill.
+#
+# The NZ-local day boundary is preserved exactly: `timestamp AT TIME ZONE
+# 'Pacific/Auckland'` converts the stored timestamptz to NZ wall-clock, and
+# ::date takes the local calendar day — the same partition the per-day path got
+# from NZ_TZ.localize(midnight) bounds, DST included (NZ transitions at 2/3am,
+# so local midnight is never ambiguous).
+AGGREGATE_RANGE_SQL = text(f"""
+    SELECT
+        station_id,
+        (timestamp AT TIME ZONE 'Pacific/Auckland')::date AS obs_date,
+        MIN(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_min,
+        MAX(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_max,
+        AVG(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_mean,
+        COUNT(CASE WHEN variable IN {TEMP_VARS} THEN 1 END) as temp_count,
+        MIN(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_min,
+        MAX(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_max,
+        AVG(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_mean,
+        COUNT(CASE WHEN variable IN {RH_VARS} THEN 1 END) as humidity_count,
+        SUM(CASE WHEN variable IN {RAIN_VARS} THEN value END) as rainfall_sum,
+        COUNT(CASE WHEN variable IN {RAIN_VARS} THEN 1 END) as rainfall_count,
+        SUM(CASE WHEN variable IN {SOLAR_VARS} THEN value END) as solar_sum,
+        COUNT(*) as total_count
+    FROM weather_data
+    WHERE station_id = ANY(:station_ids)
+      AND timestamp >= :start_dt
+      AND timestamp < :end_dt
+      AND value IS NOT NULL
+    GROUP BY station_id, 2
+""")
+
+
+def aggregate_range(
+    db,
+    station_ids: List[int],
+    start_date: date,
+    end_date: date,
+) -> List[dict]:
+    """Aggregate every (station, day) in [start_date, end_date] in one query.
+
+    Returns a list of records. A station-day with no non-NULL observations
+    simply produces no group, which is the set-based equivalent of the per-day
+    path's `total_count == 0 -> return None`.
+    """
+    start_dt = NZ_TZ.localize(datetime.combine(start_date, datetime.min.time()))
+    end_dt = NZ_TZ.localize(datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
+
+    rows = db.execute(AGGREGATE_RANGE_SQL, {
+        'station_ids': list(station_ids),
+        'start_dt': start_dt,
+        'end_dt': end_dt,
+    }).mappings().all()
+
+    return [_build_record(r['station_id'], r['obs_date'], r) for r in rows]
+
+
+def bulk_upsert_daily_records(db, records: List[dict]) -> int:
+    """Upsert many daily records in a single statement.
+
+    COALESCE(EXCLUDED.col, existing.col) reproduces the per-row B4.1 guard: a
+    NULL in the incoming row never clobbers a stored non-NULL value.
+    """
+    if not records:
+        return 0
+
+    table = WeatherDataDaily.__table__
+    stmt = pg_insert(table).values(records)
+    update_cols = {
+        c.name: func.coalesce(stmt.excluded[c.name], table.c[c.name])
+        for c in table.columns
+        if c.name not in ('id', 'station_id', 'date', 'created_at')
+    }
+    stmt = stmt.on_conflict_do_update(
+        index_elements=['station_id', 'date'],
+        set_=update_cols,
+    )
+    db.execute(stmt)
+    return len(records)
+
+
 def upsert_daily_record(db, record: dict) -> bool:
     """Insert or update a daily aggregate record."""
     existing = db.query(WeatherDataDaily).filter(
@@ -216,17 +350,36 @@ def process_date(
     return stats
 
 
+def process_chunk(
+    db,
+    station_ids: List[int],
+    chunk_start: date,
+    chunk_end: date,
+    dry_run: bool = False,
+) -> int:
+    """Aggregate and upsert one contiguous date block. Returns records written."""
+    records = aggregate_range(db, station_ids, chunk_start, chunk_end)
+
+    if dry_run:
+        return len(records)
+
+    written = bulk_upsert_daily_records(db, records)
+    db.commit()
+    return written
+
+
 def run_daily_aggregation(
     target_date: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     dry_run: bool = False,
     zone_id: Optional[int] = None,
-    source: Optional[str] = None
+    source: Optional[str] = None,
+    chunk_days: int = DEFAULT_CHUNK_DAYS,
 ):
     """Run daily aggregation for specified date(s), optionally filtered to a single
     zone and/or data source."""
-    
+
     # Determine dates to process
     if target_date:
         dates_to_process = [datetime.strptime(target_date, '%Y-%m-%d').date()]
@@ -263,29 +416,32 @@ def run_daily_aggregation(
             logger.warning("No stations matched the filters — nothing to do.")
             return
         
-        # Process each date
-        total_stats = {
-            'dates_processed': 0,
-            'records_created': 0,
-            'stations_no_data': 0,
-        }
-        
-        for target in dates_to_process:
-            stats = process_date(db, stations, target, dry_run)
-            
-            total_stats['dates_processed'] += 1
-            total_stats['records_created'] += stats['records_created']
-            total_stats['stations_no_data'] += stats['stations_no_data']
-            
-            logger.info(f"  {target}: {stats['records_created']} records, {stats['stations_no_data']} no data")
-        
+        station_ids = [s['station_id'] for s in stations]
+
+        # Walk the range in contiguous blocks — one query per block rather than
+        # one per station-day.
+        records_written = 0
+        chunks = 0
+        span_start = dates_to_process[0]
+        span_end = dates_to_process[-1]
+
+        cursor = span_start
+        while cursor <= span_end:
+            chunk_end = min(cursor + timedelta(days=chunk_days - 1), span_end)
+            written = process_chunk(db, station_ids, cursor, chunk_end, dry_run)
+            records_written += written
+            chunks += 1
+            logger.info(f"  {cursor} → {chunk_end}: {written} records")
+            cursor = chunk_end + timedelta(days=1)
+
         # Summary
         logger.info(f"\n{'='*60}")
         logger.info("DAILY AGGREGATION SUMMARY")
         logger.info(f"{'='*60}")
-        logger.info(f"Dates processed:    {total_stats['dates_processed']}")
-        logger.info(f"Records created:    {total_stats['records_created']}")
-        
+        logger.info(f"Dates processed:    {len(dates_to_process)}")
+        logger.info(f"Chunks (queries):   {chunks}")
+        logger.info(f"Records written:    {records_written}")
+
         logger.info("\n✅ Daily aggregation complete")
         
     except Exception as e:
@@ -305,6 +461,8 @@ def main():
     parser.add_argument('--zone-id', type=int, help='Process only stations in this zone')
     parser.add_argument('--source', type=str,
                         help='Process only stations from this data_source (e.g. SOUTHLAND, NRC)')
+    parser.add_argument('--chunk-days', type=int, default=DEFAULT_CHUNK_DAYS,
+                        help=f'Days per aggregation query (default {DEFAULT_CHUNK_DAYS})')
 
     args = parser.parse_args()
 
@@ -314,7 +472,8 @@ def main():
         end_date=args.end,
         dry_run=args.dry_run,
         zone_id=args.zone_id,
-        source=args.source
+        source=args.source,
+        chunk_days=args.chunk_days,
     )
 
 

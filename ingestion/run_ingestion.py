@@ -15,6 +15,8 @@ from sources.harvest import HarvestIngestion
 from sources.ecan import ECANIngestion
 from sources.mdc import MDCIngestion
 from sources.gw import GWIngestion
+from sources.wcrc import WCRCIngestion
+from sources.horizons import HorizonsIngestion
 from sources.hbrc import HBRCIngestion
 from sources.tdc import TDCIngestion
 from sources.gdc import GDCIngestion
@@ -28,7 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'noaa', 'synop', 'all'],
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'noaa', 'synop', 'all'],
         default='all',
         help='Data source to ingest (noaa/synop are backfill/bootstrap, excluded from "all")'
     )
@@ -197,7 +199,26 @@ def main():
         except Exception as e:
             print(f"✗ GW ingestion failed: {e}\n")
             success = False
-    
+
+    # Run WCRC ingestion
+    if args.source in ['wcrc', 'all']:
+        try:
+            print("▶ Starting WCRC ingestion...\n")
+            ingester = WCRCIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ WCRC ingestion complete\n")
+        except Exception as e:
+            print(f"✗ WCRC ingestion failed: {e}\n")
+            success = False
+
     # Run HBRC ingestion
     if args.source in ['hbrc', 'all']:
         try:
