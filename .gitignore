@@ -23,6 +23,12 @@ vineyard_schema.sql
 
 # Ingestion probe dumps (regenerable via ingestion/scripts/probe_hilltop.py)
 ingestion/scripts/probes/*.json
+# EXCEPTIONS: Waikato and Taranaki are NOT regenerable. Their WAFs (Incapsula and
+# Cloudflare) reject scripted clients, so there is no probe script that can rebuild
+# these — they were captured by hand through a real browser. Losing them means
+# redoing that by hand, so they are tracked.
+!ingestion/scripts/probes/waikato_all.json
+!ingestion/scripts/probes/taranaki_all.json
 # NCEI's GHCN-Daily station inventory, cached by scripts/crosswalk_ghcnd.py.
 # 11 MB, global, and re-fetched automatically when absent.
 ingestion/scripts/probes/ghcnd-stations.txt
