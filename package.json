@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:backend": "cd backend && cross-env PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 venv\\Scripts\\python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000 --log-level debug",
+    "dev:backend": "cd backend && cross-env PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 venv\\Scripts\\python -m uvicorn main:app --reload --reload-dir api --reload-dir core --reload-dir db --reload-dir schemas --reload-dir services --reload-dir models --reload-dir permissions --reload-dir utils --host 0.0.0.0 --port 8000 --log-level info",
     "dev:taste-api": "cd backend_taste && cross-env PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ENV=local venv\\Scripts\\python -m uvicorn main:app --reload --host 0.0.0.0 --port 8001 --log-level debug",
     "dev:taste-stack": "concurrently --kill-others --names \"TASTE-API,TASTE\" --prefix-colors \"blue,magenta\" \"npm run dev:taste-api\" \"npm run dev:taste\"",
     "dev:insights": "cd packages/insights && npm run dev",

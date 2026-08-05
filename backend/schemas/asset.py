@@ -625,3 +625,52 @@ class StockAlert(BaseModel):
     minimum_stock: Decimal
     unit_of_measure: str
     stock_status: str  # out_of_stock, low_stock, adequate
+
+# ---------------------------------------------------------------------------
+# CSV import (Greystone beta: bulk-load the equipment register)
+# ---------------------------------------------------------------------------
+
+class AssetImportRow(BaseModel):
+    """One parsed CSV row.
+
+    Deliberately a narrow subset of AssetCreate — the spatial, calibration and
+    compliance fields are not things anyone sensibly types into a spreadsheet,
+    and accepting them here would mean validating geometry from a CSV cell.
+    """
+    row_number: int = Field(..., description="Line number in the user's file, for error reporting")
+    asset_number: str
+    name: str
+    category: AssetCategory
+    asset_type: AssetType
+    description: Optional[str] = None
+    subcategory: Optional[str] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
+    year_manufactured: Optional[int] = None
+    unit_of_measure: Optional[str] = None
+    current_stock: Optional[Decimal] = None
+    minimum_stock: Optional[Decimal] = None
+    cost_per_unit: Optional[Decimal] = None
+    property_id: Optional[int] = None
+    location_label: Optional[str] = None
+
+
+class AssetImportRequest(BaseModel):
+    rows: List[AssetImportRow]
+    # False (default) = all-or-nothing. A partially loaded asset register is
+    # harder to clean up than a rejected file.
+    skip_invalid: bool = False
+
+
+class AssetImportError(BaseModel):
+    row_number: int
+    errors: List[str]
+
+
+class AssetImportResult(BaseModel):
+    imported: int
+    failed: int
+    errors: List[AssetImportError] = Field(default_factory=list)
+    # False when validation rejected the file and nothing was written.
+    committed: bool

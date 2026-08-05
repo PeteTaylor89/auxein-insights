@@ -1,5 +1,5 @@
 // maps-v2/MapsPage.jsx — Page shell: sidebar + map + mode toggle
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import * as turf from '@turf/turf';
 import { useAuth, blocksService, spatialAreasService, propertyService, parcelsService } from '@vineyard/shared';
 import useMapbox from './hooks/useMapbox';
@@ -17,6 +17,7 @@ import useFlyoverAnimation from './hooks/useFlyoverAnimation';
 import usePropertiesLayer from './hooks/usePropertiesLayer';
 import FlyoverPanel from './components/flyover/FlyoverPanel';
 import MapContainer from './components/MapContainer';
+import MapLegend from './components/MapLegend';
 import Sidebar from './components/Sidebar';
 import BlocksPanel from './components/management/BlocksPanel';
 import RisksPanel from './components/management/RisksPanel';
@@ -42,7 +43,6 @@ import {
 import {
   showReactPopup,
   BlockPopupContent,
-  ObservationPopupContent,
   RiskPopupContent,
   AssetPopupContent,
   ParcelPopupContent,
@@ -50,6 +50,7 @@ import {
 import ParcelAssignmentModal from './components/drawing/ParcelAssignmentModal';
 import BlockCompanyAssignModal from './components/drawing/BlockCompanyAssignModal';
 import TaskDetailModal from './components/TaskDetailModal';
+import BlockSummaryModal from './components/BlockSummaryModal';
 import useAvailableCompanies from './hooks/useAvailableCompanies';
 import './MapsPage.css';
 
@@ -185,13 +186,23 @@ function MapsPageInner() {
     setTaskDetail({ open: false, taskId: null, tasks: null });
   }, []);
 
+  // Block summary — opened from a task or observation symbol, or the block popup.
+  // Answers "what's on this block" without leaving the map (beta feedback).
+  const [blockSummary, setBlockSummary] = useState({ open: false, blockId: null, blockName: null });
+  const closeBlockSummary = useCallback(() => {
+    setBlockSummary({ open: false, blockId: null, blockName: null });
+  }, []);
+
   // Map instance
   const { map, mapRef, mapReady, activeStyle, is3D, setStyle, containerRef } =
     useMapbox();
 
   // Fullscreen the map page: hide site footer + lock body scroll while mounted.
   // Restored on unmount so other pages keep their normal layout.
-  useEffect(() => {
+  // useLayoutEffect, not useEffect: .v2-maps-page draws its height from the
+  // pinned shell these rules create, so applying the class after the first
+  // paint would flash a zero-height map.
+  useLayoutEffect(() => {
     document.body.classList.add('maps-fullscreen');
     return () => {
       document.body.classList.remove('maps-fullscreen');
@@ -768,8 +779,8 @@ function MapsPageInner() {
   handleOpenBlockCompanyAssignRef.current = handleOpenBlockCompanyAssign;
   const setTaskDetailRef = useRef(setTaskDetail);
   setTaskDetailRef.current = setTaskDetail;
-  const tasksRef = useRef(tasks);
-  tasksRef.current = tasks;
+  const setBlockSummaryRef = useRef(setBlockSummary);
+  setBlockSummaryRef.current = setBlockSummary;
 
   useEffect(() => {
     if (!map || !mapReady) return;
@@ -819,16 +830,18 @@ function MapsPageInner() {
         showReactPopup(map, { lngLat, content: <AssetPopupContent properties={p} onNavigate={() => { const t = p.asset_type === 'consumable' ? 'consumables' : 'equipment'; nav(`/assets/${t}/${p.id}/edit`); }} /> });
       } else if (layerId === 'v2-risks-circles') {
         showReactPopup(map, { lngLat, content: <RiskPopupContent properties={p} onNavigate={() => nav('/riskdashboard')} /> });
-      } else if (layerId === 'v2-observations-symbol') {
-        showReactPopup(map, { lngLat, content: <ObservationPopupContent properties={p} onNavigate={() => nav('/observations')} /> });
-      } else if (layerId === 'v2-tasks-symbol') {
+      } else if (layerId === 'v2-observations-symbol' || layerId === 'v2-tasks-symbol') {
+        // Both symbols sit at a block centroid and stand for "there is activity on
+        // this block", so both open the same block summary — tasks and
+        // observations together, in place. Previously the observation symbol
+        // navigated away to the general /observations page and the task symbol
+        // opened a bare task list; the beta asked for one block-scoped view.
         const blockId = p.block_id != null ? Number(p.block_id) : null;
-        const blockTasks = (tasksRef.current || []).filter((t) => t.block_id === blockId);
-        if (blockTasks.length === 0) return;
-        setTaskDetailRef.current({
+        if (!blockId) return;
+        setBlockSummaryRef.current({
           open: true,
-          taskId: blockTasks.length === 1 ? blockTasks[0].id : null,
-          tasks: blockTasks,
+          blockId,
+          blockName: p.block_name || null,
         });
       } else if (layerId === 'v2-gps-tracks-line') {
         const tid = p.task_id != null ? Number(p.task_id) : null;
@@ -858,6 +871,10 @@ function MapsPageInner() {
             feature={topFeature}
             onFlyTo={flyToBlockRef.current}
             onEdit={(id) => { activePopupRef.current?.remove(); handleOpenBlockEditRef.current(id); }}
+            onSummary={(id, name) => {
+              activePopupRef.current?.remove();
+              setBlockSummaryRef.current({ open: true, blockId: id, blockName: name || null });
+            }}
             onSplit={(feature) => handleSplitBlockFromPopupRef.current(feature)}
             isAuxeinAdmin={isAuxeinAdminRef.current}
             onAssignCompany={handleOpenBlockCompanyAssignRef.current}
@@ -1218,6 +1235,17 @@ function MapsPageInner() {
           />
         )}
 
+        <MapLegend
+          visible={{
+            risks: showRisks,
+            spatialAreas: showSpatialAreas,
+            tasks: showTasks,
+            gpsTracks: showGpsTracks,
+            observations: showObservations,
+            assets: showAssets,
+          }}
+        />
+
         <StatusBar message={status} />
       </div>
 
@@ -1290,7 +1318,23 @@ function MapsPageInner() {
         onCancel={() => { setShowBlockCompanyAssign(false); setSelectedBlockForAssign(null); }}
       />
 
-      {/* Unified task detail modal (task symbol + GPS track click) */}
+      {/* Block summary (task/observation symbol + block popup) — picking a task
+          in here hands off to the task modal below. */}
+      <BlockSummaryModal
+        open={blockSummary.open}
+        blockId={blockSummary.blockId}
+        blockName={blockSummary.blockName}
+        tasks={tasks}
+        observations={observations}
+        onClose={closeBlockSummary}
+        onOpenTask={(taskId) => {
+          closeBlockSummary();
+          setTaskDetail({ open: true, taskId, tasks: null });
+        }}
+        onEditBlock={handleOpenBlockEdit}
+      />
+
+      {/* Unified task detail modal (GPS track click + hand-off from the summary) */}
       <TaskDetailModal
         open={taskDetail.open}
         taskId={taskDetail.taskId}

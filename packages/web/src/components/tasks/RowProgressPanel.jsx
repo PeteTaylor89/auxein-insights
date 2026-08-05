@@ -38,7 +38,7 @@ function StarRating({ value, onChange, readOnly }) {
   );
 }
 
-function RowProgressPanel({ taskId, canEdit, task }) {
+function RowProgressPanel({ taskId, canEdit, task, onIssueRaised }) {
   const [expanded, setExpanded] = useState(true);
   // Row to spin a follow-up task from (null = modal closed).
   const [taskModalRow, setTaskModalRow] = useState(null);
@@ -510,6 +510,7 @@ function RowProgressPanel({ taskId, canEdit, task }) {
         row={taskModalRow}
         parentTask={task}
         onClose={() => setTaskModalRow(null)}
+        onCreated={() => onIssueRaised?.()}
       />
     </div>
   );

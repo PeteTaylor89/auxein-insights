@@ -1,0 +1,87 @@
+/* maps-v2/components/MapLegend.css — map key overlay.
+
+   Positioned bottom-left and opening upward: top-centre is the drawing toolbar,
+   top-right the navigation controls, bottom-right the scale + attribution, and
+   bottom-centre the status bar. The 34px offset clears the Mapbox logo, which
+   sits in the same corner and must stay visible for attribution. */
+
+.v2-legend {
+  position: absolute;
+  bottom: 34px;
+  left: 10px;
+  z-index: 6;
+  display: flex;
+  /* Toggle stays anchored at the bottom; the body grows upward from it. */
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 6px;
+  font-family: var(--font-family);
+  max-width: calc(100% - 20px);
+}
+
+.v2-legend-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.v2-legend-toggle:hover {
+  color: var(--color-primary);
+}
+
+.v2-legend-body {
+  padding: var(--space-sm) var(--space-base);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  /* Cap the height so a map with every layer on can't push the key off-screen
+     on a short viewport. */
+  max-height: 46vh;
+  overflow-y: auto;
+  min-width: 190px;
+}
+
+.v2-legend-section + .v2-legend-section {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.v2-legend-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.v2-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.v2-legend-swatch {
+  flex-shrink: 0;
+  display: block;
+}
+
+.v2-legend-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  line-height: 1.3;
+}

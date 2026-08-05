@@ -93,7 +93,12 @@ class BulkRowCreationRequest(BaseModel):
     clone: Optional[str] = None
     rootstock: Optional[str] = None
     vine_spacing: Optional[float] = None
-    
+    # Without row_length the rows are created with a null vine_count, because
+    # vine_count is derived from row_length / vine_spacing. Callers that know
+    # the run length should pass it so the vines-per-row figure is live from
+    # the moment the rows exist.
+    row_length: Optional[float] = None
+
     @field_validator('row_count')
     def row_count_positive(cls, v):
         if v <= 0:
@@ -104,4 +109,34 @@ class BulkRowCreationResponse(BaseModel):
     """Response schema for bulk row creation"""
     created_rows: int
     rows: List[VineyardRow]
+    message: str
+
+
+class RowRangeUpdateRequest(BaseModel):
+    """Apply attributes to an inclusive range of EXISTING rows in one call.
+
+    The beta's "big one": a 40-row block planted to two clones took 40 individual
+    row edits. This paints rows 1-20 in one request and 21-40 in another.
+
+    Only fields explicitly present in the request body are written — omitting
+    `rootstock` leaves each row's existing rootstock alone rather than nulling
+    it. To deliberately clear a field, send it as null.
+    """
+    row_start: Union[int, str]
+    row_end: Union[int, str]
+    variety: Optional[str] = None
+    clone: Optional[str] = None
+    rootstock: Optional[str] = None
+    vine_spacing: Optional[float] = None
+    row_length: Optional[float] = None
+
+
+class RowRangeUpdateResponse(BaseModel):
+    """Response schema for a row-range update"""
+    updated_rows: int
+    row_numbers: List[str]
+    # Row numbers inside the requested range that have no row record on the
+    # block. Surfaced rather than swallowed so a typo'd range doesn't look
+    # like a successful no-op.
+    missing_row_numbers: List[str]
     message: str

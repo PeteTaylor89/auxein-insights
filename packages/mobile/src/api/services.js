@@ -64,6 +64,16 @@ export const tasksService = {
     const res = await api.post('/tasks/tasks', data);
     return res.data;
   },
+  // Repair roll-ups. Mirrored from packages/shared/src/api/tasksService.js —
+  // mobile can't import @vineyard/shared, so these must be kept in step by hand.
+  getRollUpCandidates: async (params = {}) => {
+    const res = await api.get('/tasks/tasks/roll-up-candidates', { params });
+    return res.data;
+  },
+  rollUpTasks: async (payload) => {
+    const res = await api.post('/tasks/tasks/roll-up', payload);
+    return res.data;
+  },
   listTaskTemplates: async (params = {}) => {
     const res = await api.get('/tasks/task-templates', { params });
     return res.data;

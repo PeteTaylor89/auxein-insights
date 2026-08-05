@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@vineyard/shared';
 import { api } from '@vineyard/shared';
 import AppLayout from './components/AppLayout';
+import { ToastProvider } from './components/ToastProvider';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import { ForgotPasswordForm, ResetPasswordForm } from './components/PasswordReset';
@@ -36,6 +37,7 @@ import QuickObservation from './pages/QuickObservation';
 import QuickPlanObservation from './pages/QuickPlanObservation';
 
 import TaskTemplateEditor from './pages/TaskTemplateEditor';
+import ObservationTemplateEditor from './pages/ObservationTemplateEditor';
 import TaskCreationWizard from './pages/TaskCreationWizard';
 import TaskQuickCreate from './pages/TaskQuickCreate';
 import TaskDetail from './pages/TaskDetail';
@@ -256,6 +258,19 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        {/* Literal path before the :id one — otherwise "new" parses as an id. */}
+        <Route path="/observations/templates/new" element={
+          <ProtectedRoute>
+            <ObservationTemplateEditor />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/observations/templates/:id/edit" element={
+          <ProtectedRoute>
+            <ObservationTemplateEditor />
+          </ProtectedRoute>
+        } />
+
         <Route path="/assets" element={
           <ProtectedRoute>
             <AssetsDashboard  />
@@ -358,7 +373,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -1,0 +1,140 @@
+/* components/Toast.css — transient messages + undo affordance.
+   Deliberately prominent: these carry a 10s undo window for destructive work,
+   and a deferred delete doesn't commit until that window closes. A toast the
+   user doesn't notice is a toast that silently deletes their data. */
+
+.toast-host {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--space-lg);
+  z-index: 1200; /* above modals (900) — an undo must survive a modal closing */
+  display: flex;
+  flex-direction: column-reverse; /* newest nearest the bottom */
+  gap: var(--space-sm);
+  pointer-events: none; /* the strip never blocks the page */
+  width: min(560px, calc(100vw - 2 * var(--space-lg)));
+}
+
+.toast {
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22), 0 2px 6px rgba(15, 23, 42, 0.12);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  animation: toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* An undoable toast is a decision point, not a status line — give it weight. */
+.toast--undoable {
+  border-width: 2px;
+  border-color: var(--color-primary);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.toast-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.toast-icon { flex-shrink: 0; }
+.toast--success .toast-icon { color: var(--color-success-text); }
+.toast--error   .toast-icon { color: var(--color-danger-text); }
+.toast--info    .toast-icon { color: var(--color-primary); }
+
+.toast--error { border-color: var(--color-danger-text); }
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+
+/* Seconds remaining — the numeric half of the countdown. Tabular figures stop
+   the row jittering as the digit width changes. */
+.toast-countdown {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Explicit padding on both buttons — the global `button { padding: 8px 16px }`
+   rule would otherwise blow out the row and clip the icons. */
+.toast-undo {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-primary);
+  color: #ffffff;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.toast-undo:hover { filter: brightness(1.08); }
+
+.toast-dismiss {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.toast-dismiss:hover {
+  background: var(--color-surface-warm);
+  color: var(--color-text);
+}
+
+/* Draining bar across the foot — the visual half of the countdown. */
+.toast-progress {
+  height: 3px;
+  background: var(--color-surface-warm);
+}
+.toast-progress-bar {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: var(--color-primary);
+  /* Matches the provider's 100ms tick so the bar glides instead of stepping. */
+  transition: transform 100ms linear;
+}
+.toast--error .toast-progress-bar { background: var(--color-danger-text); }
+
+@media (max-width: 640px) {
+  .toast-host {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    transform: none;
+    width: auto;
+    bottom: calc(var(--nav-height-bottom, 0px) + var(--space-sm));
+  }
+  .toast-row { flex-wrap: wrap; }
+  .toast-message { flex-basis: 100%; }
+}

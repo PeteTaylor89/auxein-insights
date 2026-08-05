@@ -58,10 +58,14 @@ class TaskBase(BaseModel):
     related_maintenance_id: Optional[int] = None
     related_calibration_id: Optional[int] = None
     
+    # Repair roll-up: point this task at a parent that tracks the whole job.
+    # Null for ordinary tasks and for the roll-up parent itself.
+    parent_task_id: Optional[int] = None
+
     # Metadata
     weather_conditions: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = Field(default_factory=list)
-    
+
     @field_validator('scheduled_end_date')
     @classmethod
     def validate_end_date(cls, v: Optional[date], info) -> Optional[date]:
@@ -127,7 +131,10 @@ class TaskUpdate(BaseModel):
     related_observation_run_id: Optional[int] = None
     related_maintenance_id: Optional[int] = None
     related_calibration_id: Optional[int] = None
-    
+
+    # Repair roll-up. Send null to detach a child from its parent.
+    parent_task_id: Optional[int] = None
+
     # Metadata
     weather_conditions: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = None
@@ -368,6 +375,33 @@ class TaskCalendarEvent(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class TaskRollUpCandidate(BaseModel):
+    """A roll-up an issue could be filed under, for the one-tap field attach."""
+    id: int
+    title: Optional[str] = None
+    task_number: Optional[str] = None
+    block_id: Optional[int] = None
+    task_category: Optional[str] = None
+    status: Optional[str] = None
+    child_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class TaskRollUpRequest(BaseModel):
+    """Group tasks under one parent (repair roll-up).
+
+    Supply parent_task_id to attach to an existing task, or title to create a
+    new roll-up parent. Roll-ups are one level deep by design — a parent cannot
+    itself be rolled up, which keeps counting and reporting tractable.
+    """
+    task_ids: List[int] = Field(..., min_length=1)
+    parent_task_id: Optional[int] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
 
 
 class TaskBulkUpdateRequest(BaseModel):

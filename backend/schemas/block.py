@@ -40,6 +40,7 @@ class BlockBase(BaseModel):
     row_end: Optional[Union[int, str]] = None
     row_count: Optional[int] = None
     training_system: Optional[str] = None
+    notes: Optional[str] = None
     status: Optional[BlockStatus] = None
     company_id: Optional[int] = None
     property_id: Optional[int] = None

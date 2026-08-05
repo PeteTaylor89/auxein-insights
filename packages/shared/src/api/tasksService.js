@@ -70,6 +70,28 @@ const tasksService = {
     return res.data;
   },
 
+  /**
+   * Open roll-ups an issue could be filed under, best match first (same block
+   * AND category, then same block, then the rest). Drives the one-tap attach
+   * when raising an issue from a row.
+   * @param {{block_id?: number, task_category?: string, limit?: number}} params
+   */
+  getRollUpCandidates: async (params = {}) => {
+    const res = await api.get('/tasks/tasks/roll-up-candidates', { params });
+    return res.data;
+  },
+
+  /**
+   * Group tasks under one parent (repair roll-up).
+   * @param {{task_ids: number[], parent_task_id?: number, title?: string, description?: string}} payload
+   *   Pass parent_task_id to attach to an existing task, or title to create a
+   *   new roll-up parent. Returns the parent task.
+   */
+  rollUpTasks: async (payload) => {
+    const res = await api.post('/tasks/tasks/roll-up', payload);
+    return res.data;
+  },
+
   rescheduleTask: async (taskId, dates) => {
     const res = await api.patch(`/tasks/tasks/${taskId}/reschedule`, dates);
     return res.data;

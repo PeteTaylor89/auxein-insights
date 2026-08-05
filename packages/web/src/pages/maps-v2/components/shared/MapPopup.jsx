@@ -21,7 +21,7 @@ export function showReactPopup(map, { lngLat, content, popupOptions = {} }) {
   return popup;
 }
 
-export function BlockPopupContent({ feature, onFlyTo, onEdit, onSplit, isAuxeinAdmin, onAssignCompany }) {
+export function BlockPopupContent({ feature, onFlyTo, onEdit, onSplit, onSummary, isAuxeinAdmin, onAssignCompany }) {
   const p = feature?.properties || {};
   return (
     <div className="v2-popup">
@@ -36,7 +36,12 @@ export function BlockPopupContent({ feature, onFlyTo, onEdit, onSplit, isAuxeinA
         {p.winery && <div className="v2-popup-row"><Building2 size={14} className="v2-popup-row-icon" /><span className="v2-popup-label">Winery</span><span className="v2-popup-value">{p.winery}</span></div>}
       </div>
       <div className="v2-popup-footer">
-        {onEdit && p.id && <button className="v2-popup-btn v2-popup-btn--accent" onClick={() => onEdit(p.id)}>Edit Block</button>}
+        {onSummary && p.id && (
+          <button className="v2-popup-btn v2-popup-btn--accent" onClick={() => onSummary(Number(p.id), p.block_name)}>
+            <ClipboardList size={14} /> Block Summary
+          </button>
+        )}
+        {onEdit && p.id && <button className="v2-popup-btn" onClick={() => onEdit(p.id)} style={{ marginTop: 6 }}>Edit Block</button>}
         {onSplit && p.id && <button className="v2-popup-btn" onClick={() => onSplit(feature)} style={{ marginTop: 6 }}><Scissors size={14} /> Split Block</button>}
         {isAuxeinAdmin && onAssignCompany && p.id && (
           <button className="v2-popup-btn" onClick={() => onAssignCompany(p.id)} style={{ marginTop: 6, background: '#7c3aed', color: '#fff' }}>

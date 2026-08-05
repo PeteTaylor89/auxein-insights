@@ -1,6 +1,36 @@
 // src/services/vineyardRowsService.js
 import api from './api';
 
+// Keep in step with MAX_ROW_RANGE in backend/api/v1/vineyard_rows.py — a client
+// that accepts a wider range than the server just moves the rejection later.
+const MAX_ROW_RANGE = 2000;
+
+/**
+ * Spreadsheet-column value of a letter row label — 1-based, bijective base-26
+ * (no zero digit), matching Excel: A=1 … Z=26, AA=27 … AZ=52, ZZ=702.
+ * Mirrors alpha_to_index() on the backend.
+ */
+const alphaToIndex = (token) => {
+  let n = 0;
+  for (const ch of token.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n;
+};
+
+/** Inverse of alphaToIndex: 27 -> 'AA'. */
+const indexToAlpha = (index) => {
+  let out = '';
+  let n = index;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+};
+
+const isNumericToken = (s) => /^-?\d+$/.test(s);
+const isAlphaToken = (s) => /^[A-Za-z]+$/.test(s);
+
 const vineyardRowsService = {
   // Get all rows with optional filtering
   getAllRows: async (params = {}) => {
@@ -41,6 +71,14 @@ const vineyardRowsService = {
   // Update a row
   updateRow: async (rowId, rowData) => {
     const response = await api.patch(`/vineyard_rows/${rowId}`, rowData);
+    return response.data;
+  },
+
+  // Apply attributes to an inclusive range of existing rows in one call.
+  // Only the keys present in `payload` are written server-side, so omit a field
+  // to leave it untouched rather than passing null.
+  updateRowRange: async (blockId, payload) => {
+    const response = await api.patch(`/vineyard_rows/by-block/${blockId}/range`, payload);
     return response.data;
   },
   
@@ -125,30 +163,15 @@ const vineyardRowsService = {
       errors.push('Row count must be positive');
     }
     
-    // Validate row range
-    try {
-      const startNum = parseInt(bulkData.row_start);
-      const endNum = parseInt(bulkData.row_end);
-      
-      if (!isNaN(startNum) && !isNaN(endNum)) {
-        if (endNum - startNum + 1 !== bulkData.row_count) {
-          errors.push(`Row count ${bulkData.row_count} doesn't match range ${bulkData.row_start}-${bulkData.row_end}`);
-        }
-      } else if (bulkData.row_start.length === 1 && bulkData.row_end.length === 1) {
-        // Letter range
-        const startCode = bulkData.row_start.toUpperCase().charCodeAt(0);
-        const endCode = bulkData.row_end.toUpperCase().charCodeAt(0);
-        
-        if (endCode - startCode + 1 !== bulkData.row_count) {
-          errors.push(`Row count ${bulkData.row_count} doesn't match range ${bulkData.row_start}-${bulkData.row_end}`);
-        }
-      } else {
-        errors.push('Invalid row range format');
-      }
-    } catch (e) {
-      errors.push('Error validating row range');
+    // Validate row range against the single shared expander, so this can't drift
+    // from what expandRowRange (and the backend) actually accept.
+    const numbers = vineyardRowsService.expandRowRange(bulkData.row_start, bulkData.row_end);
+    if (numbers.length === 0) {
+      errors.push('Row range must be numeric (e.g. 1 to 50) or letters (e.g. A to AZ)');
+    } else if (numbers.length !== bulkData.row_count) {
+      errors.push(`Row count ${bulkData.row_count} doesn't match range ${bulkData.row_start}-${bulkData.row_end} (${numbers.length} rows)`);
     }
-    
+
     return errors.length > 0 ? errors : null;
   },
   
@@ -195,31 +218,43 @@ const vineyardRowsService = {
     }, 0);
   },
   
-  // Helper to generate row numbers for preview
-  generateRowNumbers: (start, end, count) => {
-    try {
-      const startNum = parseInt(start);
-      const endNum = parseInt(end);
-      
-      if (!isNaN(startNum) && !isNaN(endNum)) {
-        if (endNum - startNum + 1 !== count) {
-          throw new Error(`Row count ${count} doesn't match range ${start}-${end}`);
-        }
-        return Array.from({ length: count }, (_, i) => String(startNum + i));
-      } else if (start.length === 1 && end.length === 1 && start.match(/[A-Za-z]/) && end.match(/[A-Za-z]/)) {
-        const startCode = start.toUpperCase().charCodeAt(0);
-        const endCode = end.toUpperCase().charCodeAt(0);
-        
-        if (endCode - startCode + 1 !== count) {
-          throw new Error(`Row count ${count} doesn't match range ${start}-${end}`);
-        }
-        return Array.from({ length: count }, (_, i) => String.fromCharCode(startCode + i));
-      } else {
-        throw new Error('Invalid row range format');
-      }
-    } catch (error) {
-      throw error;
+  // Expand an inclusive row range into its row numbers, mirroring the server's
+  // expand_row_range. Handles plain integers ("1" to "50") and spreadsheet-style
+  // letters ("A" to "AZ" = 52 rows). Returns [] for an unparseable or oversized
+  // range rather than throwing, so callers can use it for live UI feedback while
+  // the user is still typing.
+  expandRowRange: (start, end) => {
+    const s = String(start ?? '').trim();
+    const e = String(end ?? '').trim();
+    if (!s || !e) return [];
+
+    if (isNumericToken(s) && isNumericToken(e)) {
+      const [lo, hi] = [parseInt(s, 10), parseInt(e, 10)].sort((a, b) => a - b);
+      if (hi - lo + 1 > MAX_ROW_RANGE) return [];
+      return Array.from({ length: hi - lo + 1 }, (_, i) => String(lo + i));
     }
+
+    if (isAlphaToken(s) && isAlphaToken(e)) {
+      const [lo, hi] = [alphaToIndex(s), alphaToIndex(e)].sort((a, b) => a - b);
+      if (hi - lo + 1 > MAX_ROW_RANGE) return [];
+      return Array.from({ length: hi - lo + 1 }, (_, i) => indexToAlpha(lo + i));
+    }
+
+    return [];
+  },
+
+  // Helper to generate row numbers for preview. Delegates to expandRowRange so
+  // there is a single definition of what a range means on this side, matching
+  // generate_row_numbers on the backend.
+  generateRowNumbers: (start, end, count) => {
+    const numbers = vineyardRowsService.expandRowRange(start, end);
+    if (numbers.length === 0) {
+      throw new Error('Row range must be numeric (e.g. 1 to 50) or letters (e.g. A to AZ)');
+    }
+    if (numbers.length !== count) {
+      throw new Error(`Row count ${count} doesn't match range ${start}-${end} (${numbers.length} rows)`);
+    }
+    return numbers;
   }
 };
 

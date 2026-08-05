@@ -4,7 +4,7 @@ from typing import List, Optional, Literal
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, aliased
 from sqlalchemy import func, and_, or_, desc, asc
 from pydantic import BaseModel, Field, validator
 from db.session import get_db
@@ -38,7 +38,7 @@ from schemas.task import (
     TaskCreate, TaskQuickCreate, TaskUpdate, TaskResponse, TaskWithRelations,
     TaskSummary, TaskFilter, TaskStartRequest, TaskPauseRequest, TaskResumeRequest,
     TaskCompleteRequest, TaskCancelRequest, TaskStatsResponse, TaskCalendarEvent,
-    TaskBulkUpdateRequest, TaskBulkActionRequest
+    TaskBulkUpdateRequest, TaskBulkActionRequest, TaskRollUpRequest, TaskRollUpCandidate
 )
 from schemas.task_assignment import (
     TaskAssignmentCreate, TaskAssignmentBulkCreate, TaskAssignmentUpdate,
@@ -442,6 +442,17 @@ def create_task(
     if target_block_id is not None:
         verify_block_access(db, current_user, target_block_id, require_write=True)
 
+    # Roll-up guard at creation: the field capture flow can pass parent_task_id
+    # directly, so the one-level-deep rule has to hold here too, not just in the
+    # PATCH and roll-up endpoints.
+    if task_dict.get('parent_task_id') is not None:
+        proposed_parent = check_task_access(db, task_dict['parent_task_id'], current_user)
+        if proposed_parent.parent_task_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Roll-ups are one level deep — that task is already rolled up elsewhere",
+            )
+
     # Auto-schedule if a start date is provided
     initial_status = TaskStatus.scheduled if task_dict.get('scheduled_start_date') else TaskStatus.draft
 
@@ -473,6 +484,149 @@ def create_task(
 
     logger.info(f"Task {task.task_number} created by user {current_user.id}")
     return task
+
+
+@router.get("/tasks/roll-up-candidates", response_model=List[TaskRollUpCandidate])
+def list_roll_up_candidates(
+    block_id: Optional[int] = Query(None, description="Block the issue was found in"),
+    task_category: Optional[str] = Query(None, description="Category of the issue being raised"),
+    limit: int = Query(8, le=25),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Open roll-up tasks an issue could be filed under, best match first.
+
+    Powers the one-tap attach when someone raises an issue from a row in the
+    field, so ordering matters more than completeness: same block AND same
+    category first, then same block, then the rest. A crew fixing wires in
+    Block A wants "Wires — Block A" at the top, not an alphabetical list.
+
+    A candidate is any non-completed task that is itself a roll-up parent (has
+    children) or was created as one. Children are excluded — roll-ups are one
+    level deep.
+
+    Declared above /tasks/{task_id} so the literal path isn't parsed as an int.
+    """
+    # Self-join needs an alias, or the ON clause collapses to tasks.id = tasks.id.
+    ChildTask = aliased(Task)
+
+    rows = (
+        db.query(Task, func.count(ChildTask.id).label("child_count"))
+        .outerjoin(ChildTask, ChildTask.parent_task_id == Task.id)
+        .filter(
+            Task.company_id == current_user.company_id,
+            Task.parent_task_id.is_(None),
+            Task.status.notin_([TaskStatus.completed, TaskStatus.cancelled]),
+        )
+        .group_by(Task.id)
+        .having(func.count(ChildTask.id) > 0)
+        .all()
+    )
+
+    def rank(entry):
+        task, _ = entry
+        same_block = block_id is not None and task.block_id == block_id
+        same_category = task_category is not None and task.task_category == task_category
+        # Lower sorts first.
+        if same_block and same_category:
+            return 0
+        if same_block:
+            return 1
+        if same_category:
+            return 2
+        return 3
+
+    rows.sort(key=lambda e: (rank(e), -(e[0].id)))
+
+    return [
+        TaskRollUpCandidate(
+            id=task.id,
+            title=task.title,
+            task_number=task.task_number,
+            block_id=task.block_id,
+            task_category=task.task_category,
+            status=task.status,
+            child_count=count,
+        )
+        for task, count in rows[:limit]
+    ]
+
+
+@router.post("/tasks/roll-up", response_model=TaskResponse)
+def roll_up_tasks(
+    payload: TaskRollUpRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Group several tasks under one parent (Greystone beta: repairs noted per row
+    or block rolling up into one bigger task to track and action).
+
+    Either attach to an existing parent (`parent_task_id`) or create a new one
+    (`title`). Returns the parent.
+
+    Declared above /tasks/{task_id} on purpose — FastAPI matches in definition
+    order, and "roll-up" would otherwise be parsed as an int task_id and 422.
+    """
+    if not payload.task_ids:
+        raise HTTPException(status_code=400, detail="No tasks given to roll up")
+
+    # Load and access-check every child up front, so a partial roll-up can't
+    # happen: either the whole group moves or none of it does.
+    children = []
+    for task_id in dict.fromkeys(payload.task_ids):
+        children.append(check_task_access(db, task_id, current_user))
+
+    if payload.parent_task_id:
+        parent = check_task_access(db, payload.parent_task_id, current_user)
+        if parent.parent_task_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="That task is already rolled up under another task. Roll-ups are one level deep.",
+            )
+    else:
+        if not payload.title:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either parent_task_id or a title for the new roll-up task",
+            )
+        first = children[0]
+        parent = Task(
+            company_id=current_user.company_id,
+            task_number=generate_task_number(db, current_user.company_id),
+            created_by=current_user.id,
+            status=TaskStatus.scheduled if first.scheduled_start_date else TaskStatus.draft,
+            title=payload.title,
+            description=payload.description,
+            task_category=first.task_category,
+            priority=first.priority,
+            # Deliberately NOT copying block_id: a roll-up spans blocks, which is
+            # the whole point ("rather than us creating a separate task for every
+            # block"). Location lives on the children.
+            scheduled_start_date=first.scheduled_start_date,
+        )
+        db.add(parent)
+        db.flush()
+
+    for child in children:
+        if child.id == parent.id:
+            raise HTTPException(status_code=400, detail="A task cannot be rolled up under itself")
+        # One level only: a parent that already has children can't become a child.
+        if any(c.parent_task_id == child.id for c in children) or child.child_tasks:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Task {child.task_number} already has tasks rolled up under it",
+            )
+        child.parent_task_id = parent.id
+
+    db.commit()
+    db.refresh(parent)
+
+    logger.info(
+        f"Rolled up {len(children)} task(s) under {parent.task_number} by user {current_user.id}"
+    )
+    return parent
 
 
 @router.post("/tasks/quick-create", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
@@ -720,6 +874,7 @@ def list_tasks(
     scheduled_start_from: Optional[date] = None,
     scheduled_start_to: Optional[date] = None,
     search: Optional[str] = None,
+    parent_task_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -748,6 +903,10 @@ def list_tasks(
         query = query.filter(Task.priority == priority)
     if block_id:
         query = query.filter(Task.block_id == block_id)
+    # Roll-up children. Without this the sub-task panel had to pull the whole
+    # task list and filter client-side on every task detail view.
+    if parent_task_id is not None:
+        query = query.filter(Task.parent_task_id == parent_task_id)
     if spatial_area_id:
         query = query.filter(Task.spatial_area_id == spatial_area_id)
     if created_by:
@@ -885,6 +1044,27 @@ def update_task(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot update {task.status} tasks"
         )
+
+    # Repair roll-up guards. The FK alone would happily accept a self-reference
+    # or a two-level chain, both of which break the roll-up counts.
+    if 'parent_task_id' in update_data and update_data['parent_task_id'] is not None:
+        new_parent_id = update_data['parent_task_id']
+        if new_parent_id == task.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A task cannot be rolled up under itself",
+            )
+        new_parent = check_task_access(db, new_parent_id, current_user)
+        if new_parent.parent_task_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Roll-ups are one level deep — that task is already rolled up elsewhere",
+            )
+        if task.child_tasks:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This task already has tasks rolled up under it",
+            )
 
     # Update fields
     for field, value in update_data.items():

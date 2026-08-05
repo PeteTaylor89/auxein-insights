@@ -2,6 +2,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { spatialAreasService } from '@vineyard/shared';
 import { removeLayers } from '../utils/geometry';
+import {
+  SPATIAL_AREA_FILL,
+  SPATIAL_AREA_FILL_OPACITY,
+  SPATIAL_AREA_OUTLINE,
+  SPATIAL_AREA_OUTLINE_WIDTH,
+  SPATIAL_AREA_OUTLINE_OPACITY,
+  SPATIAL_AREA_DASH,
+} from '../utils/layerColors';
 
 const SOURCE_ID = 'v2-spatial-areas';
 const LAYER_IDS = ['v2-spatial-fill', 'v2-spatial-outline', 'v2-spatial-labels'];
@@ -61,8 +69,8 @@ export default function useSpatialAreasLayer(map, mapReady, visible) {
           type: 'fill',
           source: SOURCE_ID,
           paint: {
-            'fill-color': '#b0e9c5',
-            'fill-opacity': 0.18,
+            'fill-color': SPATIAL_AREA_FILL,
+            'fill-opacity': SPATIAL_AREA_FILL_OPACITY,
           },
         }, beforeLayer);
 
@@ -71,10 +79,10 @@ export default function useSpatialAreasLayer(map, mapReady, visible) {
           type: 'line',
           source: SOURCE_ID,
           paint: {
-            'line-color': 'rgba(0, 0, 0, 1)',
-            'line-width': 3,
-            'line-dasharray': [3, 1],
-            'line-opacity': 0.5,
+            'line-color': SPATIAL_AREA_OUTLINE,
+            'line-width': SPATIAL_AREA_OUTLINE_WIDTH,
+            'line-dasharray': SPATIAL_AREA_DASH,
+            'line-opacity': SPATIAL_AREA_OUTLINE_OPACITY,
           },
         }, beforeLayer);
 

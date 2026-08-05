@@ -17,6 +17,8 @@ from schemas.vineyard_row import (
     VineyardRowFilter,
     BulkRowCreationRequest,
     BulkRowCreationResponse,
+    RowRangeUpdateRequest,
+    RowRangeUpdateResponse,
     ClonalSection
 )
 from utils.geometry_helpers import geojson_to_geometry
@@ -46,23 +48,114 @@ def _verify_row_access(db: Session, row_id: int, user: User) -> VineyardRow:
         raise HTTPException(status_code=404, detail="Row not found")
     return row
 
+# Ceiling on a single range request. Comfortably clears the ~300-row blocks
+# growers actually have; anything past this is a typo (or an attempt to make the
+# server expand a million-element list) rather than a genuine vineyard.
+MAX_ROW_RANGE = 2000
+
+
+def alpha_to_index(token: str) -> int:
+    """Spreadsheet-column value of a letter row label — 1-based.
+
+    A=1 … Z=26, AA=27 … AZ=52, BA=53 … ZZ=702. This is bijective base-26 (no
+    zero digit), the same scheme Excel uses for columns, which is what growers
+    labelling rows past Z expect.
+    """
+    n = 0
+    for ch in token.upper():
+        n = n * 26 + (ord(ch) - 64)
+    return n
+
+
+def index_to_alpha(index: int) -> str:
+    """Inverse of alpha_to_index: 27 -> 'AA'."""
+    out = ""
+    while index > 0:
+        index, rem = divmod(index - 1, 26)
+        out = chr(65 + rem) + out
+    return out
+
+
+def expand_row_range(start: str, end: str) -> List[str]:
+    """Expand an inclusive row range into its ordered row numbers.
+
+    Two naming conventions, and both ends must use the same one:
+      - plain integers, "1" to "50"
+      - spreadsheet-style letters, "A" to "AZ" (A…Z, AA, AB… — 52 rows)
+
+    Takes no count: the range itself is the source of truth. Reversed ranges are
+    normalised rather than rejected — "20 to 1" plainly means the same twenty
+    rows as "1 to 20".
+    """
+    s, e = str(start).strip(), str(end).strip()
+    if not s or not e:
+        raise ValueError("Row start and row end are both required")
+
+    if s.lstrip("-").isdigit() and e.lstrip("-").isdigit():
+        lo, hi = sorted((int(s), int(e)))
+        if hi - lo + 1 > MAX_ROW_RANGE:
+            raise ValueError(f"Row range is too large (max {MAX_ROW_RANGE} rows)")
+        return [str(i) for i in range(lo, hi + 1)]
+
+    if s.isalpha() and e.isalpha():
+        lo, hi = sorted((alpha_to_index(s), alpha_to_index(e)))
+        if hi - lo + 1 > MAX_ROW_RANGE:
+            raise ValueError(f"Row range is too large (max {MAX_ROW_RANGE} rows)")
+        return [index_to_alpha(i) for i in range(lo, hi + 1)]
+
+    raise ValueError(
+        "Row range must be numeric (e.g. 1 to 50) or letters (e.g. A to AZ), "
+        "with both ends using the same convention"
+    )
+
+
 def generate_row_numbers(start: str, end: str, count: int) -> List[str]:
-    """Generate row numbers between start and end"""
-    try:
-        start_num = int(start)
-        end_num = int(end)
-        if end_num - start_num + 1 != count:
-            raise ValueError(f"Row count {count} doesn't match range {start}-{end}")
-        return [str(i) for i in range(start_num, end_num + 1)]
-    except ValueError:
-        if len(start) == 1 and len(end) == 1 and start.isalpha() and end.isalpha():
-            start_ord = ord(start.upper())
-            end_ord = ord(end.upper())
-            if end_ord - start_ord + 1 != count:
-                raise ValueError(f"Row count {count} doesn't match range {start}-{end}")
-            return [chr(i) for i in range(start_ord, end_ord + 1)]
-        else:
-            raise ValueError("Invalid row range format")
+    """Expand a row range and assert it contains exactly `count` rows.
+
+    Delegates to expand_row_range so bulk-create and the range-paint endpoint
+    can never disagree about what a range means — they used to carry separate
+    parsers, which is how one could accept a label the other rejected.
+    """
+    numbers = expand_row_range(start, end)
+    if len(numbers) != count:
+        raise ValueError(
+            f"Row count {count} doesn't match range {start}-{end} "
+            f"({len(numbers)} rows)"
+        )
+    return numbers
+
+
+def _row_key(value) -> str:
+    """Normalise a row number for comparison.
+
+    Row numbers are free-text, so the same row can be stored as "1", "01" or
+    " 1 " depending on who created it. Collapse numeric forms to their integer
+    value and case-fold everything else, so a range paint doesn't silently skip
+    rows that differ only in formatting.
+    """
+    token = str(value if value is not None else "").strip()
+    if not token:
+        return ""
+    if token.lstrip("-").isdigit():
+        return str(int(token))
+    return token.upper()
+
+
+def _natural_row_sort(value: str):
+    """Sort key giving 1, 2, 10 rather than 1, 10, 2.
+
+    Letter labels sort by their spreadsheet-column value, so Z (26) precedes
+    AA (27) — comparing them as plain strings would put AA first. Numeric row
+    numbers sort ahead of letters, which keeps mixed conventions from
+    interleaving; anything else falls to the end alphabetically.
+    """
+    token = str(value or "").strip()
+    if token.lstrip("-").isdigit():
+        return (0, int(token), "")
+    if token.isalpha():
+        return (1, alpha_to_index(token), "")
+    return (2, 0, token.upper())
+
 
 # NEW: Enhanced bulk creation endpoint
 @router.post("/bulk-create", response_model=BulkRowCreationResponse)
@@ -104,7 +197,8 @@ def bulk_create_rows(
             "variety": request.variety or block.variety,
             "clone": request.clone or block.clone,
             "rootstock": request.rootstock or block.rootstock,
-            "vine_spacing": request.vine_spacing or block.vine_spacing
+            "vine_spacing": request.vine_spacing or block.vine_spacing,
+            "row_length": request.row_length,
         }
         
         db_row = VineyardRow(**row_data)
@@ -138,6 +232,81 @@ def bulk_create_rows(
         created_rows=len(created_rows),
         rows=created_rows,
         message=f"Successfully created {len(created_rows)} rows"
+    )
+
+
+@router.patch("/by-block/{block_id}/range", response_model=RowRangeUpdateResponse)
+def update_rows_in_range(
+    block_id: int,
+    payload: RowRangeUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """
+    Apply variety/clone/rootstock/spacing/length to an inclusive range of
+    EXISTING rows on a block.
+
+    Unlike /bulk-create this creates nothing and refuses nothing when rows are
+    already present — it is the tool for a block that is already set up and now
+    needs rows 21-40 switched to a different clone. Run it once per range to
+    build up a mixed-clone block.
+
+    Only fields present in the request body are written, so painting a clone
+    over a range leaves each row's rootstock and spacing untouched.
+    """
+    _verify_block_access(db, block_id, user)
+
+    try:
+        target_numbers = expand_row_range(payload.row_start, payload.row_end)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # exclude_unset draws the line between "not mentioned" (leave alone) and
+    # "explicitly sent as null" (clear it) — the whole point of a range paint is
+    # that it doesn't disturb attributes you didn't name.
+    updates = payload.model_dump(exclude_unset=True)
+    updates.pop("row_start", None)
+    updates.pop("row_end", None)
+    if not updates:
+        raise HTTPException(
+            status_code=400,
+            detail="No fields to update. Provide at least one of: variety, clone, rootstock, vine_spacing, row_length.",
+        )
+
+    target_keys = {_row_key(n) for n in target_numbers}
+    block_rows = db.query(VineyardRow).filter(VineyardRow.block_id == block_id).all()
+    matched = [r for r in block_rows if _row_key(r.row_number) in target_keys]
+
+    if not matched:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No rows on this block fall in the range {payload.row_start}-{payload.row_end}",
+        )
+
+    for row in matched:
+        for field, value in updates.items():
+            setattr(row, field, value)
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Row range update failed for block {block_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update rows")
+
+    matched_keys = {_row_key(r.row_number) for r in matched}
+    missing = [n for n in target_numbers if _row_key(n) not in matched_keys]
+
+    logger.info(
+        f"Range-updated {len(matched)} rows on block {block_id} "
+        f"({payload.row_start}-{payload.row_end}); fields={sorted(updates)}"
+    )
+
+    return RowRangeUpdateResponse(
+        updated_rows=len(matched),
+        row_numbers=sorted((str(r.row_number) for r in matched), key=_natural_row_sort),
+        missing_row_numbers=missing,
+        message=f"Updated {len(matched)} row{'s' if len(matched) != 1 else ''}",
     )
 
 # NEW: Update row with clonal sections

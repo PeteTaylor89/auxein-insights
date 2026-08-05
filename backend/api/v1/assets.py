@@ -14,7 +14,8 @@ from db.models.company import Company
 from schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetSummary, AssetStats,
     MaintenanceDue, CalibrationDue, ComplianceAlert, StockAlert, CertificationScheme,
-    CalibrationSpecCreate, CalibrationSpecUpdate, CalibrationSpecResponse
+    CalibrationSpecCreate, CalibrationSpecUpdate, CalibrationSpecResponse,
+    AssetImportRequest, AssetImportResult, AssetImportError
 )
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
 from services.property_service import get_visible_property_ids
@@ -49,6 +50,120 @@ def build_asset_scope_filter(db: Session, user):
             Asset.property_id.is_(None)
         )
     return Asset.property_id.is_(None)
+
+@router.post("/import", response_model=AssetImportResult)
+def import_assets(
+    payload: AssetImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Bulk-create assets from a parsed CSV (Greystone beta: "a CSV import option
+    would make it much quicker to load in all our equipment at once").
+
+    The CSV is parsed in the browser and arrives here as rows, so this endpoint
+    never deals with file encodings, delimiters or BOMs — it validates and
+    writes. Row numbers are echoed back so the UI can point at the offending
+    line in the user's own file.
+
+    All-or-nothing by default: a single bad row aborts the whole import, because
+    a half-loaded asset register is worse than a rejected file. Set
+    `skip_invalid` to import what parses and report the rest.
+
+    Declared before /{asset_id} routes so "import" is never parsed as an id.
+    """
+    if not current_user.has_permission("assets", "create"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to create assets"
+        )
+
+    if not payload.rows:
+        raise HTTPException(status_code=400, detail="No rows to import")
+
+    # Existing asset numbers for this company — asset_number is unique per
+    # company, so pre-loading avoids a query per row.
+    existing_numbers = {
+        n for (n,) in db.query(Asset.asset_number).filter(
+            Asset.company_id == current_user.company_id
+        ).all()
+    }
+    visible_properties = get_visible_property_ids(db, current_user)
+
+    errors: List[AssetImportError] = []
+    to_create = []
+    seen_in_file = set()
+
+    for row in payload.rows:
+        # row_number is the line in the user's spreadsheet, not the array index.
+        problems = []
+
+        if not row.name or not row.name.strip():
+            problems.append("name is required")
+        if not row.asset_number or not row.asset_number.strip():
+            problems.append("asset_number is required")
+
+        number = (row.asset_number or "").strip()
+        if number and number in existing_numbers:
+            problems.append(f"asset_number '{number}' already exists")
+        if number and number in seen_in_file:
+            problems.append(f"asset_number '{number}' appears more than once in this file")
+
+        if row.property_id is not None and row.property_id not in visible_properties:
+            problems.append(f"property_id {row.property_id} is not accessible")
+
+        if problems:
+            errors.append(AssetImportError(row_number=row.row_number, errors=problems))
+            continue
+
+        seen_in_file.add(number)
+        to_create.append(row)
+
+    if errors and not payload.skip_invalid:
+        # Nothing is written — the caller fixes the file and retries.
+        return AssetImportResult(
+            imported=0,
+            failed=len(errors),
+            errors=errors,
+            committed=False,
+        )
+
+    for row in to_create:
+        asset = Asset(
+            company_id=current_user.company_id,
+            created_by=current_user.id,
+            asset_number=row.asset_number.strip(),
+            name=row.name.strip(),
+            description=row.description,
+            category=row.category,
+            subcategory=row.subcategory,
+            asset_type=row.asset_type,
+            make=row.make,
+            model=row.model,
+            serial_number=row.serial_number,
+            year_manufactured=row.year_manufactured,
+            unit_of_measure=row.unit_of_measure,
+            current_stock=row.current_stock,
+            minimum_stock=row.minimum_stock,
+            cost_per_unit=row.cost_per_unit,
+            property_id=row.property_id,
+            location_label=row.location_label,
+        )
+        db.add(asset)
+
+    db.commit()
+
+    logger.info(
+        f"Imported {len(to_create)} asset(s) for company {current_user.company_id} "
+        f"by user {current_user.id} ({len(errors)} skipped)"
+    )
+    return AssetImportResult(
+        imported=len(to_create),
+        failed=len(errors),
+        errors=errors,
+        committed=True,
+    )
+
 
 @router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)

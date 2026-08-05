@@ -111,6 +111,7 @@ function TaskQuickCreate() {
       setError(null);
 
       const blocksToCreate = selectedBlocks.length > 0 ? selectedBlocks : [selectedBlock];
+      const createdIds = [];
 
       for (const block of blocksToCreate) {
         const payload = {
@@ -122,6 +123,7 @@ function TaskQuickCreate() {
 
         const newTask = await tasksService.quickCreateTask(payload);
         const newTaskId = newTask?.id || newTask?.task?.id;
+        if (newTaskId) createdIds.push(newTaskId);
 
         if (newTaskId && assignedContractorIds.length > 0) {
           // Backend wants one ContractorAssignment per contractor. Sequential keeps
@@ -139,7 +141,19 @@ function TaskQuickCreate() {
         }
       }
 
-      navigate('/');
+      // Open the task that was just made rather than dumping the user on Home
+      // (beta feedback). Selecting several blocks creates one task per block, so
+      // there is no single task to open — fall back to the task list, which lives
+      // on the Observations dashboard's default tab, not at /tasks.
+      // replace, not push: the create form is spent, so Back from the new task
+      // should return to wherever the user came from (Home, Calendar,
+      // Observations) rather than a filled-in form. Mirrors mobile's
+      // navigation.replace in CreateTaskScreen.
+      if (createdIds.length === 1) {
+        navigate(`/tasks/${createdIds[0]}`, { replace: true });
+      } else {
+        navigate('/observations', { replace: true });
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create task');
     } finally {

@@ -284,6 +284,187 @@
   color: var(--color-primary);
 }
 
+/* ---- Group by control ---- */
+.od-group-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.od-group-select {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+/* ---- Grouped table headers ---- */
+.od-group-row td {
+  background: var(--color-surface-warm, #f5ebd5);
+  font-weight: 700;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: var(--space-xs) var(--space-md);
+}
+
+.od-group-count {
+  margin-left: var(--space-xs);
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* ---- Row selection ---- */
+.od-th-check,
+.od-td-check {
+  width: 36px;
+  text-align: center;
+  /* Shift-click range selection selects text without this. */
+  user-select: none;
+}
+
+.od-th-check input,
+.od-td-check input {
+  cursor: pointer;
+  margin: 0;
+}
+
+.od-row-selected td {
+  background: var(--color-info-bg, #e0f2fe);
+}
+
+/* ---- Bulk action bar ---- */
+.od-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.od-bulk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.od-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.od-bulk-select,
+.od-bulk-date {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+.od-bulk-select:disabled,
+.od-bulk-date:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Roll-up naming row — drops below the bulk bar when Roll up is clicked. */
+.od-bulk-rollup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-basis: 100%;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.od-bulk-rollup-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+/* ---- Repair roll-up ----
+   Children read as contents of the parent row, not as peers of it. */
+.od-rollup-toggle {
+  padding: 0 6px 0 0;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+.od-rollup-toggle:hover { color: var(--color-primary); }
+
+.od-child-row {
+  cursor: pointer;
+  background: var(--color-surface-warm, #f5ebd5);
+}
+.od-child-row:hover { filter: brightness(0.98); }
+.od-child-row td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: var(--font-size-xs);
+}
+
+.od-child-title {
+  /* The inset is what makes these read as belonging to the row above. */
+  padding-left: var(--space-base) !important;
+  color: var(--color-text);
+}
+
+.od-child-marker {
+  color: var(--color-text-muted);
+  margin-right: 6px;
+}
+
+.od-child-location {
+  margin-left: var(--space-xs);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.od-rollup-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: var(--space-xs);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-surface-warm, #f5ebd5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .od-pagination {
   display: flex;
   align-items: center;

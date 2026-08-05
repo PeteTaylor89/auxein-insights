@@ -43,6 +43,17 @@ const observationService = {
   // Templates
   getTemplate: async (id) => (await api.get(`/observations/api/observation-templates/${id}`)).data,
 
+  createTemplate: async (payload) =>
+    (await api.post('/observations/api/observation-templates', payload)).data,
+
+  updateTemplate: async (id, payload) =>
+    (await api.patch(`/observations/api/observation-templates/${id}`, payload)).data,
+
+  // Soft delete — the endpoint flips is_active rather than removing the row, so
+  // runs that already used the template keep resolving it.
+  deactivateTemplate: async (id) =>
+    (await api.delete(`/observations/api/observation-templates/${id}`)).data,
+
   // Spots
   listSpotsForRun: async (runId) =>
     (await api.get(`/observations/api/observation-runs/${runId}/spots`)).data,

@@ -1,0 +1,15 @@
+asset_number,name,category,asset_type,subcategory,unit_of_measure,current_stock,minimum_stock,cost_per_unit,location_label,description
+CHEM-001,Sulphur WG,consumable,consumable,fungicide,kg,240,50,4.85,Chemical store,Wettable granule
+CHEM-002,Copper Hydroxide,consumable,consumable,fungicide,kg,85,25,12.40,Chemical store,
+CHEM-003,Potassium Bicarbonate,consumable,consumable,fungicide,kg,40,20,9.60,Chemical store,Organic programme
+CHEM-004,Spray Oil,consumable,consumable,adjuvant,L,120,40,6.30,Chemical store,"Mineral oil, 1000L IBC"
+CHEM-005,Wetting Agent,consumable,consumable,adjuvant,L,25,10,18.75,Chemical store,
+FERT-001,Calcium Nitrate,consumable,consumable,fertiliser,kg,600,150,1.95,Chemical store,
+FERT-002,Seaweed Extract,consumable,consumable,fertiliser,L,180,60,8.20,Chemical store,Foliar
+FERT-003,Compost,consumable,consumable,fertiliser,t,14,4,95.00,Compost pad,Bulk
+FUEL-001,Diesel,consumable,consumable,fuel,L,1800,500,2.15,Fuel bay,Bulk tank
+FUEL-002,Petrol 91,consumable,consumable,fuel,L,180,60,2.68,Fuel bay,
+LUB-001,Hydraulic Oil,consumable,consumable,lubricant,L,60,20,7.40,Workshop,
+CONS-001,Vine Ties,consumable,consumable,vineyard supply,units,12000,3000,0.04,Main shed,
+CONS-002,Trellis Staples,consumable,consumable,vineyard supply,kg,45,15,11.50,Workshop,
+CONS-003,Grow Tubes,consumable,consumable,vineyard supply,units,850,200,1.35,Main shed,Replants

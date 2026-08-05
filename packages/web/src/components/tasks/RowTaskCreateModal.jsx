@@ -35,6 +35,13 @@ export default function RowTaskCreateModal({ open, onClose, parentTask, row, onC
   const [error, setError] = useState(null);
   const [created, setCreated] = useState(null);
 
+  // Roll-up attach. `rollUpChoice` is a parent id, '__new__' or '__none__'.
+  // Candidates come back best-match-first from the API, so the head of the list
+  // is the suggestion — no ranking logic duplicated here.
+  const [candidates, setCandidates] = useState([]);
+  const [rollUpChoice, setRollUpChoice] = useState('__none__');
+  const [newRollUpTitle, setNewRollUpTitle] = useState('');
+
   // Prefill each time the modal opens for a row.
   useEffect(() => {
     if (!open) return;
@@ -56,6 +63,38 @@ export default function RowTaskCreateModal({ open, onClose, parentTask, row, onC
       .catch(() => setUsers([]));
   }, [open]);
 
+  // Load roll-up candidates for this block + category. Re-runs when the user
+  // changes category, since that reorders what's most relevant.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    tasksService.getRollUpCandidates({
+      block_id: parentTask?.block_id ?? undefined,
+      task_category: category || undefined,
+    })
+      .then(list => {
+        if (cancelled) return;
+        const arr = Array.isArray(list) ? list : [];
+        setCandidates(arr);
+        // Preselect the single best match, but only when it's a strong one —
+        // same block. Otherwise default to standalone rather than filing the
+        // issue somewhere the user didn't look at.
+        const best = arr[0];
+        const strong = best && parentTask?.block_id && best.block_id === parentTask.block_id;
+        setRollUpChoice(strong ? String(best.id) : '__none__');
+      })
+      .catch(() => { if (!cancelled) setCandidates([]); });
+    return () => { cancelled = true; };
+  }, [open, category, parentTask?.block_id]);
+
+  // Default name for a new roll-up: the block carries the "where", the user
+  // types the "what" (Wires, Irrigation). task_category is too coarse to name it.
+  useEffect(() => {
+    if (!open) return;
+    const blockName = parentTask?.block_name || parentTask?.block?.block_name;
+    setNewRollUpTitle(blockName ? ` — ${blockName}` : '');
+  }, [open, parentTask?.block_name]);
+
   if (!open) return null;
 
   const submit = async () => {
@@ -73,6 +112,28 @@ export default function RowTaskCreateModal({ open, onClose, parentTask, row, onC
       if (parentTask?.block_id) payload.block_id = parentTask.block_id;
       if (scheduledDate) payload.scheduled_start_date = scheduledDate;
       if (assignees.length) payload.assigned_user_ids = assignees;
+
+      // Resolve the roll-up before creating the issue, so a failure to make the
+      // parent doesn't leave an orphan issue task behind.
+      if (rollUpChoice === '__new__') {
+        if (!newRollUpTitle.trim()) {
+          setError('Name the roll-up, e.g. "Wires — Block A"');
+          setSaving(false);
+          return;
+        }
+        const parent = await tasksService.createTask({
+          title: newRollUpTitle.trim(),
+          task_category: category,
+          priority,
+          // No block on the parent: a roll-up is a container, and pinning it to
+          // one block fights the whole point once issues span blocks.
+          description: `Roll-up created from ${parentTask?.title || 'a row-by-row task'}.`,
+        });
+        payload.parent_task_id = parent.id;
+      } else if (rollUpChoice !== '__none__') {
+        payload.parent_task_id = Number(rollUpChoice);
+      }
+
       const newTask = await tasksService.createTask(payload);
       setCreated(newTask);
       onCreated?.(newTask);
@@ -134,6 +195,53 @@ export default function RowTaskCreateModal({ open, onClose, parentTask, row, onC
                 </select>
               </div>
             </div>
+
+            <label className="rtc-label">Add to roll-up</label>
+            <div className="rtc-rollup">
+              {candidates.map(c => (
+                <label key={c.id} className={`rtc-rollup-opt ${rollUpChoice === String(c.id) ? 'checked' : ''}`}>
+                  <input
+                    type="radio"
+                    name="rtc-rollup"
+                    checked={rollUpChoice === String(c.id)}
+                    onChange={() => setRollUpChoice(String(c.id))}
+                  />
+                  <span className="rtc-rollup-title">{c.title || `Task #${c.id}`}</span>
+                  <span className="rtc-rollup-count">{c.child_count}</span>
+                </label>
+              ))}
+
+              <label className={`rtc-rollup-opt ${rollUpChoice === '__new__' ? 'checked' : ''}`}>
+                <input
+                  type="radio"
+                  name="rtc-rollup"
+                  checked={rollUpChoice === '__new__'}
+                  onChange={() => setRollUpChoice('__new__')}
+                />
+                <span className="rtc-rollup-title">New roll-up…</span>
+              </label>
+
+              <label className={`rtc-rollup-opt ${rollUpChoice === '__none__' ? 'checked' : ''}`}>
+                <input
+                  type="radio"
+                  name="rtc-rollup"
+                  checked={rollUpChoice === '__none__'}
+                  onChange={() => setRollUpChoice('__none__')}
+                />
+                <span className="rtc-rollup-title">Standalone task</span>
+              </label>
+            </div>
+
+            {rollUpChoice === '__new__' && (
+              <input
+                className="rtc-input"
+                value={newRollUpTitle}
+                onChange={e => setNewRollUpTitle(e.target.value)}
+                placeholder="Wires — Block A"
+                maxLength={200}
+                autoFocus
+              />
+            )}
 
             <label className="rtc-label" htmlFor="rtc-desc">Description</label>
             <textarea

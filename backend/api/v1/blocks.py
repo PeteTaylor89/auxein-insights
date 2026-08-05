@@ -261,8 +261,9 @@ def get_block_by_id(
         "row_count": block.row_count,
         "training_system": block.training_system,
         "rootstock": block.rootstock,
+        "notes": block.notes,
     }
-    
+
     # Add geometry if available
     if block.geometry:
         try:
@@ -300,25 +301,38 @@ def update_block_data(
         db.refresh(block)
         logger.info(f"Block {block_id} updated successfully")
         
+        # Mirrors the writable surface of BlockUpdate. Keep the two in step —
+        # a field that can be written but not read back reads to the caller as
+        # a silently dropped save.
         return {
             "id": block.id,
             "block_name": block.block_name,
             "variety": block.variety,
             "clone": block.clone,
+            "rootstock": block.rootstock,
             "planted_date": block.planted_date,
             "removed_date": block.removed_date,
             "row_spacing": block.row_spacing,
             "vine_spacing": block.vine_spacing,
+            "row_start": block.row_start,
+            "row_end": block.row_end,
+            "row_count": block.row_count,
+            "training_system": block.training_system,
+            "notes": block.notes,
+            "status": block.status,
             "area": block.area,
             "region": block.region,
             "swnz": block.swnz,
             "organic": block.organic,
+            "biodynamic": block.biodynamic,
+            "regenerative": block.regenerative,
             "winery": block.winery,
             "gi": block.gi,
             "elevation": block.elevation,
             "centroid_longitude": block.centroid_longitude,
             "centroid_latitude": block.centroid_latitude,
-            "company_id": block.company_id
+            "company_id": block.company_id,
+            "property_id": block.property_id,
         }
     except Exception as e:
         db.rollback()

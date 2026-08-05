@@ -1,0 +1,13 @@
+asset_number,name,category,asset_type,subcategory,make,model,serial_number,year_manufactured,unit_of_measure,current_stock,minimum_stock,cost_per_unit,location_label,description
+TR-001,Kubota M7060,equipment,physical,tractor,Kubota,M7060,SN-KB-99213,2019,,,,,Main shed,Primary row tractor
+TR-002,New Holland T4.75,equipment,physical,tractor,New Holland,T4.75,SN-NH-40122,2021,,,,,Main shed,
+SPR-001,Croplands Quantum Mist,equipment,physical,sprayer,Croplands,Quantum Mist 2000,SN-CL-77310,2020,,,,,Implement bay,"Twin-fan, 2000L tank"
+UTV-001,Polaris Ranger 570,vehicle,physical,utility vehicle,Polaris,Ranger 570,SN-PL-55190,2022,,,,,Main shed,
+MOW-001,Fischer GL4 Mower,equipment,physical,mower,Fischer,GL4,SN-FS-31007,2018,,,,,Implement bay,Undervine mower
+POST-DRV,Post Driver,tool,physical,hand equipment,Munro,PD-100,,2015,,,,,Workshop,
+CHEM-001,Sulphur WG,consumable,consumable,fungicide,,,,,kg,240,50,4.85,Chemical store,Wettable granule
+CHEM-002,Copper Hydroxide,consumable,consumable,fungicide,,,,,kg,85,25,12.40,Chemical store,
+FUEL-001,Diesel,consumable,consumable,fuel,,,,,L,1800,500,2.15,Fuel bay,Bulk tank
+FERT-001,Calcium Nitrate,consumable,consumable,fertiliser,,,,,kg,600,150,1.95,Chemical store,
+IRR-MAIN,Irrigation Mainline,infrastructure,physical,irrigation,,,,,,,,,Block 1 headland,"50mm PVC, north boundary"
+FENCE-N,North Boundary Fence,infrastructure,physical,fencing,,,,,,,,,North boundary,

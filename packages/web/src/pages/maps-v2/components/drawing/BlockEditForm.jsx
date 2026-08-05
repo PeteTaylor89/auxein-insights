@@ -56,6 +56,8 @@ export default function BlockEditForm({
     removed_date: '',
     row_spacing: '',
     vine_spacing: '',
+    area: '',
+    notes: '',
     swnz: false,
     organic: false,
     biodynamic: false,
@@ -76,6 +78,8 @@ export default function BlockEditForm({
         removed_date: blockData.removed_date?.slice(0, 10) || '',
         row_spacing: blockData.row_spacing || '',
         vine_spacing: blockData.vine_spacing || '',
+        area: blockData.area ?? '',
+        notes: blockData.notes || '',
         swnz: !!blockData.swnz,
         organic: !!blockData.organic,
         biodynamic: !!blockData.biodynamic,
@@ -115,6 +119,8 @@ export default function BlockEditForm({
         removed_date: form.removed_date || null,
         row_spacing: form.row_spacing ? parseFloat(form.row_spacing) : null,
         vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
+        area: form.area === '' ? null : parseFloat(form.area),
+        notes: form.notes.trim() || null,
         swnz: form.swnz,
         organic: form.organic,
         biodynamic: form.biodynamic,
@@ -334,6 +340,34 @@ export default function BlockEditForm({
                   onChange={handleChange('vine_spacing')}
                 />
               </div>
+            </div>
+
+            <div className="v2-form-group">
+              <label className="v2-form-label">Area (ha)</label>
+              <input
+                className="v2-form-input"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.area}
+                onChange={handleChange('area')}
+                placeholder="e.g. 2.40"
+              />
+              <p className="v2-form-hint">
+                Type a surveyed figure here if the drawn shape under-reads. Editing the
+                block shape recalculates this from the polygon and replaces what you enter.
+              </p>
+            </div>
+
+            <div className="v2-form-group">
+              <label className="v2-form-label">Notes</label>
+              <textarea
+                className="v2-form-textarea"
+                value={form.notes}
+                onChange={handleChange('notes')}
+                placeholder="Anything that doesn't fit the fields above — access, history, quirks..."
+                rows={3}
+              />
             </div>
           </div>
 

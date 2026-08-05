@@ -3,10 +3,46 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { blocksService } from '@vineyard/shared';
 import { removeLayers } from '../utils/geometry';
-import { BLOCK_FILL_OWN, BLOCK_FILL_OTHER, BLOCK_OUTLINE } from '../utils/layerColors';
+import {
+  BLOCK_FILL_OWN, BLOCK_FILL_OTHER, BLOCK_OUTLINE,
+  BLOCK_FILL_OPACITY, BLOCK_OUTLINE_WIDTH_OWN, BLOCK_OUTLINE_WIDTH_OTHER,
+} from '../utils/layerColors';
 
 const SOURCE_ID = 'v2-vineyard-blocks';
 const LAYER_IDS = ['v2-blocks-fill', 'v2-blocks-outline', 'v2-blocks-labels'];
+
+// --- Label expressions -----------------------------------------------------
+// The block label carries a second, smaller line of detail ("2.40 ha · Pinot
+// Noir") so the map answers the common questions without a click.
+//
+// `area` and `variety` are both nullable on the feature, so everything is
+// coerced defensively: to-number with a 0 fallback treats null/absent/garbage
+// alike, and to-string renders null as an empty string. That keeps a block with
+// no variety from rendering a stray separator.
+const AREA_HA = ['to-number', ['get', 'area'], 0];
+
+const AREA_LABEL = [
+  'case',
+  ['>', AREA_HA, 0],
+  ['concat', ['number-format', AREA_HA, { 'min-fraction-digits': 2, 'max-fraction-digits': 2 }], ' ha'],
+  '',
+];
+
+const VARIETY_LABEL = ['to-string', ['get', 'variety']];
+
+// Only insert the separator when there's something on both sides of it.
+const DETAIL_LINE = [
+  'concat',
+  AREA_LABEL,
+  ['case', ['all', ['!=', AREA_LABEL, ''], ['!=', VARIETY_LABEL, '']], ' · ', ''],
+  VARIETY_LABEL,
+];
+
+const BLOCK_LABEL = [
+  'format',
+  ['to-string', ['get', 'block_name']], {},
+  ['case', ['!=', DETAIL_LINE, ''], ['concat', '\n', DETAIL_LINE], ''], { 'font-scale': 0.8 },
+];
 
 /**
  * Hook that manages the blocks layer on the map.
@@ -74,7 +110,7 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
               BLOCK_FILL_OWN,
               BLOCK_FILL_OTHER,
             ],
-            'fill-opacity': 0.12,
+            'fill-opacity': BLOCK_FILL_OPACITY,
           },
         });
 
@@ -87,8 +123,8 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
             'line-width': [
               'case',
               ['==', ['get', 'company_id'], companyId || 0],
-              2.5,
-              1.5,
+              BLOCK_OUTLINE_WIDTH_OWN,
+              BLOCK_OUTLINE_WIDTH_OTHER,
             ],
             'line-opacity': 1,
           },
@@ -103,11 +139,12 @@ export default function useBlocksLayer(map, mapReady, companyId, isAdmin) {
             ? ['has', 'block_name']
             : ['==', ['get', 'company_id'], companyId || 0],
           layout: {
-            'text-field': ['get', 'block_name'],
+            'text-field': BLOCK_LABEL,
             'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
             'text-size': 12,
             'text-offset': [0, 0],
             'text-anchor': 'center',
+            'text-line-height': 1.15,
           },
           paint: {
             'text-color': '#1f2937',

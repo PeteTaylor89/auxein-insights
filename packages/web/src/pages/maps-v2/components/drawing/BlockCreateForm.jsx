@@ -1,5 +1,5 @@
 // maps-v2/components/drawing/BlockCreateForm.jsx — New block creation form
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Save, Loader } from 'lucide-react';
 import { blocksService } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
@@ -51,7 +51,18 @@ export default function BlockCreateForm({
     row_spacing: '',
     vine_spacing: '',
     property_id: '',
+    // Seeded from the drawn polygon but editable — a hand-drawn boundary is an
+    // approximation, and growers usually have a surveyed figure they trust more.
+    area: '',
   });
+
+  // Seed the area field once the drawn polygon reports its size. Guarded on the
+  // field being untouched so a re-render can't overwrite a typed value.
+  useEffect(() => {
+    if (area > 0) {
+      setForm((prev) => (prev.area === '' ? { ...prev, area: area.toFixed(2) } : prev));
+    }
+  }, [area]);
 
   const handleChange = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -79,7 +90,9 @@ export default function BlockCreateForm({
         planted_date: form.planted_date || null,
         row_spacing: form.row_spacing ? parseFloat(form.row_spacing) : null,
         vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
-        area: area || null,
+        // Typed value wins over the drawn one; fall back to the polygon's area
+        // if the field was cleared.
+        area: form.area ? parseFloat(form.area) : (area || null),
         centroid_longitude: centroid?.[0] || null,
         centroid_latitude: centroid?.[1] || null,
         company_id: user?.company_id,
@@ -114,11 +127,26 @@ export default function BlockCreateForm({
       <form onSubmit={handleSubmit} className="v2-form-body">
         {error && <div className="v2-form-error">{error}</div>}
 
-        {area > 0 && (
-          <div className="v2-form-info">
-            Area: <strong>{area.toFixed(2)} ha</strong>
-          </div>
-        )}
+        <div className="v2-form-group">
+          <label className="v2-form-label">Area (ha)</label>
+          <input
+            className="v2-form-input"
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.area}
+            onChange={handleChange('area')}
+            placeholder="e.g. 2.40"
+          />
+          {area > 0 && (
+            <p className="v2-form-hint">
+              Drawn shape measures {area.toFixed(2)} ha
+              {form.area && Math.abs(parseFloat(form.area) - area) > 0.005
+                ? ' — your figure will be saved instead.'
+                : '. Overwrite it if you have a surveyed figure.'}
+            </p>
+          )}
+        </div>
 
         {properties.length > 0 && (
           <div className="v2-form-group">

@@ -115,21 +115,28 @@ function createMarkerImage(bgColor, iconColor, elements) {
  * Register all custom marker icons with the map.
  * Safe to call multiple times — skips already-registered icons.
  */
+/**
+ * Every marker image the map registers, in one place.
+ *
+ * The legend renders its swatches from this same list (see MapLegend.jsx), so
+ * a marker whose colour or glyph changes here changes in the legend too — the
+ * failure mode of a hand-maintained legend is that it quietly starts lying.
+ */
+export const MARKER_SPECS = [
+  { id: 'v2-tasks-icon', bg: '#D1583B', fg: '#ffffff', def: ICON_DEFS.tasks, label: 'Task' },
+  { id: 'v2-tasks-icon-inactive', bg: '#94a3b8', fg: '#ffffff', def: ICON_DEFS.tasks, label: 'Task (done / cancelled)' },
+  { id: 'v2-obs-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.binoculars, label: 'Observation' },
+  { id: 'v2-risk-icon-low', bg: '#28a745', fg: '#ffffff', def: ICON_DEFS.risk, label: 'Risk — low' },
+  { id: 'v2-risk-icon-medium', bg: '#f59e0b', fg: '#ffffff', def: ICON_DEFS.risk, label: 'Risk — medium' },
+  { id: 'v2-risk-icon-high', bg: '#dc2626', fg: '#ffffff', def: ICON_DEFS.risk, label: 'Risk — high' },
+  { id: 'v2-risk-icon-critical', bg: '#7c2d12', fg: '#ffffff', def: ICON_DEFS.risk, label: 'Risk — critical' },
+  { id: 'v2-asset-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.wrench, label: 'Asset' },
+];
+
 export function registerMapIcons(map) {
   if (!map) return;
 
-  const icons = [
-    { id: 'v2-tasks-icon', bg: '#D1583B', fg: '#ffffff', def: ICON_DEFS.tasks },
-    { id: 'v2-tasks-icon-inactive', bg: '#94a3b8', fg: '#ffffff', def: ICON_DEFS.tasks },
-    { id: 'v2-obs-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.binoculars },
-    { id: 'v2-risk-icon-low', bg: '#28a745', fg: '#ffffff', def: ICON_DEFS.risk },
-    { id: 'v2-risk-icon-medium', bg: '#f59e0b', fg: '#ffffff', def: ICON_DEFS.risk },
-    { id: 'v2-risk-icon-high', bg: '#dc2626', fg: '#ffffff', def: ICON_DEFS.risk },
-    { id: 'v2-risk-icon-critical', bg: '#7c2d12', fg: '#ffffff', def: ICON_DEFS.risk },
-    { id: 'v2-asset-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.wrench },
-  ];
-
-  icons.forEach(({ id, bg, fg, def }) => {
+  MARKER_SPECS.forEach(({ id, bg, fg, def }) => {
     if (map.hasImage(id)) return;
     try {
       const img = createMarkerImage(bg, fg, def);

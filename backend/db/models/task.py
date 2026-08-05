@@ -112,6 +112,14 @@ class Task(Base):
     # double-counting.
     source_task_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
 
+    # Repair roll-up (Greystone beta): a row/block-level repair — "broken wire,
+    # row 27" — can point at a parent task that tracks the whole job, so the
+    # crew actions one roll-up instead of forty separate tasks. A repair is just
+    # a Task; this is the only column the feature needs.
+    # As with source_task_id, counts that must not double-report should exclude
+    # either the children (parent_task_id IS NOT NULL) or the parents.
+    parent_task_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -146,6 +154,8 @@ class Task(Base):
     completer = relationship("User", foreign_keys=[completed_by])
     canceller = relationship("User", foreign_keys=[cancelled_by])
     source_task = relationship("Task", remote_side=[id], foreign_keys=[source_task_id])
+    parent_task = relationship("Task", remote_side=[id], foreign_keys=[parent_task_id], back_populates="child_tasks")
+    child_tasks = relationship("Task", foreign_keys=[parent_task_id], back_populates="parent_task")
     
     assignments: Mapped[List["TaskAssignment"]] = relationship("TaskAssignment", back_populates="task", cascade="all, delete-orphan")
     task_rows: Mapped[List["TaskRow"]] = relationship("TaskRow", back_populates="task", cascade="all, delete-orphan")

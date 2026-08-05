@@ -1,6 +1,6 @@
 // pages/CompanyAdmin.jsx — Company admin management page (Grow V1, Revision 2)
 // Tabs: Users & Properties, Timesheets, Training, Aliases, GrapeLink, Weather, Calendar Sync, Reports
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3, CreditCard, ShieldCheck } from 'lucide-react';
@@ -811,6 +811,7 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
         removed_date: b.removed_date?.slice(0, 10) || '',
         row_spacing: b.row_spacing ?? '',
         vine_spacing: b.vine_spacing ?? '',
+        notes: b.notes || '',
         swnz: !!b.swnz,
         organic: !!b.organic,
         biodynamic: !!b.biodynamic,
@@ -832,6 +833,13 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
   }, [blockId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // vine_count is server-derived from row_length / vine_spacing, so it stays
+  // null until both are set — the total quietly omits rows that lack either.
+  const totalVines = useMemo(
+    () => (rows || []).reduce((sum, r) => sum + (Number(r.vine_count) || 0), 0),
+    [rows],
+  );
 
   const handleChange = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -855,6 +863,7 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
         removed_date: form.removed_date || null,
         row_spacing: form.row_spacing ? parseFloat(form.row_spacing) : null,
         vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
+        notes: form.notes.trim() || null,
         swnz: form.swnz,
         organic: form.organic,
         biodynamic: form.biodynamic,
@@ -955,6 +964,17 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
                   </div>
                 </div>
 
+                <div style={{ marginTop: 'var(--space-md)' }}>
+                  <label className="ca-inline-label">Notes</label>
+                  <textarea
+                    className="ca-inline-input"
+                    style={{ width: '100%', minHeight: 80, resize: 'vertical', fontFamily: 'inherit' }}
+                    value={form.notes}
+                    onChange={handleChange('notes')}
+                    placeholder="Anything that doesn't fit the fields above — access, history, quirks..."
+                  />
+                </div>
+
                 <div style={{ display: 'flex', gap: 'var(--space-md)', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}>
                   {['swnz', 'organic', 'biodynamic', 'regenerative'].map(cert => (
                     <label key={cert} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)', fontSize: 'var(--font-size-sm)' }}>
@@ -977,6 +997,11 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
                 <h4 className="ca-section-title" style={{ fontSize: 'var(--font-size-md)', margin: 0 }}>
                   <Rows3 size={16} style={{ verticalAlign: 'middle', marginRight: 'var(--space-xs)' }} />
                   Rows ({rows.length})
+                  {totalVines > 0 && (
+                    <span className="ca-muted" style={{ fontWeight: 400, fontSize: 'var(--font-size-sm)', marginLeft: 'var(--space-xs)' }}>
+                      · {totalVines.toLocaleString()} vines
+                    </span>
+                  )}
                 </h4>
                 {rows.length > 0 && (
                   <button className="ca-btn-icon" onClick={handleDeleteAllRows} title="Delete all rows">
@@ -988,7 +1013,10 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
               {rows.length === 0 ? (
                 <BulkRowCreate blockId={blockId} block={block} onCreated={loadAll} />
               ) : (
-                <RowsTable rows={rows} onChange={loadAll} />
+                <>
+                  <RowRangePainter blockId={blockId} rows={rows} onApplied={loadAll} />
+                  <RowsTable rows={rows} onChange={loadAll} />
+                </>
               )}
             </>
           )}
@@ -998,39 +1026,73 @@ function BlockEditModal({ blockId, properties, onClose, onSaved }) {
   );
 }
 
+/**
+ * Estimate the length of a single row from the block's own figures:
+ * area (ha) spread across `rowCount` rows sitting `rowSpacing` metres apart.
+ *
+ *   area_m2 / (rowCount * rowSpacing) = metres per row
+ *
+ * It's a rectangle approximation, so it drifts on an irregular polygon — it's
+ * offered as a starting figure the grower can overwrite, never written silently.
+ */
+function suggestRowLength(block, rowCount) {
+  const areaHa = Number(block?.area);
+  const spacing = Number(block?.row_spacing);
+  if (!areaHa || !spacing || !rowCount || rowCount < 1) return null;
+  const metres = (areaHa * 10000) / (rowCount * spacing);
+  if (!Number.isFinite(metres) || metres <= 0) return null;
+  return Math.round(metres * 10) / 10;
+}
+
 function BulkRowCreate({ blockId, block, onCreated }) {
   const [form, setForm] = useState({
     row_start: block?.row_start || '1',
     row_end: block?.row_end || '',
-    row_count: block?.row_count || '',
     variety: block?.variety || '',
     clone: block?.clone || '',
     rootstock: block?.rootstock || '',
     vine_spacing: block?.vine_spacing ?? '',
+    row_length: '',
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
   const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
+  // Row count is derived from the range rather than typed. The server insists
+  // the two agree, so asking for both only creates a way to get it wrong.
+  const rowNumbers = useMemo(
+    () => vineyardRowsService.expandRowRange(form.row_start, form.row_end),
+    [form.row_start, form.row_end],
+  );
+  const rowCount = rowNumbers.length;
+  const rangeEntered = Boolean(String(form.row_start).trim() && String(form.row_end).trim());
+  const rangeInvalid = rangeEntered && rowCount === 0;
+
+  const suggestedLength = useMemo(
+    () => suggestRowLength(block, rowCount),
+    [block, rowCount],
+  );
+
   const submit = async (e) => {
     e.preventDefault();
     setErr(null);
-    const count = parseInt(form.row_count);
-    if (!form.row_start || !form.row_end || !count || count < 1) {
-      setErr('Row start, end and count are all required'); return;
+    if (!rowCount) {
+      setErr('Enter a valid row range — numeric (1 to 50) or letters (A to AZ)');
+      return;
     }
     setSaving(true);
     try {
       await vineyardRowsService.bulkCreateRows({
         block_id: blockId,
-        row_start: String(form.row_start),
-        row_end: String(form.row_end),
-        row_count: count,
+        row_start: String(form.row_start).trim(),
+        row_end: String(form.row_end).trim(),
+        row_count: rowCount,
         variety: form.variety || null,
         clone: form.clone || null,
         rootstock: form.rootstock || null,
         vine_spacing: form.vine_spacing ? parseFloat(form.vine_spacing) : null,
+        row_length: form.row_length ? parseFloat(form.row_length) : null,
       });
       await onCreated();
     } catch (e) {
@@ -1044,7 +1106,8 @@ function BulkRowCreate({ blockId, block, onCreated }) {
   return (
     <form onSubmit={submit} style={{ padding: 'var(--space-base)', background: 'var(--color-surface-warm)', borderRadius: 'var(--radius-md)' }}>
       <p className="ca-section-desc" style={{ marginBottom: 'var(--space-md)' }}>
-        No rows yet. Create a range (e.g. 1–20, or A–J) and the rows will be generated with the defaults below.
+        No rows yet. Create a range (e.g. 1–20, or A–AZ) and the rows will be generated with the defaults below.
+        Mixed clones or rootstocks are set afterwards, a range at a time.
       </p>
       {err && <div className="ca-form-error" style={{ marginBottom: 'var(--space-sm)' }}>{err}</div>}
       <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
@@ -1054,11 +1117,7 @@ function BulkRowCreate({ blockId, block, onCreated }) {
         </div>
         <div>
           <label className="ca-inline-label">Row End *</label>
-          <input className="ca-inline-input" value={form.row_end} onChange={handle('row_end')} placeholder="20 or J" required />
-        </div>
-        <div>
-          <label className="ca-inline-label">Row Count *</label>
-          <input className="ca-inline-input" type="number" min="1" value={form.row_count} onChange={handle('row_count')} required />
+          <input className="ca-inline-input" value={form.row_end} onChange={handle('row_end')} placeholder="20 or AZ" required />
         </div>
         <div>
           <label className="ca-inline-label">Variety</label>
@@ -1076,10 +1135,209 @@ function BulkRowCreate({ blockId, block, onCreated }) {
           <label className="ca-inline-label">Vine Spacing (m)</label>
           <input className="ca-inline-input" type="number" step="0.1" value={form.vine_spacing} onChange={handle('vine_spacing')} />
         </div>
+        <div>
+          <label className="ca-inline-label">Row Length (m)</label>
+          <input className="ca-inline-input" type="number" step="0.1" value={form.row_length} onChange={handle('row_length')} placeholder="optional" />
+          {suggestedLength && !form.row_length && (
+            <button
+              type="button"
+              className="ca-chip-btn"
+              style={{ marginTop: 'var(--space-xs)' }}
+              onClick={() => setForm(f => ({ ...f, row_length: String(suggestedLength) }))}
+              title="Estimated from block area and row spacing"
+            >
+              Use ~{suggestedLength} m
+            </button>
+          )}
+        </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-base)' }}>
-        <button type="submit" className="ca-btn-primary" disabled={saving}>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'var(--space-base)', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <span className="ca-muted" style={{ fontSize: 'var(--font-size-sm)' }}>
+          {rangeInvalid
+            ? 'Range must be numeric (1 to 50) or letters (A to AZ)'
+            : rowCount
+              ? `${rowCount} row${rowCount === 1 ? '' : 's'} will be created: ${rowNumbers[0]}–${rowNumbers[rowNumbers.length - 1]}`
+              : 'Enter a row range to continue'}
+        </span>
+        <button type="submit" className="ca-btn-primary" disabled={saving || !rowCount}>
           <Plus size={14} /> {saving ? 'Creating...' : 'Create Rows'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Normalise a row number the same way the server's _row_key does, so the
+// client-side "will update N rows" preview agrees with what actually happens.
+const rowKey = (value) => {
+  const token = String(value ?? '').trim();
+  if (!token) return '';
+  return /^-?\d+$/.test(token) ? String(parseInt(token, 10)) : token.toUpperCase();
+};
+
+const PAINT_FIELDS = [
+  { key: 'variety', label: 'Variety', type: 'text' },
+  { key: 'clone', label: 'Clone', type: 'text' },
+  { key: 'rootstock', label: 'Rootstock', type: 'text' },
+  { key: 'vine_spacing', label: 'Vine Spacing (m)', type: 'number' },
+  { key: 'row_length', label: 'Row Length (m)', type: 'number' },
+];
+
+/**
+ * Apply attributes to a range of existing rows in one call.
+ *
+ * The beta's headline ask: a 40-row block planted to two clones previously took
+ * 40 individual row edits. Blank fields are omitted from the request, so
+ * painting a clone over rows 21-40 leaves their rootstock and spacing alone.
+ */
+function RowRangePainter({ blockId, rows, onApplied }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    row_start: '', row_end: '',
+    variety: '', clone: '', rootstock: '', vine_spacing: '', row_length: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const targetNumbers = useMemo(
+    () => vineyardRowsService.expandRowRange(form.row_start, form.row_end),
+    [form.row_start, form.row_end],
+  );
+
+  // Split the requested range into rows that exist and rows that don't, so a
+  // typo'd range reads as "12 of 20 rows" rather than silently doing less than
+  // the user thinks.
+  const { matchCount, missingCount } = useMemo(() => {
+    if (targetNumbers.length === 0) return { matchCount: 0, missingCount: 0 };
+    const existing = new Set((rows || []).map(r => rowKey(r.row_number)));
+    let hit = 0;
+    for (const n of targetNumbers) if (existing.has(rowKey(n))) hit += 1;
+    return { matchCount: hit, missingCount: targetNumbers.length - hit };
+  }, [targetNumbers, rows]);
+
+  const filledFields = PAINT_FIELDS.filter(f => String(form[f.key]).trim() !== '');
+  const rangeEntered = Boolean(String(form.row_start).trim() && String(form.row_end).trim());
+  const rangeInvalid = rangeEntered && targetNumbers.length === 0;
+  const canApply = matchCount > 0 && filledFields.length > 0 && !saving;
+
+  const apply = async (e) => {
+    e.preventDefault();
+    setErr(null);
+    setResult(null);
+
+    // Only send what was filled in — an omitted key means "leave it alone"
+    // server-side, which is what makes repeated range paints composable.
+    const payload = { row_start: String(form.row_start).trim(), row_end: String(form.row_end).trim() };
+    for (const f of filledFields) {
+      payload[f.key] = f.type === 'number' ? parseFloat(form[f.key]) : String(form[f.key]).trim();
+    }
+
+    setSaving(true);
+    try {
+      const res = await vineyardRowsService.updateRowRange(blockId, payload);
+      setResult(res);
+      setForm(f => ({
+        ...f,
+        variety: '', clone: '', rootstock: '', vine_spacing: '', row_length: '',
+      }));
+      await onApplied();
+    } catch (e) {
+      console.error('Row range update failed', e);
+      setErr(e?.response?.data?.detail || 'Failed to update rows');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        className="ca-chip-btn"
+        style={{ marginBottom: 'var(--space-md)' }}
+        onClick={() => setOpen(true)}
+      >
+        <Rows3 size={12} /> Set clone / rootstock for a range of rows
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={apply}
+      style={{
+        padding: 'var(--space-base)',
+        background: 'var(--color-surface-warm)',
+        borderRadius: 'var(--radius-md)',
+        marginBottom: 'var(--space-md)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+        <h5 style={{ margin: 0, fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+          Apply to a range of rows
+        </h5>
+        <button type="button" className="ca-btn-icon" onClick={() => setOpen(false)} title="Close">
+          <X size={14} />
+        </button>
+      </div>
+      <p className="ca-section-desc" style={{ marginBottom: 'var(--space-md)' }}>
+        Fill in only what should change. Blank fields are left as they are, so you can
+        run this once per clone block.
+      </p>
+
+      {err && <div className="ca-form-error" style={{ marginBottom: 'var(--space-sm)' }}>{err}</div>}
+      {result && (
+        <div className="ca-form-success" style={{ marginBottom: 'var(--space-sm)' }}>
+          {result.message}
+          {result.missing_row_numbers?.length > 0 && (
+            <> — no row record for {result.missing_row_numbers.join(', ')}</>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+        <div>
+          <label className="ca-inline-label">From Row *</label>
+          <input className="ca-inline-input" value={form.row_start} onChange={handle('row_start')} placeholder="21" required />
+        </div>
+        <div>
+          <label className="ca-inline-label">To Row *</label>
+          <input className="ca-inline-input" value={form.row_end} onChange={handle('row_end')} placeholder="40" required />
+        </div>
+        {PAINT_FIELDS.map(f => (
+          <div key={f.key}>
+            <label className="ca-inline-label">{f.label}</label>
+            <input
+              className="ca-inline-input"
+              type={f.type}
+              step={f.type === 'number' ? '0.1' : undefined}
+              value={form[f.key]}
+              onChange={handle(f.key)}
+              placeholder="leave blank to keep"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'var(--space-base)', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+        <span className="ca-muted" style={{ fontSize: 'var(--font-size-sm)' }}>
+          {rangeInvalid
+            ? 'Range must be numeric (21 to 40) or letters (A to AZ)'
+            : !rangeEntered
+              ? 'Enter a row range'
+              : matchCount === 0
+                ? 'No rows on this block fall in that range'
+                : `Will update ${matchCount} row${matchCount === 1 ? '' : 's'}`
+                  + (missingCount > 0 ? ` (${missingCount} in range not created yet)` : '')
+                  + (filledFields.length === 0
+                    ? ' — fill in at least one field'
+                    : `: ${filledFields.map(f => f.label).join(', ')}`)}
+        </span>
+        <button type="submit" className="ca-btn-primary" disabled={!canApply}>
+          <Save size={14} /> {saving ? 'Applying...' : 'Apply to Range'}
         </button>
       </div>
     </form>

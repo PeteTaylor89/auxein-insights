@@ -1,0 +1,9 @@
+asset_number,name,category,asset_type,subcategory,make,model,location_label,favourite_colour
+GOOD-001,Valid Row Tractor,equipment,physical,tractor,Kubota,M7060,Main shed,blue
+,Missing Asset Number,equipment,physical,tool,,,Workshop,red
+BAD-002,,equipment,physical,tool,,,Workshop,green
+BAD-003,Bad Category,spaceship,physical,,,,Workshop,yellow
+BAD-004,Bad Asset Type,equipment,liquid,,,,Workshop,orange
+DUP-001,First Duplicate,tool,physical,,,,Workshop,purple
+DUP-001,Second Duplicate,tool,physical,,,,Workshop,pink
+GOOD-002,Another Valid Row,vehicle,physical,quad,Honda,TRX250,Main shed,black

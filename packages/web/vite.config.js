@@ -2,6 +2,25 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import http from 'node:http';
+
+// Keep-alive agent for the API proxy.
+//
+// Without this the proxy opens a NEW TCP connection for every single API call
+// and drops it immediately. Each one then sits in TIME_WAIT — which Windows
+// holds for 4 minutes, against an ephemeral port range of only ~16k
+// (49152-65535). A busy page pushed that past 2,000 sockets, and connects
+// started colliding with ports still held: most requests returned in 5ms while
+// the occasional one stalled for 15s+ or failed outright with
+// `connect EADDRINUSE 127.0.0.1:8000`. That reads like a flaky API but is
+// purely socket churn.
+//
+// Reusing connections keeps the socket count flat regardless of request volume.
+const keepAliveAgent = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 10000,
+  maxSockets: 64,
+});
 
 export default defineConfig({
   plugins: [
@@ -87,9 +106,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // 127.0.0.1, NOT localhost. uvicorn binds 0.0.0.0 (IPv4 only), while
+        // Node 17+ stopped reordering DNS results — so `localhost` can resolve
+        // to ::1 first and the proxy dies with ECONNREFUSED / AggregateError
+        // even though the API is up and answering on IPv4.
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        agent: keepAliveAgent,
       },
     },
     watch: {

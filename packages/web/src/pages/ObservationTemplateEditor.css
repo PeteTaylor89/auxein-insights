@@ -1,0 +1,214 @@
+/* pages/ObservationTemplateEditor.css */
+
+.ote-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-base) calc(var(--nav-height-bottom) + var(--space-xl));
+  font-family: var(--font-family);
+  color: var(--color-text);
+}
+
+.ote-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-base);
+  flex-wrap: wrap;
+}
+
+/* padding is explicit — the global `button { padding: 8px 16px }` otherwise
+   distorts these. */
+.ote-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.ote-back:hover { background: var(--color-surface-warm); color: var(--color-text); }
+
+.ote-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.ote-alert { margin-bottom: var(--space-base); }
+
+/* Insights caveat — stacked so the lead line reads as a heading. */
+.ote-insights-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  margin-bottom: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.ote-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-base);
+}
+
+.ote-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.ote-card-title {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+.ote-card-head .ote-card-title { margin-bottom: 0; }
+
+.ote-field-count {
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-warm);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.ote-hint {
+  margin: 4px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* ---- Field cards ---- */
+.ote-field {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  background: var(--color-surface-warm);
+}
+
+.ote-field-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.ote-field-grip { color: var(--color-text-muted); }
+
+.ote-field-index {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.ote-field-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.ote-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.ote-icon-btn:hover:not(:disabled) { color: var(--color-text); border-color: var(--color-primary); }
+.ote-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ote-icon-btn--danger:hover:not(:disabled) {
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-text);
+}
+
+.ote-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-sm);
+}
+
+.ote-options {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px dashed var(--color-border);
+}
+
+.ote-option-row {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.ote-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.ote-add-field { width: 100%; justify-content: center; }
+
+/* ---- Buttons / actions ---- */
+.ote-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.ote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ote-btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+.ote-btn--ghost { background: transparent; color: var(--color-text-muted); }
+.ote-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ote-btn:hover:not(:disabled) { filter: brightness(0.97); }
+
+.ote-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-muted);
+  padding: var(--space-xl) 0;
+}
+
+.ote-spin { animation: ote-spin 1s linear infinite; }
+@keyframes ote-spin { to { transform: rotate(360deg); } }

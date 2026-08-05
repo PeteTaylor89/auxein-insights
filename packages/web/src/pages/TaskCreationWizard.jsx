@@ -519,11 +519,14 @@ function TaskCreationWizard() {
           created.push(newTask);
         }
 
-        // Navigate: if single created, go to it; if many, go to tasks tab
+        // Navigate: if single created, go to it; if many, go to the task list.
+        // That list is the Observations dashboard's default tab — there is no
+        // /dashboard route (this used to point at one, and fell through the
+        // catch-all to Home).
         if (created.length === 1) {
-          navigate(`/tasks/${created[0].id}`);
+          navigate(`/tasks/${created[0].id}`, { replace: true });
         } else {
-          navigate('/dashboard?tab=tasks');
+          navigate('/observations', { replace: true });
         }
 
         setSaving(false);
@@ -614,8 +617,8 @@ function TaskCreationWizard() {
         }
       }
 
-      // 6) Navigate to the new task
-      navigate(`/tasks/${newTask.id}`);
+      // 6) Navigate to the new task (replace — the spent form shouldn't be a Back target)
+      navigate(`/tasks/${newTask.id}`, { replace: true });
     } catch (err) {
       console.error('Failed to create task:', err);
       setError(err.response?.data?.detail || 'Failed to create task');
@@ -627,7 +630,7 @@ function TaskCreationWizard() {
 
   const handleCancel = () => {
     if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-      navigate('/dashboard?tab=tasks');
+      navigate('/observations');
     }
   };
 

@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles, CheckSquare, Square, Users, Layers } from 'lucide-react';
 import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import HelpTip from '../components/HelpTip';
+import { useToast } from '../components/ToastProvider';
 import './ObservationDashboard.css';
 import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
 import { getInsightKind } from '../utils/observationInsight';
@@ -212,6 +213,16 @@ function ManagementTab({ StatusBadge }) {
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
+  // Filters (beta: "Observation Management — a few filters here would go a long
+  // way"). Client-side over the already-loaded run list, matching how TasksTab
+  // filters: the run count per company is small and it keeps this instant.
+  const [statusFilter, setStatusFilter] = useState(() => new Set());
+  const [blockFilter, setBlockFilter] = useState(() => new Set());
+  const [templateFilter, setTemplateFilter] = useState(() => new Set());
+  const [assigneeFilter, setAssigneeFilter] = useState(() => new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const reload = async () => {
     try {
       setLoading(true);
@@ -241,13 +252,69 @@ function ManagementTab({ StatusBadge }) {
     }
   };
 
+  // Distinct option lists, derived from the loaded runs so they only ever offer
+  // values that actually exist.
+  const uniqueSorted = (values) =>
+    [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'en-NZ', { numeric: true }));
+
+  const blockOptions = uniqueSorted(runs.map(r => r.block_name));
+  const templateOptions = uniqueSorted(runs.map(r => r.template_name));
+  const assigneeOptions = uniqueSorted(runs.map(r => r.assigned_to_user_name));
+
+  const toggleIn = (setter) => (value) => {
+    setter(prev => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value); else next.add(value);
+      return next;
+    });
+  };
+
+  const filteredRuns = runs.filter(r => {
+    if (statusFilter.size > 0 && !statusFilter.has(r.status)) return false;
+    if (blockFilter.size > 0 && !blockFilter.has(r.block_name)) return false;
+    if (templateFilter.size > 0 && !templateFilter.has(r.template_name)) return false;
+    if (assigneeFilter.size > 0) {
+      // 0 stands for "unassigned" — a run with no assignee has no name to match.
+      const unassignedWanted = assigneeFilter.has('__unassigned__');
+      if (r.assigned_to_user_name) {
+        if (!assigneeFilter.has(r.assigned_to_user_name)) return false;
+      } else if (!unassignedWanted) {
+        return false;
+      }
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const hay = [r.template_name, r.block_name, r.assigned_to_user_name]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalActiveFilters =
+    statusFilter.size + blockFilter.size + templateFilter.size + assigneeFilter.size;
+
+  const clearAllFilters = () => {
+    setStatusFilter(new Set());
+    setBlockFilter(new Set());
+    setTemplateFilter(new Set());
+    setAssigneeFilter(new Set());
+    setSearchQuery('');
+  };
+
   if (loading) return <div className="od-loading">Loading observations...</div>;
   if (error) return <div className="od-error">{error}</div>;
 
   return (
     <div>
       <div className="od-tab-header">
-        <span className="help-tip-head"><h2>Observation Management ({runs.length})</h2><HelpTip topic="obs.runs" /></span>
+        <span className="help-tip-head">
+          <h2>
+            Observation Management ({filteredRuns.length}
+            {filteredRuns.length !== runs.length ? ` of ${runs.length}` : ''})
+          </h2>
+          <HelpTip topic="obs.runs" />
+        </span>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <button className="od-btn od-btn--primary" onClick={() => navigate('/observations/schedule')}>
             <Plus size={14} /> Schedule Observation
@@ -255,7 +322,76 @@ function ManagementTab({ StatusBadge }) {
         </div>
       </div>
 
-      {runs.length > 0 ? (
+      {runs.length > 0 && (
+        <div className="od-filters-panel">
+          <div className="od-filters-top">
+            <button
+              type="button"
+              className="od-filters-title od-filters-toggle"
+              onClick={() => setFiltersOpen(o => !o)}
+              aria-expanded={filtersOpen}
+            >
+              <Filter size={14} /> Filters
+              {totalActiveFilters > 0 && <span className="od-filters-badge">{totalActiveFilters}</span>}
+              <span className="od-filters-chevron">{filtersOpen ? '▾' : '▸'}</span>
+            </button>
+            <input
+              className="od-filter-input"
+              type="text"
+              placeholder="Search by template, block or assignee..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {(totalActiveFilters > 0 || searchQuery) && (
+              <button type="button" className="od-btn od-btn--ghost" onClick={clearAllFilters}>
+                <X size={12} /> Clear
+              </button>
+            )}
+          </div>
+
+          {filtersOpen && (
+            <>
+              <FilterChipGroup
+                label="Status"
+                options={[
+                  { value: 'scheduled', label: 'Scheduled' },
+                  { value: 'in progress', label: 'In Progress' },
+                  { value: 'complete', label: 'Complete' },
+                ]}
+                selected={statusFilter}
+                onToggle={toggleIn(setStatusFilter)}
+              />
+              {blockOptions.length > 0 && (
+                <FilterChipGroup
+                  label="Block"
+                  options={blockOptions.map(b => ({ value: b, label: b }))}
+                  selected={blockFilter}
+                  onToggle={toggleIn(setBlockFilter)}
+                />
+              )}
+              {templateOptions.length > 0 && (
+                <FilterChipGroup
+                  label="Template"
+                  options={templateOptions.map(t => ({ value: t, label: t }))}
+                  selected={templateFilter}
+                  onToggle={toggleIn(setTemplateFilter)}
+                />
+              )}
+              <FilterChipGroup
+                label="Assignee"
+                options={[
+                  { value: '__unassigned__', label: 'Unassigned' },
+                  ...assigneeOptions.map(a => ({ value: a, label: a })),
+                ]}
+                selected={assigneeFilter}
+                onToggle={toggleIn(setAssigneeFilter)}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {filteredRuns.length > 0 ? (
         <div className="od-table-wrap">
           <table className="od-table od-runs-table">
             <thead>
@@ -271,7 +407,7 @@ function ManagementTab({ StatusBadge }) {
               </tr>
             </thead>
             <tbody>
-              {runs.map(r => {
+              {filteredRuns.map(r => {
                 const status = r.status; // computed by backend: scheduled | in progress | complete
                 const insightKind = getInsightKind(r.template_type);
                 const insightsParams = insightKind
@@ -350,10 +486,21 @@ function ManagementTab({ StatusBadge }) {
         </div>
       ) : (
         <div className="od-empty">
-          <div className="od-empty-text">No observations yet</div>
-          <button className="btn-primary" onClick={() => navigate('/observations/schedule')}>
-            <Plus size={16} /> Schedule the first one
-          </button>
+          {runs.length > 0 ? (
+            <>
+              <div className="od-empty-text">No observations match those filters</div>
+              <button className="od-btn od-btn--ghost" onClick={clearAllFilters}>
+                <X size={14} /> Clear filters
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="od-empty-text">No observations yet</div>
+              <button className="btn-primary" onClick={() => navigate('/observations/schedule')}>
+                <Plus size={16} /> Schedule the first one
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -398,6 +545,9 @@ function TemplatesTab() {
     <div>
       <div className="od-tab-header">
         <span className="help-tip-head"><h2>Observation Templates ({templates.length})</h2><HelpTip topic="obs.templates" /></span>
+        <button className="od-btn od-btn--primary" onClick={() => navigate('/observations/templates/new')}>
+          <Plus size={14} /> New Template
+        </button>
       </div>
 
       {templates.length > 0 ? (
@@ -416,6 +566,17 @@ function TemplatesTab() {
                 <button className="od-btn od-btn--ghost" onClick={() => onViewTemplate(t)} title="View fields">
                   View
                 </button>
+                {/* Global templates are shared across companies — the API rejects
+                    edits to them (company_id is null), so don't offer it. */}
+                {t.company_id && (
+                  <button
+                    className="od-btn od-btn--ghost"
+                    onClick={() => navigate(`/observations/templates/${t.id}/edit`)}
+                    title="Edit this template"
+                  >
+                    <Edit size={14} /> Edit
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -740,6 +901,107 @@ function TaskFilters({
   );
 }
 
+// Bulk action bar — appears only while rows are selected. Deliberately docked
+// above the table rather than floating, so it can't cover the rows it acts on.
+function BulkActionBar({
+  count, busy, assigneeOptions, onAssign, onStatus, onReschedule, onDelete, onRollUp, onClear,
+}) {
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rollUpTitle, setRollUpTitle] = useState('');
+  const [rollUpOpen, setRollUpOpen] = useState(false);
+
+  return (
+    <div className="od-bulk-bar">
+      <span className="od-bulk-count">
+        <CheckSquare size={14} /> {count} selected
+      </span>
+
+      <div className="od-bulk-actions">
+        <select
+          className="od-bulk-select"
+          value=""
+          disabled={busy}
+          onChange={(e) => { if (e.target.value) onAssign(Number(e.target.value)); e.target.value = ''; }}
+        >
+          <option value="">Assign to…</option>
+          {assigneeOptions.map(u => (
+            <option key={u.id} value={u.id}>{u.displayName}</option>
+          ))}
+        </select>
+
+        <select
+          className="od-bulk-select"
+          value=""
+          disabled={busy}
+          onChange={(e) => { if (e.target.value) onStatus(e.target.value); e.target.value = ''; }}
+        >
+          <option value="">Set status…</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+
+        <input
+          className="od-bulk-date"
+          type="date"
+          value={rescheduleDate}
+          disabled={busy}
+          onChange={(e) => {
+            setRescheduleDate(e.target.value);
+            if (e.target.value) { onReschedule(e.target.value); setRescheduleDate(''); }
+          }}
+          title="Reschedule selected tasks"
+        />
+
+        <button
+          className="od-btn od-btn--ghost"
+          disabled={busy || count < 2}
+          onClick={() => setRollUpOpen(o => !o)}
+          title={count < 2 ? 'Select at least two tasks to roll up' : 'Group these under one task'}
+        >
+          <ListChecks size={12} /> Roll up
+        </button>
+
+        <button className="od-btn od-btn--danger" disabled={busy} onClick={onDelete}>
+          <Trash2 size={12} /> Delete
+        </button>
+        <button className="od-btn od-btn--ghost" disabled={busy} onClick={onClear}>
+          <X size={12} /> Clear
+        </button>
+      </div>
+
+      {rollUpOpen && (
+        <form
+          className="od-bulk-rollup"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!rollUpTitle.trim()) return;
+            onRollUp(rollUpTitle.trim());
+            setRollUpTitle('');
+            setRollUpOpen(false);
+          }}
+        >
+          <input
+            className="od-bulk-rollup-input"
+            type="text"
+            value={rollUpTitle}
+            onChange={(e) => setRollUpTitle(e.target.value)}
+            placeholder="Name the roll-up task, e.g. Broken wires — north blocks"
+            autoFocus
+          />
+          <button className="od-btn od-btn--primary" type="submit" disabled={busy || !rollUpTitle.trim()}>
+            Create roll-up
+          </button>
+          <button className="od-btn od-btn--ghost" type="button" onClick={() => setRollUpOpen(false)}>
+            Cancel
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // TasksTab — table view with multi-select filters and assignee resolution
 function TasksTab() {
   const navigate = useNavigate();
@@ -762,10 +1024,23 @@ function TasksTab() {
 
   // Sort + paginate. Default sort matches backend: earliest scheduled first.
   // Click a sortable header to toggle direction.
-  const [sortKey, setSortKey] = useState('date'); // 'date' | 'location'
+  const [sortKey, setSortKey] = useState('date'); // 'date' | 'location' | 'title' | 'priority'
   const [sortDir, setSortDir] = useState('asc');  // 'asc' | 'desc'
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
+
+  // Grouping (beta: "sort and group tasks — by block, by type, or by template.
+  // For example, tracking every broken wire report across the whole vineyard").
+  // Rendered as header rows inside the existing table rather than as separate
+  // tables, so pagination and the bulk bar keep working unchanged.
+  const [groupKey, setGroupKey] = useState('none'); // 'none' | 'location' | 'category' | 'template'
+
+  // Multi-select. `lastClickedId` anchors shift-click range selection.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [lastClickedId, setLastClickedId] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const toast = useToast();
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -922,6 +1197,9 @@ function TasksTab() {
   }, [contractors]);
 
   const filteredTasks = useMemo(() => (Array.isArray(tasks) ? tasks : []).filter(task => {
+    // Rolled-up children are not top-level rows — they render inside their
+    // parent, so they're excluded here rather than appearing twice.
+    if (task.parent_task_id) return false;
     if (statusFilter.size > 0 && !statusFilter.has(normStatus(task.status))) return false;
     if (categoryFilter.size > 0 && !categoryFilter.has(String(task.task_category || ''))) return false;
     if (priorityFilter.size > 0 && !priorityFilter.has(String(task.priority || '').toLowerCase())) return false;
@@ -949,13 +1227,79 @@ function TasksTab() {
     return true;
   }), [tasks, statusFilter, categoryFilter, priorityFilter, locationFilter, assigneeFilter, contractorFilter, searchQuery]);
 
+  // Rolled-up children behave like a task's rows: they belong to the parent, so
+  // they are NOT listed as top-level tasks. They're built from the full task
+  // list rather than the filtered one — a parent carries its children with it,
+  // the same way a task carries its rows, so a filter never leaves a roll-up
+  // showing a partial count.
+  const childrenByParent = useMemo(() => {
+    const map = {};
+    (tasks || []).forEach(t => {
+      if (!t.parent_task_id) return;
+      (map[t.parent_task_id] ||= []).push(t);
+    });
+    Object.values(map).forEach(list => list.sort((a, b) =>
+      String(a.title || '').localeCompare(String(b.title || ''), 'en-NZ', { numeric: true })));
+    return map;
+  }, [tasks]);
+
+  const [expandedParents, setExpandedParents] = useState(() => new Set());
+  const toggleExpanded = (taskId) => {
+    setExpandedParents(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
+  };
+
+  // Detach one child from its roll-up. Reversible, so it gets a real undo.
+  const detachChild = async (child) => {
+    try {
+      await tasksService.updateTask(child.id, { parent_task_id: null });
+      setTasks(prev => prev.map(t => (t.id === child.id ? { ...t, parent_task_id: null } : t)));
+      toast.success(`Removed "${child.title}" from the roll-up`, {
+        onUndo: async () => {
+          await tasksService.updateTask(child.id, { parent_task_id: child.parent_task_id });
+          setTasks(prev => prev.map(t => (
+            t.id === child.id ? { ...t, parent_task_id: child.parent_task_id } : t
+          )));
+        },
+      });
+    } catch (err) {
+      console.error('Failed to detach task:', err);
+      toast.error('Could not remove that task from the roll-up');
+    }
+  };
+
+  // What a task is grouped under, for the active groupKey.
+  const getGroupLabel = (t) => {
+    if (groupKey === 'location') {
+      const key = getLocationKey(t);
+      return key === '__none__' ? 'No location' : key;
+    }
+    if (groupKey === 'category') {
+      return (t.task_category || '').replace(/_/g, ' ') || 'Uncategorised';
+    }
+    if (groupKey === 'template') {
+      return t.template_name || t.template?.name || (t.template_id ? `Template #${t.template_id}` : 'No template');
+    }
+    return '';
+  };
+
   const sortedTasks = useMemo(() => {
     const arr = [...filteredTasks];
     const cmp = (a, b) => {
       if (sortKey === 'location') {
-        const av = getLocationKey(a);
-        const bv = getLocationKey(b);
-        return av.localeCompare(bv, 'en-NZ', { numeric: true });
+        return getLocationKey(a).localeCompare(getLocationKey(b), 'en-NZ', { numeric: true });
+      }
+      if (sortKey === 'title') {
+        return String(a.title || '').localeCompare(String(b.title || ''), 'en-NZ', { numeric: true });
+      }
+      if (sortKey === 'priority') {
+        const rank = { urgent: 0, high: 1, medium: 2, low: 3 };
+        const av = rank[String(a.priority || '').toLowerCase()] ?? 99;
+        const bv = rank[String(b.priority || '').toLowerCase()] ?? 99;
+        return av - bv;
       }
       // date
       const av = new Date(a.scheduled_start_date || a.scheduled_date || 0).getTime() || 0;
@@ -963,8 +1307,14 @@ function TasksTab() {
       return av - bv;
     };
     arr.sort((a, b) => (sortDir === 'asc' ? cmp(a, b) : -cmp(a, b)));
+
+    // Grouping is applied as a primary sort so members stay contiguous; the
+    // chosen sort then orders rows *within* each group.
+    if (groupKey !== 'none') {
+      arr.sort((a, b) => getGroupLabel(a).localeCompare(getGroupLabel(b), 'en-NZ', { numeric: true }));
+    }
     return arr;
-  }, [filteredTasks, sortKey, sortDir]);
+  }, [filteredTasks, sortKey, sortDir, groupKey]);
 
   // Reset to page 1 whenever filters / sort / search change the visible set.
   useEffect(() => { setPage(1); }, [searchQuery, statusFilter, categoryFilter, priorityFilter, locationFilter, assigneeFilter, contractorFilter, sortKey, sortDir]);
@@ -972,6 +1322,24 @@ function TasksTab() {
   const totalPages = Math.max(1, Math.ceil(sortedTasks.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pagedTasks = sortedTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Selection is scoped to what's on screen: the header checkbox and shift-click
+  // ranges both operate over the current page, so a click never silently picks up
+  // rows the user can't see.
+  const visibleIds = pagedTasks.map(t => t.id);
+  const selectedVisibleCount = visibleIds.filter(id => selectedIds.has(id)).length;
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  const someVisibleSelected = selectedVisibleCount > 0;
+
+  const toggleSelectAllVisible = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleIds.forEach(id => next.delete(id));
+      else visibleIds.forEach(id => next.add(id));
+      return next;
+    });
+    setLastClickedId(null);
+  };
 
   const totalActiveFilters =
     statusFilter.size + categoryFilter.size + priorityFilter.size + locationFilter.size + assigneeFilter.size + contractorFilter.size;
@@ -986,15 +1354,186 @@ function TasksTab() {
     setSearchQuery('');
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Are you sure you want to delete this task?')) return;
+  // Deferred delete. DELETE /tasks/{id} is a hard delete with no restore, so the
+  // request is held back until the undo window lapses — undo is then just
+  // putting the row back in local state, with no server round trip and nothing
+  // to fail. Replaces the old window.confirm (beta ask: a safety net, not more
+  // friction).
+  const removeTasksWithUndo = (victims, label) => {
+    if (victims.length === 0) return;
+    const ids = new Set(victims.map(v => v.id));
+    setTasks(prev => prev.filter(t => !ids.has(t.id)));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+
+    toast.show(label, {
+      onUndo: () => {
+        // Nothing was sent yet — restore the rows and re-sort on next render.
+        setTasks(prev => [...prev, ...victims]);
+      },
+      onExpire: async () => {
+        const results = await Promise.allSettled(
+          victims.map(v => tasksService.deleteTask(v.id)),
+        );
+        const failed = results.filter(r => r.status === 'rejected');
+        if (failed.length > 0) {
+          console.error('Deferred task delete failed:', failed[0].reason);
+          // Put back only what actually failed, so the list matches the server.
+          const okIds = new Set(
+            victims.filter((_, i) => results[i].status === 'fulfilled').map(v => v.id),
+          );
+          setTasks(prev => [...prev, ...victims.filter(v => !okIds.has(v.id))]);
+          toast.error(
+            failed.length === victims.length
+              ? 'Could not delete — the task has been restored'
+              : `${failed.length} of ${victims.length} could not be deleted and were restored`,
+          );
+        }
+      },
+    });
+  };
+
+  const handleDeleteTask = (taskId) => {
+    const victim = tasks.find(t => t.id === taskId);
+    if (!victim) return;
+    removeTasksWithUndo([victim], `Deleted "${victim.title || `Task #${victim.id}`}"`);
+  };
+
+  // ---- Multi-select ----
+  // Plain click toggles one row; shift-click extends from the last clicked row
+  // through the current one, over the VISIBLE (paged, sorted, grouped) order —
+  // which is what "select a range" means to someone looking at the table.
+  const toggleRowSelection = (taskId, shiftKey, visibleIds) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (shiftKey && lastClickedId != null) {
+        const from = visibleIds.indexOf(lastClickedId);
+        const to = visibleIds.indexOf(taskId);
+        if (from !== -1 && to !== -1) {
+          const [lo, hi] = from < to ? [from, to] : [to, from];
+          // Shift-click always ADDS the range (never toggles it off) — matching
+          // file managers, and avoiding a range that half-clears itself.
+          for (let i = lo; i <= hi; i++) next.add(visibleIds[i]);
+          return next;
+        }
+      }
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
+    setLastClickedId(taskId);
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setLastClickedId(null);
+  };
+
+  // ---- Bulk actions ----
+  // Each returns the tasks it changed plus how to put them back, so the toast
+  // can offer a real reversal (unlike delete, these are all reversible writes).
+  const runBulk = async (label, ids, apply, revert) => {
+    setBulkBusy(true);
     try {
-      await tasksService.deleteTask?.(taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      const targets = tasks.filter(t => ids.has(t.id));
+      const results = await Promise.allSettled(targets.map(apply));
+      const failed = results.filter(r => r.status === 'rejected');
+      const okTargets = targets.filter((_, i) => results[i].status === 'fulfilled');
+
+      if (okTargets.length > 0) {
+        const refreshed = await tasksService.listTasks({ company_id: companyId, limit: 500 }).catch(() => null);
+        if (refreshed) {
+          const items = Array.isArray(refreshed) ? refreshed : (refreshed?.items ?? refreshed?.tasks ?? []);
+          setTasks(Array.isArray(items) ? items : []);
+        }
+      }
+
+      if (failed.length > 0) {
+        toast.error(`${failed.length} of ${targets.length} failed — ${label.toLowerCase()} applied to the rest`);
+      } else if (revert) {
+        toast.success(`${label} · ${okTargets.length} task${okTargets.length === 1 ? '' : 's'}`, {
+          onUndo: async () => {
+            await Promise.allSettled(okTargets.map(revert));
+            const back = await tasksService.listTasks({ company_id: companyId, limit: 500 }).catch(() => null);
+            if (back) {
+              const items = Array.isArray(back) ? back : (back?.items ?? back?.tasks ?? []);
+              setTasks(Array.isArray(items) ? items : []);
+            }
+          },
+        });
+      } else {
+        toast.success(`${label} · ${okTargets.length} task${okTargets.length === 1 ? '' : 's'}`);
+      }
+      clearSelection();
     } catch (err) {
-      console.error('Failed to delete task:', err);
-      alert('Failed to delete task');
+      console.error(`Bulk ${label} failed:`, err);
+      toast.error(`Could not ${label.toLowerCase()}`);
+    } finally {
+      setBulkBusy(false);
     }
+  };
+
+  const bulkAssign = (userId) => runBulk(
+    'Assigned',
+    selectedIds,
+    (t) => tasksService.assignMultipleUsers(t.id, {
+      user_ids: [userId], role: 'assignee', estimated_hours: null, set_first_as_primary: true,
+    }),
+    null, // assignment removal needs the created assignment id — not worth guessing
+  );
+
+  const bulkStatus = (status) => runBulk(
+    status === 'completed' ? 'Completed' : `Set ${status.replace(/_/g, ' ')}`,
+    selectedIds,
+    (t) => tasksService.updateTask(t.id, { status }),
+    (t) => tasksService.updateTask(t.id, { status: t.status }),
+  );
+
+  const bulkReschedule = (dateStr) => runBulk(
+    'Rescheduled',
+    selectedIds,
+    (t) => tasksService.rescheduleTask(t.id, { scheduled_start_date: dateStr }),
+    (t) => tasksService.rescheduleTask(t.id, {
+      scheduled_start_date: t.scheduled_start_date || t.scheduled_date || null,
+    }),
+  );
+
+  // Roll-up isn't a per-task loop like the others — it's one call that creates
+  // the parent and reparents every child atomically, so it doesn't use runBulk.
+  const bulkRollUp = async (title) => {
+    setBulkBusy(true);
+    try {
+      const parent = await tasksService.rollUpTasks({
+        task_ids: [...selectedIds],
+        title,
+      });
+      const refreshed = await tasksService.listTasks({ company_id: companyId, limit: 500 }).catch(() => null);
+      if (refreshed) {
+        const items = Array.isArray(refreshed) ? refreshed : (refreshed?.items ?? refreshed?.tasks ?? []);
+        setTasks(Array.isArray(items) ? items : []);
+      }
+      const rolledCount = selectedIds.size;
+      clearSelection();
+      // Open the new parent straight away — otherwise the tasks appear to
+      // vanish, since they're no longer top-level rows.
+      setExpandedParents(prev => new Set(prev).add(parent.id));
+      toast.success(`Rolled up ${rolledCount} tasks under "${parent.title}"`);
+    } catch (err) {
+      console.error('Roll-up failed:', err);
+      toast.error(err?.response?.data?.detail || 'Could not roll up those tasks');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkDelete = () => {
+    const victims = tasks.filter(t => selectedIds.has(t.id));
+    removeTasksWithUndo(
+      victims,
+      `Deleted ${victims.length} task${victims.length === 1 ? '' : 's'}`,
+    );
   };
 
   // Style constants removed — now using od-table, od-btn CSS classes
@@ -1008,6 +1547,20 @@ function TasksTab() {
     <div>
       <div className="od-tab-header">
         <span className="help-tip-head"><h2>Tasks ({sortedTasks.length})</h2><HelpTip topic="obs.tasks" /></span>
+        <label className="od-group-control">
+          <Layers size={14} />
+          <span>Group by</span>
+          <select
+            className="od-group-select"
+            value={groupKey}
+            onChange={(e) => setGroupKey(e.target.value)}
+          >
+            <option value="none">None</option>
+            <option value="location">Block / area</option>
+            <option value="category">Type</option>
+            <option value="template">Template</option>
+          </select>
+        </label>
       </div>
 
       <TaskFilters
@@ -1022,42 +1575,153 @@ function TasksTab() {
         totalActive={totalActiveFilters} onClear={clearAllFilters}
       />
 
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          busy={bulkBusy}
+          assigneeOptions={assigneeOptions}
+          onAssign={bulkAssign}
+          onStatus={bulkStatus}
+          onReschedule={bulkReschedule}
+          onDelete={bulkDelete}
+          onRollUp={bulkRollUp}
+          onClear={clearSelection}
+        />
+      )}
+
       {sortedTasks.length > 0 ? (
         <div className="od-table-wrap">
           <table className="od-table od-task-table">
             <thead>
               <tr>
-                <th>Task</th>
+                <th className="od-th-check">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible tasks"
+                    checked={allVisibleSelected}
+                    ref={(el) => { if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected; }}
+                    onChange={toggleSelectAllVisible}
+                  />
+                </th>
+                <th className="od-th-sortable" onClick={() => toggleSort('title')}>Task{sortIndicator('title')}</th>
                 <th>Category</th>
                 <th className="od-th-sortable" onClick={() => toggleSort('location')}>Location{sortIndicator('location')}</th>
                 <th className="od-th-sortable" onClick={() => toggleSort('date')}>Schedule{sortIndicator('date')}</th>
-                <th className="center">Priority</th>
+                <th className="center od-th-sortable" onClick={() => toggleSort('priority')}>Priority{sortIndicator('priority')}</th>
                 <th>Assignees</th>
                 <th>Status</th>
                 <th className="right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {pagedTasks.map(t => (
-                <tr key={t.id} className="od-clickable-row" onClick={() => navigate(`/tasks/${t.id}`)}>
-                  <td className="bold">{t.title || `Task #${t.id}`}</td>
-                  <td><span className="od-category-tag">{(t.task_category || '').replace(/_/g,' ') || '—'}</span></td>
-                  <td>{fmtLocation(t)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    {fmtDate(t.scheduled_start_date || t.scheduled_date)}
-                    {t.scheduled_end_date ? ` – ${fmtDate(t.scheduled_end_date)}` : ''}
-                  </td>
-                  <td className="center">{fmtPriority(t.priority)}</td>
-                  <td>{fmtAssignees(t)}</td>
-                  <td>{badge(t.status)}</td>
-                  <td className="right" onClick={(e) => e.stopPropagation()}>
-                    <div className="od-actions">
-                      <button className="od-btn od-btn--primary" onClick={() => navigate(`/tasks/${t.id}`)} title="Open"><Eye size={12}/> Open</button>
-                      <button className="od-btn od-btn--danger" onClick={() => handleDeleteTask(t.id)} title="Delete"><Trash2 size={12}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {pagedTasks.map((t, i) => {
+                const label = getGroupLabel(t);
+                const showGroupHeader = groupKey !== 'none'
+                  && (i === 0 || getGroupLabel(pagedTasks[i - 1]) !== label);
+                const children = childrenByParent[t.id] || [];
+                const isExpanded = expandedParents.has(t.id);
+                return (
+                  <Fragment key={t.id}>
+                    {showGroupHeader && (
+                      <tr className="od-group-row">
+                        <td colSpan={9}>
+                          <span className="od-group-label">{label}</span>
+                          <span className="od-group-count">
+                            {sortedTasks.filter(x => getGroupLabel(x) === label).length}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                    <tr
+                      className={`od-clickable-row ${selectedIds.has(t.id) ? 'od-row-selected' : ''}`}
+                      onClick={() => navigate(`/tasks/${t.id}`)}
+                    >
+                      <td className="od-td-check" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${t.title || `task ${t.id}`}`}
+                          checked={selectedIds.has(t.id)}
+                          onChange={() => {}}
+                          onClick={(e) => toggleRowSelection(t.id, e.shiftKey, visibleIds)}
+                        />
+                      </td>
+                      <td className="bold">
+                        {/* A roll-up parent expands to show its children the way
+                            a task expands to show its rows. */}
+                        {children.length > 0 && (
+                          <button
+                            type="button"
+                            className="od-rollup-toggle"
+                            onClick={(e) => { e.stopPropagation(); toggleExpanded(t.id); }}
+                            title={isExpanded ? 'Hide rolled-up tasks' : 'Show rolled-up tasks'}
+                            aria-expanded={isExpanded}
+                          >
+                            {isExpanded ? '▾' : '▸'}
+                          </button>
+                        )}
+                        {t.title || `Task #${t.id}`}
+                        {children.length > 0 && (
+                          <span className="od-rollup-badge" title={`${children.length} tasks rolled up under this`}>
+                            <ListChecks size={11} /> {children.length}
+                          </span>
+                        )}
+                      </td>
+                      <td><span className="od-category-tag">{(t.task_category || '').replace(/_/g,' ') || '—'}</span></td>
+                      <td>{fmtLocation(t)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {fmtDate(t.scheduled_start_date || t.scheduled_date)}
+                        {t.scheduled_end_date ? ` – ${fmtDate(t.scheduled_end_date)}` : ''}
+                      </td>
+                      <td className="center">{fmtPriority(t.priority)}</td>
+                      <td>{fmtAssignees(t)}</td>
+                      <td>{badge(t.status)}</td>
+                      <td className="right" onClick={(e) => e.stopPropagation()}>
+                        <div className="od-actions">
+                          <button className="od-btn od-btn--primary" onClick={() => navigate(`/tasks/${t.id}`)} title="Open"><Eye size={12}/> Open</button>
+                          <button className="od-btn od-btn--danger" onClick={() => handleDeleteTask(t.id)} title="Delete"><Trash2 size={12}/></button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Rolled-up children — the task's "rows". Not selectable:
+                        bulk actions operate on top-level tasks, and letting a
+                        child join a shift-click range would make the range span
+                        two different kinds of thing. */}
+                    {isExpanded && children.map((c) => (
+                      <tr
+                        key={`child-${c.id}`}
+                        className="od-child-row"
+                        onClick={() => navigate(`/tasks/${c.id}`)}
+                      >
+                        <td />
+                        <td className="od-child-title" colSpan={3}>
+                          <span className="od-child-marker">↳</span>
+                          {c.title || `Task #${c.id}`}
+                          {c.block_name && <span className="od-child-location">{c.block_name}</span>}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {fmtDate(c.scheduled_start_date || c.scheduled_date)}
+                        </td>
+                        <td className="center">{fmtPriority(c.priority)}</td>
+                        <td>{fmtAssignees(c)}</td>
+                        <td>{badge(c.status)}</td>
+                        <td className="right" onClick={(e) => e.stopPropagation()}>
+                          <div className="od-actions">
+                            <button className="od-btn od-btn--ghost" onClick={() => navigate(`/tasks/${c.id}`)} title="Open"><Eye size={12}/></button>
+                            <button
+                              className="od-btn od-btn--ghost"
+                              onClick={() => detachChild(c)}
+                              title="Remove from this roll-up"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
           {totalPages > 1 && (

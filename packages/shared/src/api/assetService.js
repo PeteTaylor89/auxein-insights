@@ -74,6 +74,18 @@ const assetOperations = {
   },
 
   /**
+   * Bulk-create assets from a parsed CSV.
+   * The file is parsed in the browser; this sends rows, not a file.
+   * @param {{rows: Array<Object>, skip_invalid?: boolean}} payload
+   * @returns {Promise<{imported:number, failed:number, committed:boolean, errors:Array}>}
+   *   `committed: false` means validation rejected the file and nothing was written.
+   */
+  importAssets: async (payload) => {
+    const res = await api.post('/assets/import', payload);
+    return res.data;
+  },
+
+  /**
    * Update existing asset
    * @param {number} assetId - Asset ID
    * @param {Object} payload - Update data

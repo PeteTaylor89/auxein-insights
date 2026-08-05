@@ -6,6 +6,7 @@ import RiskHazardChips from '../components/risks/RiskHazardChips';
 import { tasksService, sprayCoverageService, taskRowService, byNatural } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
+import SubTaskPanel from '../components/tasks/SubTaskPanel';
 import { TaskStatusBadge } from '../components/TaskManagement';
 import '../pages/vineyard-pages.css';
 
@@ -553,6 +554,10 @@ function TaskDetail() {
         {task.block_id && (
           <RowProgressPanel taskId={parseInt(taskId)} canEdit={canEdit} task={task} />
         )}
+
+        {/* Rolled-up issues, shown in the same rows idiom. Self-hides on a task
+            that has no children, so ordinary tasks are unaffected. */}
+        <SubTaskPanel task={task} canEdit={canEdit} />
 
         {/* ── P1: Equipment Check Modal ──────────────────────────────── */}
         {showStartCheck && (

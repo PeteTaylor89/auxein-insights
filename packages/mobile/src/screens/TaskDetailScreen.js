@@ -13,7 +13,7 @@ import { getTaskCached, listRowsCached, getRowProgressCached } from '../services
 import { byNatural } from '../utils/naturalSort';
 import { useGpsTracking } from '../hooks/useGpsTracking';
 import GpsTrackingOverlay from './GpsTrackingScreen';
-import { TaskStatusBadge } from '../components';
+import { TaskStatusBadge, useToast } from '../components';
 import RiskHazardChips from '../components/RiskHazardChips';
 
 export default function TaskDetailScreen({ route, navigation }) {
@@ -38,7 +38,13 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [gpsCommittedSummary, setGpsCommittedSummary] = useState(null); // server-side summary if GPS was stopped/committed
 
   // Row completion modal state
+  const toast = useToast();
   const [showRowModal, setShowRowModal] = useState(false);
+  // Raise-an-issue-as-a-task, from the row completion sheet.
+  const [raiseIssue, setRaiseIssue] = useState(false);
+  const [rollUpCandidates, setRollUpCandidates] = useState([]);
+  const [rollUpChoice, setRollUpChoice] = useState('__none__');
+  const [newRollUpTitle, setNewRollUpTitle] = useState('');
   const [activeRow, setActiveRow] = useState(null);
   const [rowNotes, setRowNotes] = useState('');
   const [rowIssues, setRowIssues] = useState('');
@@ -235,16 +241,75 @@ export default function TaskDetailScreen({ route, navigation }) {
     setActiveRow(row);
     setRowNotes('');
     setRowIssues('');
+    setRaiseIssue(false);
+    setRollUpChoice('__none__');
+    setNewRollUpTitle('');
     setShowRowModal(true);
+    // Load roll-up options up front so the picker is populated the moment the
+    // user ticks "raise as a task" — in the field, waiting on a spinner with
+    // gloves on is where a flow gets abandoned.
+    tasksService.getRollUpCandidates({
+      block_id: task?.block_id ?? undefined,
+      task_category: task?.task_category ?? undefined,
+    })
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        setRollUpCandidates(arr);
+        const best = arr[0];
+        // Preselect only on a strong match (same block), same rule as web.
+        if (best && task?.block_id && best.block_id === task.block_id) {
+          setRollUpChoice(String(best.id));
+        }
+      })
+      .catch(() => setRollUpCandidates([]));
   };
 
   const handleCompleteRow = async () => {
     if (!activeRow) return;
     try {
+      // The row completes either way — raising a task is additive, and a failed
+      // task create must not cost the user their row completion.
       await taskRowService.completeRow(taskId, activeRow.id, {
         notes: rowNotes || null,
         issues_found: rowIssues || null,
       });
+
+      if (raiseIssue && rowIssues.trim()) {
+        const rowLabel = activeRow.row_identifier
+          || activeRow.vineyard_row?.row_number
+          || `#${activeRow.id}`;
+        try {
+          let parentId = null;
+          if (rollUpChoice === '__new__') {
+            const parent = await tasksService.createTask({
+              title: newRollUpTitle.trim() || `Follow-ups — ${task?.block_name || 'vineyard'}`,
+              task_category: task?.task_category || 'general',
+              priority: 'medium',
+            });
+            parentId = parent.id;
+          } else if (rollUpChoice !== '__none__') {
+            parentId = Number(rollUpChoice);
+          }
+
+          await tasksService.createTask({
+            title: `Row ${rowLabel} — ${rowIssues.trim()}`.slice(0, 200),
+            task_category: task?.task_category || 'general',
+            priority: 'medium',
+            description: `${rowIssues.trim()}\n\nRaised from ${task?.title || 'a row-by-row task'}${task?.task_number ? ` (${task.task_number})` : ''}, row ${rowLabel}.`,
+            block_id: task?.block_id ?? null,
+            location_notes: `Row ${rowLabel}`,
+            ...(parentId ? { parent_task_id: parentId } : {}),
+          });
+          toast.show('Row completed and issue raised', 'success');
+        } catch (issueErr) {
+          console.error('Failed to raise issue task:', issueErr);
+          Alert.alert(
+            'Row completed',
+            'The row was saved, but the issue task could not be created. Raise it from the task list when you have signal.',
+          );
+        }
+      }
+
       setShowRowModal(false);
       setActiveRow(null);
       await loadRows();
@@ -619,6 +684,69 @@ export default function TaskDetailScreen({ route, navigation }) {
                   numberOfLines={2}
                 />
 
+                {/* Only offered once an issue has actually been described —
+                    no point raising a task with nothing in it. */}
+                {rowIssues.trim().length > 0 && (
+                  <View style={styles.raiseBlock}>
+                    <TouchableOpacity
+                      style={styles.raiseToggle}
+                      onPress={() => setRaiseIssue(v => !v)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.raiseCheckbox, raiseIssue && styles.raiseCheckboxOn]}>
+                        {raiseIssue && <Text style={styles.raiseCheckboxTick}>✓</Text>}
+                      </View>
+                      <Text style={styles.raiseToggleText}>Raise this as a task</Text>
+                    </TouchableOpacity>
+
+                    {raiseIssue && (
+                      <View style={styles.raiseOptions}>
+                        <Text style={styles.inputLabel}>Add to roll-up</Text>
+
+                        {rollUpCandidates.map(c => (
+                          <TouchableOpacity
+                            key={c.id}
+                            style={[styles.rollUpOpt, rollUpChoice === String(c.id) && styles.rollUpOptOn]}
+                            onPress={() => setRollUpChoice(String(c.id))}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.rollUpOptText} numberOfLines={1}>
+                              {c.title || `Task #${c.id}`}
+                            </Text>
+                            <Text style={styles.rollUpCount}>{c.child_count}</Text>
+                          </TouchableOpacity>
+                        ))}
+
+                        <TouchableOpacity
+                          style={[styles.rollUpOpt, rollUpChoice === '__new__' && styles.rollUpOptOn]}
+                          onPress={() => setRollUpChoice('__new__')}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.rollUpOptText}>New roll-up…</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.rollUpOpt, rollUpChoice === '__none__' && styles.rollUpOptOn]}
+                          onPress={() => setRollUpChoice('__none__')}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.rollUpOptText}>Standalone task</Text>
+                        </TouchableOpacity>
+
+                        {rollUpChoice === '__new__' && (
+                          <TextInput
+                            style={styles.notesInput}
+                            value={newRollUpTitle}
+                            onChangeText={setNewRollUpTitle}
+                            placeholder={`Wires — ${task?.block_name || 'Block'}`}
+                            placeholderTextColor={colors.textMuted}
+                          />
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { Keyboard.dismiss(); setShowRowModal(false); }}>
                     <Text style={styles.modalBtnCancelText}>Cancel</Text>
@@ -627,7 +755,9 @@ export default function TaskDetailScreen({ route, navigation }) {
                     style={[styles.actionBtn, styles.actionBtnPrimary]}
                     onPress={handleCompleteRow}
                   >
-                    <Text style={styles.actionBtnText}>Complete Row</Text>
+                    <Text style={styles.actionBtnText}>
+                      {raiseIssue && rowIssues.trim() ? 'Complete & Raise' : 'Complete Row'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -884,6 +1014,52 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   modalSubtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.md },
   modalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+
+  // Raise-an-issue-as-a-task block in the row completion sheet. Targets are
+  // deliberately large — this is used one-handed, outdoors, often with gloves.
+  raiseBlock: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  raiseToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
+  raiseCheckbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  raiseCheckboxOn: { borderColor: colors.primary, backgroundColor: colors.primary },
+  raiseCheckboxTick: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  raiseToggleText: { fontSize: 15, fontWeight: '600', color: colors.text },
+  raiseOptions: { marginTop: spacing.sm, gap: spacing.xs },
+  rollUpOpt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  rollUpOptOn: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.surfaceWarm || colors.surface },
+  rollUpOptText: { flex: 1, fontSize: 14, color: colors.text },
+  rollUpCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceWarm || colors.border,
+  },
   modalBtnCancel: {
     flex: 1, paddingVertical: spacing.md, borderRadius: radius.md,
     alignItems: 'center', borderWidth: 1, borderColor: colors.border,

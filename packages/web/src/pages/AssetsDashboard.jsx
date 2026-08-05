@@ -16,11 +16,13 @@ import {
   Settings,
   TrendingUp,
   Sliders,
+  Upload,
 } from 'lucide-react';
 import { assetService, authService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import HelpTip from '../components/HelpTip';
 import QuickStockAdjustment from '../components/QuickStockAdjustment';
+import AssetImportModal from '../components/assets/AssetImportModal';
 import CalibrationsTab from './Calibrations';
 import './AssetsDashboard.css';
 
@@ -186,6 +188,11 @@ function EquipmentTab({ StatusBadge }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  // Bumped after a CSV import to re-run the loader below. The list is fetched in
+  // an effect with no extracted reload function, so this is the smallest way to
+  // refresh it without restructuring the tab.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -203,7 +210,7 @@ function EquipmentTab({ StatusBadge }) {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [reloadKey]);
 
   const filtered = equipment.filter(item => {
     if (searchQuery && !item.name?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -219,10 +226,22 @@ function EquipmentTab({ StatusBadge }) {
     <div>
       <div className="ad-section-header">
         <span className="help-tip-head"><h2>Equipment & Vehicles ({filtered.length})</h2><HelpTip topic="assets.equipment" /></span>
-        <button className="ad-btn-primary" onClick={() => navigate('/assets/equipment/new')}>
-          <Plus size={14} /> Register Equipment
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+          <button className="ad-btn-accent" onClick={() => setImportOpen(true)}>
+            <Upload size={14} /> Import CSV
+          </button>
+          <button className="ad-btn-primary" onClick={() => navigate('/assets/equipment/new')}>
+            <Plus size={14} /> Register Equipment
+          </button>
+        </div>
       </div>
+
+      <AssetImportModal
+        mode="equipment"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => setReloadKey(k => k + 1)}
+      />
 
       <div className="ad-filters">
         <input className="ad-search" placeholder="Search equipment..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
@@ -299,6 +318,10 @@ function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [certificationFilter, setCertificationFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  // See the same pattern in EquipmentTab — bumped to re-run the loader after an
+  // import, since the list is fetched inside an effect with no reload function.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -316,7 +339,7 @@ function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [reloadKey]);
 
   const filtered = consumables.filter(item => {
     if (searchQuery && !item.name?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -344,10 +367,22 @@ function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
     <div>
       <div className="ad-section-header">
         <span className="help-tip-head"><h2>Consumables ({filtered.length})</h2><HelpTip topic="assets.consumables" /></span>
-        <button className="ad-btn-primary" onClick={() => navigate('/assets/consumables/new')}>
-          <Plus size={14} /> Register Consumable
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+          <button className="ad-btn-accent" onClick={() => setImportOpen(true)}>
+            <Upload size={14} /> Import CSV
+          </button>
+          <button className="ad-btn-primary" onClick={() => navigate('/assets/consumables/new')}>
+            <Plus size={14} /> Register Consumable
+          </button>
+        </div>
       </div>
+
+      <AssetImportModal
+        mode="consumable"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => setReloadKey(k => k + 1)}
+      />
 
       <div className="ad-filters">
         <input className="ad-search" placeholder="Search consumables..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />

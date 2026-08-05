@@ -1,18 +1,18 @@
 /* maps-v2/MapsPage.css — Layout + component styles for Maps V2 */
 
-/* ---- Page layout ---- */
+/* ---- Page layout ----
+   Height comes from the app shell, not from arithmetic. This used to be
+   calc(100vh - 60px) with a 44px mobile variant — a hardcoded SiteHeader height
+   on top of 100vh, which overshoots the visible viewport on mobile (100vh
+   ignores the browser chrome) and pushed the bottom of the map — status bar,
+   Mapbox logo, and the MapLegend at bottom:34px — below the fold. */
 .v2-maps-page {
   display: flex;
-  height: calc(100vh - 60px); /* SiteHeader = 60px desktop */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   position: relative;
   font-family: var(--font-family);
-}
-
-@media (max-width: 768px) {
-  .v2-maps-page {
-    height: calc(100vh - 44px); /* SiteHeader = 44px on mobile */
-  }
 }
 
 /* Fullscreen mode — applied to body while MapsPage is mounted.
@@ -25,9 +25,23 @@ body.maps-fullscreen .site-footer,
 body.maps-fullscreen footer.site-footer {
   display: none;
 }
+
+/* Pin the shell to the viewport so the map can flex into whatever is left after
+   the header, at whatever height the header actually renders. dvh tracks mobile
+   browser chrome as it collapses; the vh line above it is the fallback for
+   browsers without dvh. .app-layout is min-height:100vh by default, which lets
+   content grow past the viewport — height wins here for the map page only. */
+body.maps-fullscreen .app-layout {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
 body.maps-fullscreen .app-main {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 

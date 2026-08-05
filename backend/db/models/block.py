@@ -1,6 +1,6 @@
 # db/models/block.py - Updated version
 import enum
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, func, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, Date, DateTime, func, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
 from db.base_class import Base
@@ -48,6 +48,9 @@ class VineyardBlock(Base):
     row_end = Column(String, nullable=True)
     row_count = Column(Integer, nullable=True)
     training_system = Column(String, nullable=True)
+    # Free-text grower notes. Unstructured by design — if something in here
+    # starts needing a filter or a report, give it its own column.
+    notes = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, server_default="producing", index=True)
     company_id = Column(Integer, ForeignKey("companies.id"))
     property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
