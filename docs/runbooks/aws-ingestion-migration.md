@@ -40,11 +40,18 @@ RDS secret `rds!db-49a041ba-9fc8-4df2-8fa6-ae50b09498ca`, sources
 | RDS security group | `sg-011550f434d067f69` (ingress from ingest SG on 5432 added) |
 | Keypair | `auxein-ingest` (private key at `C:\Users\Peter Taylor\.ssh\auxein-ingest.pem`, chmod 600) |
 | SSH allowed from | `203.211.79.144/32` (update if your IP changes) |
-| **EC2 instance** | **`i-04224f070f54386a0` @ `54.79.120.8`** (t3.micro, ap-southeast-2a, running) |
+| **EC2 instance** | **`i-04224f070f54386a0` @ `15.134.113.92`** (t3.micro, ap-southeast-2a, running) |
+| **Elastic IP (egress — councils allowlist this)** | `15.134.113.92` / `eipalloc-0521e642dedae72bf`, tag `auxein-ingest-egress`, attached 2026-08-11 (was auto-assigned `54.79.120.8`) |
 | SSM secrets staged | `/auxein/ingest/HARVEST_API_KEY`, `/auxein/ingest/SECRET_KEY` |
 
 Remaining: Steps 4-8 (SSH into the box and set it up). SSH:
-`ssh -i ~/.ssh/auxein-ingest.pem ec2-user@54.79.120.8`
+`ssh -i ~/.ssh/auxein-ingest.pem ec2-user@15.134.113.92`
+
+> **Do not detach the Elastic IP.** `15.134.113.92` is the outbound address councils
+> allowlist. The box originally ran on an auto-assigned (amazon-owned) public IP, which
+> AWS reissues on any stop/start — fine while every source was anonymous, fatal once a
+> source gates on IP. If the box is ever rebuilt, re-attach `eipalloc-0521e642dedae72bf`
+> to the replacement before the first ingest run.
 
 > **Git Bash gotcha:** any `aws` command with a `/`-prefixed arg (SSM names/paths)
 > needs `MSYS_NO_PATHCONV=1` or Git Bash rewrites it into a Windows path.

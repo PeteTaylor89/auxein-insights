@@ -19,7 +19,7 @@
 | Marketing site | https://auxein.co.nz | S3 + CloudFront `E104EI45ZHSPLU` |
 | Backend API | https://api.auxein.co.nz | Elastic Beanstalk (`auxein-api-prod-lb`) |
 | Database | `auxein-db.cnmusikiqmmn.ap-southeast-2.rds.amazonaws.com` | RDS PostgreSQL 17 + PostGIS (**yearly-partitioned** `timeseries_observations`) |
-| **Weather ingestion host** | EC2 `i-04224f070f54386a0` @ `54.79.120.8` (ap-southeast-2) | Hourly cron — see §2 & the AWS runbook |
+| **Weather ingestion host** | EC2 `i-04224f070f54386a0` @ **`15.134.113.92`** (Elastic IP, ap-southeast-2) | Hourly cron — see §2 & the AWS runbook. **This is the egress IP councils allowlist — do not detach the EIP.** |
 | Region | `ap-southeast-2` (Sydney) | all AWS resources |
 
 Regional Insights S3: `auxein-insights-webapp`, CloudFront `E1LDN7KQ7TOFXN`.
@@ -50,12 +50,30 @@ run in **~90 seconds**.
 | GDC | Hilltop `hilltop.gdc.govt.nz/data.hts` | Gisborne | AWS box |
 | Southland | bespoke JSON `envdata.es.govt.nz/services/*.ashx` | Southland | AWS box |
 | NRC | Hilltop `hilltop.nrc.govt.nz/data.hts` (rainfall only) | Northland | AWS box |
+| WCRC | Hilltop `hilltop.wcrc.govt.nz/data.hts` | West Coast | AWS box |
+| Horizons | Hilltop `hilltopserver.horizons.govt.nz/data.hts` | Manawatu-Whanganui | AWS box |
+| **TRC** | bespoke JSON `www.trc.govt.nz/environment/maps-and-data/...` | Taranaki | AWS box |
 | SYNOP / NOAA | Ogimet + NOAA NCEI | national | GitHub Actions (`synop-live.yml`) |
+| ~~BOPRC~~ | AQUARIUS `envdata.boprc.govt.nz` | Bay of Plenty | **GATED — not running** |
 
 Approx active stations: HBRC 84, GDC 65, SYNOP 54, SOUTHLAND 53, MDC 47, HARVEST 43,
-TDC 43, NRC 41, GW 4, ECAN 4 (~440 total). Station lists are **DB-driven**
+TDC 43, NRC 41, TRC 31, GW 4, ECAN 4. Station lists are **DB-driven**
 (`weather_stations`), so new stations are picked up on the next hourly run without a
-code deploy.
+code deploy. **836 stations / 804 active** as at 2026-08-11.
+
+**TRC (Taranaki, added 2026-08-11)** is a bespoke JSON feed with two quirks that are
+easy to get wrong — read the `ingestion/sources/trc.py` docstring before touching it:
+`timePeriod` accepts exactly three values (`7days`/`30days`/`365days`) and counts
+POINTS not calendar days, and the 365-day window serves daily *averages* for everything
+except rainfall, so the backfill is rainfall-only. Taranaki therefore contributes one
+year of daily rainfall and ~30 days of everything else — it does not deepen the
+pre-2025 network.
+
+**BOPRC is built but cannot run.** The AQUARIUS portal publishes its catalogue
+anonymously and gates every value path, so `boprc` is excluded from `all` and from
+`run_all.sh`. Check whether that has changed with
+`python ingestion/sources/boprc.py --check-access`; seeding is blocked in code until it
+reports OPEN.
 
 **Licensing:** Southland (ES) and NRC both require **written permission for commercial
 reuse** — cleared 2026-07-30. HBRC is CC-BY 4.0; TDC has an access agreement (Richmond
@@ -74,6 +92,13 @@ Full provisioning + setup steps: **`docs/runbooks/aws-ingestion-migration.md`**.
 
 - EC2 `t3.micro` in `ap-southeast-2`, IAM instance profile `auxein-ingest-ec2`
   (reads Secrets Manager + SSM), SG `sg-034c47350a16e6df5`.
+- **Egress IP `15.134.113.92`** — Elastic IP `eipalloc-0521e642dedae72bf`, tagged
+  `auxein-ingest-egress`. **This is the address to give councils for API allowlists.**
+  Attached 2026-08-11, replacing the auto-assigned `54.79.120.8`; that old address was
+  amazon-owned and would have changed on any stop/start, silently breaking every
+  allowlist built on it. Never detach the EIP or rebuild the box without re-attaching —
+  an allowlisted source failing this way goes quiet with no error anywhere but that
+  source's row in the freshness query below.
 - Repo at `/opt/auxein` (read-only GitHub **deploy key**), venv `/opt/auxein/.venv`,
   logs `/opt/auxein/logs`.
 - Secrets in **SSM SecureString** `/auxein/ingest/{SECRET_KEY,HARVEST_API_KEY,RDS_USER,RDS_PASSWORD}`.
@@ -91,7 +116,7 @@ Full provisioning + setup steps: **`docs/runbooks/aws-ingestion-migration.md`**.
 
 **Operate the box:**
 ```bash
-ssh -i ~/.ssh/auxein-ingest.pem ec2-user@54.79.120.8
+ssh -i ~/.ssh/auxein-ingest.pem ec2-user@15.134.113.92
 bash /opt/auxein/ingestion/run_all.sh hbrc     # run one source manually
 tail -n 20 /opt/auxein/logs/ingest_hbrc.log    # per-source log
 cat /opt/auxein/logs/run_all.log               # each hourly tick

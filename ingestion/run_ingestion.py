@@ -22,6 +22,8 @@ from sources.tdc import TDCIngestion
 from sources.gdc import GDCIngestion
 from sources.southland import SouthlandIngestion
 from sources.nrc import NRCIngestion
+from sources.trc import TRCIngestion
+from sources.boprc import BoPRCIngestion
 from sources.noaa import NoaaIngestion
 from sources.synop import SynopIngestion
 
@@ -30,9 +32,10 @@ def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'noaa', 'synop', 'all'],
+        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'trc', 'boprc', 'noaa', 'synop', 'all'],
         default='all',
-        help='Data source to ingest (noaa/synop are backfill/bootstrap, excluded from "all")'
+        help='Data source to ingest (noaa/synop are backfill/bootstrap and boprc is '
+             'still access-gated, so all three are excluded from "all")'
     )
     parser.add_argument(
         '--mode',
@@ -219,6 +222,25 @@ def main():
             print(f"✗ WCRC ingestion failed: {e}\n")
             success = False
 
+    # Run Horizons (Manawatu-Whanganui) ingestion
+    if args.source in ['horizons', 'all']:
+        try:
+            print("▶ Starting Horizons ingestion...\n")
+            ingester = HorizonsIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ Horizons ingestion complete\n")
+        except Exception as e:
+            print(f"✗ Horizons ingestion failed: {e}\n")
+            success = False
+
     # Run HBRC ingestion
     if args.source in ['hbrc', 'all']:
         try:
@@ -312,6 +334,48 @@ def main():
             print("✓ NRC ingestion complete\n")
         except Exception as e:
             print(f"✗ NRC ingestion failed: {e}\n")
+            success = False
+
+    # Run TRC (Taranaki) ingestion
+    if args.source in ['trc', 'all']:
+        try:
+            print("▶ Starting TRC ingestion...\n")
+            ingester = TRCIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ TRC ingestion complete\n")
+        except Exception as e:
+            print(f"✗ TRC ingestion failed: {e}\n")
+            success = False
+
+    # Run BoP (Bay of Plenty, AQUARIUS) ingestion.
+    # Explicit only, NOT part of 'all': the portal publishes catalogue metadata
+    # anonymously and gates every value path, so an hourly run would do nothing but
+    # add a round-trip and a GATED line to the log. Wire it into run_all.sh only once
+    # `python ingestion/sources/boprc.py --check-access` reports OPEN.
+    if args.source == 'boprc':
+        try:
+            print("▶ Starting BoP (BOPRC) ingestion...\n")
+            ingester = BoPRCIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ BoP ingestion step complete\n")
+        except Exception as e:
+            print(f"✗ BoP ingestion failed: {e}\n")
             success = False
 
     # Run NOAA NCEI ingestion (backfill/authoritative — explicit only, not 'all')

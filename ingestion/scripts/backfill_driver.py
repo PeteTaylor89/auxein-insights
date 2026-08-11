@@ -46,6 +46,10 @@ SOURCE_MODULE = {  # source -> (data_source in DB, source script, backfill style
     "wcrc":      ("WCRC",      "ingestion/sources/wcrc.py",      "range"),
     "horizons":  ("HORIZONS",  "ingestion/sources/horizons.py",  "range"),
     "southland": ("SOUTHLAND", "ingestion/sources/southland.py", "days"),
+    # TRC's API takes no --days: its backfill is a single fixed 365-day daily-rainfall
+    # window (the only period that is safe at daily resolution). "days" is still the
+    # right style — it is anchored to now and --start is meaningless.
+    "trc":       ("TRC",       "ingestion/sources/trc.py",       "days"),
 }
 
 # Per-style progress counter: how far back a row has to be to count as "backfilled".

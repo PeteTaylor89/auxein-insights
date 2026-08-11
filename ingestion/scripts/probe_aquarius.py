@@ -59,8 +59,12 @@ from pathlib import Path
 import requests
 
 PROBE_DIR = Path(__file__).resolve().parent / "probes"
-UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+# Identify honestly. This used to spoof Chrome, which is wrong once a council has
+# granted named access against an allowlisted IP — the requests they see should
+# match what we told them we send. If a portal starts 403ing on this, that is a
+# real access decision to raise with the council, not something to paper over by
+# going back to a browser string.
+UA = "Auxein-Insights/1.0 (climate data ingestion; pete.taylor@auxein.co.nz)"
 
 COUNCILS = {
     "orc":   ("Otago", "https://envdata.orc.govt.nz/AQWebPortal"),
