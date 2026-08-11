@@ -1236,6 +1236,16 @@
   color: #555;
 }
 
+/* Sub-headings inside a section (e.g. the data acknowledgement groupings) */
+.section-content h4 {
+  margin: 20px 0 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
 /* Variables Grid */
 .variables-grid {
   display: grid;

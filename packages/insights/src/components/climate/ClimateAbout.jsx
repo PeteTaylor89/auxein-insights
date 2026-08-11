@@ -22,8 +22,107 @@ import {
   Clock
 } from 'lucide-react';
 
+// ==========================================================================
+// DATA ACKNOWLEDGEMENT — shared by the live-data views (current season,
+// phenology, disease pressure). Mirrors the ingestion source list in
+// ingestion/run_ingestion.py; update both together when a source is added.
+// ==========================================================================
+const OBSERVING_AGENCIES = [
+  { name: 'Bay of Plenty Regional Council', url: 'https://www.boprc.govt.nz' },
+  { name: 'Environment Canterbury (ECan)', url: 'https://www.ecan.govt.nz' },
+  { name: 'Environment Southland', url: 'https://www.es.govt.nz' },
+  { name: 'Gisborne District Council', url: 'https://www.gdc.govt.nz' },
+  { name: "Hawke's Bay Regional Council", url: 'https://www.hbrc.govt.nz' },
+  { name: 'Horizons Regional Council (Manawatū-Whanganui)', url: 'https://www.horizons.govt.nz' },
+  { name: 'Marlborough District Council', url: 'https://www.marlborough.govt.nz' },
+  { name: 'Northland Regional Council', url: 'https://www.nrc.govt.nz' },
+  { name: 'Taranaki Regional Council', url: 'https://www.trc.govt.nz' },
+  { name: 'Tasman District Council', url: 'https://www.tasman.govt.nz' },
+  { name: 'West Coast Regional Council', url: 'https://www.wcrc.govt.nz' },
+];
+
+const DataAcknowledgement = () => (
+  <section className="about-section citations">
+    <div className="section-icon">
+      <Database size={24} />
+    </div>
+    <div className="section-content">
+      <h3>Data Acknowledgement</h3>
+      <p>
+        Auxein does not own the raw observations behind these insights. They are collected
+        and published by New Zealand's regional councils and unitary authorities, by
+        growers who host their own weather stations, and by international observing
+        programmes. We gratefully acknowledge the organisations below, whose ongoing
+        investment in environmental monitoring makes this work possible.
+      </p>
+
+      <h4>Regional councils and unitary authorities</h4>
+      <ul className="citations-list">
+        {OBSERVING_AGENCIES.map((agency) => (
+          <li key={agency.name}>
+            {agency.name}
+            <a href={agency.url} target="_blank" rel="noopener noreferrer" aria-label={`${agency.name} website`}>
+              <ExternalLink size={14} />
+            </a>
+          </li>
+        ))}
+      </ul>
+
+      <h4>Station operators and international programmes</h4>
+      <ul className="citations-list">
+        <li>
+          Growers and landowners who host weather stations and share their data with the network
+        </li>
+        <li>
+          Harvest Electronics - telemetry and station infrastructure
+          <a href="https://www.harvest.com" target="_blank" rel="noopener noreferrer" aria-label="Harvest Electronics website">
+            <ExternalLink size={14} />
+          </a>
+        </li>
+        <li>
+          NOAA National Centers for Environmental Information
+          <a href="https://www.ncei.noaa.gov" target="_blank" rel="noopener noreferrer" aria-label="NOAA NCEI website">
+            <ExternalLink size={14} />
+          </a>
+        </li>
+        <li>
+          World Meteorological Organization - synoptic observation exchange
+          <a href="https://wmo.int" target="_blank" rel="noopener noreferrer" aria-label="World Meteorological Organization website">
+            <ExternalLink size={14} />
+          </a>
+        </li>
+      </ul>
+
+      <h4>Use, licensing and responsibility</h4>
+      <ul className="guidelines-list">
+        <li>
+          <strong>Source data is used under each publisher's terms.</strong> Council
+          observations are accessed through their public environmental data services;
+          where a publisher requires written permission for commercial reuse, that
+          permission has been obtained.
+        </li>
+        <li>
+          <strong>Derived values are Auxein's, not the publishers'.</strong> Quality
+          control, gap filling, spatial interpolation, zone aggregation and every
+          derived metric on this page are produced by Auxein. Errors in those outputs
+          are ours, not the observing agencies'.
+        </li>
+        <li>
+          <strong>No endorsement is implied.</strong> Acknowledgement of an organisation
+          does not mean it has reviewed, approved or endorsed these insights.
+        </li>
+        <li>
+          <strong>Going to the source.</strong> For the raw observations, including
+          full quality codes and station metadata, please approach the publishing
+          agency directly.
+        </li>
+      </ul>
+    </div>
+  </section>
+);
+
 const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
-  
+
   // ==========================================================================
   // CURRENT SEASON CONTENT
   // ==========================================================================
@@ -117,12 +216,14 @@ const ClimateAbout = ({ onClose, activeView = 'seasons' }) => {
           <div className="variable-card">
             <h4>Normal</h4>
             <p>
-              Within ±5% of baseline accumulation. Season is tracking close to 
+              Within ±5% of baseline accumulation. Season is tracking close to
               historical averages.
             </p>
           </div>
         </div>
       </section>
+
+      <DataAcknowledgement />
     </>
   );
 
