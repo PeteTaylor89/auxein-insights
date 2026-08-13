@@ -201,15 +201,29 @@ Then update `eas.json` `submit.production.android` to reference the EAS secret n
 
 **Option B:** Fetch JSON from Secrets Manager at submit time, pass via `--key` flag, delete after. Works but requires AWS credentials wherever `eas submit` runs (fine locally, more setup for CI).
 
-### 2. `extra.apiUrl` hardcoded in `app.json`
+**2026-08-13 — partial.** `eas.json` still points `serviceAccountKeyPath` at
+`./google-play-service-account.json`. That path was **not gitignored** (only the differently-named
+`auxein-gro-play-*.json` was), so creating the file `eas submit` expects would have committed a
+Play Console service account key. Now covered by `packages/mobile/*-service-account.json` in
+`.gitignore`.
 
-Currently `https://api.auxein.co.nz/api` is hardcoded. This means dev builds against local backend require manually swapping the value. Should refactor to use `app.config.js` reading from environment, with profile-specific values in `eas.json` `env` blocks (which are currently dead code — code reads `Constants.expoConfig.extra.apiUrl`, not `process.env.API_URL`).
+An `ios` block was added under `submit.production` with **placeholders** for `ascAppId` and
+`appleTeamId` — both need real values from App Store Connect before `eas submit --platform ios`
+will run. `appleId` is set to Pete's address.
 
-Tracked in `src/api/api.js`:
-```js
-const API_URL = Constants.expoConfig?.extra?.apiUrl
-  || Constants.manifest?.extra?.apiUrl;
-```
+The EAS-secret migration (Option A) is still not done: the exact `eas.json` syntax for referencing
+a file secret should be confirmed against current EAS docs rather than guessed, since a wrong key
+path fails at submit time with an unhelpful error.
+
+### 2. `extra.apiUrl` hardcoded in `app.json` — RESOLVED 2026-08-13
+
+`app.config.js` already resolved `process.env.API_URL || config.extra?.apiUrl`, so the mechanism
+existed; what was missing was any profile actually *setting* `API_URL`. Each `eas.json` build
+profile now sets it explicitly, so a profile's backend is visible in one place instead of being
+an implicit fallback to the `app.json` value.
+
+All three profiles currently point at prod. To build against something else, change `API_URL` on
+that profile only. Local Metro testing still uses `packages/mobile/.env`.
 
 ### 3. Crash reporting not wired up
 
@@ -226,19 +240,33 @@ Needs creation in production database before App Access form can be filled and b
 - Pre-populated with demo vineyard/block/task data
 - Documented in App Access form with usage notes
 
-### 6. `app.json` Android permissions duplication
+### 6. `app.json` Android permissions — RESOLVED 2026-08-13
 
-Status: not yet cleaned up. The array currently contains both shorthand and fully-qualified Android permission names (`ACCESS_FINE_LOCATION` and `android.permission.ACCESS_FINE_LOCATION` etc.). Expo normalises this but logs warnings. Clean version should be:
+The duplication described here was already gone by the time it was checked. **The "clean version"
+this doc previously recommended was also wrong** — it listed `ACCESS_BACKGROUND_LOCATION`, which
+the app has never requested and must not (see `LOCATION_COMPLIANCE_V1.md`: the design was a
+foreground service specifically to avoid it).
 
-```json
-"permissions": [
-  "ACCESS_FINE_LOCATION",
-  "ACCESS_COARSE_LOCATION",
-  "ACCESS_BACKGROUND_LOCATION",
-  "FOREGROUND_SERVICE",
-  "FOREGROUND_SERVICE_LOCATION"
-]
-```
+Separately, the GPS mothball on 2026-08-13 made several permissions dead, and they were removed:
+
+| Removed | Was for |
+|---|---|
+| `FOREGROUND_SERVICE` | task GPS tracking foreground service |
+| `FOREGROUND_SERVICE_LOCATION` | same |
+| `isIosBackgroundLocationEnabled: true` | iOS `UIBackgroundModes: location` |
+| `isAndroidForegroundServiceEnabled: true` | generated the two Android permissions above |
+
+Current set is `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `POST_NOTIFICATIONS`. Location is
+still genuinely needed — observation spots, incidents, risks, map follow-user and contractor
+check-in all use one-shot `expo-location` reads — but only **when in use**.
+
+**Why this matters for store review:** no foreground-service or background-location declaration is
+now required, which removes the Play Console background-location questionnaire and the
+corresponding App Store background-mode scrutiny, and simplifies the Data Safety form.
+
+**If GPS tracking is ever revived, these must come back** — `startLocationUpdatesAsync` with a
+`foregroundService` option will fail without them. The iOS usage string was also reworded to drop
+the reference to recording tractor activity, since it no longer does.
 
 ---
 

@@ -17,7 +17,7 @@
       "bundleIdentifier": "nz.co.auxein.grow",
       "buildNumber": "8",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Auxein Grow uses your location to show your position on the vineyard map, geotag observations and tasks, and record tractor and shift activity while you work.",
+        "NSLocationWhenInUseUsageDescription": "Auxein Grow uses your location to show your position on the vineyard map and to geotag observations, incidents and site check-ins as you record them.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -32,8 +32,6 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS"
       ]
     },
@@ -41,10 +39,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Auxein Grow uses your location to show your position on the vineyard map, geotag observations and tasks, and record tractor and shift activity while you work.",
-          "isIosBackgroundLocationEnabled": true,
+          "locationWhenInUsePermission": "Auxein Grow uses your location to show your position on the vineyard map and to geotag observations, incidents and site check-ins as you record them.",
+          "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false,
-          "isAndroidForegroundServiceEnabled": true
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       "expo-task-manager"

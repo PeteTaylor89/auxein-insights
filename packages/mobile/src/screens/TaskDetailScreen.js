@@ -1,5 +1,5 @@
 // screens/TaskDetailScreen.js — Full task detail with start/rows/complete (M2)
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Alert, TextInput, Modal,
@@ -11,10 +11,21 @@ import { colors, spacing, fontSize, radius } from '../styles/theme';
 import { tasksService, taskRowService } from '../api/services';
 import { getTaskCached, listRowsCached, getRowProgressCached } from '../services/tasksCache';
 import { byNatural } from '../utils/naturalSort';
-import { useGpsTracking } from '../hooks/useGpsTracking';
-import GpsTrackingOverlay from './GpsTrackingScreen';
-import { TaskStatusBadge, useToast } from '../components';
+// GPS tracking is mothballed. The
+// useGpsTracking hook, GpsTrackingScreen overlay and the backend track
+// endpoints all still exist; this screen simply no longer reaches them.
+// (phone GPS wasn't accurate enough to record a track worth acting on)
+import { refOrId } from '../services/writeQueue';
+import {
+  TaskStatusBadge, useToast, EntityPhotos, SectionCard, BottomActionBar,
+} from '../components';
 import RiskHazardChips from '../components/RiskHazardChips';
+
+// Row label as the crew says it out loud — "Row 12", not "#4471".
+// Named ...For to stay clear of the local `rowLabel` inside handleCompleteRow.
+function rowLabelFor(row) {
+  return `Row ${row?.row_identifier || row?.vineyard_row?.row_number || row?.id}`;
+}
 
 export default function TaskDetailScreen({ route, navigation }) {
   const { taskId } = route.params;
@@ -31,11 +42,6 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-
-  // GPS tracking
-  const gps = useGpsTracking();
-  const [showGpsOverlay, setShowGpsOverlay] = useState(false);
-  const [gpsCommittedSummary, setGpsCommittedSummary] = useState(null); // server-side summary if GPS was stopped/committed
 
   // Row completion modal state
   const toast = useToast();
@@ -108,23 +114,11 @@ export default function TaskDetailScreen({ route, navigation }) {
     }
   }, [taskId, sortRows]);
 
-  const loadGpsCommitted = useCallback(async () => {
-    // Only check if not actively tracking — avoids hitting endpoint mid-flight.
-    if (gps.isTracking || gps.isPaused) return;
-    try {
-      const summary = await tasksService.getGpsSummary(taskId);
-      setGpsCommittedSummary(summary || null);
-    } catch (err) {
-      // 404 = no summary yet (never started or still active); anything else also benign here
-      setGpsCommittedSummary(null);
-    }
-  }, [taskId, gps.isTracking, gps.isPaused]);
-
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadTask(), loadRows(), loadGpsCommitted()]);
+    await Promise.all([loadTask(), loadRows()]);
     setLoading(false);
-  }, [loadTask, loadRows, loadGpsCommitted]);
+  }, [loadTask, loadRows]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -133,6 +127,39 @@ export default function TaskDetailScreen({ route, navigation }) {
   }, [loadTask, loadRows]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Every row's issues + notes, rolled into one ordered list. Web parity with
+  // the Field Notes card on TaskDetail.jsx: derived, never stored, so it can't
+  // drift from the rows it came from. Issues sort ahead of plain notes, then
+  // naturally by row so 2 comes before 10.
+  const fieldNotes = useMemo(() => {
+    const entries = [];
+    for (const r of rows) {
+      const label = rowLabelFor(r);
+      if (r.issues_found && r.issues_found.trim()) {
+        entries.push({ id: `${r.id}-i`, label, text: r.issues_found.trim(), isIssue: true });
+      }
+      if (r.notes && r.notes.trim()) {
+        entries.push({ id: `${r.id}-n`, label, text: r.notes.trim(), isIssue: false });
+      }
+    }
+    entries.sort((a, b) => {
+      if (a.isIssue !== b.isIssue) return a.isIssue ? -1 : 1;
+      return byNatural('label')(a, b);
+    });
+    return entries;
+  }, [rows]);
+
+  const fieldNotesText = useMemo(
+    () => fieldNotes.map(e => `${e.label}: ${e.text}`).join('\n'),
+    [fieldNotes],
+  );
+
+  // Seed the completion notes with what the crew already wrote row by row,
+  // rather than making them retype it at the end of the job.
+  const insertFieldNotes = () => {
+    setCompletionNotes(prev => (prev?.trim() ? `${prev.trim()}\n${fieldNotesText}` : fieldNotesText));
+  };
 
   useEffect(() => {
     navigation.setOptions({
@@ -162,23 +189,6 @@ export default function TaskDetailScreen({ route, navigation }) {
 
   // --- Actions ---
 
-  // Confirmation prompt fired before any flow that will kick off live GPS
-  // recording. Surfaces what's about to happen so users don't accidentally
-  // start tracking and burn battery / sit in foreground when they didn't intend.
-  const confirmStartGps = (proceed) => {
-    Alert.alert(
-      'Start GPS recording?',
-      'This task records your location continuously while it\'s in progress.\n\n' +
-      '• Keep the app open and your device awake — backgrounding may pause recording.\n' +
-      '• Recording continues until you tap Stop.\n' +
-      '• Pause when taking a break to save battery.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Start recording', onPress: proceed },
-      ],
-    );
-  };
-
   const handleStartTask = async () => {
     setActionLoading(true);
     try {
@@ -193,13 +203,6 @@ export default function TaskDetailScreen({ route, navigation }) {
         return;
       }
 
-      // If GPS will auto-start with the task, confirm first. Non-GPS tasks
-      // skip the prompt entirely — no behaviour change for them.
-      if (task?.requires_gps_tracking === true) {
-        setActionLoading(false);
-        confirmStartGps(() => doStartTask(false));
-        return;
-      }
       await doStartTask(false);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to start task');
@@ -211,24 +214,10 @@ export default function TaskDetailScreen({ route, navigation }) {
   const doStartTask = async (skipEquipmentCheck) => {
     setActionLoading(true);
     try {
-      const gpsRequired = task?.requires_gps_tracking === true;
       await tasksService.startTask(taskId, {
         skip_equipment_check: skipEquipmentCheck,
-        start_gps_tracking: gpsRequired,
       });
       setShowEquipmentModal(false);
-      // Start GPS tracking only if task requires it. On success, jump straight
-      // into the full-screen GPS overlay — that's where Pause/Stop + live
-      // stats live, and on a fresh start the user expects to see the
-      // recording state, not the task detail page.
-      if (gpsRequired) {
-        const gpsStarted = await gps.startTracking(taskId, task?.title);
-        if (gpsStarted) {
-          setShowGpsOverlay(true);
-        } else {
-          Alert.alert('GPS Note', 'Task started but GPS tracking could not be enabled. You can continue without tracking.');
-        }
-      }
       await loadAll();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to start task');
@@ -286,7 +275,10 @@ export default function TaskDetailScreen({ route, navigation }) {
               task_category: task?.task_category || 'general',
               priority: 'medium',
             });
-            parentId = parent.id;
+            // refOrId, not .id — created offline the parent is a queued stub
+            // with no server id, and the child has to carry a reference the
+            // queue resolves once the parent lands.
+            parentId = refOrId(parent);
           } else if (rollUpChoice !== '__none__') {
             parentId = Number(rollUpChoice);
           }
@@ -367,14 +359,6 @@ export default function TaskDetailScreen({ route, navigation }) {
   const handleCompleteTask = async () => {
     setActionLoading(true);
     try {
-      // Stop GPS tracking first (don't let GPS errors block completion)
-      if (gps.isTracking || gps.isPaused) {
-        try {
-          await gps.stopTracking();
-        } catch (gpsErr) {
-          console.warn('[GPS] Stop failed during complete, continuing:', gpsErr.message);
-        }
-      }
       const payload = { completion_notes: completionNotes || null };
       if (consumableActuals.length > 0) {
         payload.consumable_actuals = consumableActuals.map(c => ({
@@ -422,10 +406,13 @@ export default function TaskDetailScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <ScrollView
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {/* Task Info Card */}
-        <View style={styles.card}>
+        {/* Identity + the facts, in one card. Everything below is a
+            SectionCard so the screen reads as one stack of sections rather
+            than a run of hand-rolled panels. */}
+        <SectionCard style={styles.headCard}>
           <View style={styles.headerRow}>
             <Text style={styles.taskNumber}>{task.task_number}</Text>
             <TaskStatusBadge status={task.status} />
@@ -447,167 +434,53 @@ export default function TaskDetailScreen({ route, navigation }) {
             spatialAreaId={task.spatial_area_id || null}
             propertyId={task.property_id || task.block?.property_id || null}
           />
-        </View>
+        </SectionCard>
 
-        {/* GPS — committed/locked. Server has a summary OR this session stopped it. */}
-        {isInProgress && task?.requires_gps_tracking && !gps.isTracking && !gps.isPaused && (gpsCommittedSummary || gps.hasBeenStopped) && (
-          <View style={styles.card}>
-            <View style={styles.gpsHeader}>
-              <View style={styles.gpsHeaderLeft}>
-                <View style={[styles.gpsDot, { backgroundColor: colors.success }]} />
-                <Text style={styles.sectionTitle}>GPS Recording Complete</Text>
-              </View>
-              <Feather name="lock" size={14} color={colors.textMuted} />
-            </View>
-            <Text style={styles.gpsHint}>
-              GPS track is saved and locked. Complete the task below to log hours and notes.
-            </Text>
-            {gpsCommittedSummary && (
-              <View style={styles.gpsStats}>
-                <View style={styles.gpsStat}>
-                  <Text style={styles.gpsStatValue}>
-                    {Number(gpsCommittedSummary.total_distance_km || 0).toFixed(2)}
-                  </Text>
-                  <Text style={styles.gpsStatLabel}>km</Text>
-                </View>
-                <View style={styles.gpsStat}>
-                  <Text style={styles.gpsStatValue}>
-                    {gpsCommittedSummary.active_duration_minutes || 0}m
-                  </Text>
-                  <Text style={styles.gpsStatLabel}>active</Text>
-                </View>
-                <View style={styles.gpsStat}>
-                  <Text style={styles.gpsStatValue}>{gpsCommittedSummary.total_points || 0}</Text>
-                  <Text style={styles.gpsStatLabel}>points</Text>
-                </View>
-                {gpsCommittedSummary.coverage_area_hectares != null && (
-                  <View style={styles.gpsStat}>
-                    <Text style={styles.gpsStatValue}>
-                      {Number(gpsCommittedSummary.coverage_area_hectares).toFixed(2)}
-                    </Text>
-                    <Text style={styles.gpsStatLabel}>ha</Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* View completed track on Map. Cross-tab nav with viewTaskId
-                param; MapScreen fetches the locked track + fits camera. */}
-            <TouchableOpacity
-              style={styles.gpsMapBtn}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('Map', { viewTaskId: taskId })}
-            >
-              <Text style={styles.gpsMapBtnText}>View track on Map →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* GPS — never started yet, task in progress + tracking required */}
-        {isInProgress && task?.requires_gps_tracking && !gps.isTracking && !gps.isPaused && !gpsCommittedSummary && !gps.hasBeenStopped && (
-          <View style={styles.card}>
-            <View style={styles.gpsHeader}>
-              <View style={styles.gpsHeaderLeft}>
-                <View style={[styles.gpsDot, { backgroundColor: colors.textMuted }]} />
-                <Text style={styles.sectionTitle}>GPS Tracking</Text>
-              </View>
-            </View>
-            <Text style={styles.gpsHint}>
-              GPS is not currently recording. Start now to capture coverage for this task.
-            </Text>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnPrimary, { marginTop: spacing.md }]}
-              onPress={() => confirmStartGps(async () => {
-                const ok = await gps.startTracking(taskId, task?.title);
-                if (!ok) {
-                  Alert.alert('GPS', 'Could not start tracking. Check location permission and try again.');
-                } else {
-                  setShowGpsOverlay(true);
-                }
-              })}
-            >
-              <Feather name="play-circle" size={18} color={colors.white} />
-              <Text style={[styles.actionBtnText, { marginLeft: spacing.xs }]}>Start GPS Tracking</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* GPS Tracking Card — tap to open full GPS screen */}
-        {isInProgress && (gps.isTracking || gps.isPaused) && (
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() => setShowGpsOverlay(true)}
+        {/* Field notes — what the crew logged row by row, in one place. Sits
+            high on the screen because it's the thing someone picking the job
+            back up actually needs to read. */}
+        {fieldNotes.length > 0 && (
+          <SectionCard
+            icon="clipboard"
+            title="Field notes"
+            subtitle={`${fieldNotes.length} from ${rows.length} row${rows.length === 1 ? '' : 's'}`}
           >
-            <View style={styles.gpsHeader}>
-              <View style={styles.gpsHeaderLeft}>
-                <View style={[styles.gpsDot, gps.isPaused ? styles.gpsDotPaused : styles.gpsDotActive]} />
-                <Text style={styles.sectionTitle}>
-                  {gps.isPaused ? 'GPS Paused' : 'GPS Tracking'}
-                </Text>
+            {fieldNotes.map(e => (
+              <View key={e.id} style={styles.noteRow}>
+                {e.isIssue
+                  ? <Feather name="alert-triangle" size={13} color={colors.warning} style={styles.noteIcon} />
+                  : <View style={styles.noteIconSpacer} />}
+                <Text style={styles.noteLabel}>{e.label}</Text>
+                <Text style={styles.noteText}>{e.text}</Text>
               </View>
-              <Text style={styles.gpsExpandHint}>Tap to expand →</Text>
-            </View>
-
-            <View style={styles.gpsStats}>
-              <View style={styles.gpsStat}>
-                <Text style={styles.gpsStatValue}>
-                  {(gps.stats.distance / 1000).toFixed(2)}
-                </Text>
-                <Text style={styles.gpsStatLabel}>km</Text>
-              </View>
-              <View style={styles.gpsStat}>
-                <Text style={styles.gpsStatValue}>
-                  {Math.floor(gps.stats.duration / 3600) > 0
-                    ? `${Math.floor(gps.stats.duration / 3600)}h ${Math.floor((gps.stats.duration % 3600) / 60)}m`
-                    : `${Math.floor(gps.stats.duration / 60)}m ${Math.floor(gps.stats.duration % 60)}s`}
-                </Text>
-                <Text style={styles.gpsStatLabel}>time</Text>
-              </View>
-              <View style={styles.gpsStat}>
-                <Text style={styles.gpsStatValue}>{gps.stats.pointCount}</Text>
-                <Text style={styles.gpsStatLabel}>points</Text>
-              </View>
-              <View style={styles.gpsStat}>
-                <Text style={styles.gpsStatValue}>
-                  {gps.stats.avgSpeed > 0 ? gps.stats.avgSpeed.toFixed(1) : '—'}
-                </Text>
-                <Text style={styles.gpsStatLabel}>km/h</Text>
-              </View>
-            </View>
-
-            {/* View live track on Map. Cross-tab nav (parent tab navigator
-                resolves the 'Map' tab name). MapScreen is already polling
-                for any active task and renders the polyline automatically. */}
-            <TouchableOpacity
-              style={styles.gpsMapBtn}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('Map')}
-            >
-              <Text style={styles.gpsMapBtnText}>View live track on Map →</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
+            ))}
+          </SectionCard>
         )}
 
-        {/* Row Progress */}
+        {/* Photos already on the server. Renders nothing at all when there are
+            none, so the card style goes on the component rather than a wrapper
+            that would otherwise be left empty. */}
+        <EntityPhotos entityType="task" entityId={taskId} label="Photos" style={styles.photoCard} />
+
         {(rows.length > 0 || progress) && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Row Progress</Text>
+          <SectionCard
+            icon="list"
+            title="Rows"
+            subtitle={progress
+              ? `${progress.completed_rows}/${progress.total_rows} complete${progress.skipped_rows > 0 ? ` · ${progress.skipped_rows} skipped` : ''}`
+              : undefined}
+          >
             {progress && (
               <View style={styles.progressSection}>
                 <View style={styles.progressBar}>
                   <View style={[styles.progressFill, { width: `${progress.completion_percentage || 0}%` }]} />
                 </View>
-                <Text style={styles.progressText}>
-                  {progress.completed_rows}/{progress.total_rows} rows complete
-                  {progress.skipped_rows > 0 ? ` · ${progress.skipped_rows} skipped` : ''}
-                </Text>
               </View>
             )}
             {rows.map(row => (
               <View key={row.id} style={styles.rowItem}>
                 <View style={styles.rowInfo}>
-                  <Text style={styles.rowName}>Row {row.row_identifier || row.vineyard_row?.row_number || row.id}</Text>
+                  <Text style={styles.rowName}>{rowLabelFor(row)}</Text>
                   <Badge label={row.status} color={statusColor(row.status)} small />
                 </View>
                 {row.status === 'pending' && isInProgress && (
@@ -623,33 +496,28 @@ export default function TaskDetailScreen({ route, navigation }) {
                 {row.notes ? <Text style={styles.rowNotes}>{row.notes}</Text> : null}
               </View>
             ))}
-          </View>
+          </SectionCard>
         )}
 
       </ScrollView>
 
-      {/* Action Bar */}
-      {!isCompleted && (
-        <View style={[styles.actionBar, { paddingBottom: spacing.lg + insets.bottom }]}>
-          {isStartable && (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnPrimary]}
-              onPress={handleStartTask}
-              disabled={actionLoading}
-            >
-              {actionLoading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionBtnText}>Start Task</Text>}
-            </TouchableOpacity>
-          )}
-          {isCompletable && (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnSuccess]}
-              onPress={handleOpenCompleteModal}
-              disabled={actionLoading}
-            >
-              <Text style={styles.actionBtnText}>Complete Task</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+      {/* One shared action bar instead of a bespoke one — same safe-area and
+          button treatment as every other capture screen. */}
+      {!isCompleted && isStartable && (
+        <BottomActionBar
+          primaryLabel={actionLoading ? 'Starting…' : 'Start task'}
+          primaryIcon="play"
+          onPrimary={handleStartTask}
+          disabled={actionLoading}
+        />
+      )}
+      {!isCompleted && isCompletable && (
+        <BottomActionBar
+          primaryLabel="Complete task"
+          primaryIcon="check-circle"
+          onPrimary={handleOpenCompleteModal}
+          disabled={actionLoading}
+        />
       )}
 
       {/* Row Completion Modal */}
@@ -868,7 +736,21 @@ export default function TaskDetailScreen({ route, navigation }) {
                   Quarter-hour increments. Adds an entry to today&apos;s timesheet.
                 </Text>
 
-                <Text style={styles.inputLabel}>Completion Notes</Text>
+                <View style={styles.notesLabelRow}>
+                  <Text style={styles.inputLabel}>Completion Notes</Text>
+                  {fieldNotes.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.insertNotesBtn}
+                      onPress={insertFieldNotes}
+                      accessibilityLabel="Insert field notes into completion notes"
+                    >
+                      <Feather name="clipboard" size={12} color={colors.primary} />
+                      <Text style={styles.insertNotesText}>
+                        Insert field notes ({fieldNotes.length})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <TextInput
                   style={styles.notesInput}
                   value={completionNotes}
@@ -900,22 +782,6 @@ export default function TaskDetailScreen({ route, navigation }) {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* GPS Full-Screen Overlay */}
-      <Modal visible={showGpsOverlay} animationType="slide">
-        <GpsTrackingOverlay
-          gps={gps}
-          taskTitle={task.title || `Task #${task.id}`}
-          taskNumber={task.task_number}
-          onClose={() => setShowGpsOverlay(false)}
-          onViewMap={() => {
-            // Close the overlay then jump to the Map tab. The live polyline
-            // reads from the same useGpsTracking buffer the overlay shows,
-            // so the trail appears immediately.
-            setShowGpsOverlay(false);
-            navigation.navigate('Map');
-          }}
-        />
-      </Modal>
     </View>
   );
 }
@@ -947,17 +813,44 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceWarm },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Card
-  card: {
-    margin: spacing.base, marginBottom: 0, backgroundColor: colors.surface,
-    borderRadius: radius.lg, padding: spacing.base,
-    borderWidth: 1, borderColor: colors.border,
+  // Page gutter lives on the scroll content now, so each SectionCard only has
+  // to worry about its own spacing rather than carrying a margin.
+  scrollContent: { padding: spacing.base, paddingBottom: spacing.xl },
+
+  headCard: { marginBottom: spacing.md },
+  // Matches SectionCard so the photo strip sits in the same stack.
+  photoCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.md,
   },
+
+  // Field notes
+  noteRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs,
+    paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.borderLight,
+  },
+  noteIcon: { marginTop: 2 },
+  noteIconSpacer: { width: 13 },
+  noteLabel: { fontSize: fontSize.xs, fontWeight: '700', color: colors.text, minWidth: 54 },
+  noteText: { flex: 1, fontSize: fontSize.sm, color: colors.text, lineHeight: 19 },
+
+  // Insert-field-notes affordance in the complete sheet
+  notesLabelRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  insertNotesBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: 4, paddingHorizontal: 8,
+    borderRadius: radius.sm, borderWidth: 1, borderColor: colors.primary,
+  },
+  insertNotesText: { fontSize: 11, fontWeight: '600', color: colors.primary },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
   taskNumber: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: '500' },
   title: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
   description: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.md },
-  sectionTitle: { fontSize: fontSize.base, fontWeight: '600', color: colors.text, marginBottom: spacing.md },
   fields: { gap: spacing.sm },
   field: { flexDirection: 'row', justifyContent: 'space-between' },
   fieldLabel: { fontSize: fontSize.sm, color: colors.textMuted },
@@ -973,7 +866,6 @@ const styles = StyleSheet.create({
   progressSection: { marginBottom: spacing.md },
   progressBar: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden', marginBottom: spacing.xs },
   progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
-  progressText: { fontSize: fontSize.xs, color: colors.textMuted },
 
   // Rows
   rowItem: {
@@ -991,12 +883,8 @@ const styles = StyleSheet.create({
   rowBtnSkipText: { color: colors.textMuted, fontSize: fontSize.xs, fontWeight: '500' },
   rowNotes: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2, fontStyle: 'italic' },
 
-  // Action Bar
-  actionBar: {
-    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
-    padding: spacing.base, paddingBottom: spacing.lg,
-    flexDirection: 'row', gap: spacing.sm,
-  },
+  // Confirm buttons inside the modal sheets. The screen's own action bar is now
+  // the shared BottomActionBar.
   actionBtn: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   actionBtnPrimary: { backgroundColor: colors.primary },
   actionBtnSuccess: { backgroundColor: colors.success },
@@ -1095,35 +983,6 @@ const styles = StyleSheet.create({
     padding: spacing.sm, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.white,
   },
 
-  // GPS tracking
-  gpsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  gpsHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  gpsDot: { width: 10, height: 10, borderRadius: 5 },
-  gpsDotActive: { backgroundColor: colors.success },
-  gpsDotPaused: { backgroundColor: colors.warning },
-  gpsExpandHint: { fontSize: fontSize.xs, color: colors.textMuted, fontStyle: 'italic' },
-  gpsHint: { fontSize: fontSize.sm, color: colors.textMuted },
-  gpsStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: spacing.md },
-  gpsStat: { alignItems: 'center' },
-  gpsStatValue: { fontSize: fontSize.lg, fontWeight: '700', color: colors.text },
-  gpsStatLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  gpsMapBtn: {
-    alignSelf: 'stretch',
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.trackBlueDark || '#2563eb',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  gpsMapBtnText: { color: '#FFFFFF', fontSize: fontSize.sm, fontWeight: '600' },
-  gpsActions: { flexDirection: 'row', gap: spacing.sm },
-  gpsBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: 'center' },
-  gpsBtnResume: { backgroundColor: colors.success },
-  gpsBtnPause: { backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warning },
-  gpsBtnStop: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.danger },
-  gpsBtnText: { color: colors.white, fontSize: fontSize.sm, fontWeight: '600' },
-  gpsBtnPauseText: { color: colors.warning, fontSize: fontSize.sm, fontWeight: '600' },
-  gpsBtnStopText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: '600' },
 
   // Hours input
   hoursRow: { marginBottom: spacing.xs, gap: spacing.sm },

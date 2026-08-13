@@ -3,6 +3,20 @@
 // All paths below are relative to that base.
 import api from './api';
 
+// Marks a write as safe to hold in the offline queue and replay later. Only
+// calls tagged this way survive a dead connection — see api.js, which queues
+// exclusively on transport failure so a replay can never double-apply.
+//
+// Deliberately NOT tagged: auth (login/logout/password), notification
+// read-state, and the mothballed GPS endpoints. Queuing a login is meaningless,
+// and a read-receipt replayed an hour later is noise.
+//
+// `optimistic` is merged into the stub the caller receives while offline, so a
+// screen can render something truthful instead of an empty object.
+function offline(label, optimistic) {
+  return { offline: { label, optimistic } };
+}
+
 // --- Auth ---
 export const authApi = {
   login: async (identifier, password) => {
@@ -53,15 +67,15 @@ export const tasksService = {
     return res.data;
   },
   startTask: async (taskId, payload = {}) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/start`, payload);
+    const res = await api.post(`/tasks/tasks/${taskId}/start`, payload, offline('Start task'));
     return res.data;
   },
   completeTask: async (taskId, payload = {}) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/complete`, payload);
+    const res = await api.post(`/tasks/tasks/${taskId}/complete`, payload, offline('Complete task'));
     return res.data;
   },
   createTask: async (data) => {
-    const res = await api.post('/tasks/tasks', data);
+    const res = await api.post('/tasks/tasks', data, offline('Create task', { title: data?.title }));
     return res.data;
   },
   // Repair roll-ups. Mirrored from packages/shared/src/api/tasksService.js —
@@ -71,7 +85,7 @@ export const tasksService = {
     return res.data;
   },
   rollUpTasks: async (payload) => {
-    const res = await api.post('/tasks/tasks/roll-up', payload);
+    const res = await api.post('/tasks/tasks/roll-up', payload, offline('Roll up tasks'));
     return res.data;
   },
   listTaskTemplates: async (params = {}) => {
@@ -85,7 +99,7 @@ export const tasksService = {
   quickCreateTask: async (data) => {
     // template_id is required server-side. assigned_user_ids creates one
     // TaskAssignment per user (multi-assign supported).
-    const res = await api.post('/tasks/tasks/quick-create', data);
+    const res = await api.post('/tasks/tasks/quick-create', data, offline('Create task', { title: data?.title }));
     return res.data;
   },
   // GPS tracking
@@ -153,15 +167,15 @@ export const taskRowService = {
     return res.data;
   },
   createRows: async (taskId, rows) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/rows/bulk`, rows);
+    const res = await api.post(`/tasks/tasks/${taskId}/rows/bulk`, rows, offline('Add rows'));
     return res.data;
   },
   completeRow: async (taskId, rowId, data = {}) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/rows/${rowId}/complete`, data);
+    const res = await api.post(`/tasks/tasks/${taskId}/rows/${rowId}/complete`, data, offline('Complete row'));
     return res.data;
   },
   skipRow: async (taskId, rowId, skipReason) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/rows/${rowId}/skip`, { skip_reason: skipReason });
+    const res = await api.post(`/tasks/tasks/${taskId}/rows/${rowId}/skip`, { skip_reason: skipReason }, offline('Skip row'));
     return res.data;
   },
 };
@@ -183,12 +197,12 @@ export const observationService = {
     return res.data;
   },
   createRun: async (payload) => {
-    const res = await api.post('/observations/api/observation-runs', payload);
+    const res = await api.post('/observations/api/observation-runs', payload, offline('Start observation run'));
     return res.data;
   },
   // Flip a Scheduled run into In Progress. Idempotent on already-started runs.
   beginRun: async (runId) => {
-    const res = await api.post(`/observations/api/observation-runs/${runId}/start`);
+    const res = await api.post(`/observations/api/observation-runs/${runId}/start`, undefined, offline('Begin run'));
     return res.data;
   },
   getRun: async (id) => {
@@ -196,11 +210,11 @@ export const observationService = {
     return res.data;
   },
   completeRun: async (runId) => {
-    const res = await api.post(`/observations/api/observation-runs/${runId}/complete`);
+    const res = await api.post(`/observations/api/observation-runs/${runId}/complete`, undefined, offline('Complete run'));
     return res.data;
   },
   cancelRun: async (runId) => {
-    const res = await api.patch(`/observations/api/observation-runs/${runId}/cancel`);
+    const res = await api.patch(`/observations/api/observation-runs/${runId}/cancel`, undefined, offline('Cancel run'));
     return res.data;
   },
   // Spots
@@ -209,11 +223,11 @@ export const observationService = {
     return res.data;
   },
   createSpot: async (runId, payload) => {
-    const res = await api.post(`/observations/api/observation-runs/${runId}/spots`, payload);
+    const res = await api.post(`/observations/api/observation-runs/${runId}/spots`, payload, offline('Record observation spot'));
     return res.data;
   },
   updateSpot: async (spotId, payload) => {
-    const res = await api.patch(`/observations/api/observation-spots/${spotId}`, payload);
+    const res = await api.patch(`/observations/api/observation-spots/${spotId}`, payload, offline('Update observation spot'));
     return res.data;
   },
   // Reference data
@@ -255,7 +269,7 @@ export const incidentService = {
     return res.data;
   },
   create: async (data) => {
-    const res = await api.post('/risk-management/incidents/', data);
+    const res = await api.post('/risk-management/incidents/', data, offline('Report incident'));
     return res.data;
   },
   get: async (id) => {
@@ -295,7 +309,7 @@ export const maintenanceService = {
     return res.data;
   },
   update: async (id, data) => {
-    const res = await api.put(`/maintenance/${id}`, data);
+    const res = await api.put(`/maintenance/${id}`, data, offline('Update maintenance'));
     return res.data;
   },
   complete: async (id, data) => {
@@ -303,7 +317,7 @@ export const maintenanceService = {
       ...data,
       status: 'completed',
       completed_date: new Date().toISOString().split('T')[0],
-    });
+    }, offline('Complete maintenance'));
     return res.data;
   },
 };
@@ -318,12 +332,12 @@ export const calibrationService = {
   // pending schedule — the backend will mark the schedule completed and auto-spawn
   // the next pending one (asset interval on pass, 7-day recheck on fail).
   create: async (data) => {
-    const res = await api.post('/calibrations', data);
+    const res = await api.post('/calibrations', data, offline('Record calibration'));
     return res.data;
   },
   // PUT only for editing/correcting a previously-saved event. Do not use to "complete" a calibration.
   update: async (id, data) => {
-    const res = await api.put(`/calibrations/${id}`, data);
+    const res = await api.put(`/calibrations/${id}`, data, offline('Update calibration'));
     return res.data;
   },
 };
@@ -347,7 +361,10 @@ export const visitorService = {
   // Register a visitor + visit + sign in, in one call. Mirrors the web visitor portal flow.
   // Backend endpoint accepts a free-form dict + company_id query param.
   registerPortal: async (formData, companyId) => {
-    const res = await api.post('/visitors/register', formData, { params: { company_id: companyId } });
+    const res = await api.post('/visitors/register', formData, {
+      params: { company_id: companyId },
+      ...offline('Sign in visitor'),
+    });
     return res.data;
   },
   listActive: async () => {
@@ -359,7 +376,7 @@ export const visitorService = {
     const res = await api.post(
       `/visitors/visits/${visitId}/sign-out`,
       null,
-      { params: notes ? { notes } : {} },
+      { params: notes ? { notes } : {}, ...offline('Sign out visitor') },
     );
     return res.data;
   },
@@ -380,18 +397,18 @@ export const riskActionService = {
     return res.data;
   },
   update: async (id, data) => {
-    const res = await api.put(`/risk-management/actions/${id}`, data);
+    const res = await api.put(`/risk-management/actions/${id}`, data, offline('Update risk action'));
     return res.data;
   },
   updateProgress: async (id, percentage, notes) => {
     const res = await api.put(`/risk-management/actions/${id}/progress`, {
       progress_percentage: percentage,
       notes,
-    });
+    }, offline('Update action progress'));
     return res.data;
   },
   complete: async (id, data) => {
-    const res = await api.post(`/risk-management/actions/${id}/complete`, data);
+    const res = await api.post(`/risk-management/actions/${id}/complete`, data, offline('Complete risk action'));
     return res.data;
   },
 };
@@ -430,7 +447,7 @@ export const assetService = {
     return res.data;
   },
   createAsset: async (data) => {
-    const res = await api.post('/assets', data);
+    const res = await api.post('/assets', data, offline('Create asset'));
     return res.data;
   },
   getAssetsGeoJson: async (category = null, propertyId = null) => {
@@ -482,7 +499,7 @@ export const riskService = {
     return res.data;
   },
   create: async (data) => {
-    const res = await api.post('/risk-management/risks/', data);
+    const res = await api.post('/risk-management/risks/', data, offline('Create risk'));
     return res.data;
   },
   // Active risks scoped to a block / spatial area / property. Powers hazard
@@ -521,11 +538,11 @@ export const contractorService = {
     return res.data;
   },
   updateMyProfile: async (patch) => {
-    const res = await api.patch('/v1/contractor-management/me/profile', patch);
+    const res = await api.patch('/v1/contractor-management/me/profile', patch, offline('Update profile'));
     return res.data;
   },
   updateMyInsurance: async (patch) => {
-    const res = await api.patch('/v1/contractor-management/me/insurance', patch);
+    const res = await api.patch('/v1/contractor-management/me/insurance', patch, offline('Update insurance'));
     return res.data;
   },
   changeMyPassword: async (current_password, new_password) => {
@@ -556,28 +573,28 @@ export const contractorService = {
   },
   // Self-create flows
   createMyAssignment: async (payload) => {
-    const res = await api.post('/v1/contractor-management/me/assignments', payload);
+    const res = await api.post('/v1/contractor-management/me/assignments', payload, offline('Create assignment'));
     return res.data;
   },
   createMyIncident: async (payload) => {
-    const res = await api.post('/v1/contractor-management/me/incidents', payload);
+    const res = await api.post('/v1/contractor-management/me/incidents', payload, offline('Report incident'));
     return res.data;
   },
   // Ad-hoc one-shot observation. Backend creates a hidden ObservationRun +
   // single Spot under a per-company ad-hoc template; the company-user obs
   // tab won't show it as a planned run (filtered by template type).
   createMyObservation: async (payload) => {
-    const res = await api.post('/v1/contractor-management/me/observations', payload);
+    const res = await api.post('/v1/contractor-management/me/observations', payload, offline('Record observation'));
     return res.data;
   },
   // Check-in (Visit FAB) — router is mounted at /api/v1/contractor-management,
   // so paths need the /v1/ segment just like the /me/* endpoints.
   checkIn: async (payload) => {
-    const res = await api.post('/v1/contractor-management/contractor-movements/check-in', payload);
+    const res = await api.post('/v1/contractor-management/contractor-movements/check-in', payload, offline('Check in'));
     return res.data;
   },
   checkOut: async (movementId, payload = {}) => {
-    const res = await api.post(`/v1/contractor-management/contractor-movements/${movementId}/check-out`, payload);
+    const res = await api.post(`/v1/contractor-management/contractor-movements/${movementId}/check-out`, payload, offline('Check out'));
     return res.data;
   },
   listMyRecentCheckIns: async (limit = 5) => {
@@ -631,34 +648,34 @@ export const timesheetService = {
     return res.data;
   },
   createDay: async ({ work_date, day_hours, notes }) => {
-    const res = await api.post('/timesheets/days', { work_date, day_hours, notes });
+    const res = await api.post('/timesheets/days', { work_date, day_hours, notes }, offline('Create timesheet day'));
     return res.data;
   },
   setDayHours: async (dayId, day_hours) => {
-    const res = await api.patch(`/timesheets/days/${dayId}`, { day_hours });
+    const res = await api.patch(`/timesheets/days/${dayId}`, { day_hours }, offline('Set hours'));
     return res.data;
   },
   setDayNotes: async (dayId, notes) => {
-    const res = await api.patch(`/timesheets/days/${dayId}`, { notes });
+    const res = await api.patch(`/timesheets/days/${dayId}`, { notes }, offline('Set timesheet notes'));
     return res.data;
   },
   rollupDay: async (dayId) => {
-    const res = await api.post(`/timesheets/days/${dayId}/rollup`);
+    const res = await api.post(`/timesheets/days/${dayId}/rollup`, undefined, offline('Roll up day'));
     return res.data;
   },
   submitDay: async (dayId) => {
-    const res = await api.post(`/timesheets/days/${dayId}/submit`);
+    const res = await api.post(`/timesheets/days/${dayId}/submit`, undefined, offline('Submit timesheet'));
     return res.data;
   },
   createEntry: async ({ timesheet_day_id, task_id, hours }) => {
-    const res = await api.post('/timesheets/entries', { timesheet_day_id, task_id, hours });
+    const res = await api.post('/timesheets/entries', { timesheet_day_id, task_id, hours }, offline('Add timesheet entry'));
     return res.data;
   },
   updateEntry: async (entryId, { task_id, hours }) => {
-    const res = await api.put(`/timesheets/entries/${entryId}`, { task_id, hours });
+    const res = await api.put(`/timesheets/entries/${entryId}`, { task_id, hours }, offline('Update timesheet entry'));
     return res.data;
   },
   deleteEntry: async (entryId) => {
-    await api.delete(`/timesheets/entries/${entryId}`);
+    await api.delete(`/timesheets/entries/${entryId}`, offline('Delete timesheet entry'));
   },
 };

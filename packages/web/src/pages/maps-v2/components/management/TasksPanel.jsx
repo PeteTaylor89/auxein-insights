@@ -1,6 +1,8 @@
-// maps-v2/components/management/TasksPanel.jsx — Task markers + GPS track viewer
+// maps-v2/components/management/TasksPanel.jsx — Task markers grouped by block.
+// The per-task GPS track viewer was removed when GPS tracking was mothballed;
+// useTasksLayer still exposes showTrack/hideTrack for whenever it comes back.
 import { useState, useMemo } from 'react';
-import { ClipboardList, Loader2, Eye, EyeOff, MapPin, Navigation, X } from 'lucide-react';
+import { ClipboardList, Loader2, Eye, EyeOff } from 'lucide-react';
 
 const STATUS_ICONS = {
   completed: '✓',
@@ -29,9 +31,6 @@ export default function TasksPanel({
   error,
   visible,
   onToggle,
-  activeTrackId,
-  showTrack,
-  hideTrack,
   selectedBlockId,
   contentOnly,
   blocksData,
@@ -76,16 +75,6 @@ export default function TasksPanel({
 
       {error && <div className="v2-panel-error">{error}</div>}
 
-      {activeTrackId && (
-        <div className="v2-track-indicator">
-          <Navigation size={14} />
-          <span>GPS track visible</span>
-          <button className="v2-track-close" onClick={hideTrack} title="Hide track">
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {visible && !loading && (
         <ul className="v2-block-list">
           {blockIds.map((bid) => {
@@ -119,18 +108,6 @@ export default function TasksPanel({
                             <span className="v2-task-category">{task.task_category}</span>
                           )}
                         </div>
-                        {task.has_gps_data && (
-                          <button
-                            className={`v2-track-btn ${activeTrackId === task.id ? 'active' : ''}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              activeTrackId === task.id ? hideTrack() : showTrack(task.id);
-                            }}
-                            title="Show GPS track"
-                          >
-                            <MapPin size={14} />
-                          </button>
-                        )}
                       </li>
                     ))}
                   </ul>

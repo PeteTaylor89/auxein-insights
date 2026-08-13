@@ -2,6 +2,7 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { getAccessToken, refreshSession, clearTokens, isAuthRejection } from '../services/tokenStore';
+import { enqueueRequest, setHttpReplayer } from '../services/writeQueue';
 
 const API_URL = Constants.expoConfig?.extra?.apiUrl
   || Constants.manifest?.extra?.apiUrl
@@ -31,6 +32,22 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// The write queue replays entries back through this same instance, so a queued
+// request picks up a fresh bearer token and the 401-refresh path for free.
+// `_replay` stops a replay that fails from being re-queued as a new entry —
+// flushWrites() already owns the retry decision for anything in the queue.
+setHttpReplayer(async (payload) => {
+  const res = await api.request({
+    method: payload.method,
+    url: payload.url,
+    data: payload.data,
+    params: payload.params,
+    headers: payload.headers,
+    _replay: true,
+  });
+  return res.data;
+});
+
 // Response interceptor — on 401, attempt one single-flight refresh then replay.
 api.interceptors.response.use(
   (response) => response,
@@ -56,6 +73,35 @@ api.interceptors.response.use(
           await clearTokens();
         }
         return Promise.reject(error);
+      }
+    }
+
+    // Offline capture. A call opts in with `{ offline: { label } }`; only a
+    // transport failure qualifies, because that is the one case where we know
+    // the server never saw the request and a replay cannot double-apply.
+    // `error.response` present means it arrived — that is a real error and the
+    // screen must see it.
+    const cfg = error.config;
+    if (cfg?.offline && !cfg._replay && !error.response && !axios.isCancel(error)) {
+      try {
+        const entryId = await enqueueRequest(cfg, cfg.offline.label);
+        // Resolve rather than reject, so the screen advances as if it saved.
+        // The stub carries __queued so callers can word the confirmation
+        // honestly ("saved — will sync"), and __entryId so dependent work can
+        // queue behind this one via writeQueue's ref().
+        return {
+          status: 202,
+          statusText: 'Queued',
+          headers: {},
+          config: cfg,
+          data: {
+            __queued: true,
+            __entryId: entryId,
+            ...(cfg.offline.optimistic || {}),
+          },
+        };
+      } catch (queueErr) {
+        console.warn('[api] Could not queue offline write:', queueErr?.message);
       }
     }
 

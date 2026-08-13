@@ -66,6 +66,11 @@ Thumbs.db
 
 # Mobile store credentials (NEVER commit)
 packages/mobile/auxein-gro-play-be8c6a8059a4.json
+# The filename eas.json's submit.production.android actually points at. Only the
+# key above was ignored, so creating the file eas submit expects would have
+# committed a Play Console service account key.
+packages/mobile/google-play-service-account.json
+packages/mobile/*-service-account.json
 packages/mobile/*.keystore
 packages/mobile/*.p8
 packages/mobile/AuthKey_*.p8

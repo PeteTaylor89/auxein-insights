@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService } from '../api/services';
 import useImageCapture from '../hooks/useImageCapture';
+import { idFor } from '../services/writeQueue';
 import { SectionCard, GpsSection, BottomActionBar, KeyboardAvoider, PhotoGrid } from '../components';
 
 export default function SpotCaptureScreen({ route, navigation }) {
@@ -147,7 +148,9 @@ export default function SpotCaptureScreen({ route, navigation }) {
           template_id: templateId,
           block_id: blockId || undefined,
         });
-        activeRunId = run.id;
+        // idFor, not .id — offline the run is a queued stub with no server id
+        // yet, and this yields a reference the queue resolves once it syncs.
+        activeRunId = idFor(run);
         setRunId(activeRunId);
       }
 
@@ -159,12 +162,16 @@ export default function SpotCaptureScreen({ route, navigation }) {
         observed_at: new Date().toISOString(),
         values,
         notes: notes || undefined,
-        photo_file_ids: imageCapture.uploadedFiles.map(f => f.file_id || f.id) || [],
+        // Always empty here — the photos are queued after the spot exists, so
+        // this list was only ever [] anyway. Photos are linked by the upload's
+        // own entity_type/entity_id, not by this field.
+        photo_file_ids: [],
       });
 
-      // Upload any pending photos
+      // Hand the spot itself over, not spot.id: if the spot is queued the
+      // upload references it and picks up the real id when it syncs.
       if (imageCapture.images.length > 0) {
-        await imageCapture.uploadAll(spot.id);
+        await imageCapture.uploadAll(spot);
       }
 
       setSpots(prev => [...prev, spot]);

@@ -1,0 +1,551 @@
+/* TaskDetail.css — task detail page.
+   Visual language is lifted from the assets dashboard (`AssetsDashboard.css`):
+   one accent-topped header card, then self-contained white panels with a thin
+   border, 10px radius and an uppercase 12px header on a warm strip. The page
+   previously carried a gradient hero, a separate toolbar strip, an accent
+   border on every card and a stylesheet embedded in the component — four
+   competing treatments where the assets page uses one. */
+
+.td-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ---- Back button ----
+   The shared `.vp-back` does the styling — same button the observation run
+   capture page uses. This only places it. */
+.td-back { margin-bottom: var(--space-base); }
+
+/* ---- Header card ----
+   Title, status and the page actions in one card, mirroring `.ad-stats-card`.
+   These used to be two stacked strips. */
+.td-head {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border-top: 4px solid var(--color-accent);
+  margin-bottom: var(--space-base);
+  overflow: hidden;
+}
+
+.td-head-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: var(--space-base);
+}
+
+.td-head-main { min-width: 0; }
+
+.td-head-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.td-head-sub {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.td-head-number {
+  font-family: monospace;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.td-head-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* ---- Header actions ---- */
+.td-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--color-white);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.td-tool-btn:hover:not(:disabled) {
+  background: var(--color-olive-light);
+  border-color: var(--color-primary);
+}
+
+.td-tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.td-tool-btn--primary {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+}
+
+.td-tool-btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: var(--color-white);
+}
+
+.td-tool-btn--accent {
+  background: var(--color-accent);
+  color: var(--color-white);
+  border-color: var(--color-accent);
+}
+
+.td-tool-btn--accent:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  color: var(--color-white);
+}
+
+/* ---- Spec strip ----
+   The at-a-glance facts, in the header card under a hairline. Stays white like
+   the rest of the card — a sand fill here reads as a second, heavier band right
+   under the title. The uppercase micro labels carry the separation instead. */
+.td-specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-md) var(--space-base);
+  padding: var(--space-md) var(--space-base);
+  border-top: 1px solid var(--color-border);
+}
+
+.td-spec-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.td-spec-value {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.td-spec-value--muted { color: var(--color-text-muted); font-weight: 400; }
+
+.td-tag-wrap { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+
+/* ---- Panels ----
+   Mirrors `.ad-table-wrap`: a self-contained white card, thin border, 10px
+   radius. No shadow and no accent border — only the header card carries those,
+   so the eye lands on the task identity first. */
+.td-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-base);
+  margin-bottom: var(--space-base);
+}
+
+.td-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .td-grid { grid-template-columns: 1fr; }
+  .td-head-top { flex-direction: column; }
+  .td-head-right { justify-content: flex-start; }
+}
+
+.td-panel {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.td-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+}
+
+.td-panel-head-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-panel-count { color: var(--color-text-muted); font-weight: 500; }
+
+.td-panel-body { padding: var(--space-md); }
+
+/* Small ghost button sized for a panel header — the global `button` padding
+   would otherwise make it taller than the strip it sits in. */
+.td-panel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: var(--color-white);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.td-panel-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+/* ---- Panel contents ---- */
+.td-description {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: var(--color-text);
+}
+
+.td-people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.td-people-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.td-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--font-size-sm);
+}
+
+.td-people-empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Activity reads as a timeline of stamps, so it's a row list rather than a
+   grid of cards. */
+.td-events { display: flex; flex-direction: column; }
+
+.td-event {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 7px 0;
+  border-top: 1px solid var(--color-surface-warm);
+  font-size: var(--font-size-sm);
+}
+
+.td-event:first-child { border-top: none; }
+
+.td-event-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.td-event-value { text-align: right; color: var(--color-text); }
+
+.td-event-sub {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.td-note-block { padding: var(--space-md) 0 0; }
+.td-note-block + .td-note-block { border-top: 1px solid var(--color-surface-warm); }
+
+.td-note-label {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.td-note-body {
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  color: var(--color-text);
+}
+
+/* ---- Field notes ---- */
+.td-fieldnotes { margin-bottom: var(--space-base); }
+.td-fieldnotes-list { list-style: none; margin: 0; padding: 0; }
+
+.td-fieldnote {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: 7px 0;
+  border-top: 1px solid var(--color-surface-warm);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.td-fieldnote:first-child { border-top: none; }
+
+.td-fieldnote-icon {
+  color: var(--color-warning);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.td-fieldnote-row {
+  flex-shrink: 0;
+  min-width: 64px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.td-fieldnote-text { color: var(--color-text); }
+.td-fieldnote--issue .td-fieldnote-text { font-weight: 500; }
+
+/* ---- Modals ----
+   Previously an inline <style> block inside the component. */
+.td-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+}
+
+.td-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 520px;
+  max-height: 85vh;
+  padding: var(--space-lg);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+}
+
+.td-modal h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.td-modal h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.td-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.td-error {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+/* Equipment check */
+.td-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.td-check-item {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.td-check-item--warn {
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.td-check-name { font-weight: 500; margin-bottom: 2px; }
+
+.td-check-meta {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.td-overdue { color: var(--color-danger); font-weight: 600; }
+.td-ok { color: var(--color-success); }
+
+/* Consumable actuals */
+.td-consumables {
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.td-consumable-row {
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.td-consumable-row:last-child { border-bottom: none; }
+
+.td-consumable-name { font-weight: 500; margin-bottom: var(--space-xs); }
+
+.td-consumable-meta {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.td-consumable-inputs {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+.td-consumable-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* Form controls */
+.td-input,
+.td-textarea {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+.td-input:focus,
+.td-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.td-textarea { width: 100%; resize: vertical; }
+
+.td-field { display: flex; flex-direction: column; }
+
+.td-field-label {
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.td-form { display: grid; gap: var(--space-md); }
+.td-form-row { display: grid; gap: var(--space-md); grid-template-columns: 1fr 1fr; }
+
+/* Completion notes */
+.td-notes-section { margin-bottom: var(--space-md); }
+
+.td-notes-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.td-notes-label-row label {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.td-notes-insert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--color-olive-light);
+  color: var(--color-primary);
+  border: 1px solid var(--color-olive-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.td-notes-insert:hover { background: var(--color-olive-border); }

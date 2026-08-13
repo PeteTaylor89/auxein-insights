@@ -7,6 +7,7 @@ export { default as FilledInput } from './FilledInput';
 export { default as SeveritySelector } from './SeveritySelector';
 export { default as PhotoGrid } from './PhotoGrid';
 export { default as PhotoStrip } from './PhotoStrip';
+export { default as EntityPhotos } from './EntityPhotos';
 export { default as BlockPickerModal } from './BlockPickerModal';
 export { default as FeedItemModal } from './FeedItemModal';
 export { default as OfflineBanner } from './OfflineBanner';

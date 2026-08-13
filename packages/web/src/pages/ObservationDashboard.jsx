@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles, CheckSquare, Square, Users, Layers } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles, CheckSquare, Square, Users, Layers, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import HelpTip from '../components/HelpTip';
@@ -904,11 +904,17 @@ function TaskFilters({
 // Bulk action bar — appears only while rows are selected. Deliberately docked
 // above the table rather than floating, so it can't cover the rows it acts on.
 function BulkActionBar({
-  count, busy, assigneeOptions, onAssign, onStatus, onReschedule, onDelete, onRollUp, onClear,
+  count, busy, assigneeOptions, rollUpTargets = [],
+  onAssign, onStatus, onReschedule, onDelete, onRollUp, onAddToRollUp, onClear,
 }) {
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rollUpTitle, setRollUpTitle] = useState('');
   const [rollUpOpen, setRollUpOpen] = useState(false);
+
+  // Dragging a row onto a roll-up is the quick path; this is the same move for
+  // anyone not using a mouse, and the only path when the target roll-up is on
+  // another page of the table.
+  const canAddToExisting = count >= 1 && rollUpTargets.length > 0;
 
   return (
     <div className="od-bulk-bar">
@@ -953,6 +959,21 @@ function BulkActionBar({
           }}
           title="Reschedule selected tasks"
         />
+
+        {canAddToExisting && (
+          <select
+            className="od-bulk-select"
+            value=""
+            disabled={busy}
+            onChange={(e) => { if (e.target.value) onAddToRollUp(Number(e.target.value)); e.target.value = ''; }}
+            title="Add the selected tasks to a roll-up that already exists"
+          >
+            <option value="">Add to roll-up…</option>
+            {rollUpTargets.map(p => (
+              <option key={p.id} value={p.id}>{p.title || `Task #${p.id}`} ({p.childCount})</option>
+            ))}
+          </select>
+        )}
 
         <button
           className="od-btn od-btn--ghost"
@@ -1243,6 +1264,17 @@ function TasksTab() {
     return map;
   }, [tasks]);
 
+  // Every roll-up currently on the books, for the bulk bar's picker. Built from
+  // the unfiltered list so a filtered-out roll-up is still reachable.
+  const rollUpTargets = useMemo(() => Object.entries(childrenByParent)
+    .map(([id, kids]) => {
+      const parent = (tasks || []).find(t => t.id === Number(id));
+      return parent ? { id: parent.id, title: parent.title, childCount: kids.length } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'en-NZ', { numeric: true })),
+  [childrenByParent, tasks]);
+
   const [expandedParents, setExpandedParents] = useState(() => new Set());
   const toggleExpanded = (taskId) => {
     setExpandedParents(prev => {
@@ -1269,6 +1301,89 @@ function TasksTab() {
       console.error('Failed to detach task:', err);
       toast.error('Could not remove that task from the roll-up');
     }
+  };
+
+  // ---- Drag a task into an existing roll-up ----
+  // The inverse of detachChild, and the reason the parent row is a drop target
+  // rather than the roll-up needing to be rebuilt from scratch. Only existing
+  // roll-ups accept a drop: promoting a plain task into a parent stays a
+  // deliberate act via the bulk bar, so a stray drag can't restructure two
+  // unrelated tasks.
+  const [dragTaskId, setDragTaskId] = useState(null);
+  const [dropParentId, setDropParentId] = useState(null);
+
+  // The backend refuses updates to finished tasks and refuses to nest a task
+  // that already has children (tasks.py — roll-ups are one level deep). Both
+  // are checked here so the affordance never appears where the drop would 400.
+  const canDragTask = (t) => (
+    !['completed', 'cancelled'].includes(normStatus(t.status))
+    && !(childrenByParent[t.id]?.length)
+  );
+
+  const setLocalParent = (childId, parentId) => setTasks(prev => prev.map(t => (
+    t.id === childId ? { ...t, parent_task_id: parentId } : t
+  )));
+
+  const attachToRollUp = async (childId, parentId) => {
+    const child = tasks.find(t => t.id === childId);
+    const parent = tasks.find(t => t.id === parentId);
+    if (!child || !parent || child.parent_task_id === parentId) return;
+
+    const previousParentId = child.parent_task_id ?? null;
+    // Optimistic: the row jumps under the parent on drop, so the gesture reads
+    // as direct manipulation rather than as a request.
+    setLocalParent(childId, parentId);
+    setExpandedParents(prev => new Set(prev).add(parentId));
+
+    try {
+      await tasksService.updateTask(childId, { parent_task_id: parentId });
+      toast.success(`Rolled "${child.title || `Task #${child.id}`}" up under "${parent.title}"`, {
+        onUndo: async () => {
+          await tasksService.updateTask(childId, { parent_task_id: previousParentId });
+          setLocalParent(childId, previousParentId);
+        },
+      });
+    } catch (err) {
+      console.error('Failed to attach task to roll-up:', err);
+      setLocalParent(childId, previousParentId);
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Could not add that task to the roll-up');
+    }
+  };
+
+  const handleDragStart = (e, t) => {
+    setDragTaskId(t.id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox won't start a drag at all unless some data is set.
+    e.dataTransfer.setData('text/plain', String(t.id));
+  };
+
+  const handleDragEnd = () => { setDragTaskId(null); setDropParentId(null); };
+
+  const handleDragOverParent = (e, parentId) => {
+    if (dragTaskId == null || dragTaskId === parentId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropParentId !== parentId) setDropParentId(parentId);
+  };
+
+  const handleDragLeaveParent = (e, parentId) => {
+    // A roll-up's drop zone spans its header row AND its expanded children, so
+    // "left the target" means left the whole group — not merely left one <tr>.
+    // Without this the highlight strobes as the pointer crosses from the parent
+    // row onto its own children. `data-rollup-group` marks group membership;
+    // relatedTarget can be null (left the window) or a non-Element.
+    const row = e.relatedTarget?.closest?.('[data-rollup-group]');
+    if (row && Number(row.dataset.rollupGroup) === parentId) return;
+    setDropParentId(prev => (prev === parentId ? null : prev));
+  };
+
+  const handleDropOnParent = (e, parentId) => {
+    e.preventDefault();
+    const childId = dragTaskId ?? Number(e.dataTransfer.getData('text/plain'));
+    setDragTaskId(null);
+    setDropParentId(null);
+    if (childId && childId !== parentId) attachToRollUp(childId, parentId);
   };
 
   // What a task is grouped under, for the active groupKey.
@@ -1528,6 +1643,45 @@ function TasksTab() {
     }
   };
 
+  // Same destination as a drag, one call instead of a loop so the reparenting
+  // is atomic. The parent itself is filtered out in case it's in the selection.
+  const bulkAddToRollUp = async (parentId) => {
+    const ids = [...selectedIds].filter(id => id !== parentId);
+    if (ids.length === 0) return;
+    const previous = tasks
+      .filter(t => ids.includes(t.id))
+      .map(t => ({ id: t.id, parent_task_id: t.parent_task_id ?? null }));
+
+    setBulkBusy(true);
+    try {
+      const parent = await tasksService.rollUpTasks({ task_ids: ids, parent_task_id: parentId });
+      const refreshed = await tasksService.listTasks({ company_id: companyId, limit: 500 }).catch(() => null);
+      if (refreshed) {
+        const items = Array.isArray(refreshed) ? refreshed : (refreshed?.items ?? refreshed?.tasks ?? []);
+        setTasks(Array.isArray(items) ? items : []);
+      }
+      clearSelection();
+      setExpandedParents(prev => new Set(prev).add(parentId));
+      toast.success(`Added ${ids.length} task${ids.length === 1 ? '' : 's'} to "${parent.title}"`, {
+        onUndo: async () => {
+          await Promise.allSettled(previous.map(p =>
+            tasksService.updateTask(p.id, { parent_task_id: p.parent_task_id })));
+          const back = await tasksService.listTasks({ company_id: companyId, limit: 500 }).catch(() => null);
+          if (back) {
+            const items = Array.isArray(back) ? back : (back?.items ?? back?.tasks ?? []);
+            setTasks(Array.isArray(items) ? items : []);
+          }
+        },
+      });
+    } catch (err) {
+      console.error('Add to roll-up failed:', err);
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Could not add those tasks to the roll-up');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const bulkDelete = () => {
     const victims = tasks.filter(t => selectedIds.has(t.id));
     removeTasksWithUndo(
@@ -1580,11 +1734,13 @@ function TasksTab() {
           count={selectedIds.size}
           busy={bulkBusy}
           assigneeOptions={assigneeOptions}
+          rollUpTargets={rollUpTargets}
           onAssign={bulkAssign}
           onStatus={bulkStatus}
           onReschedule={bulkReschedule}
           onDelete={bulkDelete}
           onRollUp={bulkRollUp}
+          onAddToRollUp={bulkAddToRollUp}
           onClear={clearSelection}
         />
       )}
@@ -1620,6 +1776,10 @@ function TasksTab() {
                   && (i === 0 || getGroupLabel(pagedTasks[i - 1]) !== label);
                 const children = childrenByParent[t.id] || [];
                 const isExpanded = expandedParents.has(t.id);
+                // Only existing roll-ups take a drop, and a roll-up can't itself
+                // be dragged into another one (one level deep).
+                const isDropTarget = children.length > 0;
+                const isDraggable = canDragTask(t);
                 return (
                   <Fragment key={t.id}>
                     {showGroupHeader && (
@@ -1633,8 +1793,22 @@ function TasksTab() {
                       </tr>
                     )}
                     <tr
-                      className={`od-clickable-row ${selectedIds.has(t.id) ? 'od-row-selected' : ''}`}
+                      className={[
+                        'od-clickable-row',
+                        selectedIds.has(t.id) ? 'od-row-selected' : '',
+                        isDraggable ? 'od-row-draggable' : '',
+                        dragTaskId === t.id ? 'od-row-dragging' : '',
+                        dropParentId === t.id ? 'od-drop-target' : '',
+                        dropParentId === t.id && !isExpanded ? 'od-drop-target--closed' : '',
+                      ].filter(Boolean).join(' ')}
                       onClick={() => navigate(`/tasks/${t.id}`)}
+                      draggable={isDraggable}
+                      onDragStart={isDraggable ? (e) => handleDragStart(e, t) : undefined}
+                      onDragEnd={isDraggable ? handleDragEnd : undefined}
+                      onDragOver={isDropTarget ? (e) => handleDragOverParent(e, t.id) : undefined}
+                      onDragLeave={isDropTarget ? (e) => handleDragLeaveParent(e, t.id) : undefined}
+                      onDrop={isDropTarget ? (e) => handleDropOnParent(e, t.id) : undefined}
+                      data-rollup-group={isDropTarget ? t.id : undefined}
                     >
                       <td className="od-td-check" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -1646,17 +1820,24 @@ function TasksTab() {
                         />
                       </td>
                       <td className="bold">
+                        {isDraggable && (
+                          <GripVertical
+                            size={13}
+                            className="od-drag-grip"
+                            aria-hidden="true"
+                          />
+                        )}
                         {/* A roll-up parent expands to show its children the way
                             a task expands to show its rows. */}
                         {children.length > 0 && (
                           <button
                             type="button"
-                            className="od-rollup-toggle"
+                            className={`od-rollup-toggle ${isExpanded ? 'od-rollup-toggle--open' : ''}`}
                             onClick={(e) => { e.stopPropagation(); toggleExpanded(t.id); }}
                             title={isExpanded ? 'Hide rolled-up tasks' : 'Show rolled-up tasks'}
                             aria-expanded={isExpanded}
                           >
-                            {isExpanded ? '▾' : '▸'}
+                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                           </button>
                         )}
                         {t.title || `Task #${t.id}`}
@@ -1686,12 +1867,24 @@ function TasksTab() {
                     {/* Rolled-up children — the task's "rows". Not selectable:
                         bulk actions operate on top-level tasks, and letting a
                         child join a shift-click range would make the range span
-                        two different kinds of thing. */}
-                    {isExpanded && children.map((c) => (
+                        two different kinds of thing.
+                        They carry the parent's drop handlers so a drop anywhere
+                        in the expanded block lands on the roll-up, rather than
+                        the header row being the only target. */}
+                    {isExpanded && children.map((c, ci) => (
                       <tr
                         key={`child-${c.id}`}
-                        className="od-child-row"
+                        className={[
+                          'od-child-row',
+                          dropParentId === t.id ? 'od-drop-target-child' : '',
+                          dropParentId === t.id && ci === children.length - 1
+                            ? 'od-drop-target-child--last' : '',
+                        ].filter(Boolean).join(' ')}
                         onClick={() => navigate(`/tasks/${c.id}`)}
+                        onDragOver={(e) => handleDragOverParent(e, t.id)}
+                        onDragLeave={(e) => handleDragLeaveParent(e, t.id)}
+                        onDrop={(e) => handleDropOnParent(e, t.id)}
+                        data-rollup-group={t.id}
                       >
                         <td />
                         <td className="od-child-title" colSpan={3}>
@@ -1780,7 +1973,6 @@ function TaskCard({ task, onView, onEdit, onDelete }) {
         {(task.estimated_duration_hours || task.estimated_hours) && (
           <span><Clock size={12} /> {(task.estimated_duration_hours ?? task.estimated_hours)}h</span>
         )}
-        {task.requires_gps_tracking && <span><MapPin size={12} /> GPS</span>}
       </div>
       <div className="od-card-actions">
         <button className="od-btn od-btn--primary" onClick={() => onView(task)}><Eye size={12} /> View</button>

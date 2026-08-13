@@ -46,11 +46,10 @@ export default function CreateTaskScreen({ navigation }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [priority, setPriority] = useState('medium');
   const [estimatedHours, setEstimatedHours] = useState('');
-  const [requiresGps, setRequiresGps] = useState(false);
 
   // Template state — when a template is picked, the form collapses to the
   // web-app quick-create flow: block + date + assignees. Title/category/
-  // description/priority/hours/GPS all come from the template (server-side),
+  // description/priority/hours all come from the template (server-side),
   // so the user only chooses where + when + who.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [templateId, setTemplateId] = useState(null);
@@ -144,7 +143,6 @@ export default function CreateTaskScreen({ navigation }) {
             ? scheduledDate.toISOString().split('T')[0]
             : undefined,
           priority,
-          requires_gps_tracking: requiresGps,
           assigned_user_ids: assigneeIds.length > 0 ? assigneeIds : undefined,
         };
         const hrs = parseFloat(estimatedHours);
@@ -230,7 +228,7 @@ export default function CreateTaskScreen({ navigation }) {
             </TouchableOpacity>
             {inTemplateMode && (
               <Text style={styles.templateHint}>
-                Template sets category, priority, hours, GPS and description.
+                Template sets category, priority, hours and description.
                 Just choose where, when, and who.
               </Text>
             )}
@@ -390,18 +388,6 @@ export default function CreateTaskScreen({ navigation }) {
               </View>
             </View>
 
-            <View style={styles.toggleRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.toggleLabel}>Track GPS during this task</Text>
-                <Text style={styles.toggleHint}>For spray/mowing/spread tasks where coverage matters</Text>
-              </View>
-              <Switch
-                value={requiresGps}
-                onValueChange={setRequiresGps}
-                trackColor={{ true: colors.primary, false: colors.border }}
-                thumbColor={colors.white}
-              />
-            </View>
           </SectionCard>
 
           )}

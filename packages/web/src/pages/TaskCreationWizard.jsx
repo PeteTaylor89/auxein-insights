@@ -6,7 +6,7 @@ import { useAuth } from '@vineyard/shared';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
-  Wrench, Package, FileText, AlertCircle, Plus, Settings, Star, Droplets, Check
+  Wrench, Package, FileText, AlertCircle, Plus, Settings, Star, Droplets
 } from 'lucide-react';
 import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService, contractorManagementService, byNatural } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
@@ -70,9 +70,6 @@ function TaskCreationWizard() {
     rows_total: '',
     area_total_hectares: '',
 
-    // Options
-    requires_gps_tracking: false,
-
     // Relations
     template_id: null,
     related_observation_run_id: null,
@@ -100,7 +97,6 @@ function TaskCreationWizard() {
   // UI state
   const [selectedEquipment, setSelectedEquipment] = useState('');
   const [equipmentRates, setEquipmentRates] = useState({});  // equipId -> target application rate (L/ha) string
-  const [sprayCaps, setSprayCaps] = useState({});            // assetId -> server spray-capability result (or null on error)
   const [selectedUser, setSelectedUser] = useState('');
 
   useEffect(() => {
@@ -240,7 +236,9 @@ function TaskCreationWizard() {
       description: template.description || prev.description,
       priority: template.default_priority || prev.priority,
       estimated_hours: template.default_duration_hours || prev.estimated_hours,
-      requires_gps_tracking: template.requires_gps_tracking || prev.requires_gps_tracking,
+      // A template's requires_gps_tracking is deliberately not applied — GPS
+      // tracking is mothballed, so tasks are created without it regardless of
+      // what an older template carries.
       template_id: template.id || null
     }));
 
@@ -388,40 +386,10 @@ function TaskCreationWizard() {
     return !!a && a.swath_width_m != null && Number(a.swath_width_m) > 0;
   };
 
-  // Flow resolution is server-authoritative (latest calibration / inline spec), so
-  // fetch capability for each selected swath-implement we haven't checked yet.
-  useEffect(() => {
-    const ids = taskAssets.required_equipment.filter(
-      (id) => isSprayImplement(id) && sprayCaps[id] === undefined
-    );
-    if (ids.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const results = await Promise.all(ids.map(async (id) => {
-        try { return [id, await assetService.getSprayCapability(id)]; }
-        catch { return [id, null]; }
-      }));
-      if (cancelled) return;
-      setSprayCaps((prev) => {
-        const next = { ...prev };
-        for (const [id, cap] of results) next[id] = cap;
-        return next;
-      });
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskAssets.required_equipment, equipmentAssets]);
-
-  // One checklist row for the spray-coverage readiness panel.
-  const sprayCheckRow = (ok, label, hint) => (
-    <div className="vp-flex-row" style={{ alignItems: 'center', gap: 8, fontSize: 'var(--font-size-sm)', marginTop: 4 }}>
-      {ok
-        ? <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
-        : <AlertCircle size={14} color="var(--color-warning)" style={{ flexShrink: 0 }} />}
-      <span>{label}</span>
-      {!ok && hint && <span style={{ color: 'var(--color-text-muted)' }}>— {hint}</span>}
-    </div>
-  );
+  // The spray-coverage readiness panel that used to live here went with GPS
+  // tracking: the coverage raster is built from the GPS track on completion, so
+  // with tracking mothballed there is no readiness left to report. The sprayer
+  // badge and target rate below are ordinary task planning data and stay.
 
   const getAvailableConsumables = (currentAssetId = null) => {
     const usedIds = taskAssets.required_consumables
@@ -729,19 +697,6 @@ function TaskCreationWizard() {
                 <option value="general">📌 General</option>
               </select>
             </FormField>
-
-            {formData.task_category === 'vineyard' && (
-              <div>
-                <label className="vp-checkbox" style={{ marginBottom: 'var(--space-sm)' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.requires_gps_tracking}
-                    onChange={(e) => handleInputChange('requires_gps_tracking', e.target.checked)}
-                  />
-                  <span>📍 Require GPS tracking</span>
-                </label>
-              </div>
-            )}
 
             <FormField label="Subcategory">
               <input
@@ -1057,7 +1012,6 @@ function TaskCreationWizard() {
               <div className="vp-flex-col">
                 {taskAssets.required_equipment.map((equipId) => {
                   const spray = isSprayImplement(equipId);
-                  const cap = sprayCaps[equipId];
                   return (
                     <div key={equipId} className="vp-flex-col" style={{ gap: 6 }}>
                       <div className="vp-selected-item">
@@ -1089,9 +1043,6 @@ function TaskCreationWizard() {
                             className="vp-input"
                             style={{ maxWidth: 160 }}
                           />
-                          {cap && !cap.has_flow && (
-                            <span className="badge badge--warning">No L/s flow calibration</span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1102,50 +1053,6 @@ function TaskCreationWizard() {
               <p className="vp-empty-state">No required equipment</p>
             )}
 
-            {(() => {
-              const sprayIds = taskAssets.required_equipment.filter(isSprayImplement);
-              if (sprayIds.length === 0) {
-                // Equipment attached but none has a swath width -> not spray-capable.
-                // Surface a discoverability hint (was: render nothing) so users know
-                // how to turn the hero feature on.
-                if (taskAssets.required_equipment.length === 0) return null;
-                return (
-                  <div className="alert alert--info" style={{ marginTop: 'var(--space-md)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-                      <Droplets size={16} /> Spray coverage map
-                    </div>
-                    <div style={{ marginTop: 6, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-                      None of the attached equipment is set up for spray coverage. To map
-                      application rate, give an implement a <strong>swath width</strong> and a{' '}
-                      <strong>Spray Output Rate (L/s)</strong> calibration on its asset record, then attach it here.
-                    </div>
-                  </div>
-                );
-              }
-              const flowLoading = sprayIds.some((id) => sprayCaps[id] === undefined);
-              const flowOk = sprayIds.some((id) => sprayCaps[id]?.has_flow);
-              const blockChosen = !!formData.block_id || blockRows.some((r) => r.selected);
-              const gpsOn = !!formData.requires_gps_tracking;
-              const ready = flowOk && blockChosen && gpsOn;
-              return (
-                <div className="alert alert--info" style={{ marginTop: 'var(--space-md)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-                    <Droplets size={16} /> Spray coverage map
-                  </div>
-                  {sprayCheckRow(true, 'Spray implement attached (swath set)')}
-                  {flowLoading
-                    ? <div className="vp-flex-row" style={{ gap: 8, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginTop: 4 }}>Checking flow calibration…</div>
-                    : sprayCheckRow(flowOk, 'Spray Output Rate (L/s) calibrated', 'record a Spray Output Rate (L/s) calibration on the asset')}
-                  {sprayCheckRow(blockChosen, 'Block assigned', 'select a block for this task')}
-                  {sprayCheckRow(gpsOn, 'GPS tracking enabled', 'enable GPS tracking for this task')}
-                  <div style={{ marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                    {ready
-                      ? 'A coverage map will be generated when this task is completed with a GPS track.'
-                      : 'Resolve the items above so a coverage map can be generated on completion.'}
-                  </div>
-                </div>
-              );
-            })()}
           </FormSection>
 
           {/* Required Consumables */}

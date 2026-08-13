@@ -52,7 +52,7 @@ export const HELP_CONTENT = {
           'Complete tasks by row, or by block',
         ]}
         tip={[
-          'Build a Task Template to pre-fill equipment, consumables and GPS settings.',
+          'Build a Task Template to pre-fill equipment and consumables.',
           'Add rows to your blocks under: Manage → Blocks to allow task tracking by row.',
         ]}
       />
@@ -65,11 +65,11 @@ export const HELP_CONTENT = {
         intro="Reusable templates for common jobs, so every task starts with the right description, equipment, consumables, and settings."
         items={[
           'Create or edit a template',
-          'Set default priority, duration and GPS requirement',
+          'Set default priority and duration',
           'Attach required and optional equipment plus consumable rates',
           'Enable a template for field quick-create',
         ]}
-        tip="Spray templates have specific requirements to allow spray effiiency maps."
+        tip="Attach the sprayer and set consumable rates on spray templates, so every spray task starts with the right kit and rates."
       />
     ),
   },
@@ -113,7 +113,7 @@ export const HELP_CONTENT = {
           'Name and categorise the template',
           'For Category: Vineyard - task can be assigned to blocks',
           'For Category: Land Management - task can be assigned to management areas: paddocks etc',
-          'Choose options like GPS tracking, partial completion and quick-create',
+          'Choose options like partial completion and quick-create',
           'Add the equipment and consumables the job needs',
         ]}
         tip="Enable “quick create” to make this template available to crews in the field."
@@ -154,11 +154,10 @@ export const HELP_CONTENT = {
         intro="Toggles that change how tasks from this template behave."
         items={[
           'Quick create - make it available to crews in the field',
-          'Require GPS tracking - GPS record the track while the task runs: used for tractor or vehicle based tasks',
           'Allow partial completion - finish tasks by row or in stages',
           'Template is active - show it when creating tasks',
         ]}
-        tip="GPS tracking must be on for spray coverage maps to be generated."
+        tip="Require GPS tracking is currently inactive - phone GPS wasn’t accurate enough to record a usable track. Tasks created from a template ignore the setting."
       />
     ),
   },
@@ -173,7 +172,7 @@ export const HELP_CONTENT = {
           'Only active assets appear in the list',
         ]}
         tip={[
-          'For spray jobs, attach the sprayer here - its calibration settings drives spray efficiency maps.',
+          'For spray jobs, attach the sprayer here - its swath width and calibration carry through to the task.',
           'Set calibration settings for the asset under Assets → Equipment.',
         ]}
       />
@@ -190,7 +189,7 @@ export const HELP_CONTENT = {
           'Rates feed usage and stock reporting',
         ]}
         tip={[
-          'For spray jobs, per-hectare rates + a calibrated sprayer flow + GPS = efficiency maps.',
+          'For spray jobs, per-hectare rates plus a calibrated sprayer flow give accurate usage figures.',
           'Calibrate sprayer flow under Assets → Calibrations.',
         ]}
       />
@@ -258,7 +257,7 @@ export const HELP_CONTENT = {
           'Review pass / fail history',
           'Filter by calibration type',
         ]}
-        tip="Sprayer flow calibration feeds spray coverage and usage accuracy."
+        tip="Sprayer flow calibration feeds usage accuracy on spray tasks."
       />
     ),
   },
@@ -397,13 +396,12 @@ export const HELP_CONTENT = {
     title: 'Spray Program',
     body: (
       <Help
-        intro="Spray coverage and program insight built from completed spray tasks - per-block application rates derived from GPS, swath width, and calibrated flow."
+        intro="Spray program insight built from completed spray tasks - what went on, where, and at what rate."
         items={[
-          'View coverage heatmaps per block',
           'Review each application event',
-          'Check rates against target and recompute coverage',
+          'Check rates against target',
         ]}
-        tip="Coverage needs a sprayer swath width, a flow calibration, and a GPS-tracked task."
+        tip="Coverage maps are paused while GPS tracking is inactive - existing coverage records still show here."
       />
     ),
   },

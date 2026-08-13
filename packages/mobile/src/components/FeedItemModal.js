@@ -129,8 +129,10 @@ export default function FeedItemModal({ visible, item, onClose, onComplete }) {
         });
         // Photos must tag against the new event row's id, not the schedule_id —
         // otherwise they'd be lost when the asset's calibration history is queried.
-        if (imageCapture.images.length > 0 && calibrationResult?.id) {
-          await imageCapture.uploadAll(calibrationResult.id);
+        // Passing the record rather than its id lets a queued calibration still
+        // carry its photos: the upload references it and resolves on sync.
+        if (imageCapture.images.length > 0 && calibrationResult) {
+          await imageCapture.uploadAll(calibrationResult);
         }
       } else if (item.source === 'risk_action') {
         if (imageCapture.images.length > 0) await imageCapture.uploadAll(item.id);

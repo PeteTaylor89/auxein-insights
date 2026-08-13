@@ -409,16 +409,39 @@
 
 /* ---- Repair roll-up ----
    Children read as contents of the parent row, not as peers of it. */
+/* The roll-up toggle is the primary affordance on a parent row — it has to
+   read as a control at a glance, not as a typographic marker. Padding is set
+   explicitly because the global `button` rule would otherwise pad it out. */
 .od-rollup-toggle {
-  padding: 0 6px 0 0;
-  border: none;
-  background: none;
-  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin-right: var(--space-xs);
+  border: 1px solid var(--color-olive-border, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: var(--color-olive-light);
+  color: var(--color-primary);
   cursor: pointer;
-  font-size: 11px;
   line-height: 1;
+  vertical-align: -7px;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
-.od-rollup-toggle:hover { color: var(--color-primary); }
+.od-rollup-toggle:hover {
+  background: var(--color-olive-border, var(--color-surface-warm));
+  border-color: var(--color-primary);
+}
+.od-rollup-toggle--open {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
+}
+.od-rollup-toggle--open:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
 
 .od-child-row {
   cursor: pointer;
@@ -449,6 +472,42 @@
   background: var(--color-surface);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+}
+
+/* ---- Drag a task into a roll-up ----
+   The grip is the only thing that says a row can be moved, so it appears on
+   hover rather than sitting on every row permanently. */
+.od-row-draggable { cursor: grab; }
+.od-row-draggable:active { cursor: grabbing; }
+
+.od-drag-grip {
+  color: var(--color-text-muted);
+  margin-right: 2px;
+  vertical-align: -2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.od-row-draggable:hover .od-drag-grip { opacity: 0.55; }
+
+.od-row-dragging td { opacity: 0.4; }
+
+/* The whole group — header row plus any expanded children — reads as one
+   target, so both get the tint and the band closes around the outside. */
+.od-drop-target td,
+.od-drop-target-child td {
+  background: var(--color-olive-light);
+}
+.od-drop-target td {
+  box-shadow: inset 0 2px 0 var(--color-primary);
+}
+/* Collapsed roll-up: the parent row IS the whole group, so it closes itself. */
+.od-drop-target--closed td {
+  box-shadow: inset 0 2px 0 var(--color-primary), inset 0 -2px 0 var(--color-primary);
+}
+/* Every row here is a <tr> in one <tbody>, so :last-of-type would match the
+   last row of the table — the closing band is marked from the render instead. */
+.od-drop-target-child--last td {
+  box-shadow: inset 0 -2px 0 var(--color-primary);
 }
 
 .od-rollup-badge {

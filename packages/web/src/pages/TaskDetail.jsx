@@ -1,14 +1,15 @@
 // pages/TaskDetail.jsx — Task detail view with row progress, equipment check, consumable completion
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, Navigation, Droplets, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, Play, CheckCircle, AlertTriangle, Package, Edit2, Users, Wrench, FileText, Save, X, Tag, ClipboardList } from 'lucide-react';
 import RiskHazardChips from '../components/risks/RiskHazardChips';
-import { tasksService, sprayCoverageService, taskRowService, byNatural } from '@vineyard/shared';
+import { tasksService, taskRowService, byNatural } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
 import SubTaskPanel from '../components/tasks/SubTaskPanel';
 import { TaskStatusBadge } from '../components/TaskManagement';
 import '../pages/vineyard-pages.css';
+import './TaskDetail.css';
 
 function friendlyName(user) {
   if (!user) return null;
@@ -30,43 +31,48 @@ function fmtDateTime(d) {
   catch { return d; }
 }
 
-function InfoItem({ label, children }) {
+// One labelled fact in the header's spec strip. `icon` is optional — most specs
+// read fine without one, and a full row of icons is noise.
+function Spec({ label, icon, children, muted }) {
   return (
     <div>
-      <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontWeight: 500 }}>{children}</div>
+      <div className="td-spec-label">{icon}{label}</div>
+      <div className={`td-spec-value${muted ? ' td-spec-value--muted' : ''}`}>{children}</div>
     </div>
   );
 }
 
-// Spray-coverage readiness: human-readable reasons for each missing precondition.
-const SPRAY_MISSING_LABELS = {
-  asset_swath: 'attach an implement with a swath width',
-  flow_calibration: 'record a Spray Output Rate (L/s) calibration on the implement',
-  flow_unit: 'output rate must be volumetric (L/s, L/min or L/hr) — not L/ha',
-  block: 'assign the task to a block',
-  block_geometry: 'the block needs a mapped boundary',
-  gps_track: 'a GPS track is recorded during the task',
-};
-
-// Off-state guidance when equipment is attached but nothing is spray-capable
-// (no swath asset, so flow/block were never even evaluated). Discoverability hint.
-function spraySetupOffText(spray) {
-  const codes = (spray?.missing || []).filter(
-    c => c !== 'gps_track' && c !== 'block' && c !== 'block_geometry'
+// A titled white panel. Same shape as the assets dashboard's table cards.
+function Panel({ title, icon, count, action, children, className = '' }) {
+  return (
+    <div className={`td-panel ${className}`.trim()}>
+      <div className="td-panel-head">
+        <span className="td-panel-head-title">
+          {icon}{title}
+          {count != null && <span className="td-panel-count">({count})</span>}
+        </span>
+        {action}
+      </div>
+      <div className="td-panel-body">{children}</div>
+    </div>
   );
-  if (!codes.length || codes.includes('asset_swath')) {
-    return 'Give an attached implement a swath width and a Spray Output Rate (L/s) calibration on its asset to map coverage.';
-  }
-  return 'To map coverage — ' + codes.map(c => SPRAY_MISSING_LABELS[c] || c).join('; ') + '.';
 }
 
-// Reasons that block a raster regardless of run state (exclude the runtime GPS track).
-function spraySetupText(spray) {
-  const codes = (spray?.missing || []).filter(c => c !== 'gps_track');
-  if (!codes.length) return 'Spray coverage will be generated from the GPS track on completion.';
-  return 'No coverage will be generated — ' + codes.map(c => SPRAY_MISSING_LABELS[c] || c).join('; ') + '.';
+// One timestamped event in the Activity panel.
+function Event({ label, children }) {
+  return (
+    <div className="td-event">
+      <span className="td-event-label">{label}</span>
+      <span className="td-event-value">{children}</span>
+    </div>
+  );
 }
+
+// GPS tracking is mothballed: phone GPS wasn't accurate enough to be worth
+// acting on, so nothing on this page starts a track or reports one. The backend
+// endpoints, models and the spray-coverage service are all still in place —
+// only the wiring and the UI that exposed them have been removed. Spray coverage
+// went with it, since the raster is derived from the GPS track on completion.
 
 function TaskDetail() {
   const { taskId } = useParams();
@@ -85,9 +91,6 @@ function TaskDetail() {
   const [completionNotes, setCompletionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
-
-  // Spray-coverage readiness (web-only signal; null until fetched / when N/A)
-  const [spray, setSpray] = useState(null);
 
   // Row notes/issues, rolled up into the "Field Notes" summary card.
   const [rows, setRows] = useState([]);
@@ -115,17 +118,6 @@ function TaskDetail() {
   }, [taskId]);
 
   useEffect(() => { loadTask(); }, [loadTask]);
-
-  // Spray-coverage readiness — refreshes when status changes (e.g. after a track
-  // is recorded or the task completes). Contractors don't reach this page on web.
-  useEffect(() => {
-    if (!taskId || userTypeRole === 'contractor') return;
-    let cancelled = false;
-    sprayCoverageService.getReadiness(taskId)
-      .then(d => { if (!cancelled) setSpray(d); })
-      .catch(() => { if (!cancelled) setSpray(null); });
-    return () => { cancelled = true; };
-  }, [taskId, userTypeRole, task?.status]);
 
   // Row notes/issues — only block-scoped tasks have rows. Refreshes on status
   // change (e.g. after completion); the live per-row view is the Row Progress panel.
@@ -199,7 +191,6 @@ function TaskDetail() {
     setActionError(null);
     try {
       await tasksService.startTask(taskId, {
-        start_gps_tracking: false,
         skip_equipment_check: skipCheck,
       });
       setShowStartCheck(false);
@@ -226,7 +217,6 @@ function TaskDetail() {
       scheduled_end_date: task.scheduled_end_date || '',
       estimated_hours: task.estimated_hours ?? '',
       location_notes: task.location_notes || '',
-      requires_gps_tracking: !!task.requires_gps_tracking,
     });
     setEditError(null);
     setShowEdit(true);
@@ -244,7 +234,6 @@ function TaskDetail() {
         scheduled_end_date: editForm.scheduled_end_date || null,
         estimated_hours: editForm.estimated_hours === '' ? null : Number(editForm.estimated_hours),
         location_notes: editForm.location_notes || null,
-        requires_gps_tracking: !!editForm.requires_gps_tracking,
       };
       await tasksService.updateTask(taskId, payload);
       setShowEdit(false);
@@ -320,6 +309,12 @@ function TaskDetail() {
     catch { return '-'; }
   };
 
+  // Block and spatial area are mutually exclusive in practice, so they share one
+  // spec slot rather than each taking a column that's empty most of the time.
+  const locationName = task.block_name || task.block?.block_name
+    || task.spatial_area?.name || task.spatial_area_name
+    || (task.block_id ? `Block #${task.block_id}` : null);
+
   const taskStatus = String(task.status || '').toLowerCase().replace(/\s+/g, '_');
   const canStart = ['draft', 'scheduled', 'ready'].includes(taskStatus);
   const canComplete = ['in_progress', 'paused'].includes(taskStatus);
@@ -328,41 +323,79 @@ function TaskDetail() {
 
   return (
     <div className="page-container">
-      <div className="vp-page td-page">
-        {/* Toolbar — back left, actions right */}
-        <div className="td-toolbar">
-          <button className="td-back" onClick={() => navigate(-1)}>
-            <ArrowLeft size={14} /> Back
-          </button>
-          <div className="td-toolbar-actions">
-            {canEdit && !isFinished && (
-              <button className="td-tool-btn" onClick={openEdit}>
-                <Edit2 size={14} /> Edit
-              </button>
-            )}
-            {canEdit && !isFinished && canStart && (
-              <button className="td-tool-btn td-tool-btn--primary" onClick={handleStartClick} disabled={actionLoading}>
-                <Play size={14} /> Start
-              </button>
-            )}
-            {canEdit && !isFinished && canComplete && (
-              <button className="td-tool-btn td-tool-btn--accent" onClick={handleCompleteClick} disabled={actionLoading}>
-                <CheckCircle size={14} /> Complete
-              </button>
-            )}
-          </div>
-        </div>
+      {/* No `vp-page` here — that class paints a sand background, which is what
+          kept this page off the white the assets dashboard uses. */}
+      <div className="td-page">
+        <button className="vp-back td-back" onClick={() => navigate(-1)}>
+          <ArrowLeft size={16} /> Back
+        </button>
 
-        {/* Hero — title + task number + status */}
-        <div className="td-hero">
-          <div className="td-hero-main">
-            <h1 className="td-hero-title">{task.title || `Task #${task.id}`}</h1>
-            {task.task_number && (
-              <div className="td-hero-subtitle">{task.task_number}</div>
+        {/* Header card — identity, status and page actions together, with the
+            at-a-glance facts on a strip beneath. These were three separate
+            blocks (toolbar, hero, Overview card) fighting for the top of the
+            page. */}
+        <div className="td-head">
+          <div className="td-head-top">
+            <div className="td-head-main">
+              <h1 className="td-head-title">{task.title || `Task #${task.id}`}</h1>
+              <div className="td-head-sub">
+                <TaskStatusBadge status={task.status} size="sm" />
+                {task.task_number && <span className="td-head-number">{task.task_number}</span>}
+              </div>
+            </div>
+            {canEdit && !isFinished && (
+              <div className="td-head-right">
+                <button className="td-tool-btn" onClick={openEdit}>
+                  <Edit2 size={14} /> Edit
+                </button>
+                {canStart && (
+                  <button className="td-tool-btn td-tool-btn--primary" onClick={handleStartClick} disabled={actionLoading}>
+                    <Play size={14} /> Start
+                  </button>
+                )}
+                {canComplete && (
+                  <button className="td-tool-btn td-tool-btn--accent" onClick={handleCompleteClick} disabled={actionLoading}>
+                    <CheckCircle size={14} /> Complete
+                  </button>
+                )}
+              </div>
             )}
           </div>
-          <div className="td-hero-status">
-            <TaskStatusBadge status={task.status} size="lg" />
+
+          <div className="td-specs">
+            <Spec label="Category">
+              {task.task_category
+                ? <span className="td-pill td-pill--sand">{task.task_category.replace(/_/g, ' ')}</span>
+                : '—'}
+            </Spec>
+            <Spec label="Priority">
+              {task.priority
+                ? (
+                  <span className={`td-pill td-pill--priority-${String(task.priority).toLowerCase()}`}>
+                    {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                  </span>
+                )
+                : '—'}
+            </Spec>
+            <Spec label="Scheduled" icon={<Calendar size={11} />} muted={!task.scheduled_start_date}>
+              {task.scheduled_start_date
+                ? `${fmtDate(task.scheduled_start_date)}${task.scheduled_end_date && task.scheduled_end_date !== task.scheduled_start_date ? ` — ${fmtDate(task.scheduled_end_date)}` : ''}`
+                : 'Not scheduled'}
+            </Spec>
+            <Spec label="Location" icon={<MapPin size={11} />} muted={!locationName}>
+              {locationName || 'No location'}
+            </Spec>
+            <Spec label="Hours" icon={<Clock size={11} />} muted={!task.actual_hours && !task.estimated_hours}>
+              {task.actual_hours > 0 ? `${task.actual_hours}h` : '—'}
+              {task.estimated_hours ? ` / ${task.estimated_hours}h est.` : ''}
+            </Spec>
+            {Array.isArray(task.tags) && task.tags.length > 0 && (
+              <Spec label="Tags" icon={<Tag size={11} />}>
+                <span className="td-tag-wrap">
+                  {task.tags.map(t => <span key={t} className="td-pill td-pill--sand">{t}</span>)}
+                </span>
+              </Spec>
+            )}
           </div>
         </div>
 
@@ -375,16 +408,17 @@ function TaskDetail() {
 
         {/* Field Notes — rolled up from row notes/issues. Read-only summary. */}
         {fieldNotes.length > 0 && (
-          <div className="vp-card td-card td-fieldnotes">
-            <div className="td-fieldnotes-head">
-              <h3 className="td-card-title">
-                <ClipboardList size={16} style={{ verticalAlign: -3, marginRight: 6 }} />
-                Field Notes <span className="td-fieldnotes-count">({fieldNotes.length})</span>
-              </h3>
-              <button className="td-tool-btn" onClick={copyFieldNotes} title="Copy all to clipboard">
-                <FileText size={14} /> {copiedNotes ? 'Copied' : 'Copy'}
+          <Panel
+            className="td-fieldnotes"
+            title="Field notes"
+            icon={<ClipboardList size={13} />}
+            count={fieldNotes.length}
+            action={(
+              <button className="td-panel-btn" onClick={copyFieldNotes} title="Copy all to clipboard">
+                <FileText size={12} /> {copiedNotes ? 'Copied' : 'Copy'}
               </button>
-            </div>
+            )}
+          >
             <ul className="td-fieldnotes-list">
               {fieldNotes.map(e => (
                 <li key={e.id} className={`td-fieldnote${e.isIssue ? ' td-fieldnote--issue' : ''}`}>
@@ -394,159 +428,86 @@ function TaskDetail() {
                 </li>
               ))}
             </ul>
-          </div>
+          </Panel>
         )}
 
-        {/* Two-column body */}
+        {/* Two-column body. The old Overview card is gone — its facts are now
+            the header's spec strip, so this is only the long-form content. */}
         <div className="td-grid">
-          {/* Left column — Overview + Description */}
           <div className="td-col td-col--main">
-            <div className="vp-card td-card">
-              <h3 className="td-card-title">Overview</h3>
-              <div className="td-overview-grid">
-                {task.task_category && (
-                  <InfoItem label="Category">
-                    <span className="td-pill td-pill--sand">{task.task_category.replace(/_/g, ' ')}</span>
-                  </InfoItem>
-                )}
-                {task.priority && (
-                  <InfoItem label="Priority">
-                    <span className={`td-pill td-pill--priority-${String(task.priority).toLowerCase()}`}>
-                      {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                    </span>
-                  </InfoItem>
-                )}
-                <InfoItem label={<><Calendar size={12} style={{ verticalAlign: -2 }} /> Scheduled</>}>
-                  {task.scheduled_start_date
-                    ? `${fmtDate(task.scheduled_start_date)}${task.scheduled_end_date && task.scheduled_end_date !== task.scheduled_start_date ? ` — ${fmtDate(task.scheduled_end_date)}` : ''}`
-                    : '—'}
-                </InfoItem>
-                {(task.block_name || task.block?.block_name || task.block_id) && (
-                  <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Block</>}>
-                    <span className="td-pill td-pill--sand">{task.block_name || task.block?.block_name || `Block #${task.block_id}`}</span>
-                  </InfoItem>
-                )}
-                {(task.spatial_area?.name || task.spatial_area_name) && (
-                  <InfoItem label={<><MapPin size={12} style={{ verticalAlign: -2 }} /> Spatial area</>}>
-                    <span className="td-pill td-pill--sand">{task.spatial_area?.name || task.spatial_area_name}</span>
-                  </InfoItem>
-                )}
-                <InfoItem label={<><Clock size={12} style={{ verticalAlign: -2 }} /> Hours</>}>
-                  {task.actual_hours > 0 ? `${task.actual_hours}h` : '—'}
-                  {task.estimated_hours ? ` / ${task.estimated_hours}h est.` : ''}
-                </InfoItem>
-                {task.requires_gps_tracking && (
-                  <InfoItem label={<><Navigation size={12} style={{ verticalAlign: -2 }} /> GPS tracking</>}>
-                    <span className="td-pill td-pill--olive">Enabled</span>
-                  </InfoItem>
-                )}
-                {spray?.asset ? (
-                  <InfoItem label={<><Droplets size={12} style={{ verticalAlign: -2 }} /> Spray coverage</>}>
-                    {spray.capable ? (
-                      <span className="badge badge--success" title={`${spray.asset.name} · swath ${spray.asset.swath_width_m} m`}>Ready</span>
-                    ) : spray.config_ready ? (
-                      <span className="badge badge--neutral" title={spraySetupText(spray)}>On completion</span>
-                    ) : (
-                      <span className="badge badge--warning" title={spraySetupText(spray)}>Needs setup</span>
-                    )}
-                  </InfoItem>
-                ) : (spray && equipmentChecks.length > 0) ? (
-                  // Equipment attached but none is spray-capable — show the path to enable
-                  // it (was hidden entirely behind `spray?.asset`).
-                  <InfoItem label={<><Droplets size={12} style={{ verticalAlign: -2 }} /> Spray coverage</>}>
-                    <span className="badge badge--neutral" title={spraySetupOffText(spray)}>Off</span>
-                    <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
-                      {spraySetupOffText(spray)}
-                    </div>
-                  </InfoItem>
-                ) : null}
-                {Array.isArray(task.tags) && task.tags.length > 0 && (
-                  <InfoItem label={<><Tag size={12} style={{ verticalAlign: -2 }} /> Tags</>}>
-                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
-                      {task.tags.map(t => (
-                        <span key={t} className="td-pill td-pill--sand">{t}</span>
-                      ))}
-                    </span>
-                  </InfoItem>
-                )}
-              </div>
-              {task.location_notes && (
-                <div className="td-card-footer">
-                  <div className="td-footer-label">Location notes</div>
-                  <div className="td-footer-body">{task.location_notes}</div>
-                </div>
-              )}
-            </div>
+            {/* Always rendered, so the left column never collapses to nothing
+                next to a populated right column. */}
+            <Panel title="Description" icon={<FileText size={13} />}>
+              {task.description
+                ? <div className="td-description">{task.description}</div>
+                : <div className="td-people-empty">No description on this task.</div>}
+            </Panel>
 
-            {task.description && (
-              <div className="vp-card td-card">
-                <h3 className="td-card-title">
-                  <FileText size={14} style={{ verticalAlign: -2 }} /> Description
-                </h3>
-                <div className="td-description">{task.description}</div>
-              </div>
+            {task.location_notes && (
+              <Panel title="Location notes" icon={<MapPin size={13} />}>
+                <div className="td-note-body">{task.location_notes}</div>
+              </Panel>
             )}
           </div>
 
-          {/* Right column — Assignments + Activity */}
           <div className="td-col td-col--side">
-            <div className="vp-card td-card">
-              <h3 className="td-card-title">Assignments</h3>
-              <div className="td-assignment-section">
-                <div className="td-assignment-label"><Users size={12} style={{ verticalAlign: -2 }} /> Users</div>
-                {Array.isArray(task.assignee_names) && task.assignee_names.length > 0 ? (
-                  <div className="td-assignment-list">
-                    {task.assignee_names.map((n, i) => <div key={i}>{n}</div>)}
-                  </div>
-                ) : (
-                  <div className="td-assignment-empty">None</div>
-                )}
+            <Panel title="Assigned to" icon={<Users size={13} />}>
+              <div className="td-people">
+                <div>
+                  <div className="td-people-label"><Users size={11} /> Users</div>
+                  {Array.isArray(task.assignee_names) && task.assignee_names.length > 0 ? (
+                    <div className="td-people-list">
+                      {task.assignee_names.map((n, i) => <div key={i}>{n}</div>)}
+                    </div>
+                  ) : (
+                    <div className="td-people-empty">None</div>
+                  )}
+                </div>
+                <div>
+                  <div className="td-people-label"><Wrench size={11} /> Contractors</div>
+                  {Array.isArray(task.contractor_names) && task.contractor_names.length > 0 ? (
+                    <div className="td-people-list">
+                      {task.contractor_names.map((n, i) => <div key={i}>{n}</div>)}
+                    </div>
+                  ) : (
+                    <div className="td-people-empty">None</div>
+                  )}
+                </div>
               </div>
-              <div className="td-assignment-section">
-                <div className="td-assignment-label"><Wrench size={12} style={{ verticalAlign: -2 }} /> Contractors</div>
-                {Array.isArray(task.contractor_names) && task.contractor_names.length > 0 ? (
-                  <div className="td-assignment-list">
-                    {task.contractor_names.map((n, i) => <div key={i}>{n}</div>)}
-                  </div>
-                ) : (
-                  <div className="td-assignment-empty">None</div>
-                )}
-              </div>
-            </div>
+            </Panel>
 
-            <div className="vp-card td-card">
-              <h3 className="td-card-title">Activity</h3>
-              <div className="td-activity-grid">
-                <InfoItem label="Created">
+            <Panel title="Activity" icon={<Clock size={13} />}>
+              <div className="td-events">
+                <Event label="Created">
                   {fmtDateTime(task.created_at) || '—'}
-                  {task.creator && <div className="td-meta-sub">by {friendlyName(task.creator)}</div>}
-                </InfoItem>
+                  {task.creator && <span className="td-event-sub">by {friendlyName(task.creator)}</span>}
+                </Event>
                 {task.actual_start_time && (
-                  <InfoItem label="Started">{fmtDateTime(task.actual_start_time)}</InfoItem>
+                  <Event label="Started">{fmtDateTime(task.actual_start_time)}</Event>
                 )}
                 {task.completed_at && (
-                  <InfoItem label="Completed">
+                  <Event label="Completed">
                     {fmtDateTime(task.completed_at)}
-                    {task.completer && <div className="td-meta-sub">by {friendlyName(task.completer)}</div>}
-                  </InfoItem>
+                    {task.completer && <span className="td-event-sub">by {friendlyName(task.completer)}</span>}
+                  </Event>
                 )}
                 {task.cancelled_at && (
-                  <InfoItem label="Cancelled">{fmtDateTime(task.cancelled_at)}</InfoItem>
+                  <Event label="Cancelled">{fmtDateTime(task.cancelled_at)}</Event>
                 )}
               </div>
               {task.completion_notes && (
-                <div className="td-card-footer">
-                  <div className="td-footer-label">Completion notes</div>
-                  <div className="td-footer-body">{task.completion_notes}</div>
+                <div className="td-note-block">
+                  <div className="td-note-label">Completion notes</div>
+                  <div className="td-note-body">{task.completion_notes}</div>
                 </div>
               )}
               {task.cancellation_reason && (
-                <div className="td-card-footer">
-                  <div className="td-footer-label">Cancellation reason</div>
-                  <div className="td-footer-body">{task.cancellation_reason}</div>
+                <div className="td-note-block">
+                  <div className="td-note-label">Cancellation reason</div>
+                  <div className="td-note-body">{task.cancellation_reason}</div>
                 </div>
               )}
-            </div>
+            </Panel>
           </div>
         </div>
 
@@ -609,23 +570,21 @@ function TaskDetail() {
               <h3><Edit2 size={16} /> Edit Task</h3>
               {editError && <div className="td-error">{editError}</div>}
 
-              <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Title</label>
+              <div className="td-form">
+                <label className="td-field">
+                  <span className="td-field-label">Title</span>
                   <input
                     className="td-input"
-                    style={{ width: '100%' }}
                     value={editForm.title}
                     onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
                   />
-                </div>
+                </label>
 
-                <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: '1fr 1fr' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Priority</label>
+                <div className="td-form-row">
+                  <label className="td-field">
+                    <span className="td-field-label">Priority</span>
                     <select
                       className="td-input"
-                      style={{ width: '100%' }}
                       value={editForm.priority}
                       onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}
                     >
@@ -634,68 +593,56 @@ function TaskDetail() {
                       <option value="high">High</option>
                       <option value="urgent">Urgent</option>
                     </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Estimated hours</label>
+                  </label>
+                  <label className="td-field">
+                    <span className="td-field-label">Estimated hours</span>
                     <input
                       className="td-input"
-                      style={{ width: '100%' }}
                       type="number"
                       step="0.25"
                       min="0"
                       value={editForm.estimated_hours}
                       onChange={e => setEditForm(f => ({ ...f, estimated_hours: e.target.value }))}
                     />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Scheduled start</label>
+                  </label>
+                  <label className="td-field">
+                    <span className="td-field-label">Scheduled start</span>
                     <input
                       className="td-input"
-                      style={{ width: '100%' }}
                       type="date"
                       value={editForm.scheduled_start_date}
                       onChange={e => setEditForm(f => ({ ...f, scheduled_start_date: e.target.value }))}
                     />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Scheduled end</label>
+                  </label>
+                  <label className="td-field">
+                    <span className="td-field-label">Scheduled end</span>
                     <input
                       className="td-input"
-                      style={{ width: '100%' }}
                       type="date"
                       value={editForm.scheduled_end_date}
                       onChange={e => setEditForm(f => ({ ...f, scheduled_end_date: e.target.value }))}
                     />
-                  </div>
+                  </label>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Description</label>
+                <label className="td-field">
+                  <span className="td-field-label">Description</span>
                   <textarea
                     className="td-textarea"
                     rows={4}
                     value={editForm.description}
                     onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 500, marginBottom: 4 }}>Location notes</label>
+                <label className="td-field">
+                  <span className="td-field-label">Location notes</span>
                   <textarea
                     className="td-textarea"
                     rows={2}
                     value={editForm.location_notes}
                     onChange={e => setEditForm(f => ({ ...f, location_notes: e.target.value }))}
                   />
-                </div>
-
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={editForm.requires_gps_tracking}
-                    onChange={e => setEditForm(f => ({ ...f, requires_gps_tracking: e.target.checked }))}
-                  />
-                  <Navigation size={14} /> Require GPS tracking
                 </label>
               </div>
 
@@ -718,12 +665,6 @@ function TaskDetail() {
             <div className="td-modal">
               <h3><CheckCircle size={16} /> Complete Task</h3>
               {actionError && <div className="td-error">{actionError}</div>}
-              {spray?.asset && !spray.config_ready && (
-                <div className="alert alert--warning" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12 }}>
-                  <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span>{spraySetupText(spray)}</span>
-                </div>
-              )}
 
               {consumables.length > 0 && (
                 <div className="td-consumables">
@@ -801,129 +742,6 @@ function TaskDetail() {
         )}
       </div>
 
-      <style>{`
-        .td-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999;
-        }
-        .td-modal {
-          position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-          background: var(--color-surface); border-radius: var(--radius-lg);
-          box-shadow: var(--shadow-lg); width: 90%; max-width: 520px;
-          z-index: 1000; padding: var(--space-lg); max-height: 85vh; overflow-y: auto;
-        }
-        .td-modal h3 {
-          margin: 0 0 var(--space-md); font-size: var(--font-size-lg);
-          font-weight: 600; color: var(--color-primary);
-          display: flex; align-items: center; gap: var(--space-xs);
-        }
-        .td-modal h4 {
-          margin: 0 0 var(--space-sm); font-size: var(--font-size-base);
-          font-weight: 600; color: var(--color-text);
-          display: flex; align-items: center; gap: var(--space-xs);
-        }
-        .td-error {
-          background: var(--color-danger-bg); color: var(--color-danger);
-          padding: var(--space-sm); border-radius: var(--radius-sm);
-          font-size: var(--font-size-sm); margin-bottom: var(--space-md);
-        }
-        .td-checklist {
-          display: flex; flex-direction: column; gap: var(--space-sm);
-          margin-bottom: var(--space-md);
-        }
-        .td-check-item {
-          padding: var(--space-sm) var(--space-md);
-          border: 1px solid var(--color-border); border-radius: var(--radius-sm);
-          background: var(--color-surface);
-        }
-        .td-check-item--warn {
-          border-color: var(--color-warning); background: var(--color-warning-bg);
-        }
-        .td-check-name { font-weight: 500; margin-bottom: 2px; }
-        .td-check-meta {
-          display: flex; gap: var(--space-md); flex-wrap: wrap;
-          font-size: var(--font-size-xs); color: var(--color-text-muted);
-        }
-        .td-overdue { color: var(--color-danger); font-weight: 600; }
-        .td-ok { color: var(--color-success); }
-        .td-consumables {
-          margin-bottom: var(--space-md);
-          border: 1px solid var(--color-border); border-radius: var(--radius-md);
-          padding: var(--space-md);
-        }
-        .td-consumable-row {
-          padding: var(--space-sm) 0;
-          border-bottom: 1px solid var(--color-border);
-        }
-        .td-consumable-row:last-child { border-bottom: none; }
-        .td-consumable-name {
-          font-weight: 500; margin-bottom: var(--space-xs);
-        }
-        .td-consumable-meta {
-          display: block; font-size: var(--font-size-xs);
-          color: var(--color-text-muted); font-weight: 400;
-        }
-        .td-consumable-inputs {
-          display: flex; gap: var(--space-md); margin-top: var(--space-xs);
-        }
-        .td-consumable-inputs label {
-          display: flex; flex-direction: column; gap: 2px;
-          font-size: var(--font-size-xs); color: var(--color-text-muted); flex: 1;
-        }
-        .td-input, .td-textarea {
-          padding: var(--space-xs) var(--space-sm);
-          border: 1px solid var(--color-border); border-radius: var(--radius-sm);
-          font-family: var(--font-family); font-size: var(--font-size-sm);
-        }
-        .td-input:focus, .td-textarea:focus {
-          outline: none; border-color: var(--color-primary);
-        }
-        .td-textarea { width: 100%; resize: vertical; }
-        .td-notes-section {
-          margin-bottom: var(--space-md);
-        }
-        .td-notes-section label {
-          display: block; font-size: var(--font-size-sm); font-weight: 500;
-          color: var(--color-text); margin-bottom: var(--space-xs);
-        }
-        .td-notes-label-row {
-          display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
-        }
-        .td-notes-label-row label { margin-bottom: 0; }
-        .td-notes-insert {
-          display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px;
-          background: var(--color-olive-light); color: var(--color-primary);
-          border: 1px solid var(--color-olive-border); border-radius: var(--radius-sm);
-          font-size: var(--font-size-xs); font-weight: 600; cursor: pointer;
-          margin-bottom: var(--space-xs);
-        }
-        .td-notes-insert:hover { background: var(--color-olive-border); }
-
-        /* Field Notes summary card */
-        .td-fieldnotes { margin-bottom: var(--space-base); }
-        .td-fieldnotes-head {
-          display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
-          margin-bottom: var(--space-sm);
-        }
-        .td-fieldnotes-head .td-card-title { margin: 0; }
-        .td-fieldnotes-count { color: var(--color-text-muted); font-weight: 500; }
-        .td-fieldnotes-list { list-style: none; margin: 0; padding: 0; }
-        .td-fieldnote {
-          display: flex; align-items: baseline; gap: var(--space-sm);
-          padding: var(--space-xs) 0; border-top: 1px solid var(--color-border);
-          font-size: var(--font-size-sm); line-height: 1.5;
-        }
-        .td-fieldnote:first-child { border-top: none; }
-        .td-fieldnote-icon { color: var(--color-warning); flex-shrink: 0; align-self: center; }
-        .td-fieldnote-row {
-          flex-shrink: 0; min-width: 64px; font-weight: 600; color: var(--color-text);
-        }
-        .td-fieldnote-text { color: var(--color-text); }
-        .td-fieldnote--issue .td-fieldnote-text { color: var(--color-text); font-weight: 500; }
-        .td-modal-actions {
-          display: flex; justify-content: flex-end; gap: var(--space-sm);
-          padding-top: var(--space-md); border-top: 1px solid var(--color-border);
-        }
-      `}</style>
     </div>
   );
 }

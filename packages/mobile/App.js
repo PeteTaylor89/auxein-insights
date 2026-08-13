@@ -13,6 +13,7 @@ import OfflineBanner from './src/components/OfflineBanner';
 import { ToastProvider } from './src/components/Toast';
 import { initQueue } from './src/services/gpsQueue';
 import { initWriteQueue } from './src/services/writeQueue';
+import { initUploadQueue } from './src/services/uploadQueue';
 import { initSyncCoordinator, triggerSync } from './src/services/syncCoordinator';
 
 // Swap the shared api instance to use SecureStore auth
@@ -27,6 +28,9 @@ function RootNavigator() {
     if (!isAuthenticated) return;
     (async () => {
       try {
+        // Handlers must be registered before anything can flush, or a queued
+        // photo upload would be skipped as an unknown type.
+        initUploadQueue();
         await Promise.all([initQueue(), initWriteQueue()]);
         await initSyncCoordinator();
         await triggerSync();
