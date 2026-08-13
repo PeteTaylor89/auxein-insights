@@ -257,6 +257,21 @@ class ZoneClimateSnapshot(BaseModel):
     current_stage: Optional[str] = None
     days_to_veraison: Optional[int] = None
 
+    # Latest observed conditions. These come off the same ClimateZoneDaily row
+    # the GDD figures already use, so they cost no extra query — the row was
+    # simply not being surfaced. They are what the Insights home page needs to
+    # answer "where is warmest right now" without N per-zone requests.
+    #
+    # None means the zone has no reading for that variable on its latest date.
+    # It NEVER means zero — a zone with no rain gauge is not a dry zone (B4.1).
+    temp_min: Optional[Decimal] = None
+    temp_max: Optional[Decimal] = None
+    temp_mean: Optional[Decimal] = None
+    rainfall_mm: Optional[Decimal] = None
+    # 'high' | 'medium' | 'low' — how well-observed the zone was that day.
+    confidence: Optional[str] = None
+    station_count: Optional[int] = None
+
 
 class RegionalOverviewResponse(BaseModel):
     """Overview of all zones in a region."""

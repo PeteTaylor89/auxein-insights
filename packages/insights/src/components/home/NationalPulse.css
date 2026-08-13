@@ -1,0 +1,117 @@
+.national-pulse-section {
+  width: 100%;
+}
+
+.national-pulse {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.pulse-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 15px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: var(--box-shadow);
+}
+
+.pulse-tile__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.pulse-tile__icon--warm { background: rgba(209, 88, 59, 0.12); color: var(--terracotta); }
+.pulse-tile__icon--cool { background: rgba(33, 113, 181, 0.12); color: #2171B5; }
+.pulse-tile__icon--wet  { background: rgba(107, 174, 214, 0.18); color: #2171B5; }
+.pulse-tile__icon--grow { background: rgba(68, 97, 69, 0.12); color: var(--primary); }
+
+.pulse-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pulse-tile__label {
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.pulse-tile__value {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--font-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--charcoal);
+  line-height: 1.2;
+}
+
+.pulse-tile__flag {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(33, 113, 181, 0.14);
+  border: 1px solid rgba(33, 113, 181, 0.35);
+  color: #1A5A96;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pulse-tile__detail {
+  font-size: var(--font-sm);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.national-pulse__footnote {
+  margin: 10px 0 0;
+  font-size: var(--font-sm);
+  color: var(--text-light);
+}
+
+.national-pulse__footnote a {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Skeletons match the real tile height so the hero does not jump when the
+   numbers arrive. */
+.pulse-tile--skeleton {
+  min-height: 62px;
+  border-color: rgba(0, 0, 0, 0.05);
+  background: linear-gradient(90deg, #F4F4F1 25%, #EAEAE5 37%, #F4F4F1 63%);
+  background-size: 400% 100%;
+  animation: pulse-shimmer 1.4s ease-in-out infinite;
+  box-shadow: none;
+}
+
+@keyframes pulse-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-tile--skeleton { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .national-pulse { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .pulse-tile { padding: 11px 12px; gap: 9px; }
+  .pulse-tile__value { font-size: var(--font-lg); }
+}

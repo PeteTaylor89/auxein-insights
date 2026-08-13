@@ -69,7 +69,23 @@ class PublicUser(Base):
 
     def __repr__(self):
         return f"<PublicUser(id={self.id}, email='{self.email}', type='{self.user_type}', verified={self.is_verified})>"
-    
+
+    @property
+    def is_pro(self) -> bool:
+        """Entitled to Pro features.
+
+        Exposed on the model so it can be serialised straight into
+        PublicUserResponse. The frontend must read THIS rather than deriving
+        entitlement from `subscription_tier`, because the response does not
+        carry `pro_expires_at` — a client rule would call a lapsed subscription
+        Pro, show the Pro UI, and then eat a 402.
+
+        Imported lazily: core.entitlements imports this model.
+        """
+        from core.entitlements import is_pro as _is_pro
+        return _is_pro(self)
+
+
     @property
     def full_name(self):
         """Return the user's full name if available, otherwise email"""

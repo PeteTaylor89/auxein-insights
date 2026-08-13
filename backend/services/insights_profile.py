@@ -96,7 +96,10 @@ def ensure_insights_profile(db: Session, grow_user: User) -> PublicUser:
         verified_at=datetime.now(timezone.utc),
         origin="grow",
         grow_user_id=grow_user.id,
-        subscription_tier="grow",        # distinct segment; not a feature gate
+        # Distinct segment for campaign targeting AND a Pro entitlement:
+        # core/entitlements.py treats 'grow' as Pro, because Grow customers
+        # already pay for the platform. Never test `tier == "pro"` anywhere.
+        subscription_tier="grow",
         unsubscribe_token=generate_verification_token(),
         # Opt-ins stay FALSE — usage stats need no consent, marketing email does.
         newsletter_opt_in=False,

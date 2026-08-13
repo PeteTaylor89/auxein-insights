@@ -1,0 +1,100 @@
+/* ConfidenceBadge — deliberately quiet. It must sit beside a value without
+   competing with it, but never be so quiet it reads as decoration. */
+
+.confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  white-space: nowrap;
+}
+
+.confidence-badge--block {
+  display: flex;
+  margin-top: 4px;
+}
+
+.confidence-badge__chip {
+  /* Overrides the global `button { padding: 8px 16px }` rule, which otherwise
+     inflates small inline controls out of line with the text they annotate. */
+  padding: 1px 6px;
+  border: 1px solid rgba(68, 97, 69, 0.25);
+  border-radius: 10px;
+  background: rgba(68, 97, 69, 0.06);
+  color: var(--text);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.confidence-badge__chip:hover,
+.confidence-badge__chip[aria-expanded='true'] {
+  background: rgba(68, 97, 69, 0.13);
+  border-color: rgba(68, 97, 69, 0.45);
+}
+
+/* Demo/synthetic data must be conspicuous. The stub exists so the frontend can
+   be built before real surfaces land; a synthetic number reaching a user
+   unlabelled is the failure mode this badge exists to prevent. */
+.confidence-badge__synthetic {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(209, 88, 59, 0.12);
+  border: 1px solid rgba(209, 88, 59, 0.35);
+  color: var(--terracotta);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.confidence-badge__detail {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: max-content;
+  max-width: min(280px, 80vw);
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: var(--border-radius);
+  background: var(--white);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  font-size: var(--font-sm);
+  line-height: 1.45;
+  color: var(--text);
+  white-space: normal;
+}
+
+.confidence-badge__row {
+  display: block;
+}
+
+.confidence-badge__row--muted {
+  color: var(--text-light);
+  font-size: var(--font-xs);
+}
+
+.confidence-badge__link {
+  color: var(--primary);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.confidence-badge__link:hover {
+  text-decoration: underline;
+}
+
+/* Flip the popover to the right edge near the viewport boundary, so a badge on
+   a right-hand stat tile does not open off-screen on mobile. */
+@media (max-width: 480px) {
+  .confidence-badge__detail {
+    left: auto;
+    right: 0;
+  }
+}

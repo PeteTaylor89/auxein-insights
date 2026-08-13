@@ -1,4 +1,12 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://insights.auxein.co.nz/sitemap.xml
+# The sitemap is generated from the database (published articles + research +
+# the static page list) and served by the API. The static stub that used to sit
+# at insights.auxein.co.nz/sitemap.xml listed a single URL and meant no article
+# was ever submitted to search engines.
+#
+# DURABLE FIX PENDING: add a CloudFront behaviour routing /sitemap.xml and
+# /rss.xml on insights.auxein.co.nz to the API origin, then point this back at
+# https://insights.auxein.co.nz/sitemap.xml (same-host, which Bing prefers).
+Sitemap: https://api.auxein.co.nz/sitemap.xml

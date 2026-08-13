@@ -1,0 +1,49 @@
+.surface-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.surface-value__number {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--charcoal);
+  line-height: 1.1;
+}
+
+.surface-value__unit {
+  font-weight: 500;
+  opacity: 0.7;
+  margin-left: 1px;
+}
+
+.surface-value--sm .surface-value__number { font-size: var(--font-base); }
+.surface-value--md .surface-value__number { font-size: var(--font-lg); }
+.surface-value--lg .surface-value__number { font-size: var(--font-2xl); }
+.surface-value--hero .surface-value__number {
+  font-size: var(--font-3xl);
+  letter-spacing: -0.02em;
+}
+
+.surface-value--hero .surface-value__unit { font-size: var(--font-xl); }
+.surface-value--lg .surface-value__unit { font-size: var(--font-md); }
+
+/* A gap reads as an absence, not as a number. Muted and italic so it can never
+   be mistaken for a measurement at a glance. */
+.surface-value--missing {
+  color: var(--text-light);
+}
+
+.surface-value__dash {
+  font-weight: 500;
+  opacity: 0.5;
+}
+
+.surface-value__reason {
+  font-size: var(--font-xs);
+  font-style: italic;
+  color: var(--text-light);
+}
+
+/* `.sr-only` is defined globally in index.css. */

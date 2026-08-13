@@ -138,6 +138,10 @@ class PublicUserResponse(BaseModel):
     is_verified: bool
     is_admin: bool = False
     subscription_tier: str = "free"
+    # Server-computed entitlement. The client reads this and never re-derives it
+    # from subscription_tier: 'grow' also counts as Pro, and an expired 'pro'
+    # does not, neither of which is visible from the tier string alone.
+    is_pro: bool = False
     origin: str = "signup"  # 'grow' => projection row crossed over from Grow
     
     # Timestamps

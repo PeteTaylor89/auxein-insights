@@ -8,6 +8,7 @@ import {
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import researchService from '../services/researchService';
 import useArticleTracking from '../hooks/useArticleTracking';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import './ResearchDetail.css';
 
 function ResearchDetail() {
@@ -28,6 +29,15 @@ function ResearchDetail() {
 
   useArticleTracking(report?.id, contentRef, 'research');
 
+  // See the note in ArticleDetail — same defect, same fix. These URLs are RSS
+  // <guid>s and must stay canonical to themselves.
+  useDocumentMeta({
+    title: report ? (report.seo_title || report.title) : undefined,
+    description: report ? (report.meta_description || report.excerpt || report.abstract) : undefined,
+    path: report ? `/research/${slug}` : undefined,
+    image: report ? (report.og_image_url || report.featured_image_url) : undefined,
+  });
+
   useEffect(() => {
     const fetchReport = async () => {
       setLoading(true);
@@ -40,7 +50,6 @@ function ResearchDetail() {
         setComments(cmts);
         const cit = await researchService.getCitation(slug, 'apa');
         setCitationText(cit.citation);
-        document.title = `${data.seo_title || data.title} | Auxein Regional Insights`;
       } catch (err) {
         setError(err.message || 'Report not found');
       } finally {
@@ -48,7 +57,6 @@ function ResearchDetail() {
       }
     };
     fetchReport();
-    return () => { document.title = 'Auxein Regional Insights | Free Climate Intelligence for NZ Wine'; };
   }, [slug]);
 
   const handleLike = async () => {

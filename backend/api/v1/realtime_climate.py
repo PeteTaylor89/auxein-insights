@@ -1028,6 +1028,13 @@ def get_regional_overview(
             disease_risk_overall=disease_risk,
             current_stage=current_stage,
             days_to_veraison=days_to_veraison,
+            # Straight off `latest`, which is already loaded above. No extra query.
+            temp_min=latest.temp_min,
+            temp_max=latest.temp_max,
+            temp_mean=latest.temp_mean,
+            rainfall_mm=latest.rainfall_mm,
+            confidence=latest.confidence,
+            station_count=latest.station_count,
         ))
     
     # Calculate region stats

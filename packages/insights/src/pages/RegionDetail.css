@@ -1,0 +1,60 @@
+.region-detail-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--background);
+}
+
+.region-detail-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 18px 24px 8px;
+  /* PublicClimateContainer holds wide charts and tables; without this a long
+     row can push the whole page sideways on a phone. */
+  overflow-x: hidden;
+}
+
+.region-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-bottom: 4px;
+  color: var(--primary);
+  font-size: var(--font-base);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.region-detail__back:hover { text-decoration: underline; }
+
+/* Rendered for everyone, gated or not — this is what search engines index and
+   what a visitor arriving from search reads before deciding to register. */
+.region-detail__intro {
+  max-width: 680px;
+  margin: 4px 0 18px;
+}
+
+.region-detail__intro h1 {
+  margin: 0 0 6px;
+  font-size: var(--font-2xl);
+  color: var(--charcoal);
+}
+
+.region-detail__intro p {
+  margin: 0;
+  font-size: var(--font-md);
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.region-detail__industries {
+  max-width: 680px;
+  margin: 26px 0 8px;
+}
+
+@media (max-width: 600px) {
+  .region-detail-main { padding: 12px 12px 4px; }
+}

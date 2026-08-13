@@ -26,6 +26,12 @@ Mako==1.3.10
 MarkupSafe==3.0.2
 numpy==2.2.5
 packaging==24.2
+# Reads the climate-surface COGs for /api/v1/surfaces. Ships manylinux wheels
+# with GDAL bundled, so EB needs no system GDAL — but it is ~100 MB installed,
+# which is the largest single dependency here. Pinned to match the workstation
+# venv that produces the rasters (GDAL 3.12.1).
+rasterio==1.5.0
+affine==3.0.0
 pandas==2.2.3
 passlib==1.7.4
 psycopg2-binary==2.9.10

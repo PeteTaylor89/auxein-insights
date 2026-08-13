@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, surfaces
 from core.config import settings
 import logging
 import traceback
@@ -215,6 +215,17 @@ app.include_router(
     insights_feedback.router,
     prefix="/api/v1/feedback",
     tags=["insights-feedback"],
+)
+
+# Climate surfaces (SURFACE_CONTRACT_V2 §5). Currently a STUB — every route
+# refuses with 503 unless SURFACE_STUB_ENABLED=1, so it cannot ship on by
+# accident. The route stays at /api/v1/surfaces when the real implementation
+# lands: the contract version lives in the S3 prefix and meta.contract_version,
+# not in the URL (contract §7).
+app.include_router(
+    surfaces.router,
+    prefix="/api/v1/surfaces",
+    tags=["surfaces"],
 )
 
 app.include_router(

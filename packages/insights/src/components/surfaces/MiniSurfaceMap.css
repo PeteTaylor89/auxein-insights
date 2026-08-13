@@ -1,0 +1,116 @@
+.mini-surface-map {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: var(--box-shadow);
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.mini-surface-map:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.mini-surface-map__canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #EDF0EA;
+}
+
+.mini-surface-map__gl {
+  position: absolute;
+  inset: 0;
+}
+
+/* The map is decorative here — the whole card is one link, so the canvas must
+   not swallow the click or offer its own interaction affordances. */
+.mini-surface-map__gl,
+.mini-surface-map__gl canvas {
+  pointer-events: none;
+}
+
+.mini-surface-map__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--olive);
+  font-size: var(--font-sm);
+  text-align: center;
+  padding: 16px;
+}
+
+/* Keeps the caption legible over whatever colour ramp the surface lands on. */
+.mini-surface-map__scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 45%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.7));
+  pointer-events: none;
+}
+
+.mini-surface-map__caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.mini-surface-map__labels {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mini-surface-map__labels strong {
+  font-size: var(--font-md);
+  color: var(--charcoal);
+}
+
+.mini-surface-map__date {
+  font-size: var(--font-sm);
+  color: var(--text-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-surface-map__demo {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(209, 88, 59, 0.12);
+  border: 1px solid rgba(209, 88, 59, 0.35);
+  color: var(--terracotta);
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
+
+.mini-surface-map__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--primary);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.mini-surface-map:hover .mini-surface-map__cta {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .mini-surface-map__canvas { aspect-ratio: 3 / 2; }
+  .mini-surface-map__cta span { display: none; }
+}

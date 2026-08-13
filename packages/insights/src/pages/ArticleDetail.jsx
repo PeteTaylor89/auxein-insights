@@ -8,6 +8,7 @@ import {
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import articleService from '../services/articleService';
 import useArticleTracking from '../hooks/useArticleTracking';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 const ClimateWidgetRenderer = lazy(() => import('../components/climate/ClimateWidgetRenderer'));
 import './ArticleDetail.css';
 
@@ -31,6 +32,17 @@ function ArticleDetail() {
 
   useArticleTracking(article?.id, contentRef, 'article');
 
+  // Per-article meta. Previously only document.title was set, so every article
+  // inherited the site-wide description, OG image and — worst of all — a
+  // canonical URL pointing at the homepage, which asks search engines to fold
+  // every article into the landing page instead of indexing it.
+  useDocumentMeta({
+    title: article ? (article.seo_title || article.title) : undefined,
+    description: article ? (article.meta_description || article.excerpt) : undefined,
+    path: article ? `/articles/${slug}` : undefined,
+    image: article ? (article.og_image_url || article.featured_image_url) : undefined,
+  });
+
   useEffect(() => {
     if (!isAuthenticated) {
       setLoading(false);
@@ -49,7 +61,6 @@ function ArticleDetail() {
           viewRecorded.current = true;
           articleService.recordView(data.id);
         }
-        document.title = `${data.seo_title || data.title} | Auxein Regional Insights`;
         articleService.getRelated(slug).then(setRelatedArticles).catch(() => {});
       } catch (err) {
         setError(err.message || 'Article not found');
@@ -58,7 +69,6 @@ function ArticleDetail() {
       }
     };
     fetchArticle();
-    return () => { document.title = 'Auxein Regional Insights | Free Climate Intelligence for NZ Wine'; };
   }, [slug, isAuthenticated]);
 
   const handleLike = async () => {

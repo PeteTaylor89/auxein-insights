@@ -1,26 +1,43 @@
-// pages/LandingPage.jsx - With scroll-aware header for mobile
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import {
-  ChartSpline, CloudSunRain, Grape, ShieldCheck, X,
-  History, ChevronRight, ChevronLeft, Map
-} from 'lucide-react';
+// pages/LandingPage.jsx — the home page.
+//
+// Rebuilt 2026-08-13 (docs/plans/INSIGHTS_SITE_MAP_2026-08-13.md §2). The shape
+// is now: what the weather is doing right now → the national surface → the
+// writing. The old page opened with a five-tab explorer strip and put articles
+// last, behind a carousel.
+//
+// The explorer strip is still here, demoted below the fold. It leaves in Pass 2,
+// when /regions/:slug exists to receive the explorers — removing it before then
+// would strand five working features with nowhere to live.
+//
+// This route must stay at `/` and must not redirect: Grow hands off SSO to
+// `${insightsUrl}/#insights_sso=<token>` and a redirect loses the hash fragment.
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
-import Logo from '../assets/App_Logo_September 20251.jpg';
 import './LandingPage.css';
-import { usePublicAuth } from '../contexts/PublicAuthContext';
 import AuthModal from '../components/auth/AuthModal';
 import EmailVerificationModal from '../components/auth/EmailVerificationModal';
-import { PublicClimateContainer } from '../components/climate';
 import PasswordResetModal from '../components/auth/PasswordResetModal';
 import SiteBanner from '../components/SiteBanner';
 import SiteHeader from '../components/SiteHeader';
-import SeasonalStatsWidget from '../components/SeasonalStatsWidget';
+import SiteFooter from '../components/SiteFooter';
+import NationalPulse from '../components/home/NationalPulse';
+import RegionLauncher from '../components/home/RegionLauncher';
+import ArticleShowcase from '../components/home/ArticleShowcase';
+import { MiniSurfaceMap } from '../components/surfaces';
 import articleService from '../services/articleService';
 
+// Old deep links opened an explorer inside the landing page:
+//   /?view=phenology&zone=marlborough
+// Those views now live at /regions/:slug, so the links are forwarded rather
+// than ignored — they are live in the map panel CTA and in sent email, and
+// silently landing on a home page with no explorer would look like a bug.
+const VIEW_DEEP_LINKS = [
+  'currentseason', 'phenology', 'disease', 'climatehistory', 'climateprojections',
+];
+
 function LandingPage() {
-  const [activeInsight, setActiveInsight] = useState(null);
-  const { isAuthenticated } = usePublicAuth();
+  const navigate = useNavigate();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authContext, setAuthContext] = useState('');
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
@@ -28,60 +45,21 @@ function LandingPage() {
 
   const [latestArticles, setLatestArticles] = useState([]);
 
-  const isDemoMode = !isAuthenticated;
-
-  // Articles carousel scroll
-  const carouselRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const updateCarouselArrows = useCallback(() => {
-    const el = carouselRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 0);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-  }, []);
-
-  useEffect(() => {
-    const el = carouselRef.current;
-    if (!el || latestArticles.length === 0) return;
-    updateCarouselArrows();
-    el.addEventListener('scroll', updateCarouselArrows, { passive: true });
-    const ro = new ResizeObserver(updateCarouselArrows);
-    ro.observe(el);
-    return () => { el.removeEventListener('scroll', updateCarouselArrows); ro.disconnect(); };
-  }, [latestArticles, updateCarouselArrows]);
-
-  const scrollCarousel = useCallback((dir) => {
-    const el = carouselRef.current;
-    if (!el) return;
-    const card = el.querySelector('.carousel-article-card');
-    const distance = card ? card.offsetWidth + 20 : 340;
-    el.scrollBy({ left: dir * distance, behavior: 'smooth' });
-  }, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const verificationToken = searchParams.get('token');
   const resetToken = searchParams.get('reset_token');
   const deepLinkView = searchParams.get('view');
   const deepLinkZone = searchParams.get('zone');
-  // Latch the deep-link zone so it survives the URL cleanup below —
-  // PublicClimateContainer mounts on the next render after the param is gone.
-  const [latchedZone, setLatchedZone] = useState(null);
 
-  // Deep-link: auto-open an insight view (e.g., from map panel CTA)
-  const VALID_VIEWS = ['currentseason', 'phenology', 'disease', 'climatehistory', 'climateprojections'];
   useEffect(() => {
-    if (deepLinkView && !activeInsight && VALID_VIEWS.includes(deepLinkView)) {
-      setActiveInsight(deepLinkView);
-      if (deepLinkZone) setLatchedZone(deepLinkZone);
-      searchParams.delete('view');
-      searchParams.delete('zone');
-      setSearchParams(searchParams, { replace: true });
-      setTimeout(() => {
-        document.getElementById('insights-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 200);
-    }
-  }, [deepLinkView]);
+    // Without a zone there is no region page to forward to, so those fall
+    // through to the region index instead of 404ing on an empty slug.
+    if (!deepLinkView || !VIEW_DEEP_LINKS.includes(deepLinkView)) return;
+    const target = deepLinkZone
+      ? `/regions/${deepLinkZone}?view=${deepLinkView}`
+      : '/regions';
+    navigate(target, { replace: true });
+  }, [deepLinkView, deepLinkZone, navigate]);
 
   useEffect(() => {
     if (verificationToken) {
@@ -92,9 +70,8 @@ function LandingPage() {
     }
   }, [verificationToken, resetToken]);
 
-  // Fetch latest articles for carousel
   useEffect(() => {
-    articleService.list({ page: 1, page_size: 6 })
+    articleService.list({ page: 1, page_size: 5 })
       .then(data => setLatestArticles(data.items || []))
       .catch(() => {});
   }, []);
@@ -117,59 +94,9 @@ function LandingPage() {
     setAuthModalOpen(true);
   };
 
-  const insightOptions = [
-    { id: 'currentseason', icon: <CloudSunRain size={22} />, label: 'Current Season', hasComponent: true, initialView: 'currentseason' },
-    { id: 'phenology', icon: <Grape size={22} />, label: 'Phenology', hasComponent: true, initialView: 'phenology' },
-    { id: 'disease', icon: <ShieldCheck size={22} />, label: 'Disease Pressures', hasComponent: true, initialView: 'disease' },
-    { id: 'climatehistory', icon: <History size={22} />, label: 'Climate History', hasComponent: true, initialView: 'seasons' },
-    { id: 'climateprojections', icon: <ChartSpline size={22} />, label: 'Climate Projections', hasComponent: true, initialView: 'projections' }
-  ];
-
-  const handleInsightClick = (insightId) => {
-    setActiveInsight(activeInsight === insightId ? null : insightId);
-    if (activeInsight !== insightId) {
-      setTimeout(() => {
-        document.getElementById('insights-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }
-  };
-
   const handleAuthModalClose = () => {
     setAuthModalOpen(false);
     setAuthContext('');
-  };
-
-  const renderActiveInsight = () => {
-    const insight = insightOptions.find(opt => opt.id === activeInsight);
-    if (!insight) return null;
-
-    if (insight.hasComponent) {
-      return (
-        <div className="insight-content-wrapper">
-          <PublicClimateContainer
-            initialView={insight.initialView}
-            initialZoneSlug={latchedZone || deepLinkZone || null}
-            onClose={() => setActiveInsight(null)}
-            demoMode={isDemoMode}
-            onAuthRequired={() => { setAuthContext('demo_upgrade'); setAuthModalOpen(true); }}
-          />
-        </div>
-      );
-    }
-
-    return (
-      <div className="insight-content-wrapper">
-        <div className="insight-header">
-          <h3>{insight.label}</h3>
-          <button className="close-insight-btn" onClick={() => setActiveInsight(null)} aria-label={`Close ${insight.label}`}>
-            <X size={24} />
-          </button>
-        </div>
-        <div className="insight-placeholder">
-          <p>{insight.placeholder}</p>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -180,151 +107,43 @@ function LandingPage() {
         onSignInClick={() => { setAuthContext('header'); setAuthModalOpen(true); }}
       />
       <SiteBanner />
-      {/* Insights Section */}
-      <section id="insights-section" className="insights-section">
-        <div className="section-header">
-          <h2>Vine - Sights</h2>
-          {!isAuthenticated && (
-            <span className="auth-hint demo-hint">
-              Viewing Waipara demo &middot;{' '}
-              <button className="demo-hint-btn" onClick={() => { setAuthContext('insights'); setAuthModalOpen(true); }}>
-                Sign in free
-              </button>{' '}
-              to explore all regions
-            </span>
-          )}
-        </div>
-        <div className="insights-grid" role="tablist" aria-label="Insight categories">
-          {insightOptions.map(insight => (
-            <button
-              key={insight.id}
-              role="tab"
-              aria-selected={activeInsight === insight.id}
-              className={`insight-card ${activeInsight === insight.id ? 'active' : ''} ${isDemoMode ? 'demo' : ''}`}
-              onClick={() => handleInsightClick(insight.id)}
-            >
-              <div className="insight-icon">{insight.icon}</div>
-              <div className="insight-label">
-                {insight.label}
-                {isDemoMode && <span className="card-demo-badge">Demo</span>}
-              </div>
-              <ChevronRight size={18} className="insight-chevron" />
-            </button>
-          ))}
+
+      {/* Hero — conditions first, then the surface they came from. The point is
+          that a visitor who never signs in still leaves knowing something. */}
+      <section className="home-hero" aria-labelledby="home-hero-heading">
+        <div className="home-hero__intro">
+          {/* Visually hidden, not a design change: the visible headline was
+              removed, which left the homepage with no <h1> at all and an
+              aria-labelledby pointing at nothing. Search engines and screen
+              readers both want one; this gives them one without putting text
+              back on the page. */}
+          <h1 id="home-hero-heading" className="sr-only">
+            Auxein Insights — New Zealand climate intelligence, region by region
+          </h1>
+
+          <p>
+            <b>Climate history</b>, projections, current season development, and pressures -
+            by region or specific to your site. Built on over 1,000 weather stations
+            feeding data to Insights.
+          </p>
         </div>
 
-        {activeInsight && (
-          <div className="active-insight-container" role="tabpanel" aria-label={insightOptions.find(o => o.id === activeInsight)?.label}>
-            {renderActiveInsight()}
+        <div className="home-hero__grid">
+          <div className="home-hero__stats">
+            <NationalPulse />
+            <RegionLauncher />
           </div>
-        )}
+          <div className="home-hero__map">
+            <MiniSurfaceMap variable="temp_mean" />
+          </div>
+        </div>
       </section>
 
-      {/* Seasonal Stats Widget */}
-      <SeasonalStatsWidget onAuthRequired={() => { setAuthContext('widget'); setAuthModalOpen(true); }} />
+      {/* ArticleShowcase brings its own `.latest-articles-section` width and
+          padding, exactly as the carousel did when it lived inline here. */}
+      <ArticleShowcase articles={latestArticles} />
 
-      {/* Map CTA Section */}
-      <section className="map-section">
-        <Link to="/map" className="map-cta-card">
-          <div className="map-cta-icon">
-            <Map size={32} />
-          </div>
-          <div className="map-cta-text">
-            <h3>Vine Atlas</h3>
-            <p>Explore New Zealand wine regions, blocks, and geographical indications</p>
-          </div>
-          <ChevronRight size={24} className="map-cta-chevron" />
-        </Link>
-        <span className="map-cta-note">Best experienced on desktop</span>
-      </section>
-
-      {/* Latest Articles Carousel */}
-      {latestArticles.length > 0 && (
-        <section className="latest-articles-section">
-          <div className="section-header">
-            <h2>Latest Articles</h2>
-          </div>
-          <div className="articles-carousel-wrapper">
-            {canScrollLeft && (
-              <button className="carousel-arrow carousel-arrow-prev" onClick={() => scrollCarousel(-1)} aria-label="Previous articles">
-                <ChevronLeft size={20} />
-              </button>
-            )}
-            <div className="articles-carousel" ref={carouselRef}>
-              <div className="articles-carousel-track">
-                {latestArticles.map((article) => (
-                  <Link
-                    key={article.id}
-                    to={`/articles/${article.slug}`}
-                    className="carousel-article-card"
-                  >
-                    {(article.thumbnail_url || article.featured_image_url) && (
-                      <div className="carousel-card-image">
-                        <img
-                          src={article.thumbnail_url || article.featured_image_url}
-                          alt={article.featured_image_alt || article.title}
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-                    <div className="carousel-card-body">
-                      {article.tags && article.tags.length > 0 && (
-                        <div className="carousel-card-tags">
-                          {article.tags.slice(0, 2).map((t) => (
-                            <span key={t} className="carousel-tag">{t}</span>
-                          ))}
-                        </div>
-                      )}
-                      <h3 className="carousel-card-title">{article.title}</h3>
-                      {article.excerpt && (
-                        <p className="carousel-card-excerpt">{article.excerpt}</p>
-                      )}
-                      <span className="carousel-card-date">
-                        {article.published_at
-                          ? new Date(article.published_at).toLocaleDateString('en-NZ', {
-                              day: 'numeric', month: 'short', year: 'numeric'
-                            })
-                          : ''}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-            {canScrollRight && (
-              <button className="carousel-arrow carousel-arrow-next" onClick={() => scrollCarousel(1)} aria-label="Next articles">
-                <ChevronRight size={20} />
-              </button>
-            )}
-          </div>
-          <div className="articles-carousel-footer">
-            <Link to="/articles" className="view-all-articles-btn">
-              View all articles
-            </Link>
-          </div>
-        </section>
-      )}
-
-      {/* Footer */}
-      <footer className="landing-footer">
-        <div className="footer-content">
-          <div className="footer-brand">
-            <img src={Logo} alt="Auxein Logo" className="footer-logo" />
-            <p>Auxein Insights</p>
-          </div>
-          <div className="footer-links">
-            <a href="https://auxein.co.nz/about" target="_blank" rel="noopener noreferrer">About</a>
-            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
-            <a href="https://auxein.co.nz/contact" target="_blank" rel="noopener noreferrer">Contact</a>
-            <Link to="/legal?section=privacy">Privacy Policy</Link>
-            <Link to="/legal?section=cookies">Cookie Policy</Link>
-            <Link to="/legal?section=terms">Terms of Use</Link>
-          </div>
-          <div className="footer-copyright">
-            © {new Date().getFullYear()} Auxein Limited. All rights reserved.
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
       {/* Modals */}
       <AuthModal isOpen={authModalOpen} onClose={handleAuthModalClose} context={authContext} />

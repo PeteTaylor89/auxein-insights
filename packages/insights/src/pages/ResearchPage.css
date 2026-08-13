@@ -57,3 +57,93 @@
   .research-filters-inner { flex-direction: column; align-items: stretch; }
   .research-search { max-width: none; }
 }
+
+/* ============================================
+   RESEARCH PLACEHOLDER (2026-08-13)
+   Styles for the listing above are retained — ResearchListing.jsx still uses
+   this stylesheet and is one route change away from being live again.
+   ============================================ */
+
+.research-placeholder-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--background);
+}
+
+.research-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 70px 24px;
+  text-align: center;
+}
+
+.research-placeholder__icon {
+  color: var(--olive);
+  opacity: 0.6;
+}
+
+.research-placeholder h1 {
+  margin: 0;
+  font-size: var(--font-2xl);
+  color: var(--charcoal);
+}
+
+.research-placeholder p {
+  margin: 0;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.research-placeholder__meta {
+  font-size: var(--font-sm) !important;
+  color: var(--text-light) !important;
+  font-style: italic;
+}
+
+.research-placeholder__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.research-placeholder__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 11px 20px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: var(--font-base);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.research-placeholder__link:hover { background: #35502F; }
+
+.research-placeholder__link--ghost {
+  background: transparent;
+  border: 1px solid rgba(68, 97, 69, 0.35);
+  color: var(--primary);
+}
+
+.research-placeholder__link--ghost:hover {
+  background: rgba(68, 97, 69, 0.09);
+}
+
+@media (max-width: 600px) {
+  .research-placeholder { padding: 46px 18px; }
+  .research-placeholder__links { width: 100%; flex-direction: column; }
+  .research-placeholder__link { justify-content: center; }
+}

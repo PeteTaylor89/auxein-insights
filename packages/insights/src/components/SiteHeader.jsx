@@ -110,14 +110,16 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             </div>
           </Link>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation — content-led and flat (site map §3, Option A).
+              The off-site auxein.co.nz links moved to SiteFooter: primary nav
+              should navigate the product, and /map and /research were both
+              missing from it entirely. `Regions` joins when /regions ships. */}
           <nav className="header-nav desktop-nav">
             <Link to="/">Home</Link>
+            <Link to="/map">Atlas</Link>
+            <Link to="/regions">Regions</Link>
             <Link to="/articles">Articles</Link>
-            <a href="https://auxein.co.nz/about/" target="_blank" rel="noopener noreferrer">About</a>
-            <a href="https://auxein.co.nz/grow/" target="_blank" rel="noopener noreferrer">Auxein Grow</a>
-            <a href="https://auxein.co.nz/contact/" target="_blank" rel="noopener noreferrer">Contact</a>
-            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer">Auxein</a>
+            <Link to="/research">Research</Link>
 
             {isAdmin && (
               <Link to="/admin" className="admin-header-link">
@@ -187,16 +189,11 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             </button>
 
             <Link to="/" onClick={closeMobileMenu}>Home</Link>
+            <Link to="/map" onClick={closeMobileMenu}>Atlas</Link>
+            <Link to="/regions" onClick={closeMobileMenu}>Regions</Link>
             <Link to="/articles" onClick={closeMobileMenu}>Articles</Link>
-            <Link to="https://auxein.co.nz/about/" onClick={closeMobileMenu}>About</Link>
-            <a href="https://auxein.co.nz/grow/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
-              Auxein Grow
-            </a><a href="https://auxein.co.nz/contact/" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
-              Contact
-            </a>
-            <a href="https://auxein.co.nz" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>
-              Auxein
-            </a>
+            <Link to="/research" onClick={closeMobileMenu}>Research</Link>
+            <Link to="/about" onClick={closeMobileMenu}>About</Link>
 
             {isAdmin && (
               <Link to="/admin" className="mobile-admin-link" onClick={closeMobileMenu}>

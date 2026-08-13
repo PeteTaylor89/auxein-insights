@@ -101,7 +101,10 @@ function ClimateZonePanel({ zone, onClose }) {
 
   const handleExplore = () => {
     onClose();
-    navigate(`/?view=climatehistory&zone=${zone.slug}`);
+    // The explorers moved off the landing page to /regions/:slug (2026-08-13).
+    // The old `/?view=…&zone=…` form still forwards here, but linking straight
+    // to the destination avoids a pointless redirect hop.
+    navigate(`/regions/${zone.slug}?view=climatehistory`);
   };
 
   const handleTooltip = (month, e) => {

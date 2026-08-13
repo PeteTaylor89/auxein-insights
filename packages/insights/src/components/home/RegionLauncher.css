@@ -1,0 +1,151 @@
+.region-launcher {
+  margin-top: 12px;
+  padding: 16px 17px 15px;
+  border: 1px solid rgba(68, 97, 69, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(68, 97, 69, 0.05), rgba(68, 97, 69, 0.02));
+}
+
+.region-launcher__heading {
+  margin: 0 0 4px;
+  font-size: var(--font-lg);
+  color: var(--charcoal);
+}
+
+.region-launcher__blurb {
+  margin: 0 0 13px;
+  font-size: var(--font-base);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.region-launcher__picker {
+  position: relative;
+}
+
+/* Full-width, 48px min height: a primary action on a phone should be reachable
+   with a thumb and impossible to miss. */
+.region-launcher__cta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: var(--font-md);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.region-launcher__cta:hover,
+.region-launcher__cta:focus-visible {
+  background: #35502F;
+}
+
+.region-launcher__cta-arrow {
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.region-launcher__cta--open .region-launcher__cta-arrow {
+  transform: rotate(180deg);
+}
+
+/* Anchored to the button rather than inline, so opening the list does not
+   shove the industry chips and the map down the page. */
+.region-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.region-menu__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text-light);
+}
+
+.region-menu__search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  /* 16px prevents iOS Safari zooming the page when the field takes focus. */
+  font-size: 16px;
+  color: var(--charcoal);
+  background: transparent;
+}
+
+.region-menu__list {
+  max-height: 300px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.region-menu__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.region-menu__item:last-child { border-bottom: none; }
+
+.region-menu__item:hover,
+.region-menu__item:focus-visible {
+  background: rgba(68, 97, 69, 0.08);
+}
+
+.region-menu__name {
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.region-menu__parent {
+  font-size: var(--font-xs);
+  color: var(--text-light);
+  margin-left: auto;
+}
+
+.region-menu__note {
+  margin: 0;
+  padding: 14px 13px;
+  font-size: var(--font-sm);
+  color: var(--text-light);
+}
+
+/* Chip styles live in IndustryChips.css — one definition, shared with the
+   region pages. */
+.region-launcher__industries {
+  margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+  .region-launcher { padding: 14px 14px 13px; }
+}

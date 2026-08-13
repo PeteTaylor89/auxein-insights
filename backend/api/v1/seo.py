@@ -8,21 +8,53 @@ from db.session import get_db
 from db.models.article import Article
 from db.models.research import ResearchReport
 from db.models.public_user import PublicUser
+from db.models.climate import ClimateZone
 from core.admin_security import require_admin
 
 router = APIRouter()
 
 SITE_URL = "https://insights.auxein.co.nz"
 
+# Every public page on insights.auxein.co.nz that is not generated from a DB row.
+# KEEP THIS IN STEP WITH THE ROUTE TABLE in packages/insights/src/App.jsx — a page
+# added or removed there updates this list in the SAME change. See
+# docs/plans/INSIGHTS_SITE_MAP_2026-08-13.md §0 D-D.
+STATIC_PAGES = [
+    ("/", "daily", "1.0"),
+    ("/map", "daily", "0.9"),
+    ("/regions", "daily", "0.9"),
+    ("/articles", "daily", "0.9"),
+    # /research is a placeholder as of 2026-08-13 and is deliberately omitted —
+    # an empty "coming soon" page competing with real article content in search
+    # results is worse than no page. Restore it when there is something there.
+    # Published research REPORTS are still emitted below; only the index is out.
+    ("/about", "monthly", "0.5"),
+    ("/legal", "yearly", "0.2"),
+]
+
 
 @router.get("/sitemap.xml")
 async def sitemap(db: Session = Depends(get_db)):
     """Auto-generated XML sitemap with all published articles and research."""
     urls = [
-        f'<url><loc>{SITE_URL}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>',
-        f'<url><loc>{SITE_URL}/articles</loc><changefreq>daily</changefreq><priority>0.9</priority></url>',
-        f'<url><loc>{SITE_URL}/research</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>',
+        f'<url><loc>{SITE_URL}{path}</loc>'
+        f'<changefreq>{freq}</changefreq><priority>{priority}</priority></url>'
+        for path, freq, priority in STATIC_PAGES
     ]
+
+    # Region pages. Each active climate zone is a real page at /regions/{slug}
+    # as of 2026-08-13; before that a zone was only selector state inside a
+    # component and had no URL at all, so none of this was indexable. These are
+    # the strongest organic-search assets the site has — "<region> climate" is
+    # exactly what growers search — so they rank just under the section indexes.
+    zones = db.query(ClimateZone.slug).filter(
+        ClimateZone.is_active == True  # noqa: E712 — SQLAlchemy needs ==, not `is`
+    ).order_by(ClimateZone.display_order).all()
+    for (slug,) in zones:
+        urls.append(
+            f'<url><loc>{SITE_URL}/regions/{slug}</loc>'
+            f'<changefreq>daily</changefreq><priority>0.8</priority></url>'
+        )
 
     articles = db.query(Article.slug, Article.updated_at).filter(
         Article.status == "published"
