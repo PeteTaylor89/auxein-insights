@@ -29,6 +29,11 @@ ingestion/scripts/probes/*.json
 # redoing that by hand, so they are tracked.
 !ingestion/scripts/probes/waikato_all.json
 !ingestion/scripts/probes/taranaki_all.json
+# Bay of Plenty is regenerable in principle (seed_boprc_from_sos.py --refresh) but ONLY
+# from the ingestion box: BoP's SOS server is IP-allowlisted, so no other machine —
+# including a dev workstation — can rebuild it. Tracked for the same reason as the two
+# above.
+!ingestion/scripts/probes/boprc_sos.json
 # NCEI's GHCN-Daily station inventory, cached by scripts/crosswalk_ghcnd.py.
 # 11 MB, global, and re-fetched automatically when absent.
 ingestion/scripts/probes/ghcnd-stations.txt
@@ -70,3 +75,10 @@ packages/mobile/AuthKey_*.p8
 # (s3://auxein-climate-surfaces/grids/) and fetch at run time.
 # VCDN_5km.csv (372 KB) IS committed — the parity suite needs it.
 backend/models/example data/VCDN_500m.csv
+
+# Scratch working directory — ad-hoc scripts, DB extracts, and the local
+# climate-surface output. The history backfill writes ~12 GB of COGs under
+# scratchpad/climate_history/, and demo surfaces under scratchpad/demo_surfaces/.
+# None of it belongs in git history; the surfaces belong in
+# s3://auxein-climate-surfaces and are reproducible from the scripts.
+scratchpad/

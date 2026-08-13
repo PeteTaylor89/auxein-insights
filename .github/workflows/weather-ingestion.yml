@@ -47,7 +47,7 @@ jobs:
         # to every source; a manual single-source dispatch runs just that one.
         source: >-
           ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.source == 'all')
-              && fromJSON('["harvest","ecan","mdc","gw","hbrc","tdc","gdc","southland","nrc","wcrc","horizons","trc"]')
+              && fromJSON('["harvest","ecan","mdc","gw","hbrc","tdc","gdc","southland","nrc","wcrc","horizons","trc","boprc"]')
               || fromJSON(format('["{0}"]', github.event.inputs.source)) }}
 
     runs-on: ubuntu-latest

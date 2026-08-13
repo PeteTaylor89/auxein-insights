@@ -31,7 +31,7 @@ export RDS_USER=$(aws ssm get-parameter --name /auxein/ingest/RDS_USER --with-de
 export RDS_PASSWORD=$(aws ssm get-parameter --name /auxein/ingest/RDS_PASSWORD --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
 
 PY=/opt/auxein/.venv/bin/python
-SOURCES="${*:-harvest ecan mdc gw hbrc tdc gdc southland nrc wcrc horizons trc}"   # optional args = specific source(s)
+SOURCES="${*:-harvest ecan mdc gw hbrc tdc gdc southland nrc wcrc horizons trc boprc}"   # optional args = specific source(s)
 
 for s in $SOURCES; do
   ( timeout 40m "$PY" run_ingestion.py --source "$s" --period incremental \

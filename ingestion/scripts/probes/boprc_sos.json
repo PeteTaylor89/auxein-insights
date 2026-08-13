@@ -1,0 +1,1387 @@
+{
+ "source": "BOPRC",
+ "region": "Bay of Plenty",
+ "base": "http://sos.boprc.govt.nz/service",
+ "captured": "2026-08-13T03:06:47.101769+00:00",
+ "live_cutoff": "2026-04",
+ "sites": {
+  "BR518499": {
+   "name": "Tuapiro at Farm Bridge",
+   "lat": -37.5067596435547,
+   "lon": 175.886993408203,
+   "series": {
+    "Precip Total": {
+     "begin": "2010-01-31T11:59:59.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "CO383822": {
+   "name": "Te Puna at Odey Rd",
+   "lat": -37.745268690140726,
+   "lon": 175.99431534386466,
+   "series": {
+    "Precip Total": {
+     "begin": "2019-10-17T20:00:00.000Z",
+     "end": "2026-08-13T02:38:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "CO672223": {
+   "name": "Wairoa at Lower Kaimai",
+   "lat": -37.7983703613281,
+   "lon": 176.029403686523,
+   "series": {
+    "Precip Total": {
+     "begin": "1962-12-31T21:00:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2876
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2879
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "CP684851": {
+   "name": "Omokoroa at Wastewater Pump Station",
+   "lat": -37.65174126,
+   "lon": 176.0247087,
+   "series": {
+    "Precip Total": {
+     "begin": "2020-06-24T04:30:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "CQ947053": {
+   "name": "Tauranga Harbour at Omokoroa Wharf",
+   "lat": -37.6328315734863,
+   "lon": 176.053665161133,
+   "series": {
+    "Atmos Pres": {
+     "begin": "2001-04-30T13:01:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "DK713532": {
+   "name": "Ngongotaha at Relph Rd",
+   "lat": -38.127375,
+   "lon": 176.161636,
+   "series": {
+    "Precip Total": {
+     "begin": "2018-07-02T01:24:00.000Z",
+     "end": "2026-08-13T02:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "DL230552": {
+   "name": "Rotorua at Upper Oturoa Rd",
+   "lat": -38.03738148,
+   "lon": 176.10262711,
+   "series": {
+    "Precip Total": {
+     "begin": "2008-06-11T05:00:00.000Z",
+     "end": "2026-08-13T02:33:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2879
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "DN718581": {
+   "name": "Waimapu at Glue Pot Rd",
+   "lat": -37.852996,
+   "lon": 176.150416,
+   "series": {
+    "Precip Total": {
+     "begin": "2003-12-08T11:00:00.000Z",
+     "end": "2026-08-13T02:05:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "DO690531": {
+   "name": "Waimapu at McCarrolls",
+   "lat": -37.7676010131836,
+   "lon": 176.143600463867,
+   "series": {
+    "Precip Total": {
+     "begin": "2006-03-30T01:00:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "DP184539": {
+   "name": "Bore 93 at James Rd",
+   "lat": -37.6784210205078,
+   "lon": 176.082504272461,
+   "series": {
+    "Atmos Pres": {
+     "begin": null,
+     "end": null,
+     "verify_points": 8564
+    }
+   },
+   "hourly_offerings": []
+  },
+  "DP650467": {
+   "name": "Tauranga at Otumoetai",
+   "lat": -37.6835289001465,
+   "lon": 176.135498046875,
+   "series": {
+    "Air Temp": {
+     "begin": "1998-07-27T02:30:05.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2016-12-18T23:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2016-12-18T23:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "DP955711": {
+   "name": "Tauranga at Sulphur Point",
+   "lat": -37.66057215,
+   "lon": 176.1691179,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-08-24T04:20:00.000Z",
+     "end": "2023-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-08-24T04:20:00.000Z",
+     "end": "2023-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-08-24T04:20:00.000Z",
+     "end": "2023-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EK171423": {
+   "name": "Rotorua at Edmund Rd",
+   "lat": -38.1358184814453,
+   "lon": 176.214202880859,
+   "series": {
+    "Air Temp": {
+     "begin": "2006-02-04T02:00:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2016-08-26T02:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2006-02-05T21:00:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EK378316": {
+   "name": "Utuhina at Hunts Farm",
+   "lat": -38.1590805053711,
+   "lon": 176.206497192383,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EK577135": {
+   "name": "Rotorua at Whakarewarewa",
+   "lat": -38.1604385375977,
+   "lon": 176.261596679688,
+   "series": {
+    "Precip Total": {
+     "begin": "1901-01-08T12:00:00.000Z",
+     "end": "2026-08-13T02:19:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "EK687314": {
+   "name": "Rotorua at Moses Rd",
+   "lat": -38.144,
+   "lon": 176.2734,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-01-08T22:30:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-01-08T22:30:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-01-08T22:30:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EL051775": {
+   "name": "Paraiti at Kaharoa",
+   "lat": -38.012717,
+   "lon": 176.267267,
+   "series": {
+    "Precip Total": {
+     "begin": "1985-09-01T12:00:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "EP045592": {
+   "name": "Mount Maunganui at Bridge Marina Entrance",
+   "lat": -37.671011915777534,
+   "lon": 176.17981955404898,
+   "series": {
+    "Air Temp": {
+     "begin": "2024-09-26T21:50:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2024-09-26T21:50:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2024-09-26T21:50:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP045607": {
+   "name": "Mount Maunganui at Tauranga Bridge Marina",
+   "lat": -37.669639,
+   "lon": 176.179716,
+   "series": {
+    "Air Temp": {
+     "begin": "2016-04-15T12:10:00.000Z",
+     "end": "2024-05-23T00:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-06-30T12:10:00.000Z",
+     "end": "2024-05-23T00:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2016-04-15T12:10:00.000Z",
+     "end": "2024-05-23T00:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP079602": {
+   "name": "Mount Maunganui at Whareroa Marae",
+   "lat": -37.6700210571289,
+   "lon": 176.183578491211,
+   "series": {
+    "Air Temp": {
+     "begin": "2015-09-25T12:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-06-30T12:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2015-09-25T12:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP087666": {
+   "name": "Mount Maunganui at Tasman Quay",
+   "lat": -37.66424518,
+   "lon": 176.184269,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-12-07T12:10:00.000Z",
+     "end": "2024-09-09T21:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-12-07T12:10:00.000Z",
+     "end": "2024-09-09T21:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-12-07T12:10:00.000Z",
+     "end": "2024-09-09T21:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP102897": {
+   "name": "Mount Maunganui at Rata St",
+   "lat": -37.6434195,
+   "lon": 176.1850786,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-12-13T12:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-12-13T12:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-12-13T12:10:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP104730": {
+   "name": "Mount Maunganui at Astrolabe St",
+   "lat": -37.65839034,
+   "lon": 176.1858773,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-11-09T12:10:00.000Z",
+     "end": "2024-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-11-09T12:10:00.000Z",
+     "end": "2024-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-11-09T12:10:00.000Z",
+     "end": "2024-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP106779": {
+   "name": "Mount Maunganui at Rail Yard South",
+   "lat": -37.6541,
+   "lon": 176.1859,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-10-26T12:10:00.000Z",
+     "end": "2023-01-26T18:50:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-10-26T12:10:00.000Z",
+     "end": "2023-01-26T18:50:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-10-26T12:10:00.000Z",
+     "end": "2023-01-26T18:50:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP110815": {
+   "name": "Mount Maunganui at Rail Yard North",
+   "lat": -37.65078482,
+   "lon": 176.1862546,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-11-23T12:10:00.000Z",
+     "end": "2024-07-31T21:30:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-11-23T12:10:00.000Z",
+     "end": "2024-07-31T21:30:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-11-23T12:10:00.000Z",
+     "end": "2024-07-31T21:30:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP115784": {
+   "name": "Mount Maunganui at Totara St Rail Crossing",
+   "lat": -37.65351168264185,
+   "lon": 176.18693697983068,
+   "series": {
+    "Air Temp": {
+     "begin": "2024-01-19T00:00:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2024-01-19T00:00:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2024-01-19T00:00:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP116688": {
+   "name": "Mount Maunganui at Totara St",
+   "lat": -37.6621398925781,
+   "lon": 176.187393188477,
+   "series": {
+    "Air Temp": {
+     "begin": "2006-03-02T03:30:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2006-03-02T03:50:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2006-03-02T03:50:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP301713": {
+   "name": "Mount Maunganui at Ranch Rd",
+   "lat": -37.65934669,
+   "lon": 176.2083116,
+   "series": {
+    "Air Temp": {
+     "begin": "2024-02-01T20:20:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2024-02-01T20:20:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2024-02-01T20:20:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP314526": {
+   "name": "Tauranga Harbour at Omanu Golf Club",
+   "lat": -37.676139831543,
+   "lon": 176.210494995117,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "EP663830": {
+   "name": "Tauranga at McGuire G",
+   "lat": -37.7074508666992,
+   "lon": 176.266998291016,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "FB471317": {
+   "name": "Bore 1001238 at Lochinver",
+   "lat": -38.95083,
+   "lon": 176.400678,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-05-01T21:55:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "FI601557": {
+   "name": "Okaro at Okaro Rd",
+   "lat": -38.299129486084,
+   "lon": 176.384902954102,
+   "series": {
+    "Precip Total": {
+     "begin": "2007-05-16T12:00:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2877
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2878
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "FL289316": {
+   "name": "Lake Rotoiti at Okawa Bay",
+   "lat": -38.05190524,
+   "lon": 176.33788662,
+   "series": {
+    "Precip Total": {
+     "begin": "2007-02-15T00:30:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "FL462162": {
+   "name": "Tikitere at SH30",
+   "lat": -38.0651893615723,
+   "lon": 176.358200073242,
+   "series": {
+    "Precip Total": {
+     "begin": "2016-07-06T00:19:40.000Z",
+     "end": "2021-09-20T00:00:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "FN049141": {
+   "name": "Paraiti at Upper Rangiuru Rd",
+   "lat": -37.8884,
+   "lon": 176.3033,
+   "series": {
+    "Atmos Pres": {
+     "begin": null,
+     "end": null,
+     "verify_points": 8639
+    },
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 4145
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "FN471156": {
+   "name": "Paraiti at Link",
+   "lat": -37.8857192993164,
+   "lon": 176.351104736328,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "FO490726": {
+   "name": "Kaituna at Marshalls Farm",
+   "lat": -37.7444496154785,
+   "lon": 176.346801757813,
+   "series": {
+    "Precip Total": {
+     "begin": "2013-08-16T05:12:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "FO620177": {
+   "name": "Kaituna at Te Matai",
+   "lat": -37.7934188842773,
+   "lon": 176.363800048828,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-07-26T04:00:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "GC284749": {
+   "name": "Rangitaiki at Kokomoka (Bore 1001247)",
+   "lat": -38.81946569,
+   "lon": 176.48757327,
+   "series": {
+    "Precip Total": {
+     "begin": "2002-09-13T12:15:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 8637
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 8639
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "GF858495": {
+   "name": "Rangitaiki at Goudies Farm",
+   "lat": -38.570292954819585,
+   "lon": 176.54179785453667,
+   "series": {
+    "Precip Total": {
+     "begin": "2019-02-11T00:00:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "GI868153": {
+   "name": "Rerewhakaaitu at Republican Rd",
+   "lat": -38.33118822571578,
+   "lon": 176.531292220545,
+   "series": {
+    "Precip Total": {
+     "begin": "2019-03-06T23:30:00.000Z",
+     "end": "2026-08-13T02:15:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2869
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2869
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "GM691816": {
+   "name": "Pongakawa at Pongakawa Bush Rd",
+   "lat": -37.9059104919434,
+   "lon": 176.485397338867,
+   "series": {
+    "Precip Total": {
+     "begin": "1996-06-25T23:30:01.000Z",
+     "end": "2026-08-13T02:32:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "HL149408": {
+   "name": "Outlet at Waitangi Soda Springs",
+   "lat": -38.03737778,
+   "lon": 176.54910413,
+   "series": {
+    "Precip Total": {
+     "begin": "2015-11-12T00:40:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "HN426886": {
+   "name": "Pukehina at Cooke N",
+   "lat": -37.813591003418,
+   "lon": 176.569793701172,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "IF912193": {
+   "name": "Te Whaiti at Minginui",
+   "lat": -38.590133,
+   "lon": 176.77854,
+   "series": {
+    "Precip Total": {
+     "begin": "2018-03-23T04:55:00.000Z",
+     "end": "2026-08-13T02:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "IK449802": {
+   "name": "Kawerau at Plunket St",
+   "lat": -38.0873209,
+   "lon": 176.6997743,
+   "series": {
+    "Precip Total": {
+     "begin": "2019-03-18T01:56:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "IK631953": {
+   "name": "Kawerau at Tasman",
+   "lat": -38.0731,
+   "lon": 176.7197,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "IL686317": {
+   "name": "Tarawera at Hogg Rd",
+   "lat": -38.0397987365723,
+   "lon": 176.724792480469,
+   "series": {
+    "Precip Total": {
+     "begin": "2015-08-21T02:00:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 2880
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "IM836884": {
+   "name": "Ohinekoao at Harris Saddle",
+   "lat": -37.908260345459,
+   "lon": 176.708297729492,
+   "series": {
+    "Precip Total": {
+     "begin": "2001-10-04T02:45:00.000Z",
+     "end": "2026-08-13T02:42:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "JH097609": {
+   "name": "Galatea Basin at Horomanga Rd (discontinued)",
+   "lat": -38.3721694946289,
+   "lon": 176.78840637207,
+   "series": {
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "JH105608": {
+   "name": "Galatea Basin at Horomanga Rd",
+   "lat": -38.372232,
+   "lon": 176.789283,
+   "series": {
+    "Air Temp": {
+     "begin": "2018-08-29T05:00:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2018-08-29T04:30:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    },
+    "Precip Total": {
+     "begin": "2018-08-29T04:38:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2018-08-17T03:00:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    },
+    "Soil Moisture": {
+     "begin": null,
+     "end": null,
+     "verify_points": 8639
+    },
+    "Soil Temp": {
+     "begin": null,
+     "end": null,
+     "verify_points": 8559
+    },
+    "Solar Rad": {
+     "begin": "2018-08-29T03:20:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "JI704553": {
+   "name": "Waihua at Clearing",
+   "lat": -38.2850296,
+   "lon": 176.85313595,
+   "series": {
+    "Precip Total": {
+     "begin": "2006-03-29T03:30:00.000Z",
+     "end": "2026-08-13T02:27:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "JL350292": {
+   "name": "Rangitaiki at Te Teko",
+   "lat": -38.0400390625,
+   "lon": 176.800003051758,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-09-08T04:30:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "JL671469": {
+   "name": "Edgecumbe at Edgecumbe",
+   "lat": -37.9815902709961,
+   "lon": 176.829895019531,
+   "series": {
+    "Air Temp": {
+     "begin": "1992-09-06T23:00:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    },
+    "Precip Total": {
+     "begin": "2011-12-16T00:00:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "JM102399": {
+   "name": "Tarawera at Awakaponga",
+   "lat": -37.9414100646973,
+   "lon": 176.766693115234,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-08-27T19:00:00.000Z",
+     "end": "2026-08-13T02:32:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "JM323922": {
+   "name": "Tarawera at ORC Pump Station",
+   "lat": -37.8935089111328,
+   "lon": 176.789306640625,
+   "series": {
+    "Precip Total": {
+     "begin": "1998-01-11T08:45:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "KM165415": {
+   "name": "Whakatane at Kopeopeo",
+   "lat": -37.960750579834,
+   "lon": 176.981201171875,
+   "series": {
+    "Air Temp": {
+     "begin": "2006-07-12T03:20:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2006-07-12T03:20:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    },
+    "Precip Total": {
+     "begin": "2008-04-16T21:20:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2006-07-12T03:20:00.000Z",
+     "end": "2026-07-31T12:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "KM437788": {
+   "name": "Rangitaiki at Thornton",
+   "lat": -37.9170836116543,
+   "lon": 176.87430138298,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-09-14T03:30:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "LE430263": {
+   "name": "Whakatane at Huiarau Summit",
+   "lat": -38.624828338623,
+   "lon": 177.052505493164,
+   "series": {
+    "Precip Total": {
+     "begin": "1975-02-28T20:30:00.000Z",
+     "end": "2026-08-13T02:35:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "LH051656": {
+   "name": "Whakatane at Huitieke Rain",
+   "lat": -38.360562,
+   "lon": 177.0112607,
+   "series": {
+    "Precip Total": {
+     "begin": "1978-02-28T20:30:00.000Z",
+     "end": "2026-08-13T02:34:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "LK284736": {
+   "name": "Whakatane at Awahou Rd",
+   "lat": -38.08269708,
+   "lon": 177.0226304,
+   "series": {
+    "Precip Total": {
+     "begin": "2019-10-04T01:01:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "LK711195": {
+   "name": "Tauranga at Clarke B",
+   "lat": -38.1296005249023,
+   "lon": 177.073806762695,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "LL919933": {
+   "name": "Wainui-te-whara at Munro's",
+   "lat": -37.9800910949707,
+   "lon": 177.014495849609,
+   "series": {
+    "Precip Total": {
+     "begin": "2012-05-29T22:00:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "LM183227": {
+   "name": "Whakatane at Town Wharf",
+   "lat": -37.9490013122559,
+   "lon": 177.003799438477,
+   "series": {
+    "Atmos Pres": {
+     "begin": "2002-04-15T11:15:00.000Z",
+     "end": "2026-08-13T02:40:00.000Z"
+    }
+   },
+   "hourly_offerings": []
+  },
+  "MI036134": {
+   "name": "Tauranga at Omahuru (Ogilvies)",
+   "lat": -38.3135986328125,
+   "lon": 177.121307373047,
+   "series": {
+    "Precip Total": {
+     "begin": "1987-08-14T11:00:00.000Z",
+     "end": "2026-08-13T02:35:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "MK453465": {
+   "name": "Nukuhou at Nukuhou North",
+   "lat": -38.1024,
+   "lon": 177.1569,
+   "series": {
+    "Precip Total": {
+     "begin": "2017-08-04T04:00:00.000Z",
+     "end": "2026-08-13T02:18:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "ML293777": {
+   "name": "Ohope Spit at Ohope Golf Course",
+   "lat": -37.98515056,
+   "lon": 177.13209576,
+   "series": {
+    "Air Temp": {
+     "begin": "2015-09-08T02:10:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    },
+    "Atmos Pres": {
+     "begin": "2015-09-08T01:50:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    },
+    "Precip Total": {
+     "begin": "2015-09-08T02:00:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    },
+    "Rel Humidity": {
+     "begin": "2015-09-08T02:00:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "NH647905": {
+   "name": "Waioweka at Koranga",
+   "lat": -38.3977203369141,
+   "lon": 177.331100463867,
+   "series": {
+    "Precip Total": {
+     "begin": "1979-06-30T19:00:00.000Z",
+     "end": "2026-08-13T02:15:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "NI853034": {
+   "name": "Waioweka at Wairata Rd",
+   "lat": -38.31509417877033,
+   "lon": 177.3291190236848,
+   "series": {
+    "Precip Total": {
+     "begin": "2025-04-01T01:30:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "NJ774061": {
+   "name": "Waioweka at Cableway",
+   "lat": -38.2231903076172,
+   "lon": 177.314605712891,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-12-15T01:15:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "NK608503": {
+   "name": "Waioweka at Mouth of Gorge",
+   "lat": -38.09428635,
+   "lon": 177.28804675,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-12-11T14:30:00.000Z",
+     "end": "2026-08-13T02:35:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "NL602537": {
+   "name": "Otara at Opotiki Wharf",
+   "lat": -38.0013885498047,
+   "lon": 177.281997680664,
+   "series": {
+    "Precip Total": {
+     "begin": "1995-05-31T01:30:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "OJ254656": {
+   "name": "Otara at Tutaetoko",
+   "lat": -38.16771003,
+   "lon": 177.36608361,
+   "series": {
+    "Precip Total": {
+     "begin": "1989-12-18T23:45:00.000Z",
+     "end": "2026-08-13T02:25:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "OK105504": {
+   "name": "Tutaetoko at Wilson",
+   "lat": -38.09207038650255,
+   "lon": 177.34459118155505,
+   "series": {
+    "Precip Total": {
+     "begin": null,
+     "end": null,
+     "verify_points": 0
+    }
+   },
+   "hourly_offerings": []
+  },
+  "OK300616": {
+   "name": "Otara at Browns Bridge",
+   "lat": -38.081169128418,
+   "lon": 177.366195678711,
+   "series": {
+    "Precip Total": {
+     "begin": "1986-06-02T21:00:00.000Z",
+     "end": "2026-08-13T03:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "OK781113": {
+   "name": "Pakihi at Pakihi Station",
+   "lat": -38.1243095397949,
+   "lon": 177.423599243164,
+   "series": {
+    "Precip Total": {
+     "begin": "1970-01-01T19:00:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "PI390617": {
+   "name": "Moutohora at Moutohora Rd",
+   "lat": -38.25615773427901,
+   "lon": 177.50108614912426,
+   "series": {
+    "Precip Total": {
+     "begin": "2025-01-16T06:00:00.000Z",
+     "end": "2026-08-13T02:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "PJ626436": {
+   "name": "Whitikau at Whitikau Rd",
+   "lat": -38.18154794898809,
+   "lon": 177.52340947721896,
+   "series": {
+    "Precip Total": {
+     "begin": "2024-10-21T00:39:00.000Z",
+     "end": "2026-08-13T02:50:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "PJ627032": {
+   "name": "Pakihi at Rakanui",
+   "lat": -38.2178497314453,
+   "lon": 177.525802612305,
+   "series": {
+    "Precip Total": {
+     "begin": "1991-05-08T01:30:01.000Z",
+     "end": "2026-08-13T02:00:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "RO275144": {
+   "name": "Te Kaha at SH35",
+   "lat": -37.75117873229087,
+   "lon": 177.68407705766916,
+   "series": {
+    "Precip Total": {
+     "begin": "2022-03-11T01:18:00.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  },
+  "SN376520": {
+   "name": "Haparapara at Haparapara",
+   "lat": -37.846,
+   "lon": 177.848,
+   "series": {
+    "Precip Total": {
+     "begin": "1996-06-20T02:00:01.000Z",
+     "end": "2026-08-13T02:30:00.000Z"
+    }
+   },
+   "hourly_offerings": [
+    "Precip Total"
+   ]
+  }
+ }
+}

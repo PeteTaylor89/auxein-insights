@@ -355,12 +355,11 @@ def main():
             print(f"✗ TRC ingestion failed: {e}\n")
             success = False
 
-    # Run BoP (Bay of Plenty, AQUARIUS) ingestion.
-    # Explicit only, NOT part of 'all': the portal publishes catalogue metadata
-    # anonymously and gates every value path, so an hourly run would do nothing but
-    # add a round-trip and a GATED line to the log. Wire it into run_all.sh only once
-    # `python ingestion/sources/boprc.py --check-access` reports OPEN.
-    if args.source == 'boprc':
+    # Run BoP (Bay of Plenty) ingestion — OGC SOS, IP-allowlisted to the ingestion box.
+    # Part of 'all' since 2026-08-13, when BoP granted access. This will fail from any
+    # host that is not on their allowlist (and from any host if the URL is https — port
+    # 443 is dropped); see the ingestion/sources/boprc.py docstring.
+    if args.source in ['boprc', 'all']:
         try:
             print("▶ Starting BoP (BOPRC) ingestion...\n")
             ingester = BoPRCIngestion()
