@@ -9,7 +9,8 @@ import {
   Megaphone,
   FileText,
   BookOpen,
-  Mail
+  Mail,
+  Map
 } from 'lucide-react';
 import '../pages/admin.css';
 
@@ -22,6 +23,7 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
     { path: '/admin/articles', icon: FileText, label: 'Articles' },
     { path: '/admin/research', icon: BookOpen, label: 'Research' },
     { path: '/admin/weather', icon: Cloud, label: 'Weather' },
+    { path: '/admin/weather/map', icon: Map, label: 'Station Map' },
     { path: '/admin/banners', icon: Megaphone, label: 'Banners' },
     { path: '/admin/email', icon: Mail, label: 'Email' },
   ];
@@ -30,7 +32,14 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
     if (path === '/admin') {
       return location.pathname === '/admin';
     }
-    return location.pathname.startsWith(path);
+    if (!location.pathname.startsWith(path)) return false;
+    // The most specific entry wins, so /admin/weather does not also highlight
+    // while /admin/weather/map is open.
+    return !navItems.some(
+      (item) => item.path !== path
+        && item.path.startsWith(path)
+        && location.pathname.startsWith(item.path)
+    );
   };
 
   return (

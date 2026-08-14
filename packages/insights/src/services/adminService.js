@@ -102,6 +102,28 @@ export const adminWeatherService = {
   },
 
   /**
+   * Every active station with coordinates, status and variable list, for the
+   * coverage map. One call — the map filters client-side from here.
+   */
+  getStationMap: async ({ refresh = false } = {}) => {
+    const response = await publicApi.get(`${ADMIN_BASE}/weather/stations/map`, {
+      params: refresh ? { refresh: true } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
+   * Recent history for one station and one variable, for the map chart modal.
+   */
+  getStationSeries: async (stationId, variable, days = 10) => {
+    const response = await publicApi.get(
+      `${ADMIN_BASE}/weather/stations/${stationId}/series`,
+      { params: { variable, days } }
+    );
+    return response.data;
+  },
+
+  /**
    * Get single station detail
    */
   getStation: async (stationId) => {

@@ -1,6 +1,37 @@
 # Climate Surface Contract v1
 
-**Status: PUBLISHED 2026-08-02 · this is the interface WS3 builds against**
+> ## ⚠ SUPERSEDED 2026-08-04 by [`SURFACE_CONTRACT_V2.md`](SURFACE_CONTRACT_V2.md)
+>
+> The interpolation engine changed (`ridge` + GCV replaced scipy `Rbf`), which
+> altered the meaning and scale of the published `smoothing` field and every
+> accuracy figure in §3. That is a semantic change, so per §7 it mints **v2**.
+>
+> **No v1 surface was ever generated and no v1 route was ever implemented**, so
+> there is nothing to migrate and no dual-serve period. Build against v2.
+>
+> This document is retained as the record of what the on-prem-faithful `legacy`
+> engine produced, and its §3 figures remain the correct description of that
+> engine. Do not build against it.
+>
+> ### v2 amendment 2026-08-05 — and why it changes nothing here
+>
+> v2 has since gained a **station relevance screen** and an **antimeridian wrap**
+> in the projection (v2 §4.2, recorded in v2 §8.1). Both are additive; v2 did not
+> bump again. Neither affects anything in this document, for two separate
+> reasons worth stating so nobody re-derives them:
+>
+> - **The antimeridian bug never applied to the `legacy` engine.** Legacy fits in
+>   raw lon/lat degrees via scipy `Rbf` and never calls `project_km`, so the
+>   projection that carried the bug is not on this document's path at all.
+> - **The relevance screen excludes nothing from this document's figures.** The
+>   golden fixture is 474 CliFlo stations, every one on the mainland: no
+>   longitude west of the antimeridian, and a maximum of 30 km from the nearest
+>   grid cell against an 800 km radius. Re-run, it rejects zero stations.
+>
+> So §3's accuracy numbers stand exactly as published. They describe an engine
+> that is no longer used, which was already the point of retaining them.
+
+**Status: PUBLISHED 2026-08-02 · SUPERSEDED 2026-08-04 · v2 amended 2026-08-05**
 
 This document is the frozen interface between the interpolation pipeline (WS2)
 and everything that consumes surfaces (WS3 frontend, point API, AI agent tools,

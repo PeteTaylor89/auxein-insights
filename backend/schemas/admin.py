@@ -225,6 +225,69 @@ class StationListResponse(BaseModel):
     summary: StationStatsResponse
 
 
+class StationMapItem(BaseModel):
+    """
+    Lightweight station row for the coverage map.
+
+    Deliberately flatter and smaller than StationListItem — the map draws ~870
+    of these at once and needs coordinates, one status and the variable list to
+    filter on, not the full health block.
+    """
+    station_id: int
+    station_code: str
+    station_name: Optional[str]
+    data_source: str
+    region: Optional[str]
+
+    latitude: float
+    longitude: float
+    elevation: Optional[int]
+
+    status: StationStatus
+    last_data_timestamp: Optional[datetime]
+    hours_since_last_data: Optional[float]
+    completeness_24h_pct: float
+    derived_interval_minutes: Optional[int]
+
+    variables: List[str]
+
+
+class StationMapResponse(BaseModel):
+    """Stations plus the filter vocabularies actually present in the result."""
+    stations: List[StationMapItem]
+    total: int
+    without_coordinates: int
+    variables: List[str]
+    sources: List[str]
+    regions: List[str]
+    counts_by_status: Dict[str, int]
+
+
+class SeriesPoint(BaseModel):
+    """One observation. Short keys — a 10-day series can be ~7,000 of these."""
+    t: datetime
+    v: Optional[float]
+
+
+class StationSeriesResponse(BaseModel):
+    """A single variable's recent history for one station."""
+    station_id: int
+    station_code: str
+    station_name: Optional[str]
+    variable: str
+    unit: Optional[str]
+    days: int
+
+    point_count: int
+    points: List[SeriesPoint]
+
+    min_value: Optional[float]
+    max_value: Optional[float]
+    avg_value: Optional[float]
+    latest_value: Optional[float]
+    latest_at: Optional[datetime]
+
+
 class StationDetailResponse(StationListItem):
     """Extended station detail."""
     notes: Optional[Dict[str, Any]]

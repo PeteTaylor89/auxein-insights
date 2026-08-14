@@ -137,7 +137,7 @@ def check_value_quality(variable: str, value: Decimal) -> Optional[dict]:
 # =============================================================================
 
 @router.get("/overview", response_model=DataOverviewResponse)
-async def get_data_overview(
+def get_data_overview(
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin)
 ):
@@ -302,7 +302,7 @@ async def get_data_overview(
 
 
 @router.get("/gaps", response_model=DataGapsResponse)
-async def get_data_gaps(
+def get_data_gaps(
     days: int = Query(7, ge=1, le=30),
     station_id: Optional[int] = Query(None),
     min_gap_hours: float = Query(GAP_THRESHOLD_HOURS, ge=1),
@@ -359,7 +359,7 @@ async def get_data_gaps(
 
 
 @router.get("/quality-issues", response_model=DataQualityResponse)
-async def get_quality_issues(
+def get_quality_issues(
     days: int = Query(7, ge=1, le=30),
     station_id: Optional[int] = Query(None),
     issue_type: Optional[str] = Query(None),
@@ -432,7 +432,7 @@ async def get_quality_issues(
 
 
 @router.get("/coverage")
-async def get_temporal_coverage(
+def get_temporal_coverage(
     station_id: Optional[int] = Query(None),
     data_source: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -499,7 +499,7 @@ async def get_temporal_coverage(
 
 
 @router.get("/climate/status")
-async def get_climate_data_status(
+def get_climate_data_status(
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin)
 ):

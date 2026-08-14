@@ -75,7 +75,7 @@ def user_to_list_item(user: PublicUser) -> UserListItem:
 # =============================================================================
 
 @router.get("/stats", response_model=UserStatsResponse)
-async def get_user_stats(
+def get_user_stats(
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin)
 ):
@@ -211,7 +211,7 @@ async def get_user_stats(
 
 
 @router.get("", response_model=UserListResponse)
-async def list_users(
+def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     search: Optional[str] = Query(None, description="Search email or name"),
@@ -305,7 +305,7 @@ async def list_users(
 
 
 @router.get("/export")
-async def export_users(
+def export_users(
     search: Optional[str] = Query(None),
     user_type: Optional[str] = Query(None),
     region_of_interest: Optional[str] = Query(None),
@@ -404,7 +404,7 @@ async def export_users(
 
 
 @router.get("/segments", response_model=List[MarketingSegmentCount])
-async def get_marketing_segments(
+def get_marketing_segments(
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin)
 ):
@@ -436,7 +436,7 @@ async def get_marketing_segments(
 
 
 @router.get("/activity", response_model=ActivityTimelineResponse)
-async def get_activity_timeline(
+def get_activity_timeline(
     days: int = Query(7, ge=1, le=30),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -519,7 +519,7 @@ async def get_activity_timeline(
 
 
 @router.get("/{user_id}", response_model=UserDetailResponse)
-async def get_user_detail(
+def get_user_detail(
     user_id: int,
     db: Session = Depends(get_db),
     admin: PublicUser = Depends(require_admin)
@@ -560,7 +560,7 @@ async def get_user_detail(
 
 
 @router.patch("/{user_id}", response_model=UserDetailResponse)
-async def update_user(
+def update_user(
     user_id: int,
     update_data: UserUpdateRequest,
     db: Session = Depends(get_db),
