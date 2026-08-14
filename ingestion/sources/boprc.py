@@ -272,8 +272,48 @@ SERVER_HOURLY = {
 # last-timestamp spawned a multi-year sub-daily catch-up that hung the cron.
 MAX_INCREMENTAL_DAYS = 30
 
+# How much FURTHER back the incremental may reach to close a gap it can actually close.
+#
+# The clamp above exists to stop a long-dead series spawning a multi-year sub-hourly
+# catch-up. But on its own it turns every small gap into a PERMANENT hole: it starts the
+# fetch at the floor, so anything between the last stored point and that floor is never
+# requested by anyone. That is exactly what happened on 2026-07-14 — the backfill ended
+# at ~07:00Z (its cutoff drifts later as the driver walks the station list) and the first
+# cron run after the deploy floored at ~17:00Z, leaving a 9-hour hole across all 65
+# stations that no per-day audit would show.
+#
+# So the clamp now distinguishes the two cases it was always conflating:
+#   gap <= this  -> fetch from the last stored point; a few extra days is nothing
+#   gap >  this  -> clamp to the floor and warn LOUDLY; that needs a real backfill
+# Absolute worst-case window is MAX_INCREMENTAL_DAYS + this, bounded and one-off — the
+# next run finds the series up to date.
+MAX_GAP_CLOSE_DAYS = 7
+
 # Overlap re-fetched on every incremental run so late-arriving or revised points land.
 INCREMENTAL_OVERLAP_HOURS = 3
+
+
+def incremental_start(last, now):
+    """Where an incremental run should begin fetching one series.
+
+    Returns (start, note) — `note` is None when nothing needs saying, otherwise a line
+    worth printing. Pure and total so the boundaries can be tested without a database.
+    """
+    floor = now - timedelta(days=MAX_INCREMENTAL_DAYS)
+    if last is None:
+        return (floor, None)                       # first ever run: take the window
+    overlap = last - timedelta(hours=INCREMENTAL_OVERLAP_HOURS)
+    if last >= floor:
+        return (max(overlap, floor), None)         # normal steady state
+    if last >= floor - timedelta(days=MAX_GAP_CLOSE_DAYS):
+        return (overlap,
+                f'gap of {(now - last).days}d {(now - last).seconds // 3600}h since the '
+                f'last point — reaching past the {MAX_INCREMENTAL_DAYS}-day clamp to '
+                f'close it')
+    return (floor,
+            f'last point is {(now - last).days}d old, beyond the '
+            f'{MAX_INCREMENTAL_DAYS}+{MAX_GAP_CLOSE_DAYS}-day reach — clamping to the '
+            f'floor, so the gap before it STAYS OPEN and needs a backfill')
 
 
 class BoPSOSError(RuntimeError):
@@ -679,16 +719,9 @@ class BoPRCIngestion:
                         not_before = None
                     else:
                         last = self.get_last_timestamp(station_id, variable)
-                        floor = now - timedelta(days=MAX_INCREMENTAL_DAYS)
-                        if last is None:
-                            start = floor
-                        else:
-                            start = max(last - timedelta(hours=INCREMENTAL_OVERLAP_HOURS),
-                                        floor)
-                            if last < floor:
-                                print(f"    {variable}: last obs {last:%Y-%m-%d} is older "
-                                      f"than the {MAX_INCREMENTAL_DAYS}-day incremental "
-                                      f"clamp — run a backfill to close the gap")
+                        start, note = incremental_start(last, now)
+                        if note:
+                            print(f"    {variable}: {note}")
                         end = now
                         not_before = None
 
