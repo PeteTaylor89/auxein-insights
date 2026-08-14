@@ -15,7 +15,8 @@ Key differences from the Hilltop councils:
     were UTC, so every point reads 12h into the future unless corrected. See
     ES_CLOCK_OFFSET below.
   - data.ashx caps at 365 days (i>365 silently returns 7 days; From/To ignored) -> FORWARD FEED
-    ONLY. No deep history via the API. Incremental look-back is clamped to 30 days.
+    ONLY. No deep history via the API. Incremental look-back is clamped to 30 days, and
+    may reach 7 days further to close a gap it can actually close (see window_util).
   - The measurement query key is the per-site `field` string, which varies across sites
     (e.g. "Relative Humidity" vs "Relative humidity"); we normalise case/space-insensitively.
   - Units are already canonical (Degrees Celsius / % / m/s / Degrees / watts/m2 / mm) -> no scaling.
@@ -35,10 +36,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.window_util import incremental_days
+# Incremental window + gap-close policy: see sources/window_util.py.
 
 # Forward-only source; a stale station can't spawn a runaway fetch. The API also
 # hard-caps at 365 days, so nothing deeper is reachable regardless.
-MAX_INCREMENTAL_DAYS = 30
 API_MAX_DAYS = 365
 
 # ES `epoch_ms` is NZ wall-clock rendered as though it were UTC, so rendering it as
@@ -234,7 +236,9 @@ class SouthlandIngestion:
                     else:
                         last = self.get_last_timestamp(station_id, variable)
                         days_since = (datetime.now(timezone.utc) - last).days + 2
-                        days = max(2, min(days_since, MAX_INCREMENTAL_DAYS))
+                        days, gap_note = incremental_days(days_since)
+                        if gap_note:
+                            print(f"    ⚠ {field}: {gap_note}")
 
                     print(f"    {field} -> {variable}: fetching i={days}d")
                     payload = self.fetch_data(site_name, field, days)

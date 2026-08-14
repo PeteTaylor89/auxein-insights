@@ -23,12 +23,9 @@ from db_connection import get_ingestion_session
 from config.hbrc_sites import HBRC_SITES, HBRC_API_BASE
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.window_util import MAX_INCREMENTAL_DAYS, incremental_start
 
-# Incremental runs must not turn into accidental multi-year fetches: if a station's
-# last timestamp is older than this, clamp the catch-up window and flag it for a
-# deliberate backfill instead of pulling years of sub-daily data (which is slow and
-# hang-prone against flaky council servers).
-MAX_INCREMENTAL_DAYS = 30
+# Incremental window + gap-close policy: see sources/window_util.py.
 
 
 class HBRCIngestion:
@@ -391,12 +388,9 @@ class HBRCIngestion:
                     # truncated source record) must not spawn a multi-year sub-daily
                     # catch-up — that is a backfill job, and it is where the run hangs.
                     if not explicit_start:
-                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
-                        if start_time < floor:
-                            print(f"    ⚠ {measurement}: last data {start_time.date()} is "
-                                  f">{MAX_INCREMENTAL_DAYS}d old — clamping catch-up to "
-                                  f"{floor.date()} (gap needs a deliberate backfill)")
-                            start_time = floor
+                        start_time, gap_note = incremental_start(start_time, end_time)
+                        if gap_note:
+                            print(f"    ⚠ {measurement}: {gap_note}")
 
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
 

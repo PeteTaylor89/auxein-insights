@@ -31,8 +31,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
-
-MAX_INCREMENTAL_DAYS = 30
+from sources.window_util import MAX_INCREMENTAL_DAYS, incremental_start
+# Incremental window + gap-close policy: see sources/window_util.py.
 
 
 class NRCIngestion:
@@ -237,9 +237,9 @@ class NRCIngestion:
                         print(f"    {measurement}: Already up to date")
                         continue
                     if not explicit_start:
-                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
-                        if start_time < floor:
-                            start_time = floor
+                        start_time, gap_note = incremental_start(start_time, end_time)
+                        if gap_note:
+                            print(f"    ⚠ {measurement}: {gap_note}")
 
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
                     for chunk_start, chunk_end in self._year_chunks(start_time, end_time):

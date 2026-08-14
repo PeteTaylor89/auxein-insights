@@ -17,9 +17,9 @@ from db_connection import get_ingestion_session
 from config.mdc_sites import MDC_SITES, MDC_API_BASE
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.window_util import MAX_INCREMENTAL_DAYS, incremental_start
 
-# Incremental runs must not turn into accidental multi-year fetches (see hbrc.py).
-MAX_INCREMENTAL_DAYS = 30
+# Incremental window + gap-close policy: see sources/window_util.py.
 
 
 class MDCIngestion:
@@ -350,12 +350,9 @@ class MDCIngestion:
                     # Cap incremental look-back so a stale/gappy station can't spawn
                     # a runaway multi-year sub-daily catch-up (see hbrc.py).
                     if not explicit_start:
-                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
-                        if start_time < floor:
-                            print(f"    ⚠ {measurement}: last data {start_time.date()} is "
-                                  f">{MAX_INCREMENTAL_DAYS}d old — clamping catch-up to "
-                                  f"{floor.date()} (gap needs a deliberate backfill)")
-                            start_time = floor
+                        start_time, gap_note = incremental_start(start_time, end_time)
+                        if gap_note:
+                            print(f"    ⚠ {measurement}: {gap_note}")
 
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
 

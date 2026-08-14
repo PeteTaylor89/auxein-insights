@@ -27,10 +27,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.window_util import MAX_INCREMENTAL_DAYS, incremental_start
+# Incremental window + gap-close policy: see sources/window_util.py.
 
 HORIZONS_API_BASE = 'https://hilltopserver.horizons.govt.nz/data.hts'
-
-MAX_INCREMENTAL_DAYS = 30
 
 
 def base_measurement(qualified: str) -> str:
@@ -339,12 +339,9 @@ class HorizonsIngestion:
                         continue
 
                     if not explicit_start:
-                        floor = end_time - timedelta(days=MAX_INCREMENTAL_DAYS)
-                        if start_time < floor:
-                            print(f"    ⚠ {measurement}: last data {start_time.date()} is "
-                                  f">{MAX_INCREMENTAL_DAYS}d old — clamping catch-up to "
-                                  f"{floor.date()} (gap needs a deliberate backfill)")
-                            start_time = floor
+                        start_time, gap_note = incremental_start(start_time, end_time)
+                        if gap_note:
+                            print(f"    ⚠ {measurement}: {gap_note}")
 
                     print(f"    {measurement}: {start_time.date()} to {end_time.date()}")
 

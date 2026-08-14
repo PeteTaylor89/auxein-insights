@@ -88,9 +88,11 @@ from db_connection import get_ingestion_session
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
 
-# Forward-only source: a stale station cannot spawn a runaway fetch, and the API caps
-# out at 365 days regardless.
-MAX_INCREMENTAL_DAYS = 30
+# TRC is forward-only, so it has no incremental clamp of its own — but its backfill
+# cutoff MUST equal the shared incremental window, or the two either overlap (double
+# counting daily rainfall totals) or leave a gap. Sharing the constant keeps them in
+# step if the window is ever retuned.
+from sources.window_util import MAX_INCREMENTAL_DAYS  # noqa: E402
 
 # The complete accepted vocabulary. Anything else returns error:true.
 PERIODS = ('7days', '30days', '365days')
