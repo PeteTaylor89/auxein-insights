@@ -28,9 +28,16 @@ numpy==2.2.5
 packaging==24.2
 # Reads the climate-surface COGs for /api/v1/surfaces. Ships manylinux wheels
 # with GDAL bundled, so EB needs no system GDAL — but it is ~100 MB installed,
-# which is the largest single dependency here. Pinned to match the workstation
-# venv that produces the rasters (GDAL 3.12.1).
-rasterio==1.5.0
+# which is the largest single dependency here.
+#
+# CAPPED AT 1.4.4 BY THE EB PLATFORM, NOT BY CHOICE. rasterio 1.5.x declares
+# Requires-Python >=3.12; the EB platform is Python 3.11, so 1.5.0 failed the
+# deploy outright at pip install (2026-08-14). 1.4.4 is the newest release with
+# a cp311 manylinux wheel. Only the COG READER runs here, and the COG format is
+# stable across GDAL versions, so trailing the workstation venv (GDAL 3.12.1)
+# that WRITES the rasters is fine. Raise this only after the platform moves to
+# Python 3.12 — and re-check that requires-python first.
+rasterio==1.4.4
 affine==3.0.0
 pandas==2.2.3
 passlib==1.7.4

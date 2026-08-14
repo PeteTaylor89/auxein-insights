@@ -18,7 +18,7 @@
     "dev:regional": "concurrently --kill-others --names \"API,INSIGHTS\" --prefix-colors \"blue,magenta\" \"npm run dev:backend\" \"npm run dev:insights\"",
     "dev:pro-app": "concurrently --kill-others --names \"API,PRO\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:pro\"",
     "dev:marketing": "cd packages/auxein-marketing && npm run dev",
-    "dev:mobile": "cd packages/mobile && npx expo start",
+    "dev:mobile": "cd packages/mobile && cross-env APP_VARIANT=development npx expo start",
     "dev:web": "concurrently --kill-others --names \"API,INSIGHTS,PRO\" --prefix-colors \"blue,magenta,green\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\"",
     "dev:all": "concurrently --kill-others --names \"API,INSIGHTS,PRO,MOBILE\" --prefix-colors \"blue,magenta,green,yellow\" \"npm run dev:backend\" \"npm run dev:insights\" \"npm run dev:pro\" \"npm run dev:mobile\"",
     "kill:node": "powershell \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" 2>nul || echo No Node processes",
