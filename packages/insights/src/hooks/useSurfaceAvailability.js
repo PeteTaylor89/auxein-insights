@@ -12,10 +12,16 @@ import {
   getAvailable,
   isInGap,
   latestAvailableDate,
+  monthsAvailable,
   isSurfacesUnavailable,
+  DEFAULT_GRANULARITY,
 } from '../services/surfaceService';
 
-export default function useSurfaceAvailability(variable = 'temp_mean', granularity = 'daily') {
+export default function useSurfaceAvailability(
+  variable = 'temp_mean',
+  granularity = DEFAULT_GRANULARITY,
+  statistic,
+) {
   const [available, setAvailable] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,7 +33,7 @@ export default function useSurfaceAvailability(variable = 'temp_mean', granulari
     setError(null);
     setUnavailable(false);
 
-    getAvailable({ variable, granularity })
+    getAvailable({ variable, granularity, statistic })
       .then((data) => {
         if (cancelled) return;
         setAvailable(data);
@@ -42,9 +48,19 @@ export default function useSurfaceAvailability(variable = 'temp_mean', granulari
       });
 
     return () => { cancelled = true; };
-  }, [variable, granularity]);
+  }, [variable, granularity, statistic]);
 
-  const latest = useMemo(() => latestAvailableDate(available), [available]);
+  // Every month the archive actually holds, in order — what the scrubber steps
+  // through. Empty for non-monthly granularities.
+  const months = useMemo(
+    () => (granularity === 'monthly' ? monthsAvailable(available) : []),
+    [available, granularity],
+  );
+
+  const latest = useMemo(() => {
+    if (granularity === 'monthly') return months.length ? months[months.length - 1] : null;
+    return latestAvailableDate(available);
+  }, [available, granularity, months]);
 
   const dateIsAvailable = useCallback((date) => {
     if (!available) return false;
@@ -61,6 +77,9 @@ export default function useSurfaceAvailability(variable = 'temp_mean', granulari
     error,
     unavailable,
     latest,
+    months,
+    statistics: available?.meta?.statistics ?? [],
+    unit: available?.meta?.unit ?? null,
     dateIsAvailable,
     gaps: available?.gaps ?? [],
     // The stub says so about itself; the real pipeline will not. Anything that

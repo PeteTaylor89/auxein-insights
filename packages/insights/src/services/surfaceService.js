@@ -13,6 +13,23 @@ import publicApi from './publicApi';
 
 const BASE = '/surfaces';
 
+// The published archive is MONTHLY (1986-01..2023-12, 500 m) plus a per-variable
+// `records` set. No daily surfaces exist: the backfill streams month-by-month
+// into accumulators and never materialises a daily raster. Asking for `daily`
+// now gets a 422 rather than an invented field, so `monthly` is the default
+// everywhere on the client.
+export const DEFAULT_GRANULARITY = 'monthly';
+
+// Monthly and records surfaces are keyed by statistic as well as by date, so a
+// tile URL without one is not resolvable. `mean` is the only statistic every
+// variable publishes; rainfall's headline is `sum`.
+export const DEFAULT_STATISTIC = {
+  temp_mean: 'mean',
+  temp_min: 'mean',
+  temp_max: 'mean',
+  rainfall: 'sum',
+};
+
 // §5 variable vocabulary. Units are the contract's and are NOT negotiable at
 // the display layer — a chart that relabels C as F must convert, not rename.
 export const SURFACE_VARIABLES = {
@@ -44,12 +61,16 @@ export function isSurfacesUnavailable(error) {
  * `value: null` means no surface for that date. It NEVER means zero. A
  * null-rainfall-written-as-zero bug (B4.1) has already bitten this platform.
  */
-export async function getPoint({ lon, lat, variables, start, end, granularity = 'daily' }) {
+export async function getPoint({
+  lon, lat, variables, start, end,
+  granularity = DEFAULT_GRANULARITY,
+  statistic,
+}) {
   const { data } = await publicApi.get(`${BASE}/point`, {
     params: {
       lon, lat,
       variables: Array.isArray(variables) ? variables.join(',') : variables,
-      start, end, granularity,
+      start, end, granularity, statistic,
     },
   });
   return data;
@@ -82,9 +103,13 @@ export async function getRegion({ zoneId, variables, start, end, granularity = '
  * `gaps` is authoritative. The time-scrubber greys these out; it does not
  * request them and render holes.
  */
-export async function getAvailable({ variable = 'temp_mean', granularity = 'daily' } = {}) {
+export async function getAvailable({
+  variable = 'temp_mean',
+  granularity = DEFAULT_GRANULARITY,
+  statistic,
+} = {}) {
   const { data } = await publicApi.get(`${BASE}/available`, {
-    params: { variable, granularity },
+    params: { variable, granularity, statistic },
   });
   return data;
 }
@@ -96,13 +121,40 @@ export async function getAvailable({ variable = 'temp_mean', granularity = 'dail
  * them itself. Absolute, since tiles are fetched by the map rather than by our
  * axios instance and so do not inherit its baseURL.
  */
-export function tileUrlTemplate({ variable, valid_at, granularity = 'daily', ramp, min, max }) {
+export function tileUrlTemplate({
+  variable,
+  valid_at,
+  granularity = DEFAULT_GRANULARITY,
+  statistic,
+  ramp,
+  min,
+  max,
+}) {
   const apiBase = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
   const params = new URLSearchParams();
-  params.set('ramp', ramp || SURFACE_VARIABLES[variable]?.ramp || 'viridis');
+  // `ramp` is deliberately NOT defaulted here any more. The server holds a
+  // measured default ramp AND a fixed display domain per (variable, statistic);
+  // sending a ramp from the client overrides half of that pairing and can put a
+  // blues ramp on a domain chosen for magma. Send one only when overriding on
+  // purpose.
+  if (ramp) params.set('ramp', ramp);
+  if (statistic) params.set('statistic', statistic);
+  // Overriding min/max leaves the server's fixed domain, so tiles rendered with
+  // one range and tiles rendered with another must not be mixed in a session.
   if (min != null) params.set('min', String(min));
   if (max != null) params.set('max', String(max));
-  return `${apiBase}${BASE}/tiles/${variable}/${granularity}/${valid_at}/{z}/{x}/{y}.png?${params}`;
+  const query = params.toString();
+  const stamp = monthStamp(valid_at) || valid_at;
+  return `${apiBase}${BASE}/tiles/${variable}/${granularity}/${stamp}/{z}/{x}/{y}.png${query ? `?${query}` : ''}`;
+}
+
+/** 'YYYY-MM' from a Date or any ISO date string. Monthly surfaces key on this. */
+export function monthStamp(value) {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}$/.test(value)) return value;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 // --- gap handling ----------------------------------------------------------
@@ -159,6 +211,30 @@ export function latestAvailableDate(available, maxLookbackDays = 400) {
   return null;
 }
 
+/**
+ * Every month between `first` and `last` that is not inside a gap, as 'YYYY-MM'.
+ * This is what the scrubber steps through — it must never offer a month the
+ * archive does not hold.
+ */
+export function monthsAvailable(available) {
+  if (!available?.first || !available?.last) return [];
+  const gaps = parseGaps(available.gaps);
+  const start = new Date(available.first);
+  const end = new Date(available.last);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+
+  const out = [];
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const stop = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1);
+  while (cursor.getTime() <= stop) {
+    if (!gaps.some((g) => cursor > g.start && cursor < g.end)) {
+      out.push(monthStamp(cursor));
+    }
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return out;
+}
+
 export default {
   getPoint,
   getRegion,
@@ -167,6 +243,10 @@ export default {
   parseGaps,
   isInGap,
   latestAvailableDate,
+  monthsAvailable,
+  monthStamp,
   isSurfacesUnavailable,
   SURFACE_VARIABLES,
+  DEFAULT_GRANULARITY,
+  DEFAULT_STATISTIC,
 };

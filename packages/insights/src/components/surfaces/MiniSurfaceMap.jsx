@@ -16,25 +16,35 @@ import mapboxgl from 'mapbox-gl';
 import { Map as MapIcon, ArrowRight } from 'lucide-react';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import useSurfaceAvailability from '../../hooks/useSurfaceAvailability';
-import { tileUrlTemplate, SURFACE_VARIABLES } from '../../services/surfaceService';
+import {
+  tileUrlTemplate,
+  SURFACE_VARIABLES,
+  DEFAULT_STATISTIC,
+} from '../../services/surfaceService';
 import './MiniSurfaceMap.css';
 
 // Mainland NZ plus enough margin that the fitted view is not cropped tight.
 const NZ_BOUNDS = [[165.8, -47.6], [179.4, -33.9]];
 
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
+// The published archive is monthly, so `latest` is a 'YYYY-MM' stamp rather
+// than a full date. Rendering it as a day would invent precision the surface
+// does not have — a monthly mean is not a measurement on the 1st.
+function formatMonth(stamp) {
+  if (!stamp) return '';
+  const [y, m] = String(stamp).split('-');
+  const d = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
   return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+    ? stamp
+    : d.toLocaleDateString('en-NZ', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
 function MiniSurfaceMap({ variable = 'temp_mean', to = '/map' }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const [mapFailed, setMapFailed] = useState(false);
-  const { latest, unavailable, loading, isStub } = useSurfaceAvailability(variable);
+  const statistic = DEFAULT_STATISTIC[variable] || 'mean';
+  const { latest, unavailable, loading, isStub } =
+    useSurfaceAvailability(variable, 'monthly', statistic);
 
   const meta = SURFACE_VARIABLES[variable] || {};
   const hasToken = Boolean(import.meta.env.VITE_MAPBOX_TOKEN);
@@ -66,7 +76,9 @@ function MiniSurfaceMap({ variable = 'temp_mean', to = '/map' }) {
     map.on('load', () => {
       map.addSource('surface', {
         type: 'raster',
-        tiles: [tileUrlTemplate({ variable, valid_at: latest })],
+        tiles: [tileUrlTemplate({
+          variable, valid_at: latest, granularity: 'monthly', statistic,
+        })],
         tileSize: 256,
         bounds: [NZ_BOUNDS[0][0], NZ_BOUNDS[0][1], NZ_BOUNDS[1][0], NZ_BOUNDS[1][1]],
         maxzoom: 12,
@@ -83,7 +95,7 @@ function MiniSurfaceMap({ variable = 'temp_mean', to = '/map' }) {
       map.remove();
       mapRef.current = null;
     };
-  }, [canRenderMap, variable, latest]);
+  }, [canRenderMap, variable, statistic, latest]);
 
   return (
     <Link to={to} className="mini-surface-map" aria-label={`${meta.label || variable} surface — open the Atlas`}>
@@ -102,7 +114,7 @@ function MiniSurfaceMap({ variable = 'temp_mean', to = '/map' }) {
       <div className="mini-surface-map__caption">
         <div className="mini-surface-map__labels">
           <strong>{meta.label || variable}</strong>
-          {latest && <span className="mini-surface-map__date">{formatDate(latest)}</span>}
+          {latest && <span className="mini-surface-map__date">{formatMonth(latest)}</span>}
           {isStub && <span className="mini-surface-map__demo">demo data</span>}
         </div>
         <span className="mini-surface-map__cta">

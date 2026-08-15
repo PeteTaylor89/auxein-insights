@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import RegionalMap from '../components/RegionalMap';
+import SurfaceMap from '../components/surfaces/SurfaceMap';
 import SiteHeader from '../components/SiteHeader';
 import AuthModal from '../components/auth/AuthModal';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -17,6 +18,7 @@ const featuredRegions = [
 function MapExplorer() {
   const { isAuthenticated } = usePublicAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [view, setView] = useState('surface');
 
   useDocumentMeta({
     title: 'Vine Atlas — NZ Wine Region Map',
@@ -51,9 +53,38 @@ function MapExplorer() {
         subtitle="Regional Intelligence"
         onSignInClick={() => setAuthModalOpen(true)}
       />
-      <div className="map-explorer-container">
-        <RegionalMap regions={featuredRegions} />
+
+      {/* Two genuinely different maps, not two styles of one. The climate
+          surface is the interpolated 500 m national field; the region map is
+          vector boundaries and blocks. Defaulting to the surface because it is
+          the product this page exists to show. */}
+      <div className="map-explorer-tabs" role="tablist" aria-label="Map">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'surface'}
+          className={`map-explorer-tab${view === 'surface' ? ' is-active' : ''}`}
+          onClick={() => setView('surface')}
+        >
+          Climate surface
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'regions'}
+          className={`map-explorer-tab${view === 'regions' ? ' is-active' : ''}`}
+          onClick={() => setView('regions')}
+        >
+          Wine regions
+        </button>
       </div>
+
+      <div className="map-explorer-container">
+        {view === 'surface'
+          ? <SurfaceMap />
+          : <RegionalMap regions={featuredRegions} />}
+      </div>
+
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} context="map" />
     </div>
   );

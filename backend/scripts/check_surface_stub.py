@@ -147,10 +147,18 @@ check("422 hourly not served",
 check("422 region without bbox",
       status_of(S.region_stats, variables="temp_mean", start="1986-01-01",
                 end="1986-01-02", zone_id=5, bbox=None, granularity="daily") == 422)
+# Turning the stub off no longer means "surfaces are 503". Since the archive was
+# published and indexed (2026-08-15) it means "serve the real thing" — the
+# published COGs on S3 via `surface_run`. So what has to hold here is narrower
+# and more useful: the dispatch flips, and the stub's own guard still refuses to
+# emit fixture data when it is off. The real path has its own suite,
+# `check_surfaces_live.py`.
 S.STUB_ENABLED = False
-check("503 when disabled",
-      status_of(S.available, variable="temp_mean", granularity="daily") == 503)
+check("dispatch leaves the stub when disabled", S._use_stub() is False)
+check("503 if a stub path is reached while disabled",
+      status_of(S._require_enabled) == 503)
 S.STUB_ENABLED = True
+check("dispatch returns to the stub when enabled", S._use_stub() is True)
 
 print()
 print("ALL PASS" if ok else "FAILURES ABOVE")

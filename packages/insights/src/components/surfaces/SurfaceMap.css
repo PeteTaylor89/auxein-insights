@@ -1,0 +1,234 @@
+/* SurfaceMap — the Atlas.
+   Mobile-first: controls stack under a full-bleed map, targets are >=44px, and
+   the scrubber is a native range input rather than a JS slider so it keeps
+   platform touch behaviour and keyboard support for free. */
+
+.surface-map {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  background: var(--white, #fff);
+}
+
+.surface-map__canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 340px;
+  height: clamp(340px, 58vh, 720px);
+  background: #edf0ea;
+}
+
+.surface-map__gl {
+  position: absolute;
+  inset: 0;
+}
+
+.surface-map__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #5b6830;
+  text-align: center;
+  padding: 24px;
+}
+
+.surface-map__hint {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+/* --- legend --------------------------------------------------------------- */
+
+.surface-map__legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: min(260px, calc(100% - 24px));
+  padding: 8px 10px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.surface-map__ramp {
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.surface-map__ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: #3d4632;
+}
+
+.surface-map__legend-unit {
+  font-size: 0.7rem;
+  color: #6b7360;
+  margin-top: 1px;
+}
+
+.surface-map__legend-note {
+  opacity: 0.8;
+}
+
+/* --- controls ------------------------------------------------------------- */
+
+.surface-map__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.surface-map__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Horizontal scroll with snap rather than a wrapped grid: on a phone the chip
+   rows stay one line each, which keeps the map as tall as possible. */
+.surface-map__group {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.surface-map__group::-webkit-scrollbar {
+  display: none;
+}
+
+.surface-map__chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+  background: var(--white, #fff);
+  color: #3d4632;
+  font-size: 0.86rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.surface-map__chip:hover {
+  border-color: rgba(0, 0, 0, 0.28);
+}
+
+.surface-map__chip.is-active {
+  background: #5b6830;
+  border-color: #5b6830;
+  color: #fff;
+}
+
+.surface-map__chip--sub {
+  min-height: 38px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* --- scrubber ------------------------------------------------------------- */
+
+.surface-map__scrubber {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.surface-map__play {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* The global `button { padding: 8px 16px }` rule clips small icon buttons on
+     this platform, so padding is reset explicitly rather than inherited. */
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 50%;
+  background: var(--white, #fff);
+  color: #3d4632;
+  cursor: pointer;
+}
+
+.surface-map__play:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.surface-map__range {
+  flex: 1 1 200px;
+  min-width: 160px;
+  height: 44px;
+  accent-color: #5b6830;
+  cursor: pointer;
+}
+
+.surface-map__readout {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 150px;
+}
+
+.surface-map__readout strong {
+  font-size: 0.95rem;
+  color: #2f3527;
+}
+
+.surface-map__meta {
+  font-size: 0.75rem;
+  color: #6b7360;
+  font-variant-numeric: tabular-nums;
+}
+
+.surface-map__meta abbr {
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+
+.surface-map__error {
+  font-size: 0.82rem;
+  color: #a4381f;
+}
+
+.surface-map--empty {
+  padding: 32px;
+  text-align: center;
+  color: #6b7360;
+}
+
+@media (min-width: 760px) {
+  .surface-map__row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .surface-map__group {
+    overflow-x: visible;
+    flex-wrap: wrap;
+  }
+}

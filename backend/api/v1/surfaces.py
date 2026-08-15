@@ -51,6 +51,10 @@ from typing import Optional
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from db.session import get_db
+from services import surface_store as store
 
 # Entitlements. `/tiles`, `/available` and `/region` stay open — the picture and
 # the regional numbers are the free product. `/point` is the Pro action: it
@@ -84,11 +88,34 @@ DISTANCE_BANDS = [(5, 1.10), (10, 1.02), (20, 1.20), (40, 1.41), (80, 1.76),
 
 
 def _require_enabled() -> None:
+    """Guard for the STUB code paths only.
+
+    Since the archive was published and indexed (2026-08-15) the default backing
+    store is the real one: `surface_run` in Postgres plus COGs on S3. The stub
+    survives for two jobs it is still better at — offline frontend development
+    with no AWS credentials, and `backend/scripts/check_surface_stub.py`, whose
+    20 assertions are written against its deliberately awkward behaviour. It is
+    reachable only by setting SURFACE_STUB_ENABLED=1, and this function is what
+    stops a stub response escaping when that is not set.
+    """
     if not STUB_ENABLED:
         raise HTTPException(
             status_code=503,
             detail="Surface stub is disabled. Set SURFACE_STUB_ENABLED=1 to use "
                    "it in development. It must never be enabled in production.")
+
+
+def _use_stub() -> bool:
+    """True when requests should be answered from the local fixture."""
+    return STUB_ENABLED
+
+
+# Surfaces served from the index are immutable: the 1986-2023 archive is a fixed
+# historical product, and a re-run publishes a new model_version rather than
+# mutating a key. So tiles can be cached hard. This is doing the work a CDN
+# would otherwise do — api.auxein.co.nz is not behind CloudFront today, so every
+# uncached tile is an EB request.
+TILE_CACHE_CONTROL = "public, max-age=31536000, immutable"
 
 
 # --- response models (these carry forward to the real implementation) -------
@@ -296,6 +323,9 @@ def point_sample(
     start: str = Query(...),
     end: str = Query(...),
     granularity: str = Query("daily"),
+    statistic: Optional[str] = Query(
+        None, description="Required for monthly/records; ignored for daily"),
+    db: Session = Depends(get_db),
     # PRO ONLY. 401 anonymous, 402 signed-in-but-not-Pro (contract §5.5).
     # Declared as an explicit parameter rather than a router-level dependency so
     # that direct callers — notably backend/scripts/check_surface_stub.py, which
@@ -304,6 +334,9 @@ def point_sample(
     _user=Depends(require_pro),
 ):
     """Sample the surfaces at a point. Contract §5.1. Pro only."""
+    if not _use_stub():
+        return _real_point(db, lon, lat, variables, start, end,
+                           granularity, statistic)
     _require_enabled()
     wanted = [v.strip() for v in variables.split(",") if v.strip()]
     if not wanted:
@@ -396,6 +429,18 @@ def region_stats(
     is why a region value and a point inside it are consistent by construction —
     they come from the same raster.
     """
+    if not _use_stub():
+        # Deliberately NOT implemented against the real archive yet. Contract
+        # §8.2 justified keeping the contract at v2 through the weighting change
+        # (`weighting=blocks|area`) purely on the grounds that `/region` has
+        # never served a value to a consumer — and it says in terms that the
+        # reasoning expires the moment it does. Serving an area-weighted number
+        # here now would silently spend that, and would also contradict the
+        # block-intersected definition the zone statistic actually uses.
+        raise HTTPException(
+            501, "region statistics are not implemented against the published "
+                 "archive yet; the weighting decision (blocks vs area) is open. "
+                 "See SURFACE_CONTRACT_V2 §5.2 and §8.2.")
     _require_enabled()
     if bbox is None:
         raise HTTPException(
@@ -461,12 +506,16 @@ def region_stats(
 
 
 @router.get("/available", response_model=AvailableResponse)
-def available(variable: str = Query("temp_mean"), granularity: str = Query("daily")):
+def available(variable: str = Query("temp_mean"), granularity: str = Query("daily"),
+              statistic: Optional[str] = Query(None),
+              db: Session = Depends(get_db)):
     """What exists, and where the holes are. Contract §5.3.
 
     `gaps` is authoritative: the time-scrubber must grey these out rather than
     request them and render holes.
     """
+    if not _use_stub():
+        return _real_available(db, variable, granularity, statistic)
     _require_enabled()
     if variable not in UNITS:
         raise HTTPException(422, f"unknown variable {variable!r}")
@@ -499,9 +548,11 @@ RAMPS = {
 
 @router.get("/tiles/{variable}/{granularity}/{valid_at}/{z}/{x}/{y}.png")
 def tile(variable: str, granularity: str, valid_at: str, z: int, x: int, y: int,
-         ramp: str = Query("viridis"),
+         ramp: Optional[str] = Query(None),
          vmin: Optional[float] = Query(None, alias="min"),
-         vmax: Optional[float] = Query(None, alias="max")):
+         vmax: Optional[float] = Query(None, alias="max"),
+         statistic: Optional[str] = Query(None),
+         db: Session = Depends(get_db)):
     """Web-mercator PNG tile rendered from the COG. Contract §5.4.
 
     404 when no surface exists for that date — which is the correct answer and
@@ -510,7 +561,11 @@ def tile(variable: str, granularity: str, valid_at: str, z: int, x: int, y: int,
     `min`/`max` are aliased to `vmin`/`vmax` internally so the handler does not
     shadow the builtins it needs; the query-string contract is unchanged.
     """
+    if not _use_stub():
+        return _real_tile(db, variable, granularity, valid_at, z, x, y,
+                          ramp, vmin, vmax, statistic)
     _require_enabled()
+    ramp = ramp or "viridis"
     if ramp not in RAMPS:
         raise HTTPException(422, f"unknown ramp {ramp!r}; have {sorted(RAMPS)}")
     rec = _by_date().get(valid_at)
@@ -584,3 +639,228 @@ def _encode_png(rgba: np.ndarray) -> bytes:
             + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
             + chunk(b"IDAT", zlib.compress(raw, 6))
             + chunk(b"IEND", b""))
+
+
+# =============================================================================
+# Real implementation — `surface_run` in Postgres, COGs on S3.
+#
+# The published archive (1986-01..2023-12, 500 m, 19,624 objects) is MONTHLY
+# plus a per-variable `records` set. There are no daily surfaces: the backfill
+# streams month-by-month into accumulators and never materialises a daily
+# raster, which is the difference between 2.1 h and 11 h + 142 GB. So a caller
+# asking for daily gets a clear 422, not an invented field.
+#
+# These handlers are plain `def`, so FastAPI runs them in the threadpool. They
+# do blocking GDAL range reads against S3 and use a sync Session; an `async def`
+# would park the event loop and has already taken both workers down here once.
+# =============================================================================
+
+def _months_between(start: str, end: str, limit: int = 1200) -> list[str]:
+    """Inclusive list of YYYY-MM between two ISO dates."""
+    def _parse(value: str) -> tuple[int, int]:
+        parts = value.split("-")
+        if len(parts) < 2:
+            raise HTTPException(422, f"expected YYYY-MM or YYYY-MM-DD, got {value!r}")
+        try:
+            return int(parts[0]), int(parts[1])
+        except ValueError as exc:
+            raise HTTPException(422, f"unparseable date {value!r}") from exc
+
+    y0, m0 = _parse(start)
+    y1, m1 = _parse(end)
+    first, last = y0 * 12 + (m0 - 1), y1 * 12 + (m1 - 1)
+    if last < first:
+        raise HTTPException(422, "end is before start")
+    if last - first + 1 > limit:
+        raise HTTPException(422, f"range too long: {last - first + 1} months "
+                                 f"(limit {limit})")
+    return [f"{i // 12:04d}-{i % 12 + 1:02d}" for i in range(first, last + 1)]
+
+
+def _default_statistic(granularity: str, statistic: Optional[str]) -> Optional[str]:
+    """Monthly and records surfaces are keyed by statistic; daily are not.
+
+    Defaulting monthly to `mean` is a convenience, and it is the only statistic
+    every variable publishes. Rainfall's headline is `sum`, but defaulting
+    per-variable would make one URL shape mean different things for different
+    variables, so callers ask for what they want.
+    """
+    if granularity in ("monthly", "records"):
+        return statistic or "mean"
+    return None
+
+
+def _real_available(db: Session, variable: str, granularity: str,
+                    statistic: Optional[str]) -> AvailableResponse:
+    if variable not in UNITS:
+        raise HTTPException(422, f"unknown variable {variable!r}")
+    stat = _default_statistic(granularity, statistic)
+    info = store.availability(db, variable, granularity, stat)
+    # The display domain is published here so a legend can be drawn truthfully.
+    # Without it the client has to invent a scale, and any scale it invents will
+    # disagree with the one the tiles were actually rendered against.
+    lo, hi, ramp = store.domain_for(variable, stat)
+    return AvailableResponse(
+        variable=variable, granularity=granularity,
+        first=info["first"], last=info["last"],
+        resolutions=info["resolutions"], gaps=info["gaps"],
+        meta={"contract_version": CONTRACT_VERSION,
+              "statistic": stat,
+              "count": info["count"],
+              "unit": info.get("unit"),
+              "statistics": store.statistics_for(db, variable, granularity),
+              "steps": info["steps"],
+              "domain": {"min": lo, "max": hi, "ramp": ramp,
+                         "stops": store.RAMPS[ramp],
+                         # The tails saturate on purpose — see
+                         # surface_store.DOMAINS. A legend that claims the ramp
+                         # spans the data would be overstating what it shows.
+                         "saturates": True},
+              "stub": False})
+
+
+def _real_tile(db: Session, variable: str, granularity: str, valid_at: str,
+               z: int, x: int, y: int, ramp: Optional[str],
+               vmin: Optional[float], vmax: Optional[float],
+               statistic: Optional[str]) -> Response:
+    if variable not in UNITS:
+        raise HTTPException(422, f"unknown variable {variable!r}")
+    if not 0 <= z <= 14:
+        raise HTTPException(422, "zoom out of range (0-14)")
+    n_tiles = 2 ** z
+    if not (0 <= x < n_tiles and 0 <= y < n_tiles):
+        raise HTTPException(422, "tile index out of range for this zoom")
+
+    stat = _default_statistic(granularity, statistic)
+    try:
+        row = store.resolve(db, variable, granularity, stat, valid_at)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except store.SurfaceNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    # The domain is a property of the variable and statistic, never of the data
+    # in this tile — otherwise neighbouring tiles disagree on what a colour
+    # means and the map reads as patchwork. Explicit min/max override it.
+    lo_default, hi_default, ramp_default = store.domain_for(variable, stat)
+    lo = float(vmin) if vmin is not None else lo_default
+    hi = float(vmax) if vmax is not None else hi_default
+    chosen = ramp or ramp_default
+    if chosen not in store.RAMPS:
+        raise HTTPException(422, f"unknown ramp {chosen!r}; "
+                                 f"have {sorted(store.RAMPS)}")
+
+    try:
+        png = store.render_tile(row["s3_key"], z, x, y, chosen, lo, hi)
+    except Exception as exc:                                       # noqa: BLE001
+        logger.exception("tile render failed for %s", row["s3_key"])
+        raise HTTPException(503, f"surface is indexed but unreadable: {exc}") from exc
+
+    return Response(
+        content=png, media_type="image/png",
+        headers={
+            "Cache-Control": TILE_CACHE_CONTROL,
+            # Enough for a client to label a legend without a second call, and
+            # enough for a bug report to identify exactly what was rendered.
+            "X-Surface-Key": row["s3_key"],
+            "X-Surface-Domain": f"{lo},{hi}",
+            "X-Surface-Model": row["model_version"],
+            "X-Surface-Resolution-M": str(row["resolution_m"]),
+        })
+
+
+def _real_point(db: Session, lon: float, lat: float, variables: str,
+                start: str, end: str, granularity: str,
+                statistic: Optional[str]) -> PointResponse:
+    wanted = [v.strip() for v in variables.split(",") if v.strip()]
+    if not wanted:
+        raise HTTPException(422, "variables must not be empty")
+    unknown = [v for v in wanted if v not in UNITS]
+    if unknown:
+        raise HTTPException(422, f"unknown variables: {unknown}")
+
+    stat = _default_statistic(granularity, statistic)
+    if granularity == "monthly":
+        stamps = _months_between(start, end)
+    elif granularity == "records":
+        stamps = [None]
+    else:
+        # No daily surfaces exist in the published archive. Say so once, rather
+        # than returning several hundred nulls that look like an outage.
+        raise HTTPException(
+            422, "the published archive is monthly; request granularity="
+                 "monthly (or records). See /available for what exists.")
+
+    # Distance band, from the CLIFLO network that actually produced this
+    # archive. Contract §3.4 — a single national cv_rmse is wrong at both ends,
+    # so `expected_error` widens with isolation.
+    dist = _nearest_station_km(lat, lon)
+    band_err = _expected_error(dist)
+
+    series: list[Series] = []
+    n_real = n_null = 0
+    model_versions: set[str] = set()
+
+    for variable in wanted:
+        points: list[SeriesPoint] = []
+        for stamp in stamps:
+            try:
+                row = store.resolve(db, variable, granularity, stat, stamp)
+            except (store.SurfaceNotFound, ValueError):
+                when = (_at_utc(date(int(stamp[:4]), int(stamp[5:7]), 1))
+                        if stamp else datetime.now(timezone.utc))
+                points.append(SeriesPoint(valid_at=when, value=None,
+                                          reason="no surface for this date"))
+                n_null += 1
+                continue
+
+            model_versions.add(row["model_version"])
+            try:
+                sampled = store.sample(row["s3_key"], [(lon, lat)])[0]
+            except Exception as exc:                               # noqa: BLE001
+                logger.exception("point sample failed for %s", row["s3_key"])
+                raise HTTPException(
+                    503, f"surface is indexed but unreadable: {exc}") from exc
+
+            if sampled is None:
+                # Off the land mask — sea, or outside New Zealand. NULL, never 0.
+                points.append(SeriesPoint(
+                    valid_at=row["valid_at"], value=None,
+                    resolution_m=row["resolution_m"],
+                    reason="outside the land mask"))
+                n_null += 1
+                continue
+
+            # cv_rmse is in `cv_units`, which is NOT the variable's unit for
+            # rainfall: that surface is fitted in ratio space, so its cv_rmse is
+            # dimensionless (~0.0025) and rendering it as mm is wrong by orders
+            # of magnitude. Suppress rather than mislabel.
+            publishable_cv = (row["cv_rmse"]
+                              if row.get("cv_units") == UNITS[variable] else None)
+            points.append(SeriesPoint(
+                valid_at=row["valid_at"], value=round(float(sampled), 3),
+                resolution_m=row["resolution_m"],
+                confidence=Confidence(
+                    cv_rmse=publishable_cv,
+                    expected_error=band_err,
+                    distance_to_nearest_station_km=(
+                        None if dist is None else round(dist, 2)),
+                    t_rmse=None, n_test=row.get("n_stations_test"))))
+            n_real += 1
+
+        series.append(Series(variable=variable, unit=UNITS[variable],
+                             points=points))
+
+    return PointResponse(
+        location=Location(lon=lon, lat=lat, elevation_m=None),
+        granularity=granularity, series=series,
+        meta={"contract_version": CONTRACT_VERSION,
+              "model_version": sorted(model_versions)[0] if model_versions else None,
+              "statistic": stat,
+              "stub": False,
+              "counts": {"real": n_real, "synthetic": 0, "null": n_null},
+              "confidence_note": (
+                  "cv_rmse is the shuffled 10-fold out-of-sample error for the "
+                  "whole surface; expected_error is banded by distance to the "
+                  "nearest contributing station. Rainfall cv_rmse is omitted "
+                  "because it is dimensionless in this archive.")})

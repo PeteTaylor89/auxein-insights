@@ -80,3 +80,31 @@
     font-size: var(--font-base);
   }
 }
+
+/* --- map switcher --------------------------------------------------------- */
+/* The climate surface and the region map are different products sharing a page,
+   so the switch is a tab strip rather than a control inside either map. */
+
+.map-explorer-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.map-explorer-tab {
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #6b7360;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.map-explorer-tab.is-active {
+  color: #3d4632;
+  border-bottom-color: #5b6830;
+}
