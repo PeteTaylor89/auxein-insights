@@ -15,3 +15,4 @@ export { default as Icon, SOURCE_ICONS, OBS_CATEGORY_ICONS, ASSET_CATEGORY_ICONS
 export { default as Skeleton, SkeletonCard } from './Skeleton';
 export { ToastProvider, useToast } from './Toast';
 export { default as TaskStatusBadge } from './TaskStatusBadge';
+export { default as SubTaskPanel } from './SubTaskPanel';

@@ -11,6 +11,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { observationService } from '../api/services';
+import { getTemplateCached, getSpotsCached, getCatalogCached } from '../services/observationsCache';
 import useImageCapture from '../hooks/useImageCapture';
 import { idFor } from '../services/writeQueue';
 import { SectionCard, GpsSection, BottomActionBar, KeyboardAvoider, PhotoGrid } from '../components';
@@ -43,8 +44,11 @@ export default function SpotCaptureScreen({ route, navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const promises = [observationService.getTemplate(templateId)];
-        if (runId) promises.push(observationService.getSpots(runId).catch(() => []));
+        // Cached reads. getTemplate used to throw offline, which landed in the
+        // catch below and left a form with no fields and no explanation — the
+        // reason no observation could be captured out of signal.
+        const promises = [getTemplateCached(templateId)];
+        if (runId) promises.push(getSpotsCached(runId).catch(() => []));
         const [tpl, existingSpots] = await Promise.all(promises);
         setTemplate(tpl);
         const rawSchema = tpl?.field_schema ?? tpl?.fields_json ?? tpl?.schema;
@@ -70,7 +74,7 @@ export default function SpotCaptureScreen({ route, navigation }) {
         if (uniqueSources.length > 0) {
           const refResults = await Promise.all(
             uniqueSources.map(src =>
-              (src === 'el_stage' ? observationService.getElStages() : observationService.getCatalog(src))
+              getCatalogCached(src)
                 .catch(e => { console.log('[SpotCapture] Catalog fetch failed:', src, e.message); return []; })
             )
           );
@@ -726,6 +730,30 @@ export default function SpotCaptureScreen({ route, navigation }) {
     return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
   }
 
+  // Offline with nothing cached for this template, swr resolves null rather
+  // than throwing. Say so, instead of rendering a form with no fields that
+  // looks like a broken template.
+  //
+  // Gated on the template itself, NOT on fields.length: a free-form note
+  // template legitimately has no fields and captures through the notes box
+  // and photos alone, so blocking on an empty schema would kill Quick Field
+  // Note — the flow most likely to be used out of signal.
+  if (!template) {
+    return (
+      <View style={styles.center}>
+        <Feather name="wifi-off" size={32} color={colors.textMuted} />
+        <Text style={styles.blockedTitle}>Template unavailable</Text>
+        <Text style={styles.blockedBody}>
+          {templateName ? `"${templateName}" hasn't` : "This template hasn't"} been loaded on this
+          device yet. Open it once with a connection and it will work offline from then on.
+        </Text>
+        <TouchableOpacity style={styles.blockedBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.blockedBtnText}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const hasUnsavedData = Object.values(values).some(v => v != null && v !== '') || notes.trim() || imageCapture.images.length > 0;
 
   return (
@@ -886,8 +914,31 @@ function FieldWrapper({ field, children }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundWarm },
   scroll: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   content: { padding: spacing.base },
+
+  // Template-unavailable state (offline, never cached)
+  blockedTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: spacing.md,
+  },
+  blockedBody: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: spacing.sm,
+  },
+  blockedBtn: {
+    marginTop: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+  },
+  blockedBtnText: { color: colors.white, fontSize: fontSize.base, fontWeight: '700' },
 
   // Sub-header (below nav, olive themed)
   subHeader: {

@@ -78,6 +78,10 @@ export const tasksService = {
     const res = await api.post('/tasks/tasks', data, offline('Create task', { title: data?.title }));
     return res.data;
   },
+  updateTask: async (taskId, patch) => {
+    const res = await api.patch(`/tasks/tasks/${taskId}`, patch, offline('Update task'));
+    return res.data;
+  },
   // Repair roll-ups. Mirrored from packages/shared/src/api/tasksService.js —
   // mobile can't import @vineyard/shared, so these must be kept in step by hand.
   getRollUpCandidates: async (params = {}) => {
@@ -86,6 +90,15 @@ export const tasksService = {
   },
   rollUpTasks: async (payload) => {
     const res = await api.post('/tasks/tasks/roll-up', payload, offline('Roll up tasks'));
+    return res.data;
+  },
+  // A roll-up's children. Server-side filter — the same one web's SubTaskPanel
+  // uses. Do NOT pull the list and filter client-side; that drags the whole
+  // task list across the wire on every task detail open, roll-up or not.
+  listChildTasks: async (parentTaskId, params = {}) => {
+    const res = await api.get('/tasks/tasks', {
+      params: { parent_task_id: parentTaskId, limit: 200, ...params },
+    });
     return res.data;
   },
   listTaskTemplates: async (params = {}) => {

@@ -11,7 +11,9 @@ import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
 import { byNatural } from '../utils/naturalSort';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { observationService, blocksService } from '../api/services';
+import { observationService } from '../api/services';
+import { getTemplatesCached, listRunsCached } from '../services/observationsCache';
+import { getCompanyBlocksCached } from '../services/blocksCache';
 import { OBS_CATEGORY_ICONS, SkeletonCard } from '../components';
 
 // Template categories
@@ -49,10 +51,14 @@ export default function ObservationsScreen({ navigation }) {
       // "In progress" = observed_at_start set, observed_at_end NULL.
       const runParams = { not_completed: true };
       if (onlyMine) runParams.assigned_to_me = true;
+      // Cached reads: offline these paint the last-known lists instead of the
+      // empty state. Templates in particular were the blocker — an empty
+      // picker is indistinguishable from a company with no templates, so the
+      // screen looked broken rather than offline.
       const [tpl, runs, blk] = await Promise.all([
-        observationService.getTemplates().catch(() => []),
-        observationService.listRuns(runParams).catch(() => []),
-        blocksService.getCompanyBlocks().catch(() => []),
+        getTemplatesCached().catch(() => []),
+        listRunsCached(runParams).catch(() => []),
+        getCompanyBlocksCached().catch(() => []),
       ]);
       setTemplates(Array.isArray(tpl) ? tpl : []);
       const runList = Array.isArray(runs) ? runs : [];

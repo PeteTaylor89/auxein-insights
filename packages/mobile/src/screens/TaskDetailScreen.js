@@ -1,5 +1,5 @@
 // screens/TaskDetailScreen.js — Full task detail with start/rows/complete (M2)
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Alert, TextInput, Modal,
@@ -17,7 +17,7 @@ import { byNatural } from '../utils/naturalSort';
 // (phone GPS wasn't accurate enough to record a track worth acting on)
 import { refOrId } from '../services/writeQueue';
 import {
-  TaskStatusBadge, useToast, EntityPhotos, SectionCard, BottomActionBar,
+  TaskStatusBadge, useToast, EntityPhotos, SectionCard, BottomActionBar, SubTaskPanel,
 } from '../components';
 import RiskHazardChips from '../components/RiskHazardChips';
 
@@ -27,8 +27,40 @@ function rowLabelFor(row) {
   return `Row ${row?.row_identifier || row?.vineyard_row?.row_number || row?.id}`;
 }
 
+// The block a task sits on, whichever shape the payload arrived in:
+// TaskWithRelations nests it, the lighter task payloads carry a flat name.
+function blockNameOf(task) {
+  return task?.block?.block_name || task?.block_name || null;
+}
+
+// "Block 4, Row 18 — Broken wire".
+//
+// The location leads because a repair list gets read two ways: some crews
+// group by issue type, some by block. Whichever way it's sorted, the title
+// has to say where to go — a bare "Broken wire" is useless once it's sitting
+// in a roll-up alongside nine others.
+//
+// Truncation trims the ISSUE, never the location. "Block 4, Row 18 — broken
+// wire on the third pos…" is still actionable; a title cut the other way
+// isn't. Falls back to just the issue when the task has no block or row.
+const TITLE_MAX = 200;
+function issueTitle({ blockName, rowLabel, issue }) {
+  const text = String(issue || '').trim();
+  const where = [blockName, rowLabel ? `Row ${rowLabel}` : null].filter(Boolean).join(', ');
+  if (!where) return text.slice(0, TITLE_MAX);
+  if (!text) return where.slice(0, TITLE_MAX);
+
+  const prefix = `${where} — `;
+  const room = TITLE_MAX - prefix.length;
+  if (room <= 1) return prefix.slice(0, TITLE_MAX);
+  return prefix + (text.length > room ? `${text.slice(0, room - 1).trimEnd()}…` : text);
+}
+
 export default function TaskDetailScreen({ route, navigation }) {
-  const { taskId } = route.params;
+  // fromTaskId is set when this screen was pushed from a roll-up's issue list,
+  // i.e. one TaskDetail stacked on another. It only drives the back button —
+  // see the headerLeft effect below.
+  const { taskId, fromTaskId } = route.params;
   const insets = useSafeAreaInsets();
   // Bottom-sheet modals (Row Completion, Equipment Check, Complete Task) all
   // anchor to the bottom of the screen. Apply the inset so their content +
@@ -63,6 +95,11 @@ export default function TaskDetailScreen({ route, navigation }) {
 
   // Equipment check modal state
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+
+  // Bumped on pull-to-refresh so the rolled-up issues reload with everything
+  // else. SubTaskPanel owns its own fetch (it self-hides on ordinary tasks, so
+  // hoisting the fetch here would run it on every task detail for nothing).
+  const [childRefreshKey, setChildRefreshKey] = useState(0);
 
   const loadTask = useCallback(async () => {
     try {
@@ -122,11 +159,22 @@ export default function TaskDetailScreen({ route, navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setChildRefreshKey(k => k + 1);
     await Promise.all([loadTask(), loadRows()]);
     setRefreshing(false);
   }, [loadTask, loadRows]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Opening an issue from the roll-up and completing it there must be visible
+  // on the way back — otherwise the list still shows it outstanding and the
+  // crew ticks it twice. Skip the first focus; loadAll() already covers mount.
+  const hasFocusedOnce = useRef(false);
+  useEffect(() => navigation.addListener('focus', () => {
+    if (!hasFocusedOnce.current) { hasFocusedOnce.current = true; return; }
+    setChildRefreshKey(k => k + 1);
+    loadTask();
+  }), [navigation, loadTask]);
 
   // Every row's issues + notes, rolled into one ordered list. Web parity with
   // the Field Notes card on TaskDetail.jsx: derived, never stored, so it can't
@@ -166,7 +214,13 @@ export default function TaskDetailScreen({ route, navigation }) {
       headerBackVisible: false, // hide the default tiny chevron — we render a clearer one
       headerLeft: () => (
         <TouchableOpacity
-          onPress={() => navigation.navigate('TaskList')}
+          // Opening an issue from a roll-up stacks TaskDetail on TaskDetail.
+          // A hard navigate to TaskList would skip the parent the user came
+          // from, so pop when there is somewhere to pop back to.
+          onPress={() => {
+            if (fromTaskId && navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate('TaskList');
+          }}
           hitSlop={12}
           style={{
             flexDirection: 'row',
@@ -180,12 +234,12 @@ export default function TaskDetailScreen({ route, navigation }) {
         >
           <Feather name="chevron-left" size={22} color={colors.primary} />
           <Text style={{ color: colors.primary, fontSize: fontSize.base, fontWeight: '600', marginLeft: 2 }}>
-            Tasks
+            {fromTaskId ? 'Back' : 'Tasks'}
           </Text>
         </TouchableOpacity>
       ),
     });
-  }, [navigation]);
+  }, [navigation, fromTaskId]);
 
   // --- Actions ---
 
@@ -271,7 +325,7 @@ export default function TaskDetailScreen({ route, navigation }) {
           let parentId = null;
           if (rollUpChoice === '__new__') {
             const parent = await tasksService.createTask({
-              title: newRollUpTitle.trim() || `Follow-ups — ${task?.block_name || 'vineyard'}`,
+              title: newRollUpTitle.trim() || `Follow-ups — ${blockNameOf(task) || 'vineyard'}`,
               task_category: task?.task_category || 'general',
               priority: 'medium',
             });
@@ -284,7 +338,11 @@ export default function TaskDetailScreen({ route, navigation }) {
           }
 
           await tasksService.createTask({
-            title: `Row ${rowLabel} — ${rowIssues.trim()}`.slice(0, 200),
+            title: issueTitle({
+              blockName: blockNameOf(task),
+              rowLabel,
+              issue: rowIssues,
+            }),
             task_category: task?.task_category || 'general',
             priority: 'medium',
             description: `${rowIssues.trim()}\n\nRaised from ${task?.title || 'a row-by-row task'}${task?.task_number ? ` (${task.task_number})` : ''}, row ${rowLabel}.`,
@@ -498,6 +556,19 @@ export default function TaskDetailScreen({ route, navigation }) {
             ))}
           </SectionCard>
         )}
+
+        {/* A roll-up's children, as a tickable list. Self-hides on an ordinary
+            task, so it can sit here unconditionally. Mounted below Rows to
+            match the reading order on web's TaskDetail. */}
+        <SubTaskPanel
+          taskId={taskId}
+          canEdit={!isCompleted}
+          refreshKey={childRefreshKey}
+          onNavigate={(childId) => navigation.push('TaskDetail', {
+            taskId: childId,
+            fromTaskId: taskId,
+          })}
+        />
 
       </ScrollView>
 

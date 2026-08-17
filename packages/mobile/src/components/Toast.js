@@ -26,11 +26,14 @@ export function ToastProvider({ children }) {
     });
   }, [translateY]);
 
-  const show = useCallback((message, variant = 'success', duration = 2800) => {
+  // `action` is an optional { label, onPress } — the mobile equivalent of the
+  // web toast's onUndo. An actionable toast lingers longer, because the whole
+  // point is that it must survive long enough to be tapped with gloves on.
+  const show = useCallback((message, variant = 'success', duration, action = null) => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setToast({ message, variant });
+    setToast({ message, variant, action });
     Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
-    timerRef.current = setTimeout(hide, duration);
+    timerRef.current = setTimeout(hide, duration ?? (action ? 6000 : 2800));
   }, [translateY, hide]);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
@@ -55,6 +58,15 @@ export function ToastProvider({ children }) {
           >
             <Feather name={v.icon} size={18} color={colors.white} />
             <Text style={styles.text} numberOfLines={2}>{toast.message}</Text>
+            {toast.action && (
+              <TouchableOpacity
+                onPress={() => { hide(); toast.action.onPress?.(); }}
+                hitSlop={10}
+                style={styles.action}
+              >
+                <Text style={styles.actionText}>{toast.action.label}</Text>
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -75,4 +87,18 @@ const styles = StyleSheet.create({
     ...shadows.elevated,
   },
   text: { color: colors.white, fontSize: fontSize.sm, fontWeight: '500', flex: 1 },
+  action: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  actionText: {
+    color: colors.white,
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
 });

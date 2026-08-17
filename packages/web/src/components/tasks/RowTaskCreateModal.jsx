@@ -20,6 +20,14 @@ export default function RowTaskCreateModal({ open, onClose, parentTask, row, onC
   const navigate = useNavigate();
   const rowLabel = row?.row_number ? `Row ${row.row_number}` : row ? `#${row.id}` : '';
   const seedIssue = (row?.issues_found || row?.notes || '').trim();
+  // "Block 4, Row 18" — the location leads the seeded title. A repair list is
+  // read two ways, grouped by issue type and grouped by block, and only the
+  // location makes it actionable under either. Mirrors the same title on
+  // mobile's TaskDetailScreen; keep the two in step.
+  const originLabel = [
+    parentTask?.block?.block_name || parentTask?.block_name,
+    rowLabel,
+  ].filter(Boolean).join(', ');
   const originRef = parentTask
     ? `Raised from ${parentTask.title || `Task #${parentTask.id}`}${parentTask.task_number ? ` (${parentTask.task_number})` : ''}, ${rowLabel}`
     : '';
@@ -45,7 +53,8 @@ export default function RowTaskCreateModal({ open, onClose, parentTask, row, onC
   // Prefill each time the modal opens for a row.
   useEffect(() => {
     if (!open) return;
-    setTitle(seedIssue ? `${rowLabel} — ${seedIssue}` : `${rowLabel} — follow-up`);
+    const issueText = seedIssue || 'follow-up';
+    setTitle(originLabel ? `${originLabel} — ${issueText}` : issueText);
     setCategory(parentTask?.task_category || 'general');
     setPriority('medium');
     setDescription([seedIssue, originRef].filter(Boolean).join('\n\n'));

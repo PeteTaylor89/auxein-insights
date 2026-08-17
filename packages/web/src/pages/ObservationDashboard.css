@@ -269,10 +269,36 @@
   color: var(--color-text);
 }
 
+/* Matches .od-rollup-toggle — same 26px box, same olive fill when open. It was
+   a 10px text glyph, which read as decoration rather than as the control that
+   opens the panel. A span, not a nested button: the whole strip is already the
+   button. */
 .od-filters-chevron {
-  margin-left: 4px;
-  font-size: 10px;
-  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  /* No margin — .od-filters-title is already a flex row with a gap. */
+  border: 1px solid var(--color-olive-border, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: var(--color-olive-light);
+  color: var(--color-primary);
+  line-height: 1;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.od-filters-toggle:hover .od-filters-chevron {
+  background: var(--color-olive-border, var(--color-surface-warm));
+  border-color: var(--color-primary);
+}
+.od-filters-chevron--open {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
+}
+.od-filters-toggle:hover .od-filters-chevron--open {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 .od-th-sortable {

@@ -1,7 +1,7 @@
 // services/tasksCache.js — Stale-while-revalidate wrappers for tasks endpoints.
 // Screens import these instead of tasksService for read paths so cold-open
 // offline still shows the last-loaded data.
-import { swr } from './offlineCache';
+import { swr, paramKey } from './offlineCache';
 import { tasksService, taskRowService } from '../api/services';
 
 // Key namespace conventions:
@@ -10,13 +10,7 @@ import { tasksService, taskRowService } from '../api/services';
 //   tasks.mine:<userId>:<params>
 //   tasks.rows:<taskId>
 //   tasks.rowProgress:<taskId>
-
-function paramKey(params = {}) {
-  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null);
-  if (entries.length === 0) return '';
-  entries.sort(([a], [b]) => a.localeCompare(b));
-  return entries.map(([k, v]) => `${k}=${v}`).join('&');
-}
+//   tasks.children:<taskId>
 
 export async function getUnifiedFeedCached(params = {}, opts = {}) {
   const key = `tasks.feed:${paramKey(params)}`;
@@ -41,4 +35,13 @@ export async function listRowsCached(taskId, opts = {}) {
 export async function getRowProgressCached(taskId, opts = {}) {
   const key = `tasks.rowProgress:${taskId}`;
   return swr(key, () => taskRowService.getProgress(taskId), opts);
+}
+
+// A roll-up's children. Cached like rows are, and for the same reason: the
+// crew opens the roll-up in the block to work down it, which is exactly where
+// signal is worst. Without this the panel would be empty offline even though
+// the parent task itself paints from cache.
+export async function listChildTasksCached(taskId, opts = {}) {
+  const key = `tasks.children:${taskId}`;
+  return swr(key, () => tasksService.listChildTasks(taskId), opts);
 }

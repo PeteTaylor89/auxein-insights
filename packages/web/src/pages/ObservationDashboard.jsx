@@ -333,7 +333,9 @@ function ManagementTab({ StatusBadge }) {
             >
               <Filter size={14} /> Filters
               {totalActiveFilters > 0 && <span className="od-filters-badge">{totalActiveFilters}</span>}
-              <span className="od-filters-chevron">{filtersOpen ? '▾' : '▸'}</span>
+              <span className={`od-filters-chevron ${filtersOpen ? 'od-filters-chevron--open' : ''}`}>
+                {filtersOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              </span>
             </button>
             <input
               className="od-filter-input"
@@ -865,7 +867,9 @@ function TaskFilters({
         >
           <Filter size={14} /> Filters
           {totalActive > 0 && <span className="od-filters-badge">{totalActive}</span>}
-          <span className="od-filters-chevron">{open ? '▾' : '▸'}</span>
+          <span className={`od-filters-chevron ${open ? 'od-filters-chevron--open' : ''}`}>
+            {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </span>
         </button>
         <input
           className="od-filter-input"
@@ -1031,6 +1035,11 @@ function TasksTab() {
   const [tasks, setTasks] = useState([]);
   const [companyUsers, setCompanyUsers] = useState([]);
   const [contractors, setContractors] = useState([]);
+  // Task payloads carry template_id but no template name — TaskResponse has no
+  // template_name field and TaskWithRelations doesn't nest the relationship.
+  // Resolving it here beats adding an eager-load to the list endpoint, which
+  // is the sort of thing that turns into an N+1 on a 500-row fetch.
+  const [taskTemplates, setTaskTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -1079,13 +1088,16 @@ function TasksTab() {
         setLoading(true);
         setError(null);
 
-        const [tasksRes, usersRes, relsRes] = await Promise.all([
+        const [tasksRes, usersRes, relsRes, tplRes] = await Promise.all([
           (tasksService.listTasks?.({ company_id: companyId, limit: 500 })
             ?? tasksService.list?.({ company_id: companyId, limit: 500 })
             ?? tasksService.getTasks?.({ company_id: companyId, limit: 500 })
             ?? Promise.resolve([])).catch(() => []),
           usersService.getCompanyUsers().catch(() => []),
           contractorManagementService.listRelationships().catch(() => []),
+          // No is_active filter: a task built from a since-retired template
+          // still has to show that template's name, not its id.
+          (tasksService.getTemplates?.({}) ?? Promise.resolve([])).catch(() => []),
         ]);
 
         if (!mounted) return;
@@ -1093,6 +1105,7 @@ function TasksTab() {
         setTasks(Array.isArray(items) ? items : []);
         setCompanyUsers(Array.isArray(usersRes) ? usersRes : []);
         setContractors(Array.isArray(relsRes) ? relsRes : []);
+        setTaskTemplates(Array.isArray(tplRes) ? tplRes : (tplRes?.items ?? []));
       } catch (err) {
         console.error('Failed to load tasks:', err);
         setError('Failed to load tasks');
@@ -1337,7 +1350,12 @@ function TasksTab() {
 
     try {
       await tasksService.updateTask(childId, { parent_task_id: parentId });
-      toast.success(`Rolled "${child.title || `Task #${child.id}`}" up under "${parent.title}"`, {
+      const childName = child.title || `Task #${child.id}`;
+      // Word it as what it was: a move reads differently from a first roll-up,
+      // and the undo restores the previous roll-up rather than top level.
+      toast.success(previousParentId
+        ? `Moved "${childName}" to "${parent.title}"`
+        : `Rolled "${childName}" up under "${parent.title}"`, {
         onUndo: async () => {
           await tasksService.updateTask(childId, { parent_task_id: previousParentId });
           setLocalParent(childId, previousParentId);
@@ -1362,6 +1380,10 @@ function TasksTab() {
 
   const handleDragOverParent = (e, parentId) => {
     if (dragTaskId == null || dragTaskId === parentId) return;
+    // A child dragged over the roll-up it already sits in is a no-op —
+    // attachToRollUp bails on the same condition. Don't light up a target that
+    // would do nothing on drop.
+    if (tasks.find(t => t.id === dragTaskId)?.parent_task_id === parentId) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (dropParentId !== parentId) setDropParentId(parentId);
@@ -1386,6 +1408,14 @@ function TasksTab() {
     if (childId && childId !== parentId) attachToRollUp(childId, parentId);
   };
 
+  const templateNameById = useMemo(() => {
+    const map = new Map();
+    for (const tpl of taskTemplates) {
+      if (tpl?.id != null && tpl?.name) map.set(String(tpl.id), tpl.name);
+    }
+    return map;
+  }, [taskTemplates]);
+
   // What a task is grouped under, for the active groupKey.
   const getGroupLabel = (t) => {
     if (groupKey === 'location') {
@@ -1396,7 +1426,13 @@ function TasksTab() {
       return (t.task_category || '').replace(/_/g, ' ') || 'Uncategorised';
     }
     if (groupKey === 'template') {
-      return t.template_name || t.template?.name || (t.template_id ? `Template #${t.template_id}` : 'No template');
+      if (t.template_id == null) return 'No template';
+      // The id fallback stays as a last resort — a template the company can no
+      // longer read still groups its tasks together, just without a name.
+      return t.template_name
+        || t.template?.name
+        || templateNameById.get(String(t.template_id))
+        || `Template #${t.template_id}`;
     }
     return '';
   };
@@ -1870,17 +1906,30 @@ function TasksTab() {
                         two different kinds of thing.
                         They carry the parent's drop handlers so a drop anywhere
                         in the expanded block lands on the roll-up, rather than
-                        the header row being the only target. */}
-                    {isExpanded && children.map((c, ci) => (
+                        the header row being the only target.
+                        They are also drag SOURCES, which is how a child moves
+                        between roll-ups: no checkbox means the bulk bar can
+                        never reach one, so before this the only route was
+                        detach-then-re-add. attachToRollUp already captured the
+                        previous parent for its undo, so re-parenting needed no
+                        new plumbing — only a gesture to start it. */}
+                    {isExpanded && children.map((c, ci) => {
+                      const childDraggable = canDragTask(c);
+                      return (
                       <tr
                         key={`child-${c.id}`}
                         className={[
                           'od-child-row',
+                          childDraggable ? 'od-row-draggable' : '',
+                          dragTaskId === c.id ? 'od-row-dragging' : '',
                           dropParentId === t.id ? 'od-drop-target-child' : '',
                           dropParentId === t.id && ci === children.length - 1
                             ? 'od-drop-target-child--last' : '',
                         ].filter(Boolean).join(' ')}
                         onClick={() => navigate(`/tasks/${c.id}`)}
+                        draggable={childDraggable}
+                        onDragStart={childDraggable ? (e) => handleDragStart(e, c) : undefined}
+                        onDragEnd={childDraggable ? handleDragEnd : undefined}
                         onDragOver={(e) => handleDragOverParent(e, t.id)}
                         onDragLeave={(e) => handleDragLeaveParent(e, t.id)}
                         onDrop={(e) => handleDropOnParent(e, t.id)}
@@ -1888,6 +1937,9 @@ function TasksTab() {
                       >
                         <td />
                         <td className="od-child-title" colSpan={3}>
+                          {childDraggable && (
+                            <GripVertical size={13} className="od-drag-grip" aria-hidden="true" />
+                          )}
                           <span className="od-child-marker">↳</span>
                           {c.title || `Task #${c.id}`}
                           {c.block_name && <span className="od-child-location">{c.block_name}</span>}
@@ -1911,7 +1963,8 @@ function TasksTab() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </Fragment>
                 );
               })}

@@ -1,0 +1,19 @@
+The attached file is for starters and is illustrative.
+
+ 
+
+I have taken a foliar application record processed this morning and generated the operator sheet and two JSON files.
+
+ 
+
+The first JSON on page 4 is an example of the format transmitted to wine companies that want all job data. The second on page 5 is the same job transmitted to NuPoint. You will ask why there are two blocks in the first JSON and seven in the second. This is because two only of the blocks are contracted to our service wine company client. The other five are to Other Winery. I have masked out identification data to anonymise the forms and the data.
+
+As you will expect, there are some small differences in data fields with ground sprays and spread fertilisers. NuPoint technology is not relevant to spot sprays, fertigation applications, paint applications, and implants.
+
+Most wine companies now want GrapeLink to be the repository of application record data with system integrations moving “cleared” earliest harvest dates.
+
+ 
+
+Most integrations now run as scheduled tasks with connections to endpoint URL’s at frequencies relevant to the life cycle of the grapes. More frequent up to and including harvest. Less frequent post-harvest and in winter.
+
+Probably best for you to absorb and then deal with further questions.

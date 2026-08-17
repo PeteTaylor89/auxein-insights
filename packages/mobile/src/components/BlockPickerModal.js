@@ -6,7 +6,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, fontSize, radius } from '../styles/theme';
-import { blocksService } from '../api/services';
+import { getCompanyBlocksCached } from '../services/blocksCache';
 import { byNatural } from '../utils/naturalSort';
 
 export default function BlockPickerModal({ visible, onClose, onSelect, propertyId = null, selectedBlockId = null }) {
@@ -18,7 +18,13 @@ export default function BlockPickerModal({ visible, onClose, onSelect, propertyI
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
-    blocksService.getCompanyBlocks()
+    // Cached: a block picker with nothing in it is a dead end for every flow
+    // that opens it — observation capture and task creation both.
+    getCompanyBlocksCached({
+      onCached: (cached) => {
+        if (Array.isArray(cached?.data)) setBlocks(cached.data);
+      },
+    })
       .then(data => {
         setBlocks(Array.isArray(data) ? data : []);
       })

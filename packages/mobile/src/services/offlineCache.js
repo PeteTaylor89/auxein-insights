@@ -7,7 +7,23 @@ import { checkNetwork } from '../hooks/useNetworkStatus';
 const PREFIX = '@auxein_cache:';
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24; // 24h before considered stale
 
+// Reference data — templates, catalogs, block lists — barely changes, and a
+// phone that has been out of signal for a week still has to open a capture
+// form. Note this only controls the isStale flag handed to onCached: swr
+// always falls back to whatever is cached when offline, at any age.
+export const REFERENCE_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+
 function k(key) { return PREFIX + key; }
+
+// Stable cache key from a params object. Lives here, not in each domain
+// cache: two copies that drift produce keys that miss each other, and a cache
+// miss shows up as "no data" rather than as an error.
+export function paramKey(params = {}) {
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null);
+  if (entries.length === 0) return '';
+  entries.sort(([a], [b]) => a.localeCompare(b));
+  return entries.map(([key, v]) => `${key}=${v}`).join('&');
+}
 
 export async function cacheGet(key, ttlMs = DEFAULT_TTL_MS) {
   try {
