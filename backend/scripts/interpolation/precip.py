@@ -73,6 +73,61 @@ NZ_DAILY_MAX_MM = 800.0
 
 MIN_CLIMATOLOGY_DAYS = 365
 
+# --- climatology conditioning ----------------------------------------------
+# How an external climatology raster is prepared before the ratio method uses
+# it. See `RasterClimatology` for the two LENZ defects these exist to remove.
+#
+# `DEFAULT_TARGET_RES_M` area-averages the raster onto the surface grid instead
+# of point-sampling it. Nearest-neighbour sampling of a 100 m raster onto 500 m
+# cells discarded 24 of every 25 source cells and aliased hardest exactly where
+# the gradient is steepest. Measured cost: +0.04% MAE. It is a correctness fix
+# and is on unconditionally.
+#
+# `DEFAULT_SMOOTH_KM` then low-passes. This one is NOT free and the number is a
+# judgement, so the measurement it rests on is written out in full below rather
+# than left in a scratch log.
+#
+# Measured 2026-08-17 by `precip_bakeoff.py`'s own fold structure — 158 days,
+# 10-fold by station, 71,337 held-out station-days per arm — against the
+# production point-sampled arm. Artifact columns are the Taranaki 5-10 km octant
+# anisotropy and the Fox/Franz plateau ratio described in `RasterClimatology`.
+#
+#   MAR variant     Taranaki aniso   Fox plateau   MAR max    MAE cost
+#   point (was)              1.79         3.46      11,121       (base)
+#   block only               1.79         3.46      11,121      -0.01%
+#   log 1 km                 1.70         3.28      10,728      +0.19%
+#   log 2 km                 1.55         2.82      10,266      +0.67%
+#   log 3 km  <- chosen      1.42         gone       9,631      +1.14%
+#   log 5 km                 1.32         gone       8,260      +2.22%
+#   log 8 km                 1.23         gone       7,302      +4.28%
+#
+# 3 km is the smallest setting that removes the Fox/Franz plateau outright while
+# taking Taranaki most of the way to the ~1.1-1.3 a symmetric cone implies. It
+# costs 1.14% of a covariate worth 11.2% over `raw`, and it BUYS back the two
+# things this method is weakest at: all-day bias -0.184 -> -0.096 and heavy-rain
+# (>=40 mm) bias -18.81 -> -18.55 mm. 5 km reaches physical isotropy but cuts
+# MAR max to 8,260, distorting a genuine Southern Alps maximum (Cropp River
+# really does take ~11,500 mm/yr), so it trades a real signal for a cosmetic win.
+#
+# Log space, not linear, because rainfall is multiplicative — the same reason
+# `ClimatologySurface` fits in log space. It won at every sigma tested:
+# +0.19/+0.67/+1.14 against linear's +0.25/+0.83/+1.41 at 1/2/3 km.
+#
+# Setting this to 0 restores the raw raster and reprints its fitting artefacts
+# into every surface. That is a defensible choice only if someone has decided
+# the artefacts are real; nothing measured so far supports that.
+#
+# **THE BAKE-OFF CANNOT SEE THE WHOLE EFFECT, so do not tune this on MAE alone.**
+# Those figures are scored at station locations, where a climatology shift
+# appears in numerator and denominator and largely cancels. On the GRID it does
+# not: smoothing both sides of `grid_MAR / station_MAR` costs 4.7% of the
+# national rainfall level, because gauges sit in sheltered locally-dry spots and
+# a low-pass lifts station MAR +3.01% while grid MAR falls -0.66%. Production
+# therefore smooths the GRID SIDE ONLY — see `run_history.run`'s docstring.
+# Any future change here must be checked against the national grid level too.
+DEFAULT_TARGET_RES_M = 500
+DEFAULT_SMOOTH_KM = 3.0
+
 
 # ---------------------------------------------------------------------------
 # Climatology
@@ -219,11 +274,51 @@ class RasterClimatology:
     1951-80 map — and it is why the ratio, not the absolute level, is what
     matters: a uniform scale error in MAR cancels exactly when you divide by it
     and multiply back.
+
+    **ON CONDITIONING — why the raster is not used as shipped.** LENZ is a fitted
+    surface descended from a 1:2,000,000 hand-drawn contour map, and at 100 m it
+    carries structure that is an artefact of that fitting rather than observed
+    orography. Two were measured on 2026-08-17:
+
+      Mt Taranaki   an X-shaped caustic radiating from the summit. Rainfall on a
+                    near-symmetric cone must be close to isotropic about it, yet
+                    the 5-10 km annulus is 1.79x wetter in its wettest octant
+                    than its driest, and the maximum sits NE when the moisture-
+                    bearing flow is W/SW. At a FIXED elevation band MAR still
+                    scatters 23%, so it is not a coherent function of the cone.
+
+      Fox / Franz   a saturated plateau above ~10,000 mm/yr: the gradient inside
+                    the zone is 3.0x GENTLER than on its rim. A real orographic
+                    maximum is steepest near its peak, never flat-topped.
+
+    Because the ratio method multiplies the fitted field by MAR, both defects are
+    reprinted into every daily surface at full amplitude — and where stations are
+    sparse the fitted ratio is locally flat, so the output there is little more
+    than a rescaled copy of the climatology (measured corr 0.96-0.9995).
+
+    So MAR is conditioned before use, by two steps that `smooth_km` controls:
+
+      1. AREA-AVERAGE to `target_res_m`. A 500 m cell's mean annual rainfall is
+         the mean over its footprint, not whichever 100 m pip the cell centre
+         lands on. Point sampling discarded 24 of every 25 source cells. Measured
+         cost in the bake-off: **+0.04% MAE — free**, so this is unconditional.
+      2. GAUSSIAN LOW-PASS at `smooth_km`, in log space by default for the same
+         multiplicative reason `ClimatologySurface` fits in log space.
+
+    The ratio method needs MAR for the broad orographic structure the gauge
+    network misses; it does not need 100 m detail, and 100 m detail is precisely
+    where the defects live. Low-passing therefore discards the scales the method
+    could never justify. It is not free beyond step 1 — see `DEFAULT_SMOOTH_KM`
+    for the measured trade.
     """
 
-    __slots__ = ("_path", "_ds", "_to_raster", "_nodata", "_fallback", "n_stations")
+    __slots__ = ("_path", "_ds", "_to_raster", "_nodata", "_fallback", "n_stations",
+                 "_grid", "_inv", "smooth_km", "target_res_m", "log_space")
 
-    def __init__(self, path, *, fallback=None, src_crs: str = "EPSG:4326"):
+    def __init__(self, path, *, fallback=None, src_crs: str = "EPSG:4326",
+                 smooth_km: float = DEFAULT_SMOOTH_KM,
+                 target_res_m: Optional[int] = DEFAULT_TARGET_RES_M,
+                 log_space: bool = True):
         from scripts.interpolation.raster import _configure_proj
         _configure_proj()
         import rasterio
@@ -235,6 +330,68 @@ class RasterClimatology:
         self._to_raster = Transformer.from_crs(src_crs, self._ds.crs, always_xy=True)
         self._fallback = fallback
         self.n_stations = 0                  # not station-derived; kept for symmetry
+        self.smooth_km = float(smooth_km or 0.0)
+        self.target_res_m = target_res_m
+        self.log_space = bool(log_space)
+
+        self._grid = None                    # conditioned array, or None to read raw
+        self._inv = None
+        if target_res_m or self.smooth_km:
+            self._grid, self._inv = self._condition()
+
+    # -- conditioning -------------------------------------------------------
+
+    def _condition(self):
+        """Area-average onto `target_res_m`, then low-pass at `smooth_km`.
+
+        Both steps are NaN-aware (normalised convolution) so the coastline does
+        not bleed zeros inland and the land mask is preserved exactly.
+        """
+        from rasterio.windows import Window
+        from scipy.ndimage import gaussian_filter
+
+        ds = self._ds
+        native_m = abs(ds.transform.a)
+        factor = max(1, int(round((self.target_res_m or native_m) / native_m)))
+        H, W = (ds.height // factor) * factor, (ds.width // factor) * factor
+        h5, w5 = H // factor, W // factor
+
+        out = np.full((h5, w5), np.nan)
+        step = max(factor, (2500 // factor) * factor)
+        for r0 in range(0, H, step):
+            nrows = min(step, H - r0)
+            a = ds.read(1, window=Window(0, r0, W, nrows)).astype(float)
+            a[~self._valid(a)] = np.nan
+            ok = np.isfinite(a)
+            rb = nrows // factor
+            num = np.where(ok, a, 0.0).reshape(rb, factor, w5, factor).sum(axis=(1, 3))
+            den = ok.reshape(rb, factor, w5, factor).sum(axis=(1, 3))
+            out[r0 // factor: r0 // factor + rb] = np.where(
+                den > 0, num / np.maximum(den, 1), np.nan)
+
+        res_km = (native_m * factor) / 1000.0
+        if self.smooth_km > 0:
+            src = np.log(out) if self.log_space else out
+            valid = np.isfinite(src).astype(float)
+            filled = np.where(np.isfinite(src), src, 0.0)
+            sig = self.smooth_km / res_km
+            num = gaussian_filter(filled, sig, mode="nearest")
+            den = gaussian_filter(valid, sig, mode="nearest")
+            sm = np.where(den > 1e-3, num / np.maximum(den, 1e-9), np.nan)
+            out = np.exp(sm) if self.log_space else sm
+            out[~valid.astype(bool)] = np.nan     # keep the original land mask
+
+        transform = ds.transform * ds.transform.scale(factor, factor)
+        v = out[np.isfinite(out)]
+        logger.info(
+            "climatology conditioned: %d m -> %d m area average%s; "
+            "%d valid cells, %.0f-%.0f mm/yr",
+            int(native_m), int(native_m * factor),
+            (f", gaussian {self.smooth_km:g} km"
+             f"{' (log space)' if self.log_space else ''}")
+            if self.smooth_km else "",
+            v.size, v.min(), v.max())
+        return out, ~transform
 
     def _valid(self, v: np.ndarray) -> np.ndarray:
         ok = np.isfinite(v) & (v > 0) & (v < 1e30)
@@ -242,14 +399,54 @@ class RasterClimatology:
             ok &= v != self._nodata
         return ok
 
+    def _sample_grid(self, xs, ys) -> np.ndarray:
+        """Read the conditioned in-memory grid at projected coordinates."""
+        cols, rows = self._inv * (np.asarray(xs), np.asarray(ys))
+        r = np.floor(rows).astype(int)
+        c = np.floor(cols).astype(int)
+        h, w = self._grid.shape
+        inside = (r >= 0) & (r < h) & (c >= 0) & (c < w)
+        out = np.full(len(r), np.nan)
+        out[inside] = self._grid[r[inside], c[inside]]
+        return out
+
+    def _nearest_valid_grid(self, xs, ys, max_cells: int = 12) -> np.ndarray:
+        """Nearest finite cell of the conditioned grid. `max_cells` is in
+        conditioned cells, so 12 at 500 m is the same 6 km reach that 60 cells
+        at 100 m gave."""
+        cols, rows = self._inv * (np.asarray(xs), np.asarray(ys))
+        h, w = self._grid.shape
+        got = np.full(len(rows), np.nan)
+        for i, (rf, cf) in enumerate(zip(rows, cols)):
+            row, col = int(np.floor(rf)), int(np.floor(cf))
+            for rad in (1, 4, max_cells):
+                r0, r1 = max(0, row - rad), min(h, row + rad + 1)
+                c0, c1 = max(0, col - rad), min(w, col + rad + 1)
+                if r0 >= r1 or c0 >= c1:
+                    continue
+                blk = self._grid[r0:r1, c0:c1]
+                ok = np.isfinite(blk)
+                if not ok.any():
+                    continue
+                rr, cc = np.nonzero(ok)
+                d2 = (rr + r0 - row) ** 2 + (cc + c0 - col) ** 2
+                got[i] = blk[rr[d2.argmin()], cc[d2.argmin()]]
+                break
+        return got
+
     def __call__(self, points_deg: np.ndarray) -> np.ndarray:
         p = np.asarray(points_deg, dtype=float)
         xs, ys = self._to_raster.transform(p[:, 0], p[:, 1])
-        out = np.array([v[0] for v in self._ds.sample(list(zip(xs, ys)), 1)],
-                       dtype=float)
+        if self._grid is not None:
+            out = self._sample_grid(xs, ys)
+        else:
+            out = np.array([v[0] for v in self._ds.sample(list(zip(xs, ys)), 1)],
+                           dtype=float)
         bad = ~self._valid(out)
         if bad.any():
-            out[bad] = self._nearest_valid(xs[bad], ys[bad])
+            out[bad] = (self._nearest_valid_grid(xs[bad], ys[bad])
+                        if self._grid is not None
+                        else self._nearest_valid(xs[bad], ys[bad]))
         still = ~self._valid(out)
         if still.any():
             if self._fallback is None:

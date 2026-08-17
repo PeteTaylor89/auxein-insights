@@ -108,6 +108,10 @@ def main():
     ap.add_argument("--folds", type=int, default=10)
     ap.add_argument("--pop-threshold", type=float, default=None,
                     help="also test a wet/dry mask at this interpolated probability")
+    ap.add_argument("--mar-smooth-km", type=float, default=0.0,
+                    help="condition the LENZ raster before use, as production "
+                         "does. Default 0 keeps the unconditioned raster this "
+                         "script's published table was measured on")
     args = ap.parse_args()
 
     clim, days = load()
@@ -147,8 +151,17 @@ def main():
         # LENZ is external and identical every fold — it is not refitted, because
         # it was never fitted to our data in the first place. `fallback` covers
         # the handful of coastal points outside its mask.
+        #
+        # `smooth_km` is pinned EXPLICITLY rather than left to the default. The
+        # 2026-08-06 table in this docstring was measured on the unconditioned
+        # raster, and `RasterClimatology`'s default changed on 2026-08-17, so
+        # inheriting it would silently stop reproducing the published numbers.
+        # `--mar-smooth-km` switches this arm to the production conditioning.
         if any(a[2] == "lenz" for a in arms) and lenz_surface is None:
-            lenz_surface = RasterClimatology(LENZ, fallback=ClimatologySurface(clim))
+            lenz_surface = RasterClimatology(
+                LENZ, fallback=ClimatologySurface(clim),
+                smooth_km=args.mar_smooth_km,
+                target_res_m=(500 if args.mar_smooth_km else None))
         mar_lenz = lenz_surface(test_pts) if lenz_surface is not None else None
         surfaces = {"fit": clim_surface, "lenz": lenz_surface}
 

@@ -42,6 +42,9 @@ from scripts.interpolation import tps                                # noqa: E40
 from scripts.interpolation.consolidate_history import (              # noqa: E402
     apply_elevation_overrides)
 from scripts.interpolation.fastgrid import GridBasis, estimate_bytes  # noqa: E402
+# precip's own imports are numpy/pandas/tps only — rasterio stays lazy, so this
+# does not pull GDAL into a temperature run.
+from scripts.interpolation.precip import DEFAULT_SMOOTH_KM             # noqa: E402
 from scripts.interpolation.raster import (DEFAULT_MAX_Z_ERROR, RasterTemplate,  # noqa: E402
                                           grid_from_csv, write_cog)
 
@@ -76,6 +79,11 @@ EPOCH = date(1986, 1, 1)
 # The bake-off ran on the 2020-2026 DB network. The method choice transfers to
 # the 1986-2023 archive; the exact percentage does not. Publish this run's own
 # cross-validation, not the bake-off number.
+#
+# The raster is CONDITIONED before use — area-averaged onto the surface grid and
+# low-passed — because LENZ carries fitting artefacts at 100 m that the ratio
+# method would otherwise reprint into every daily surface at full amplitude.
+# See `precip.RasterClimatology` for the two measured defects and the trade.
 PRECIP_METHOD_RATIO_LENZ = "ratio_lenz"
 PRECIP_METHOD_RAW = "raw"
 LENZ_MAR = (REPO / "docs" / "models"
@@ -233,7 +241,20 @@ def clear_checkpoint(out: Path, variable: str) -> None:
         shutil.rmtree(d, ignore_errors=True)
 
 
-def load_mar(lat: np.ndarray, lon: np.ndarray, label: str) -> np.ndarray:
+def open_climatology(smooth_km: float):
+    """Open LENZ and condition it once, for reuse across station and grid reads.
+
+    Conditioning reads all 152M source cells and smooths them, so it must not be
+    repeated per call site.
+    """
+    from scripts.interpolation.precip import DEFAULT_TARGET_RES_M, RasterClimatology
+
+    return RasterClimatology(
+        LENZ_MAR, fallback=lambda pts: np.full(len(pts), np.nan),
+        smooth_km=smooth_km, target_res_m=DEFAULT_TARGET_RES_M)
+
+
+def load_mar(lat: np.ndarray, lon: np.ndarray, label: str, clim) -> np.ndarray:
     """Sample LENZ mean annual rainfall (mm/yr) at the given points.
 
     `RasterClimatology` already walks out to a nearest valid cell for points
@@ -244,14 +265,7 @@ def load_mar(lat: np.ndarray, lon: np.ndarray, label: str) -> np.ndarray:
     logged, because a large count would mean the raster is misaligned rather
     than merely clipped.
     """
-    from scripts.interpolation.precip import RasterClimatology
-
-    clim = RasterClimatology(
-        LENZ_MAR, fallback=lambda pts: np.full(len(pts), np.nan))
-    try:
-        mar = clim(np.column_stack([lon, lat]))      # (lon, lat) degrees
-    finally:
-        clim.close()
+    mar = clim(np.column_stack([lon, lat]))          # (lon, lat) degrees
 
     bad = ~np.isfinite(mar) | (mar <= 0)
     if bad.any():
@@ -303,7 +317,31 @@ def write_bands(bands: dict, template: RasterTemplate, paths: dict,
 def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
         start: str | None, end: str | None, workers: int, max_months: int | None,
         resume: bool = False, restart: bool = False,
-        precip_method: str = PRECIP_METHOD_RATIO_LENZ):
+        precip_method: str = PRECIP_METHOD_RATIO_LENZ,
+        mar_smooth_km: float = DEFAULT_SMOOTH_KM):
+    """`mar_smooth_km` low-passes the climatology on the GRID SIDE ONLY.
+
+    The asymmetry is deliberate and was measured on 2026-08-17. Smoothing both
+    sides costs 4.7% of the national rainfall level, and 3.56 of those points are
+    baked in by construction: the ratio method scales output by
+    `grid_MAR / station_MAR`, and smoothing moves those two in opposite
+    directions — station MAR **+3.01%**, grid MAR **-0.66%**.
+
+    Station MAR rises because rain gauges preferentially occupy sheltered, locally
+    dry sites (valley floors, towns, airfields), so a low-pass pulls each one up
+    toward its wetter surroundings. The effect scales with how dry the site is:
+    **+4.16%** below 1,000 mm/yr against **+1.40%** above 4,000.
+
+    **The bake-off cannot see this.** It scores at station locations, where the
+    same shift appears in numerator and denominator and largely cancels — which
+    is why it reported bias *improving* while the national grid mean fell. Any
+    future climatology change must be checked against the GRID level too, not
+    only against held-out stations.
+
+    So the denominator keeps the gauge's own point climatology (area-averaged,
+    unsmoothed) and only the grid multiplier is smoothed. Residual level change
+    is then the -0.66% that is genuine peak compression.
+    """
     values, stations, dates = load_inputs(inputs, variable)
     log.info("[%s] %d days x %d stations, %s..%s", variable, len(dates),
              len(stations), dates[0], dates[-1])
@@ -345,11 +383,22 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     if is_ratio:
         if not LENZ_MAR.exists():
             raise SystemExit(f"ratio_lenz needs the LENZ raster at {LENZ_MAR}")
-        log.info("[%s] method=%s, climatology=%s", variable, precip_method,
-                 LENZ_MAR.name)
-        mar_station = load_mar(lat, lon, "station")
-        mar_grid = load_mar(grid["latitude"].to_numpy(float),
-                            grid["longitude"].to_numpy(float), "grid")
+        log.info("[%s] method=%s, climatology=%s, smooth_km=%g (grid only)",
+                 variable, precip_method, LENZ_MAR.name, mar_smooth_km)
+        # The low-pass is applied to the GRID multiplier only. The station
+        # denominator stays area-averaged but UNSMOOTHED, and that asymmetry is
+        # load-bearing — see `mar_smooth_km` in the signature for the measurement.
+        clim_station = open_climatology(0.0)
+        try:
+            mar_station = load_mar(lat, lon, "station", clim_station)
+        finally:
+            clim_station.close()
+        clim_grid = open_climatology(mar_smooth_km)
+        try:
+            mar_grid = load_mar(grid["latitude"].to_numpy(float),
+                                grid["longitude"].to_numpy(float), "grid", clim_grid)
+        finally:
+            clim_grid.close()
     elif variable == "rainfall":
         log.warning("[%s] method=%s — NO climatology covariate. The bake-off "
                     "measured this arm as the worst of eight.", variable,
@@ -380,6 +429,10 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     # Same argument as dtype: resuming across a method change would weld
     # ratio_lenz months to raw months inside one variable's history.
     fingerprint["precip_method"] = precip_method if variable == "rainfall" else None
+    # The conditioning of the climatology changes every rainfall value, so a
+    # resume across a smoothing change would weld two different models together
+    # inside one variable's history exactly as a method change would.
+    fingerprint["mar_smooth_km"] = mar_smooth_km if is_ratio else None
     ckpt_dir, _, ckpt_json = _ckpt_paths(out, variable)
 
     if restart:
@@ -495,6 +548,7 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
                 "cv_units": "ratio" if is_ratio else unit,
                 "projection_origin": f"{basis.lat0:.5f},{basis.lon0:.5f}",
                 **({"precip_method": precip_method,
+                    "mar_smooth_km": mar_smooth_km,
                     "climatology": "LENZ/NZEnvDS total annual precipitation v1.0 "
                                    "(Landcare Research, CC BY 4.0)"}
                    if is_ratio else {})}
@@ -554,6 +608,14 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
                 "name": "LENZ/NZEnvDS Total annual precipitation v1.0",
                 "source": "Landcare Research (LRIS portal)",
                 "licence": "CC BY 4.0 - attribution required in the product",
+                "conditioning": {
+                    "area_averaged_to_m": res,
+                    "gaussian_smooth_km": mar_smooth_km,
+                    "space": "log",
+                    "why": "the source raster carries fitting artefacts at 100 m "
+                           "(a caustic at Mt Taranaki, a saturated plateau at "
+                           "Fox/Franz Josef) that the ratio method would reprint "
+                           "into every daily surface"},
                 "note": "covariate only; every value derives from our own gauge "
                         "record. cv_rmse is dimensionless (rainfall/MAR)."}}
            if is_ratio else {}),
@@ -602,12 +664,16 @@ def main() -> int:
                     choices=[PRECIP_METHOD_RATIO_LENZ, PRECIP_METHOD_RAW],
                     default=PRECIP_METHOD_RATIO_LENZ,
                     help="rainfall only; ratio_lenz is the bake-off winner")
+    ap.add_argument("--mar-smooth-km", type=float, default=DEFAULT_SMOOTH_KM,
+                    help="low-pass applied to the LENZ climatology before it is "
+                         "used as the covariate; 0 disables it and reprints the "
+                         "raster's own fitting artefacts into every surface")
     args = ap.parse_args()
 
     run(args.variable, Path(args.inputs), Path(args.out), Path(args.grid),
         getattr(np, args.dtype), args.start, args.end, args.workers, args.months,
         resume=args.resume, restart=args.restart,
-        precip_method=args.precip_method)
+        precip_method=args.precip_method, mar_smooth_km=args.mar_smooth_km)
     return 0
 
 
