@@ -12,6 +12,7 @@ export { default as observationService } from './observationService.js';
 export { default as parcelsService } from './parcelsService.js';
 export { default as riskManagementService } from './riskManagementService.js';
 export { default as spatialAreasService } from './spatialAreasService.js';
+export { default as mapFeaturesService } from './mapFeaturesService.js';
 export { default as subscriptionService } from './subscriptionService.js';
 export { default as tasksService } from './tasksService.js';
 export { default as trainingService } from './trainingService.js';

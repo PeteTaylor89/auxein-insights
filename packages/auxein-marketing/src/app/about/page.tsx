@@ -55,7 +55,7 @@ const timeline = [
     year: 'May 2026',
     title: 'Auxein Grow Launches',
     description:
-      'Full commercial release of Auxein Grow - a complete vineyard management platform combining climate intelligence, peer-reviewed disease models, blockchain traceability, and mobile-first field tools.',
+      'Full commercial release of Auxein Grow - a complete vineyard management platform combining climate intelligence, peer-reviewed disease models, compliance traceability, and mobile-first field tools.',
   },
 ];
 

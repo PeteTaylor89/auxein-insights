@@ -16,7 +16,6 @@ from schemas.block import Block, BlockCreate, BlockUpdate
 from services.property_service import get_visible_property_ids, verify_block_access
 import logging
 from datetime import datetime
-from services.blockchain_service import BlockchainService
 from pyproj import Geod
 from sqlalchemy import func, cast, or_, and_
 from sqlalchemy.types import UserDefinedType
@@ -339,62 +338,6 @@ def update_block_data(
         logger.error(f"Error updating block {block_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error updating block: {str(e)}")
 
-@router.post("/{block_id}/create-blockchain")
-def manually_create_blockchain(
-    block_id: int,
-    blockchain_request: Dict = Body(default={"season_type": "standard"}),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Manually create a blockchain chain for a block (admin only)
-    """
-    # Check admin permissions
-    if current_user.email != "pete.taylor@auxein.co.nz":
-        raise HTTPException(
-            status_code=403,
-            detail="Only system administrators can manually create blockchain chains"
-        )
-    
-    # Verify block exists
-    block = db.query(VineyardBlock).filter(VineyardBlock.id == block_id).first()
-    if not block:
-        raise HTTPException(status_code=404, detail="Block not found")
-    
-    if not block.company_id:
-        raise HTTPException(status_code=400, detail="Block must be assigned to a company first")
-    
-    season_type = blockchain_request.get("season_type", "standard")
-    
-    try:
-        # Check if chain already exists
-        existing_chain = BlockchainService.get_active_chain_for_block(db, block_id)
-        if existing_chain:
-            return {
-                "message": "Blockchain chain already exists",
-                "chain_id": existing_chain.id,
-                "season_id": existing_chain.season_id
-            }
-        
-        # Create new chain
-        chain = BlockchainService.auto_create_chain_on_assignment(
-            db, block_id, block.company_id, current_user.id, season_type
-        )
-        
-        return {
-            "message": "Blockchain chain created successfully",
-            "chain_id": chain.id,
-            "season_id": chain.season_id,
-            "season_type": chain.season_type,
-            "genesis_hash": chain.genesis_hash[:16] + "..."
-        }
-        
-    except Exception as e:
-        logger.error(f"Manual blockchain creation failed for block {block_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Blockchain creation failed: {str(e)}")
-
-# Also enhance your create_block endpoint to auto-create blockchain:
-
 @router.post("/")
 def create_block_with_polygon(
     block_data: BlockCreate,
@@ -434,41 +377,16 @@ def create_block_with_polygon(
         db.refresh(new_block)
         
         logger.info(f"New block created with ID: {new_block.id}")
-        
-        # AUTO-CREATE BLOCKCHAIN if block has company
-        blockchain_created = False
-        blockchain_info = {}
-        
-        if new_block.company_id:
-            try:
-                chain = BlockchainService.auto_create_chain_on_assignment(
-                    db, new_block.id, new_block.company_id, current_user.id, "standard"
-                )
-                blockchain_created = True
-                blockchain_info = {
-                    "chain_id": chain.id,
-                    "season_id": chain.season_id,
-                    "genesis_hash": chain.genesis_hash[:16] + "..."
-                }
-                logger.info(f"Auto-created blockchain chain {chain.id} for new block {new_block.id}")
-            except Exception as e:
-                logger.error(f"Blockchain creation failed for new block {new_block.id}: {e}")
-        
-        response = {
+
+        return {
             "id": new_block.id,
             "block_name": new_block.block_name,
             "variety": new_block.variety,
             "area": new_block.area,
             "company_id": new_block.company_id,
             "message": "Block created successfully",
-            "blockchain_created": blockchain_created
         }
-        
-        if blockchain_info:
-            response["blockchain_info"] = blockchain_info
-        
-        return response
-        
+
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating block: {str(e)}")
@@ -477,12 +395,12 @@ def create_block_with_polygon(
 @router.patch("/{block_id}/assign-company")
 def assign_block_to_company(
     block_id: int,
-    assignment_data: Dict[str, int] = Body(..., example={"company_id": 1, "season_type": "standard"}),
+    assignment_data: Dict[str, int] = Body(..., example={"company_id": 1}),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Assign a block to a company (admin only) and auto-create blockchain chain
+    Assign a block to a company (admin only)
     """
     # Check admin permissions - only pete.taylor@auxein.co.nz can assign
     if current_user.email != "pete.taylor@auxein.co.nz":
@@ -498,8 +416,7 @@ def assign_block_to_company(
     
     # Get the company_id from request body
     new_company_id = assignment_data.get("company_id")
-    season_type = assignment_data.get("season_type", "standard")  # Optional season type
-    
+
     if not new_company_id:
         raise HTTPException(status_code=400, detail="Company ID is required")
        
@@ -520,116 +437,22 @@ def assign_block_to_company(
         
         # Update the block's company_id
         block.company_id = new_company_id
-        
-        # AUTO-CREATE BLOCKCHAIN CHAIN
-        blockchain_created = False
-        blockchain_info = {}
-        
-        try:
-            if old_company_id is None:
-                # First time assignment - create new blockchain chain
-                logger.info(f"Creating new blockchain chain for block {block_id}")
-                chain = BlockchainService.auto_create_chain_on_assignment(
-                    db, block_id, new_company_id, current_user.id, season_type
-                )
-                blockchain_created = True
-                blockchain_info = {
-                    "chain_id": chain.id,
-                    "season_id": chain.season_id,
-                    "season_type": chain.season_type,
-                    "genesis_hash": chain.genesis_hash[:16] + "..."
-                }
-                logger.info(f"Created blockchain chain {chain.id} for block {block_id}")
-                
-            elif old_company_id != new_company_id:
-                # Reassignment - archive old chain and create new one
-                logger.info(f"Reassigning block {block_id} from company {old_company_id} to {new_company_id}")
-                chain = BlockchainService.handle_company_reassignment(
-                    db, block_id, old_company_id, new_company_id, current_user.id
-                )
-                blockchain_created = True
-                blockchain_info = {
-                    "chain_id": chain.id,
-                    "season_id": chain.season_id,
-                    "season_type": chain.season_type,
-                    "genesis_hash": chain.genesis_hash[:16] + "...",
-                    "reassignment": True
-                }
-                logger.info(f"Created new blockchain chain {chain.id} after reassignment")
-                
-        except Exception as blockchain_error:
-            # Log blockchain error but don't fail the assignment
-            logger.error(f"Blockchain creation failed for block {block_id}: {str(blockchain_error)}")
-            blockchain_info = {"error": str(blockchain_error)}
-        
+
         db.commit()
         db.refresh(block)
-        
-        # Enhanced response with blockchain info
-        response = {
+
+        return {
             "id": block.id,
             "block_name": block.block_name,
             "company_id": block.company_id,
             "previous_company_id": old_company_id,
             "message": f"Block successfully assigned to {new_company_id}",
-            "blockchain_created": blockchain_created
         }
-        
-        # Add blockchain info to response
-        if blockchain_info:
-            response["blockchain_info"] = blockchain_info
-        
-        return response
-        
+
     except Exception as e:
         db.rollback()
         logger.error(f"Error assigning block {block_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error assigning block: {str(e)}")
-
-# Also add these new endpoints to your blocks.py file:
-
-@router.get("/{block_id}/blockchain-status")
-def get_block_blockchain_status(
-    block_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get blockchain status for a vineyard block
-    """
-    # Verify block exists and is accessible to this user
-    block = verify_block_access(db, current_user, block_id)
-
-    # Get active blockchain chain
-    try:
-        chain = BlockchainService.get_active_chain_for_block(db, block_id)
-        
-        if not chain:
-            return {
-                "block_id": block_id,
-                "has_blockchain": False,
-                "message": "No active blockchain chain found"
-            }
-        
-        # Get chain statistics
-        node_count = len(chain.nodes) if chain.nodes else 0
-        
-        return {
-            "block_id": block_id,
-            "has_blockchain": True,
-            "chain_id": chain.id,
-            "season_id": chain.season_id,
-            "season_type": chain.season_type,
-            "node_count": node_count,
-            "created_at": chain.created_at.isoformat(),
-            "genesis_hash": chain.genesis_hash[:16] + "...",
-            "is_active": chain.is_active,
-            "company_id": chain.company_id
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting blockchain status for block {block_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Could not retrieve blockchain status")
 
 @router.post("/{block_id}/split")
 def split_block(
@@ -719,20 +542,8 @@ def split_block(
                 geometry = from_shape(geom, srid=4326)
             )
             db.add(new_block)
-            db.flush()  # get new_block.id for chain creation
+            db.flush()  # get new_block.id for the response summary
             new_blocks.append(new_block)
-
-        try:
-            existing_chain = BlockchainService.get_active_chain_for_block(db, original_block.id)
-        except Exception:
-            existing_chain = None
-
-        if existing_chain:
-            season_type = getattr(existing_chain, "season_type", "standard")
-            for nb in new_blocks:
-                BlockchainService.auto_create_chain_on_assignment(
-                    db, nb.id, nb.company_id, current_user.id, season_type
-                )
 
         db.commit()
 

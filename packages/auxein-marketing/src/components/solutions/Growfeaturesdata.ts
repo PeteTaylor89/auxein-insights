@@ -183,11 +183,6 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
           'Search and select registered chemical products from the NZ ACVM register when logging spray tasks, with withholding period tracking.',
       },
       {
-        name: 'Blockchain Provenance',
-        description:
-          'Every critical record - spray completion, harvest, disease observation, incident, induction - is written to a block-level tamper-evident blockchain chain.',
-      },
-      {
         name: 'Audit Trail',
         description:
           'Full, timestamped record of all actions per block and property, verifiable for organics, SWNZ, audit, and export market traceability requests.',

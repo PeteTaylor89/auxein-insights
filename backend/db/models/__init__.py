@@ -13,6 +13,7 @@ from db.models.primary_parcel import PrimaryParcel
 from db.models.parcel_sync_log import ParcelSyncLog
 from db.models.company_land_ownership import CompanyLandOwnership
 from db.models.spatial_area import SpatialArea
+from db.models.map_feature import MapFeature
 from db.models.visitor import Visitor, VisitorVisit
 from db.models.site_risk import SiteRisk
 from db.models.risk_action import RiskAction
@@ -53,7 +54,6 @@ from db.models.climate import ClimateZone, ClimateHistoryMonthly, ClimateBaselin
 from db.models.realtime_climate import WeatherDataDaily, ClimateZoneDaily, ClimateZoneDailyBaseline, PhenologyThreshold, PhenologyEstimate, DiseasePressure, ClimateZoneHourly
 from db.models.surface import SurfaceRun, SurfaceValidationStats
 from db.models.site_banner import SiteBanner
-from db.models.blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived
 from db.models.article import Article
 from db.models.article_engagement import ArticleComment, ArticleLike
 from db.models.research import ResearchReport, ResearchSection

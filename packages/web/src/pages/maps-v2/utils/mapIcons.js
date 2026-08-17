@@ -27,6 +27,41 @@ const ICON_DEFS = {
     { type: 'path', attrs: { d: 'M8 11h.01' } },
     { type: 'path', attrs: { d: 'M8 16h.01' } },
   ],
+  // --- Map features (POIs) ---
+  // These are simple geometric glyphs rather than transcribed lucide paths.
+  // Everything here is stroked (see drawElement — there is no fill path), so
+  // plain M/L/arc shapes read more cleanly at 32px than a detailed outline
+  // would, and there is no risk of a mis-copied bezier rendering as garbage.
+
+  // Gate / access — two posts and two rails
+  poiAccess: [
+    { type: 'path', attrs: { d: 'M4 6 L4 19' } },
+    { type: 'path', attrs: { d: 'M20 6 L20 19' } },
+    { type: 'path', attrs: { d: 'M4 10 L20 10' } },
+    { type: 'path', attrs: { d: 'M4 15 L20 15' } },
+  ],
+  // Infrastructure — a simple building outline with a pitched roof
+  poiInfrastructure: [
+    { type: 'path', attrs: { d: 'M4 20 L4 10 L12 4 L20 10 L20 20 Z' } },
+    { type: 'path', attrs: { d: 'M10 20 L10 14 L14 14 L14 20' } },
+  ],
+  // Water — two stacked waves
+  poiWater: [
+    { type: 'path', attrs: { d: 'M3 9 Q7 5 12 9 T21 9' } },
+    { type: 'path', attrs: { d: 'M3 15 Q7 11 12 15 T21 15' } },
+  ],
+  // Amenity — a circle with a centred dot
+  poiAmenity: [
+    { type: 'circle', attrs: { cx: 12, cy: 12, r: 8 } },
+    { type: 'circle', attrs: { cx: 12, cy: 12, r: 2 } },
+  ],
+  // Note — a page with a folded corner and two text lines
+  poiNote: [
+    { type: 'path', attrs: { d: 'M6 3 L14 3 L19 8 L19 21 L6 21 Z' } },
+    { type: 'path', attrs: { d: 'M14 3 L14 8 L19 8' } },
+    { type: 'path', attrs: { d: 'M9 13 L16 13' } },
+    { type: 'path', attrs: { d: 'M9 17 L16 17' } },
+  ],
   // Binoculars (observations) — matches sidebar icon
   binoculars: [
     { type: 'path', attrs: { d: 'M10 10h4' } },
@@ -131,6 +166,15 @@ export const MARKER_SPECS = [
   { id: 'v2-risk-icon-high', bg: '#dc2626', fg: '#ffffff', def: ICON_DEFS.risk, label: 'Risk — high' },
   { id: 'v2-risk-icon-critical', bg: '#7c2d12', fg: '#ffffff', def: ICON_DEFS.risk, label: 'Risk — critical' },
   { id: 'v2-asset-icon', bg: '#5B6830', fg: '#ffffff', def: ICON_DEFS.wrench, label: 'Asset' },
+  // Map features (POIs). One image per feature_type — the layer picks between
+  // them with a `match` on the type, so adding a type means adding a spec here
+  // AND an entry in MAP_FEATURE_TYPES (components/mapFeatureTypes.js).
+  // There is deliberately no `hazard` type: hazards live in SiteRisk.
+  { id: 'v2-poi-access', bg: '#0369a1', fg: '#ffffff', def: ICON_DEFS.poiAccess, label: 'Access' },
+  { id: 'v2-poi-infrastructure', bg: '#6b7280', fg: '#ffffff', def: ICON_DEFS.poiInfrastructure, label: 'Infrastructure' },
+  { id: 'v2-poi-water', bg: '#0891b2', fg: '#ffffff', def: ICON_DEFS.poiWater, label: 'Water' },
+  { id: 'v2-poi-amenity', bg: '#7c3aed', fg: '#ffffff', def: ICON_DEFS.poiAmenity, label: 'Amenity' },
+  { id: 'v2-poi-note', bg: '#2F2F2F', fg: '#ffffff', def: ICON_DEFS.poiNote, label: 'Note' },
 ];
 
 export function registerMapIcons(map) {

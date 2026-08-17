@@ -40,9 +40,9 @@ const features = [
   },
   {
     icon: Database,
-    title: 'Blockchain Traceability',
+    title: 'Compliance & Audit Trail',
     description:
-      'Every spray, observation, and harvest record is written to a tamper-evident block-level chain - giving you verified provenance for audits, certificates and export.',
+      'Every spray, observation, incident and induction is timestamped against its block and property - a complete, exportable record for organics, SWNZ and export market audits.',
   },
   {
     icon: Map,
@@ -60,7 +60,7 @@ const features = [
 
 const benefits = [
   'Cut spray costs with model-driven timing: treat when conditions demand it, not on a calendar',
-  'Build a blockchain verified audit trail that satisfies auditor and export market scrutiny',
+  'Build a verifiable audit trail that satisfies auditor and export market scrutiny',
   'Turn 40 years of property-level climate history into smarter variety, rootstock, and canopy decisions',
   'Catch disease pressure before it becomes crop loss - peer-reviewed models, your local data',
   'Replace paperwork with a compliance engine that writes your spray diary as a by-product of doing your job',
@@ -266,7 +266,7 @@ export default function InsightsProPage() {
               transition={{ delay: 0.2 }}
             >
               The complete vineyard management platform. Climate intelligence,
-              phenology tracking, disease pressure modeling, and blockchain
+              phenology tracking, disease pressure modeling, and compliance
               traceability - all in one mobile-first solution.
             </motion.p>
 

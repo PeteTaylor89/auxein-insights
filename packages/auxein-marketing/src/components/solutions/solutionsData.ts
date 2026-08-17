@@ -32,13 +32,13 @@ export const solutions: Solution[] = [
     image: '/images/solutions/insights-pro.jpg',
     tagline: 'Complete vineyard management platform',
     description:
-      'A precision vineyard management platform built by a viticulturist for viticulturists. Grow combines 40 years of block-level climate intelligence, peer-reviewed disease models, and blockchain-verified traceability into one mobile-first platform - turning your daily vineyard work into a compliance engine, a data asset, and a competitive advantage.',
+      'A precision vineyard management platform built by a viticulturist for viticulturists. Grow combines 40 years of block-level climate intelligence, peer-reviewed disease models, and end-to-end traceability into one mobile-first platform - turning your daily vineyard work into a compliance engine, a data asset, and a competitive advantage.',
     features: [
       'Property-level climate history from 1986 and CMIP6 projections to 2100',
       'Peer-reviewed disease models for downy mildew, powdery mildew, and botrytis',
       'Phenology tracking with EL-scale observations and harvest timing estimates',
       'GPS-tracked spray tasks with automated GrapeLink-compliant diary generation',
-      'Blockchain provenance chain across every spray, observation, and harvest record',
+      'Timestamped audit trail across every spray, observation, and harvest record',
       'Full H&S compliance - risk register, incident reporting, and WorkSafe-aligned workflows',
       'Mobile-first field tools for observations, tasks, alerts, and spray tracking',
     ],

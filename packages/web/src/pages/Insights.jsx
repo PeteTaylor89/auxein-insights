@@ -21,7 +21,6 @@ const INSIGHT_CARDS = [
   { key: 'sprayprogram', label: 'Spray Program', Icon: Droplets },
   { key: 'disease', label: 'Disease', Icon: ShieldCheck },
   { key: 'biosecurity', label: 'Biosecurity', Icon: Bug },
-  { key: 'blockchain', label: 'BlockChain', Icon: ShieldCheck },
   { key: 'industry', label: 'Latest Industry Insight', Icon: Bug },
 ];
 
@@ -224,25 +223,6 @@ function Insights() {
             <div className="insight-placeholder">
               <p>Biosecurity monitoring coming soon...</p>
               <p>This will show pest pressure monitoring, beneficial insect tracking, and integrated pest management recommendations.</p>
-            </div>
-          </div>
-        );
-        case 'blockchain':
-        return (
-          <div className="content-container">
-            <div className="container-title">
-              <span className="help-tip-head"><span>BlockChain</span><HelpTip topic="insights.blockchain" /></span>
-              <button 
-                className="close-insight-btn"
-                onClick={() => setActiveInsight(null)}
-                aria-label="Close Biosecurity Analysis"
-              >
-                ×
-              </button>
-            </div>
-            <div className="insight-placeholder">
-              <p>BlockChain coming soon...</p>
-              <p>This will show the audit trail for your Vineyard Blocks.</p>
             </div>
           </div>
         );

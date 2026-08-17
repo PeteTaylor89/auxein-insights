@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, List } from 'lucide-react';
 import { MARKER_SPECS } from '../utils/mapIcons';
+import { MAP_FEATURE_TYPES } from './mapFeatureTypes';
 import {
   BLOCK_FILL_OWN,
   BLOCK_OUTLINE,
@@ -181,6 +182,18 @@ export default function MapLegend({ visible = {} }) {
   if (visible.risks) {
     for (const id of ['v2-risk-icon-low', 'v2-risk-icon-medium', 'v2-risk-icon-high', 'v2-risk-icon-critical']) {
       markers.push({ key: id, swatch: <MarkerSwatch specId={id} />, label: SPEC_BY_ID[id].label });
+    }
+  }
+  if (visible.mapFeatures) {
+    // Driven off MAP_FEATURE_TYPES rather than a second hardcoded list, so a
+    // new POI type appears in the legend automatically instead of being a
+    // silent omission.
+    for (const t of MAP_FEATURE_TYPES) {
+      markers.push({
+        key: t.iconId,
+        swatch: <MarkerSwatch specId={t.iconId} />,
+        label: SPEC_BY_ID[t.iconId]?.label || t.label,
+      });
     }
   }
   if (markers.length > 0) sections.push({ title: 'Markers', items: markers });

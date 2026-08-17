@@ -37,5 +37,3 @@ from .contractor_movement import ContractorMovement
 from .contractor_assignment import ContractorAssignment
 from .contractor_training import ContractorTraining
 from .notification import Notification
-
-from .blockchain import BlockchainChain, BlockchainNode, BlockchainEvent, FruitReceived

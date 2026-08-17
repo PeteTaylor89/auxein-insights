@@ -74,7 +74,6 @@ class VineyardBlock(Base):
     )
     
     rows = relationship("VineyardRow", back_populates="block", cascade="all, delete-orphan")
-    blockchain_chains = relationship("BlockchainChain", back_populates="vineyard_block")
     climate_historical_data = relationship("ClimateHistoricalData", back_populates="vineyard_block", cascade="all, delete-orphan")
 
     observation_spots = relationship(

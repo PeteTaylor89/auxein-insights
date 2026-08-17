@@ -437,21 +437,6 @@ export const HELP_CONTENT = {
       />
     ),
   },
-  'insights.blockchain': {
-    title: 'BlockChain',
-    soon: true,
-    body: (
-      <Help
-        soon
-        intro="A tamper-evident audit trail for your vineyard blocks."
-        items={[
-          'Immutable record of block activity',
-          'Provenance from vineyard to product',
-          'Verifiable history for compliance and buyers',
-        ]}
-      />
-    ),
-  },
   'insights.industry': {
     title: 'Latest Industry Insight',
     body: (

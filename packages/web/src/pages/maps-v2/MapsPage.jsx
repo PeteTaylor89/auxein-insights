@@ -13,6 +13,7 @@ import useTasksLayer from './hooks/useTasksLayer';
 // unreachable. Both modules are left in place for when it returns.
 import useObservationsLayer from './hooks/useObservationsLayer';
 import useAssetsLayer from './hooks/useAssetsLayer';
+import useMapFeaturesLayer, { MAP_FEATURE_CLICK_LAYERS } from './hooks/useMapFeaturesLayer';
 import useDrawingController from './hooks/useDrawingController';
 import useBlockSplit from './hooks/useBlockSplit';
 import useFlyoverAnimation from './hooks/useFlyoverAnimation';
@@ -36,10 +37,12 @@ import BlockCreateForm from './components/drawing/BlockCreateForm';
 import BlockEditForm from './components/drawing/BlockEditForm';
 import BlockSplitFlow from './components/drawing/BlockSplitFlow';
 import SpatialAreaForm from './components/drawing/SpatialAreaForm';
+import MapFeatureForm from './components/drawing/MapFeatureForm';
+import PrintDialog from './components/print/PrintDialog';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, EyeOff, ChevronDown, ChevronRight,
-  ClipboardList, AlertTriangle, Binoculars, Wrench, Layers, LandPlot,
+  ClipboardList, AlertTriangle, Binoculars, Wrench, Layers, LandPlot, MapPin,
 } from 'lucide-react';
 import {
   showReactPopup,
@@ -53,6 +56,8 @@ import BlockCompanyAssignModal from './components/drawing/BlockCompanyAssignModa
 import TaskDetailModal from './components/TaskDetailModal';
 import BlockSummaryModal from './components/BlockSummaryModal';
 import useAvailableCompanies from './hooks/useAvailableCompanies';
+import { defaultLayerVisibility } from './components/managementLayerRegistry';
+import { FEATURE_TYPE_BY_VALUE } from './components/mapFeatureTypes';
 import './MapsPage.css';
 
 function resolveViewerRole(user) {
@@ -105,13 +110,29 @@ function MapsPageInner() {
   const [mode, setMode] = useState('management');
   const [status, setStatus] = useState(null);
 
-  // Layer visibility toggles
-  const [showRisks, setShowRisks] = useState(true);
-  const [showSpatialAreas, setShowSpatialAreas] = useState(false);
-  const [showParcels, setShowParcels] = useState(false);
-  const [showTasks, setShowTasks] = useState(true);
-  const [showObservations, setShowObservations] = useState(true);
-  const [showAssets, setShowAssets] = useState(false);
+  // Layer visibility — ONE keyed object, not six loose booleans, so the set can
+  // be enumerated (print tick-list, legend, saved views). Defaults come from the
+  // registry so "what layers exist" is stated in exactly one place.
+  const [layerVisibility, setLayerVisibility] = useState(defaultLayerVisibility);
+
+  const toggleLayer = useCallback((id) => {
+    setLayerVisibility((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+  const setLayerVisible = useCallback((id, value) => {
+    setLayerVisibility((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
+  // Read-side aliases. The sidebar reads these ~40 times; naming them here keeps
+  // those call sites untouched while the state itself is now enumerable.
+  const {
+    risks: showRisks,
+    spatialAreas: showSpatialAreas,
+    parcels: showParcels,
+    tasks: showTasks,
+    observations: showObservations,
+    assets: showAssets,
+    mapFeatures: showMapFeatures,
+  } = layerVisibility;
 
   // Panel collapse state (for sidebar cleanliness)
   const [collapsed, setCollapsed] = useState({
@@ -122,6 +143,7 @@ function MapsPageInner() {
     tasks: true,
     observations: true,
     assets: true,
+    mapFeatures: true,
   });
   const toggleCollapse = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -162,6 +184,9 @@ function MapsPageInner() {
   // Form state
   const [showBlockCreate, setShowBlockCreate] = useState(false);
   const [showSpatialCreate, setShowSpatialCreate] = useState(false);
+  const [showFeatureForm, setShowFeatureForm] = useState(false);
+  const [editFeatureRecord, setEditFeatureRecord] = useState(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showBlockEdit, setShowBlockEdit] = useState(false);
   const [editBlockData, setEditBlockData] = useState(null);
   const [isEditingGeometry, setIsEditingGeometry] = useState(false);
@@ -275,6 +300,13 @@ function MapsPageInner() {
   const { assetsData, assetCount, loading: assetsLoading, error: assetsError } =
     useAssetsLayer(map, mapReady, showAssets);
 
+  // Points of interest
+  const {
+    mapFeaturesData, featureCount,
+    loading: featuresLoading, error: featuresError,
+    refresh: refreshMapFeatures,
+  } = useMapFeaturesLayer(map, mapReady, showMapFeatures);
+
   // Property boundaries — admin-only subtle dashed-outline layer.
   // Refresh trigger is the `properties` array, which already reloads on demand.
   usePropertiesLayer(map, mapReady, properties, isAdmin);
@@ -308,6 +340,19 @@ function MapsPageInner() {
     setStatus('Click on the map to draw a spatial area. Double-click to finish.');
   }, [drawing]);
 
+  // Points of interest. Only the point tool is exposed on the toolbar — lines
+  // and polygons are supported end to end (one generic geometry column, and the
+  // layer renders all three), but a single "Add POI" button is the ask. Adding
+  // a line/area tool later is another button and another draw mode, no schema,
+  // no API and no layer change.
+  const handleDrawFeature = useCallback(() => {
+    setDrawMode('draw_poi');
+    drawing.freeze();
+    drawing.clearDraft();
+    drawing.startDrawPoint();
+    setStatus('Click on the map to place a point of interest.');
+  }, [drawing]);
+
   const handleStartSplit = useCallback(() => {
     setDrawMode('split');
     drawing.freeze();
@@ -337,6 +382,8 @@ function MapsPageInner() {
     setDrawCentroid(null);
     setShowBlockCreate(false);
     setShowSpatialCreate(false);
+    setShowFeatureForm(false);
+    setEditFeatureRecord(null);
     setStatus(null);
     setActivePropertyForBoundary(null);
     setPropertyDrawGeometry(null);
@@ -453,6 +500,24 @@ function MapsPageInner() {
           setShowSpatialCreate(true);
           setStatus(null);
         }
+      }
+
+      // POIs accept all three geometry types. `showDraft` only knows how to
+      // paint fill+line, which a Point has no fill for — so the preview is
+      // skipped for points and the Draw feature itself stays visible instead
+      // (that is what the gl-draw-point-* styles are for).
+      if (drawMode === 'draw_poi') {
+        setDrawGeometry(geom);
+        if (geom.type === 'Point') {
+          drawing.resetMode();
+        } else {
+          drawing.freeze();
+          drawing.showDraft(geom);
+        }
+        setEditFeatureRecord(null);
+        setShowFeatureForm(true);
+        setStatus(null);
+        return;
       }
 
       if (drawMode === 'draw_property' && geom.type === 'Polygon') {
@@ -675,8 +740,8 @@ function MapsPageInner() {
     setShowSpatialEdit(false);
     setEditSpatialData(null);
     // Refresh spatial areas by toggling visibility (simple approach)
-    setShowSpatialAreas(false);
-    setTimeout(() => setShowSpatialAreas(true), 100);
+    setLayerVisible('spatialAreas', false);
+    setTimeout(() => setLayerVisible('spatialAreas', true), 100);
   }, []);
 
   // Block creation success
@@ -699,9 +764,39 @@ function MapsPageInner() {
     setDrawCentroid(null);
     setDrawMode('idle');
     drawing.clearDraft();
-    setShowSpatialAreas(false);
-    setTimeout(() => setShowSpatialAreas(true), 100);
-  }, [drawing]);
+    setLayerVisible('spatialAreas', false);
+    setTimeout(() => setLayerVisible('spatialAreas', true), 100);
+  }, [drawing, setLayerVisible]);
+
+  // POI saved / updated / deleted. Unlike spatial areas above, this refetches
+  // the layer's own data rather than flicking visibility off and on — the hook
+  // exposes refresh(), so there is no need for the 100ms remount trick.
+  const handleFeatureSaved = useCallback(() => {
+    setShowFeatureForm(false);
+    setEditFeatureRecord(null);
+    setDrawGeometry(null);
+    setDrawMode('idle');
+    drawing.freeze();
+    drawing.clearDraft();
+    setLayerVisible('mapFeatures', true);
+    refreshMapFeatures();
+  }, [drawing, setLayerVisible, refreshMapFeatures]);
+
+  // Click a POI on the map to edit it. The GeoJSON properties carry everything
+  // the form needs, so no extra GET is required.
+  const handleEditFeature = useCallback((props) => {
+    if (!props?.id) return;
+    setEditFeatureRecord({
+      id: props.id,
+      name: props.name,
+      description: props.description,
+      feature_type: props.feature_type,
+      property_id: props.property_id ?? null,
+      is_active: true,
+    });
+    setDrawGeometry(null);
+    setShowFeatureForm(true);
+  }, []);
 
   // ---- Parcel assignment handlers (auxein admin) ----
   const handleOpenParcelAssign = useCallback((parcelProps) => {
@@ -758,6 +853,8 @@ function MapsPageInner() {
   handleSplitBlockFromPopupRef.current = handleSplitBlockFromPopup;
   const handleOpenSpatialEditRef = useRef(handleOpenSpatialEdit);
   handleOpenSpatialEditRef.current = handleOpenSpatialEdit;
+  const handleEditFeatureRef = useRef(handleEditFeature);
+  handleEditFeatureRef.current = handleEditFeature;
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
   const isAuxeinAdminRef = useRef(isAuxeinAdmin);
@@ -778,8 +875,10 @@ function MapsPageInner() {
 
     // Priority order: first = highest priority. Point layers beat fill layers.
     const INTERACTIVE_LAYERS = [
+      'v2-map-features-points',
       'v2-assets-points', 'v2-risks-circles', 'v2-observations-symbol',
-      'v2-tasks-symbol', 'v2-assets-lines',
+      'v2-tasks-symbol', 'v2-assets-lines', 'v2-map-features-lines',
+      'v2-map-features-fill',
       'v2-spatial-fill', 'v2-parcels-fill', 'v2-blocks-fill',
     ];
 
@@ -815,7 +914,39 @@ function MapsPageInner() {
       const nav = navigateRef.current;
       const lngLat = [e.lngLat.lng, e.lngLat.lat];
 
-      if (layerId === 'v2-assets-points' || layerId === 'v2-assets-lines') {
+      if (MAP_FEATURE_CLICK_LAYERS.includes(layerId)) {
+        const typeMeta = FEATURE_TYPE_BY_VALUE[p.feature_type];
+        showReactPopup(map, { lngLat, content: (
+          <div className="v2-popup">
+            <div className="v2-popup-header">
+              <div
+                className="v2-popup-badge v2-popup-badge--owned"
+                style={{ background: typeMeta?.color }}
+              >
+                {typeMeta?.label || 'Point of Interest'}
+              </div>
+            </div>
+            <h3 className="v2-popup-title">{p.name || 'Unnamed'}</h3>
+            {p.description && (
+              <div className="v2-popup-grid">
+                <div className="v2-popup-row">
+                  <span className="v2-popup-value">{p.description}</span>
+                </div>
+              </div>
+            )}
+            <div className="v2-popup-footer">
+              {p.id && (
+                <button
+                  className="v2-popup-btn v2-popup-btn--accent"
+                  onClick={() => handleEditFeatureRef.current(p)}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          </div>
+        ) });
+      } else if (layerId === 'v2-assets-points' || layerId === 'v2-assets-lines') {
         showReactPopup(map, { lngLat, content: <AssetPopupContent properties={p} onNavigate={() => { const t = p.asset_type === 'consumable' ? 'consumables' : 'equipment'; nav(`/assets/${t}/${p.id}/edit`); }} /> });
       } else if (layerId === 'v2-risks-circles') {
         showReactPopup(map, { lngLat, content: <RiskPopupContent properties={p} onNavigate={() => nav('/riskdashboard')} /> });
@@ -1004,13 +1135,13 @@ function MapsPageInner() {
                   <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
                   Risks
                   <span className="v2-panel-count">{riskCount}</span>
-                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowRisks((v) => !v); }} title={showRisks ? 'Hide risks' : 'Show risks'}>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('risks'); }} title={showRisks ? 'Hide risks' : 'Show risks'}>
                     {showRisks ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                 </h3>
               </div>
               {showRisks && !collapsed.risks && (
-                <RisksPanel riskCount={riskCount} loading={risksLoading} error={risksError} visible={showRisks} onToggle={() => setShowRisks((v) => !v)} contentOnly />
+                <RisksPanel riskCount={riskCount} loading={risksLoading} error={risksError} visible={showRisks} onToggle={() => toggleLayer('risks')} contentOnly />
               )}
             </div>
 
@@ -1022,7 +1153,7 @@ function MapsPageInner() {
                   <Layers size={16} style={{ color: '#5B6830' }} />
                   Spatial Areas
                   <span className="v2-panel-count">{areaCount}</span>
-                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowSpatialAreas((v) => !v); }} title={showSpatialAreas ? 'Hide areas' : 'Show areas'}>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('spatialAreas'); }} title={showSpatialAreas ? 'Hide areas' : 'Show areas'}>
                     {showSpatialAreas ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                 </h3>
@@ -1049,7 +1180,7 @@ function MapsPageInner() {
                     <LandPlot size={16} style={{ color: '#6b7280' }} />
                     Land Parcels
                     <span className="v2-panel-count">{parcelCount}</span>
-                    <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowParcels((v) => !v); }} title={showParcels ? 'Hide parcels' : 'Show parcels'}>
+                    <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('parcels'); }} title={showParcels ? 'Hide parcels' : 'Show parcels'}>
                       {showParcels ? <Eye size={14} /> : <EyeOff size={14} />}
                     </button>
                   </h3>
@@ -1072,13 +1203,13 @@ function MapsPageInner() {
                   <ClipboardList size={16} style={{ color: '#D1583B' }} />
                   Tasks
                   <span className="v2-panel-count">{taskCount}</span>
-                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowTasks((v) => !v); }} title={showTasks ? 'Hide tasks' : 'Show tasks'}>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('tasks'); }} title={showTasks ? 'Hide tasks' : 'Show tasks'}>
                     {showTasks ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                 </h3>
               </div>
               {showTasks && !collapsed.tasks && (
-                <TasksPanel tasks={tasks} taskCount={taskCount} loading={tasksLoading} error={tasksError} visible={showTasks} onToggle={() => setShowTasks((v) => !v)} blocksData={blocksData} contentOnly />
+                <TasksPanel tasks={tasks} taskCount={taskCount} loading={tasksLoading} error={tasksError} visible={showTasks} onToggle={() => toggleLayer('tasks')} blocksData={blocksData} contentOnly />
               )}
             </div>
 
@@ -1090,13 +1221,68 @@ function MapsPageInner() {
                   <Binoculars size={16} style={{ color: '#5B6830' }} />
                   Observations
                   <span className="v2-panel-count">{obsCount}</span>
-                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowObservations((v) => !v); }} title={showObservations ? 'Hide obs' : 'Show obs'}>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('observations'); }} title={showObservations ? 'Hide obs' : 'Show obs'}>
                     {showObservations ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                 </h3>
               </div>
               {showObservations && !collapsed.observations && (
-                <ObservationsPanel observations={observations} obsCount={obsCount} loading={obsLoading} error={obsError} visible={showObservations} onToggle={() => setShowObservations((v) => !v)} contentOnly />
+                <ObservationsPanel observations={observations} obsCount={obsCount} loading={obsLoading} error={obsError} visible={showObservations} onToggle={() => toggleLayer('observations')} contentOnly />
+              )}
+            </div>
+
+            {/* Points of interest */}
+            <div className="v2-panel">
+              <div className="v2-panel-header" style={{ cursor: 'pointer' }}>
+                <h3 className="v2-panel-title" onClick={() => showMapFeatures && toggleCollapse('mapFeatures')}>
+                  {showMapFeatures && !collapsed.mapFeatures ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <MapPin size={16} style={{ color: '#0369a1' }} />
+                  Points of Interest
+                  <span className="v2-panel-count">{featureCount}</span>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('mapFeatures'); }} title={showMapFeatures ? 'Hide points of interest' : 'Show points of interest'}>
+                    {showMapFeatures ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                </h3>
+              </div>
+              {showMapFeatures && !collapsed.mapFeatures && (
+                <>
+                  {featuresLoading && <div className="v2-panel-loading">Loading points of interest...</div>}
+                  {featuresError && <div className="v2-panel-error">{featuresError}</div>}
+                  {!featuresLoading && !featuresError && featureCount === 0 && (
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', padding: '0 var(--space-md) var(--space-sm)' }}>
+                      None yet. Use <strong>Add POI</strong> on the map toolbar.
+                    </div>
+                  )}
+                  {!featuresLoading && featureCount > 0 && (
+                    <ul className="v2-block-list">
+                      {(mapFeaturesData?.features || []).map((feature) => {
+                        const fp = feature.properties || {};
+                        const meta = FEATURE_TYPE_BY_VALUE[fp.feature_type];
+                        return (
+                          <li
+                            key={fp.id}
+                            className="v2-block-item"
+                            onClick={() => {
+                              const geom = feature.geometry;
+                              if (map && geom?.type === 'Point') {
+                                map.flyTo({ center: geom.coordinates, zoom: 17, duration: 1200 });
+                              }
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                                background: meta?.color || '#2F2F2F', marginRight: 8, flexShrink: 0,
+                              }}
+                            />
+                            <span className="v2-block-name">{fp.name}</span>
+                            <span className="v2-block-meta">{meta?.label || fp.feature_type}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
 
@@ -1108,7 +1294,7 @@ function MapsPageInner() {
                   <Wrench size={16} style={{ color: '#5B6830' }} />
                   Assets
                   <span className="v2-panel-count">{assetCount}</span>
-                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); setShowAssets((v) => !v); }} title={showAssets ? 'Hide assets' : 'Show assets'}>
+                  <button className="v2-layer-toggle-btn" onClick={(e) => { e.stopPropagation(); toggleLayer('assets'); }} title={showAssets ? 'Hide assets' : 'Show assets'}>
                     {showAssets ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                 </h3>
@@ -1177,7 +1363,9 @@ function MapsPageInner() {
           activePropertyName={activePropertyForBoundary?.name || null}
           onDrawBlock={handleDrawBlock}
           onDrawSpatial={handleDrawSpatial}
+          onDrawFeature={handleDrawFeature}
           onSplit={handleStartSplit}
+          onPrint={() => setShowPrintDialog(true)}
           onCancel={handleCancelDraw}
           onSaveProperty={handleSavePropertyBoundary}
           canSaveProperty={!!propertyDrawGeometry}
@@ -1196,15 +1384,10 @@ function MapsPageInner() {
           />
         )}
 
-        <MapLegend
-          visible={{
-            risks: showRisks,
-            spatialAreas: showSpatialAreas,
-            tasks: showTasks,
-            observations: showObservations,
-            assets: showAssets,
-          }}
-        />
+        {/* Pass the state object straight through — MapLegend does keyed
+            lookups and ignores keys it doesn't know, so there is no second
+            hand-maintained list to drift out of step. */}
+        <MapLegend visible={layerVisibility} />
 
         <StatusBar message={status} />
       </div>
@@ -1226,6 +1409,28 @@ function MapsPageInner() {
         geometry={drawGeometry}
         area={drawArea}
         onSubmit={handleSpatialCreateSuccess}
+        onCancel={handleCancelDraw}
+      />
+
+      {/* Print / export. Takes the live map instance and reads its style,
+          camera and canvas size at export time — nothing is pre-computed. */}
+      <PrintDialog
+        isOpen={showPrintDialog}
+        map={map}
+        layerVisibility={layerVisibility}
+        isAdmin={isAdmin}
+        defaultTitle={properties?.[0]?.name || ''}
+        onClose={() => setShowPrintDialog(false)}
+      />
+
+      {/* Map feature (POI) create/edit — one form for both, since a POI has
+          no geometry-editing step: to move one, delete it and place it again. */}
+      <MapFeatureForm
+        isOpen={showFeatureForm}
+        existingFeature={editFeatureRecord}
+        geometry={drawGeometry}
+        properties={properties}
+        onSubmit={handleFeatureSaved}
         onCancel={handleCancelDraw}
       />
 
