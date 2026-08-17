@@ -104,9 +104,32 @@ def main() -> int:
               tile.headers["X-Surface-Key"].endswith(
                   "temp_mean_monthly_202001_500m_mean.tif"),
               tile.headers["X-Surface-Key"])
+        # The invariant is that every tile of a layer shares one domain, not that
+        # the domain holds any particular value — pinning the number here meant
+        # retuning a ramp failed a test that was not about ramps. Assert the
+        # property instead: the header agrees with the declared domain, and a
+        # different tile of the same layer reports the same one.
+        expected = S.store.domain_for("temp_mean", "mean")
+        other = S._real_tile(db, "temp_mean", "monthly", "2020-01", 5, 30, 20,
+                             None, None, None, None)
         check("tile domain is fixed, not stretched per tile",
-              tile.headers["X-Surface-Domain"] == "-5.0,21.0",
-              tile.headers["X-Surface-Domain"])
+              tile.headers["X-Surface-Domain"] == f"{expected[0]},{expected[1]}"
+              and other.headers["X-Surface-Domain"] == tile.headers["X-Surface-Domain"],
+              f'{tile.headers["X-Surface-Domain"]} vs {other.headers["X-Surface-Domain"]}')
+
+        # A shared ramp across the three temperature layers is only honest if the
+        # domain is shared too; otherwise the same red means 17 C on one layer
+        # and 26 C on another.
+        temp_domains = {v: S.store.domain_for(v, "mean")
+                        for v in ("temp_mean", "temp_min", "temp_max")}
+        check("all three temperature layers share one scale",
+              len(set(temp_domains.values())) == 1, temp_domains)
+
+        # Measured over the whole archive: rainfall/max reaches 806.7 mm and
+        # p99.9 is 319.9. A ceiling below p99.9 flattens every heavy-rain event.
+        rain_lo, rain_hi, _ = S.store.domain_for("rainfall", "max")
+        check("the wettest-day ceiling clears the measured p99.9",
+              rain_lo == 0.0 and rain_hi >= 319.9, (rain_lo, rain_hi))
         check("tiles are cached hard (immutable archive)",
               "immutable" in tile.headers["Cache-Control"])
 
@@ -184,11 +207,66 @@ def main() -> int:
                         start="2020-06", end="2020-01",
                         granularity="monthly", statistic=None, db=db) == 422)
 
-        print("\n/region")
-        check("region is 501 until the weighting decision lands",
-              status_of(S.region_stats, variables="temp_mean", start="2020-01",
-                        end="2020-01", zone_id=1, bbox=None,
-                        granularity="monthly") == 501)
+        print("\n/region + /zones")
+        from sqlalchemy import text as _text
+        zid = db.execute(_text(
+            "SELECT id FROM climate_zones WHERE slug = 'marlborough'")).scalar()
+
+        reg = S.region_stats(variables="temp_mean,rainfall", start="2022-09",
+                             end="2023-04", zone_id=zid, bbox=None,
+                             granularity="monthly", weighting="blocks", db=db)
+        check("region serves a vineyard-weighted series",
+              reg.meta["weighting"] == "blocks"
+              and len(reg.series) == 2
+              and len(reg.series[0].points) == 8,
+              f'{reg.meta["weighting"]}, {len(reg.series[0].points)} points')
+        # The whole point of the mask: a Marlborough value must reflect the
+        # planted valley, not the Sounds and the inland ranges. The polygon mean
+        # for this zone is 11.3 degC.
+        summer = [p.mean for p in reg.series[0].points if p.valid_at.month == 1]
+        check("Marlborough summer is planted-valley warm, not polygon-cold",
+              summer and 15.0 <= summer[0] <= 22.0, summer)
+        check("region declares the spread basis and extent",
+              reg.meta["spread_basis"] == "cells"
+              and "planted" in reg.meta["extent"])
+        check("area weighting is refused, not silently substituted",
+              status_of(S.region_stats, variables="temp_mean", start="2023-01",
+                        end="2023-01", zone_id=zid, bbox=None,
+                        granularity="monthly", weighting="area", db=db) == 422)
+        check("daily granularity is refused for regions",
+              status_of(S.region_stats, variables="temp_mean", start="2023-01",
+                        end="2023-01", zone_id=zid, bbox=None,
+                        granularity="daily", weighting="blocks", db=db) == 422)
+        check("an unknown zone 404s",
+              status_of(S.region_stats, variables="temp_mean", start="2023-01",
+                        end="2023-01", zone_id=999999, bbox=None,
+                        granularity="monthly", weighting="blocks", db=db) == 404)
+
+        fc = S.zone_layer(level="region", simplify=0.004, metric="gdd10", db=db)
+        check("zone layer returns the ten regions with geometry",
+              len(fc["features"]) == 10, len(fc["features"]))
+        check("every zone feature carries a headline and a region URL",
+              all(f["properties"]["headline"] is not None
+                  and f["properties"]["url"].startswith("/regions/")
+                  for f in fc["features"]))
+        # Zones nest, so a consumer that sums them double-counts. The payload has
+        # to say so rather than leave it to documentation nobody reads.
+        check("the zone layer warns that zones overlap",
+              "overlaps" in fc["meta"])
+        check("sub-zones are a separate request, not mixed in",
+              len(S.zone_layer(level="sub_zone", simplify=0.004,
+                               metric="gdd10", db=db)["features"]) == 13)
+        check("an unknown level 422s",
+              status_of(S.zone_layer, level="province", simplify=0.004,
+                        metric="gdd10", db=db) == 422)
+
+        season = S._real_zone_season(db, "marlborough", "gdd10,rain")
+        check("zone season covers every vintage in the archive",
+              len(season.series[0].points) == 37,
+              len(season.series[0].points))
+        check("an unknown zone slug 404s",
+              status_of(S.zone_season, slug="not-a-zone", metrics=None,
+                        db=db) == 404)
     finally:
         db.close()
 

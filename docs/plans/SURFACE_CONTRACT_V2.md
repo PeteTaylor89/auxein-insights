@@ -1,8 +1,10 @@
 # Climate Surface Contract v2
 
 **Status: PUBLISHED 2026-08-04 · amended 2026-08-05 (§8.1, additive) · amended
-2026-08-13 (§8.2 — aggregated surfaces, zonal weighting, gap semantics) · this
-is the interface WS3 builds against**
+2026-08-13 (§8.2 — aggregated surfaces, zonal weighting, gap semantics) ·
+amended 2026-08-17 (§8.3 — `/region` implemented; the §8.2 "no consumer yet"
+argument is now SPENT and cannot be invoked again) · this is the interface WS3
+builds against**
 
 This document is the frozen interface between the interpolation pipeline (WS2)
 and everything that consumes surfaces (WS3 frontend, point API, AI agent tools,
@@ -636,8 +638,24 @@ farms.
 
 | `weighting` | What is aggregated | `min` / `max` mean |
 |---|---|---|
-| `blocks` | only raster cells intersecting a registered block inside the zone | **across blocks** — "the coolest vineyard in this zone" |
+| `blocks` | raster cells intersecting a registered block inside the zone, **weighted by planted hectares in each cell** | **across planted cells** — "the coolest planted part of this zone" |
 | `area` | every cell inside the zone polygon, area-weighted | **across cells** — "the coldest cell, including the ridge nobody plants on" |
+
+**Corrected 2026-08-17, at implementation.** Two details in the row above changed
+from the 2026-08-13 text, and both were forced by measurement:
+
+- **The weight is planted hectares per cell, not cell membership.** The average
+  registered block is 4.95 ha while a 500 m cell at -41 degrees is 18.9 ha, so
+  blocks are roughly a QUARTER of a cell. A membership test has no good form at
+  that ratio: centre-in-block discards most blocks, any-touch scores a corner
+  clip the same as a fully planted cell.
+- **`min`/`max` are across planted CELLS, not across blocks.** The 08-13 text
+  said blocks. Because only planted cells are in the mask, the coldest masked
+  cell already *is* a cell containing vineyard, so the intent — "not the ridge
+  nobody plants on" — is satisfied without carrying a per-block per-month table
+  (8,692 blocks x 456 months x 15 bands to answer a question nobody asked at
+  block resolution). The response says which it is: `meta.spread_basis: "cells"`
+  and `meta.extent: "planted cells only"`.
 
 `weighting` is **echoed in the response**, and consumers must read it. The two
 modes reuse the same `mean`/`min`/`max` fields, so without it the identical JSON
@@ -648,8 +666,16 @@ current-season metrics. **Projections are exempt** — they keep coming from the
 existing DB path, which already produced them this way, so there is nothing to
 re-derive.
 
-`blocks` degrades to `area` where a zone contains no registered blocks, and says
-so via `weighting: "area"` in the response rather than returning nothing.
+~~`blocks` degrades to `area` where a zone contains no registered blocks, and says
+so via `weighting: "area"` in the response rather than returning nothing.~~
+
+**Superseded 2026-08-17: the degrade path does not exist, because the case does
+not.** All 23 zones with geometry contain registered blocks — the thinnest is
+Waitaki at 26 blocks / 24 cells / 56 ha. Rather than carry an untestable
+fallback, `weighting=area` returns **422**: a caller that wants the old
+definition is told it is not served, instead of receiving the new one under the
+old name. If a zone with no blocks is ever added, that 422 is the signal to
+implement the fallback deliberately.
 
 ### 5.3 Surface discovery
 ```
@@ -852,3 +878,41 @@ built against v2 §5 remain correct.
 
 **If `/region` ships a value before this amendment is implemented, that
 reasoning expires** and the weighting change has to mint v3 properly.
+
+---
+
+## 8.3 Amendment 2026-08-17 — `/region` now serves a value
+
+**This is the moment §8.2 named.** `/region` is implemented against the published
+archive and returns real numbers, so the "no consumer has ever read this field"
+argument that kept the weighting change inside v2 is now spent. It cannot be
+invoked again for this field.
+
+**The contract stays at v2, and this is the last amendment that may say so.** The
+test §8.2 set was whether a deployed client had ever read the changed field. None
+had: `/region` returned 501 in every deployed build up to and including
+`af8df4f`, and the first release that answers it is the same release that carries
+this text. The semantics are therefore written down *before* the first consumer,
+not after — which is the condition §8.2 was protecting, rather than the calendar.
+
+What ships, precisely:
+
+- `weighting=blocks` is the default and the only implemented mode. `area` → 422.
+- Weights are **planted hectares per cell** (§5.2 as corrected above).
+- `min`/`max`/`p10`/`p90` are **across planted cells**, echoed as
+  `meta.spread_basis` and `meta.extent`.
+- `granularity=monthly` only. The zone archive is monthly; `daily` → 422 rather
+  than a silently resampled answer.
+- `area_km2` carries **planted** area, not polygon area. The two differ by orders
+  of magnitude for a mountainous zone, which is the whole point of the weighting.
+- New sibling routes, additive: `GET /surfaces/zones` (polygon layer with one
+  headline number per zone) and `GET /surfaces/zones/{slug}/season` (Sep-Apr
+  growing-season history by vintage year). Both open, like `/tiles` and
+  `/available`.
+
+**Zones nest and overlap.** Marlborough contains Lower Wairau, Awatere and Upper
+Wairau, so zone rows are not a partition and must never be summed across.
+`/zones` echoes this in `meta.overlaps`, and takes a `level` filter because
+drawing both levels stacks a parent polygon over its own children.
+
+Anything that changes these semantics again mints **v3**.

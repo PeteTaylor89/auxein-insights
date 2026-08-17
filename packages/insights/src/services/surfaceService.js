@@ -32,13 +32,56 @@ export const DEFAULT_STATISTIC = {
 
 // §5 variable vocabulary. Units are the contract's and are NOT negotiable at
 // the display layer — a chart that relabels C as F must convert, not rename.
+/**
+ * Zone polygons for the Atlas overlay, with one headline number each.
+ *
+ * `level` matters: zones NEST — Marlborough contains Lower Wairau, Awatere and
+ * Upper Wairau — so asking for both levels at once stacks a parent polygon on
+ * top of its own children and every click hits the parent. Pick one level per
+ * zoom band.
+ */
+export async function fetchZoneLayer({ level = 'region', metric = 'gdd10', simplify = 0.004 } = {}) {
+  const base = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+  const params = new URLSearchParams({ level, metric, simplify: String(simplify) });
+  const res = await fetch(`${base}/surfaces/zones?${params}`);
+  if (!res.ok) throw httpError('zone layer', res.status);
+  return res.json();
+}
+
+/**
+ * Errors carry `.response.status` so `isSurfacesUnavailable()` can tell a
+ * switched-off surface API from a real failure — the same shape the axios-based
+ * callers in this module already produce. A 501 (no stub for this route) must
+ * hide the panel, not render an error box.
+ */
+function httpError(what, status) {
+  const err = new Error(`${what} failed: ${status}`);
+  err.response = { status: status === 501 ? 503 : status };
+  return err;
+}
+
+/** Growing-season history for one zone. Sep-Apr, labelled by vintage year. */
+export async function fetchZoneSeason(slug, metrics) {
+  const base = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+  const params = new URLSearchParams();
+  if (metrics?.length) params.set('metrics', metrics.join(','));
+  const qs = params.toString();
+  const res = await fetch(`${base}/surfaces/zones/${encodeURIComponent(slug)}/season${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw httpError('zone season', res.status);
+  return res.json();
+}
+
+// `ramp` here is only the name of the server's default, kept for reference and
+// for the rare explicit override; it is NOT sent on a normal tile request (see
+// `tileUrlTemplate`). Every temperature variable shares one ramp on purpose, so
+// a colour means one temperature across all three layers.
 export const SURFACE_VARIABLES = {
-  temp_mean: { label: 'Mean temperature', unit: 'C', ramp: 'viridis' },
-  temp_min: { label: 'Minimum temperature', unit: 'C', ramp: 'blues' },
-  temp_max: { label: 'Maximum temperature', unit: 'C', ramp: 'magma' },
-  rainfall: { label: 'Rainfall', unit: 'mm', ramp: 'blues' },
-  rh: { label: 'Relative humidity', unit: '%', ramp: 'blues' },
-  pet: { label: 'Evapotranspiration', unit: 'mm', ramp: 'magma' },
+  temp_mean: { label: 'Mean temperature', unit: 'C', ramp: 'temperature' },
+  temp_min: { label: 'Minimum temperature', unit: 'C', ramp: 'temperature' },
+  temp_max: { label: 'Maximum temperature', unit: 'C', ramp: 'temperature' },
+  rainfall: { label: 'Rainfall', unit: 'mm', ramp: 'rain_depth' },
+  rh: { label: 'Relative humidity', unit: '%', ramp: 'rain' },
+  pet: { label: 'Evapotranspiration', unit: 'mm', ramp: 'heat' },
 };
 
 /**
@@ -134,9 +177,10 @@ export function tileUrlTemplate({
   const params = new URLSearchParams();
   // `ramp` is deliberately NOT defaulted here any more. The server holds a
   // measured default ramp AND a fixed display domain per (variable, statistic);
-  // sending a ramp from the client overrides half of that pairing and can put a
-  // blues ramp on a domain chosen for magma. Send one only when overriding on
-  // purpose.
+  // sending a ramp from the client overrides half of that pairing — and the
+  // pairing now carries stop POSITIONS too, so an override can also put evenly
+  // spaced stops on a domain whose ramp was front-loaded for a skewed variable.
+  // Send one only when overriding on purpose.
   if (ramp) params.set('ramp', ramp);
   if (statistic) params.set('statistic', statistic);
   // Overriding min/max leaves the server's fixed domain, so tiles rendered with

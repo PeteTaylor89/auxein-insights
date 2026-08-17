@@ -1,0 +1,133 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { fetchZoneSeason, isSurfacesUnavailable } from '../../services/surfaceService';
+import './ZoneOverviewCard.css';
+
+// The headline set for a zone click. Deliberately small — this is a stepping
+// stone to the region page, not a dashboard.
+const METRICS = ['gdd10', 'tmean', 'rain', 'frost_days'];
+
+const LABELS = {
+  gdd10: 'Growing degree days',
+  tmean: 'Mean temperature',
+  rain: 'Rainfall',
+  frost_days: 'Frost days',
+};
+
+// Long-term window used for the "vs usual" comparison. Ends in 2016 so the
+// recent seasons being compared are not also inside the baseline.
+const BASE_FROM = 1987;
+const BASE_TO = 2016;
+
+function format(metric, value) {
+  if (value == null || !Number.isFinite(value)) return '--';
+  if (metric === 'tmean') return `${value.toFixed(1)}°C`;
+  if (metric === 'rain') return `${Math.round(value)} mm`;
+  if (metric === 'gdd10') return Math.round(value).toLocaleString();
+  return value.toFixed(1);
+}
+
+function ZoneOverviewCard({ zone, onClose }) {
+  const [data, setData] = useState(null);
+  const [state, setState] = useState('loading');
+
+  useEffect(() => {
+    if (!zone?.slug) return undefined;
+    let live = true;
+    setState('loading');
+    fetchZoneSeason(zone.slug, METRICS)
+      .then((res) => {
+        if (!live) return;
+        setData(res);
+        setState('ready');
+      })
+      .catch((err) => {
+        if (!live) return;
+        setState(isSurfacesUnavailable(err) ? 'unavailable' : 'error');
+      });
+    return () => { live = false; };
+  }, [zone?.slug]);
+
+  if (!zone) return null;
+
+  const series = data?.series ?? [];
+  const latest = series.reduce((acc, s) => {
+    const points = s.points ?? [];
+    if (!points.length) return acc;
+    const last = points[points.length - 1];
+    const baseline = points.filter(
+      (p) => p.vintage_year >= BASE_FROM && p.vintage_year <= BASE_TO && p.mean != null,
+    );
+    const base = baseline.length
+      ? baseline.reduce((sum, p) => sum + p.mean, 0) / baseline.length
+      : null;
+    acc[s.metric] = { last, base, unit: s.unit };
+    return acc;
+  }, {});
+
+  const vintage = series[0]?.points?.slice(-1)[0]?.vintage_year;
+
+  return (
+    <aside className="zone-card" aria-label={`${zone.name} overview`}>
+      <div className="zone-card__head">
+        <div>
+          <h3 className="zone-card__title">{zone.name}</h3>
+          <p className="zone-card__sub">
+            {vintage ? `${vintage - 1}/${String(vintage).slice(2)} season` : 'Growing season'}
+            {zone.planted_ha ? ` · ${Math.round(zone.planted_ha).toLocaleString()} ha planted` : ''}
+          </p>
+        </div>
+        <button type="button" className="zone-card__close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+      </div>
+
+      {state === 'loading' && <p className="zone-card__note">Loading…</p>}
+      {state === 'unavailable' && <p className="zone-card__note">Zone statistics are not available.</p>}
+      {state === 'error' && <p className="zone-card__note">Could not load this zone.</p>}
+
+      {state === 'ready' && (
+        <>
+          <dl className="zone-card__stats">
+            {METRICS.map((metric) => {
+              const entry = latest[metric];
+              if (!entry) return null;
+              const delta = entry.base != null && entry.last?.mean != null
+                ? entry.last.mean - entry.base
+                : null;
+              return (
+                <div key={metric} className="zone-card__stat">
+                  <dt>{LABELS[metric]}</dt>
+                  <dd>
+                    {format(metric, entry.last?.mean)}
+                    {delta != null && (
+                      <span className={`zone-card__delta${delta >= 0 ? ' is-up' : ' is-down'}`}>
+                        {delta >= 0 ? '+' : '−'}{format(metric, Math.abs(delta))} vs {BASE_FROM}–{BASE_TO}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+
+          {/* The range across real vineyards is the honest companion to the
+              mean — a zone number without it implies a uniformity that a zone
+              spanning 3.4 degC does not have. */}
+          {latest.tmean?.last?.min != null && latest.tmean?.last?.max != null && (
+            <p className="zone-card__spread">
+              Across vineyards in this zone: {latest.tmean.last.min.toFixed(1)}°C to{' '}
+              {latest.tmean.last.max.toFixed(1)}°C
+            </p>
+          )}
+
+          <Link className="zone-card__cta" to={`/regions/${zone.slug}`}>
+            Explore {zone.name} →
+          </Link>
+        </>
+      )}
+    </aside>
+  );
+}
+
+export default ZoneOverviewCard;

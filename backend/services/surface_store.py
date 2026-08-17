@@ -56,6 +56,32 @@ class SurfaceNotFound(LookupError):
 # --- colour ramps -----------------------------------------------------------
 
 RAMPS: dict[str, list[list[int]]] = {
+    # One ramp for every temperature-valued layer, so a colour means the same
+    # thing whichever temperature you are looking at. Purple = deep cold,
+    # blue = cold, pale yellow = mild, orange/red = hot. Before this, temp_mean
+    # rendered viridis, temp_min blues and temp_max magma — three different
+    # colour languages for one quantity, and purple meant "coldest" on one map
+    # and "hottest" on another.
+    "temperature": [[59, 15, 112], [49, 76, 186], [110, 174, 220],
+                    [248, 244, 173], [247, 168, 78], [214, 45, 32],
+                    [124, 16, 22]],
+    # MetService-idiom precipitation: white through blue, green, yellow, orange,
+    # red, to magenta at the extreme. Two variants share the colours and differ
+    # only in stop placement — see RAMP_POSITIONS.
+    "rain": [[240, 249, 255], [186, 223, 240], [110, 180, 224], [42, 122, 190],
+             [44, 160, 90], [190, 214, 60], [253, 224, 70], [247, 148, 50],
+             [218, 47, 40], [140, 28, 110]],
+    "rain_depth": [[240, 249, 255], [186, 223, 240], [110, 180, 224],
+                   [42, 122, 190], [44, 160, 90], [190, 214, 60],
+                   [253, 224, 70], [247, 148, 50], [218, 47, 40],
+                   [140, 28, 110]],
+    # Warm sequential for counts and spreads DERIVED from temperature but not
+    # measured in it. These must not use the `temperature` ramp: purple there
+    # means deep cold, and "few hot days" is not cold.
+    "heat": [[255, 245, 215], [254, 217, 142], [254, 173, 84], [240, 118, 50],
+             [204, 53, 38], [130, 20, 30]],
+    # Retained so an explicit ?ramp= override keeps working, and for the
+    # day-of-month index bands where no ramp is meaningful anyway.
     "viridis": [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98],
                 [253, 231, 37]],
     "magma": [[0, 0, 4], [81, 18, 124], [183, 55, 121], [252, 137, 97],
@@ -63,6 +89,35 @@ RAMPS: dict[str, list[list[int]]] = {
     "blues": [[247, 251, 255], [198, 219, 239], [107, 174, 214], [33, 113, 181],
               [8, 48, 107]],
 }
+
+# Where each stop sits in 0..1. Absent = evenly spaced, which is right for any
+# roughly symmetric quantity.
+#
+# Rainfall DEPTHS are not symmetric — they are strongly right-skewed, and an
+# even ramp puts the median month in the first colour and spends most of the
+# scale on the wettest 1%. Measured over the whole published archive
+# (`scratchpad/scan_rainfall_domain.py`, 653 M cells per layer):
+#
+#   rainfall/sum   p50 113.8   p90 314.9   p99 757.2   p99.9 1268   max 2913
+#   rainfall/max   p50  29.0   p90  79.6   p99 183.4   p99.9  320   max  807
+#
+# Both distributions land at almost exactly the same FRACTION of their domain
+# (p50 at 0.095, p90 at 0.26), so one front-loaded stop vector serves both.
+# Counts (wet days, days over 10 mm) are not skewed and keep even spacing —
+# hence `rain` and `rain_depth` sharing colours but not positions.
+RAMP_POSITIONS: dict[str, list[float]] = {
+    "rain_depth": [0.0, 0.017, 0.05, 0.10, 0.167, 0.267, 0.383, 0.517, 0.70, 1.0],
+}
+
+
+def ramp_positions(ramp: str) -> list[float]:
+    """Stop positions in 0..1. Evenly spaced unless the ramp declares otherwise."""
+    stops = RAMPS.get(ramp, RAMPS["viridis"])
+    declared = RAMP_POSITIONS.get(ramp)
+    if declared and len(declared) == len(stops):
+        return list(declared)
+    n = len(stops)
+    return [i / (n - 1) for i in range(n)] if n > 1 else [0.0]
 
 # (variable, statistic) -> (min, max, ramp).
 #
@@ -92,47 +147,74 @@ RAMPS: dict[str, list[list[int]]] = {
 # Day-of-month bands (argmin_day, first_frost_day, ...) are 1..31 with 0 meaning
 # "never", so they share a 0..31 domain; they are indices, not magnitudes, and
 # a continuous ramp over them is a weak visual at best.
+# A SHARED temperature domain, not one per variable. A common ramp with
+# per-variable domains would be worse than the old three-ramp arrangement: every
+# map would look plausible while red meant 17 C on the minimum-temperature layer
+# and 26 C on the maximum. Switching variable is the main thing a visitor does
+# here, so the two must be directly comparable.
+#
+# Two scales, because the question changes: TYPICAL layers (mean, median) share
+# one, EXTREME-DAY layers (the coldest/warmest single day in the month) share a
+# wider one. Comparing a mean to a monthly extreme is not a journey the map
+# offers, and forcing both onto one scale would flatten every typical map.
+TEMP_TYPICAL = (-7.0, 26.0)     # covers temp_min p0.5 -6.65 .. temp_max p99.5 26.03
+TEMP_EXTREME = (-15.0, 32.0)    # covers temp_mean/min .. temp_max/max
+
 DOMAINS: dict[tuple[str, str], tuple[float, float, str]] = {
-    ("temp_mean", "mean"): (-5.0, 21.0, "viridis"),
-    ("temp_mean", "median"): (-5.0, 21.0, "viridis"),
-    ("temp_mean", "min"): (-12.0, 18.0, "viridis"),
-    ("temp_mean", "max"): (-2.0, 26.0, "viridis"),
-    ("temp_min", "mean"): (-7.0, 17.0, "blues"),
-    ("temp_min", "median"): (-7.0, 17.0, "blues"),
-    ("temp_min", "min"): (-14.0, 14.0, "blues"),
-    ("temp_min", "max"): (-3.0, 21.0, "blues"),
-    ("temp_max", "mean"): (0.0, 26.0, "magma"),
-    ("temp_max", "median"): (0.0, 26.0, "magma"),
-    ("temp_max", "min"): (-8.0, 22.0, "magma"),
-    ("temp_max", "max"): (4.0, 32.0, "magma"),
-    ("rainfall", "sum"): (0.0, 800.0, "blues"),
-    ("rainfall", "mean"): (0.0, 26.0, "blues"),
-    ("rainfall", "median"): (0.0, 12.0, "blues"),
-    ("rainfall", "max"): (0.0, 150.0, "blues"),
+    ("temp_mean", "mean"): (*TEMP_TYPICAL, "temperature"),
+    ("temp_mean", "median"): (*TEMP_TYPICAL, "temperature"),
+    ("temp_mean", "min"): (*TEMP_EXTREME, "temperature"),
+    ("temp_mean", "max"): (*TEMP_EXTREME, "temperature"),
+    ("temp_min", "mean"): (*TEMP_TYPICAL, "temperature"),
+    ("temp_min", "median"): (*TEMP_TYPICAL, "temperature"),
+    ("temp_min", "min"): (*TEMP_EXTREME, "temperature"),
+    ("temp_min", "max"): (*TEMP_EXTREME, "temperature"),
+    ("temp_max", "mean"): (*TEMP_TYPICAL, "temperature"),
+    ("temp_max", "median"): (*TEMP_TYPICAL, "temperature"),
+    ("temp_max", "min"): (*TEMP_EXTREME, "temperature"),
+    ("temp_max", "max"): (*TEMP_EXTREME, "temperature"),
+    # Ceilings sit AT the measured p99.9, not eyeballed. The old 150 mm ceiling
+    # on the wettest-day layer saturated 1.95% of all cells — every heavy-rain
+    # event in the archive rendered as one flat colour — and the true maximum is
+    # 806.7 mm (August 1992), over five times that ceiling. At p99.9 only 0.1%
+    # saturates, and the front-loaded `rain_depth` stops keep the median month
+    # legible despite the wider range. Both ceilings are also divisible by four,
+    # so the legend's quarter ticks come out as whole millimetres.
+    ("rainfall", "sum"): (0.0, 1280.0, "rain_depth"),
+    ("rainfall", "mean"): (0.0, 40.0, "rain_depth"),
+    ("rainfall", "median"): (0.0, 20.0, "rain_depth"),
+    ("rainfall", "max"): (0.0, 320.0, "rain_depth"),
 }
 
 # Statistic-only fallbacks, applied when the pair above has no entry. Counts and
 # day indices behave the same whatever the variable.
+#
+# Counts do NOT go on the `temperature` ramp even when they are derived from
+# temperature: purple there means deep cold, and "no hot days" is not cold.
+# They get single-direction sequential ramps that read as a magnitude —
+# `heat` for warm/dry counts, `blues` for frost, `rain` (evenly spaced) for wet.
 STATISTIC_DOMAINS: dict[str, tuple[float, float, str]] = {
-    "sd": (0.0, 6.0, "magma"),
+    "sd": (0.0, 6.0, "heat"),
     "frost_days": (0.0, 31.0, "blues"),
-    "days_over_25": (0.0, 22.0, "magma"),
-    "days_over_30": (0.0, 12.0, "magma"),
-    "wet_days": (0.0, 31.0, "blues"),
-    "days_over_10mm": (0.0, 31.0, "blues"),
-    "days_over_25mm": (0.0, 20.0, "blues"),
-    "max_dry_spell": (0.0, 31.0, "magma"),
+    "days_over_25": (0.0, 22.0, "heat"),
+    "days_over_30": (0.0, 12.0, "heat"),
+    "wet_days": (0.0, 31.0, "rain"),
+    "days_over_10mm": (0.0, 31.0, "rain"),
+    "days_over_25mm": (0.0, 20.0, "rain"),
+    "max_dry_spell": (0.0, 31.0, "heat"),
     "argmin_day": (0.0, 31.0, "viridis"),
     "argmax_day": (0.0, 31.0, "viridis"),
     "first_frost_day": (0.0, 31.0, "blues"),
     "last_frost_day": (0.0, 31.0, "blues"),
-    "wet_top1": (0.0, 200.0, "blues"),
-    "wet_top2": (0.0, 150.0, "blues"),
-    "wet_top3": (0.0, 120.0, "blues"),
-    "wet_top4": (0.0, 100.0, "blues"),
-    "wet_top5": (0.0, 90.0, "blues"),
-    "all_time_max": (-5.0, 40.0, "magma"),
-    "all_time_min": (-30.0, 15.0, "blues"),
+    # wet_top1 IS the month's wettest day, so it shares rainfall/max's ceiling;
+    # the rest step down as the ranked falls do.
+    "wet_top1": (0.0, 320.0, "rain_depth"),
+    "wet_top2": (0.0, 220.0, "rain_depth"),
+    "wet_top3": (0.0, 180.0, "rain_depth"),
+    "wet_top4": (0.0, 150.0, "rain_depth"),
+    "wet_top5": (0.0, 130.0, "rain_depth"),
+    "all_time_max": (-15.0, 40.0, "temperature"),
+    "all_time_min": (-30.0, 20.0, "temperature"),
     "all_time_max_day": (0.0, 13880.0, "viridis"),
     "all_time_min_day": (0.0, 13880.0, "viridis"),
 }
@@ -458,11 +540,14 @@ def render_tile(s3_key: str, z: int, x: int, y: int, ramp: str,
     span = (vmax - vmin) or 1.0
     scaled = np.clip((np.nan_to_num(values, nan=vmin) - vmin) / span, 0.0, 1.0)
 
+    # Interpolate against declared stop POSITIONS, not stop index, so a ramp can
+    # be front-loaded for a skewed variable. The legend is drawn from the same
+    # two arrays (`/available.meta.domain`), so the two cannot drift apart.
     stops = np.array(RAMPS.get(ramp, RAMPS["viridis"]), dtype=float)
-    idx = scaled * (len(stops) - 1)
-    i0 = np.clip(np.floor(idx).astype(int), 0, len(stops) - 2)
-    frac = (idx - i0)[..., None]
-    rgb = (stops[i0] * (1.0 - frac) + stops[i0 + 1] * frac).astype(np.uint8)
+    pos = np.array(ramp_positions(ramp), dtype=float)
+    rgb = np.empty(scaled.shape + (3,), dtype=np.uint8)
+    for channel in range(3):
+        rgb[..., channel] = np.interp(scaled, pos, stops[:, channel]).astype(np.uint8)
     alpha = np.where(valid, 255, 0).astype(np.uint8)
 
     return encode_png(np.dstack([rgb, alpha]))

@@ -27,15 +27,26 @@ import { Play, Pause } from 'lucide-react';
 import useSurfaceAvailability from '../../hooks/useSurfaceAvailability';
 import {
   tileUrlTemplate,
+  fetchZoneLayer,
   SURFACE_VARIABLES,
   DEFAULT_STATISTIC,
 } from '../../services/surfaceService';
+import ZoneOverviewCard from './ZoneOverviewCard';
 import './SurfaceMap.css';
 
 const NZ_BOUNDS = [[165.8, -47.6], [179.4, -33.9]];
 const VARIABLES = ['temp_mean', 'temp_min', 'temp_max', 'rainfall'];
 const SOURCE_ID = 'climate-surface';
+const ZONE_SOURCE = 'wine-zones';
+const ZONE_FILL = 'wine-zones-fill';
+const ZONE_LINE = 'wine-zones-line';
 const PLAY_MS = 420;
+
+// Zones NEST — Marlborough contains Lower Wairau, Awatere and Upper Wairau — so
+// only one level is ever drawn. Drawing both stacks a parent over its children
+// and every click lands on the parent. Sub-zones appear once zoomed in enough
+// for them to be distinguishable.
+const SUBZONE_FROM_ZOOM = 8;
 
 // Statistics worth putting in front of a visitor. The archive publishes more
 // (argmin_day, wet_top3, ...) but those are analysis bands, not map layers, and
@@ -48,10 +59,21 @@ const FEATURED_STATISTICS = {
 };
 
 const STAT_LABELS = {
-  mean: 'Mean', median: 'Median', min: 'Coldest day', max: 'Warmest day',
+  mean: 'Mean', median: 'Median',
   sd: 'Variability', sum: 'Total', wet_days: 'Wet days',
   frost_days: 'Frost days', days_over_25: 'Days over 25', days_over_30: 'Days over 30',
   max_dry_spell: 'Longest dry spell',
+};
+
+// `min` and `max` are the same band everywhere — the lowest and highest daily
+// value in the month — but they do not mean the same thing on every layer, and
+// a single label got it plainly wrong: rainfall's `max` read "Warmest day".
+// temp_min is a nightly minimum, so its extremes are nights, not days.
+const EXTREME_LABELS = {
+  temp_mean: { min: 'Coldest day', max: 'Warmest day' },
+  temp_min: { min: 'Coldest night', max: 'Warmest night' },
+  temp_max: { min: 'Coolest day', max: 'Hottest day' },
+  rainfall: { min: 'Driest day', max: 'Wettest day' },
 };
 
 // Statistics whose unit is not the variable's own unit. Without this a count of
@@ -61,8 +83,10 @@ const COUNT_STATISTICS = new Set([
   'days_over_10mm', 'days_over_25mm', 'max_dry_spell',
 ]);
 
-function statLabel(stat) {
-  return STAT_LABELS[stat] || stat.replace(/_/g, ' ');
+function statLabel(stat, variable) {
+  return EXTREME_LABELS[variable]?.[stat]
+    || STAT_LABELS[stat]
+    || stat.replace(/_/g, ' ');
 }
 
 function monthLabel(stamp) {
@@ -86,6 +110,10 @@ function SurfaceMap() {
   const [playing, setPlaying] = useState(false);
   const [mapFailed, setMapFailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [zones, setZones] = useState({ region: null, sub_zone: null });
+  const [zoneLevel, setZoneLevel] = useState('region');
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [showZones, setShowZones] = useState(true);
 
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -185,6 +213,121 @@ function SurfaceMap() {
     });
   }, [mapReady, variable, statistic, current]);
 
+  // --- wine zone overlay ----------------------------------------------------
+  // Fetched per level and cached, because the geometry is static and the two
+  // levels together are the whole layer.
+  useEffect(() => {
+    if (zones[zoneLevel] !== null) return undefined;
+    let live = true;
+    fetchZoneLayer({ level: zoneLevel, metric: 'gdd10' })
+      .then((fc) => { if (live) setZones((prev) => ({ ...prev, [zoneLevel]: fc })); })
+      .catch(() => { if (live) setZones((prev) => ({ ...prev, [zoneLevel]: false })); });
+    return () => { live = false; };
+  }, [zoneLevel, zones]);
+
+  // Swap sub-zones in once they are big enough on screen to be worth clicking.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return undefined;
+    const onZoom = () => {
+      setZoneLevel(map.getZoom() >= SUBZONE_FROM_ZOOM ? 'sub_zone' : 'region');
+    };
+    map.on('zoomend', onZoom);
+    return () => map.off('zoomend', onZoom);
+  }, [mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return undefined;
+
+    const fc = zones[zoneLevel];
+    const remove = () => {
+      if (map.getLayer(ZONE_LINE)) map.removeLayer(ZONE_LINE);
+      if (map.getLayer(ZONE_FILL)) map.removeLayer(ZONE_FILL);
+      if (map.getSource(ZONE_SOURCE)) map.removeSource(ZONE_SOURCE);
+    };
+    remove();
+    if (!showZones || !fc || fc === false) return remove;
+
+    map.addSource(ZONE_SOURCE, { type: 'geojson', data: fc, promoteId: 'id' });
+    // Near-transparent fill: the surface underneath IS the content, so the
+    // polygon is a hit target and an outline, not a colour of its own.
+    map.addLayer({
+      id: ZONE_FILL,
+      type: 'fill',
+      source: ZONE_SOURCE,
+      paint: {
+        'fill-color': '#1f2933',
+        'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.16, 0.04],
+      },
+    });
+    map.addLayer({
+      id: ZONE_LINE,
+      type: 'line',
+      source: ZONE_SOURCE,
+      paint: { 'line-color': '#1f2933', 'line-width': 1.4, 'line-opacity': 0.75 },
+    });
+
+    let hovered = null;
+    const setHover = (id) => {
+      if (hovered !== null) {
+        map.setFeatureState({ source: ZONE_SOURCE, id: hovered }, { hover: false });
+      }
+      hovered = id;
+      if (id !== null) {
+        map.setFeatureState({ source: ZONE_SOURCE, id }, { hover: true });
+      }
+    };
+
+    const pick = (point) => {
+      const hits = map.queryRenderedFeatures(point, { layers: [ZONE_FILL] });
+      return hits.length ? hits[0].properties : null;
+    };
+
+    const onClick = (e) => {
+      const props = pick(e.point);
+      if (props) setSelectedZone(props);
+    };
+    const onMove = (e) => {
+      const hits = map.queryRenderedFeatures(e.point, { layers: [ZONE_FILL] });
+      map.getCanvas().style.cursor = hits.length ? 'pointer' : '';
+      setHover(hits.length ? hits[0].id : null);
+    };
+    const onLeave = () => { setHover(null); map.getCanvas().style.cursor = ''; };
+
+    // MapboxDraw suppresses tap->click, so on touch `map.on('click')` never
+    // fires and the zone would be unselectable on exactly the devices this is
+    // tested on first. Bridge from touchend, and guard against a drag by
+    // requiring the touch to end near where it began.
+    let touchStart = null;
+    const onTouchStart = (e) => {
+      touchStart = e.point ? { x: e.point.x, y: e.point.y } : null;
+    };
+    const onTouchEnd = (e) => {
+      if (!touchStart || !e.point) return;
+      const moved = Math.hypot(e.point.x - touchStart.x, e.point.y - touchStart.y);
+      touchStart = null;
+      if (moved > 8) return;
+      const props = pick(e.point);
+      if (props) setSelectedZone(props);
+    };
+
+    map.on('click', ZONE_FILL, onClick);
+    map.on('mousemove', onMove);
+    map.on('mouseleave', ZONE_FILL, onLeave);
+    map.on('touchstart', onTouchStart);
+    map.on('touchend', onTouchEnd);
+
+    return () => {
+      map.off('click', ZONE_FILL, onClick);
+      map.off('mousemove', onMove);
+      map.off('mouseleave', ZONE_FILL, onLeave);
+      map.off('touchstart', onTouchStart);
+      map.off('touchend', onTouchEnd);
+      remove();
+    };
+  }, [mapReady, zones, zoneLevel, showZones]);
+
   // --- playback -------------------------------------------------------------
   useEffect(() => {
     if (!playing || !months.length) return undefined;
@@ -208,10 +351,18 @@ function SurfaceMap() {
     return [0, 0.25, 0.5, 0.75, 1].map((f) => min + (max - min) * f);
   }, [domain]);
 
+  // The bar's x-axis is the same 0..1 scaled value the tiler paints, so the
+  // ticks stay evenly spaced in VALUE while the colours sit wherever the server
+  // put them. Rainfall's stops are front-loaded because the distribution is;
+  // ignoring `positions` here would draw a legend the tiles do not obey.
   const rampCss = useMemo(() => {
     if (!domain?.stops?.length) return 'linear-gradient(90deg, #eee, #999)';
+    const n = domain.stops.length;
+    const positions = domain.positions?.length === n
+      ? domain.positions
+      : domain.stops.map((_, i) => (n > 1 ? i / (n - 1) : 0));
     const stops = domain.stops.map(
-      ([r, g, b], i) => `rgb(${r},${g},${b}) ${(i / (domain.stops.length - 1)) * 100}%`,
+      ([r, g, b], i) => `rgb(${r},${g},${b}) ${(positions[i] * 100).toFixed(2)}%`,
     );
     return `linear-gradient(90deg, ${stops.join(', ')})`;
   }, [domain]);
@@ -252,6 +403,10 @@ function SurfaceMap() {
             </div>
           </div>
         )}
+
+        {selectedZone && (
+          <ZoneOverviewCard zone={selectedZone} onClose={() => setSelectedZone(null)} />
+        )}
       </div>
 
       <div className="surface-map__controls">
@@ -277,9 +432,32 @@ function SurfaceMap() {
                 className={`surface-map__chip surface-map__chip--sub${s === statistic ? ' is-active' : ''}`}
                 onClick={() => setStatistic(s)}
               >
-                {statLabel(s)}
+                {statLabel(s, variable)}
               </button>
             ))}
+          </div>
+
+          <div className="surface-map__group" role="group" aria-label="Overlays">
+            <button
+              type="button"
+              className={`surface-map__chip surface-map__chip--sub${showZones ? ' is-active' : ''}`}
+              onClick={() => { setShowZones((v) => !v); setSelectedZone(null); }}
+              aria-pressed={showZones}
+            >
+              Wine regions
+            </button>
+            {/* Projections are not published yet — Pete is preparing the data
+                files. The control is present and disabled rather than absent so
+                the Atlas shows what is coming, and so wiring it later is a data
+                source rather than a layout change. */}
+            <button
+              type="button"
+              className="surface-map__chip surface-map__chip--sub is-placeholder"
+              disabled
+              title="Climate projections are not published yet"
+            >
+              Projections · soon
+            </button>
           </div>
         </div>
 

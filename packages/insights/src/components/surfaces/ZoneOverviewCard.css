@@ -1,0 +1,114 @@
+.zone-card {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 3;
+  width: min(320px, calc(100% - 24px));
+  padding: 14px 16px 16px;
+  border-radius: 12px;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--color-border, #e2e5dd);
+}
+
+.zone-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.zone-card__title {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.zone-card__sub {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.zone-card__close {
+  /* The global `button { padding: 8px 16px }` clips a small icon button, so the
+     padding is reset here rather than inherited. */
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: none;
+  background: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.zone-card__note {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.zone-card__stats {
+  margin: 12px 0 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+
+.zone-card__stat dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.zone-card__stat dd {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+}
+
+.zone-card__delta {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.zone-card__delta.is-up { color: #b4451f; }
+.zone-card__delta.is-down { color: #2f6f9f; }
+
+.zone-card__spread {
+  margin: 12px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.zone-card__cta {
+  display: inline-block;
+  margin-top: 14px;
+  /* 44px minimum touch target — this is the primary action on the card and the
+     map is tested on mobile first. */
+  min-height: 44px;
+  line-height: 44px;
+  width: 100%;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--color-primary, #5b6830);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .zone-card {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+  }
+}

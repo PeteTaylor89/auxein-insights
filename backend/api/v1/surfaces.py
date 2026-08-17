@@ -51,6 +51,7 @@ from typing import Optional
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from db.session import get_db
@@ -176,6 +177,31 @@ class RegionResponse(BaseModel):
     zone: dict
     granularity: str
     series: list[RegionSeries]
+    meta: dict
+
+
+class ZoneSeasonPoint(BaseModel):
+    vintage_year: int
+    mean: Optional[float] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
+    p10: Optional[float] = None
+    p90: Optional[float] = None
+    # Share of the zone's planted cells the metric applies to. A last-frost date
+    # covering 30% of a zone is a different claim from one covering all of it.
+    coverage: Optional[float] = None
+
+
+class ZoneSeasonSeries(BaseModel):
+    metric: str
+    unit: str
+    baseline: Optional[str] = None
+    points: list[ZoneSeasonPoint]
+
+
+class ZoneSeasonResponse(BaseModel):
+    zone: dict
+    series: list[ZoneSeasonSeries]
     meta: dict
 
 
@@ -421,26 +447,28 @@ def region_stats(
     zone_id: Optional[int] = Query(None),
     bbox: Optional[str] = Query(None, description="w,s,e,n in degrees"),
     granularity: str = Query("daily"),
+    weighting: str = Query(
+        "blocks", description="blocks = vineyard-weighted (default); "
+                              "area = whole polygon, NOT implemented"),
+    db: Session = Depends(get_db),
 ):
-    """Area-weighted statistics over a region. Contract §5.2.
+    """Statistics over a climate zone. Contract §5.2 as amended.
 
-    Takes a `bbox` so the stub stays runnable without a database. The real
-    implementation clips the raster to the `climate_zones` MULTIPOLYGON, which
-    is why a region value and a point inside it are consistent by construction —
-    they come from the same raster.
+    **Vineyard-weighted, not polygon-area-weighted.** The value is the surface
+    aggregated over the cells the zone's vineyards actually occupy, weighted by
+    planted hectares — `climate_zone_cell_mask`, built once from the national
+    vineyard register. Measured difference on Marlborough: 15.10 degC
+    block-weighted against 11.33 degC over the whole polygon, because the zone
+    spans the Sounds and the inland ranges. Publishing the polygon number would
+    be visibly wrong to anyone who grows there.
+
+    `weighting=area` is accepted as a parameter but deliberately unimplemented,
+    so a caller that wants the old definition gets a 422 rather than silently
+    receiving the new one under the old name.
     """
     if not _use_stub():
-        # Deliberately NOT implemented against the real archive yet. Contract
-        # §8.2 justified keeping the contract at v2 through the weighting change
-        # (`weighting=blocks|area`) purely on the grounds that `/region` has
-        # never served a value to a consumer — and it says in terms that the
-        # reasoning expires the moment it does. Serving an area-weighted number
-        # here now would silently spend that, and would also contradict the
-        # block-intersected definition the zone statistic actually uses.
-        raise HTTPException(
-            501, "region statistics are not implemented against the published "
-                 "archive yet; the weighting decision (blocks vs area) is open. "
-                 "See SURFACE_CONTRACT_V2 §5.2 and §8.2.")
+        return _real_region(db, variables, start, end, zone_id, granularity,
+                            weighting)
     _require_enabled()
     if bbox is None:
         raise HTTPException(
@@ -503,6 +531,110 @@ def region_stats(
         meta={"contract_version": CONTRACT_VERSION, "stub": True,
               "area_method": "bbox approximation; the real implementation clips "
                              "to the zone MULTIPOLYGON"})
+
+
+@router.get("/zones")
+def zone_layer(
+    level: Optional[str] = Query(
+        None, description="region | sub_zone; omit for both"),
+    simplify: float = Query(0.002, ge=0, le=0.1),
+    metric: str = Query("gdd10", description="headline metric for the overlay"),
+    db: Session = Depends(get_db),
+):
+    """Zone polygons for the Atlas overlay, with one headline number each.
+
+    Open, like `/tiles` and `/available` — the picture and the regional numbers
+    are the free product, and a crawler arriving on a region page has to find
+    content rather than a login wall.
+
+    Zones NEST: Marlborough contains Lower Wairau, Awatere and Upper Wairau. The
+    `level` filter exists because drawing all 23 at once stacks a parent on top
+    of its children; a caller should pick one level per zoom band rather than
+    render the whole set.
+    """
+    if _use_stub():
+        raise HTTPException(501, "the zone layer has no stub; it needs the mask")
+    if level is not None and level not in ("region", "sub_zone"):
+        raise HTTPException(422, "level must be 'region' or 'sub_zone'")
+
+    latest = db.execute(text("""
+        SELECT max(vintage_year) FROM climate_zone_surface_season
+    """)).scalar()
+
+    rows = db.execute(text("""
+        SELECT z.id, z.name, z.slug, z.zone_level, z.parent_zone_id,
+               ST_AsGeoJSON(ST_SimplifyPreserveTopology(z.geometry, :tol))
+                   AS geom,
+               m.cells, m.ha,
+               s.mean AS headline, s.unit AS headline_unit,
+               b.mean AS headline_baseline
+          FROM climate_zones z
+          JOIN (SELECT zone_id, count(*) AS cells, sum(planted_ha) AS ha
+                  FROM climate_zone_cell_mask GROUP BY zone_id) m
+            ON m.zone_id = z.id
+          LEFT JOIN climate_zone_surface_season s
+            ON s.zone_id = z.id AND s.metric = :metric
+           AND s.vintage_year = :latest
+          LEFT JOIN (SELECT zone_id, avg(mean) AS mean
+                       FROM climate_zone_surface_season
+                      WHERE metric = :metric
+                        AND vintage_year BETWEEN 1987 AND 2016
+                      GROUP BY zone_id) b
+            ON b.zone_id = z.id
+         WHERE z.geometry IS NOT NULL AND z.is_active = true
+           AND (:level IS NULL OR z.zone_level = :level)
+         ORDER BY z.display_order
+    """), {"tol": simplify, "metric": metric, "latest": latest,
+           "level": level}).fetchall()
+
+    features = []
+    for r in rows:
+        if not r.geom:
+            continue
+        features.append({
+            "type": "Feature",
+            "geometry": json.loads(r.geom),
+            "properties": {
+                "id": r.id, "name": r.name, "slug": r.slug,
+                "level": r.zone_level, "parent_zone_id": r.parent_zone_id,
+                "n_cells": r.cells,
+                "planted_ha": float(r.ha) if r.ha else 0.0,
+                "headline_metric": metric,
+                "headline": r.headline,
+                "headline_unit": r.headline_unit,
+                # The long-term mean travels with the latest value so the map
+                # can say "warmer than usual" without a second request, and so
+                # a single anomalous season is never shown as the zone's normal.
+                "headline_baseline": (float(r.headline_baseline)
+                                      if r.headline_baseline is not None
+                                      else None),
+                "url": f"/regions/{r.slug}",
+            },
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+        "meta": {"contract_version": CONTRACT_VERSION,
+                 "weighting": "blocks",
+                 "latest_vintage": latest,
+                 "baseline": "1987-2016 mean",
+                 "overlaps": "zones nest; do not sum across features",
+                 "count": len(features)},
+    }
+
+
+@router.get("/zones/{slug}/season", response_model=ZoneSeasonResponse)
+def zone_season(
+    slug: str,
+    metrics: Optional[str] = Query(
+        None, description="comma-separated; omit for every metric"),
+    db: Session = Depends(get_db),
+):
+    """Growing-season history for one zone. Sep-Apr, by vintage year."""
+    if _use_stub():
+        raise HTTPException(501, "zone seasons have no stub; they need the mask")
+    return _real_zone_season(db, slug, metrics)
 
 
 @router.get("/available", response_model=AvailableResponse)
@@ -690,6 +822,151 @@ def _default_statistic(granularity: str, statistic: Optional[str]) -> Optional[s
     return None
 
 
+def _real_region(db: Session, variables: str, start: str, end: str,
+                 zone_id: Optional[int], granularity: str,
+                 weighting: str) -> RegionResponse:
+    """Monthly zone series, vineyard-weighted, out of the precomputed table.
+
+    Nothing is sampled here: `climate_zone_surface_monthly` already holds the
+    mask-weighted aggregate for every (zone, band, month), because the archive is
+    fixed and re-deriving a constant behind a map click would cost seconds of S3
+    range reads.
+    """
+    if weighting != "blocks":
+        raise HTTPException(
+            422, f"weighting={weighting!r} is not implemented. Zone statistics "
+                 "are vineyard-weighted (`blocks`); the polygon-area weighting "
+                 "in the original §5.2 is not served, because for a region like "
+                 "Marlborough it averages in mountains nobody plants.")
+    if granularity != "monthly":
+        raise HTTPException(
+            422, f"granularity={granularity!r} is not served for regions; the "
+                 "published zone archive is monthly. Use granularity=monthly.")
+    if zone_id is None:
+        raise HTTPException(422, "zone_id is required")
+
+    zone = db.execute(text("""
+        SELECT id, name, slug, zone_level, parent_zone_id
+          FROM climate_zones WHERE id = :z
+    """), {"z": zone_id}).fetchone()
+    if zone is None:
+        raise HTTPException(404, f"no climate zone {zone_id}")
+
+    wanted = [v.strip() for v in variables.split(",") if v.strip()]
+    unknown = [v for v in wanted if v not in UNITS]
+    if unknown:
+        raise HTTPException(422, f"unknown variables: {unknown}")
+    months = _months_between(start, end)
+    first, last = months[0], months[-1]
+
+    series: list[RegionSeries] = []
+    for variable in wanted:
+        stat = "sum" if variable == "rainfall" else "mean"
+        rows = db.execute(text("""
+            SELECT year, month, mean, min, max, n_cells, planted_ha
+              FROM climate_zone_surface_monthly
+             WHERE zone_id = :z AND variable = :v AND statistic = :s
+               AND (year * 100 + month) BETWEEN :lo AND :hi
+             ORDER BY year, month
+        """), {"z": zone_id, "v": variable, "s": stat,
+               "lo": int(first[:4]) * 100 + int(first[5:]),
+               "hi": int(last[:4]) * 100 + int(last[5:])}).fetchall()
+
+        points = [RegionPoint(
+            valid_at=datetime(r.year, r.month, 1, tzinfo=timezone.utc),
+            mean=r.mean, min=r.min, max=r.max,
+            # Planted area, NOT polygon area — the two differ by orders of
+            # magnitude for a mountainous zone and the field name would
+            # otherwise invite the wrong reading.
+            area_km2=float(r.planted_ha) / 100.0 if r.planted_ha else None,
+            resolution_m=500,
+        ) for r in rows]
+        series.append(RegionSeries(variable=variable, unit=UNITS[variable],
+                                   points=points))
+
+    mask = db.execute(text("""
+        SELECT count(*) AS cells, sum(planted_ha) AS ha
+          FROM climate_zone_cell_mask WHERE zone_id = :z
+    """), {"z": zone_id}).fetchone()
+
+    return RegionResponse(
+        zone={"id": zone.id, "name": zone.name, "slug": zone.slug,
+              "level": zone.zone_level, "parent_zone_id": zone.parent_zone_id},
+        granularity="monthly",
+        series=series,
+        meta={"contract_version": CONTRACT_VERSION,
+              "weighting": "blocks",
+              # Stated in the payload, not just the docs: min/max are across
+              # planted CELLS, so "min" is the coolest planted part of the zone.
+              "extent": "planted cells only",
+              "spread_basis": "cells",
+              "n_cells": mask.cells if mask else 0,
+              "planted_ha": float(mask.ha) if mask and mask.ha else 0.0,
+              "stub": False})
+
+
+def _real_zone_season(db: Session, slug: str,
+                      metrics: Optional[str]) -> ZoneSeasonResponse:
+    """Every growing season for one zone, from `climate_zone_surface_season`."""
+    zone = db.execute(text("""
+        SELECT id, name, slug, description, zone_level, parent_zone_id
+          FROM climate_zones WHERE slug = :s
+    """), {"s": slug}).fetchone()
+    if zone is None:
+        raise HTTPException(404, f"no climate zone {slug!r}")
+
+    params: dict = {"z": zone.id}
+    clause = ""
+    if metrics:
+        wanted = [m.strip() for m in metrics.split(",") if m.strip()]
+        if wanted:
+            clause = " AND metric = ANY(:metrics)"
+            params["metrics"] = wanted
+
+    rows = db.execute(text(f"""
+        SELECT metric, unit, baseline, vintage_year, mean, min, max,
+               p10, p90, coverage
+          FROM climate_zone_surface_season
+         WHERE zone_id = :z{clause}
+         ORDER BY metric, vintage_year
+    """), params).fetchall()
+
+    grouped: dict[str, list] = {}
+    units: dict[str, str] = {}
+    baselines: dict[str, Optional[str]] = {}
+    for r in rows:
+        grouped.setdefault(r.metric, []).append(r)
+        units[r.metric] = r.unit
+        baselines[r.metric] = r.baseline
+
+    series = [ZoneSeasonSeries(
+        metric=metric, unit=units[metric], baseline=baselines[metric],
+        points=[ZoneSeasonPoint(
+            vintage_year=r.vintage_year, mean=r.mean, min=r.min, max=r.max,
+            p10=r.p10, p90=r.p90, coverage=r.coverage) for r in recs],
+    ) for metric, recs in sorted(grouped.items())]
+
+    mask = db.execute(text("""
+        SELECT count(*) AS cells, sum(planted_ha) AS ha
+          FROM climate_zone_cell_mask WHERE zone_id = :z
+    """), {"z": zone.id}).fetchone()
+
+    return ZoneSeasonResponse(
+        zone={"id": zone.id, "name": zone.name, "slug": zone.slug,
+              "description": zone.description, "level": zone.zone_level,
+              "parent_zone_id": zone.parent_zone_id},
+        series=series,
+        meta={"contract_version": CONTRACT_VERSION,
+              "weighting": "blocks",
+              "season": "Sep-Apr, labelled by the ending (vintage) year",
+              "n_cells": mask.cells if mask else 0,
+              "planted_ha": float(mask.ha) if mask and mask.ha else 0.0,
+              # Zones nest — Marlborough contains Lower Wairau, Awatere and
+              # Upper Wairau — so a consumer must never sum across zones.
+              "overlaps": "zones nest; rows are not a partition",
+              "stub": False})
+
+
 def _real_available(db: Session, variable: str, granularity: str,
                     statistic: Optional[str]) -> AvailableResponse:
     if variable not in UNITS:
@@ -712,6 +989,11 @@ def _real_available(db: Session, variable: str, granularity: str,
               "steps": info["steps"],
               "domain": {"min": lo, "max": hi, "ramp": ramp,
                          "stops": store.RAMPS[ramp],
+                         # Where each stop sits in 0..1. Even unless the ramp is
+                         # front-loaded for a skewed variable (rainfall depths).
+                         # A legend that ignores this draws a different scale
+                         # from the one the tiles were rendered against.
+                         "positions": store.ramp_positions(ramp),
                          # The tails saturate on purpose — see
                          # surface_store.DOMAINS. A legend that claims the ramp
                          # spans the data would be overstating what it shows.

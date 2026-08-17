@@ -232,3 +232,12 @@
     flex-wrap: wrap;
   }
 }
+
+/* A control that names a layer we have not published yet. Visibly inert — it
+   must not read as broken, and it must not read as clickable. */
+.surface-map__chip.is-placeholder,
+.surface-map__chip.is-placeholder:disabled {
+  opacity: 0.5;
+  cursor: default;
+  font-style: italic;
+}
