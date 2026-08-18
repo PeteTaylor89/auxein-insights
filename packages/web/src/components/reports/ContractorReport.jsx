@@ -1,9 +1,10 @@
 // components/reports/ContractorReport.jsx — completed work + site visits
 import { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
 import { reportService } from '@vineyard/shared';
+import ReportExportButton from './ReportExportButton';
+import { buildReportPdf, contextLines } from './reportPdf';
 
-function ContractorReport({ startDate, endDate, propertyId }) {
+function ContractorReport({ startDate, endDate, propertyId, propertyName, companyName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,22 +19,51 @@ function ContractorReport({ startDate, endDate, propertyId }) {
   if (loading) return <div className="report-loading">Loading contractor report...</div>;
   if (!data) return <div className="report-empty">Unable to load contractor report</div>;
 
-  const handleExport = () => {
-    const token = localStorage.getItem('accessToken');
-    const url = reportService.exportContractors(startDate, endDate, propertyId);
-    window.open(`${url}&token=${token}`, '_blank');
-  };
 
   const topMaxHours = (data.top_contractors_by_hours || []).reduce((m, r) => Math.max(m, r.hours_worked || 0), 0);
   const visitMaxCount = (data.visits_by_property || []).reduce((m, r) => Math.max(m, r.visit_count || 0), 0);
+
+  const pdf = () => buildReportPdf({
+    title: 'Contractor summary',
+    company: companyName,
+    context: contextLines({ startDate, endDate, propertyName }),
+    stats: [
+      { label: 'Active relationships', value: data.total_active_relationships },
+      { label: 'Jobs completed', value: data.jobs_completed },
+      { label: 'Hours worked', value: data.total_hours_worked },
+      { label: 'Site visits', value: data.total_visits },
+    ],
+    sections: [
+      {
+        title: 'Top contractors by hours',
+        columns: [
+          { key: 'contractor_name', label: 'Contractor' },
+          { key: 'jobs_completed', label: 'Jobs', align: 'right' },
+          { key: 'hours_worked', label: 'Hours', align: 'right' },
+        ],
+        rows: data.top_contractors_by_hours || [],
+      },
+      {
+        title: 'Visits by property',
+        columns: [
+          { key: 'property_name', label: 'Property', text: (r) => r.property_name || 'Unassigned' },
+          { key: 'visit_count', label: 'Visits', align: 'right' },
+        ],
+        rows: data.visits_by_property || [],
+      },
+    ],
+    filename: 'contractor-summary.pdf',
+    orientation: 'portrait',
+  });
 
   return (
     <div className="report-section">
       <div className="report-section-header">
         <h3>Contractor Activity</h3>
-        <button className="btn-ghost" onClick={handleExport}>
-          <Download size={16} /> Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <ReportExportButton label="PDF" onExport={pdf} />
+          <ReportExportButton onExport={() => reportService.exportContractors(startDate, endDate, propertyId)} />
+        </div>
       </div>
 
       <div className="report-stats-grid">

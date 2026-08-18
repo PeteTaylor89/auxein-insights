@@ -8,12 +8,17 @@ import ArticlesCarousel from '../components/ArticlesCarousel';
 import PhenologyPanel from '../components/phenology/PhenologyPanel';
 import SprayProgramPanel from '../components/spray/SprayProgramPanel';
 import HelpTip from '../components/HelpTip';
+import ReportsPanel from '../components/reports/ReportsPanel';
 import { Link } from 'react-router'
-import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned, Droplets} from "lucide-react"
+import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned, Droplets, FileText} from "lucide-react"
 import './Insights.css';
 
 // Insight pill cards, in display order.
 const INSIGHT_CARDS = [
+  // `permission` gates the pill. Reports aggregate labour, incidents and who
+  // was on site, so they stop at manager — the backend refuses anyone else
+  // and a pill that only ever 403s is worse than no pill.
+  { key: 'reports', label: 'Reports', Icon: FileText, permission: ['reports', 'read'] },
   { key: 'climate', label: 'Climate History', Icon: ChartArea },
   { key: 'climateprojection', label: 'Climate Projections', Icon: ChartSpline },
   { key: 'currentseason', label: 'Current Season', Icon: CloudSunRain },
@@ -26,7 +31,12 @@ const INSIGHT_CARDS = [
 
 
 function Insights() {
-  const {user } = useAuth();
+  // hasPermission comes from the auth context, NOT the standalone helper in
+  // shared/utils. The context binds it to `userTypeRole` — the 5-tier
+  // permission key — whereas the profile object's own fields are the routing
+  // key, so passing `user.user_type` to the standalone version silently returns
+  // false for everyone and the gated card never appears.
+  const { user, hasPermission } = useAuth();
   const [stats, setStats] = useState(null);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +52,11 @@ function Insights() {
   }, []);
 
   const selectedProperty = properties.find(p => String(p.id) === selectedPropertyId) || null;
+
+  // A card with no `permission` is open to anyone who can reach the page.
+  const visibleCards = INSIGHT_CARDS.filter(
+    (c) => !c.permission || hasPermission(c.permission[0], c.permission[1]),
+  );
  
   // Fetch company data and stats
   useEffect(() => {
@@ -89,6 +104,22 @@ function Insights() {
   // Render the active insight component
   const renderActiveInsight = () => {
     switch (activeInsight) {
+      case 'reports':
+        return (
+          <div className="content-container">
+            <div className="container-title">
+              <span className="help-tip-head"><span>Reports</span></span>
+              <button
+                className="close-insight-btn"
+                onClick={() => setActiveInsight(null)}
+                aria-label="Close Reports"
+              >
+                ×
+              </button>
+            </div>
+            <ReportsPanel companyName={company?.name} />
+          </div>
+        );
       case 'climate':
         return (
           <div className="content-container">
@@ -289,7 +320,7 @@ function Insights() {
         </div>
 
         <div className="insights-pills">
-          {INSIGHT_CARDS.map(({ key, label, Icon }) => (
+          {visibleCards.map(({ key, label, Icon }) => (
             <button
               key={key}
               className={`insight-pill ${activeInsight === key ? 'active' : ''}`}

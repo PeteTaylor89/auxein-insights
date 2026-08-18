@@ -242,3 +242,131 @@
     font-size: var(--font-size-xs);
   }
 }
+
+/* ── Grouped navigation (Operations / Compliance / Resources) ─────────── */
+/* Ten reports is too many for one tab row, so groups sit above the tabs and
+   the tabs show only the active group's reports. */
+.reports-groups {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.reports-group {
+  padding: var(--space-xs) var(--space-base);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.reports-group:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.reports-group.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.reports-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+}
+
+/* A filter a report does not use is disabled rather than hidden — a control
+   that vanishes reads as a bug, one that greys out reads as a decision. */
+.reports-filter--off {
+  opacity: 0.4;
+}
+
+.reports-filter--off .reports-date-input {
+  cursor: not-allowed;
+}
+
+.reports-filter-note {
+  margin: calc(var(--space-xs) * -1) 0 var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+/* Wide tables scroll inside their own box. A census with 300 blocks must not
+   push the filter bar off the side of the page. */
+.report-table-scroll {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface, #fff);
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.report-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-warm);
+  padding: var(--space-sm) var(--space-base);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.report-table td {
+  padding: var(--space-sm) var(--space-base);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  vertical-align: top;
+}
+
+.report-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.report-table tbody tr:hover {
+  background: var(--color-surface-warm);
+}
+
+.report-table td .badge {
+  margin-right: 4px;
+}
+
+/* ── Notes ────────────────────────────────────────────────────────────── */
+/* Used where the DATA is the finding — "0 hours because nothing is logged
+   against tasks" is a different message from "0 hours worked". */
+.report-note {
+  margin: var(--space-sm) 0 var(--space-base);
+  padding: var(--space-sm) var(--space-base);
+  background: var(--color-surface-warm);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.report-loading,
+.report-empty {
+  padding: var(--space-lg);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

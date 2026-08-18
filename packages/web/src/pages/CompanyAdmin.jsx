@@ -1,10 +1,12 @@
 // pages/CompanyAdmin.jsx — Company admin management page (Grow V1, Revision 2)
-// Tabs: Users & Properties, Timesheets, Training, Aliases, GrapeLink, Weather, Calendar Sync, Reports
+// Tabs: Users & Properties, Timesheets, Training, Aliases, GrapeLink, Weather, Calendar Sync
+// Reports moved to Insights (components/reports/ReportsPanel) — a manager does not
+// look for last week's work inside Company Admin.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
 import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3, CreditCard, ShieldCheck } from 'lucide-react';
-import { companyAdminService, propertyService, usersService, reportService, blocksService, vineyardRowsService, byNatural, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
+import { companyAdminService, propertyService, usersService, blocksService, vineyardRowsService, byNatural, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
 import ContractorRelationships from '../components/admin/ContractorRelationships';
@@ -12,13 +14,7 @@ import ForecastPointPicker from '../components/ForecastPointPicker';
 import BlockStatusBadge from '../components/BlockStatusBadge';
 import FeedbackModal from '../components/FeedbackModal';
 import HelpTip from '../components/HelpTip';
-import TaskReport from '../components/reports/TaskReport';
-import ContractorReport from '../components/reports/ContractorReport';
-import ObservationReport from '../components/reports/ObservationReport';
-import TimesheetReport from '../components/reports/TimesheetReport';
-import AssetReport from '../components/reports/AssetReport';
 import './CompanyAdmin.css';
-import './Reports.css';
 
 const TABS = [
   { key: 'users', label: 'Team', icon: Users },
@@ -34,7 +30,6 @@ const TABS = [
   { key: 'calendar', label: 'Calendar Sync', icon: Calendar },
   { key: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
   { key: 'compliance', label: 'Plans / Compliance', icon: ShieldCheck },
-  { key: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
 function CompanyAdmin() {
@@ -116,7 +111,6 @@ function CompanyAdmin() {
           {activeTab === 'calendar' && <CalendarSyncTab />}
           {activeTab === 'subscriptions' && <SubscriptionsTab />}
           {activeTab === 'compliance' && <CompliancePlansTab />}
-          {activeTab === 'reports' && <ReportsTab />}
         </div>
       </div>
     </div>
@@ -1991,116 +1985,6 @@ function CalendarSyncTab() {
   );
 }
 
-
-// ============================================================================
-// TAB: Reports — full reporting dashboard absorbed from the old /reports page.
-// 4 sub-tabs (Tasks, Observations, Timesheets, Assets) + date + property filters.
-// CTA at the bottom opens FeedbackModal so users can request new reports.
-// ============================================================================
-const REPORT_TABS = [
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'observations', label: 'Observations' },
-  { key: 'contractors', label: 'Contractors' },
-  { key: 'timesheets', label: 'Timesheets' },
-  { key: 'assets', label: 'Assets' },
-];
-
-function ReportsTab() {
-  const [reportTab, setReportTab] = useState('tasks');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [propertyId, setPropertyId] = useState('');
-  const [properties, setProperties] = useState([]);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-
-  useEffect(() => {
-    propertyService.listProperties()
-      .then(data => setProperties(Array.isArray(data) ? data : []))
-      .catch(() => setProperties([]));
-  }, []);
-
-  const propFilter = propertyId || undefined;
-
-  return (
-    <div className="ca-section">
-      <div className="reports-page">
-        <div className="reports-header">
-          <h2 className="ca-section-title help-tip-head" style={{ margin: 0 }}>Reports<HelpTip topic="manage.reports" /></h2>
-          <div className="reports-filters">
-            {properties.length > 0 && (
-              <label>
-                Property
-                <select
-                  value={propertyId}
-                  onChange={(e) => setPropertyId(e.target.value)}
-                  className="reports-date-input"
-                >
-                  <option value="">All Properties</option>
-                  {properties.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label>
-              From
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="reports-date-input"
-              />
-            </label>
-            <label>
-              To
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="reports-date-input"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="reports-tabs">
-          {REPORT_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              className={`reports-tab ${reportTab === tab.key ? 'active' : ''}`}
-              onClick={() => setReportTab(tab.key)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="reports-content">
-          {reportTab === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
-          {reportTab === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
-          {reportTab === 'contractors' && <ContractorReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
-          {reportTab === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} propertyId={propFilter} />}
-          {reportTab === 'assets' && <AssetReport />}
-        </div>
-
-        {/* CTA — opens FeedbackModal preset to feedback category. */}
-        <div style={{ marginTop: 'var(--space-lg)', padding: 'var(--space-base)', background: 'var(--color-surface-warm)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-          <div>
-            <h3 style={{ margin: '0 0 4px', fontSize: 'var(--font-size-md)', color: 'var(--color-text)' }}>Want a report we don't have?</h3>
-            <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
-              Tell us what you'd find useful — spray diary, yield rollups, contractor hours, anything. We're building this list now.
-            </p>
-          </div>
-          <button className="ca-btn-primary" onClick={() => setFeedbackOpen(true)} style={{ flexShrink: 0 }}>
-            <BarChart3 size={14} /> Request a report
-          </button>
-        </div>
-      </div>
-
-      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
-    </div>
-  );
-}
 
 
 export default CompanyAdmin;

@@ -162,7 +162,7 @@ function Home() {
                 <div className="icon-wrapper"><Calendar size={24} /></div>
                 <div className="actions-title">Calendar</div>
               </Link>
-              <Link to="/company-admin?tab=reports" className="stat-card">
+              <Link to="/Insights" className="stat-card">
                 <div className="icon-wrapper"><BarChart3 size={24} /></div>
                 <div className="actions-title">Reports</div>
               </Link>

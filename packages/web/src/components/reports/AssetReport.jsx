@@ -1,9 +1,10 @@
 // components/reports/AssetReport.jsx
 import { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
 import { reportService } from '@vineyard/shared';
+import ReportExportButton from './ReportExportButton';
+import { buildReportPdf, countSection } from './reportPdf';
 
-function AssetReport() {
+function AssetReport({ companyName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,19 +19,34 @@ function AssetReport() {
   if (loading) return <div className="report-loading">Loading asset report...</div>;
   if (!data) return <div className="report-empty">Unable to load asset report</div>;
 
-  const handleExport = () => {
-    const token = localStorage.getItem('accessToken');
-    const url = reportService.exportAssets();
-    window.open(`${url}?token=${token}`, '_blank');
-  };
+
+  const pdf = () => buildReportPdf({
+    title: 'Asset register',
+    company: companyName,
+    // Assets are company-level and have no date range, so the context line says
+    // what the sheet IS rather than leaving the reader to guess its scope.
+    context: ['Company-wide register', 'Current state'],
+    stats: [
+      { label: 'Assets', value: data.total_assets },
+      { label: 'Total value', value: data.total_value },
+      { label: 'Maintenance due', value: data.maintenance_due, alert: true },
+    ],
+    sections: [
+      countSection('By status', data.by_status, 'status'),
+      countSection('By category', data.by_category, 'category'),
+    ],
+    filename: 'asset-register.pdf',
+    orientation: 'portrait',
+  });
 
   return (
     <div className="report-section">
       <div className="report-section-header">
         <h3>Asset Summary</h3>
-        <button className="btn-ghost" onClick={handleExport}>
-          <Download size={16} /> Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <ReportExportButton label="PDF" onExport={pdf} />
+          <ReportExportButton onExport={() => reportService.exportAssets()} />
+        </div>
       </div>
 
       <div className="report-stats-grid">

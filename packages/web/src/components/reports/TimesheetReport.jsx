@@ -1,9 +1,10 @@
 // components/reports/TimesheetReport.jsx
 import { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
 import { reportService } from '@vineyard/shared';
+import ReportExportButton from './ReportExportButton';
+import { buildReportPdf, contextLines, countSection } from './reportPdf';
 
-function TimesheetReport({ startDate, endDate, propertyId }) {
+function TimesheetReport({ startDate, endDate, propertyId, propertyName, companyName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,19 +19,30 @@ function TimesheetReport({ startDate, endDate, propertyId }) {
   if (loading) return <div className="report-loading">Loading timesheet report...</div>;
   if (!data) return <div className="report-empty">Unable to load timesheet report</div>;
 
-  const handleExport = () => {
-    const token = localStorage.getItem('accessToken');
-    const url = reportService.exportTimesheets(startDate, endDate, propertyId);
-    window.open(`${url}&token=${token}`, '_blank');
-  };
+
+  const pdf = () => buildReportPdf({
+    title: 'Timesheet summary',
+    company: companyName,
+    context: contextLines({ startDate, endDate, propertyName }),
+    stats: [
+      { label: 'Days', value: data.total_days },
+      { label: 'Hours', value: data.total_hours },
+      { label: 'Avg hours per day', value: data.avg_hours_per_day },
+      { label: 'Uncoded hours', value: data.uncoded_hours, alert: true },
+    ],
+    sections: [countSection('By status', data.by_status, 'status')],
+    filename: 'timesheet-summary.pdf',
+    orientation: 'portrait',
+  });
 
   return (
     <div className="report-section">
       <div className="report-section-header">
         <h3>Timesheet Summary</h3>
-        <button className="btn-ghost" onClick={handleExport}>
-          <Download size={16} /> Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <ReportExportButton label="PDF" onExport={pdf} />
+          <ReportExportButton onExport={() => reportService.exportTimesheets(startDate, endDate, propertyId)} />
+        </div>
       </div>
 
       <div className="report-stats-grid">

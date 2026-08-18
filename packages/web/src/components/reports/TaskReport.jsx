@@ -1,9 +1,10 @@
 // components/reports/TaskReport.jsx
 import { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
 import { reportService } from '@vineyard/shared';
+import ReportExportButton from './ReportExportButton';
+import { buildReportPdf, contextLines, countSection } from './reportPdf';
 
-function TaskReport({ startDate, endDate, propertyId }) {
+function TaskReport({ startDate, endDate, propertyId, propertyName, companyName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,19 +19,34 @@ function TaskReport({ startDate, endDate, propertyId }) {
   if (loading) return <div className="report-loading">Loading task report...</div>;
   if (!data) return <div className="report-empty">Unable to load task report</div>;
 
-  const handleExport = () => {
-    const token = localStorage.getItem('accessToken');
-    const url = reportService.exportTasks(startDate, endDate, propertyId);
-    window.open(`${url}&token=${token}`, '_blank');
-  };
+
+  const pdf = () => buildReportPdf({
+    title: 'Task summary',
+    company: companyName,
+    context: contextLines({ startDate, endDate, propertyName }),
+    stats: [
+      { label: 'Total tasks', value: data.total },
+      { label: 'Completion rate', value: `${data.completion_rate}%` },
+      { label: 'Hours', value: data.total_hours },
+      { label: 'Overdue', value: data.overdue_count, alert: true },
+    ],
+    sections: [
+      countSection('By status', data.by_status, 'status'),
+      countSection('By priority', data.by_priority, 'status'),
+      countSection('By category', data.by_category, 'category'),
+    ],
+    filename: 'task-summary.pdf',
+    orientation: 'portrait',
+  });
 
   return (
     <div className="report-section">
       <div className="report-section-header">
         <h3>Task Summary</h3>
-        <button className="btn-ghost" onClick={handleExport}>
-          <Download size={16} /> Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <ReportExportButton label="PDF" onExport={pdf} />
+          <ReportExportButton onExport={() => reportService.exportTasks(startDate, endDate, propertyId)} />
+        </div>
       </div>
 
       <div className="report-stats-grid">

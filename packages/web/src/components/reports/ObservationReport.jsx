@@ -1,9 +1,10 @@
 // components/reports/ObservationReport.jsx
 import { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
 import { reportService } from '@vineyard/shared';
+import ReportExportButton from './ReportExportButton';
+import { buildReportPdf, contextLines } from './reportPdf';
 
-function ObservationReport({ startDate, endDate, propertyId }) {
+function ObservationReport({ startDate, endDate, propertyId, propertyName, companyName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,19 +19,38 @@ function ObservationReport({ startDate, endDate, propertyId }) {
   if (loading) return <div className="report-loading">Loading observation report...</div>;
   if (!data) return <div className="report-empty">Unable to load observation report</div>;
 
-  const handleExport = () => {
-    const token = localStorage.getItem('accessToken');
-    const url = reportService.exportObservations(startDate, endDate, propertyId);
-    window.open(`${url}&token=${token}`, '_blank');
-  };
+
+  const pdf = () => buildReportPdf({
+    title: 'Observation summary',
+    company: companyName,
+    context: contextLines({ startDate, endDate, propertyName }),
+    stats: [
+      { label: 'Observation runs', value: data.total_runs },
+      { label: 'Completed', value: data.completed_runs },
+      { label: 'Avg spots per run', value: data.avg_spots_per_run },
+    ],
+    sections: [{
+      title: 'Runs by month',
+      columns: [
+        { key: 'key', label: 'Month' },
+        { key: 'count', label: 'Runs', align: 'right' },
+      ],
+      rows: Object.entries(data.runs_by_month || {})
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, count]) => ({ key, count })),
+    }],
+    filename: 'observation-summary.pdf',
+    orientation: 'portrait',
+  });
 
   return (
     <div className="report-section">
       <div className="report-section-header">
         <h3>Observation Summary</h3>
-        <button className="btn-ghost" onClick={handleExport}>
-          <Download size={16} /> Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+          <ReportExportButton label="PDF" onExport={pdf} />
+          <ReportExportButton onExport={() => reportService.exportObservations(startDate, endDate, propertyId)} />
+        </div>
       </div>
 
       <div className="report-stats-grid">

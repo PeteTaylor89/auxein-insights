@@ -30,6 +30,15 @@ const PERMISSIONS = {
     delete: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER],
     assign: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER],
   },
+  // Mirrors backend/core/permissions.py. Reports aggregate across the whole
+  // company — labour cost, incidents, who was on site — so they stop at
+  // manager. Deliberately no contractor entry: a contractor must never see a
+  // company-wide roll-up, and the backend enforces the same with
+  // require_company_user_permission.
+  reports: {
+    read:   [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER],
+    export: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER],
+  },
   risks: {
     read:   [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER, UserType.COMPANY_USER, UserType.CONTRACTOR],
     create: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER, UserType.COMPANY_USER],
