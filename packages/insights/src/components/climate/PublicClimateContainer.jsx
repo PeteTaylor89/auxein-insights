@@ -134,24 +134,58 @@ const PublicClimateContainer = ({
     }
   }, [initialView]);
 
-  // Auto-select zone from initialZoneSlug prop (e.g., deep-link from map)
+  // Auto-select zone from initialZoneSlug prop (e.g. /regions/:slug, or a
+  // deep-link from the map).
+  //
+  // THIS IS AUTHORITATIVE AND IT IS A RACE IF IT IS NOT. `getZone` is async,
+  // so between mount and its resolution `selectedZone` is null — and
+  // `ZoneSelectorRealtime` mounts in that window and will pick the first zone
+  // with data (Northland) unless it is told not to. Whoever wrote first used
+  // to win, and the loser failed silently, so /regions/marlborough would
+  // render Northland whenever the zones list came back first, whenever
+  // `getZone` was slow, and always when it threw.
+  //
+  // `zoneResolving` closes the window: while a zone of ours is outstanding the
+  // selector does not auto-select at all. It is released on FAILURE too — a
+  // 404 on the slug must fall back to the selector's default rather than
+  // leaving the page with no zone forever, which is why the selector treats
+  // `autoSelect` flipping true as a fresh chance to choose rather than as a
+  // one-shot decision taken at mount.
+  //
+  // The demo path below is the same race with a different destination: it
+  // resolves 'waipara' asynchronously, and `handleZoneChange` REJECTS any
+  // other zone in demo mode by opening the auth modal — so losing the race
+  // there did not show the wrong region, it threw a sign-up modal at a visitor
+  // who had not touched anything.
+  const [zoneResolving, setZoneResolving] = useState(
+    Boolean(initialZoneSlug) || Boolean(demoMode),
+  );
+
   useEffect(() => {
-    if (initialZoneSlug && !selectedZone) {
-      const loadInitialZone = async () => {
-        try {
-          const zone = await getZone(initialZoneSlug);
-          setSelectedZone({
-            id: zone.id,
-            name: zone.name,
-            slug: zone.slug,
-            region_name: zone.region_name,
-          });
-        } catch (err) {
-          console.error('Failed to load initial zone:', err);
-        }
-      };
-      loadInitialZone();
-    }
+    if (!initialZoneSlug) { setZoneResolving(false); return undefined; }
+
+    let live = true;
+    setZoneResolving(true);
+    (async () => {
+      try {
+        const zone = await getZone(initialZoneSlug);
+        if (!live) return;
+        // Set unconditionally: the slug in the URL is the request, and a zone
+        // that arrived from anywhere else in the meantime is not it.
+        setSelectedZone({
+          id: zone.id,
+          name: zone.name,
+          slug: zone.slug,
+          region_name: zone.region_name,
+        });
+      } catch (err) {
+        console.error('Failed to load initial zone:', err);
+      } finally {
+        if (live) setZoneResolving(false);
+      }
+    })();
+
+    return () => { live = false; };
   }, [initialZoneSlug]);
 
   // Auto-select Waipara in demo mode (skipped when a deep-link zone is provided)
@@ -170,6 +204,10 @@ const PublicClimateContainer = ({
           console.error('Failed to load demo zone:', err);
           // Fallback - set minimal zone so UI isn't broken
           setSelectedZone({ name: 'Waipara', slug: 'waipara', region_name: 'North Canterbury' });
+        } finally {
+          // Both branches above end with a zone set, so the selector can be
+          // released either way.
+          setZoneResolving(false);
         }
       };
       loadDemoZone();
@@ -233,6 +271,7 @@ const PublicClimateContainer = ({
           selectedZone={selectedZone}
           onZoneChange={handleZoneChange}
           label="Climate Zone"
+          autoSelect={!zoneResolving}
         />
       );
     }

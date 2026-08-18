@@ -17,67 +17,14 @@
   height: calc(100vh - 80px);
 }
 
-/* Locked state for unauthenticated users */
-.map-explorer-locked {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #f5f8ee 0%, #e8f0dd 100%);
-  padding: 40px 24px;
-}
-
-.map-explorer-locked-content {
-  text-align: center;
-  max-width: 460px;
-}
-
-.map-explorer-locked-content h2 {
-  margin: 0 0 12px 0;
-  font-size: var(--font-3xl);
-  font-weight: 700;
-  color: #2F2F2F;
-}
-
-.map-explorer-locked-content p {
-  margin: 0 0 24px 0;
-  font-size: var(--font-md);
-  color: #505050;
-  line-height: 1.6;
-}
-
-.map-explorer-signin-btn {
-  display: inline-block;
-  padding: 14px 32px;
-  background: #D1583B;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: var(--font-md);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(209, 88, 59, 0.3);
-}
-
-.map-explorer-signin-btn:hover {
-  background: #B84A2E;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(209, 88, 59, 0.4);
-}
+/* The full-page sign-in wall that used to live here was removed 2026-08-18.
+   The page is open; the gate is on the data (AccessGate on the Wine regions
+   tab, and the server trimming /available for the climate surface). */
 
 /* Mobile notice */
 @media (max-width: 768px) {
   .map-explorer-container .regional-map-wrapper {
     height: calc(100vh - 64px);
-  }
-
-  .map-explorer-locked-content h2 {
-    font-size: var(--font-xl);
-  }
-
-  .map-explorer-locked-content p {
-    font-size: var(--font-base);
   }
 }
 

@@ -87,6 +87,25 @@ async def require_registration(
     return user
 
 
+def site_quota(user: Optional[PublicUser]) -> int:
+    """How many saved Pro sites this subscriber may hold.
+
+    NOT derivable from the tier. A point subscription is priced separately and
+    stacks — one point each, several allowed — so a Pro user with no point
+    subscription has a quota of 0, and a Grow user (Pro by relationship) gets no
+    free point either. Anyone not entitled to Pro at all has 0 regardless of
+    what the column says, so that a lapsed subscription cannot leave a site
+    placeable.
+    """
+    if not is_pro(user):
+        return 0
+    return max(0, int(getattr(user, "pro_site_quota", 0) or 0))
+
+
+def can_place_site(user: Optional[PublicUser], sites_held: int) -> bool:
+    return sites_held < site_quota(user)
+
+
 async def require_pro(
     user: Optional[PublicUser] = Depends(get_optional_public_user),
 ) -> PublicUser:

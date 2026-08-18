@@ -26,51 +26,75 @@ import { getZones } from '../../services/publicClimateService';
 
 const CONTACT_EMAIL = 'insights@auxein.co.nz';
 
-const ZoneSelectorRealtime = ({ 
-  selectedZone, 
+const ZoneSelectorRealtime = ({
+  selectedZone,
   onZoneChange,
-  label = 'Select Zone'
+  label = 'Select Zone',
+  // Whether this selector may pick a zone for the user when none is set.
+  // FALSE whenever the parent is resolving a zone of its own (a /regions/:slug
+  // deep link), because otherwise the two race and the loser is silent — see
+  // the auto-select block below.
+  autoSelect = true,
 }) => {
   const [allZones, setAllZones] = useState([]);
   const [zonesWithData, setZonesWithData] = useState(new Set());
+  // Kept in order, because the auto-select default is "the first zone with
+  // data" and that has to survive being deferred (see the selection effect).
+  const [realtimeZones, setRealtimeZones] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCTA, setShowCTA] = useState(false);
   const [ctaZone, setCtaZone] = useState(null);
 
-  // Load zones on mount
+  // Load zones on mount. This effect FETCHES ONLY — it used to also decide the
+  // selection, after two awaits, using a `selectedZone` captured in the mount
+  // closure and therefore stale by the time it was read. That decision now
+  // lives in its own effect below, where it sees current values.
   useEffect(() => {
     const loadZones = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch all zones and zones with realtime data in parallel
         const [allZonesData, realtimeZonesData] = await Promise.all([
           getZones(),  // From publicClimateService - all zones
           getZonesWithData(),  // From realtimeClimateService - zones with current data
         ]);
-        
+
         // Build set of zone IDs that have data
         const dataZoneIds = new Set(
           (realtimeZonesData.zones || []).map(z => z.id)
         );
-        
+
         setAllZones(allZonesData.zones || []);
         setZonesWithData(dataZoneIds);
-        
-        // Auto-select first zone with data if none selected
-        if (!selectedZone && realtimeZonesData.zones?.length > 0) {
-          onZoneChange(realtimeZonesData.zones[0]);
-        }
+        setRealtimeZones(realtimeZonesData.zones || []);
       } catch (err) {
         console.error('Error loading zones:', err);
       } finally {
         setLoading(false);
       }
     };
-    
+
     loadZones();
   }, []);
+
+  // Auto-select the first zone with data, but ONLY if nothing else owns the
+  // choice. `zones[0]` is Northland, so getting this wrong does not look like
+  // a race — it looks like the site ignoring the region the visitor asked for.
+  //
+  // This is a standing condition, not a decision taken once at mount. The
+  // parent may be resolving a zone of its own (`autoSelect` false) and may
+  // then FAIL to, at which point the fallback has to still be available or the
+  // page is left with no zone at all. Re-running on `autoSelect` is what makes
+  // that recovery work.
+  useEffect(() => {
+    if (!autoSelect || selectedZone || realtimeZones.length === 0) return;
+    onZoneChange(realtimeZones[0]);
+    // `onZoneChange` is excluded deliberately: callers pass an inline arrow, so
+    // depending on it would re-run this on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSelect, selectedZone, realtimeZones]);
 
   const handleZoneClick = (zone) => {
     const hasData = zonesWithData.has(zone.id);

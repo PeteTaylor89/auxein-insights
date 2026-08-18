@@ -28,7 +28,30 @@ export const DEFAULT_STATISTIC = {
   temp_min: 'mean',
   temp_max: 'mean',
   rainfall: 'sum',
+  // The whole running series. `sum` addresses one point of it (the April
+  // accumulation) under another name, so defaulting to it would hand the
+  // scrubber a single step per season.
+  gdd10: 'cumulative',
+  gdd0: 'cumulative',
 };
+
+// Not every variable is published at the same granularity. The GDD variables
+// are SEASONAL accumulations — Sep-Apr, labelled by the vintage year — and do
+// not exist as calendar months, so asking for them monthly 404s. Anything
+// building a tile URL or an availability request must take the granularity
+// from here rather than assuming the monthly default.
+export const VARIABLE_GRANULARITY = {
+  temp_mean: 'monthly',
+  temp_min: 'monthly',
+  temp_max: 'monthly',
+  rainfall: 'monthly',
+  gdd10: 'season',
+  gdd0: 'season',
+};
+
+export function granularityFor(variable) {
+  return VARIABLE_GRANULARITY[variable] || DEFAULT_GRANULARITY;
+}
 
 // §5 variable vocabulary. Units are the contract's and are NOT negotiable at
 // the display layer — a chart that relabels C as F must convert, not rename.
@@ -82,6 +105,12 @@ export const SURFACE_VARIABLES = {
   rainfall: { label: 'Rainfall', unit: 'mm', ramp: 'rain_depth' },
   rh: { label: 'Relative humidity', unit: '%', ramp: 'rain' },
   pet: { label: 'Evapotranspiration', unit: 'mm', ramp: 'heat' },
+  // Unit is 'GDD', not 'C'. That is what makes the confidence guard in
+  // SurfaceMap suppress the inherited degC cv_rmse instead of printing it
+  // beside a degree-day total — these are integrated from temp_mean and were
+  // never cross-validated in their own unit.
+  gdd10: { label: 'Growing degree days', unit: 'GDD', ramp: 'heat' },
+  gdd0: { label: 'Degree days above 0', unit: 'GDD', ramp: 'heat' },
 };
 
 /**
@@ -279,6 +308,21 @@ export function monthsAvailable(available) {
   return out;
 }
 
+/**
+ * The archive's own step list, verbatim.
+ *
+ * `monthsAvailable` RECONSTRUCTS the series by walking the calendar between
+ * `first` and `last` and skipping gaps. That is right for a monthly series and
+ * wrong for a seasonal one: a season runs Sep-Apr, so walking the calendar
+ * invents May, June, July and August steps for all 37 seasons, and the server
+ * emits no gaps for `season` precisely because winter is not missing data — it
+ * is not part of a growing season. Read the steps instead of deducing them.
+ */
+export function stepsAvailable(available) {
+  const steps = available?.meta?.steps;
+  return Array.isArray(steps) ? steps.map((s) => s.valid_at) : [];
+}
+
 export default {
   getPoint,
   getRegion,
@@ -288,6 +332,8 @@ export default {
   isInGap,
   latestAvailableDate,
   monthsAvailable,
+  stepsAvailable,
+  granularityFor,
   monthStamp,
   isSurfacesUnavailable,
   SURFACE_VARIABLES,

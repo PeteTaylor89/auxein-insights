@@ -18,6 +18,10 @@ import NotFound from './pages/NotFound';
 
 // Lazy-loaded pages
 const MapExplorer = lazy(() => import('./pages/MapExplorer'));
+// Lazy for the same reason as MapExplorer: it pulls in mapbox-gl AND Chart.js,
+// and only Pro subscribers ever open it. Loading either into the main bundle
+// would slow the free product down for the people who never see this page.
+const MySite = lazy(() => import('./pages/MySite'));
 
 // Admin pages
 import AdminDashboard from './pages/AdminDashboard';
@@ -49,6 +53,11 @@ function AppRoutes() {
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/map" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: '#5B6830' }}>Loading map...</div>}><MapExplorer /></Suspense>} />
+          {/* The route is NOT gated here — the page renders its own explanation
+              and Pro offer to anyone who arrives, so a shared or bookmarked
+              link lands on something that says what it is rather than a
+              redirect that looks like the link is broken. */}
+          <Route path="/my-site" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: '#5B6830' }}>Loading…</div>}><MySite /></Suspense>} />
           <Route path="/regions" element={<RegionsPage />} />
           <Route path="/regions/:slug" element={<RegionDetail />} />
           <Route path="/about" element={<About />} />

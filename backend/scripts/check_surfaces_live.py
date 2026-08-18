@@ -35,6 +35,12 @@ from db.session import SessionLocal                                # noqa: E402
 # Entitlements are enforced by a router dependency; calling the handler directly
 # bypasses FastAPI's injection, so the gate is passed explicitly and on purpose.
 PRO = SimpleNamespace(id=0, subscription_tier="pro", pro_expires_at=None)
+# A plain signed-in account. `/available` returns a DIFFERENT payload to an
+# anonymous caller (the newest month only), and passing nothing would hand the
+# handler a `Depends(...)` object — which is not None, so it would read as
+# registered and the gate would never be exercised. Pass it explicitly.
+FREE = SimpleNamespace(id=1, subscription_tier="free", pro_expires_at=None)
+ANON = None
 
 # Blenheim — Marlborough, the densest vineyard region in the country.
 BL = {"lon": 173.961, "lat": -41.514}
@@ -73,7 +79,7 @@ def main() -> int:
         # directly skips FastAPI's dependency resolution, so an omitted argument
         # arrives as a `Query(...)` object rather than as its default value.
         av = S.available(variable="temp_mean", granularity="monthly",
-                         statistic=None, db=db)
+                         statistic=None, db=db, user=FREE)
         check("temp_mean monthly spans the published archive",
               av.first == "1986-01-01" and av.last == "2023-12-01",
               f"{av.first}..{av.last}")
@@ -94,7 +100,43 @@ def main() -> int:
               "frost_days" in S.available(variable="temp_min",
                                           granularity="monthly",
                                           statistic=None,
-                                          db=db).meta["statistics"])
+                                          db=db, user=FREE).meta["statistics"])
+        check("a registered caller is told the scope is full",
+              av.meta["access"]["scope"] == "full",
+              str(av.meta["access"]))
+
+        # The free rule: anonymous sees the newest month of every layer, and
+        # the record behind it needs an account. Enforced server-side, because
+        # the scrubber renders whatever steps it is handed.
+        anon = S.available(variable="temp_mean", granularity="monthly",
+                           statistic=None, db=db, user=ANON)
+        check("anonymous gets exactly one step",
+              len(anon.meta["steps"]) == 1 and anon.meta["count"] == 1,
+              f"{anon.meta['count']} steps")
+        check("that step is the NEWEST month, not the oldest",
+              anon.meta["steps"][0]["valid_at"] == "2023-12",
+              anon.meta["steps"][0]["valid_at"])
+        check("the anonymous window collapses onto that month",
+              anon.first == anon.last == "2023-12-01",
+              f"{anon.first}..{anon.last}")
+        # A one-step list has no interior, so shipping the archive's gaps would
+        # describe holes in a record this caller cannot see.
+        check("no gaps are described to an anonymous caller", anon.gaps == [],
+              str(anon.gaps))
+        check("the archive's true span is still advertised",
+              anon.meta["access"]["scope"] == "latest_month"
+              and anon.meta["access"]["archive_first"] == "1986-01-01"
+              and anon.meta["access"]["archive_count"] == 456,
+              str(anon.meta["access"]))
+        # The picture is the pitch: every layer must still be reachable
+        # anonymously, or the free tier is one map instead of all of them.
+        check("anonymous still sees every statistic on offer",
+              anon.meta["statistics"] == av.meta["statistics"],
+              str(anon.meta["statistics"]))
+        check("anonymous rainfall is gated the same way",
+              len(S.available(variable="rainfall", granularity="monthly",
+                              statistic="sum", db=db,
+                              user=ANON).meta["steps"]) == 1)
 
         print("\n/tiles")
         tile = S._real_tile(db, "temp_mean", "monthly", "2020-01", 5, 31, 20,
@@ -125,11 +167,18 @@ def main() -> int:
         check("all three temperature layers share one scale",
               len(set(temp_domains.values())) == 1, temp_domains)
 
-        # Measured over the whole archive: rainfall/max reaches 806.7 mm and
-        # p99.9 is 319.9. A ceiling below p99.9 flattens every heavy-rain event.
+        # Measured over the whole archive. A ceiling below p99.9 flattens every
+        # heavy-rain event, which is what the old 150 mm ceiling did.
+        #
+        # RE-MEASURED 2026-08-18 after the LENZ-conditioned rainfall COGs
+        # replaced the originals: rainfall/max p99.9 319.9 -> 308.8, archive max
+        # 806.7 -> 623.1. **This number has to be re-pinned whenever the
+        # rainfall archive is rebuilt** — leaving 319.9 here would have failed a
+        # correctly-retuned ramp, and raising it to silence the failure would
+        # have hidden a real regression. Re-run scan_rainfall_domain.py.
         rain_lo, rain_hi, _ = S.store.domain_for("rainfall", "max")
         check("the wettest-day ceiling clears the measured p99.9",
-              rain_lo == 0.0 and rain_hi >= 319.9, (rain_lo, rain_hi))
+              rain_lo == 0.0 and rain_hi >= 308.8, (rain_lo, rain_hi))
         check("tiles are cached hard (immutable archive)",
               "immutable" in tile.headers["Cache-Control"])
 
@@ -267,6 +316,61 @@ def main() -> int:
         check("an unknown zone slug 404s",
               status_of(S.zone_season, slug="not-a-zone", metrics=None,
                         db=db) == 404)
+
+        print("\nGDD season surfaces")
+        gav = S.available(variable="gdd10", granularity="season",
+                          statistic=None, db=db, user=FREE)
+        check("37 seasons x 8 accumulation months",
+              gav.meta["count"] == 296, gav.meta["count"])
+        check("the default statistic is the running series, not the total",
+              gav.meta["statistic"] == "cumulative", gav.meta["statistic"])
+        # Sep-Apr then a jump to the next September. Emitting calendar gaps
+        # would report May-August as a hole in all 37 seasons; winter is not
+        # missing data, it is not part of a growing season.
+        check("no gaps are claimed across the winter", gav.gaps == [],
+              str(gav.gaps)[:80])
+        check("each step names the vintage it accumulates into",
+              gav.meta["steps"][0]["season"] == 1987
+              and gav.meta["steps"][-1]["season"] == 2023)
+        check("the unit is degree days, not degrees",
+              gav.meta["unit"] == "GDD", gav.meta["unit"])
+        # cv_units is degC because GDD inherits temp_mean's fits and was never
+        # cross-validated itself. The unit mismatch is what makes the client
+        # suppress it rather than print degree-days as degrees.
+        check("inherited confidence is in degC so the client suppresses it",
+              gav.meta["steps"][-1]["cv_units"] == "C",
+              gav.meta["steps"][-1]["cv_units"])
+        check("season totals are separately addressable",
+              S.available(variable="gdd10", granularity="season",
+                          statistic="sum", db=db,
+                          user=FREE).meta["count"] == 37)
+
+        gtile = S._real_tile(db, "gdd10", "season", "2023-04", 5, 31, 20,
+                             None, None, None, "cumulative")
+        check("a GDD tile renders", gtile.body[:8] == b"\x89PNG\r\n\x1a\n")
+        # The April accumulation IS the season total, so both statistics must
+        # resolve to ONE object rather than a duplicated raster.
+        check("the season total shares the April object",
+              S._real_tile(db, "gdd10", "season", "2023-04", 5, 31, 20, None,
+                           None, None, "sum").headers["X-Surface-Key"]
+              == gtile.headers["X-Surface-Key"])
+        check("gdd10 and gdd0 do NOT share a scale",
+              S.store.domain_for("gdd10", "sum")
+              != S.store.domain_for("gdd0", "sum"))
+
+        acc = S.point_sample(_user=PRO, **BL, variables="gdd10",
+                             start="2022-09", end="2023-04",
+                             granularity="season", statistic="cumulative",
+                             db=db).series[0].points
+        vals = [p.value for p in acc if p.value is not None]
+        check("the season accumulates over eight months", len(vals) == 8, len(vals))
+        # An accumulation can only ever rise. This is the one property a viewer
+        # reads straight off the animation, so it is worth asserting.
+        check("accumulation is monotone in time",
+              all(b >= a for a, b in zip(vals, vals[1:])),
+              [round(v) for v in vals])
+        check("Blenheim's season total is viticulturally plausible",
+              1100 < vals[-1] < 1700, round(vals[-1]))
     finally:
         db.close()
 

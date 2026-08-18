@@ -53,6 +53,11 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const isAdmin = isAuthenticated && user?.is_admin;
+  // `is_pro` is a server-computed property on the response. Never test
+  // `subscription_tier === 'pro'` here: Grow users carry tier 'grow' and are
+  // fully entitled, so that comparison silently hides the nav from paying
+  // customers — the exact failure `core/entitlements.py` exists to prevent.
+  const isProUser = isAuthenticated && user?.is_pro;
 
   // Detect mobile viewport
   useEffect(() => {
@@ -120,6 +125,10 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             <Link to="/regions">Regions</Link>
             <Link to="/articles">Articles</Link>
             <Link to="/research">Research</Link>
+            {/* Pro only. The page is reachable by anyone and explains itself,
+                but putting it in the nav for people who cannot use it turns
+                primary navigation into an advertisement. */}
+            {isProUser && <Link to="/my-site">Your site</Link>}
 
             {isAdmin && (
               <Link to="/admin" className="admin-header-link">
@@ -193,6 +202,9 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             <Link to="/regions" onClick={closeMobileMenu}>Regions</Link>
             <Link to="/articles" onClick={closeMobileMenu}>Articles</Link>
             <Link to="/research" onClick={closeMobileMenu}>Research</Link>
+            {isProUser && (
+              <Link to="/my-site" onClick={closeMobileMenu}>Your site</Link>
+            )}
             <Link to="/about" onClick={closeMobileMenu}>About</Link>
 
             {isAdmin && (

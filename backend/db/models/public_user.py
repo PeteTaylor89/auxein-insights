@@ -1,5 +1,5 @@
 # db/models/public_user.py - Public User Model with Marketing & User Segmentation
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ARRAY, ForeignKey
+from sqlalchemy import Column, Integer, SmallInteger, String, DateTime, Boolean, Text, ARRAY, ForeignKey
 from sqlalchemy.sql import func
 from db.base_class import Base
 from datetime import datetime, timezone
@@ -51,6 +51,12 @@ class PublicUser(Base):
     subscription_tier = Column(String(10), default='free', nullable=False)
     pro_started_at = Column(DateTime(timezone=True), nullable=True)
     pro_expires_at = Column(DateTime(timezone=True), nullable=True)
+    # How many saved sites this subscriber may hold. A point subscription is
+    # priced separately from Pro and STACKS, so Pro tier alone does not imply a
+    # site and this is not derivable from `subscription_tier`. Grow users get
+    # Pro entitlements but not a free point.
+    pro_site_quota = Column(SmallInteger, nullable=False, default=0,
+                            server_default='0')
 
     # Extended email preferences
     frequency_preference = Column(String(20), default='weekly', nullable=False)

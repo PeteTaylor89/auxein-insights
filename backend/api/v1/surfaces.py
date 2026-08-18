@@ -57,11 +57,13 @@ from sqlalchemy.orm import Session
 from db.session import get_db
 from services import surface_store as store
 
-# Entitlements. `/tiles`, `/available` and `/region` stay open — the picture and
-# the regional numbers are the free product. `/point` is the Pro action: it
-# answers "what is it at MY site", which is what the paid tier is sold on.
+# Entitlements. `/tiles` and `/region` stay open; `/available` is open but
+# TRIMMED for anonymous callers — see `_gate_steps`. `/point` is the Pro action:
+# it answers "what is it at MY site", which is what the paid tier is sold on.
 # See docs/plans/INSIGHTS_SITE_MAP_2026-08-13.md §5a.
-from core.entitlements import require_pro
+from core.entitlements import require_pro, is_registered
+from core.public_security import get_optional_public_user
+from db.models.public_user import PublicUser
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -78,7 +80,10 @@ STUB_ROOT = Path(os.getenv(
 NULL_WINDOW = os.getenv("SURFACE_STUB_NULL_WINDOW", "1993-01-01/1993-12-31")
 
 UNITS = {"temp_mean": "C", "temp_min": "C", "temp_max": "C",
-         "rainfall": "mm", "rh": "%", "pet": "mm"}
+         "rainfall": "mm", "rh": "%", "pet": "mm",
+         # Derived seasonal accumulations, granularity 'season' only. Keep in
+         # step with services.surface_store.UNITS.
+         "gdd10": "GDD", "gdd0": "GDD"}
 
 # Pooled LOOCV error against distance-to-nearest-station, measured over the
 # rainfall network (cv_experiment.py; contract §3.4). Confidence is banded
@@ -640,14 +645,20 @@ def zone_season(
 @router.get("/available", response_model=AvailableResponse)
 def available(variable: str = Query("temp_mean"), granularity: str = Query("daily"),
               statistic: Optional[str] = Query(None),
-              db: Session = Depends(get_db)):
+              db: Session = Depends(get_db),
+              user: Optional[PublicUser] = Depends(get_optional_public_user)):
     """What exists, and where the holes are. Contract §5.3.
 
     `gaps` is authoritative: the time-scrubber must grey these out rather than
     request them and render holes.
+
+    Open to everyone, but the step list an ANONYMOUS caller gets is the newest
+    month only — `_gate_steps` explains why the gate lives here and not in the
+    client, and why `/tiles` is not gated alongside it.
     """
     if not _use_stub():
-        return _real_available(db, variable, granularity, statistic)
+        return _real_available(db, variable, granularity, statistic,
+                               registered=is_registered(user))
     _require_enabled()
     if variable not in UNITS:
         raise HTTPException(422, f"unknown variable {variable!r}")
@@ -819,6 +830,14 @@ def _default_statistic(granularity: str, statistic: Optional[str]) -> Optional[s
     """
     if granularity in ("monthly", "records"):
         return statistic or "mean"
+    # `season` is statistic-keyed too (store.STATISTIC_KEYED) but defaults
+    # differently, so it stays a separate branch rather than folding in.
+    if granularity == "season":
+        # `cumulative` is the default because it is the whole series; `sum` is
+        # one point of it (the April accumulation) addressed by another name.
+        # Defaulting to `sum` would hand a scrubber a single step and look like
+        # the archive holds one surface per season.
+        return statistic or "cumulative"
     return None
 
 
@@ -967,12 +986,66 @@ def _real_zone_season(db: Session, slug: str,
               "stub": False})
 
 
+def _gate_steps(info: dict, registered: bool) -> dict:
+    """Trim `/available` to the newest month for an anonymous visitor.
+
+    THE FREE RULE IS A DATE, NOT A COUNT. Anonymous visitors see the most
+    recent month of *every* variable and statistic; the 1986-onward record is
+    what registering buys. That is enforced here rather than in the client
+    because the scrubber renders whatever steps it is given — leave the full
+    list in the payload and the gate is a suggestion.
+
+    **`/tiles` is deliberately NOT gated.** A tile request is issued by a
+    Mapbox raster source, which sends no Authorization header, so a per-user
+    check there is not reachable without signed URLs or cookies (Pete's call,
+    2026-08-18: not worth the cache fragmentation for a 500 m PNG). Anyone who
+    constructs a tile URL by hand can still fetch it. This is a registration
+    nudge at the only moment it is natural to ask, not a paywall — the same
+    reasoning `useSurfaceQuota` was written under, applied to a rule that does
+    not need localStorage to hold it up.
+
+    The archive's true span stays in `meta.access` on purpose. "38 years of
+    record, free with an account" is the reason to sign up; hiding the span
+    hides the offer.
+    """
+    if registered:
+        return {**info, "access": {"tier": "registered", "scope": "full"}}
+
+    steps = info.get("steps") or []
+    newest = steps[-1:] if steps else []
+    return {
+        **info,
+        # Collapse the window onto the newest month. `first`/`last` are ISO
+        # DATES here while a monthly step's `valid_at` is 'YYYY-MM' — mixing the
+        # two formats in one response is how a date parser starts returning
+        # Invalid Date, so `first` is set from `last`, not from the step.
+        "first": info.get("last") if newest else info.get("first"),
+        "last": info.get("last"),
+        # A one-step list has no interior, so there is nothing for the scrubber
+        # to grey out. Sending the archive's real gaps here would describe
+        # holes in a record the caller cannot see.
+        "gaps": [],
+        "steps": newest,
+        "count": len(newest),
+        "access": {
+            "tier": "anonymous",
+            "scope": "latest_month",
+            "archive_first": info.get("first"),
+            "archive_last": info.get("last"),
+            "archive_count": info.get("count"),
+            "unlock": "Sign in free to open the full record back to 1986.",
+        },
+    }
+
+
 def _real_available(db: Session, variable: str, granularity: str,
-                    statistic: Optional[str]) -> AvailableResponse:
+                    statistic: Optional[str],
+                    registered: bool = True) -> AvailableResponse:
     if variable not in UNITS:
         raise HTTPException(422, f"unknown variable {variable!r}")
     stat = _default_statistic(granularity, statistic)
-    info = store.availability(db, variable, granularity, stat)
+    info = _gate_steps(store.availability(db, variable, granularity, stat),
+                       registered)
     # The display domain is published here so a legend can be drawn truthfully.
     # Without it the client has to invent a scale, and any scale it invents will
     # disagree with the one the tiles were actually rendered against.
@@ -987,6 +1060,10 @@ def _real_available(db: Session, variable: str, granularity: str,
               "unit": info.get("unit"),
               "statistics": store.statistics_for(db, variable, granularity),
               "steps": info["steps"],
+              # What this caller is entitled to see, and what exists behind
+              # sign-in. The client draws its gate from this, never from a
+              # local guess about who is signed in.
+              "access": info["access"],
               "domain": {"min": lo, "max": hi, "ramp": ramp,
                          "stops": store.RAMPS[ramp],
                          # Where each stop sits in 0..1. Even unless the ramp is
@@ -1062,7 +1139,11 @@ def _real_point(db: Session, lon: float, lat: float, variables: str,
         raise HTTPException(422, f"unknown variables: {unknown}")
 
     stat = _default_statistic(granularity, statistic)
-    if granularity == "monthly":
+    if granularity in ("monthly", "season"):
+        # Season surfaces are addressed as YYYY-MM like monthly ones — the
+        # end-of-month stamp is an index detail — so the same month walk serves
+        # both. Months outside Sep-Apr simply resolve to nothing and come back
+        # as nulls, which is the truthful answer for a growing-season series.
         stamps = _months_between(start, end)
     elif granularity == "records":
         stamps = [None]
@@ -1070,8 +1151,9 @@ def _real_point(db: Session, lon: float, lat: float, variables: str,
         # No daily surfaces exist in the published archive. Say so once, rather
         # than returning several hundred nulls that look like an outage.
         raise HTTPException(
-            422, "the published archive is monthly; request granularity="
-                 "monthly (or records). See /available for what exists.")
+            422, "the published archive is monthly and seasonal; request "
+                 "granularity=monthly, season or records. See /available for "
+                 "what exists.")
 
     # Distance band, from the CLIFLO network that actually produced this
     # archive. Contract §3.4 — a single national cv_rmse is wrong at both ends,

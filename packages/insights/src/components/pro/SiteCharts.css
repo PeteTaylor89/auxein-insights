@@ -1,0 +1,46 @@
+/* Shared chart chrome for the Pro site pages. */
+
+.site-chart {
+  position: relative;
+  width: 100%;
+}
+
+.site-chart__empty,
+.site-chart__note {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.site-monthly__windows {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.site-monthly__window {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  /* A global `button { padding: 8px 16px }` rule exists on this platform and
+     clips controls that size themselves; padding is set explicitly. */
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+  background: var(--white, #fff);
+  color: #3d4632;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.site-monthly__window.is-active {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: var(--white, #fff);
+}

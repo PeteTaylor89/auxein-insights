@@ -60,6 +60,13 @@ log = logging.getLogger("index_surfaces")
 DEFAULT_BUCKET = "auxein-climate-surfaces"
 VARIABLES = ("temp_mean", "temp_max", "temp_min", "rainfall")
 
+# DERIVED variables: seasonal growing-degree-day accumulations, integrated from
+# temp_mean's monthly bands by `scripts/interpolation/gdd_season.py`. They are
+# not fitted, so they have no validation_stats.csv and no CV of their own — see
+# `build_season_rows`.
+SEASON_VARIABLES = ("gdd10", "gdd0")
+ALL_VARIABLES = VARIABLES + SEASON_VARIABLES
+
 # `screen_relevance` runs at the default in run_history.py, so every surface in
 # this archive was fitted under an 800 km relevance rule.
 RELEVANCE_KM = 800.0
@@ -142,6 +149,15 @@ def monthly_key(variable: str, year: int, month: int, res_m: int,
 
 def records_key(variable: str, res_m: int, statistic: str) -> str:
     return f"surfaces/v2/{variable}/records/{variable}_records_{res_m}m_{statistic}.tif"
+
+
+def season_key(variable: str, vintage: int, year: int, month: int,
+               res_m: int) -> str:
+    """Mirror of `gdd_season.season_key`. Kept in both places on purpose: the
+    generator must be able to run without importing the indexer, and a drift
+    between them fails loudly at `--verify-keys` rather than silently."""
+    return (f"surfaces/v2/{variable}/season/{vintage}/"
+            f"{variable}_season_{vintage}_{year}{month:02d}_{res_m}m_cumulative.tif")
 
 
 # --- validation stats -------------------------------------------------------
@@ -342,6 +358,107 @@ def build_rows(source: Source, variable: str) -> tuple[list[dict], list[dict], d
     return runs, validation, manifest
 
 
+# --- derived season variables -------------------------------------------------
+
+# SEASON_TOTAL_SHARES_THE_APRIL_OBJECT
+# ------------------------------------
+# A season emits eight cumulative rasters, September through April. The April
+# one IS the season total — the accumulation is complete at the end of the
+# season by construction — so the `sum` row points at the SAME `s3_key` as the
+# April `cumulative` row rather than at a byte-identical copy.
+#
+# That bends this table's usual rule of one row per object, and it is deliberate:
+# the alternative is writing 74 duplicate rasters (~500 MB) whose only purpose
+# is to make the index look tidier. The two rows differ in `statistic`, so the
+# partial unique indexes are satisfied, and anything reasoning about storage
+# must therefore DISTINCT on `s3_key` rather than counting rows.
+
+def build_season_rows(source: Source, variable: str) -> tuple[list[dict], list[dict], dict]:
+    """Return (surface_run rows, [], manifest) for one derived season variable.
+
+    The empty middle element is not an oversight. `surface_validation_stats`
+    has one row per FIT, and GDD is never fitted — it is integrated from
+    temp_mean's monthly bands. Writing rows there would claim a
+    cross-validation that was never performed. What each run row carries
+    instead is the median `cv_rmse` of the temp_mean fits underneath, with
+    `cv_units='C'`; since these variables' own unit is GDD, the API's existing
+    unit guard suppresses it rather than printing degree-days as degrees. Same
+    mechanism that already protects rainfall's ratio-space CV.
+    """
+    manifest = json.loads(source.read_text(f"{variable}/manifest.json"))
+    res_m = int(manifest["resolution_m"])
+    model_version = manifest["model_version"]
+    overall_cv = (manifest.get("cv_rmse") or {}).get("median")
+
+    runs: list[dict] = []
+    for season in manifest["seasons"]:
+        vintage = int(season["season"])
+        start_year, start_month = (int(p) for p in season["period_start"].split("-"))
+        period_start = datetime(start_year, start_month, 1, tzinfo=timezone.utc)
+        cv = season.get("source_cv_rmse_median") or overall_cv
+
+        april_key: Optional[str] = None
+        for step in season["steps"]:
+            year, month = (int(p) for p in step["valid_at"].split("-"))
+            key = season_key(variable, vintage, year, month, res_m)
+            april_key = key
+            runs.append(_season_run(
+                variable=variable, statistic="cumulative",
+                # Stamped at the END of the accumulation month, not its start.
+                # "Cumulative through October" is a state reached on the 31st;
+                # dating it the 1st would read as the state before October
+                # happened. `records` rows already use the end-of-period form.
+                valid_at=datetime(year, month, monthrange(year, month)[1],
+                                  tzinfo=timezone.utc),
+                period_start=period_start, res_m=res_m,
+                model_version=model_version, key=key, cv=cv))
+
+        # The season total. Same object as the April accumulation — see the
+        # SEASON_TOTAL_SHARES_THE_APRIL_OBJECT note above.
+        end_year, end_month = (int(p) for p in season["valid_at"].split("-"))
+        runs.append(_season_run(
+            variable=variable, statistic="sum",
+            valid_at=datetime(end_year, end_month,
+                              monthrange(end_year, end_month)[1],
+                              tzinfo=timezone.utc),
+            period_start=period_start, res_m=res_m,
+            model_version=model_version, key=april_key, cv=cv))
+
+    return runs, [], manifest
+
+
+def _season_run(*, variable: str, statistic: str, valid_at: datetime,
+                period_start: datetime, res_m: int, model_version: str,
+                key: str, cv: Optional[float]) -> dict:
+    return {
+        "variable": variable,
+        "granularity": "season",
+        "statistic": statistic,
+        "valid_at": valid_at,
+        "period_start": period_start,
+        "resolution_m": res_m,
+        "model_version": model_version,
+        # Not a fit. The engine that produced the numbers this integrates was
+        # ridge; naming it here would imply GDD went through it.
+        "engine": "derived",
+        "s3_key": key,
+        "s3_key_sd": None,
+        "n_stations_fit": None,
+        "n_stations_test": None,
+        "n_stations_excluded": None,
+        "relevance_km": RELEVANCE_KM,
+        "smoothing": None,
+        "edf": None,
+        "edf_frac": None,
+        "cv_rmse": cv,
+        "cv_rmse_max": None,
+        # degC, NOT GDD — see build_season_rows.
+        "cv_units": "C",
+        "clipped": False,
+        "status": "ok",
+    }
+
+
 # --- database ---------------------------------------------------------------
 
 RUN_COLUMNS = ("variable", "granularity", "statistic", "valid_at",
@@ -416,7 +533,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", default=f"s3://{DEFAULT_BUCKET}",
                         help="s3://bucket or a local path to the bucket mirror")
-    parser.add_argument("--variable", action="append", choices=VARIABLES,
+    parser.add_argument("--variable", action="append", choices=ALL_VARIABLES,
                         help="restrict to one variable (repeatable)")
     parser.add_argument("--dry-run", action="store_true",
                         help="build and check rows, write nothing")
@@ -436,7 +553,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         source = LocalSource(Path(args.source))
         verify = bool(args.verify_keys)
 
-    variables = args.variable or list(VARIABLES)
+    variables = args.variable or list(ALL_VARIABLES)
     log.info("source %s | variables %s", source.describe(), ", ".join(variables))
 
     listing: set[str] = set()
@@ -449,14 +566,24 @@ def main(argv: Optional[list[str]] = None) -> int:
     problems = 0
 
     for variable in variables:
-        runs, validation, manifest = build_rows(source, variable)
-        log.info("%-10s %4d months, %d run rows, %d validation rows "
-                 "(cv median %s %s)", variable, manifest["n_months"], len(runs),
-                 len(validation),
-                 round(manifest.get("cv_rmse", {}).get("median", float("nan")), 5),
-                 manifest.get("cv_units") or manifest["unit"])
+        if variable in SEASON_VARIABLES:
+            runs, validation, manifest = build_season_rows(source, variable)
+            log.info("%-10s %4d seasons %s..%s, %d run rows over %d objects, "
+                     "0 validation rows (derived, not fitted)",
+                     variable, manifest["n_seasons"], manifest["first"],
+                     manifest["last"], len(runs),
+                     len({r["s3_key"] for r in runs}))
+        else:
+            runs, validation, manifest = build_rows(source, variable)
+            log.info("%-10s %4d months, %d run rows, %d validation rows "
+                     "(cv median %s %s)", variable, manifest["n_months"],
+                     len(runs), len(validation),
+                     round(manifest.get("cv_rmse", {}).get("median", float("nan")), 5),
+                     manifest.get("cv_units") or manifest["unit"])
 
         if verify:
+            # DISTINCT: a season's `sum` row shares its object with the April
+            # `cumulative` row, so the raw row count over-states the objects.
             wanted = {r["s3_key"] for r in runs}
             missing = wanted - listing
             if missing:

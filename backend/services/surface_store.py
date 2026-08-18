@@ -30,6 +30,7 @@ import logging
 import os
 import struct
 import zlib
+from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 
@@ -46,7 +47,27 @@ TILE_PX = 256
 CONTRACT_VERSION = "v2"
 
 UNITS = {"temp_mean": "C", "temp_min": "C", "temp_max": "C",
-         "rainfall": "mm", "rh": "%", "pet": "mm"}
+         "rainfall": "mm", "rh": "%", "pet": "mm",
+         # Derived seasonal accumulations. The unit is NOT degrees, which is
+         # what makes the cv_units guard suppress their inherited degC error
+         # instead of printing it beside a degree-day figure.
+         "gdd10": "GDD", "gdd0": "GDD"}
+
+
+# Granularities whose surfaces are keyed by a STATISTIC as well as a date.
+# Daily and hourly are a single field per timestep and carry statistic NULL.
+#
+# **This list is duplicated in three places by necessity** — here, in
+# `api/v1/surfaces._default_statistic`, and in the `surface_run` CHECK
+# constraints — and adding `season` to only some of them is exactly how the GDD
+# surfaces first indexed fine and then 404'd on every tile. The constraint is
+# the backstop that fails loudly; this one fails as "not found", which is far
+# quieter, so keep them in step.
+STATISTIC_KEYED = ("monthly", "records", "season")
+
+# Granularities that cover a PERIOD rather than an instant, and therefore carry
+# `period_start`. Mirrors ck_surface_run_period_start.
+PERIOD_GRANULARITIES = ("records", "season")
 
 
 class SurfaceNotFound(LookupError):
@@ -174,16 +195,49 @@ DOMAINS: dict[tuple[str, str], tuple[float, float, str]] = {
     ("temp_max", "min"): (*TEMP_EXTREME, "temperature"),
     ("temp_max", "max"): (*TEMP_EXTREME, "temperature"),
     # Ceilings sit AT the measured p99.9, not eyeballed. The old 150 mm ceiling
-    # on the wettest-day layer saturated 1.95% of all cells — every heavy-rain
-    # event in the archive rendered as one flat colour — and the true maximum is
-    # 806.7 mm (August 1992), over five times that ceiling. At p99.9 only 0.1%
+    # on the wettest-day layer saturated 1.82% of all cells — every heavy-rain
+    # event in the archive rendered as one flat colour. At p99.9 only 0.1%
     # saturates, and the front-loaded `rain_depth` stops keep the median month
     # legible despite the wider range. Both ceilings are also divisible by four,
     # so the legend's quarter ticks come out as whole millimetres.
-    ("rainfall", "sum"): (0.0, 1280.0, "rain_depth"),
+    #
+    # RE-MEASURED 2026-08-18 against the LENZ-conditioned archive
+    # (`scratchpad/scan_rainfall_domain.py`), which replaced every rainfall COG:
+    #
+    #                p99.9 before -> after     archive max before -> after
+    #   rainfall/max   319.9 -> 308.8 (-3.5%)     806.7 -> 623.1 (-22.8%)
+    #   rainfall/sum  1268.0 -> 1225.7 (-3.3%)   2913.0 -> 2374.6 (-18.5%)
+    #
+    # **Do not derive one of these from the other.** The 3 km log-space
+    # smoothing compresses the extreme tail hard and the body of the
+    # distribution barely at all, so the maxima moved ~20% while the p99.9 that
+    # actually sets these ceilings moved ~3%. Reading the ceiling off the
+    # headline maximum would have cut it by a fifth and flattened every heavy
+    # fall — the exact defect the 150 mm ceiling caused.
+    ("rainfall", "sum"): (0.0, 1228.0, "rain_depth"),
     ("rainfall", "mean"): (0.0, 40.0, "rain_depth"),
     ("rainfall", "median"): (0.0, 20.0, "rain_depth"),
-    ("rainfall", "max"): (0.0, 320.0, "rain_depth"),
+    # 312, not 308: the ceiling must CLEAR p99.9 (308.8), so it rounds UP to the
+    # next multiple of four. Rounding down for tidier ticks puts heavy falls back
+    # into saturation, which is the whole defect this domain was retuned to fix.
+    ("rainfall", "max"): (0.0, 312.0, "rain_depth"),
+    # Growing degree days. `heat` rather than `temperature`, because these are
+    # DERIVED from temperature and not measured in it — purple on the
+    # temperature ramp means deep cold, and "few degree days" is not cold.
+    #
+    # Ceilings at the pooled p99.5 of the SEASON TOTAL across all 37 vintages
+    # (measured by gdd_season.py --stats-only): gdd10 2,156 of a 2,314 max;
+    # gdd0 4,576 of 4,734. Rounded up to keep the legend's quarter ticks whole.
+    #
+    # **`cumulative` shares the season-total domain deliberately.** Rescaling
+    # each accumulation month to its own range would make September look like
+    # April and hide the one thing the animation exists to show. An early-season
+    # map reading dark is the message, not a defect — the same argument the
+    # monthly scrubber's fixed domain is built on.
+    ("gdd10", "sum"): (0.0, 2200.0, "heat"),
+    ("gdd10", "cumulative"): (0.0, 2200.0, "heat"),
+    ("gdd0", "sum"): (0.0, 4600.0, "heat"),
+    ("gdd0", "cumulative"): (0.0, 4600.0, "heat"),
 }
 
 # Statistic-only fallbacks, applied when the pair above has no entry. Counts and
@@ -317,6 +371,17 @@ def _valid_at_for(granularity: str, when: str) -> datetime:
         if len(parts) < 2:
             raise ValueError(f"monthly valid_at must be YYYY-MM, got {when!r}")
         return datetime(int(parts[0]), int(parts[1]), 1, tzinfo=timezone.utc)
+    if granularity == "season":
+        # Season surfaces are accumulations, stamped at the END of the month
+        # they accumulate through — 'cumulative through October' is a state
+        # reached on the 31st. Callers still address them as YYYY-MM; the
+        # end-of-month form is an index detail, not part of the URL.
+        parts = when.split("-")
+        if len(parts) < 2:
+            raise ValueError(f"season valid_at must be YYYY-MM, got {when!r}")
+        year, month = int(parts[0]), int(parts[1])
+        return datetime(year, month, monthrange(year, month)[1],
+                        tzinfo=timezone.utc)
     if granularity == "records":
         # There is exactly one records surface per (variable, statistic); the
         # caller does not need to know its end date.
@@ -334,7 +399,7 @@ def resolve(db: Session, variable: str, granularity: str,
     where = ["variable = :variable", "granularity = :granularity",
              "status <> 'failed'"]
 
-    if granularity in ("monthly", "records"):
+    if granularity in STATISTIC_KEYED:
         if not statistic:
             raise ValueError(f"{granularity} surfaces require a statistic")
         where.append("statistic = :statistic")
@@ -409,7 +474,7 @@ def availability(db: Session, variable: str, granularity: str,
     rows = db.execute(text(f"""
         SELECT valid_at, min(resolution_m) AS resolution_m,
                max(cv_rmse) AS cv_rmse, max(cv_rmse_max) AS cv_rmse_max,
-               min(cv_units) AS cv_units
+               min(cv_units) AS cv_units, min(period_start) AS period_start
         FROM surface_run WHERE {' AND '.join(where)}
         GROUP BY valid_at ORDER BY valid_at
     """), params).mappings().all()
@@ -435,18 +500,32 @@ def availability(db: Session, variable: str, granularity: str,
         for prev, nxt in zip(stamps, stamps[1:]):
             if nxt - prev > step:
                 gaps.append(f"{prev.date().isoformat()}/{nxt.date().isoformat()}")
+    # `season` emits NO gaps on purpose. The series runs Sep-Apr and then jumps
+    # to the next September, so calendar-month logic would report May-August as
+    # a hole in every one of the 37 seasons. The winter is not missing data; it
+    # is not part of a growing season.
 
     # One entry per timestep. `cv_rmse` is in `cv_units`, which for rainfall is
     # 'ratio' and NOT millimetres — a consumer that ignores the unit will render
     # 0.0025 mm and imply micron-scale accuracy.
     steps = [{
-        "valid_at": (r["valid_at"].date().isoformat()
-                     if granularity != "monthly"
-                     else r["valid_at"].strftime("%Y-%m")),
+        # Season steps are stamped at month END in the index but addressed as
+        # YYYY-MM, the same as monthly — a client should not have to know which
+        # end of the month a surface was filed under to build a tile URL.
+        "valid_at": (r["valid_at"].strftime("%Y-%m")
+                     if granularity in ("monthly", "season")
+                     else r["valid_at"].date().isoformat()),
         "resolution_m": int(r["resolution_m"]),
         "cv_rmse": r["cv_rmse"],
         "cv_rmse_max": r["cv_rmse_max"],
         "cv_units": r["cv_units"],
+        # Which growing season this step accumulates into. Derived from the
+        # stored `period_start` (September of the year before the vintage)
+        # rather than from the step's own month, so the Sep-Apr rule lives in
+        # the producer and is not restated by every consumer that wants to
+        # group a series by season.
+        **({"season": r["period_start"].year + 1}
+           if granularity == "season" and r["period_start"] else {}),
     } for r in rows]
 
     return {

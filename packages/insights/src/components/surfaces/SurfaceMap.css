@@ -241,3 +241,72 @@
   cursor: default;
   font-style: italic;
 }
+
+/* --- the free-tier prompt --------------------------------------------------
+   Sits under the scrubber it explains, not over the map. The surface itself is
+   the pitch and must stay fully visible — an overlay here would hide the one
+   thing that makes registering worth it. Stacks on mobile; 44px CTA. */
+.surface-map__unlock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  background: #f6f7f2;
+  color: #3d4632;
+}
+
+.surface-map__unlock p {
+  flex: 1 1 220px;
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.surface-map__unlock-cta {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: #3d4632;
+  color: var(--white, #fff);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.surface-map__unlock-cta:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --- seasonal layers ------------------------------------------------------- */
+
+/* The vintage a step accumulates into. Quieter than the month it sits beside,
+   because the month is what the scrubber moved and the season is context. */
+.surface-map__season {
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* Jump between the 37 seasons without dragging through 296 steps. Native
+   <select> on purpose: it is the one picker that is already good on mobile. */
+.surface-map__season-pick select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+  background: var(--white, #fff);
+  color: #3d4632;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.surface-map__season-pick select:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

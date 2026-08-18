@@ -1,10 +1,23 @@
 // pages/MapExplorer.jsx — Full-page map explorer
+//
+// THE PAGE IS OPEN. It used to be a full-page sign-in wall, which dead-ended
+// the home hero and hid the only thing on the site that shows the product.
+// The gate moved down to the data (2026-08-18):
+//
+//   Climate surface  open, at the newest month of every layer. The archive
+//                    behind it needs a free account, enforced by the server
+//                    trimming `/available` — see surfaces.py `_gate_steps`.
+//   Wine regions     needs an account. Blocks and GIs are the regional
+//                    product, not the free taste.
 import { useState } from 'react';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import RegionalMap from '../components/RegionalMap';
 import SurfaceMap from '../components/surfaces/SurfaceMap';
 import SiteHeader from '../components/SiteHeader';
+import SiteFooter from '../components/SiteFooter';
 import AuthModal from '../components/auth/AuthModal';
+import AccessGate from '../components/auth/AccessGate';
+import { isRegistered } from '../utils/entitlements';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import './MapExplorer.css';
 
@@ -15,37 +28,24 @@ const featuredRegions = [
   { id: 'hawkes-bay', name: 'Hawke\'s Bay', temp: '15.8°C', gdd: 1400, lat: -39.6, lon: 176.9 }
 ];
 
+const REGIONS_GATE_PREVIEW = [
+  'Every wine region and sub-region boundary',
+  'Vineyard blocks and geographical indications',
+  'Regional climate statistics, weighted by planted area',
+];
+
 function MapExplorer() {
-  const { isAuthenticated } = usePublicAuth();
+  const { user, isAuthenticated } = usePublicAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [view, setView] = useState('surface');
+
+  const registered = isRegistered(user) || isAuthenticated;
 
   useDocumentMeta({
     title: 'Vine Atlas — NZ Wine Region Map',
     description: 'Explore New Zealand wine regions, vineyard blocks, and geographical indications on an interactive map.',
     path: '/map',
   });
-
-  if (!isAuthenticated) {
-    return (
-      <div className="map-explorer-page">
-        <SiteHeader
-          subtitle="Regional Intelligence"
-          onSignInClick={() => setAuthModalOpen(true)}
-        />
-        <div className="map-explorer-locked">
-          <div className="map-explorer-locked-content">
-            <h2>Vine Atlas</h2>
-            <p>Sign in to explore New Zealand wine regions, blocks, and geographical indications.</p>
-            <button className="map-explorer-signin-btn" onClick={() => setAuthModalOpen(true)}>
-              Sign in free to explore
-            </button>
-          </div>
-        </div>
-        <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} context="map" />
-      </div>
-    );
-  }
 
   return (
     <div className="map-explorer-page">
@@ -80,11 +80,22 @@ function MapExplorer() {
       </div>
 
       <div className="map-explorer-container">
-        {view === 'surface'
-          ? <SurfaceMap />
-          : <RegionalMap regions={featuredRegions} />}
+        {view === 'surface' ? (
+          <SurfaceMap onSignInRequired={() => setAuthModalOpen(true)} />
+        ) : (
+          <AccessGate
+            require="registration"
+            allowed={registered}
+            onAction={() => setAuthModalOpen(true)}
+            title="See every region, block and GI"
+            preview={REGIONS_GATE_PREVIEW}
+          >
+            <RegionalMap regions={featuredRegions} />
+          </AccessGate>
+        )}
       </div>
 
+      <SiteFooter />
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} context="map" />
     </div>
   );
