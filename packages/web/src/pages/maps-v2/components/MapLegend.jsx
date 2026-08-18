@@ -3,6 +3,10 @@
 // From the Greystone beta feedback: "A simple legend for the map icons
 // (observations, tasks, etc.) would help everyone read the map at a glance."
 //
+// WHAT is listed comes from utils/legendModel.js, which the printed legend reads
+// too — one description of the map, two renderers. This file only decides HOW a
+// row is drawn on screen. Add a layer in legendModel, not here.
+//
 // Marker swatches are drawn from MARKER_SPECS — the same list registerMapIcons
 // uses to build the actual map images — so the legend can't drift out of step
 // with what's on the map. Shape swatches read from layerColors for the same
@@ -16,25 +20,9 @@
 // If you add a paint property here, add the constant there — don't inline it.
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, List } from 'lucide-react';
-import { MARKER_SPECS } from '../utils/mapIcons';
-import { MAP_FEATURE_TYPES } from './mapFeatureTypes';
-import {
-  BLOCK_FILL_OWN,
-  BLOCK_OUTLINE,
-  BLOCK_FILL_OPACITY,
-  BLOCK_OUTLINE_WIDTH_OWN,
-  SPATIAL_AREA_FILL,
-  SPATIAL_AREA_FILL_OPACITY,
-  SPATIAL_AREA_OUTLINE,
-  SPATIAL_AREA_OUTLINE_WIDTH,
-  SPATIAL_AREA_OUTLINE_OPACITY,
-  SPATIAL_AREA_DASH,
-  GPS_TRACK_COLORS,
-  ASSET_LINE_DEFAULT,
-} from '../utils/layerColors';
+import { GLYPH_FRACTION, GLYPH_STROKE } from '../utils/mapIcons';
+import { legendSections, SPEC_BY_ID } from '../utils/legendModel';
 import './MapLegend.css';
-
-const SPEC_BY_ID = Object.fromEntries(MARKER_SPECS.map((s) => [s.id, s]));
 
 /**
  * Render one lucide element (as stored in ICON_DEFS) into SVG.
@@ -58,10 +46,11 @@ function MarkerSwatch({ specId }) {
   const spec = SPEC_BY_ID[specId];
   if (!spec) return null;
 
-  // The map image scales its 24x24 glyph to ~55% of the circle; reproduce that
-  // ratio here so the legend icon reads at the same weight as the marker.
+  // The map image scales its 24x24 glyph to GLYPH_FRACTION of the circle;
+  // reproduce that ratio here so the legend icon reads at the same weight as
+  // the marker. Both constants come from mapIcons, so the two cannot drift.
   const SIZE = 20;
-  const scale = (SIZE * 0.55) / 24;
+  const scale = (SIZE * GLYPH_FRACTION) / 24;
   const offset = (SIZE - 24 * scale) / 2;
 
   return (
@@ -71,7 +60,10 @@ function MarkerSwatch({ specId }) {
         transform={`translate(${offset} ${offset}) scale(${scale})`}
         fill="none"
         stroke={spec.fg}
-        strokeWidth={2 / scale}
+        // Same rule as drawMarkerSwatch: proportional, with a 2px floor. At
+        // 20px the floor wins, which is why the chip looks a touch bolder than
+        // the marker — below 2px a stroked glyph is a grey smudge.
+        strokeWidth={Math.max(GLYPH_STROKE, 2 / scale)}
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -124,6 +116,25 @@ function LineSwatch({ color, casing = '#ffffff' }) {
   );
 }
 
+/** Dispatch a legendModel row to the swatch that draws it. */
+function RowSwatch({ row }) {
+  if (row.type === 'marker') return <MarkerSwatch specId={row.specId} />;
+  if (row.type === 'line') return <LineSwatch color={row.color} />;
+  if (row.type === 'area') {
+    return (
+      <AreaSwatch
+        fill={row.fill}
+        fillOpacity={row.fillOpacity}
+        outline={row.outline}
+        outlineWidth={row.outlineWidth}
+        outlineOpacity={row.outlineOpacity}
+        dash={row.dash}
+      />
+    );
+  }
+  return null;
+}
+
 /**
  * @param {Object} props.visible — which layers are currently switched on, keyed
  *   the same way MapsPage tracks them. Absent keys are treated as hidden.
@@ -131,82 +142,7 @@ function LineSwatch({ color, casing = '#ffffff' }) {
 export default function MapLegend({ visible = {} }) {
   const [open, setOpen] = useState(false);
 
-  const sections = [];
-
-  // Blocks are always drawn — no toggle for them on the map.
-  sections.push({
-    title: 'Areas',
-    items: [
-      {
-        key: 'blocks',
-        swatch: (
-          <AreaSwatch
-            fill={BLOCK_FILL_OWN}
-            fillOpacity={BLOCK_FILL_OPACITY}
-            outline={BLOCK_OUTLINE}
-            outlineWidth={BLOCK_OUTLINE_WIDTH_OWN}
-          />
-        ),
-        label: 'Vineyard block',
-      },
-      ...(visible.spatialAreas
-        ? [{
-            key: 'spatial',
-            swatch: (
-              <AreaSwatch
-                fill={SPATIAL_AREA_FILL}
-                fillOpacity={SPATIAL_AREA_FILL_OPACITY}
-                outline={SPATIAL_AREA_OUTLINE}
-                outlineWidth={SPATIAL_AREA_OUTLINE_WIDTH}
-                outlineOpacity={SPATIAL_AREA_OUTLINE_OPACITY}
-                dash={SPATIAL_AREA_DASH}
-              />
-            ),
-            label: 'Spatial area',
-          }]
-        : []),
-    ],
-  });
-
-  const markers = [];
-  if (visible.tasks) {
-    markers.push({ key: 'v2-tasks-icon', swatch: <MarkerSwatch specId="v2-tasks-icon" />, label: SPEC_BY_ID['v2-tasks-icon'].label });
-    markers.push({ key: 'v2-tasks-icon-inactive', swatch: <MarkerSwatch specId="v2-tasks-icon-inactive" />, label: SPEC_BY_ID['v2-tasks-icon-inactive'].label });
-  }
-  if (visible.observations) {
-    markers.push({ key: 'v2-obs-icon', swatch: <MarkerSwatch specId="v2-obs-icon" />, label: SPEC_BY_ID['v2-obs-icon'].label });
-  }
-  if (visible.assets) {
-    markers.push({ key: 'v2-asset-icon', swatch: <MarkerSwatch specId="v2-asset-icon" />, label: SPEC_BY_ID['v2-asset-icon'].label });
-  }
-  if (visible.risks) {
-    for (const id of ['v2-risk-icon-low', 'v2-risk-icon-medium', 'v2-risk-icon-high', 'v2-risk-icon-critical']) {
-      markers.push({ key: id, swatch: <MarkerSwatch specId={id} />, label: SPEC_BY_ID[id].label });
-    }
-  }
-  if (visible.mapFeatures) {
-    // Driven off MAP_FEATURE_TYPES rather than a second hardcoded list, so a
-    // new POI type appears in the legend automatically instead of being a
-    // silent omission.
-    for (const t of MAP_FEATURE_TYPES) {
-      markers.push({
-        key: t.iconId,
-        swatch: <MarkerSwatch specId={t.iconId} />,
-        label: SPEC_BY_ID[t.iconId]?.label || t.label,
-      });
-    }
-  }
-  if (markers.length > 0) sections.push({ title: 'Markers', items: markers });
-
-  const lines = [];
-  if (visible.gpsTracks) {
-    lines.push({ key: 'gps-active', swatch: <LineSwatch color={GPS_TRACK_COLORS.in_progress} />, label: 'GPS track — in progress' });
-    lines.push({ key: 'gps-done', swatch: <LineSwatch color={GPS_TRACK_COLORS.completed} />, label: 'GPS track — completed' });
-  }
-  if (visible.assets) {
-    lines.push({ key: 'asset-line', swatch: <LineSwatch color={ASSET_LINE_DEFAULT} />, label: 'Linear asset (fence, irrigation…)' });
-  }
-  if (lines.length > 0) sections.push({ title: 'Lines', items: lines });
+  const sections = legendSections(visible);
 
   return (
     <div className={`v2-legend ${open ? 'v2-legend--open' : ''}`}>
@@ -229,7 +165,7 @@ export default function MapLegend({ visible = {} }) {
               <div className="v2-legend-section-title">{section.title}</div>
               {section.items.map((item) => (
                 <div key={item.key} className="v2-legend-item">
-                  {item.swatch}
+                  <RowSwatch row={item} />
                   <span className="v2-legend-label">{item.label}</span>
                 </div>
               ))}

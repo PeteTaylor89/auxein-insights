@@ -3,6 +3,14 @@
 
 const ICON_SIZE = 32; // logical px (rendered at 2x for retina)
 
+// The glyph occupies 55% of the badge, and its stroke is 2 device px on the
+// 64px marker image. Both numbers are exported as PROPORTIONS so a swatch drawn
+// at any size — a 20px legend chip on screen, a 140px one on an A0 sheet — is
+// the same drawing as the marker on the map rather than a lookalike.
+export const GLYPH_FRACTION = 0.55;
+export const GLYPH_STROKE = 2 / ((ICON_SIZE * 2 * GLYPH_FRACTION) / 24); // in 24x24 glyph units
+export const BADGE_RING_FRACTION = 3 / (ICON_SIZE * 2); // white ring, as a fraction of diameter
+
 /**
  * SVG draw instructions from lucide-react icons (24x24 viewBox).
  * Each element is { type, attrs } matching the lucide icon definition.
@@ -127,7 +135,7 @@ function createMarkerImage(bgColor, iconColor, elements) {
   ctx.stroke();
 
   // Draw icon scaled from 24x24 viewBox to fit ~55% of circle
-  const iconScale = (size * 0.55) / 24;
+  const iconScale = (size * GLYPH_FRACTION) / 24;
   const offsetX = (size - 24 * iconScale) / 2;
   const offsetY = (size - 24 * iconScale) / 2;
 
@@ -135,7 +143,7 @@ function createMarkerImage(bgColor, iconColor, elements) {
   ctx.translate(offsetX, offsetY);
   ctx.scale(iconScale, iconScale);
   ctx.strokeStyle = iconColor;
-  ctx.lineWidth = 2 / iconScale; // Keep consistent stroke weight
+  ctx.lineWidth = GLYPH_STROKE; // Keep consistent stroke weight
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -176,6 +184,45 @@ export const MARKER_SPECS = [
   { id: 'v2-poi-amenity', bg: '#7c3aed', fg: '#ffffff', def: ICON_DEFS.poiAmenity, label: 'Amenity' },
   { id: 'v2-poi-note', bg: '#2F2F2F', fg: '#ffffff', def: ICON_DEFS.poiNote, label: 'Note' },
 ];
+
+const SPEC_BY_ID = Object.fromEntries(MARKER_SPECS.map((s) => [s.id, s]));
+
+/**
+ * Paint one marker badge onto a 2D context, centred on (cx, cy).
+ *
+ * This is the same drawing as the map image — same badge, same ring, same glyph
+ * paths, same proportions — just at an arbitrary radius, so the printed legend
+ * shows the marker rather than an approximation of it. Returns false for an
+ * unknown id so the caller can fall back rather than leave a blank row.
+ */
+export function drawMarkerSwatch(ctx, specId, cx, cy, radius) {
+  const spec = SPEC_BY_ID[specId];
+  if (!spec) return false;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = spec.bg;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, radius * 2 * BADGE_RING_FRACTION);
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+
+  const glyph = radius * 2 * GLYPH_FRACTION;
+  const scale = glyph / 24;
+  ctx.translate(cx - glyph / 2, cy - glyph / 2);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = spec.fg;
+  // Proportional to the badge, but never finer than 2 output pixels — below
+  // that a stroked glyph disappears into the paper. At print sizes the
+  // proportional term always wins, so the swatch matches the marker exactly.
+  ctx.lineWidth = Math.max(GLYPH_STROKE, 2 / scale);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  spec.def.forEach((el) => drawElement(ctx, el));
+  ctx.restore();
+  return true;
+}
 
 export function registerMapIcons(map) {
   if (!map) return;

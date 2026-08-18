@@ -3,9 +3,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { X, Printer, Loader, AlertTriangle } from 'lucide-react';
 import {
   PAPER_SIZES, DPI_OPTIONS, paperPixels, clampToCanvasLimit, effectiveDpi,
+  exportLayout, sheetMarginPx, sheetLayout, SHEET_MARGIN_MM,
   renderMapToCanvas, canvasToBlob, downloadBlob, exportFilename,
 } from '../../utils/mapExport';
-import { drawChrome } from '../../utils/mapChrome';
+import { composeSheet } from '../../utils/mapChrome';
 import { jpegToPdfBlob, canvasToJpegBytes } from '../../utils/pdfExport';
 import { visibleLayersForViewer } from '../managementLayerRegistry';
 
@@ -28,6 +29,7 @@ export default function PrintDialog({
   const [showLegend, setShowLegend] = useState(true);
   const [showScale, setShowScale] = useState(true);
   const [showNorth, setShowNorth] = useState(true);
+  const [showFrame, setShowFrame] = useState(true);
   const [includeDate, setIncludeDate] = useState(true);
 
   // Print layers start as a COPY of what's on screen, then diverge. Printing a
@@ -47,11 +49,42 @@ export default function PrintDialog({
 
   const layers = useMemo(() => visibleLayersForViewer(isAdmin), [isAdmin]);
 
+  const paperMm = useMemo(() => {
+    const p = PAPER_SIZES[paper];
+    return orientation === 'portrait' ? { w: p.w, h: p.h } : { w: p.h, h: p.w };
+  }, [paper, orientation]);
+
+  // Sheet = the whole page. Map = the image inside the white margin, and the
+  // size the map is actually RENDERED at, so nothing is scaled down to fit.
   const sizing = useMemo(() => {
     const raw = paperPixels(paper, dpi, orientation);
     const clamped = clampToCanvasLimit(raw);
-    return { raw, ...clamped, dpiOut: effectiveDpi(dpi, clamped.scale) };
-  }, [paper, dpi, orientation]);
+    const margin = showFrame
+      ? sheetMarginPx(clamped.width, clamped.height, paperMm.w)
+      : 0;
+    return {
+      raw,
+      ...clamped,
+      ...sheetLayout(clamped.width, clamped.height, margin),
+      dpiOut: effectiveDpi(dpi, clamped.scale),
+    };
+  }, [paper, dpi, orientation, showFrame, paperMm.w]);
+
+  // The print covers the current view, but paper is never the screen's shape, so
+  // one axis picks up extra ground. Say which and how much rather than let it be
+  // a surprise on the page.
+  const overshoot = useMemo(() => {
+    if (!map || !isOpen) return null;
+    const cv = map.getCanvas();
+    const srcW = cv.clientWidth || 1;
+    const srcH = cv.clientHeight || 1;
+    const { cssW, cssH } = exportLayout(map, sizing.mapWidth, sizing.mapHeight);
+    const wide = cssW / srcW;
+    const tall = cssH / srcH;
+    const pct = Math.round((Math.max(wide, tall) - 1) * 100);
+    if (pct < 2) return null;
+    return { pct, axis: wide >= tall ? 'either side' : 'above and below' };
+  }, [map, isOpen, sizing.mapWidth, sizing.mapHeight]);
 
   if (!isOpen) return null;
 
@@ -61,32 +94,40 @@ export default function PrintDialog({
     setBusy(true);
     setError(null);
     try {
-      const canvas = await renderMapToCanvas(map, {
-        width: sizing.width,
-        height: sizing.height,
+      // The map is rendered at the INNER size — inside the margin — so it is
+      // composited 1:1 and never resampled to fit. The export holds the
+      // on-screen field of view; the camera comes back off the render rather
+      // than off the live map, so the scale bar and north arrow describe the
+      // image that was actually produced.
+      const { canvas: mapCanvas, scaleFactor, center, zoom, bearing } = await renderMapToCanvas(map, {
+        width: sizing.mapWidth,
+        height: sizing.mapHeight,
         layerVisibility: printLayers,
       });
 
-      const centre = map.getCenter();
-      drawChrome(canvas, {
+      // Async only because the title block waits on the logo mark.
+      const canvas = await composeSheet(mapCanvas, {
+        width: sizing.width,
+        height: sizing.height,
+        margin: sizing.margin,
         title,
         subtitle,
         date: includeDate ? new Date() : null,
         layerVisibility: printLayers,
-        latitude: centre.lat,
-        zoom: map.getZoom(),
-        bearing: map.getBearing(),
+        latitude: center.lat,
+        zoom,
+        bearing,
+        scaleFactor,
+        paperWidthMm: paperMm.w,
         showLegend,
         showScale,
         showNorth,
+        showFrame,
       });
 
       if (format === 'pdf') {
         const jpeg = await canvasToJpegBytes(canvas, 0.92);
-        const p = PAPER_SIZES[paper];
-        const mmW = orientation === 'portrait' ? p.w : p.h;
-        const mmH = orientation === 'portrait' ? p.h : p.w;
-        const blob = jpegToPdfBlob(jpeg, canvas.width, canvas.height, mmW, mmH);
+        const blob = jpegToPdfBlob(jpeg, canvas.width, canvas.height, paperMm.w, paperMm.h);
         downloadBlob(blob, exportFilename(title, 'pdf'));
       } else {
         const blob = await canvasToBlob(canvas, 'image/png');
@@ -180,6 +221,13 @@ export default function PrintDialog({
         <div className="v2-form-info">
           Output: <strong>{sizing.width} × {sizing.height} px</strong>
           {format === 'pdf' && ' · fills the page'}
+          <div className="v2-form-hint" style={{ marginTop: 4 }}>
+            {showFrame
+              ? `Map image ${sizing.mapWidth} × ${sizing.mapHeight} px inside a ${SHEET_MARGIN_MM} mm margin. `
+              : 'Map fills the sheet edge to edge. '}
+            Prints the map as you have it framed now.
+            {overshoot && ` Paper is a different shape to the screen, so about ${overshoot.pct}% more shows ${overshoot.axis}.`}
+          </div>
         </div>
 
         {/* Never hand back a quietly-downgraded file. A0 at 300 dpi is
@@ -233,6 +281,9 @@ export default function PrintDialog({
             </label>
             <label className="v2-form-checkbox-label">
               <input type="checkbox" checked={showNorth} onChange={(e) => setShowNorth(e.target.checked)} /> North arrow
+            </label>
+            <label className="v2-form-checkbox-label">
+              <input type="checkbox" checked={showFrame} onChange={(e) => setShowFrame(e.target.checked)} /> Border &amp; margin
             </label>
             <label className="v2-form-checkbox-label">
               <input type="checkbox" checked={includeDate} onChange={(e) => setIncludeDate(e.target.checked)} /> Date
