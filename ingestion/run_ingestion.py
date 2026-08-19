@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from sources.harvest import HarvestIngestion
 from sources.ecan import ECANIngestion
+from sources.ecan_air import ECanAirIngestion
 from sources.mdc import MDCIngestion
 from sources.gw import GWIngestion
 from sources.wcrc import WCRCIngestion
@@ -32,7 +33,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'trc', 'boprc', 'noaa', 'synop', 'all'],
+        choices=['harvest', 'ecan', 'ecan_air', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'trc', 'boprc', 'noaa', 'synop', 'all'],
         default='all',
         help='Data source to ingest (noaa/synop are backfill/bootstrap and boprc is '
              'still access-gated, so all three are excluded from "all")'
@@ -167,6 +168,31 @@ def main():
             print(f"✗ ECAN ingestion failed: {e}\n")
             success = False
     
+    # Run ECan AIR QUALITY met ingestion.
+    #
+    # A separate source from 'ecan', not a variable added to it: different
+    # stations, different telemetry, different URL grammar (SiteId + date range
+    # vs SiteNo + Period), and unrelated site-number namespaces. It is the only
+    # ECan feed carrying air temperature — the rainfall and Hilltop feeds have
+    # 102 gauges and no thermometers.
+    if args.source in ['ecan_air', 'all']:
+        try:
+            print("▶ Starting ECAN AIR ingestion...\n")
+            ingester = ECanAirIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ ECAN AIR ingestion complete\n")
+        except Exception as e:
+            print(f"✗ ECAN AIR ingestion failed: {e}\n")
+            success = False
+
     # Run MDC ingestion
     if args.source in ['mdc', 'all']:
         try:

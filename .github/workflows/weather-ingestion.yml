@@ -18,6 +18,7 @@ on:
           - all
           - harvest
           - ecan
+          - ecan_air
           - mdc
           - gw
           - hbrc
@@ -45,9 +46,14 @@ jobs:
       matrix:
         # Any non-dispatch trigger (the hourly schedule) and a manual "all" fan out
         # to every source; a manual single-source dispatch runs just that one.
+        #
+        # THIS LIST IS THE SCHEDULE. `--source all` in run_ingestion.py is never
+        # used here — the workflow fans out one job per source from this array, so
+        # a source added to run_ingestion.py's 'all' but not to this list is simply
+        # never scheduled. `ecan_air` was in that state for its first day.
         source: >-
           ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.source == 'all')
-              && fromJSON('["harvest","ecan","mdc","gw","hbrc","tdc","gdc","southland","nrc","wcrc","horizons","trc","boprc"]')
+              && fromJSON('["harvest","ecan","ecan_air","mdc","gw","hbrc","tdc","gdc","southland","nrc","wcrc","horizons","trc","boprc"]')
               || fromJSON(format('["{0}"]', github.event.inputs.source)) }}
 
     runs-on: ubuntu-latest
