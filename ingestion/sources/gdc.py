@@ -25,6 +25,7 @@ from db_connection import get_ingestion_session
 from config.gdc_sites import GDC_SITES, GDC_API_BASE
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.hilltop_util import aggregation_query
 from sources.window_util import MAX_INCREMENTAL_DAYS, incremental_start
 
 # Incremental window + gap-close policy: see sources/window_util.py.
@@ -52,8 +53,6 @@ class GDCIngestion:
             'Barometric Pressure (hPa)': ('pressure', 'hPa', 1.0),
         }
 
-        # Measurements that require Method=Total for hourly aggregation
-        self.total_method_measurements = {'Rainfall'}
 
     def get_active_stations(self):
         """Get all active GDC stations from database"""
@@ -113,12 +112,11 @@ class GDCIngestion:
             f"&To={quote(to_str)}"
         )
 
-        # Rainfall needs Method=Total for proper hourly totals
-        if measurement in self.total_method_measurements:
-            url += f"&Method=Total"
-
-        if interval:
-            url += f"&Interval={quote(interval)}"
+        # Interval ALWAYS carries a Method. Interval alone makes Hilltop return
+        # the value at the boundary rather than an aggregate of it — see
+        # sources/hilltop_util.py. No interval at all means native resolution,
+        # which is what a real daily min/max needs and is not slower.
+        url += aggregation_query(measurement, self.measurement_map, interval, quote)
 
         max_retries = 3
         for attempt in range(1, max_retries + 1):
@@ -206,7 +204,12 @@ class GDCIngestion:
                 return n
             except Exception as e:
                 session.rollback()
-                print(f"      Database error: {e}")
+                # A failed write is not a successful station. Without this the caller
+                # prints a tick against 0 records and exits 0, so the backfill driver
+                # logs OK - how the DST-duplicate abort silently lost every full year
+                # of the 2026-08-19 re-backfill.
+                print(f"      *** DB WRITE FAILED: {e}")
+                self.write_failed = True
                 return 0
 
     def log_ingestion(self, station_id: int, start_time: datetime,
@@ -249,7 +252,8 @@ class GDCIngestion:
 
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
-            interval: str = None, station_code: str = None):
+            interval: str = None, station_code: str = None,
+            variables: set = None):
         """
         Main ingestion process
 
@@ -314,6 +318,39 @@ class GDCIngestion:
             if not measurements:
                 print(f"  ⚠ No measurements configured, skipping")
                 continue
+
+            # Station-level quarantine. A sensor that has failed keeps publishing —
+            # Horizons Hautapu emitted exactly -100.0 at 144 records/day for weeks —
+            # so "still reporting" is not evidence of health. Skipping the variable
+            # here stops new poison at the source; the rows already stored are marked
+            # QUARANTINED rather than deleted, so the failure stays provable.
+            quarantined = {q.get('variable') for q in (notes.get('quarantine') or [])}
+            if quarantined:
+                kept = []
+                for m in measurements:
+                    var = (self.measurement_map.get(m) or (None,))[0]
+                    if var in quarantined:
+                        print(f"  QUARANTINED, skipping {m} ({var})")
+                    else:
+                        kept.append(m)
+                measurements = kept
+                if not measurements:
+                    continue
+
+            # Restrict to the requested canonical variables. Filtering on the
+            # canonical code rather than the council's measurement name keeps one
+            # flag working across every council, which spell air temperature seven
+            # different ways. Without this a targeted temperature re-fetch also
+            # drags rainfall, wind and soil to native resolution — for ~500 Hilltop
+            # rain gauges that is roughly 116M rows nobody asked for.
+            if variables:
+                measurements = [
+                    m for m in measurements
+                    if (self.measurement_map.get(m) or (None,))[0] in variables
+                ]
+                if not measurements:
+                    print(f"  No measurements match {sorted(variables)}, skipping")
+                    continue
 
             print(f"  Measurements: {measurements}")
 
@@ -420,10 +457,14 @@ if __name__ == '__main__':
                         help='Explicit end date (defaults to today)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Fetch and parse but do not insert to database')
-    parser.add_argument('--interval', type=str, default='1 hour',
-                        help='Data aggregation interval (e.g., "1 hour"). Default: 1 hour')
+    parser.add_argument('--interval', type=str, default=None,
+                        help="Hilltop resampling interval, e.g. '1 hour'. Default: none — fetch at native recording resolution. An interval AVERAGES each bin, which smooths away the very peaks a daily min/max needs, so leave it off for temperature.")
     parser.add_argument('--station', type=str,
                         help='Station code to run a single station (e.g., GDC_AIRPORT_MET)')
+    parser.add_argument('--variable', type=str, default=None,
+                        help="Comma-separated canonical variable codes to fetch, "
+                             "e.g. 'temp' or 'temp,rainfall'. Default: all configured "
+                             "for the station.")
     args = parser.parse_args()
 
     ingester = GDCIngestion()
@@ -434,5 +475,10 @@ if __name__ == '__main__':
         end_date=args.end,
         dry_run=args.dry_run,
         interval=args.interval,
-        station_code=args.station
+        station_code=args.station,
+        variables={v.strip() for v in args.variable.split(',')} if args.variable else None
     )
+    if getattr(ingester, 'write_failed', False):
+        print('One or more database writes FAILED - see above. '
+              'This run did NOT persist everything it fetched.')
+        sys.exit(1)

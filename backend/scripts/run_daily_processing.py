@@ -21,7 +21,7 @@ import argparse
 import logging
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytz
@@ -79,6 +79,11 @@ def main():
     parser.add_argument('--skip-phenology', action='store_true', help='Skip phenology')
     parser.add_argument('--skip-disease', action='store_true', help='Skip disease pressure')
     parser.add_argument('--zone-id', type=int, help='Process only this zone (passed to all sub-scripts)')
+    parser.add_argument(
+        '--lookback-days', type=int, default=3,
+        help='Re-aggregate this many days BEFORE the target date as well (default 3). '
+             'Makes the daily rollup self-healing: a skipped or failed run is repaired '
+             'by the next one instead of leaving a permanent hole.')
 
     args = parser.parse_args()
     
@@ -106,11 +111,27 @@ def main():
     # =========================================================================
     if not args.skip_daily:
         logger.info("\n[1/6] DAILY AGGREGATION (weather_data → weather_data_daily)")
-        daily_args = ['--date', target_date]
+        # Aggregate a WINDOW, not a single day. This job used to pass `--date
+        # <yesterday>` and nothing else, so a run that was skipped, failed, or dropped
+        # by the scheduler left that day permanently un-aggregated — the raw
+        # observations were present and the daily row simply never appeared. That is
+        # how 2026-08-12 lost a full day of SYNOP (8,086 raw rows, 48 stations, no
+        # daily row) and how seven sources drifted two days behind, all while the
+        # scheduled workflow reported success.
+        #
+        # daily_aggregation is idempotent (upsert on station_id+date) and set-based,
+        # so re-aggregating a few recent days is close to free and repairs any hole
+        # inside the window automatically.
+        start_date = (date.fromisoformat(target_date)
+                      - timedelta(days=max(0, args.lookback_days))).isoformat()
+        daily_args = (['--date', target_date] if args.lookback_days <= 0
+                      else ['--start', start_date, '--end', target_date])
         if args.dry_run:
             daily_args.append('--dry-run')
         if args.zone_id:
             daily_args.extend(['--zone-id', str(args.zone_id)])
+        logger.info(f"      window: {start_date} -> {target_date} "
+                    f"(lookback {args.lookback_days}d, self-healing)")
         results['daily_aggregation'] = run_script('daily_aggregation.py', daily_args)
     else:
         logger.info("\n[1/6] DAILY AGGREGATION - SKIPPED")

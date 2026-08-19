@@ -1,0 +1,80 @@
+name: Daily Aggregation (rollup only)
+
+# Why this exists separately from daily-processing.yml.
+#
+# The full pipeline (phenology, disease pressure, zone rollups) is genuinely a
+# once-a-day job and runs at 17:00/18:00 NZ. But it processes YESTERDAY, so the
+# daily table trails real time by up to two days, and until 2026-08-19 it passed a
+# single `--date` with no catch-up: a run that was skipped, failed, or dropped by
+# the scheduler left that day permanently un-aggregated. 2026-08-12 lost a full day
+# of SYNOP that way — 8,086 raw rows, 48 stations, no daily row — while the
+# workflow reported success.
+#
+# `daily_aggregation` is idempotent (upsert on station_id+date) and set-based, so
+# re-running a short window is cheap. Running it on its own every six hours keeps
+# weather_data_daily close to the raw record without dragging the heavy downstream
+# steps along, and the overlapping windows mean a missed run heals itself.
+
+on:
+  schedule:
+    # Every 6 hours at :35, deliberately offset from the hourly ingestion at :05
+    # so the rollup reads a settled window rather than racing the writers.
+    - cron: '35 */6 * * *'
+
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: 'Days before yesterday to re-aggregate (default 3)'
+        required: false
+        default: '3'
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install boto3 pydantic pydantic-settings
+          cd backend && pip install -r requirements.txt
+
+      - name: Run daily aggregation only
+        env:
+          ENV: staging
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_PORT: 5432
+          RDS_DATABASE: auxein_db
+        run: |
+          cd backend
+          python scripts/run_daily_processing.py \
+            --lookback-days "${{ github.event.inputs.lookback_days || '3' }}" \
+            --skip-hourly --skip-zone --skip-phenology --skip-disease
+
+      - name: Sanity-check the result
+        # Fails the run if any source shows the degenerate signature. A rollup that
+        # completed is not the same as a rollup that produced usable statistics.
+        continue-on-error: true
+        env:
+          ENV: staging
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_PORT: 5432
+          RDS_DATABASE: auxein_db
+        run: |
+          cd backend
+          python scripts/check_daily_climate.py --since "$(date -u -d '14 days ago' +%Y-%m-%d)"

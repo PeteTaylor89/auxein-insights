@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.hilltop_util import aggregation_query
 from sources.window_util import MAX_INCREMENTAL_DAYS, incremental_start
 # Incremental window + gap-close policy: see sources/window_util.py.
 
@@ -51,7 +52,6 @@ class NRCIngestion:
         self.measurement_map = {
             'Rainfall': ('rainfall', 'mm', 1.0),
         }
-        self.total_method_measurements = {'Rainfall'}
 
     def get_active_stations(self):
         with self.Session() as session:
@@ -87,10 +87,8 @@ class NRCIngestion:
         url = (f"{self.base_url}?Service=Hilltop&Request=GetData"
                f"&Site={quote(site_name)}&Measurement={quote(measurement)}"
                f"&From={quote(from_str)}&To={quote(to_str)}")
-        if measurement in self.total_method_measurements:
-            url += "&Method=Total"
-        if interval:
-            url += f"&Interval={quote(interval)}"
+        # Interval ALWAYS carries a Method — see sources/hilltop_util.py.
+        url += aggregation_query(measurement, self.measurement_map, interval, quote)
 
         max_retries = 3
         for attempt in range(1, max_retries + 1):
@@ -155,7 +153,9 @@ class NRCIngestion:
                 return n
             except Exception as e:
                 session.rollback()
-                print(f"      Database error: {e}")
+                # A failed write is not a successful station - see db_util._dedupe.
+                print(f"      *** DB WRITE FAILED: {e}")
+                self.write_failed = True
                 return 0
 
     def log_ingestion(self, station_id: int, start_time: datetime,
@@ -288,8 +288,13 @@ if __name__ == '__main__':
     parser.add_argument('--interval', type=str, default='1 hour')
     parser.add_argument('--station', type=str)
     args = parser.parse_args()
-    NRCIngestion().run(
+    ingester = NRCIngestion()
+    ingester.run(
         period=args.period, backfill_days=args.days, start_date=args.start,
         end_date=args.end, dry_run=args.dry_run, interval=args.interval,
         station_code=args.station,
     )
+    if getattr(ingester, 'write_failed', False):
+        print('One or more database writes FAILED - see above. '
+              'This run did NOT persist everything it fetched.')
+        sys.exit(1)

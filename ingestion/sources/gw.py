@@ -4,6 +4,7 @@ API: Hilltop Server at https://hilltop.gw.govt.nz/Data.hts
 """
 
 import requests
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -16,6 +17,7 @@ from db_connection import get_ingestion_session
 from config.gw_sites import GW_SITES, GW_API_BASE
 from sources.db_util import bulk_upsert_observations
 from sources.http_util import get_with_hard_timeout
+from sources.hilltop_util import aggregation_query
 
 
 class GWIngestion:
@@ -133,17 +135,33 @@ class GWIngestion:
             f"&To={quote(to_str)}"
         )
         
-        if interval:
-            url += f"&Interval={quote(interval)}"
+        # Interval ALWAYS carries a Method. Interval alone makes Hilltop return
+        # the value at the boundary rather than an aggregate of it — see
+        # sources/hilltop_util.py. No interval at all means native resolution,
+        # which is what a real daily min/max needs and is not slower.
+        url += aggregation_query(measurement, self.measurement_map, interval, quote)
         
-        try:
-            print(f"      URL: {url}")
-            response = get_with_hard_timeout(url, total_timeout=90)
-            response.raise_for_status()
-            return response.text
-        except requests.exceptions.RequestException as e:
-            print(f"      API error: {e}")
-            return None
+        # Retry with exponential backoff, matching hbrc/mdc/tdc/gdc/nrc. Without it a
+        # single transient blip loses that measurement for the whole run and logs
+        # "No response for <X>" — GW accumulated 321 such failures in 7 days, 154 of
+        # them on Rainfall across 77 of 86 stations, while the data was present and
+        # current at source the whole time. It was never an outage or a config error;
+        # it was one unretried request against the council with the most stations.
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"      URL: {url}")
+                response = get_with_hard_timeout(url, total_timeout=90)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries:
+                    wait = 5 * (3 ** (attempt - 1))  # 5s, 15s, 45s
+                    print(f"      Attempt {attempt}/{max_retries} failed ({e}), retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    print(f"      API error after {max_retries} attempts: {e}")
+                    return None
     
     def parse_response(self, station_id: int, xml_text: str, 
                        measurement: str) -> list:
@@ -230,7 +248,12 @@ class GWIngestion:
                 return n
             except Exception as e:
                 session.rollback()
-                print(f"      Database error: {e}")
+                # A failed write is not a successful station. Without this the caller
+                # prints a tick against 0 records and exits 0, so the backfill driver
+                # logs OK — how the DST-duplicate abort silently lost every full year
+                # of the 2026-08-19 re-backfill.
+                print(f"      *** DB WRITE FAILED: {e}")
+                self.write_failed = True
                 return 0
     
     def log_ingestion(self, station_id: int, start_time: datetime,
@@ -263,7 +286,8 @@ class GWIngestion:
     
     def run(self, period: str = 'incremental', backfill_days: int = None,
             start_date: str = None, end_date: str = None, dry_run: bool = False,
-            interval: str = None, station_code: str = None):
+            interval: str = None, station_code: str = None,
+            variables: set = None):
         """
         Main ingestion process
         
@@ -331,6 +355,39 @@ class GWIngestion:
             if not measurements:
                 print(f"  ⚠ No measurements configured, skipping")
                 continue
+            # Station-level quarantine. A sensor that has failed keeps publishing —
+            # Horizons Hautapu emitted exactly -100.0 at 144 records/day for weeks —
+            # so "still reporting" is not evidence of health. Skipping the variable
+            # here stops new poison at the source; the rows already stored are marked
+            # QUARANTINED rather than deleted, so the failure stays provable.
+            quarantined = {q.get('variable') for q in (notes.get('quarantine') or [])}
+            if quarantined:
+                kept = []
+                for m in measurements:
+                    var = (self.measurement_map.get(m) or (None,))[0]
+                    if var in quarantined:
+                        print(f"  QUARANTINED, skipping {m} ({var})")
+                    else:
+                        kept.append(m)
+                measurements = kept
+                if not measurements:
+                    continue
+
+            # Restrict to the requested canonical variables. Filtering on the
+            # canonical code rather than the council's measurement name keeps one
+            # flag working across every council, which spell air temperature seven
+            # different ways. Without this a targeted temperature re-fetch also
+            # drags rainfall, wind and soil to native resolution — for ~500 Hilltop
+            # rain gauges that is roughly 116M rows nobody asked for.
+            if variables:
+                measurements = [
+                    m for m in measurements
+                    if (self.measurement_map.get(m) or (None,))[0] in variables
+                ]
+                if not measurements:
+                    print(f"  No measurements match {sorted(variables)}, skipping")
+                    continue
+
             
             print(f"  Measurements: {measurements}")
             
@@ -436,14 +493,18 @@ if __name__ == '__main__':
                         help='Explicit end date (defaults to today)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Fetch and parse but do not insert to database')
-    parser.add_argument('--interval', type=str, default='30 minutes',
-                        help='Data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes')
+    parser.add_argument('--interval', type=str, default=None,
+                        help="Hilltop resampling interval, e.g. '1 hour'. Default: none — fetch at native recording resolution. An interval AVERAGES each bin, which smooths away the very peaks a daily min/max needs, so leave it off for temperature.")
     # run() has always supported a single-station filter, but it was never
     # exposed here — and scripts/backfill_driver.py invokes this module with
     # `--station <code>` for every station, so GW backfills through the driver
     # died on an unrecognised-argument error before fetching anything.
     parser.add_argument('--station', type=str,
                         help='Limit to a single station_code (e.g. GW_TAUERU_AT_REWANUI)')
+    parser.add_argument('--variable', type=str, default=None,
+                        help="Comma-separated canonical variable codes to fetch, "
+                             "e.g. 'temp' or 'temp,rainfall'. Default: all configured "
+                             "for the station.")
     args = parser.parse_args()
 
     ingester = GWIngestion()
@@ -454,5 +515,10 @@ if __name__ == '__main__':
         end_date=args.end,
         dry_run=args.dry_run,
         interval=args.interval,
-        station_code=args.station
+        station_code=args.station,
+        variables={v.strip() for v in args.variable.split(',')} if args.variable else None
     )
+    if getattr(ingester, 'write_failed', False):
+        print('One or more database writes FAILED - see above. '
+              'This run did NOT persist everything it fetched.')
+        sys.exit(1)

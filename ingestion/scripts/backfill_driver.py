@@ -12,7 +12,8 @@ A station that hangs is killed and skipped; the driver moves on. It is resumable
 (i.e. already deep-backfilled), so re-runs don't refetch completed stations.
 
 Sources come in two backfill styles (see SOURCE_MODULE):
-  "range" — Hilltop councils; arbitrary history via --start/--interval.
+  "range" — Hilltop councils; arbitrary history via --start. Fetches at native
+            resolution unless --interval is given explicitly.
   "days"  — Environment Southland; forward-only API that only accepts a look-back
             window anchored to now, capped at 365 days. --start is meaningless there.
 
@@ -88,12 +89,27 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True, choices=sorted(SOURCE_MODULE))
     ap.add_argument("--start", help="DD/MM/YYYY (range-style sources only)")
-    ap.add_argument("--interval", default="1 day")
+    # Native resolution by default. This used to default to "1 day", which
+    # Hilltop answers with the value AT the day boundary rather than an
+    # aggregate OF the day — so every backfilled temperature was a midnight
+    # spot reading and temp_min/temp_max/temp_mean came out identical on
+    # 177,536 station-days. Passing nothing asks for the recording resolution,
+    # which is what a daily min/max needs and is no slower to fetch.
+    # See docs/Bugs/Current/HILLTOP_TEMPERATURE_DEGENERATE_2026-08-19.md.
+    ap.add_argument("--interval", default=None,
+                    help="Hilltop resampling interval, e.g. '1 hour'. Omit for native "
+                         "resolution (the default, and the right choice for temperature). "
+                         "Any interval given is sent with an explicit Method.")
     ap.add_argument("--days", type=int, default=365,
                     help="look-back window for days-style sources (ES caps at 365)")
     ap.add_argument("--per-station-timeout", type=int, default=1200, help="seconds per station")
     ap.add_argument("--skip-existing-before", default=None,
                     help="YYYY-MM-DD; skip stations that already have data before this date")
+    ap.add_argument("--variable", default=None,
+                    help="comma-separated canonical variable codes, e.g. 'temp'. "
+                         "Scopes the fetch to those variables only — without it every "
+                         "measurement the station carries is refetched at the chosen "
+                         "resolution, which for rainfall is a very large number of rows.")
     ap.add_argument("--only", default=None,
                     help="comma-separated station_code(s) to process exclusively "
                          "(targeted re-run; ignores --skip-existing-before for these)")
@@ -117,7 +133,8 @@ def main():
         stations = [st for st in stations if st[1] in only]
         args.skip_existing_before = None  # targeted re-run: always reprocess
 
-    window = (f"start={args.start} interval='{args.interval}'" if style == "range"
+    window = (f"start={args.start} interval='{args.interval or "native"}' "
+              f"vars={args.variable or "all"}" if style == "range"
               else f"look-back={args.days}d (forward-only API)")
     print(f"{data_source}: {len(stations)} active stations | {window} "
           f"timeout={args.per_station_timeout}s "
@@ -137,7 +154,11 @@ def main():
                    "--period", "backfill", "--days", str(args.days)]
         else:
             cmd = [sys.executable, str(REPO / module), "--station", code,
-                   "--start", args.start, "--interval", args.interval]
+                   "--start", args.start]
+            if args.interval:
+                cmd += ["--interval", args.interval]
+            if args.variable:
+                cmd += ["--variable", args.variable]
         try:
             r = subprocess.run(cmd, cwd=str(REPO), env=env,
                                capture_output=True, text=True,

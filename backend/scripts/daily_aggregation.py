@@ -47,6 +47,47 @@ RH_VARS = ('rh', 'humidity', 'relative_humidity')
 RAIN_VARS = ('rainfall', 'precipitation', 'precip', 'rain')
 SOLAR_VARS = ('solar_radiation', 'solar', 'radiation')
 
+# A daily min/max needs enough observations through the day to actually contain
+# the dawn trough and the afternoon peak. Below this floor we publish NOTHING for
+# temperature rather than a number that looks like a statistic and is not one.
+#
+# This is the check that was missing. Seven Hilltop councils spent 2020-2026
+# storing ONE observation per station-day — taken at midnight — and MIN/MAX/AVG
+# over that single row produced temp_min == temp_max == temp_mean on 177,536
+# station-days, silently, because the arithmetic was never wrong. See
+# docs/Bugs/Current/HILLTOP_TEMPERATURE_DEGENERATE_2026-08-19.md.
+#
+# 4 is deliberately permissive. It kills the degenerate 1-3 record case without
+# discarding genuinely coarse networks — 3-hourly SYNOP gives 8 obs/day, which is
+# imperfect for extremes but is standard practice and real data. Raise it toward
+# 24 if the archive is ever rebuilt at hourly or better throughout.
+MIN_TEMP_RECORDS_FOR_DAILY = 4
+
+# Columns this script is the SOLE writer of, so a value it computes — including a
+# deliberate NULL — must always win on upsert.
+#
+# Everything else is protected by the B4.1 guard (COALESCE(EXCLUDED, existing)),
+# which exists because `rainfall_mm` has a SECOND writer: an authoritative
+# GHCN-Daily PRCP that a NULL from a precip-less hourly source must not clobber.
+# Temperature has no second writer.
+#
+# Without this split the two guards contradict each other and B4.1 wins silently:
+# MIN_TEMP_RECORDS_FOR_DAILY computes temp_min=NULL for a one-observation day, the
+# COALESCE restores the stored 13.30, and 5,483 fabricated extremes survive a
+# re-aggregation that reported success. Found 2026-08-19 after the temperature
+# backfill; see docs/Bugs/Current/HILLTOP_TEMPERATURE_DEGENERATE_2026-08-19.md.
+TEMP_AUTHORITATIVE_COLUMNS = (
+    'temp_min', 'temp_max', 'temp_mean',
+    'temp_record_count', 'gdd_base0', 'gdd_base10',
+)
+
+# Observations marked QUARANTINED are excluded from every daily statistic. The rows
+# stay in the raw table on purpose — a failed sensor is evidence, and deleting it
+# makes the failure unprovable and the gap indistinguishable from "never reported".
+# Marking is per (station, variable, time window), so a station whose thermometer
+# died in July keeps its five good years.
+QUARANTINE_QUALITY = 'QUARANTINED'
+
 # How many days each set-based query spans. Raw obs are yearly-partitioned, so a
 # month keeps every chunk inside one partition while bounding the scan.
 DEFAULT_CHUNK_DAYS = 31
@@ -121,7 +162,9 @@ def aggregate_station_day(
           AND timestamp >= :start_dt
           AND timestamp < :end_dt
           AND value IS NOT NULL
+          AND coalesce(quality, '') <> :quarantine
     """), {
+        'quarantine': QUARANTINE_QUALITY,
         'station_id': station_id,
         'start_dt': start_dt,
         'end_dt': end_dt,
@@ -131,41 +174,11 @@ def aggregate_station_day(
     if not row or row['total_count'] == 0:
         return None
 
-    # Calculate GDD values
-    temp_mean = row['temp_mean']
-    gdd_base0 = None
-    gdd_base10 = None
-
-    if temp_mean is not None:
-        temp_mean = Decimal(str(temp_mean))
-        gdd_base0 = max(Decimal('0'), temp_mean)
-        gdd_base10 = max(Decimal('0'), temp_mean - Decimal('10'))
-
-    record = {
-        'station_id': station_id,
-        'date': target_date,
-        'temp_min': row['temp_min'],
-        'temp_max': row['temp_max'],
-        'temp_mean': temp_mean,
-        'humidity_min': row['humidity_min'],
-        'humidity_max': row['humidity_max'],
-        'humidity_mean': row['humidity_mean'],
-        # B4.1 guard: leave NULL when there are no rainfall obs — do NOT fabricate
-        # a 0mm reading for rainfall-less stations (GHCNh/SYNOP carry no/sparse
-        # hourly precip). A spurious 0 pollutes zone rainfall averages and, on a
-        # historical backdate, would clobber a real authoritative daily PRCP.
-        # SUM returns NULL iff no rainfall rows matched (a genuine 0mm day still
-        # sums to 0, which is kept).
-        'rainfall_mm': row['rainfall_sum'],
-        'solar_radiation': row['solar_sum'],
-        'gdd_base0': gdd_base0,
-        'gdd_base10': gdd_base10,
-        'temp_record_count': row['temp_count'] or 0,
-        'humidity_record_count': row['humidity_count'] or 0,
-        'rainfall_record_count': row['rainfall_count'] or 0,
-    }
-
-    return record
+    # Delegate to the shared builder so the per-day and set-based paths cannot
+    # drift apart. They already had: this block was a verbatim copy that the
+    # docstring on _build_record claimed was shared, and the temperature guard
+    # would have landed in only one of them.
+    return _build_record(station_id, target_date, row)
 
 
 def _build_record(station_id: int, target_date: date, row) -> dict:
@@ -174,9 +187,20 @@ def _build_record(station_id: int, target_date: date, row) -> dict:
     Shared by the per-day and set-based paths so both derive GDD and apply the
     B4.1 rainfall guard identically.
     """
+    temp_count = row['temp_count'] or 0
+    temp_min = row['temp_min']
+    temp_max = row['temp_max']
     temp_mean = row['temp_mean']
     gdd_base0 = None
     gdd_base10 = None
+
+    # Too few observations to characterise a day: withhold all three statistics
+    # rather than emit a spot reading dressed as a min, a max and a mean. GDD goes
+    # with them — it is derived from temp_mean, so a fabricated mean fabricates a
+    # season total. temp_record_count is still written, so a withheld day is
+    # auditable rather than merely absent.
+    if temp_count < MIN_TEMP_RECORDS_FOR_DAILY:
+        temp_min = temp_max = temp_mean = None
 
     if temp_mean is not None:
         temp_mean = Decimal(str(temp_mean))
@@ -186,8 +210,8 @@ def _build_record(station_id: int, target_date: date, row) -> dict:
     return {
         'station_id': station_id,
         'date': target_date,
-        'temp_min': row['temp_min'],
-        'temp_max': row['temp_max'],
+        'temp_min': temp_min,
+        'temp_max': temp_max,
         'temp_mean': temp_mean,
         'humidity_min': row['humidity_min'],
         'humidity_max': row['humidity_max'],
@@ -239,6 +263,7 @@ AGGREGATE_RANGE_SQL = text(f"""
       AND timestamp >= :start_dt
       AND timestamp < :end_dt
       AND value IS NOT NULL
+      AND coalesce(quality, '') <> '{QUARANTINE_QUALITY}'
     GROUP BY station_id, 2
 """)
 
@@ -279,7 +304,9 @@ def bulk_upsert_daily_records(db, records: List[dict]) -> int:
     table = WeatherDataDaily.__table__
     stmt = pg_insert(table).values(records)
     update_cols = {
-        c.name: func.coalesce(stmt.excluded[c.name], table.c[c.name])
+        c.name: (stmt.excluded[c.name]
+                 if c.name in TEMP_AUTHORITATIVE_COLUMNS
+                 else func.coalesce(stmt.excluded[c.name], table.c[c.name]))
         for c in table.columns
         if c.name not in ('id', 'station_id', 'date', 'created_at')
     }
@@ -308,7 +335,8 @@ def upsert_daily_record(db, record: dict) -> bool:
             # already has an authoritative GHCN-Daily PRCP (or any source-supplied
             # value) must not clobber it back to NULL. Genuinely new fields and
             # real updates (non-None values) still apply.
-            if value is None and getattr(existing, key) is not None:
+            if (value is None and getattr(existing, key) is not None
+                    and key not in TEMP_AUTHORITATIVE_COLUMNS):
                 continue
             setattr(existing, key, value)
     else:

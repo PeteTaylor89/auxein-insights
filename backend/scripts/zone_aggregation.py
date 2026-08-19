@@ -34,6 +34,10 @@ from db.models.realtime_climate import ClimateZoneDaily
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Same floor the daily rollup applies, imported rather than restated so the two
+# cannot drift apart.
+from scripts.daily_aggregation import MIN_TEMP_RECORDS_FOR_DAILY
+
 NZ_TZ = pytz.timezone('Pacific/Auckland')
 MIN_STATIONS_FOR_ZONE = 2
 OUTLIER_SD_THRESHOLD = 1.5  # Exclude stations > 1.5 SD from mean
@@ -145,13 +149,23 @@ def get_zone_stations_with_data(db, zone_id: int, target_date: date) -> List[dic
         )
         SELECT
             ws.station_id,
-            wdd.temp_min, wdd.temp_max, wdd.temp_mean,
-            wdd.humidity_mean, wdd.rainfall_mm, wdd.solar_radiation, wdd.gdd_base0
+            -- Temperature is gated on observation count, rainfall is not. A station
+            -- that reported once that day cannot support a min, a max or a mean, and
+            -- pooling it here would let one thin station drag a whole zone: the
+            -- Hilltop councils fed 177,536 such station-days into this average with
+            -- temp_min == temp_max, and nothing upstream said so. Gating with CASE
+            -- rather than a WHERE keeps the station's rainfall, which IS valid.
+            CASE WHEN wdd.temp_record_count >= :min_temp_records THEN wdd.temp_min END,
+            CASE WHEN wdd.temp_record_count >= :min_temp_records THEN wdd.temp_max END,
+            CASE WHEN wdd.temp_record_count >= :min_temp_records THEN wdd.temp_mean END,
+            wdd.humidity_mean, wdd.rainfall_mm, wdd.solar_radiation,
+            CASE WHEN wdd.temp_record_count >= :min_temp_records THEN wdd.gdd_base0 END
         FROM weather_stations ws
         JOIN zone_tree zt ON zt.zone_id = ws.zone_id
         JOIN weather_data_daily wdd ON wdd.station_id = ws.station_id
         WHERE ws.is_active = true AND wdd.date = :target_date
-    """), {'zone_id': zone_id, 'target_date': target_date})
+    """), {'zone_id': zone_id, 'target_date': target_date,
+           'min_temp_records': MIN_TEMP_RECORDS_FOR_DAILY})
     
     return [
         {

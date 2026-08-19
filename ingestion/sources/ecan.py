@@ -79,7 +79,18 @@ class ECANIngestion:
             
             data = response.json()
             items = data.get('data', {}).get('item', [])
-            
+
+            # ECAN's JSON is converted from XML, so a site with exactly ONE record in
+            # the window returns `item` as a bare object instead of a one-element list.
+            # Iterating that dict yields key STRINGS, and the first `rec['DateTime']`
+            # raises "string indices must be integers, not 'str'" — 36 failures on
+            # ECAN_MOUNT_BYRNE, a low-rainfall site that often has a single tip per
+            # 2-day window. Normalise to a list so one record ingests like any other.
+            if isinstance(items, dict):
+                items = [items]
+            elif items is None:
+                items = []
+
             logger.info(f"Retrieved {len(items)} records for site {site_no}")
             return items
             

@@ -92,8 +92,10 @@ def main():
     parser.add_argument(
         '--interval',
         type=str,
-        default='30 minutes',
-        help='MDC/GW/HBRC/TDC data aggregation interval (e.g., "30 minutes", "1 hour"). Default: 30 minutes'
+        default=None,
+        help='Hilltop resampling interval for the council sources. Default: none, '
+             'i.e. native recording resolution. Cadence is unchanged — this is how '
+             'finely each run samples, not how often it runs.'
     )
     
     args = parser.parse_args()
