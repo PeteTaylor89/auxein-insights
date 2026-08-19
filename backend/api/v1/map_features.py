@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from api.deps import get_db, get_current_user
 from db.models.map_feature import MapFeature
 from db.models.user import User
+from api.v1.map_feature_types import resolve_feature_type
 from schemas.map_feature import (
     MapFeatureCreate,
     MapFeatureResponse,
@@ -175,7 +176,7 @@ def create_map_feature(
     feature = MapFeature(
         company_id=company_id,
         property_id=payload.property_id,
-        feature_type=payload.feature_type.value,
+        feature_type=resolve_feature_type(db, current_user, payload.feature_type).slug,
         name=payload.name,
         description=payload.description,
         geometry=geom,
@@ -212,11 +213,11 @@ def update_map_feature(
     data.pop("geometry", None)
 
     if "feature_type" in data and data["feature_type"] is not None:
-        feature.feature_type = (
-            data["feature_type"].value
-            if hasattr(data["feature_type"], "value")
-            else data["feature_type"]
-        )
+        # Validated against the caller's own vocabulary, not a closed enum —
+        # a company type is only valid for that company.
+        feature.feature_type = resolve_feature_type(
+            db, current_user, data["feature_type"]
+        ).slug
     data.pop("feature_type", None)
 
     for field, value in data.items():

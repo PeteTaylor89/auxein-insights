@@ -48,13 +48,13 @@ const features = [
     icon: Map,
     title: 'Operational Mapping',
     description:
-      'Interactive block maps with toggleable layers for disease pressure, spray efficiency heatmaps, live weather station readings, phenology stage, and frost risk.',
+      'Interactive block maps with toggleable layers for disease pressure, live weather station readings, phenology stage, and frost risk - plus points of interest and print-ready map export.',
   },
   {
     icon: Smartphone,
     title: 'Mobile-First Field Tools',
     description:
-      'Log GPS-tagged observations, complete spray tasks with run tracking, report incidents, and check disease alerts - all from your phone, built for vineyard conditions.',
+      'Log GPS-tagged observations, complete spray tasks against the block, report incidents, and check disease alerts - all from your phone, built for vineyard conditions.',
   },
 ];
 
@@ -76,7 +76,7 @@ const mobileScreenshots = [
   },
   {
     src: '/images/Pro/Spray-task.JPG',
-    alt: 'GPS tracked spray task',
+    alt: 'Spray task record with product, rate and block',
     title: 'Spray Tracking',
   },
   {

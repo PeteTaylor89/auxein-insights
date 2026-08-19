@@ -37,10 +37,10 @@ export const solutions: Solution[] = [
       'Property-level climate history from 1986 and CMIP6 projections to 2100',
       'Peer-reviewed disease models for downy mildew, powdery mildew, and botrytis',
       'Phenology tracking with EL-scale observations and harvest timing estimates',
-      'GPS-tracked spray tasks with automated GrapeLink-compliant diary generation',
+      'Block-level spray records with assisted GrapeLink-compliant diary generation',
       'Timestamped audit trail across every spray, observation, and harvest record',
       'Full H&S compliance - risk register, incident reporting, and WorkSafe-aligned workflows',
-      'Mobile-first field tools for observations, tasks, alerts, and spray tracking',
+      'Mobile-first field tools for observations, tasks, alerts, and spray records',
     ],
     icon: BarChart3,
     cta: {

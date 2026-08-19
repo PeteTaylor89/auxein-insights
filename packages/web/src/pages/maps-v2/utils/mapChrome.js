@@ -166,6 +166,8 @@ export async function composeSheet(mapCanvas, { width, height, margin = 0, ...ch
  * @param {string}  opts.subtitle
  * @param {Date}    opts.date
  * @param {Object}  opts.layerVisibility  what was actually rendered
+ * @param {Array}   opts.featureTypes  the company POI vocabulary, so the printed
+ *                                     key names the same types the map drew
  * @param {number}  opts.latitude   map centre, for the scale bar
  * @param {number}  opts.zoom
  * @param {number}  opts.bearing    degrees; north arrow rotates by -bearing
@@ -183,6 +185,7 @@ export async function drawChrome(canvas, {
   subtitle = '',
   date = null,
   layerVisibility = {},
+  featureTypes = [],
   latitude = -41,
   zoom = 14,
   bearing = 0,
@@ -338,7 +341,7 @@ export async function drawChrome(canvas, {
   // ---- Legend (top-right) — only what was actually rendered ---------------
   if (showLegend) {
     drawLegend(ctx, {
-      sections: legendSections(layerVisibility),
+      sections: legendSections(layerVisibility, { featureTypes }),
       right,
       top,
       maxWidth: mr.w * 0.34,
@@ -546,7 +549,8 @@ function drawLegend(ctx, { sections, right, top, maxWidth, u, font }) {
  */
 function drawRowSwatch(ctx, row, x, y, size) {
   if (row.type === 'marker') {
-    drawMarkerSwatch(ctx, row.specId, x + size / 2, y + size / 2, size / 2);
+    drawMarkerSwatch(ctx, row.specId, x + size / 2, y + size / 2, size / 2,
+                     row.icon ? { icon: row.icon, colour: row.colour } : null);
     return;
   }
 
@@ -579,7 +583,9 @@ function drawRowSwatch(ctx, row, x, y, size) {
     // paints its own dark base first — otherwise a 12% fill on a white panel
     // reads as a completely different colour from the one on the map.
     roundedPath(ctx, rx, ry, rw, rh, r);
-    ctx.fillStyle = '#4b5563';
+    // Same olive-grey stand-in for imagery as the on-screen legend uses; a
+    // blue-grey base tinted every translucent fill away from what the map draws.
+    ctx.fillStyle = '#646c4c';
     ctx.fill();
 
     ctx.save();

@@ -2,6 +2,8 @@
 import { createRoot } from 'react-dom/client';
 import mapboxgl from 'mapbox-gl';
 import { MapPin, Grape, Ruler, Map, Building2, Leaf, Binoculars, ClipboardList, TriangleAlert, Wrench, ExternalLink, Landmark, Scissors } from 'lucide-react';
+import { PoiGlyph } from '../PoiIconPicker';
+import { resolveAppearance } from '../mapFeatureTypes';
 
 export function showReactPopup(map, { lngLat, content, popupOptions = {} }) {
   const container = document.createElement('div');
@@ -176,6 +178,60 @@ export function AssetPopupContent({ properties, onNavigate }) {
       {onNavigate && (
         <div className="v2-popup-footer">
           <button className="v2-popup-btn v2-popup-btn--accent" onClick={onNavigate}><ExternalLink size={14} /> View Asset</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * A map feature (POI).
+ *
+ * The type chip is ONE style for every type — same background, same text
+ * colour, same font — with the type's own glyph beside it. It used to take the
+ * type's colour as its background, which made the label's legibility depend on
+ * whichever colour someone picked, and told you nothing the pin on the map had
+ * not already said.
+ *
+ * The glyph keeps the type colour, so the chip still ties back to the marker
+ * you just clicked. That is the half of the colour worth keeping.
+ *
+ * `typeBySlug` is the company vocabulary. Without it a custom type has no row
+ * to look up and the chip falls back to the raw slug rather than to the old
+ * "Point of Interest", which said the same thing for every POI on the map.
+ */
+export function MapFeaturePopupContent({ properties, typeBySlug = {}, onEdit }) {
+  const p = properties || {};
+  // The popup reads properties off a rendered Mapbox feature, where nested
+  // objects arrive JSON-encoded. `style` is the only nested one here.
+  let style = p.style;
+  if (typeof style === 'string') {
+    try { style = JSON.parse(style); } catch { style = null; }
+  }
+  const look = resolveAppearance(p.feature_type, style, typeBySlug);
+
+  return (
+    <div className="v2-popup">
+      <div className="v2-popup-header">
+        <div className="v2-popup-badge v2-popup-badge--feature">
+          <PoiGlyph icon={look.icon} colour={look.colour} size={13} strokeWidth={2.4} />
+          {look.label}
+        </div>
+      </div>
+      <h3 className="v2-popup-title">{p.name || 'Unnamed'}</h3>
+      {p.description && (
+        <div className="v2-popup-grid">
+          <div className="v2-popup-row">
+            <span className="v2-popup-value">{p.description}</span>
+          </div>
+        </div>
+      )}
+      {onEdit && p.id && (
+        <div className="v2-popup-footer">
+          <button className="v2-popup-btn v2-popup-btn--accent" onClick={() => onEdit(p)}>
+            Edit
+          </button>
         </div>
       )}
     </div>

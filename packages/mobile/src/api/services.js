@@ -18,6 +18,23 @@ function offline(label, optimistic) {
 }
 
 // --- Auth ---
+
+// The DEVICE's calendar date, as YYYY-MM-DD.
+//
+// Deliberately NOT toISOString().slice(0,10) — that is the UTC date, which is
+// the very bug this exists to avoid. The API runs UTC and the users are in New
+// Zealand twelve hours ahead, so for the whole NZ morning the server's own
+// `date.today()` is still yesterday, and every task completed before lunch
+// logged its hours to the previous day.
+//
+// Sending it from the client also fixes the offline queue: a completion
+// captured in a dead spot on Tuesday and replayed on Thursday keeps Tuesday's
+// date instead of taking the date it happened to upload on.
+function localWorkDate(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export const authApi = {
   login: async (identifier, password) => {
     const formData = new URLSearchParams();
@@ -71,7 +88,9 @@ export const tasksService = {
     return res.data;
   },
   completeTask: async (taskId, payload = {}) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/complete`, payload, offline('Complete task'));
+    // Stamped here, not at the call sites, so none of them can forget it.
+    const body = { work_date: localWorkDate(), ...payload };
+    const res = await api.post(`/tasks/tasks/${taskId}/complete`, body, offline('Complete task'));
     return res.data;
   },
   createTask: async (data) => {
@@ -672,8 +691,11 @@ export const timesheetService = {
     const res = await api.patch(`/timesheets/days/${dayId}`, { notes }, offline('Set timesheet notes'));
     return res.data;
   },
-  rollupDay: async (dayId) => {
-    const res = await api.post(`/timesheets/days/${dayId}/rollup`, undefined, offline('Roll up day'));
+  // The only hours figure a user enters. The day total is
+  // entry_hours + uncoded_hours and is computed server-side, so there is
+  // nothing to roll up.
+  setUncodedHours: async (dayId, hours) => {
+    const res = await api.patch(`/timesheets/days/${dayId}/uncoded`, { hours }, offline('Set uncoded time'));
     return res.data;
   },
   submitDay: async (dayId) => {

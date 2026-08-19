@@ -2,6 +2,7 @@
 import logging
 from typing import List, Optional, Literal
 from datetime import datetime, date, timedelta
+from core.local_time import local_today
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload, aliased
@@ -726,7 +727,12 @@ def get_unified_feed(
 
 
 def _build_unified_feed(db, current_user, days_ahead, include_completed):
-    today = date.today()
+    # NZ today, not the server's. This drives the mobile Home feed — what is due
+    # today, what is overdue, and the days_ahead window — and the API runs UTC.
+    # For the whole NZ morning `date.today()` here is yesterday, so a task due
+    # today read as due tomorrow and yesterday's overdue work was not flagged
+    # until after lunch. See core/local_time.
+    today = local_today()
     future_date = today + timedelta(days=days_ahead)
     company_id = current_user.company_id
     feed = []
@@ -1188,7 +1194,10 @@ def get_equipment_check(
             )
             if last_cal:
                 check["last_calibration_date"] = str(last_cal.calibration_date)
-                if last_cal.due_date and last_cal.due_date < datetime.now().date():
+                # local_today, not the server's date: on UTC this ran a day
+                # behind for the whole NZ morning, so equipment that fell due
+                # yesterday still read as in-calibration until after lunch.
+                if last_cal.due_date and last_cal.due_date < local_today():
                     check["calibration_overdue"] = True
             else:
                 check["calibration_overdue"] = True
@@ -1232,7 +1241,10 @@ def start_task(
             is_overdue = False
             if not last_cal:
                 is_overdue = True
-            elif last_cal.due_date and last_cal.due_date < datetime.now().date():
+            # Same correction as the pre-task check above. This branch is the
+            # one that BLOCKS starting a task, so being a day late here let work
+            # begin on equipment that was already out of calibration.
+            elif last_cal.due_date and last_cal.due_date < local_today():
                 is_overdue = True
             if is_overdue:
                 overdue_assets.append(asset.name)
@@ -1514,7 +1526,12 @@ def complete_task(
         and complete_request.hours_worked
         and complete_request.hours_worked > 0
     ):
-        work_date = date.today()
+        # The worker's calendar date, not the server's. See the note on
+        # TaskCompleteRequest.work_date: the API runs UTC, the vineyards are in
+        # New Zealand, and for the whole NZ morning `date.today()` here is still
+        # yesterday. Trust the device when it tells us, and fall back to NZ time
+        # rather than UTC when it does not.
+        work_date = complete_request.work_date or local_today()
         day = db.query(TimesheetDay).filter(
             TimesheetDay.company_id == task.company_id,
             TimesheetDay.user_id == actor.id,
@@ -3300,8 +3317,8 @@ def get_task_stats(
         if completion_times:
             avg_completion_time = Decimal(str(sum(completion_times) / len(completion_times)))
     
-    # On-time vs overdue
-    today = date.today()
+    # On-time vs overdue — NZ today, or the counts run a day behind all morning.
+    today = local_today()
     tasks_overdue = db.query(func.count(Task.id)).filter(
         _base_filters(
             Task.status.in_([TaskStatus.scheduled, TaskStatus.in_progress]),

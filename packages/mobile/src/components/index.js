@@ -16,3 +16,4 @@ export { default as Skeleton, SkeletonCard } from './Skeleton';
 export { ToastProvider, useToast } from './Toast';
 export { default as TaskStatusBadge } from './TaskStatusBadge';
 export { default as SubTaskPanel } from './SubTaskPanel';
+export { default as DayTotalSheet } from './DayTotalSheet';

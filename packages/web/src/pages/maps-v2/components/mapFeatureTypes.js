@@ -1,13 +1,34 @@
-// maps-v2/components/mapFeatureTypes.js — the POI vocabulary, in one place.
+// maps-v2/components/mapFeatureTypes.js — POI appearance resolution.
 //
-// The form's dropdown, the map layer's icon `match` expression and the legend
-// all read from this list, so a new type is one entry here plus one MARKER_SPEC
-// in utils/mapIcons.js — not three edits in three files that drift apart.
+// This file USED to be the vocabulary: a static five-entry array that the form,
+// the map layer and the legend all read. The vocabulary now lives in the
+// database and arrives through hooks/useMapFeatureTypes — a company defines its
+// own types, so a hardcoded list cannot be the source of truth any more.
 //
-// `value` MUST match the backend FeatureType enum in schemas/map_feature.py.
+// What is left here is the resolution rule (which glyph and colour does THIS
+// feature draw with) plus the original five, kept only as the offline fallback
+// that useMapFeatureTypes seeds itself with when the list request fails.
+//
+// WHY THERE ARE NO `match` EXPRESSIONS ANY MORE
+// --------------------------------------------
+// The layer used to style points with `['match', ['get','feature_type'], ...]`,
+// built from the static array. With a per-company vocabulary that becomes a
+// trap: a Mapbox expression is baked into the layer at addLayer time and will
+// not notice a type added afterwards, so every new type would draw as the
+// default note pin until something forced a rebuild.
+//
+// So the DATA carries the answer instead. `decorateFeatures` resolves each
+// feature to a concrete marker id and colour and writes them into its
+// properties, and the layer just does `['get','marker_id']`. There is nothing
+// stale to rebuild, and it is the only way to honour a PER-FEATURE style
+// override — an expression keyed on feature_type cannot express "this one gate
+// is different".
+//
 // There is deliberately NO `hazard` type — hazards belong in SiteRisk, which is
-// the WorkSafe register, and the API rejects `hazard` outright. Two competing
-// hazard registers would be worse than none.
+// the WorkSafe register. The reserved-word guard in the API enforces it.
+
+// The original five. NOT the vocabulary — the fallback seed only.
+import { poiMarkerId } from '../utils/mapIcons';
 
 export const MAP_FEATURE_TYPES = [
   {
@@ -47,23 +68,79 @@ export const MAP_FEATURE_TYPES = [
   },
 ];
 
-export const FEATURE_TYPE_BY_VALUE = Object.fromEntries(
-  MAP_FEATURE_TYPES.map((t) => [t.value, t]),
-);
+// FEATURE_TYPE_BY_VALUE was removed 2026-08-19. It indexed the STATIC five, so
+// every remaining caller was a latent bug: a company type had no entry and the
+// UI fell back to a placeholder or to the raw slug. Both the popup and the
+// sidebar list did exactly that. Use resolveAppearance with the vocabulary's
+// typeBySlug instead.
 
 export const DEFAULT_FEATURE_ICON = 'v2-poi-note';
+export const DEFAULT_FEATURE_ICON_KEY = 'poiNote';
 export const DEFAULT_FEATURE_COLOR = '#2F2F2F';
 
-/** Mapbox `match` expression: feature_type -> marker image id. */
-export function featureIconExpression() {
-  const stops = [];
-  MAP_FEATURE_TYPES.forEach((t) => stops.push(t.value, t.iconId));
-  return ['match', ['coalesce', ['get', 'feature_type'], ''], ...stops, DEFAULT_FEATURE_ICON];
+/** Property names the decorated GeoJSON carries. Exported so the layer and the
+    popup agree on them without either re-typing a string. */
+export const MARKER_ID_PROP = 'marker_id';
+export const MARKER_COLOUR_PROP = 'marker_colour';
+
+/**
+ * How one feature draws.
+ *
+ * Precedence is per-feature style, then its type, then the default. The
+ * per-feature branch is what the dormant `map_features.style` JSONB column was
+ * always for — one odd gate wanting a different glyph should not need a whole
+ * type of its own.
+ *
+ * A feature whose type was retired, or whose type list failed to load, still
+ * resolves — to the note pin in charcoal. Drawing nothing would lose the
+ * feature entirely, and a POI you cannot see is worse than one drawn plainly.
+ */
+export function resolveAppearance(featureType, style, typeBySlug = {}) {
+  const t = typeBySlug[featureType];
+  // `colour` and `color` both accepted: the API spells it one way, and anything
+  // hand-written into the JSONB is as likely to use the other.
+  const styleColour = style?.colour || style?.color || null;
+  return {
+    icon: style?.icon || t?.icon || DEFAULT_FEATURE_ICON_KEY,
+    colour: styleColour || t?.colour || DEFAULT_FEATURE_COLOR,
+    label: t?.label || featureType || 'Feature',
+  };
 }
 
-/** Mapbox `match` expression: feature_type -> line/fill colour. */
-export function featureColorExpression() {
-  const stops = [];
-  MAP_FEATURE_TYPES.forEach((t) => stops.push(t.value, t.color));
-  return ['match', ['coalesce', ['get', 'feature_type'], ''], ...stops, DEFAULT_FEATURE_COLOR];
+/**
+ * Resolve a whole FeatureCollection.
+ *
+ * Returns the decorated data plus the distinct (icon, colour) pairs it uses —
+ * which is exactly the set of marker images that must be registered before the
+ * layer is added, on the live map AND on the export clone.
+ *
+ * Built from the FEATURES, not from the vocabulary: a feature carrying a style
+ * override, or one whose type has since been retired, needs its image too and
+ * would be missed by walking the type list.
+ */
+export function decorateFeatures(geojson, types = []) {
+  const typeBySlug = Object.fromEntries((types || []).map((t) => [t.slug, t]));
+  const specs = new Map();
+
+  const features = (geojson?.features || []).map((f) => {
+    const props = f?.properties || {};
+    const look = resolveAppearance(props.feature_type, props.style, typeBySlug);
+    const key = `${look.icon}|${look.colour}`;
+    if (!specs.has(key)) {
+      specs.set(key, { icon: look.icon, colour: look.colour, label: look.label });
+    }
+    return {
+      ...f,
+      properties: {
+        ...props,
+        [MARKER_ID_PROP]: poiMarkerId(look.icon, look.colour),
+        [MARKER_COLOUR_PROP]: look.colour,
+      },
+    };
+  });
+
+  return {
+    data: { type: 'FeatureCollection', features },
+    specs: [...specs.values()],
+  };
 }

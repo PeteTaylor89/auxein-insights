@@ -38,6 +38,7 @@ import BlockEditForm from './components/drawing/BlockEditForm';
 import BlockSplitFlow from './components/drawing/BlockSplitFlow';
 import SpatialAreaForm from './components/drawing/SpatialAreaForm';
 import MapFeatureForm from './components/drawing/MapFeatureForm';
+import useMapFeatureTypes from './hooks/useMapFeatureTypes';
 import PrintDialog from './components/print/PrintDialog';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -47,6 +48,7 @@ import {
 import {
   showReactPopup,
   BlockPopupContent,
+  MapFeaturePopupContent,
   RiskPopupContent,
   AssetPopupContent,
   ParcelPopupContent,
@@ -57,7 +59,7 @@ import TaskDetailModal from './components/TaskDetailModal';
 import BlockSummaryModal from './components/BlockSummaryModal';
 import useAvailableCompanies from './hooks/useAvailableCompanies';
 import { defaultLayerVisibility } from './components/managementLayerRegistry';
-import { FEATURE_TYPE_BY_VALUE } from './components/mapFeatureTypes';
+import { resolveAppearance } from './components/mapFeatureTypes';
 import './MapsPage.css';
 
 function resolveViewerRole(user) {
@@ -151,6 +153,15 @@ function MapsPageInner() {
   const [properties, setProperties] = useState([]);
 
   const isAdmin = isAuxeinAdmin || userTypeRole === 'company_admin';
+  // Managing the POI vocabulary is manager+, matching the API's
+  // map_feature_types permission module. A company_user still SEES every type;
+  // they just cannot add one.
+  const canManageTypes = isAdmin || userTypeRole === 'company_manager';
+
+  // The POI vocabulary — the form's picker, and (Phase 4) the map layer's icon
+  // and colour expressions. `include_inactive` is off here: retired types still
+  // draw via the slug fallback, they just should not be offered.
+  const featureTypes = useMapFeatureTypes();
 
   // Fetch properties for admin users
   const fetchProperties = useCallback(async () => {
@@ -305,7 +316,7 @@ function MapsPageInner() {
     mapFeaturesData, featureCount,
     loading: featuresLoading, error: featuresError,
     refresh: refreshMapFeatures,
-  } = useMapFeaturesLayer(map, mapReady, showMapFeatures);
+  } = useMapFeaturesLayer(map, mapReady, showMapFeatures, featureTypes);
 
   // Property boundaries — admin-only subtle dashed-outline layer.
   // Refresh trigger is the `properties` array, which already reloads on demand.
@@ -857,6 +868,11 @@ function MapsPageInner() {
   handleEditFeatureRef.current = handleEditFeature;
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  // The click handler's effect depends only on [map, mapReady], so a value
+  // captured directly never updates. A type created during this session would
+  // otherwise be missing from the popup's lookup until a reload.
+  const featureTypesRef = useRef(featureTypes.typeBySlug);
+  featureTypesRef.current = featureTypes.typeBySlug;
   const isAuxeinAdminRef = useRef(isAuxeinAdmin);
   isAuxeinAdminRef.current = isAuxeinAdmin;
   const handleOpenParcelAssignRef = useRef(handleOpenParcelAssign);
@@ -915,36 +931,12 @@ function MapsPageInner() {
       const lngLat = [e.lngLat.lng, e.lngLat.lat];
 
       if (MAP_FEATURE_CLICK_LAYERS.includes(layerId)) {
-        const typeMeta = FEATURE_TYPE_BY_VALUE[p.feature_type];
         showReactPopup(map, { lngLat, content: (
-          <div className="v2-popup">
-            <div className="v2-popup-header">
-              <div
-                className="v2-popup-badge v2-popup-badge--owned"
-                style={{ background: typeMeta?.color }}
-              >
-                {typeMeta?.label || 'Point of Interest'}
-              </div>
-            </div>
-            <h3 className="v2-popup-title">{p.name || 'Unnamed'}</h3>
-            {p.description && (
-              <div className="v2-popup-grid">
-                <div className="v2-popup-row">
-                  <span className="v2-popup-value">{p.description}</span>
-                </div>
-              </div>
-            )}
-            <div className="v2-popup-footer">
-              {p.id && (
-                <button
-                  className="v2-popup-btn v2-popup-btn--accent"
-                  onClick={() => handleEditFeatureRef.current(p)}
-                >
-                  Edit
-                </button>
-              )}
-            </div>
-          </div>
+          <MapFeaturePopupContent
+            properties={p}
+            typeBySlug={featureTypesRef.current}
+            onEdit={(props) => handleEditFeatureRef.current(props)}
+          />
         ) });
       } else if (layerId === 'v2-assets-points' || layerId === 'v2-assets-lines') {
         showReactPopup(map, { lngLat, content: <AssetPopupContent properties={p} onNavigate={() => { const t = p.asset_type === 'consumable' ? 'consumables' : 'equipment'; nav(`/assets/${t}/${p.id}/edit`); }} /> });
@@ -1257,7 +1249,12 @@ function MapsPageInner() {
                     <ul className="v2-block-list">
                       {(mapFeaturesData?.features || []).map((feature) => {
                         const fp = feature.properties || {};
-                        const meta = FEATURE_TYPE_BY_VALUE[fp.feature_type];
+                        // Resolved against the company vocabulary, same rule the
+                        // map and the popup use — the static five could not name
+                        // a custom type and showed its raw slug instead.
+                        const look = resolveAppearance(
+                          fp.feature_type, fp.style, featureTypes.typeBySlug,
+                        );
                         return (
                           <li
                             key={fp.id}
@@ -1272,11 +1269,11 @@ function MapsPageInner() {
                             <span
                               style={{
                                 display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                                background: meta?.color || '#2F2F2F', marginRight: 8, flexShrink: 0,
+                                background: look.colour, marginRight: 8, flexShrink: 0,
                               }}
                             />
                             <span className="v2-block-name">{fp.name}</span>
-                            <span className="v2-block-meta">{meta?.label || fp.feature_type}</span>
+                            <span className="v2-block-meta">{look.label}</span>
                           </li>
                         );
                       })}
@@ -1387,7 +1384,7 @@ function MapsPageInner() {
         {/* Pass the state object straight through — MapLegend does keyed
             lookups and ignores keys it doesn't know, so there is no second
             hand-maintained list to drift out of step. */}
-        <MapLegend visible={layerVisibility} />
+        <MapLegend visible={layerVisibility} featureTypes={featureTypes.types} />
 
         <StatusBar message={status} />
       </div>
@@ -1418,6 +1415,7 @@ function MapsPageInner() {
         isOpen={showPrintDialog}
         map={map}
         layerVisibility={layerVisibility}
+        featureTypes={featureTypes.types}
         isAdmin={isAdmin}
         defaultTitle={properties?.[0]?.name || ''}
         onClose={() => setShowPrintDialog(false)}
@@ -1430,6 +1428,8 @@ function MapsPageInner() {
         existingFeature={editFeatureRecord}
         geometry={drawGeometry}
         properties={properties}
+        vocabulary={featureTypes}
+        canManageTypes={canManageTypes}
         onSubmit={handleFeatureSaved}
         onCancel={handleCancelDraw}
       />

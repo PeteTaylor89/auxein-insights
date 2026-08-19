@@ -1,6 +1,23 @@
 // packages/shared/src/api/tasksService.js
 import api from './api';
 
+// The DEVICE's calendar date, as YYYY-MM-DD.
+//
+// Deliberately NOT toISOString().slice(0,10) — that is the UTC date, which is
+// the very bug this exists to avoid. The API runs UTC and the users are in New
+// Zealand twelve hours ahead, so for the whole NZ morning the server's own
+// `date.today()` is still yesterday, and every task completed before lunch
+// logged its hours to the previous day.
+//
+// Sending it from the client also fixes the offline queue: a completion
+// captured in a dead spot on Tuesday and replayed on Thursday keeps Tuesday's
+// date instead of taking the date it happened to upload on.
+function localWorkDate(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+
 const tasksService = {
   // ============================================================================
   // TASK TEMPLATES
@@ -142,7 +159,9 @@ const tasksService = {
   },
 
   completeTask: async (taskId, payload = {}) => {
-    const res = await api.post(`/tasks/tasks/${taskId}/complete`, payload);
+    // Stamped here, not at the call sites, so none of them can forget it.
+    const body = { work_date: localWorkDate(), ...payload };
+    const res = await api.post(`/tasks/tasks/${taskId}/complete`, body);
     return res.data;
   },
 

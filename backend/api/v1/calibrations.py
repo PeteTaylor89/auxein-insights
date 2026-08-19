@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 import logging
 
+from core.local_time import local_today
+
 from db.session import get_db
 from db.models.asset import Asset, AssetCalibration, AssetCalibrationSchedule, AssetCalibrationSpec
 from db.models.user import User
@@ -313,7 +315,7 @@ def list_calibration_records(
     if calibrated_to:
         query = query.filter(AssetCalibration.calibration_date <= calibrated_to)
     if overdue_only:
-        today = date.today()
+        today = local_today()
         query = query.filter(
             and_(
                 AssetCalibration.next_due_date.isnot(None),
@@ -342,7 +344,7 @@ def get_calibrations_due(
 ):
     """Get calibrations that are due or coming due"""
     company_id = current_user.company_id
-    today = date.today()
+    today = local_today()
     future_date = today + timedelta(days=days_ahead)
     
     logger.info(f"Getting calibrations due for company {company_id}")

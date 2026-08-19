@@ -93,44 +93,101 @@ class TimesheetDay(Base):  # type: ignore[misc]
     approved_by_user = relationship("User", foreign_keys=[approved_by], back_populates="approved_timesheets")
 
     # --------- Business helpers ---------
+    #
+    # THE DAY TOTAL IS DERIVED, NOT DECLARED  (changed 2026-08-19)
+    # -----------------------------------------------------------
+    # It used to be the other way round: `day_hours` was a number the user typed
+    # and `uncoded_hours` was `day_hours - entry_hours`. That inverted the causal
+    # order of a real day. Hours arrive by completing tasks, all day, AFTER any
+    # total was declared — so every task completion had to be checked against a
+    # figure typed hours earlier, and `recalc_hours` raised "Task allocations
+    # cannot exceed day total" when the day simply turned out longer than
+    # planned.
+    #
+    # Worse, that raise landed mid-write. `create_entry` flushes the TimeEntry
+    # and only then recalcs, and `complete_task` catches the exception and logs
+    # it — so the entry committed while `uncoded_hours` and
+    # `effective_total_hours` kept their old values. The result on screen is a
+    # day showing six hours of task entries under a two-hour total, which is
+    # exactly the report that prompted this change.
+    #
+    # Now: `uncoded_hours` is the ONLY figure a person enters — time that is not
+    # against any task — and
+    #
+    #     effective_total_hours = entry_hours + uncoded_hours
+    #
+    # Completing a task can never conflict with the total, because it moves the
+    # total. There is nothing to "roll up": the roll-up is continuous.
+    #
+    # `day_hours` is kept as a stored mirror of the effective total rather than
+    # dropped, because approved and submitted history reads it, as do the
+    # reports. It is no longer independently settable.
     def recalc_hours(self) -> None:
-        """Recompute entry_hours, uncoded_hours, effective_total_hours. Does NOT flush/commit."""
-        total_entries = sum((Decimal(str(e.hours or 0)) for e in self.entries), Decimal("0.00"))
-        total_entries = _q(total_entries)
-
+        """Recompute entry_hours and the derived totals. Does NOT flush/commit."""
+        total_entries = _q(sum((Decimal(str(e.hours or 0)) for e in self.entries), Decimal("0.00")))
         self.entry_hours = total_entries
 
-        if self.day_hours is not None:
-            # Enforce step/increment on day_hours as well
-            if not _is_multiple_of_step(Decimal(str(self.day_hours))):
-                raise ValueError(f"day_hours must be in {HOUR_STEP} increments")
-            if Decimal(str(self.day_hours)) < total_entries:
-                raise ValueError(f"Task allocations ({total_entries}h) cannot exceed day total ({self.day_hours}h).")
-            self.uncoded_hours = _q(Decimal(str(self.day_hours)) - total_entries)
-            self.effective_total_hours = _q(Decimal(str(self.day_hours)))
-        else:
-            self.uncoded_hours = Decimal("0.00")
-            self.effective_total_hours = total_entries
+        uncoded = Decimal(str(self.uncoded_hours or 0))
+        if uncoded < 0:
+            uncoded = Decimal("0.00")
+        self.uncoded_hours = _q(uncoded)
 
-        # caps
-        if Decimal(str(self.effective_total_hours)) > MAX_DAY_HOURS:
-            raise ValueError(f"effective_total_hours ({self.effective_total_hours}h) cannot exceed {MAX_DAY_HOURS}h")
-        if Decimal(str(self.entry_hours)) > MAX_DAY_HOURS:
-            raise ValueError(f"entry_hours ({self.entry_hours}h) cannot exceed {MAX_DAY_HOURS}h")
+        total = _q(total_entries + self.uncoded_hours)
+        self.effective_total_hours = total
+        # Mirror, so nothing downstream has to learn a new field.
+        self.day_hours = total
+
+        # Caps still apply — a 24h ceiling is a data-quality guard, not a
+        # sequencing rule, so raising here cannot be triggered by ordinary work.
+        if total > MAX_DAY_HOURS:
+            raise ValueError(
+                f"Day total ({total}h) cannot exceed {MAX_DAY_HOURS}h"
+            )
+        if total_entries > MAX_DAY_HOURS:
+            raise ValueError(f"entry_hours ({total_entries}h) cannot exceed {MAX_DAY_HOURS}h")
+
+    def entry_hours_with(self, extra: Decimal) -> Decimal:
+        """What entry_hours WOULD be with one more entry of `extra` hours.
+
+        Lets a caller check a cap before creating the row, rather than after.
+        """
+        current = sum((Decimal(str(e.hours or 0)) for e in self.entries), Decimal("0.00"))
+        return _q(current + Decimal(str(extra or 0)))
+
+    def set_uncoded_hours(self, hours: Optional[Decimal]) -> None:
+        """Set the time NOT against a task. The only hours figure a user types."""
+        value = Decimal("0.00") if hours is None else Decimal(str(hours))
+        if value < 0:
+            raise ValueError("Uncoded hours cannot be negative")
+        if not _is_multiple_of_step(value):
+            raise ValueError(f"Uncoded hours must be in {HOUR_STEP} increments")
+        if value > MAX_DAY_HOURS:
+            raise ValueError(f"Uncoded hours cannot exceed {MAX_DAY_HOURS}h")
+        self.uncoded_hours = _q(value)
+        self.recalc_hours()
 
     def set_day_hours(self, hours: Optional[Decimal]) -> None:
-        """Update day_hours with step validation and recompute totals."""
+        """Set the day TOTAL, kept for the existing endpoint and older clients.
+
+        Expressed in terms of the new model: the caller is really saying "the
+        day came to N hours", so the uncoded remainder is N minus whatever is
+        already coded to tasks. A total below the coded hours is not an error
+        any more — it just means there is no uncoded time — because refusing it
+        would resurrect the failure this change removed.
+        """
         if hours is None:
-            self.day_hours = None
-        else:
-            if not _is_multiple_of_step(Decimal(str(hours))):
-                raise ValueError(f"day_hours must be in {HOUR_STEP} increments")
-            if Decimal(str(hours)) > MAX_DAY_HOURS:
-                raise ValueError(f"day_hours cannot exceed {MAX_DAY_HOURS}h")
-            if Decimal(str(hours)) < 0:
-                raise ValueError("day_hours cannot be negative")
-            self.day_hours = _q(Decimal(str(hours)))
-        self.recalc_hours()
+            self.set_uncoded_hours(Decimal("0.00"))
+            return
+        value = Decimal(str(hours))
+        if value < 0:
+            raise ValueError("Day total cannot be negative")
+        if not _is_multiple_of_step(value):
+            raise ValueError(f"Day total must be in {HOUR_STEP} increments")
+        if value > MAX_DAY_HOURS:
+            raise ValueError(f"Day total cannot exceed {MAX_DAY_HOURS}h")
+
+        coded = _q(sum((Decimal(str(e.hours or 0)) for e in self.entries), Decimal("0.00")))
+        self.set_uncoded_hours(max(_q(value - coded), Decimal("0.00")))
 
 
 class TimeEntry(Base):  # type: ignore[misc]

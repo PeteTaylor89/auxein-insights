@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from db.base_class import Base
 from datetime import datetime, timezone, timedelta
+from core.local_time import local_today
 
 class Contractor(Base):
     __tablename__ = "contractors"
@@ -177,7 +178,7 @@ class Contractor(Base):
     def insurance_status(self):
         """Get overall insurance compliance status"""
         from datetime import date
-        today = date.today()
+        today = local_today()
         
         # Check required insurances
         public_liability_valid = (
@@ -217,7 +218,7 @@ class Contractor(Base):
         # Check if biosecurity training is recent (within 12 months)
         if self.last_biosecurity_training:
             from datetime import date, timedelta
-            if date.today() - self.last_biosecurity_training > timedelta(days=365):
+            if local_today() - self.last_biosecurity_training > timedelta(days=365):
                 risk_score += 2
         else:
             risk_score += 3

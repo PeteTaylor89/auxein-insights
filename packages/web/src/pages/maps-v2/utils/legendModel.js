@@ -12,8 +12,7 @@
 //
 // This file must stay free of JSX and of canvas calls — the moment it imports
 // either, it can only serve one of them again.
-import { MARKER_SPECS } from './mapIcons';
-import { MAP_FEATURE_TYPES } from '../components/mapFeatureTypes';
+import { MARKER_SPECS, poiMarkerId } from './mapIcons';
 import {
   BLOCK_FILL_OWN,
   BLOCK_OUTLINE,
@@ -50,7 +49,7 @@ const marker = (specId) => ({
  *   area   — a polygon layer: fill + opacity + outline (+ dash)
  *   line   — a linear layer: colour over a white casing
  */
-export function legendSections(visible = {}) {
+export function legendSections(visible = {}, { featureTypes = [] } = {}) {
   const sections = [];
 
   const areas = [];
@@ -95,10 +94,35 @@ export function legendSections(visible = {}) {
     }
   }
   if (visible.mapFeatures) {
-    // Driven off MAP_FEATURE_TYPES rather than a second hardcoded list, so a new
-    // POI type appears in both legends automatically.
-    for (const t of MAP_FEATURE_TYPES) {
-      markers.push({ ...marker(t.iconId), label: SPEC_BY_ID[t.iconId]?.label || t.label });
+    // The POI rows come from the COMPANY'S vocabulary, passed in, not from a
+    // hardcoded list — that is the whole point of custom types. The specId is
+    // derived the same way the layer derives it, so drawMarkerSwatch finds the
+    // registered image and both legends show the real badge rather than an
+    // approximation of it.
+    //
+    // Retired types are included when they are still in `featureTypes`: a
+    // feature that uses one is still ON the map, and a legend that omits it
+    // leaves an unexplained pin on a printed sheet.
+    for (const t of featureTypes) {
+      // `icon` and `colour` travel WITH the row.
+      //
+      // A POI type's marker image is built on demand for its (icon, colour)
+      // pair, so it is not in MARKER_SPECS and a renderer that only knows how to
+      // look up a specId draws nothing — which is exactly what happened to the
+      // on-screen legend: every POI row came out blank while the printed one,
+      // which falls back to the dynamic registry, was fine.
+      //
+      // Carrying the appearance on the row removes the lookup from both
+      // renderers, and with it the ordering hazard that the registry is
+      // populated by a layer effect that may not have run yet.
+      markers.push({
+        key: poiMarkerId(t.icon, t.colour),
+        type: 'marker',
+        specId: poiMarkerId(t.icon, t.colour),
+        icon: t.icon,
+        colour: t.colour,
+        label: t.label || t.slug,
+      });
     }
   }
   if (markers.length) sections.push({ title: 'Markers', items: markers });

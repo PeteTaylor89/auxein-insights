@@ -1,17 +1,22 @@
 // screens/TimesheetDayDetailScreen.js — per-day timesheet detail with entry
-// CRUD, manual day-hours override, "Roll up entries to day total" button,
-// and submit-for-approval. Locks all editing once status leaves draft/
-// rejected (mirrors backend _ensure_editable).
+// CRUD, the day-total sheet, and submit-for-approval. Locks all editing once
+// status leaves draft/rejected (mirrors backend _ensure_editable).
+//
+// The day total is DERIVED: hours coded to tasks plus uncoded time. It follows
+// task completions on its own, so there is no roll-up and no declared total to
+// fall out of step with the entries — which is what produced a day showing six
+// hours of task entries under a two-hour total. The only figure entered here is
+// the uncoded part.
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
-  ActivityIndicator, StatusBar, Alert, TextInput,
+  ActivityIndicator, StatusBar, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { timesheetService, tasksService } from '../api/services';
-import { KeyboardAvoider, useToast } from '../components';
+import { KeyboardAvoider, useToast, DayTotalSheet } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 
 const STATUS_STYLE = {
@@ -27,14 +32,6 @@ function fmtFullDate(iso) {
   return d.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-// Backend enforces 0.25h increments. Round to two decimals for display.
-function parseHours(text) {
-  if (!text) return null;
-  const n = Number(String(text).replace(',', '.'));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 100) / 100;
-}
-
 export default function TimesheetDayDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -43,7 +40,7 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
   const [taskMap, setTaskMap] = useState({}); // id → title (lazily filled per entry)
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [dayHoursDraft, setDayHoursDraft] = useState('');
+  const [showTotalSheet, setShowTotalSheet] = useState(false);
 
   const load = useCallback(async () => {
     if (!dayId) return;
@@ -51,7 +48,6 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
     try {
       const data = await timesheetService.getDay(dayId);
       setDay(data);
-      setDayHoursDraft(data.day_hours != null ? String(data.day_hours) : '');
       // Fire-and-forget task title lookups
       const taskIds = [...new Set((data.entries || []).map(e => e.task_id).filter(Boolean))];
       if (taskIds.length) {
@@ -76,37 +72,22 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
   const statusStyle = day ? (STATUS_STYLE[day.status] || STATUS_STYLE.draft) : STATUS_STYLE.draft;
 
   const entryHours = Number(day?.entry_hours || 0);
-  const dayHours = day?.day_hours != null ? Number(day.day_hours) : null;
   const effective = Number(day?.effective_total_hours || 0);
 
-  const handleRollup = async () => {
+  const handleSaveDayHours = async (hours) => {
     if (!isEditable) return;
-    if (entryHours <= 0) {
-      toast.show('No task entries to roll up', 'info');
-      return;
-    }
     setBusy(true);
     try {
-      const updated = await timesheetService.rollupDay(dayId);
+      const updated = await timesheetService.setUncodedHours(dayId, hours);
       setDay(updated);
-      setDayHoursDraft(updated.day_hours != null ? String(updated.day_hours) : '');
-      toast.show(`Day total locked at ${Number(updated.day_hours).toFixed(1)} h`, 'success');
-    } catch (err) {
-      const detail = err.response?.data?.detail;
-      toast.show(typeof detail === 'string' ? detail : 'Roll up failed', 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSaveDayHours = async () => {
-    if (!isEditable) return;
-    const parsed = parseHours(dayHoursDraft);
-    setBusy(true);
-    try {
-      const updated = await timesheetService.setDayHours(dayId, parsed);
-      setDay(updated);
-      toast.show('Day total saved', 'success');
+      setShowTotalSheet(false);
+      const unc = Number(updated.uncoded_hours || 0);
+      toast.show(
+        unc > 0
+          ? `${unc.toFixed(2)} h uncoded — day total ${Number(updated.effective_total_hours).toFixed(2)} h`
+          : `Uncoded time cleared — day total ${Number(updated.effective_total_hours).toFixed(2)} h`,
+        'success',
+      );
     } catch (err) {
       const detail = err.response?.data?.detail;
       toast.show(typeof detail === 'string' ? detail : 'Save failed', 'error');
@@ -258,7 +239,7 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* Day total — manual override + rollup button */}
+        {/* Day total — derived; only the uncoded part is entered */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
@@ -267,47 +248,54 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
             </View>
           </View>
 
-          <Text style={styles.fieldLabel}>Declared day hours</Text>
-          <View style={styles.inlineRow}>
-            <TextInput
-              style={[styles.input, !isEditable && styles.inputDisabled]}
-              value={dayHoursDraft}
-              onChangeText={setDayHoursDraft}
-              placeholder="e.g. 8"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="decimal-pad"
-              editable={isEditable}
-            />
-            {isEditable && (
-              <TouchableOpacity
-                style={[styles.smallBtn, styles.smallBtnGhost]}
-                onPress={handleSaveDayHours}
-                disabled={busy}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.smallBtnGhostText}>Save</Text>
-              </TouchableOpacity>
-            )}
+          {/* From tasks + uncoded + total, always visible so the split is
+              legible without opening anything. */}
+          <View style={styles.totalGrid}>
+            <View style={styles.totalCell}>
+              <Text style={styles.totalLabel}>From tasks</Text>
+              <Text style={styles.totalValue}>{entryHours.toFixed(2)} h</Text>
+            </View>
+            <View style={styles.totalCell}>
+              <Text style={styles.totalLabel}>Uncoded</Text>
+              <Text style={styles.totalValue}>{Number(day.uncoded_hours || 0).toFixed(2)} h</Text>
+            </View>
+            <View style={styles.totalCell}>
+              <Text style={styles.totalLabel}>Day total</Text>
+              <Text style={[styles.totalValue, styles.totalValueMain]}>
+                {effective.toFixed(2)} h
+              </Text>
+            </View>
           </View>
+
           <Text style={styles.fieldHint}>
-            {dayHours == null
-              ? `Using entries total (${entryHours.toFixed(1)} h) as the effective day total.`
-              : `Locked at ${dayHours.toFixed(1)} h. Uncoded time: ${Number(day.uncoded_hours || 0).toFixed(1)} h.`}
+            The day total is worked out for you: task hours plus any uncoded time. Completing
+            a task with hours moves it on its own.
           </Text>
 
           {isEditable && (
             <TouchableOpacity
-              style={[styles.rollupBtn, (busy || entryHours <= 0) && styles.btnDisabled]}
-              onPress={handleRollup}
-              disabled={busy || entryHours <= 0}
+              style={[styles.rollupBtn, busy && styles.btnDisabled]}
+              onPress={() => setShowTotalSheet(true)}
+              disabled={busy}
               activeOpacity={0.85}
             >
-              <Feather name="check-square" size={14} color={colors.white} />
-              <Text style={styles.rollupBtnText}>Roll entries up to day total ({entryHours.toFixed(1)} h)</Text>
+              <Feather name="clock" size={14} color={colors.white} />
+              <Text style={styles.rollupBtnText}>
+                {Number(day.uncoded_hours || 0) > 0 ? 'Adjust uncoded time' : 'Add uncoded time'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
       </ScrollView>
+
+      <DayTotalSheet
+        visible={showTotalSheet}
+        entryHours={entryHours}
+        uncodedHours={Number(day.uncoded_hours || 0)}
+        saving={busy}
+        onSave={handleSaveDayHours}
+        onClose={() => !busy && setShowTotalSheet(false)}
+      />
 
       {/* Submit bar */}
       {isEditable && (
@@ -378,24 +366,17 @@ const styles = StyleSheet.create({
   entryMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   entryDelete: { padding: 6 },
 
-  fieldLabel: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: '600', marginBottom: 4, marginTop: spacing.sm, textTransform: 'uppercase' },
   fieldHint: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xs, lineHeight: 16 },
 
-  inlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  input: {
-    flex: 1, paddingHorizontal: spacing.md, paddingVertical: 10,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    fontSize: fontSize.base, color: colors.text, backgroundColor: colors.surface,
+  totalGrid: {
+    flexDirection: 'row', gap: spacing.sm,
+    backgroundColor: colors.borderLight, borderRadius: radius.lg,
+    padding: spacing.md, marginBottom: spacing.sm,
   },
-  inputDisabled: { backgroundColor: colors.borderLight, color: colors.textMuted },
-
-  smallBtn: {
-    paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.md,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  smallBtnGhost: { backgroundColor: colors.borderLight, borderWidth: 1, borderColor: colors.border },
-  smallBtnGhostText: { fontSize: fontSize.sm, color: colors.text, fontWeight: '600' },
-
+  totalCell: { flex: 1, alignItems: 'center' },
+  totalLabel: { fontSize: 10, color: colors.textMuted, textTransform: 'uppercase', fontWeight: '700' },
+  totalValue: { fontSize: fontSize.md, fontWeight: '700', color: colors.text, marginTop: 2 },
+  totalValueMain: { color: colors.primary },
   rollupBtn: {
     marginTop: spacing.md,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,

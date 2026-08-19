@@ -330,7 +330,21 @@ class TaskCompleteRequest(TaskActionRequest):
     completion_photo_ids: Optional[List[str]] = Field(default_factory=list)
     weather_conditions: Optional[Dict[str, Any]] = None
     consumable_actuals: Optional[List[ConsumableActual]] = None  # P0: stock deduction
-    hours_worked: Optional[Decimal] = Field(None, ge=0, le=24, description="Hours to add to today's timesheet (0.25h increments)")
+    hours_worked: Optional[Decimal] = Field(None, ge=0, le=24, description="Hours to add to the day's timesheet (0.25h increments)")
+    # The DEVICE's date, not the server's.
+    #
+    # The server runs UTC and the users are in New Zealand, twelve or thirteen
+    # hours ahead, so `date.today()` on the server disagrees with the worker for
+    # the whole NZ morning: midnight to noon local is still yesterday in UTC.
+    # Every task completed before lunch logged its hours to the previous day.
+    #
+    # It also matters for the offline queue, which replays a completion whenever
+    # signal returns. Without the client's date, hours captured on Tuesday in a
+    # dead spot land on Thursday's timesheet when the phone finally uploads.
+    work_date: Optional[date] = Field(
+        None,
+        description="Local calendar date the work was done. Defaults to today in NZ.",
+    )
 
 
 class TaskCancelRequest(TaskActionRequest):

@@ -15,17 +15,18 @@ from db.models.user import User
 # Schemas (match your existing import style like schemas.task in your codebase)
 from schemas.timesheet import (
     TimesheetDayCreate, TimesheetDayUpdate, TimesheetDayOut,
+    TimesheetUncodedUpdate,
     TimeEntryCreate, TimeEntryUpdate, TimeEntryOut
 )
 
 # Service helpers — try project-native path first, then fallback to app.services.* if needed
 try:
     from services.timesheet_rules import (
-        recalc_day, set_day_hours, create_entry, update_entry, delete_entry
+        recalc_day, set_day_hours, set_uncoded_hours, create_entry, update_entry, delete_entry
     )
 except Exception:
     from app.services.timesheet_rules import (  # type: ignore
-        recalc_day, set_day_hours, create_entry, update_entry, delete_entry
+        recalc_day, set_day_hours, set_uncoded_hours, create_entry, update_entry, delete_entry
     )
 
 from services.notification_service import NotificationService
@@ -242,32 +243,56 @@ def update_timesheet_day(
     return day
 
 
+@router.patch("/days/{day_id}/uncoded", response_model=TimesheetDayOut)
+def set_uncoded_hours_endpoint(
+    day_id: int,
+    payload: TimesheetUncodedUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the day's uncoded time — hours worked that are not against a task.
+
+    This is the ONLY hours figure a user enters. The day total is
+    `entry_hours + uncoded_hours` and follows task completions on its own, so
+    nothing has to be rolled up and the total can never disagree with the
+    entries beneath it.
+    """
+    day = _get_day_or_404(db, day_id)
+    _ensure_company_scope(current_user, day.company_id)
+    _ensure_editable(day, current_user)
+
+    try:
+        set_uncoded_hours(db, day.id, Decimal(str(payload.hours)))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    db.commit()
+    db.refresh(day)
+    return day
+
+
 @router.post("/days/{day_id}/rollup", response_model=TimesheetDayOut)
 def rollup_timesheet_day(
     day_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Lock the per-entry sum in as the day's declared total.
+    """DEPRECATED — the roll-up is now continuous.
 
-    Sets `day_hours = entry_hours` so the user can submit a day built from
-    task-completion time entries without manually re-typing the total. Only
-    valid on editable days (draft / rejected). No-op if entry_hours is zero
-    — returns 400 so the mobile shows a hint instead of silently submitting
-    an empty day.
+    It used to set `day_hours = entry_hours`, freezing a total that the next
+    task completion would then contradict. The total is derived from the
+    entries now, so there is nothing to lock in: this recalculates and returns
+    the day, which is a no-op on a healthy row.
+
+    Kept rather than deleted because a phone running an older build may still
+    call it, and a 404 there would read as "completing tasks is broken".
     """
     day = _get_day_or_404(db, day_id)
     _ensure_company_scope(current_user, day.company_id)
     _ensure_editable(day, current_user)
 
-    if Decimal(str(day.entry_hours or 0)) <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="No task entries yet — complete a task with hours first, then roll up.",
-        )
-
     try:
-        set_day_hours(db, day.id, Decimal(str(day.entry_hours)))
+        recalc_day(db, day.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -288,7 +313,12 @@ def submit_timesheet_day(
     if day.user_id != current_user.id and not current_user.has_permission("timesheets", "approve"):
         raise HTTPException(status_code=403, detail="Only the owner can submit this day")
 
-    if day.status != TimesheetStatus.draft:
+    # Draft OR rejected. A rejected day is explicitly editable — `_ensure_editable`
+    # allows it and the mobile UI offers the edit controls on it — so refusing to
+    # re-submit it made rejection a dead end: the person could fix what the
+    # manager objected to and then had no way to send it back. Approved and
+    # already-submitted days are still refused.
+    if day.status not in (TimesheetStatus.draft, TimesheetStatus.rejected):
         raise HTTPException(status_code=409, detail=f"Cannot submit a {day.status} day")
 
     # simple sanity check (optional): prevent zero-hour submission

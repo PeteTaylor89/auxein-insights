@@ -16,6 +16,7 @@ export default function PrintDialog({
   isOpen,
   map,
   layerVisibility,
+  featureTypes = [],
   isAdmin = false,
   defaultTitle = '',
   onClose,
@@ -114,6 +115,10 @@ export default function PrintDialog({
         subtitle,
         date: includeDate ? new Date() : null,
         layerVisibility: printLayers,
+        // The printed key names the company's own POI types, not the built-in
+        // five — a legend that describes a different map to the one on the page
+        // is worse than no legend.
+        featureTypes,
         latitude: center.lat,
         zoom,
         bearing,

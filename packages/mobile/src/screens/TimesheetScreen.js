@@ -2,6 +2,10 @@
 // One row per existing day with status pill + hours summary. Days without
 // activity in the month are not shown (created lazily by task completion or
 // by the user adding entries on the detail screen).
+//
+// The day total is derived — hours coded to tasks plus uncoded time — so there
+// is no roll-up step and nothing to keep in sync. The card action opens the
+// uncoded sheet, which is the only figure anyone enters.
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
@@ -13,7 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '../contexts/AuthContext';
 import { timesheetService } from '../api/services';
-import { useToast } from '../components';
+import { useToast, DayTotalSheet } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 
 const STATUS_STYLE = {
@@ -42,6 +46,8 @@ export default function TimesheetScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [creatingDay, setCreatingDay] = useState(false);
+  const [totalFor, setTotalFor] = useState(null);   // day whose total sheet is open
+  const [savingTotal, setSavingTotal] = useState(false);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -73,6 +79,31 @@ export default function TimesheetScreen({ navigation }) {
   const goToday = () => {
     setYear(today.getFullYear());
     setMonth(today.getMonth() + 1);
+  };
+
+  // Set a day's uncoded time without leaving the list. The endpoint returns
+  // the updated day, so splice it back in rather than refetching the whole
+  // month — a refetch would scroll-jump and cost a round trip for one row.
+  const handleSaveTotal = async (hours) => {
+    if (!totalFor) return;
+    setSavingTotal(true);
+    try {
+      const updated = await timesheetService.setUncodedHours(totalFor.id, hours);
+      setDays(prev => prev.map(d => (d.id === updated.id ? updated : d)));
+      setTotalFor(null);
+      const uncoded = Number(updated.uncoded_hours || 0);
+      toast.show(
+        uncoded > 0
+          ? `${fmtDate(updated.work_date)}: ${Number(updated.effective_total_hours).toFixed(2)} h, ${uncoded.toFixed(2)} h uncoded`
+          : `${fmtDate(updated.work_date)}: ${Number(updated.effective_total_hours).toFixed(2)} h, all coded to tasks`,
+        'success',
+      );
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      toast.show(typeof detail === 'string' ? detail : 'Could not save that', 'error');
+    } finally {
+      setSavingTotal(false);
+    }
   };
 
   const monthTotal = days.reduce((s, d) => s + Number(d.effective_total_hours || 0), 0);
@@ -158,8 +189,12 @@ export default function TimesheetScreen({ navigation }) {
           days.map(d => {
             const sty = STATUS_STYLE[d.status] || STATUS_STYLE.draft;
             const entryHours = Number(d.entry_hours || 0);
-            const dayHours = d.day_hours != null ? Number(d.day_hours) : null;
             const totalHours = Number(d.effective_total_hours || 0);
+            // Editable days only. Unlike the old roll-up button this also shows
+            // once a total exists, because adjusting it is the whole point —
+            // uncoded time is often remembered after the tasks are ticked off.
+            const isEditable = d.status === 'draft' || d.status === 'rejected';
+            const uncoded = Number(d.uncoded_hours || 0);
             return (
               <TouchableOpacity
                 key={d.id}
@@ -174,25 +209,53 @@ export default function TimesheetScreen({ navigation }) {
                   </View>
                 </View>
                 <View style={styles.dayRow}>
+                  {/* From tasks + uncoded = total. "Day total" and "Effective"
+                      were two labels for one number under the old model, which
+                      is half of why a mismatch was hard to read. */}
                   <View style={styles.dayCell}>
-                    <Text style={styles.dayCellLabel}>From entries</Text>
-                    <Text style={styles.dayCellValue}>{entryHours.toFixed(1)} h</Text>
+                    <Text style={styles.dayCellLabel}>From tasks</Text>
+                    <Text style={styles.dayCellValue}>{entryHours.toFixed(2)} h</Text>
+                  </View>
+                  <View style={styles.dayCell}>
+                    <Text style={styles.dayCellLabel}>Uncoded</Text>
+                    <Text style={styles.dayCellValue}>{uncoded.toFixed(2)} h</Text>
                   </View>
                   <View style={styles.dayCell}>
                     <Text style={styles.dayCellLabel}>Day total</Text>
-                    <Text style={styles.dayCellValue}>{dayHours != null ? dayHours.toFixed(1) + ' h' : '—'}</Text>
-                  </View>
-                  <View style={styles.dayCell}>
-                    <Text style={styles.dayCellLabel}>Effective</Text>
-                    <Text style={[styles.dayCellValue, styles.dayCellTotal]}>{totalHours.toFixed(1)} h</Text>
+                    <Text style={[styles.dayCellValue, styles.dayCellTotal]}>{totalHours.toFixed(2)} h</Text>
                   </View>
                 </View>
+                {isEditable && (
+                  <TouchableOpacity
+                    style={styles.rollupInline}
+                    onPress={() => setTotalFor(d)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add uncoded time, ${entryHours.toFixed(2)} hours currently coded to tasks`}
+                  >
+                    <Feather name="clock" size={13} color={colors.primary} />
+                    <Text style={styles.rollupInlineText}>
+                      {uncoded > 0
+                        ? `${uncoded.toFixed(2)} h uncoded`
+                        : 'Add uncoded time'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <Feather name="chevron-right" size={18} color={colors.textMuted} style={styles.chev} />
               </TouchableOpacity>
             );
           })
         )}
       </ScrollView>
+
+      <DayTotalSheet
+        visible={!!totalFor}
+        entryHours={Number(totalFor?.entry_hours || 0)}
+        uncodedHours={Number(totalFor?.uncoded_hours || 0)}
+        saving={savingTotal}
+        onSave={handleSaveTotal}
+        onClose={() => !savingTotal && setTotalFor(null)}
+      />
 
       {showDatePicker && (
         <DateTimePicker
@@ -257,4 +320,14 @@ const styles = StyleSheet.create({
   dayCellValue: { fontSize: fontSize.base, color: colors.text, fontWeight: '600', marginTop: 2 },
   dayCellTotal: { color: colors.primary },
   chev: { position: 'absolute', right: spacing.sm, top: '50%' },
+  rollupInline: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: spacing.sm,
+    paddingVertical: 8, paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary + '14',
+    borderWidth: 1, borderColor: colors.primary + '30',
+    alignSelf: 'flex-start',
+  },
+  rollupInlineText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '700' },
 });

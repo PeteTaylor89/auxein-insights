@@ -1,4 +1,5 @@
 # schemas/map_feature.py - Map points of interest (Maps V2)
+import re
 from typing import Any, Dict, Optional
 from datetime import datetime
 from enum import Enum
@@ -7,12 +8,43 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class FeatureType(str, Enum):
+    """The five system types.
+
+    **No longer the validation boundary.** Companies define their own types in
+    `map_feature_types`, so the valid set is per-caller and needs a DB session —
+    which pydantic does not have. `feature_type` is now a plain slug string on
+    the schemas, and `api/v1/map_feature_types.resolve_feature_type()` does the
+    checking inside the endpoint.
+
+    This enum is kept because it still names the built-ins in code, but adding a
+    value here does nothing on its own — seed a system row in the migration
+    instead.
+
+    The `hazard` prohibition moved with the validation: hazards belong in
+    SiteRisk, the WorkSafe register, and the reserved-word guard in
+    api/v1/map_feature_types.py now enforces it. See
+    docs/plans/MAP_POI_CUSTOM_TYPES_2026-08-19.md §2.
+    """
     access = "access"
     infrastructure = "infrastructure"
     water = "water"
     amenity = "amenity"
     note = "note"
-    # No `hazard` — hazards belong in SiteRisk (the WorkSafe register).
+
+
+# Slug shape only — existence is checked against the caller's vocabulary in the
+# endpoint. Matches schemas/map_feature_type.slugify output.
+FEATURE_TYPE_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def validate_feature_type_slug(v):
+    if v is None:
+        return v
+    if not isinstance(v, str) or not FEATURE_TYPE_SLUG.match(v) or len(v) > 40:
+        raise ValueError(
+            "feature_type must be a lower-case slug such as 'access' or 'cattle-stop'"
+        )
+    return v
 
 
 _ALLOWED_GEOMETRY = {"Point", "LineString", "Polygon"}
@@ -42,7 +74,7 @@ def validate_geometry(v):
 
 
 class MapFeatureBase(BaseModel):
-    feature_type: FeatureType
+    feature_type: str = Field(..., min_length=1, max_length=40)
     name: str = Field(..., min_length=1, max_length=120)
     description: Optional[str] = None
     geometry: Dict[str, Any]  # GeoJSON
@@ -51,6 +83,7 @@ class MapFeatureBase(BaseModel):
     is_active: Optional[bool] = True
 
     _validate_geometry = field_validator("geometry")(validate_geometry)
+    _validate_feature_type = field_validator("feature_type")(validate_feature_type_slug)
 
 
 class MapFeatureCreate(MapFeatureBase):
@@ -61,7 +94,7 @@ class MapFeatureCreate(MapFeatureBase):
 
 
 class MapFeatureUpdate(BaseModel):
-    feature_type: Optional[FeatureType] = None
+    feature_type: Optional[str] = Field(None, min_length=1, max_length=40)
     name: Optional[str] = Field(None, min_length=1, max_length=120)
     description: Optional[str] = None
     geometry: Optional[Dict[str, Any]] = None
@@ -70,6 +103,7 @@ class MapFeatureUpdate(BaseModel):
     is_active: Optional[bool] = None
 
     _validate_geometry = field_validator("geometry")(validate_geometry)
+    _validate_feature_type = field_validator("feature_type")(validate_feature_type_slug)
 
 
 class MapFeatureResponse(MapFeatureBase):

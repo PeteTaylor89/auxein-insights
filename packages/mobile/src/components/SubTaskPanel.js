@@ -12,6 +12,14 @@
 // status, assignee, schedule and history; materialising them into task_rows
 // would create a second source of truth for the same work. So this mirrors
 // the Rows card's SHAPE without sharing its data model.
+//
+// The status circle does NOT complete the child. It used to, with an empty
+// payload — so a tap finished the task instantly with no hours, no notes and
+// no start, and the Undo it offered could never work: PATCH /tasks/{id}
+// refuses any update to a completed task (tasks.py, "Cannot update {status}
+// tasks"), which is the same guard that already hides Detach on a finished
+// row. Completing a child now goes through the standard path — open it, start
+// it, complete it with hours and notes — so there is nothing to undo.
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
@@ -74,46 +82,10 @@ export default function SubTaskPanel({ taskId, canEdit = true, onNavigate, refre
 
   useEffect(() => { load(); }, [load]);
 
-  // Offline, a write resolves with the queue's 202 stub and the read cache has
-  // no idea it happened — so reloading would paint the child back as
-  // outstanding and the tick would visibly bounce. Patch local state instead
-  // when the write was queued, and only re-read when it truly landed.
-  const applyLocal = useCallback((childId, patch) => {
-    setChildren(prev => sortChildren(
-      prev.map(c => (c.id === childId ? { ...c, ...patch } : c)),
-    ));
-  }, []);
-
-  const settle = useCallback(async (res, childId, optimistic) => {
-    if (res?.__queued) applyLocal(childId, optimistic);
-    else await load();
-  }, [applyLocal, load]);
-
-  const completeChild = async (child) => {
-    setBusyId(child.id);
-    try {
-      const res = await tasksService.completeTask(child.id, {});
-      await settle(res, child.id, { status: 'completed' });
-      toast.show(`Completed ${child.title || 'task'}`, 'success', undefined, {
-        label: 'Undo',
-        onPress: async () => {
-          try {
-            // completeTask stamps completed_at/by; writing the status back is
-            // the closest reversal the API offers — there's no reopen endpoint.
-            const undone = await tasksService.updateTask(child.id, { status: child.status });
-            await settle(undone, child.id, { status: child.status });
-          } catch {
-            toast.show('Could not undo that', 'error');
-          }
-        },
-      });
-    } catch (err) {
-      toast.show(err?.response?.data?.detail || 'Could not complete that task', 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
+  // Detach is the only write left in this panel. Offline it resolves with the
+  // queue's 202 stub and the read cache knows nothing about it, so reloading
+  // would paint the child straight back into the list — hence the local splice
+  // on `__queued` below, and a real re-read only when the write landed.
   const detachChild = async (child) => {
     setBusyId(child.id);
     try {
@@ -165,20 +137,19 @@ export default function SubTaskPanel({ taskId, canEdit = true, onNavigate, refre
         const busy = busyId === c.id;
         return (
           <View key={c.id} style={[styles.row, finished && styles.rowDone]}>
+            {/* Status only. Tapping it opens the child rather than doing
+                nothing, so the circle is not a dead target. */}
             <TouchableOpacity
-              onPress={() => !finished && completeChild(c)}
-              disabled={finished || busy || !canEdit}
+              onPress={() => onNavigate?.(c.id)}
               hitSlop={8}
               style={[styles.check, finished && styles.checkDone]}
-              accessibilityLabel={finished ? 'Already complete' : `Complete ${c.title}`}
+              accessibilityLabel={finished ? `${c.title}, complete. Open it` : `Open ${c.title}`}
             >
-              {busy
-                ? <ActivityIndicator size="small" color={colors.primary} />
-                : <Feather
-                    name={finished ? 'check-circle' : 'circle'}
-                    size={20}
-                    color={finished ? colors.success : colors.textMuted}
-                  />}
+              <Feather
+                name={finished ? 'check-circle' : 'circle'}
+                size={20}
+                color={finished ? colors.success : colors.textMuted}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -214,7 +185,9 @@ export default function SubTaskPanel({ taskId, canEdit = true, onNavigate, refre
                 style={styles.detach}
                 accessibilityLabel={`Remove ${c.title} from this roll-up`}
               >
-                <Feather name="x" size={16} color={colors.textMuted} />
+                {busy
+                  ? <ActivityIndicator size="small" color={colors.textMuted} />
+                  : <Feather name="x" size={16} color={colors.textMuted} />}
               </TouchableOpacity>
             )}
           </View>

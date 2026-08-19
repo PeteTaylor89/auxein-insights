@@ -4,12 +4,14 @@
 // ['geometry-type'], so points get symbol markers while lines and polygons get
 // their own layers off the same data — which is why the backend stores them in
 // one generic GEOMETRY column rather than three tables.
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { mapFeaturesService } from '@vineyard/shared';
 import { removeLayers } from '../utils/geometry';
+import { registerPoiTypeMarkers } from '../utils/mapIcons';
 import {
-  featureIconExpression,
-  featureColorExpression,
+  decorateFeatures,
+  MARKER_ID_PROP,
+  MARKER_COLOUR_PROP,
 } from '../components/mapFeatureTypes';
 
 const SOURCE_ID = 'v2-map-features';
@@ -29,9 +31,10 @@ export const MAP_FEATURE_CLICK_LAYERS = [POINT_LAYER_ID, LINE_LAYER_ID, FILL_LAY
  * @param {mapboxgl.Map|null} map
  * @param {boolean} mapReady
  * @param {boolean} visible
+ * @param {Object} vocabulary  useMapFeatureTypes(...) — {types, version}
  * @returns {{ mapFeaturesData, featureCount, loading, error, refresh }}
  */
-export default function useMapFeaturesLayer(map, mapReady, visible) {
+export default function useMapFeaturesLayer(map, mapReady, visible, vocabulary) {
   const [mapFeaturesData, setMapFeaturesData] = useState(null);
   const [featureCount, setFeatureCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -57,6 +60,19 @@ export default function useMapFeaturesLayer(map, mapReady, visible) {
     fetchFeatures();
   }, [fetchFeatures]);
 
+  // Resolve every feature to a concrete marker id + colour, and collect the
+  // distinct (icon, colour) pairs that need registering.
+  //
+  // Keyed on `vocabulary.version`, not on the types array: the hook hands back
+  // a fresh array on every load, so depending on the array itself would
+  // re-decorate — and therefore re-add the layers — on each poll. The version
+  // only moves when the vocabulary actually changed.
+  const decorated = useMemo(
+    () => decorateFeatures(mapFeaturesData, vocabulary?.types || []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mapFeaturesData, vocabulary?.version],
+  );
+
   useEffect(() => {
     if (!map || !mapReady || !mapFeaturesData) return;
 
@@ -67,7 +83,12 @@ export default function useMapFeaturesLayer(map, mapReady, visible) {
       if (!visible) return;
 
       try {
-        map.addSource(SOURCE_ID, { type: 'geojson', data: mapFeaturesData });
+        // Register BEFORE addLayer. A symbol layer whose icon-image names an
+        // unregistered id renders nothing at all — silently, with only a
+        // console warning — so a company type would simply be an invisible POI.
+        registerPoiTypeMarkers(map, decorated.specs);
+
+        map.addSource(SOURCE_ID, { type: 'geojson', data: decorated.data });
 
         // Polygons — translucent fill, drawn first so markers sit above it.
         map.addLayer({
@@ -76,7 +97,7 @@ export default function useMapFeaturesLayer(map, mapReady, visible) {
           source: SOURCE_ID,
           filter: ['==', ['geometry-type'], 'Polygon'],
           paint: {
-            'fill-color': featureColorExpression(),
+            'fill-color': ['get', MARKER_COLOUR_PROP],
             'fill-opacity': 0.18,
           },
         });
@@ -99,26 +120,32 @@ export default function useMapFeaturesLayer(map, mapReady, visible) {
           filter: ['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]],
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
-            'line-color': featureColorExpression(),
+            'line-color': ['get', MARKER_COLOUR_PROP],
             'line-width': 2,
             'line-opacity': 0.95,
           },
         });
 
-        // Points — one marker image per feature_type.
+        // Points — the marker id is resolved per feature and read straight
+        // off the data. It was a `match` on feature_type, which could not see a
+        // type added after the layer was built and could not express a
+        // per-feature override at all.
         //
-        // No zoom-based icon-opacity ramp here, unlike the assets layer: a POI
-        // is often the thing you are zooming OUT to find (where is the gate?),
-        // so fading it below z14 would hide it exactly when it is wanted. The
-        // label is still zoom-gated to stop dense sites turning into soup.
+        // Sizing and the zoom ramp match the other point layers rather than
+        // being special. POIs used to render at 0.75 against 0.9 for
+        // observations and risks, which read as a different class of thing, and
+        // they had no fade at all — the original reasoning was that a POI is
+        // what you zoom OUT to find. In practice that made a property with
+        // twenty gates and troughs unreadable at low zoom, so they now behave
+        // like every other marker: same size, same 12-to-14 fade as assets.
         map.addLayer({
           id: POINT_LAYER_ID,
           type: 'symbol',
           source: SOURCE_ID,
           filter: ['==', ['geometry-type'], 'Point'],
           layout: {
-            'icon-image': featureIconExpression(),
-            'icon-size': 0.75,
+            'icon-image': ['get', MARKER_ID_PROP],
+            'icon-size': 0.9,
             'icon-allow-overlap': true,
             'text-field': ['get', 'name'],
             'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
@@ -129,10 +156,12 @@ export default function useMapFeaturesLayer(map, mapReady, visible) {
             'text-optional': true,
           },
           paint: {
+            // Same curve as the assets layer: gone below z12, full by z14.
+            'icon-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 14, 1],
             'text-color': '#2F2F2F',
             'text-halo-color': '#ffffff',
             'text-halo-width': 1.5,
-            'text-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, 1],
+            'text-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 14, 1],
           },
         });
 
@@ -150,7 +179,9 @@ export default function useMapFeaturesLayer(map, mapReady, visible) {
         addedRef.current = false;
       }
     };
-  }, [map, mapReady, mapFeaturesData, visible]);
+    // `decorated` covers both the data and the vocabulary behind it, so adding
+    // a type re-adds the layers with the new images already registered.
+  }, [map, mapReady, mapFeaturesData, decorated, visible]);
 
   return { mapFeaturesData, featureCount, loading, error, refresh: fetchFeatures };
 }

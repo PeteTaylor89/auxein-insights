@@ -47,7 +47,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'Map Layers',
         description:
-          'Toggle curated data layers over your blocks: disease pressure, phenology stage, live weather station readings, spray efficiency heatmap, and risks.',
+          'Toggle curated data layers over your blocks: disease pressure, phenology stage, live weather station readings, points of interest, and risks.',
       },
       {
         name: 'Map Builder',
@@ -74,7 +74,7 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
       {
         name: 'Spray Tasks',
         description:
-          'Log spray applications with product, rate, block, operator, and GPS-tracked spray run coverage, assisted generation of spray diary records.',
+          'Log spray applications with product, rate, block and operator, with assisted generation of spray diary records.',
       },
       {
         name: 'Cost Tracking',
@@ -85,11 +85,6 @@ export const growFeatureGroups: GrowFeatureGroup[] = [
         name: 'Calendar View',
         description:
           'See all tasks, observations, training deadlines, maintenance due dates, and weather alerts in a unified colour-coded calendar.',
-      },
-      {
-        name: 'GPS Tractor Tracking',
-        description:
-          'Record GPS tracks for tractor-based tasks with progress logging.',
       },
     ],
   },

@@ -6,6 +6,8 @@ from typing import List, Optional, Union
 from datetime import date, datetime, timedelta
 import logging
 
+from core.local_time import local_today
+
 from db.session import get_db
 from db.models.asset import Asset, AssetMaintenance
 from db.models.user import User
@@ -79,7 +81,7 @@ def create_maintenance_record(
             # Otherwise calculate from scheduled date
             maintenance.next_due_date = maintenance.scheduled_date + timedelta(days=asset.maintenance_interval_days)
         else:
-            maintenance.next_due_date = date.today() + timedelta(days=asset.maintenance_interval_days)
+            maintenance.next_due_date = local_today() + timedelta(days=asset.maintenance_interval_days)
     
     db.add(maintenance)
     db.commit()
@@ -125,7 +127,7 @@ def list_maintenance_records(
     if scheduled_to:
         query = query.filter(AssetMaintenance.scheduled_date <= scheduled_to)
     if overdue_only:
-        today = date.today()
+        today = local_today()
         query = query.filter(
             and_(
                 AssetMaintenance.scheduled_date < today,
@@ -151,7 +153,7 @@ def get_maintenance_due(
 ):
     """Get maintenance items that are due or coming due"""
     company_id = current_user.company_id
-    today = date.today()
+    today = local_today()
     future_date = today + timedelta(days=days_ahead)
     
     logger.info(f"Getting maintenance due for company {company_id}, {days_ahead} days ahead")
@@ -274,7 +276,7 @@ def update_maintenance_record(
     # If marking as completed, set completion date and calculate next due date
     if maintenance_update.status == "completed":
         if not maintenance.completed_date:
-            maintenance.completed_date = date.today()
+            maintenance.completed_date = local_today()
         
         # Calculate next scheduled maintenance
         asset = db.query(Asset).filter(Asset.id == maintenance.asset_id).first()

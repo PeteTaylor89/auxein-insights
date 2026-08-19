@@ -320,6 +320,23 @@ body.maps-fullscreen .app-main {
   color: var(--color-primary);
 }
 
+/* Map feature (POI) types.
+ *
+ * ONE chip style for every type, whatever colour the type is. Taking the type
+ * colour as the background made the label's legibility depend on which colour
+ * someone happened to pick — and a pale badge with white text is unreadable.
+ * The glyph carries the colour instead, which is the half worth keeping: it
+ * ties the chip back to the pin that was clicked. */
+.v2-popup-badge--feature {
+  background: var(--color-surface-warm);
+  color: var(--color-text);
+  gap: 6px;
+}
+
+.v2-popup-badge--feature svg {
+  flex: 0 0 auto;
+}
+
 .v2-popup-badge--other {
   background: #f1f5f9;
   color: var(--color-text-muted);
@@ -932,6 +949,46 @@ body.maps-fullscreen .app-main {
   color: var(--color-text-muted);
   margin: 0 0 var(--space-sm);
   line-height: 1.4;
+}
+
+/* Label with a trailing action — used by the POI type picker's "Manage types". */
+.v2-form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/* NOTE: `padding: 0` is deliberate. The app's global `button { padding: 8px 16px }`
+   would otherwise pad this inline link out into a block. */
+.v2-form-linkbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.v2-form-linkbtn:hover {
+  text-decoration: underline;
+}
+
+/* Marker preview sitting beside the type select, so the chosen appearance is
+   visible while choosing rather than only after saving. */
+.v2-form-typerow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.v2-form-typerow .v2-form-select {
+  flex: 1;
+  min-width: 0;
 }
 
 .v2-form-checkbox-group {

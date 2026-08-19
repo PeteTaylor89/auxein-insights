@@ -4,6 +4,8 @@ from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
+from core.local_time import local_today
+
 from db.models.visitor import Visitor, VisitorVisit
 from db.models.user import User
 from db.models.company import Company
@@ -141,7 +143,7 @@ class VisitorService:
         
         # Set visit_date to today if not provided
         if not visit_data.visit_date:
-            visit_data.visit_date = date.today()
+            visit_data.visit_date = local_today()
         
         # Verify visitor exists and is active
         visitor = self.get_visitor(visit_data.visitor_id, current_user.company_id)
@@ -330,7 +332,7 @@ class VisitorService:
     
     def get_visitor_stats(self, company_id: int, days: int = 30) -> VisitorStats:
         """Get visitor statistics for a company"""
-        start_date = date.today() - timedelta(days=days)
+        start_date = local_today() - timedelta(days=days)
         
         # Total visitors
         total_visitors = self.db.query(func.count(Visitor.id)).filter(
@@ -359,7 +361,7 @@ class VisitorService:
         ).scalar() or 0
         
         # Visits this month
-        month_start = date.today().replace(day=1)
+        month_start = local_today().replace(day=1)
         visits_this_month = self.db.query(func.count(VisitorVisit.id)).filter(
             VisitorVisit.company_id == company_id,
             VisitorVisit.visit_date >= month_start

@@ -109,9 +109,15 @@ export default function HomeScreen({ navigation }) {
 
       {/* Property switcher + onsite chip — context bar below header.
           Manager+ users get an "All properties" option (handled in the picker
-          modal below) which surfaces unscoped data across all visible properties. */}
-      {properties.length > 0 && (
-        <View style={styles.contextBar}>
+          modal below) which surfaces unscoped data across all visible properties.
+
+          The BAR is not gated on properties — only the property pill is. The
+          on-site chip is the only route to the visitor register anywhere in the
+          app, and gating it on property count meant a user with no properties
+          in scope could sign a visitor IN from the FAB and then have no way to
+          sign them out. */}
+      <View style={styles.contextBar}>
+        {properties.length > 0 && (
           <TouchableOpacity
             style={styles.propertyPill}
             onPress={() => (properties.length > 1 || isManagerOrAbove) && setShowPropertyPicker(true)}
@@ -129,19 +135,24 @@ export default function HomeScreen({ navigation }) {
               <Feather name="chevron-down" size={16} color={colors.textMuted} />
             )}
           </TouchableOpacity>
+        )}
 
-          <TouchableOpacity
-            style={styles.onsiteChip}
-            onPress={() => navigation.navigate('Visitors')}
-            activeOpacity={0.7}
-          >
-            <Feather name="users" size={14} color={colors.primary} />
-            <Text style={styles.onsiteText}>
-              {activeOnSiteCount > 0 ? `${activeOnSiteCount} on site` : 'On site'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* Reads as a route, not a status label — the chevron is the whole
+            point, since this is where signing a visitor OUT lives. */}
+        <TouchableOpacity
+          style={styles.onsiteChip}
+          onPress={() => navigation.navigate('Visitors')}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Who's on site"
+        >
+          <Feather name="users" size={14} color={colors.primary} />
+          <Text style={styles.onsiteText}>
+            {activeOnSiteCount > 0 ? `${activeOnSiteCount} on site` : "Who's on site"}
+          </Text>
+          <Feather name="chevron-right" size={14} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -479,6 +490,9 @@ const styles = StyleSheet.create({
   propertyName: { color: colors.text, fontSize: fontSize.base, fontWeight: '600', flexShrink: 1 },
   onsiteChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
+    // Always hard right, so it holds its place whether or not the property
+    // pill is rendered beside it.
+    marginLeft: 'auto',
     backgroundColor: colors.primary + '14',
     paddingHorizontal: spacing.md, paddingVertical: 8,
     borderRadius: radius.pill,

@@ -1,0 +1,180 @@
+/* maps-v2/components/MapFeatureTypeManager.css
+ *
+ * PADDING: the app has a global `button { padding: 8px 16px }`. Square icon
+ * buttons here set `padding: 0` explicitly or the glyph gets clipped. Same note
+ * as PoiIconPicker.css — do not remove it as redundant.
+ */
+
+.mft-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base, 16px);
+}
+
+.mft-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+}
+
+.mft-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm, 8px);
+}
+
+.mft-section__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #666);
+}
+
+.mft-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary, #5b6830);
+  background: transparent;
+  border: 1px dashed var(--color-primary, #5b6830);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+}
+
+.mft-add:hover {
+  background: var(--color-surface-warm, #f9fafb);
+}
+
+.mft-empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted, #666);
+}
+
+/* --- rows --- */
+
+.mft-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 12px);
+  padding: var(--space-sm, 8px);
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+}
+
+.mft-row.is-retired {
+  opacity: 0.6;
+  background: var(--color-surface-warm, #f9fafb);
+}
+
+.mft-row.is-locked {
+  background: var(--color-surface-warm, #f9fafb);
+}
+
+.mft-row__text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  flex: 1;
+  min-width: 0;
+}
+
+.mft-row__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #2f2f2f);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mft-row__tag {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-border, #e5e7eb);
+  color: var(--color-text-muted, #666);
+}
+
+.mft-row__actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.mft-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0; /* see header note */
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-text-muted, #666);
+  cursor: pointer;
+}
+
+.mft-icon-btn:hover:not(:disabled) {
+  background: var(--color-surface-warm, #f9fafb);
+  border-color: var(--color-border, #e5e7eb);
+  color: var(--color-text, #2f2f2f);
+}
+
+.mft-icon-btn--danger:hover:not(:disabled) {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.mft-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mft-lock {
+  flex: 0 0 auto;
+  color: var(--color-text-muted, #666);
+  opacity: 0.6;
+}
+
+/* --- create / edit --- */
+
+.mft-create,
+.mft-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 12px);
+  width: 100%;
+  padding: var(--space-md, 12px);
+  background: var(--color-surface-warm, #f9fafb);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+}
+
+.mft-actions {
+  margin-top: 0;
+}
+
+.mft-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-muted, #666);
+}
+
+.mft-note--foot {
+  padding-top: var(--space-sm, 8px);
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}

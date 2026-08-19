@@ -14,6 +14,7 @@ from db.models.parcel_sync_log import ParcelSyncLog
 from db.models.company_land_ownership import CompanyLandOwnership
 from db.models.spatial_area import SpatialArea
 from db.models.map_feature import MapFeature
+from db.models.map_feature_type import MapFeatureType
 from db.models.visitor import Visitor, VisitorVisit
 from db.models.site_risk import SiteRisk
 from db.models.risk_action import RiskAction

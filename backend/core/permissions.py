@@ -139,6 +139,15 @@ PERMISSIONS: dict[str, dict[str, list[str]]] = {
         "import": [UserType.auxein_admin, UserType.company_admin],
         "delete": [UserType.auxein_admin, UserType.company_admin],
     },
+    # The POI vocabulary is shared state — one person's new type shows in
+    # everyone's picker and legend — so creating one is manager+, while reading
+    # the list stays open to anyone who can see the map.
+    "map_feature_types": {
+        "create": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
+        "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager, UserType.company_user, UserType.contractor],
+        "update": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
+        "delete": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
+    },
     "spatial_areas": {
         "create": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
         "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager, UserType.company_user],

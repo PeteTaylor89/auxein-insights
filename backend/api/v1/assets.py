@@ -6,6 +6,8 @@ from typing import List, Optional, Union
 from datetime import date, datetime, timedelta
 import logging
 
+from core.local_time import local_today
+
 from db.session import get_db
 from db.models.asset import Asset, AssetMaintenance, AssetCalibration, AssetCalibrationSpec, StockMovement
 from db.models.user import User
@@ -251,7 +253,7 @@ def create_asset(
                 db.add(spec_row)
                 db.flush()  # need spec_row.id before scheduling
                 create_pending_schedule(
-                    db, asset, due_date=(spec_in.first_due_date or date.today()),
+                    db, asset, due_date=(spec_in.first_due_date or local_today()),
                     calibration_type=spec_in.calibration_type,
                     parameter_name=spec_in.parameter_name,
                     unit_of_measure=spec_in.unit_of_measure,
@@ -267,7 +269,7 @@ def create_asset(
     elif asset.requires_calibration:
         try:
             from api.v1.calibrations import create_pending_schedule
-            initial_due = asset_in.first_calibration_date or date.today()
+            initial_due = asset_in.first_calibration_date or local_today()
             create_pending_schedule(
                 db, asset, due_date=initial_due,
                 calibration_type=asset.calibration_type or "general",
@@ -539,7 +541,7 @@ def get_asset_stats(
     ).scalar() or 0
     
     # Assets needing maintenance (simplified check)
-    today = date.today()
+    today = local_today()
     assets_needing_maintenance = db.query(func.count(func.distinct(AssetMaintenance.asset_id))).filter(
         AssetMaintenance.company_id == company_id,
         AssetMaintenance.scheduled_date.isnot(None),
@@ -581,7 +583,7 @@ def get_asset_stats(
     ).scalar() or 0
     
     # Compliance alerts (WOF, registration, insurance due within 30 days)
-    today = date.today()
+    today = local_today()
     thirty_days_from_now = today + timedelta(days=30)
     compliance_alerts = db.query(func.count(Asset.id)).filter(
         Asset.company_id == company_id,
@@ -611,7 +613,7 @@ def get_compliance_alerts(
 ):
     """Get compliance alerts (WOF, registration, insurance expiring soon)"""
     company_id = current_user.company_id
-    today = date.today()
+    today = local_today()
     cutoff_date = today + timedelta(days=days_ahead)
     
     alerts = []
@@ -740,7 +742,7 @@ def get_asset(
     
         if latest_calibration:
             next_due = latest_calibration.calibration_date + timedelta(days=asset.calibration_interval_days)
-            today = date.today()
+            today = local_today()
             days_until_due = (next_due - today).days
             
             # Add computed fields (these would need to be added to AssetResponse schema)
@@ -895,7 +897,7 @@ def update_asset(
 
             if not pending:
                 create_pending_schedule(
-                    db, asset, due_date=date.today(),
+                    db, asset, due_date=local_today(),
                     calibration_type=new_type,
                     parameter_name=asset.calibration_parameter_name,
                     unit_of_measure=asset.calibration_unit_of_measure,
@@ -1163,7 +1165,7 @@ def create_calibration_spec(
     # (in case the user is replacing a deactivated spec — leave the existing schedule alone).
     from api.v1.calibrations import create_pending_schedule
     create_pending_schedule(
-        db, asset, due_date=(spec_in.first_due_date or date.today()),
+        db, asset, due_date=(spec_in.first_due_date or local_today()),
         calibration_type=spec_in.calibration_type,
         parameter_name=spec_in.parameter_name,
         unit_of_measure=spec_in.unit_of_measure,

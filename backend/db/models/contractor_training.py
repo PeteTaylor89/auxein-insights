@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from db.base_class import Base
 from datetime import datetime, timezone, date, timedelta
+from core.local_time import local_today
 
 class ContractorTraining(Base):
     __tablename__ = "contractor_training"
@@ -117,28 +118,28 @@ class ContractorTraining(Base):
         """Check if training is overdue"""
         if not self.due_date or self.status in ["completed", "failed", "expired"]:
             return False
-        return date.today() > self.due_date
+        return local_today() > self.due_date
     
     @property
     def days_overdue(self):
         """Get number of days overdue"""
         if not self.is_overdue:
             return 0
-        return (date.today() - self.due_date).days
+        return (local_today() - self.due_date).days
     
     @property
     def is_expired(self):
         """Check if completed training has expired"""
         if self.status != "completed" or not self.valid_until:
             return False
-        return date.today() > self.valid_until
+        return local_today() > self.valid_until
     
     @property
     def days_until_expiry(self):
         """Get days until training expires"""
         if not self.valid_until or self.status != "completed":
             return None
-        delta = self.valid_until - date.today()
+        delta = self.valid_until - local_today()
         return max(0, delta.days)
     
     @property
@@ -251,7 +252,7 @@ class ContractorTraining(Base):
             # Set validity period if training expires
             if self.renewal_required and hasattr(self, 'training_module'):
                 if hasattr(self.training_module, 'valid_for_days') and self.training_module.valid_for_days:
-                    self.valid_until = date.today() + timedelta(days=self.training_module.valid_for_days)
+                    self.valid_until = local_today() + timedelta(days=self.training_module.valid_for_days)
         else:
             self.passed = False
             if self.attempts >= self.max_attempts:
@@ -273,7 +274,7 @@ class ContractorTraining(Base):
         """Reset training for renewal"""
         self.status = "assigned"
         self.assigned_by = assigned_by_user_id
-        self.assigned_date = date.today()
+        self.assigned_date = local_today()
         self.due_date = new_due_date
         self.started_at = None
         self.completed_at = None
@@ -293,7 +294,7 @@ class ContractorTraining(Base):
     def send_renewal_notification(self):
         """Mark that renewal notification has been sent"""
         self.renewal_notification_sent = True
-        self.renewal_notification_date = date.today()
+        self.renewal_notification_date = local_today()
     
     def assign_supervisor(self, supervisor_user_id: int):
         """Assign a supervisor for this training"""

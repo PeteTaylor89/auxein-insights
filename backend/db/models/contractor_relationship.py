@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from db.base_class import Base
 from datetime import datetime, timezone, date
+from core.local_time import local_today
 
 class ContractorRelationship(Base):
     __tablename__ = "contractor_relationships"
@@ -92,7 +93,7 @@ class ContractorRelationship(Base):
         if not self.contract_start and not self.contract_end:
             return True  # No contract period specified = ongoing
         
-        today = date.today()
+        today = local_today()
         
         if self.contract_start and today < self.contract_start:
             return False  # Contract hasn't started yet
@@ -116,9 +117,9 @@ class ContractorRelationship(Base):
             return f"Inactive ({self.status})"
         
         if not self.is_contract_current:
-            if self.contract_end and date.today() > self.contract_end:
+            if self.contract_end and local_today() > self.contract_end:
                 return "Contract Expired"
-            elif self.contract_start and date.today() < self.contract_start:
+            elif self.contract_start and local_today() < self.contract_start:
                 return "Contract Pending"
         
         return "Active"
@@ -129,7 +130,7 @@ class ContractorRelationship(Base):
         if not self.contract_end:
             return None
         
-        delta = self.contract_end - date.today()
+        delta = self.contract_end - local_today()
         return max(0, delta.days)
     
     @property
@@ -195,7 +196,7 @@ class ContractorRelationship(Base):
         
         # Increment job count
         self.jobs_completed_for_company += 1
-        self.last_worked_date = date.today()
+        self.last_worked_date = local_today()
         
         # Update hours and payment if provided
         if hours_worked:
@@ -208,7 +209,7 @@ class ContractorRelationship(Base):
         """Terminate the contractor relationship"""
         self.status = "terminated"
         self.terminated_by = terminated_by_user_id
-        self.termination_date = date.today()
+        self.termination_date = local_today()
         self.termination_reason = reason
     
     def suspend_relationship(self, reason: str = None):

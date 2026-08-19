@@ -72,6 +72,23 @@ class TimesheetDayCreate(TimesheetDayBase):
     pass
 
 
+class TimesheetUncodedUpdate(BaseModel):
+    """Time NOT against any task — the only hours figure a user types.
+
+    The day total is entry_hours + uncoded_hours and is computed, so there is
+    nothing to declare and nothing to roll up.
+    """
+    hours: Decimal = Field(..., ge=0, le=24, description="Uncoded hours, 0.25 steps")
+
+    @validator("hours")
+    def validate_uncoded(cls, v: Decimal):
+        if v is None:
+            return v
+        if (v * 4) % 1 != 0:
+            raise ValueError("Uncoded hours must be in 0.25 increments")
+        return v
+
+
 class TimesheetDayUpdate(BaseModel):
     day_hours: Optional[Decimal] = None
     notes: Optional[str] = None

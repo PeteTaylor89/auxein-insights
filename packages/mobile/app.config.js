@@ -59,8 +59,48 @@ if (!variant) {
   );
 }
 
+// --- .env ------------------------------------------------------------------
+// `.env` documents itself as "loaded by Expo at config-resolve time", and this
+// file's own header said API_URL falls back to app.json — both were true at
+// once, which is the contradiction. Expo only auto-exposes `EXPO_PUBLIC_*`
+// names, so a plain `API_URL=` in .env never reached `process.env` and the
+// app.json default (production) silently won. Editing .env to point at a local
+// backend appeared to do nothing, and every endpoint newer than the last deploy
+// returned 404 while Metro and the backend were restarted in vain.
+//
+// Parsed here rather than via dotenv so no dependency is added: touching
+// mobile package.json changes the native fingerprint and would force a dev
+// client rebuild for what is a config-time convenience.
+//
+// Real environment variables still win, so EAS builds are unaffected.
+function loadDotEnv() {
+  const fs = require('fs');
+  const path = require('path');
+  const file = path.join(__dirname, '.env');
+  if (!fs.existsSync(file)) return;
+  for (const raw of fs.readFileSync(file, 'utf8').split(String.fromCharCode(10))) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+loadDotEnv();
+
 module.exports = ({ config }) => {
   const apiUrl = process.env.API_URL || config.extra?.apiUrl;
+  // Loud, because pointing at the wrong backend is invisible from inside the
+  // app — it just 404s on anything the deployed build does not have.
+  console.log(`[app.config] API_URL -> ${apiUrl}`);
   const mapboxPublicToken = process.env.MAPBOX_PUBLIC_TOKEN || '';
   const mapboxDownloadToken = process.env.MAPBOX_DOWNLOAD_TOKEN || '';
 

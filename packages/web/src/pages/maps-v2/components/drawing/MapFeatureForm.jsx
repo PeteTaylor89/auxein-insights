@@ -1,8 +1,14 @@
 // maps-v2/components/drawing/MapFeatureForm.jsx — Create/edit a map feature (POI)
+//
+// The type list is no longer the static MAP_FEATURE_TYPES array: it is the
+// company's own vocabulary, loaded through useMapFeatureTypes. A manager can
+// add a type without leaving this form — naming a thing you are already
+// pinning should not mean abandoning the pin.
 import { useState, useEffect } from 'react';
-import { X, Save, Loader, Trash2 } from 'lucide-react';
+import { X, Save, Loader, Trash2, Settings2 } from 'lucide-react';
 import { mapFeaturesService } from '@vineyard/shared';
-import { MAP_FEATURE_TYPES, FEATURE_TYPE_BY_VALUE } from '../mapFeatureTypes';
+import MapFeatureTypeManager from '../MapFeatureTypeManager';
+import { PoiMarkerPreview } from '../PoiIconPicker';
 
 const GEOMETRY_LABEL = {
   Point: 'point',
@@ -24,10 +30,13 @@ export default function MapFeatureForm({
   existingFeature = null,
   geometry,
   properties = [],
+  vocabulary,
+  canManageTypes = false,
   onSubmit,
   onCancel,
 }) {
   const isEditing = !!existingFeature;
+  const [showTypeManager, setShowTypeManager] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -136,9 +145,35 @@ export default function MapFeatureForm({
 
   if (!isOpen) return null;
 
+  if (showTypeManager) {
+    return (
+      <MapFeatureTypeManager
+        isOpen
+        vocabulary={vocabulary}
+        canManage={canManageTypes}
+        seedLabel={form.name.trim() || null}
+        onCreated={(row) => {
+          // Select what was just created — that is why they opened it.
+          setForm((prev) => ({ ...prev, feature_type: row.slug }));
+          setShowTypeManager(false);
+        }}
+        onClose={() => setShowTypeManager(false)}
+      />
+    );
+  }
+
   const drawnKind = geometry?.type ? GEOMETRY_LABEL[geometry.type] : null;
-  const selectedType = FEATURE_TYPE_BY_VALUE[form.feature_type];
+  const selectableTypes = vocabulary?.selectableTypes || [];
+  const selectedType = vocabulary?.typeBySlug?.[form.feature_type] || null;
   const busy = saving || deleting;
+
+  // A feature can outlive its type — retired, or created before this company
+  // trimmed its list. Keep showing it as the current value rather than silently
+  // resetting the select to "Select type...", which reads as data loss.
+  const orphanedType =
+    form.feature_type && !selectableTypes.some((t) => t.slug === form.feature_type)
+      ? form.feature_type
+      : null;
 
   return (
     <div className="v2-form-panel">
@@ -174,19 +209,60 @@ export default function MapFeatureForm({
         </div>
 
         <div className="v2-form-group">
-          <label className="v2-form-label">Type *</label>
-          <select
-            className="v2-form-select"
-            value={form.feature_type}
-            onChange={handleChange('feature_type')}
-          >
-            <option value="">Select type...</option>
-            {MAP_FEATURE_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-          {selectedType && (
-            <div className="v2-form-hint">{selectedType.hint}</div>
+          <div className="v2-form-label-row">
+            <label className="v2-form-label">Type *</label>
+            {canManageTypes && (
+              <button
+                type="button"
+                className="v2-form-linkbtn"
+                onClick={() => setShowTypeManager(true)}
+              >
+                <Settings2 size={12} /> Manage types
+              </button>
+            )}
+          </div>
+
+          <div className="v2-form-typerow">
+            {selectedType && (
+              <PoiMarkerPreview
+                icon={selectedType.icon}
+                colour={selectedType.colour}
+                size={30}
+              />
+            )}
+            <select
+              className="v2-form-select"
+              value={form.feature_type}
+              onChange={(e) => {
+                // The sentinel is not a type — it opens the manager with the
+                // name already typed, so a new type takes one detour, not two.
+                if (e.target.value === '__new__') {
+                  setShowTypeManager(true);
+                  return;
+                }
+                handleChange('feature_type')(e);
+              }}
+            >
+              <option value="">Select type...</option>
+              {orphanedType && (
+                <option value={orphanedType}>{orphanedType} (retired)</option>
+              )}
+              {selectableTypes.map((t) => (
+                <option key={t.slug} value={t.slug}>{t.label}</option>
+              ))}
+              {canManageTypes && <option value="__new__">+ New type…</option>}
+            </select>
+          </div>
+
+          {orphanedType && (
+            <div className="v2-form-hint">
+              This type has been retired. The feature keeps it until you pick another.
+            </div>
+          )}
+          {vocabulary?.usedFallback && (
+            <div className="v2-form-hint">
+              Showing the built-in types only — the type list could not be loaded.
+            </div>
           )}
         </div>
 

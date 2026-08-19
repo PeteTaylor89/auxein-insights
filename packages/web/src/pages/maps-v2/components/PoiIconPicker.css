@@ -1,0 +1,129 @@
+/* maps-v2/components/PoiIconPicker.css
+ *
+ * NOTE ON PADDING: the app has a global `button { padding: 8px 16px }`, which
+ * turns every square icon button into a wide rectangle and clips the glyph.
+ * Every button rule here therefore sets `padding: 0` explicitly. This has bitten
+ * the web app before — do not remove it because it "looks redundant".
+ */
+
+.poi-icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 12px);
+}
+
+.poi-icon-picker__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 12px);
+}
+
+.poi-icon-picker__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted, #6b7280);
+}
+
+/* The badge, matching createMarkerImage: filled circle, white ring, centred
+   glyph at 55% of the diameter. */
+.poi-marker-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px #fff, 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* --- colour swatches --- */
+
+.poi-icon-picker__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.poi-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0; /* see header note */
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.poi-swatch:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.poi-swatch.is-selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--color-primary, #5b6830);
+}
+
+.poi-swatch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- glyph grid --- */
+
+.poi-icon-picker__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+  /* Fifty glyphs in six groups. Tall enough that two groups are visible at
+     once, so the grid reads as browsable rather than as a keyhole. */
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.poi-icon-group__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted, #6b7280);
+  margin-bottom: 4px;
+}
+
+.poi-icon-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 6px;
+}
+
+.poi-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0; /* see header note */
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.poi-icon-btn:hover:not(:disabled) {
+  border-color: var(--color-primary, #5b6830);
+  background: var(--color-surface-warm, #f9fafb);
+}
+
+.poi-icon-btn.is-selected {
+  border-color: var(--color-primary, #5b6830);
+  border-width: 2px;
+  background: var(--color-surface-warm, #f9fafb);
+}
+
+.poi-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

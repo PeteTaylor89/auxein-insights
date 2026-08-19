@@ -35,7 +35,7 @@
 // CONTAINS the on-screen view and picks up a little extra on one axis. Extra is
 // the only safe direction; cropping would silently drop something you could see.
 import mapboxgl from 'mapbox-gl';
-import { registerMapIcons } from './mapIcons';
+import { registerMapIcons, registerKnownPoiMarkers } from './mapIcons';
 import { MANAGEMENT_LAYERS } from '../components/managementLayerRegistry';
 
 // Paper sizes in millimetres, portrait (w x h). A0-A4 per Pete.
@@ -327,6 +327,12 @@ export function renderMapToCanvas(liveMap, {
         // of them. Without this every symbol layer renders nothing and the POI,
         // task, observation and asset markers are simply absent from the print.
         registerMapIcons(exportMap);
+        // The fixed markers above are only half of it now. A company POI type
+        // draws with an image built on demand for its (icon, colour) pair, and
+        // those are not in MARKER_SPECS — so the clone replays whatever the live
+        // map registered. Skip this and custom POIs render perfectly on screen
+        // and come out blank on the sheet.
+        registerKnownPoiMarkers(exportMap);
       });
 
       // 'idle' — NOT 'load'. `load` fires once the style and the first tiles are

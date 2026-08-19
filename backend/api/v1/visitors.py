@@ -4,6 +4,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
+from core.local_time import local_today
+
 from api.deps import get_db, get_current_user
 from db.models.user import User
 from db.models.visitor import Visitor
@@ -473,7 +475,7 @@ def get_visitor_dashboard(
     # Get today's visits
     today_visits = service.get_visits(
         current_user.company_id, 
-        visit_date=date.today(),
+        visit_date=local_today(),
         limit=50
     )
     
