@@ -100,6 +100,19 @@ class UserListItem(BaseModel):
     marketing_opt_in: bool
     research_opt_in: bool
     
+    # Subscription. `subscription_tier` is the stored value and `is_pro` is the
+    # DECISION — 'grow' counts as Pro and an expired 'pro' does not, so an admin
+    # screen that renders the tier string alone will disagree with what the user
+    # actually sees. Both travel together deliberately.
+    subscription_tier: str
+    is_pro: bool
+    pro_started_at: Optional[datetime] = None
+    pro_expires_at: Optional[datetime] = None
+    pro_site_quota: int = 0
+    # 'grow' rows are password-less projections of a Grow user and their Pro
+    # entitlement follows that relationship, not an Insights subscription.
+    origin: str = "signup"
+
     login_count: int
     last_login: Optional[datetime]
     last_active: Optional[datetime]
@@ -127,9 +140,28 @@ class UserDetailResponse(UserListItem):
 
 
 class UserUpdateRequest(BaseModel):
-    """Admin update for user (limited fields)."""
+    """Admin update for user.
+
+    Subscription fields are here because there is otherwise NO way to make
+    somebody Pro: nothing in the product writes `subscription_tier='pro'`, and
+    until this existed the only route was an UPDATE in psql.
+
+    `subscription_tier` accepts 'free' and 'pro' only. 'grow' is written by
+    `insights_profile.ensure_insights_profile` from the SSO handshake and means
+    "this row is a projection of a Grow user"; setting it by hand would claim a
+    relationship that does not exist and survive the next sync.
+    """
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+
+    subscription_tier: Optional[str] = None
+    # None means open-ended, which is NOT the same as "no change" — send
+    # `clear_pro_expiry` to distinguish, since a JSON null cannot.
+    pro_expires_at: Optional[datetime] = None
+    clear_pro_expiry: Optional[bool] = None
+    # A point subscription is priced separately and stacks, so this is set
+    # independently of the tier. 0 means Pro without a saved site.
+    pro_site_quota: Optional[int] = None
 
 
 class ActivityTimelineItem(BaseModel):

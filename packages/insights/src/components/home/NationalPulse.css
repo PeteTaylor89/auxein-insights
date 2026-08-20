@@ -79,10 +79,68 @@
   white-space: nowrap;
 }
 
+/* When the reading was taken, and where. Sits under the station name in a
+   lighter weight — it qualifies the number without competing with it. */
+.pulse-tile__when {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--font-xs);
+  color: var(--text-light);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pulse-tile__where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Separates the region from the timestamp without spending a character on a
+   bullet when there is no region to separate. */
+.pulse-tile__where::before {
+  content: '·';
+  margin-right: 6px;
+}
+
+/* A tile is only a link when its station sits in a wine zone, so the affordance
+   has to be visible on the tile itself rather than assumed from position. */
+a.pulse-tile--link {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+a.pulse-tile--link:hover,
+a.pulse-tile--link:focus-visible {
+  border-color: rgba(68, 97, 69, 0.45);
+  transform: translateY(-1px);
+}
+
 .national-pulse__footnote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
   margin: 10px 0 0;
   font-size: var(--font-sm);
   color: var(--text-light);
+}
+
+/* The live mark. The whole reason the strip moved to raw observations is so
+   this line can say "49 minutes ago" instead of a date two days back, so it
+   gets the dot and the emphasis. */
+.national-pulse__livemark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.national-pulse__livemark svg {
+  color: var(--primary);
+  flex-shrink: 0;
 }
 
 .national-pulse__footnote a {
@@ -93,7 +151,7 @@
 /* Skeletons match the real tile height so the hero does not jump when the
    numbers arrive. */
 .pulse-tile--skeleton {
-  min-height: 62px;
+  min-height: 78px;
   border-color: rgba(0, 0, 0, 0.05);
   background: linear-gradient(90deg, #F4F4F1 25%, #EAEAE5 37%, #F4F4F1 63%);
   background-size: 400% 100%;

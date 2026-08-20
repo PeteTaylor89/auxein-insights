@@ -130,6 +130,7 @@ const UserTable = ({ users, sortBy, sortOrder, onSort }) => {
               </th>
               <th>Type</th>
               <th>Region</th>
+              <th>Plan</th>
               <th>Status</th>
               <th className="sortable" onClick={() => onSort('login_count')}>
                 Logins {sortBy === 'login_count' && (sortOrder === 'asc' ? '↑' : '↓')}
@@ -169,6 +170,26 @@ const UserTable = ({ users, sortBy, sortOrder, onSort }) => {
                       {formatUserType(user.region_of_interest)}
                     </span>
                   ) : '-'}
+                </td>
+                <td>
+                  {/* `is_pro` is the decision, not the tier string: 'grow' is
+                      Pro and an expired 'pro' is not. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {user.is_pro ? (
+                      <span className="badge badge-purple">
+                        {user.subscription_tier === 'grow' ? 'Pro · Grow' : 'Pro'}
+                      </span>
+                    ) : user.subscription_tier === 'pro' ? (
+                      <span className="badge badge-red">Lapsed</span>
+                    ) : (
+                      <span className="text-muted">Free</span>
+                    )}
+                    {user.pro_site_quota > 0 && (
+                      <span className="badge badge-indigo">
+                        {user.pro_site_quota} site{user.pro_site_quota === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>

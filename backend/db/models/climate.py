@@ -40,6 +40,20 @@ class ClimateZone(Base):
     # Boundary geometry for map layer (WGS84)
     geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=True)
 
+    # The same boundary trimmed to the LINZ coastline, for DRAWING only.
+    # `geometry` stays authoritative for anything that asks "which zone is this
+    # point in" — a coastal Pro site whose 500 m cell centre is water must still
+    # resolve to its region. Derived and rebuildable: see
+    # backend/scripts/fetch_nz_coastline.py. NULL means never clipped, and
+    # /zones falls back to `geometry`.
+    geometry_clipped = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=True)
+
+    # Where the zone's NAME is drawn on the Atlas. Precomputed on the part
+    # holding the most registered vine area, because ranking parts by area puts
+    # Auckland's label on an island in the gulf. NULL falls back to a point on
+    # the largest part, computed per request.
+    label_point = Column(Geometry('POINT', srid=4326), nullable=True)
+
     # Display settings
     display_order = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)

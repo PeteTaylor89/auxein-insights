@@ -17,14 +17,14 @@
  */
 
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { Link } from 'react-router-dom';
 import '../../utils/chartDefaults'; // compact Chart.js legends app-wide (side-effect)
 import {
-  X, Info, HelpCircle, CloudSunRain, Grape,
+  X, Info, CloudSunRain, Grape,
   ShieldCheck, History, ChartSpline, Loader
 } from 'lucide-react';
 import ZoneSelector from './ZoneSelector';
 import ZoneSelectorRealtime from './ZoneSelectorRealtime';
-import ClimateAbout from './ClimateAbout';
 import WinterHoldingPage from './WinterHoldingPage';
 import { ClimateErrorBoundary } from './ClimateErrorCard';
 import { isGrowingSeason } from '../../utils/season';
@@ -37,7 +37,6 @@ const ProjectionsExplorer = lazy(() => import('./ProjectionsExplorer'));
 import { 
   trackClimateViewOpened, 
   trackClimateViewChanged,
-  trackClimateAboutOpened,
   trackClimateZoneSelected,
   cleanupClimateTracking 
 } from '../../utils/analytics';
@@ -109,7 +108,6 @@ const PublicClimateContainer = ({
   const [selectedZone, setSelectedZone] = useState(null);
   const [comparisonZones, setComparisonZones] = useState([]);
   const [activeView, setActiveView] = useState(initialView);
-  const [showAbout, setShowAbout] = useState(false);
   const tabsRef = useRef(null);
   const previousViewRef = useRef(null);
 
@@ -258,11 +256,6 @@ const PublicClimateContainer = ({
     }
   };
 
-  const handleAboutOpen = () => {
-    trackClimateAboutOpened(activeView);
-    setShowAbout(true);
-  };
-
   // Render appropriate zone selector based on view type
   const renderZoneSelector = () => {
     if (currentViewConfig.useRealtimeSelector) {
@@ -303,14 +296,6 @@ const PublicClimateContainer = ({
       <div className="climate-header">
         <div className="header-title">
           <h2>{currentViewConfig.label}</h2>
-          <button
-            className="about-btn"
-            onClick={handleAboutOpen}
-            title="About this data"
-          >
-            <HelpCircle size={18} />
-            <span>About</span>
-          </button>
         </div>
         {onClose && (
           <button className="close-btn" onClick={onClose} aria-label="Close">
@@ -383,19 +368,20 @@ const PublicClimateContainer = ({
         )}
       </div>
 
-      {/* Data Attribution */}
+      {/* Data attribution.
+          The "About" badge that used to sit beside the view title was retired
+          on 2026-08-20 — its five modal views now live on /about, where they
+          are one page, linkable and indexable rather than trapped behind a
+          button. The link here replaces it: quieter than a badge, but a view
+          that cannot reach its own methodology would be a regression. */}
       <div className="climate-attribution">
         <Info size={14} />
         <span>{getAttribution()}</span>
+        <Link to="/about" className="climate-attribution__method">
+          How this is calculated
+        </Link>
       </div>
 
-      {/* About Modal */}
-      {showAbout && (
-        <ClimateAbout 
-          onClose={() => setShowAbout(false)} 
-          activeView={activeView}
-        />
-      )}
     </div>
   );
 };

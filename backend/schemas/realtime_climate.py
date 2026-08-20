@@ -288,3 +288,61 @@ class ZonesListResponse(BaseModel):
     """List of climate zones with current season info."""
     zones: List[ClimateZoneBrief]
     vintage_year: int
+
+# =============================================================================
+# LIVE STATION EXTREMES (home page "National Pulse")
+# =============================================================================
+
+class LiveStationExtreme(BaseModel):
+    """
+    One headline reading, traced back to the single station that produced it.
+
+    Every field the home page prints is here, including the station's own name
+    and the moment it reported. A national extreme with no attribution is a
+    marketing figure; with the station and the timestamp it is a measurement.
+    """
+    key: str                              # warmest | coldest | wettest
+    label: str
+    value: Decimal
+    unit: str
+    station_id: int
+    station_name: str
+    station_region: Optional[str] = None
+    # Present only when the station falls inside a wine climate zone. Most do
+    # not — the network is national — and the tile must not invent a link.
+    zone_slug: Optional[str] = None
+    zone_name: Optional[str] = None
+    observed_at: datetime
+    # The basis for THIS reading, per tile, because the tiles are not on one
+    # clock. Temperature is a state read from a short window; rainfall is a
+    # total accumulated over a long one. A single response-level window would
+    # be a lie about one of them.
+    window_hours: int
+
+
+class LiveExtremesResponse(BaseModel):
+    """
+    The live half of the home page stat strip.
+
+    `window_hours` is not decoration. "Coldest" over a 24 hour window is an
+    overnight low, which is the number a grower cares about; the same word
+    applied to the latest reading at 2pm would be a different and far less
+    useful claim. The window has to travel with the number so the copy can say
+    which one it is.
+    """
+    generated_at: datetime
+    # The newest observation anywhere in the network. This is the "live" stamp,
+    # and it is deliberately NOT any tile's `observed_at`.
+    network_latest_at: Optional[datetime] = None
+    # Distinct stations that reported anything. Counted from the database on
+    # every refresh — it is a live figure, not a fixed claim about network size,
+    # and it moves as councils report. A shorter window was tried and
+    # abandoned: ingestion is hourly, so under about three hours it swings by
+    # hundreds between calls (784 then 483, eleven minutes apart).
+    reporting_stations: int
+    reporting_window_hours: int
+    # Offshore territories are excluded — Raoul Island, the Chathams and the
+    # subantarctic islands. They are in the network but they are not weather a
+    # New Zealand grower can use, and Raoul took the national high every day.
+    mainland_only: bool = True
+    extremes: List[LiveStationExtreme]

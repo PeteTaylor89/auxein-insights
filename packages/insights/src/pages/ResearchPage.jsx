@@ -29,7 +29,6 @@ function ResearchPage() {
   return (
     <div className="research-placeholder-page">
       <SiteHeader
-        subtitle="Regional Intelligence"
         onSignInClick={() => setAuthModalOpen(true)}
       />
 

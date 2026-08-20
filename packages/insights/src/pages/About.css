@@ -1,368 +1,681 @@
-/* pages/About.css */
-/* Styled consistently with ClimateAbout modal component */
+/* pages/About.css — the data-sources and methodology page.
+ *
+ * Rewritten 2026-08-20 alongside About.jsx. The old sheet styled a bespoke
+ * page shell (its own header bar, its own footer, its own back-link) which no
+ * longer exists — the page uses SiteHeader/SiteFooter like everything else.
+ *
+ * The visual language is deliberately the same as the in-app methodology modal
+ * it inherits from: an icon in the gutter, a titled block, generous measure.
+ * Those styles live in PublicClimate.css and are scoped to the modal, so they
+ * are restated here rather than imported — pulling a 2,800 line explorer sheet
+ * into a static page to borrow six rules would be the worse trade.
+ */
 
 .about-page {
   min-height: 100vh;
-  background: #f8f9fa;
   display: flex;
   flex-direction: column;
+  background: var(--background);
 }
 
-/* Header */
-.about-page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: white;
-  border-bottom: 1px solid #e9ecef;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #0066cc;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 14px;
-  transition: color 0.2s;
-}
-
-.back-link:hover {
-  color: #004999;
-}
-
-.about-logo {
-  height: 40px;
-  width: auto;
-}
-
-/* Main Content */
-.about-page-content {
+.about-main {
   flex: 1;
-  padding: 40px 24px;
-}
-
-.about-container {
-  max-width: 800px;
+  width: 100%;
+  max-width: 860px;      /* ~75 characters at this body size — a reading measure,
+                            not a dashboard width. */
   margin: 0 auto;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  padding: 40px 20px 8px;
 }
 
-/* Hero */
+/* ---- Hero ---------------------------------------------------------------- */
+
 .about-hero {
-  padding: 48px 32px;
-  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
-  color: white;
-  text-align: center;
+  margin-bottom: 40px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.09);
+}
+
+.about-hero__eyebrow {
+  margin: 0 0 8px;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--primary);
 }
 
 .about-hero h1 {
-  margin: 0 0 12px 0;
-  font-size: 32px;
+  margin: 0 0 14px;
+  font-size: 2rem;
+  line-height: 1.2;
   font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -0.01em;
 }
 
-.hero-subtitle {
+.about-hero__lede {
   margin: 0;
-  font-size: 18px;
-  opacity: 0.9;
+  max-width: 62ch;
+  font-size: var(--font-md);
+  line-height: 1.65;
+  color: var(--text);
 }
 
-/* Sections */
-.about-section {
-  padding: 32px;
-  border-bottom: 1px solid #e9ecef;
-}
+/* ---- Blocks -------------------------------------------------------------- */
 
-.about-section:last-child {
-  border-bottom: none;
-}
-
-.about-section h2 {
-  margin: 0 0 16px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-}
-
-.section-icon {
-  float: left;
-  margin-right: 16px;
-  padding: 12px;
-  background: #f5f8ff;
-  border-radius: 10px;
-  color: #0066cc;
-}
-
-.section-content {
-  overflow: hidden;
-}
-
-.section-content p {
-  margin: 0 0 12px 0;
-  line-height: 1.7;
-  color: #555;
-}
-
-.section-content p:last-child {
-  margin-bottom: 0;
-}
-
-/* Features Grid */
-.features-grid {
+.about-block {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 18px;
+  padding: 0 0 34px;
+  margin-bottom: 34px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
 
-.feature-card {
-  padding: 20px;
-  background: #f8f9fa;
+.about-block--callout {
+  padding: 22px;
+  border: 1px solid rgba(68, 97, 69, 0.22);
   border-radius: 10px;
-  border: 1px solid #e9ecef;
+  background: linear-gradient(180deg, rgba(68, 97, 69, 0.055), rgba(68, 97, 69, 0.02));
 }
 
-.feature-icon {
+.about-block__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: #e0e7ff;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.about-block__icon--sun   { background: rgba(255, 193, 7, 0.16);  color: #9A6E00; }
+.about-block__icon--warm  { background: rgba(209, 88, 59, 0.13);  color: var(--terracotta); }
+.about-block__icon--grow  { background: rgba(68, 97, 69, 0.13);   color: var(--primary); }
+.about-block__icon--data  { background: rgba(33, 113, 181, 0.12); color: #2171B5; }
+.about-block__icon--scale { background: rgba(0, 0, 0, 0.06);      color: var(--charcoal); }
+.about-block__icon--gauge { background: rgba(139, 195, 74, 0.18); color: #4C6B25; }
+.about-block__icon--warn  { background: rgba(255, 193, 7, 0.18);  color: #8A6100; }
+.about-block__icon--alert { background: rgba(150, 30, 30, 0.11);  color: #8E2222; }
+.about-block__icon--wet   { background: rgba(107, 174, 214, 0.2); color: #2171B5; }
+.about-block__icon--trend { background: rgba(209, 88, 59, 0.12);  color: var(--terracotta); }
+
+.about-block__body h3 {
+  margin: 6px 0 12px;
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--charcoal);
+  line-height: 1.3;
+}
+
+.about-block__body p {
+  margin: 0 0 12px;
+  max-width: 68ch;
+  font-size: var(--font-md);
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.about-block__body p:last-child { margin-bottom: 0; }
+
+.about-lede {
+  font-size: var(--font-md);
+}
+
+.about-subhead {
+  margin: 22px 0 10px;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-light);
+}
+
+/* ---- Facts list ---------------------------------------------------------- */
+
+/* A definition list, not a paragraph of <br>s. These are three labelled facts
+   and they should be readable as a table by anything that parses the page. */
+.about-facts {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
-  color: #3730a3;
-  margin-bottom: 12px;
+  background: var(--card-bg);
 }
 
-.feature-card h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-
-.feature-card p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #666;
-}
-
-/* Data Sources */
-.data-sources-list {
+.about-facts > div {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.about-facts > div:first-child { padding-top: 0; }
+.about-facts > div:last-child  { padding-bottom: 0; border-bottom: none; }
+
+.about-facts dt {
+  min-width: 190px;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.about-facts dd {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+/* ---- Formula ------------------------------------------------------------- */
+
+.about-formula {
+  margin: 4px 0 12px;
+}
+
+.about-formula code {
+  display: inline-block;
+  padding: 9px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 6px;
+  background: var(--card-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--font-md);
+  color: var(--charcoal);
+}
+
+.about-note {
+  font-size: var(--font-base) !important;
+  color: var(--text-light) !important;
+}
+
+
+/* ---- The two GDD bases --------------------------------------------------- */
+
+/* Both bases are presented in Current Season and either can be selected, so
+   they get equal weight side by side rather than one in the body text and the
+   other in a footnote. The pair sits together because the point is that they
+   are alternatives — a reader who sees only one has no reason to check which
+   one they are looking at. */
+.about-bases {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.about-base {
+  padding: 16px 18px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.about-base h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.about-base__tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(68, 97, 69, 0.12);
+  color: var(--primary);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.about-base p {
+  font-size: var(--font-base) !important;
+  line-height: 1.55 !important;
+}
+
+.about-base .about-formula {
+  margin: 0 0 10px;
+}
+
+.about-base .about-formula code {
+  font-size: var(--font-base);
+  padding: 7px 11px;
+}
+
+/* ---- Season state cards -------------------------------------------------- */
+
+.about-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 12px;
   margin-top: 16px;
 }
 
-.data-source-item {
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 10px;
-  border-left: 4px solid #0066cc;
+.about-card {
+  padding: 15px 16px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 8px;
+  background: var(--white);
+  /* The colour is the legend. A left edge carries it without tinting the whole
+     card, which at three-across would read as an alert. */
+  border-left: 3px solid rgba(0, 0, 0, 0.15);
 }
 
-.data-source-item h4 {
-  margin: 0 0 8px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
+.about-card--ahead  { border-left-color: var(--terracotta); }
+.about-card--behind { border-left-color: #2171B5; }
+.about-card--normal { border-left-color: var(--primary); }
+
+.about-card h4 {
+  margin: 0 0 7px;
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--charcoal);
 }
 
-.data-source-item p {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #666;
+.about-card p {
+  margin: 0;
+  font-size: var(--font-base);
+  line-height: 1.55;
+  color: var(--text);
 }
 
-.source-link {
+/* ---- Agency lists -------------------------------------------------------- */
+
+.about-agencies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 2px 24px;
+}
+
+.about-agencies li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: var(--font-base);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.about-agencies a {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #0066cc;
-  font-size: 14px;
-  font-weight: 500;
+  flex-shrink: 0;
+  color: var(--primary);
   text-decoration: none;
 }
 
-.source-link:hover {
-  text-decoration: underline;
+.about-agencies a:hover { color: var(--charcoal); }
+
+/* ---- Terms --------------------------------------------------------------- */
+
+.about-terms {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
 }
 
-/* Premium Section */
-.premium-section {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-}
-
-.premium-content h2 {
-  color: #0369a1;
-}
-
-.premium-content p {
-  color: #555;
+.about-terms li {
+  padding-left: 15px;
+  border-left: 2px solid rgba(68, 97, 69, 0.3);
+  max-width: 70ch;
+  font-size: var(--font-base);
   line-height: 1.6;
-  margin-bottom: 20px;
+  color: var(--text);
 }
 
-.premium-features {
+.about-terms strong {
+  color: var(--charcoal);
+}
+
+/* ---- CTAs ---------------------------------------------------------------- */
+
+.about-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 18px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: var(--font-base);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.about-cta:hover { background: #35502F; border-color: #35502F; }
+
+.about-cta--ghost {
+  background: transparent;
+  color: var(--primary);
+}
+
+.about-cta--ghost:hover {
+  background: rgba(68, 97, 69, 0.08);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.about-block--callout .about-cta { margin-top: 4px; }
+
+/* ---- Pro ----------------------------------------------------------------- */
+
+.about-pro {
+  margin: 8px 0 44px;
+  padding: 26px 24px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+
+.about-pro h2 {
+  margin: 0 0 10px;
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.about-pro p {
+  margin: 0 0 18px;
+  max-width: 64ch;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.about-pro__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 24px;
 }
 
-.premium-feature {
-  padding: 6px 14px;
-  background: white;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
+
+/* ---- Part headings + contents ------------------------------------------- */
+
+/* The page covers five products now. Without a level above the blocks it reads
+   as one undifferentiated wall of methodology. */
+.about-part {
+  margin: 8px 0 22px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -0.01em;
+  /* Offsets the sticky header when a contents link jumps here. */
+  scroll-margin-top: 96px;
 }
 
-.premium-btn {
-  display: inline-block;
-  padding: 14px 28px;
-  background: #0066cc;
-  color: white;
-  text-decoration: none;
-  border-radius: 8px;
+.about-part::after {
+  content: '';
+  display: block;
+  width: 46px;
+  height: 3px;
+  margin-top: 9px;
+  border-radius: 2px;
+  background: var(--primary);
+}
+
+.about-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.about-toc a {
+  padding: 6px 12px;
+  border: 1px solid rgba(68, 97, 69, 0.28);
+  border-radius: 999px;
+  background: rgba(68, 97, 69, 0.05);
+  color: var(--primary);
+  font-size: var(--font-sm);
   font-weight: 600;
-  font-size: 15px;
-  transition: background 0.2s;
-}
-
-.premium-btn:hover {
-  background: #004999;
-}
-
-/* Contact Section */
-.contact-section {
-  text-align: center;
-}
-
-.contact-grid {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.contact-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 24px;
-  background: #f8f9fa;
-  border-radius: 10px;
   text-decoration: none;
-  color: #333;
-  border: 1px solid #e9ecef;
-  transition: all 0.2s;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.contact-card:hover {
-  background: #e9ecef;
-  border-color: #0066cc;
-  color: #0066cc;
+.about-toc a:hover {
+  background: var(--primary);
+  color: var(--white);
 }
 
-/* Footer */
-.about-page-footer {
-  padding: 24px;
-  text-align: center;
-  background: white;
-  border-top: 1px solid #e9ecef;
+/* ---- Inline callout ------------------------------------------------------ */
+
+/* For the base-0 vs base-10 warning. Two GDD definitions live on this page and
+   quietly letting a reader compare them would be the whole point missed. */
+.about-callout-inline {
+  margin-top: 14px !important;
+  padding: 11px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 193, 7, 0.09);
+  font-size: var(--font-base) !important;
 }
 
-.about-page-footer p {
+/* ---- Disease models ------------------------------------------------------ */
+
+.about-models {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.about-model {
+  padding: 16px 18px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.about-model h4 {
+  margin: 0 0 3px;
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.about-model__source {
+  margin: 0 0 9px !important;
+  font-size: var(--font-sm) !important;
+  font-weight: 600;
+  color: var(--primary) !important;
+}
+
+.about-model p {
+  font-size: var(--font-base) !important;
+  line-height: 1.55 !important;
+}
+
+/* Risk bands. Ordered low to extreme, and coloured so the ramp is readable
+   without reading the labels. */
+.about-bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-band {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: var(--font-xs);
+  border: 1px solid transparent;
+}
+
+.about-band__label { font-weight: 700; }
+.about-band__range { font-variant-numeric: tabular-nums; opacity: 0.85; }
+
+.about-band--low      { background: rgba(68, 97, 69, 0.1);   border-color: rgba(68, 97, 69, 0.3);   color: #33502F; }
+.about-band--moderate { background: rgba(255, 193, 7, 0.16); border-color: rgba(197, 148, 0, 0.4);  color: #7A5C00; }
+.about-band--high     { background: rgba(209, 88, 59, 0.13); border-color: rgba(209, 88, 59, 0.38); color: #9C3A20; }
+.about-band--extreme  { background: rgba(150, 30, 30, 0.13); border-color: rgba(150, 30, 30, 0.4);  color: #7E1B1B; }
+
+/* ---- Leaf wetness rules -------------------------------------------------- */
+
+.about-rules {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+
+.about-rules li {
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 6px;
+  background: var(--card-bg);
+  font-size: var(--font-base);
+  color: var(--text);
+}
+
+/* ---- SSP scenarios ------------------------------------------------------- */
+
+.about-ssps {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.about-ssp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-left: 3px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0 8px 8px 0;
+  background: var(--white);
+}
+
+/* Low, middle, high emissions — green through amber to terracotta, matching
+   the direction of every other severity ramp on the site. */
+.about-ssp--ssp126 { border-left-color: var(--primary); }
+.about-ssp--ssp245 { border-left-color: #C59400; }
+.about-ssp--ssp370 { border-left-color: var(--terracotta); }
+
+.about-ssp__badge {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: var(--charcoal);
+  color: var(--white);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.about-ssp__text {
+  flex: 1 1 260px;
+  font-size: var(--font-base);
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.about-ssp__text strong { color: var(--charcoal); }
+
+/* ---- Citations ----------------------------------------------------------- */
+
+.about-citations {
   margin: 0;
-  font-size: 14px;
-  color: #666;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
 }
 
-.footer-location {
-  margin-top: 4px !important;
-  font-size: 13px !important;
-  color: #999 !important;
+.about-citations li {
+  display: grid;
+  gap: 2px;
+  padding-left: 15px;
+  border-left: 2px solid rgba(0, 0, 0, 0.12);
+  font-size: var(--font-base);
+  line-height: 1.5;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .about-page-header {
-    padding: 12px 16px;
-  }
-
-  .back-link span {
-    display: none;
-  }
-
-  .about-page-content {
-    padding: 20px 16px;
-  }
-
-  .about-container {
-    border-radius: 12px;
-  }
-
-  .about-hero {
-    padding: 32px 24px;
-  }
-
-  .about-hero h1 {
-    font-size: 26px;
-  }
-
-  .hero-subtitle {
-    font-size: 16px;
-  }
-
-  .about-section {
-    padding: 24px;
-  }
-
-  .section-icon {
-    float: none;
-    margin: 0 0 16px 0;
-  }
-
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .contact-grid {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .contact-card {
-    width: 100%;
-    max-width: 280px;
-    justify-content: center;
-  }
+.about-citations__authors {
+  font-weight: 700;
+  color: var(--charcoal);
 }
 
-@media (max-width: 480px) {
-  .about-hero h1 {
-    font-size: 22px;
+.about-citations__title {
+  color: var(--text);
+  font-style: italic;
+}
+
+.about-citations__title a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.about-citations__title a:hover { text-decoration: underline; }
+
+/* ---- Period cards -------------------------------------------------------- */
+
+.about-card__years {
+  margin: 0 0 6px !important;
+  font-size: var(--font-md) !important;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary) !important;
+}
+
+.about-card--period { border-left-color: var(--primary); }
+
+.about-cards--wide {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+/* ---- Small screens ------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  .about-main { padding: 26px 16px 4px; }
+
+  .about-hero h1 { font-size: 1.55rem; }
+
+  /* The icon gutter costs 62px of a 375px screen and earns nothing once the
+     text wraps under it, so the icon moves inline above the heading. */
+  .about-block {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 
-  .about-section h2 {
-    font-size: 18px;
+  .about-block__icon {
+    width: 38px;
+    height: 38px;
   }
 
-  .premium-features {
-    justify-content: center;
-  }
+  .about-block__body h2 { margin-top: 0; }
+
+  .about-facts dt { min-width: 0; flex: 1 1 100%; }
+
+  .about-agencies { grid-template-columns: minmax(0, 1fr); }
+
+  .about-pro { padding: 20px 18px; }
+
+  .about-part { font-size: 1.25rem; scroll-margin-top: 76px; }
+
+  .about-ssp__badge { flex-basis: 100%; align-self: flex-start; }
+
+  .about-pro__actions .about-cta { flex: 1 1 auto; justify-content: center; }
 }

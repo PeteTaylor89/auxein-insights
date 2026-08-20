@@ -177,6 +177,20 @@
   cursor: default;
 }
 
+/* The arrows sit either side of the slider and keep the 44px touch target the
+   play button uses. Squarer than the play circle so the three groups read as
+   three different jobs rather than one row of identical buttons. */
+.surface-map__nav {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.surface-map__play--nav {
+  width: 40px;
+  border-radius: 10px;
+}
+
 .surface-map__range {
   flex: 1 1 200px;
   min-width: 160px;

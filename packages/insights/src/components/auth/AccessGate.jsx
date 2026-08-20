@@ -29,7 +29,9 @@ const COPY = {
   pro: {
     icon: <Sparkles size={26} aria-hidden="true" />,
     title: 'This is a Pro feature',
-    body: 'Pro adds your own site, measured against its regional background, and an assistant that explains what the data means.',
+    // Describes what SHIPS. The assistant is a later phase and naming it here
+    // sells something nobody can be given today.
+    body: 'Pro adds your own site: one point, its whole record back to 1986, and how it sits against the vineyards around it.',
     cta: 'See Pro',
     tone: 'pro',
   },
@@ -42,7 +44,7 @@ const COPY = {
  * @param {string[]} preview     what sits behind the gate
  * @param {React.ReactNode} children  rendered when `allowed`
  */
-function AccessGate({ require = 'registration', allowed, onAction, preview = [], title, children }) {
+function AccessGate({ require = 'registration', allowed, onAction, preview = [], title, cta, children }) {
   if (allowed) return children;
 
   const copy = COPY[require] || COPY.registration;
@@ -59,8 +61,11 @@ function AccessGate({ require = 'registration', allowed, onAction, preview = [],
         </ul>
       )}
 
+      {/* The caller owns the wording, because the right next step differs by
+          who is looking: an anonymous visitor needs to sign in, and a
+          signed-in free user needs a way to actually buy the thing. */}
       <button type="button" className="access-gate__cta" onClick={onAction}>
-        {copy.cta}
+        {cta || copy.cta}
       </button>
     </div>
   );

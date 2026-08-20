@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, surfaces, insights_sites, map_features, map_feature_types
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types
 from core.config import settings
 import logging
 import traceback
@@ -104,6 +104,15 @@ allowed_origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
+    # 127.0.0.1 is a DIFFERENT origin from localhost as far as CORS is
+    # concerned, and the two are not interchangeable in dev. `localhost`
+    # resolves to ::1 first while uvicorn binds IPv4 only, so the documented
+    # workaround is to use 127.0.0.1 — which then failed CORS because only the
+    # localhost spellings were listed. Every dev port gets both.
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
 ]
 
 app.add_middleware(
@@ -216,6 +225,15 @@ app.include_router(
     insights_feedback.router,
     prefix="/api/v1/feedback",
     tags=["insights-feedback"],
+)
+
+# Insights Pro: prices, the Grow comparison calculator, and enquiries. Public
+# and unauthenticated by design — most people pricing this up have no account,
+# and a funnel measured only past the login wall measures the wrong thing.
+app.include_router(
+    insights_pro.router,
+    prefix="/api/v1/public/insights-pro",
+    tags=["insights-pro"],
 )
 
 # Climate surfaces (SURFACE_CONTRACT_V2 §5). Currently a STUB — every route

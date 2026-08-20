@@ -30,13 +30,76 @@
   color: var(--primary);
 }
 
-/* Muted, dashed, no pointer, no hover — an announcement, not a control. */
+/* Still muted and dashed — it must not read as an available filter — but it
+   is a link now, so it takes a pointer and a hover state. */
 .industry-chip--soon {
   border: 1px dashed rgba(0, 0, 0, 0.18);
   background: transparent;
   color: var(--text-light);
   font-weight: 500;
-  cursor: default;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.industry-chip--soon:hover,
+.industry-chip--soon:focus-visible {
+  border-color: rgba(68, 97, 69, 0.5);
+  background: rgba(68, 97, 69, 0.06);
+  color: var(--primary);
+}
+
+/* Tooltip. Positioning context for the bubble, and inline-flex so the chip
+   keeps its place in the wrapping row. */
+.industry-chip__slot {
+  position: relative;
+  display: inline-flex;
+}
+
+.industry-chip__tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  z-index: 20;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--charcoal, #2f2f2f);
+  color: #fff;
+  font-size: var(--font-xs);
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+}
+
+.industry-chip__tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--charcoal, #2f2f2f);
+}
+
+.industry-chip__slot:hover .industry-chip__tooltip,
+.industry-chip--soon:focus-visible ~ .industry-chip__tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Hover tooltips do not exist on touch. The chip still navigates, so nothing
+   is lost — but do not leave a bubble that can be triggered by a stray tap. */
+@media (hover: none) {
+  .industry-chip__tooltip { display: none; }
 }
 
 .industry-chip__tag {

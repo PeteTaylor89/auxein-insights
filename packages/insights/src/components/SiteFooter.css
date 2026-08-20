@@ -36,8 +36,10 @@
 
 .site-footer__columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, max-content));
-  gap: 30px;
+  grid-template-columns: repeat(3, minmax(140px, auto));
+  gap: 30px 48px;
+  flex: 1 1 auto;
+  justify-content: end;
 }
 
 .site-footer__column {
@@ -75,8 +77,19 @@
   color: rgba(255, 255, 255, 0.55);
 }
 
+/* Two columns before one: three groups of four or five links each still read
+   fine side by side on a tablet, and stacking early is what made the footer
+   long in the first place. */
+@media (max-width: 860px) {
+  .site-footer__columns {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+    justify-content: start;
+    gap: 26px 32px;
+  }
+}
+
 @media (max-width: 600px) {
   .site-footer { padding: 26px 16px 16px; }
   .site-footer__content { gap: 24px; }
-  .site-footer__columns { gap: 22px; }
+  .site-footer__columns { gap: 22px 24px; }
 }

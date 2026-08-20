@@ -29,6 +29,9 @@ STATIC_PAGES = [
     # results is worse than no page. Restore it when there is something there.
     # Published research REPORTS are still emitted below; only the index is out.
     ("/about", "monthly", "0.5"),
+    # The Pro landing page. Higher priority than /about because it is the only
+    # commercial page on the site and the one worth being found for.
+    ("/pro", "monthly", "0.8"),
     ("/legal", "yearly", "0.2"),
 ]
 

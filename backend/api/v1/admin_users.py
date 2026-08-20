@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import csv
 import io
+import logging
 
 from db.session import get_db
 from db.models.public_user import PublicUser
@@ -25,6 +26,8 @@ from schemas.admin import (
     ActivityTimelineResponse,
     MessageResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["Admin - Users"])
 
@@ -63,6 +66,14 @@ def user_to_list_item(user: PublicUser) -> UserListItem:
         newsletter_opt_in=user.newsletter_opt_in,
         marketing_opt_in=user.marketing_opt_in,
         research_opt_in=user.research_opt_in,
+        subscription_tier=user.subscription_tier or "free",
+        # The model property, not a tier comparison — 'grow' is Pro and an
+        # expired 'pro' is not. See core/entitlements.
+        is_pro=user.is_pro,
+        pro_started_at=user.pro_started_at,
+        pro_expires_at=user.pro_expires_at,
+        pro_site_quota=user.pro_site_quota or 0,
+        origin=user.origin or "signup",
         login_count=user.login_count or 0,
         last_login=user.last_login,
         last_active=user.last_active,
@@ -548,6 +559,12 @@ def get_user_detail(
         newsletter_opt_in=user.newsletter_opt_in,
         marketing_opt_in=user.marketing_opt_in,
         research_opt_in=user.research_opt_in,
+        subscription_tier=user.subscription_tier or "free",
+        is_pro=user.is_pro,
+        pro_started_at=user.pro_started_at,
+        pro_expires_at=user.pro_expires_at,
+        pro_site_quota=user.pro_site_quota or 0,
+        origin=user.origin or "signup",
         login_count=user.login_count or 0,
         last_login=user.last_login,
         last_active=user.last_active,
@@ -567,19 +584,73 @@ def update_user(
     admin: PublicUser = Depends(require_admin)
 ):
     """
-    Update user (admin fields only: is_active, notes).
+    Update user: is_active, notes, and the Pro subscription.
+
+    This is the ONLY way a user becomes Pro. Nothing else in the product writes
+    `subscription_tier='pro'` — there is no billing integration — so granting
+    Pro is an operator action taken after payment is arranged elsewhere.
     """
     user = db.query(PublicUser).filter(PublicUser.id == user_id).first()
-    
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     if update_data.is_active is not None:
         user.is_active = update_data.is_active
-    
+
     if update_data.notes is not None:
         user.notes = update_data.notes
-    
+
+    # --- subscription --------------------------------------------------------
+    if update_data.subscription_tier is not None:
+        tier = update_data.subscription_tier.strip().lower()
+        if tier not in ("free", "pro"):
+            raise HTTPException(
+                status_code=422,
+                detail="subscription_tier must be 'free' or 'pro'. 'grow' is "
+                       "written by the Grow SSO handshake and describes where "
+                       "the row came from, not what was bought.")
+        if (user.origin or "signup") == "grow":
+            raise HTTPException(
+                status_code=409,
+                detail="This is a Grow user's Insights profile. Their Pro "
+                       "entitlement follows the Grow relationship and cannot be "
+                       "set here; changing it would be overwritten by the next "
+                       "sign-in.")
+        if tier == "pro" and user.subscription_tier != "pro":
+            # First grant stamps the start. Re-granting after a lapse keeps the
+            # original date, because that is when they became a customer.
+            user.pro_started_at = user.pro_started_at or datetime.now(timezone.utc)
+        user.subscription_tier = tier
+
+    # A JSON null cannot distinguish "no change" from "open-ended", so the
+    # clear is its own flag. Order matters: clearing then setting would drop the
+    # new date, so the explicit date wins.
+    if update_data.clear_pro_expiry:
+        user.pro_expires_at = None
+    if update_data.pro_expires_at is not None:
+        expires = update_data.pro_expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        user.pro_expires_at = expires
+
+    if update_data.pro_site_quota is not None:
+        if not 0 <= update_data.pro_site_quota <= 10:
+            raise HTTPException(status_code=422,
+                                detail="pro_site_quota must be between 0 and 10")
+        user.pro_site_quota = update_data.pro_site_quota
+
+    # Granting Pro is a commercial act and there is no billing system holding
+    # the record, so it goes in the log where it can be found later.
+    if (update_data.subscription_tier is not None
+            or update_data.pro_site_quota is not None
+            or update_data.pro_expires_at is not None
+            or update_data.clear_pro_expiry):
+        logger.info(
+            "admin %s set user %s subscription: tier=%s quota=%s expires=%s",
+            admin.email, user.email, user.subscription_tier,
+            user.pro_site_quota, user.pro_expires_at)
+
     db.commit()
     db.refresh(user)
     
@@ -599,6 +670,12 @@ def update_user(
         newsletter_opt_in=user.newsletter_opt_in,
         marketing_opt_in=user.marketing_opt_in,
         research_opt_in=user.research_opt_in,
+        subscription_tier=user.subscription_tier or "free",
+        is_pro=user.is_pro,
+        pro_started_at=user.pro_started_at,
+        pro_expires_at=user.pro_expires_at,
+        pro_site_quota=user.pro_site_quota or 0,
+        origin=user.origin or "signup",
         login_count=user.login_count or 0,
         last_login=user.last_login,
         last_active=user.last_active,

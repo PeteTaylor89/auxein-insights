@@ -15,6 +15,7 @@ every assertion here would be measuring the fixture instead.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -308,6 +309,53 @@ def main() -> int:
         check("an unknown level 422s",
               status_of(S.zone_layer, level="province", simplify=0.004,
                         metric="gdd10", db=db) == 422)
+
+        print("\ncoast clip + labels")
+        check("every drawn region is clipped to the coastline",
+              all(f["properties"]["clipped"] for f in fc["features"]),
+              fc["meta"]["clipped"])
+        check("the response names the coastline source",
+              "LINZ" in fc["meta"].get("coastline", ""))
+        check("every zone carries a label anchor",
+              all(f["properties"]["label_lat"] is not None
+                  for f in fc["features"]))
+        # The anchors are the whole point of storing them: a point chosen by
+        # area alone lands in the sea or on the wrong island.
+        anchors_on_land = db.execute(_text("""
+            SELECT count(*) FROM climate_zones z, nz_land l
+             WHERE z.is_active AND z.label_point IS NOT NULL
+               AND l.geom && z.label_point
+               AND ST_Intersects(l.geom, z.label_point)
+        """)).scalar()
+        check("every label anchor is on land",
+              anchors_on_land >= 23, anchors_on_land)
+        # Auckland's largest land part is in the gulf: 51.9 km2 on Waiheke
+        # against 49.0 at Kumeu. Ranking parts by area puts the label on the
+        # wrong island, and 280 of the zone's 417 registered blocks are inside
+        # the Waiheke SUB-ZONE, which has its own label.
+        akl = next(f for f in fc["features"] if f["properties"]["slug"] == "auckland")
+        check("Auckland is labelled on the mainland, not on Waiheke",
+              akl["properties"]["label_lon"] < 174.9,
+              akl["properties"]["label_lon"])
+        # Clipping has to actually remove sea, or the column is decoration.
+        sea = db.execute(_text("""
+            SELECT round((100 * (1 - ST_Area(geometry_clipped::geography)
+                                   / ST_Area(geometry::geography)))::numeric, 1)
+              FROM climate_zones WHERE slug = 'waiheke'
+        """)).scalar()
+        check("Waiheke's outline lost the water it used to include",
+              sea is not None and sea > 30, f"{sea}% removed")
+        # Small parts are dropped from the DRAWN outline only; the stored
+        # geometry keeps every rock.
+        big = S.zone_layer(level="region", simplify=0.001, min_part_km2=0.05,
+                           metric="gdd10", db=db)
+        allparts = S.zone_layer(level="region", simplify=0.001, min_part_km2=0,
+                                metric="gdd10", db=db)
+        check("dropping sub-hectare islands shrinks the drawn payload",
+              len(json.dumps(big)) < len(json.dumps(allparts)),
+              f"{len(json.dumps(big))//1024} KB vs {len(json.dumps(allparts))//1024} KB")
+        check("and loses no zone",
+              len(big["features"]) == len(allparts["features"]) == 10)
 
         season = S._real_zone_season(db, "marlborough", "gdd10,rain")
         check("zone season covers every vintage in the archive",

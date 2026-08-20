@@ -68,7 +68,6 @@ function ArticlesPage() {
     <div className="articles-page">
       {/* Shared site header */}
       <SiteHeader
-        subtitle="Articles and Insights"
         onSignInClick={() => setAuthModalOpen(true)}
       />
 

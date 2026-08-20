@@ -25,7 +25,7 @@ function NotFound() {
 
   return (
     <div className="not-found-page">
-      <SiteHeader subtitle="Regional Intelligence" />
+      <SiteHeader />
       <main className="not-found">
         <Compass size={40} className="not-found__icon" aria-hidden="true" />
         <h1>That page does not exist</h1>

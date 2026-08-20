@@ -39,8 +39,9 @@ a.header-brand {
 }
 
 .header-logo {
-  height: 100px;
+  height: 60px;
   width: auto;
+  border-radius: 10px;
 }
 
 .header-title-block h1 {
@@ -48,13 +49,6 @@ a.header-brand {
   font-size: var(--font-xl);
   font-weight: bold;
   color: #2F2F2F;
-}
-
-.header-title-block p {
-  margin: 0;
-  font-size: var(--font-md);
-  font-style: italic;
-  color: #5B6830;
 }
 
 /* ============================================
@@ -528,15 +522,11 @@ a.header-brand {
   }
 
   .header-logo {
-    height: 44px;
+    height: 40px;
   }
 
   .header-title-block h1 {
     font-size: var(--font-md);
-  }
-
-  .header-title-block p {
-    font-size: var(--font-sm);
   }
 
   .mobile-menu-btn {
@@ -561,10 +551,6 @@ a.header-brand {
 
   .header-title-block h1 {
     font-size: var(--font-base);
-  }
-
-  .header-title-block p {
-    font-size: var(--font-xs);
   }
 
   /* Full width drawer on small screens */

@@ -77,7 +77,6 @@ function RegionDetail() {
   return (
     <div className="region-detail-page">
       <SiteHeader
-        subtitle="Regional Intelligence"
         onSignInClick={() => openAuth('region')}
       />
 

@@ -233,6 +233,46 @@ def main() -> int:
                         statistic="mean", baseline="2020-1991",
                         db=db, user=user) == 422)
 
+        print("\ndashboard")
+        dash = A.site_dashboard(site_id=site_id, db=db, user=user)
+        keys = {t["metric"] for t in dash["tiles"]}
+        check("the dashboard tiles cover the headline metrics",
+              {"gdd10", "tmean", "rain", "frost_days"} <= keys, sorted(keys))
+        gdd = next(t for t in dash["tiles"] if t["metric"] == "gdd10")
+        check("each tile carries a normal, a latest and a trend",
+              gdd["normal"] is not None and gdd["latest"]["value"] is not None
+              and gdd["n_seasons"] >= 30)
+        check("the anomaly is the latest against the site's OWN normal",
+              abs(gdd["anomaly"] - (gdd["latest"]["value"] - gdd["normal"])) < 1e-9)
+        check("the tile knows where the site sits in its region's spread",
+              gdd["zone"]["position"] in ("above", "within", "below"),
+              gdd["zone"]["position"])
+        check("the warmest season is not before the coolest in value",
+              gdd["warmest"]["value"] >= gdd["coolest"]["value"])
+
+        strip = dash["season_to_date"]
+        check("a season strip is offered for a site inside a zone",
+              strip is not None and strip.get("available") is True,
+              str(strip)[:120])
+        if strip and strip.get("available"):
+            # The single most dangerous number on the page. `gdd_cumulative` in
+            # climate_zone_daily is base ZERO over a July-June year: Marlborough
+            # reads about 4,590 there against a Sep-Apr gdd10 near 1,370. If the
+            # strip ever shows the stored column instead of recomputing, this is
+            # what catches it.
+            live_gdd = next(m for m in strip["metrics"] if m["metric"] == "gdd10")
+            check("live GDD is recomputed at base 10, not the stored base-0 sum",
+                  live_gdd["value"] is not None and live_gdd["value"] < 2500,
+                  live_gdd["value"])
+            check("the live value is compared only against complete months",
+                  len(strip["months_compared"]) >= 1
+                  and all(len(m) == 7 for m in strip["months_compared"]))
+            check("both sides of the comparison name their own source",
+                  all(m["value_source"] != m["normal_source"]
+                      for m in strip["metrics"]))
+            check("the strip says it is regional, not the site",
+                  strip["scope"] == "region")
+
         print("\nmoves")
         moved = A.update_site(site_id=site_id,
                               body=A.PlaceSiteRequest(latitude=-41.52,
@@ -287,6 +327,109 @@ def main() -> int:
               status_of(A.get_site, site_id=site_id, db=db, user=other) == 404)
         db.delete(other)
         db.commit()
+
+        print("\ndispatch on placement")
+        # Dispatch is an OPTIMISATION over the scheduled sweep, never the
+        # mechanism. Every failure has to be a no-op: a placement that 500s
+        # because GitHub was unreachable turns a slow site into a lost sale,
+        # which is strictly worse than the wait it was avoiding.
+        import inspect as _inspect
+        from services import workflow_dispatch as _wd
+
+        saved = {k: os.environ.get(k)
+                 for k in ("GITHUB_DISPATCH_TOKEN", "GITHUB_REPO")}
+        try:
+            os.environ.pop("GITHUB_DISPATCH_TOKEN", None)
+            check("with no token configured it declines rather than raising",
+                  _wd.populate_site(0) is False)
+
+            os.environ["GITHUB_DISPATCH_TOKEN"] = "not-a-real-token"
+            os.environ["GITHUB_REPO"] = "auxein-does-not-exist/nope"
+            check("a rejected dispatch is swallowed, not raised",
+                  _wd.dispatch("insights-site-population.yml",
+                               {"site": 1}) is False)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+        # `background` must keep a default: FastAPI injects it by annotation,
+        # and every direct caller (this suite included) omits it. Losing the
+        # default breaks placement everywhere except through HTTP.
+        check("placement does not require a BackgroundTasks argument",
+              _inspect.signature(A.place_site)
+                      .parameters["background"].default is None)
+
+        print("\nPro onboarding (admin grant)")
+        # There is NO billing integration and nothing else in the product ever
+        # writes subscription_tier='pro'. If this endpoint regresses, the only
+        # way to sell a subscription is an UPDATE in psql.
+        from api.v1.admin_users import update_user, user_to_list_item
+        from schemas.admin import UserUpdateRequest
+        from core import entitlements as E
+
+        rookie = PublicUser(email=f"grantcheck+{os.getpid()}@auxein.co.nz",
+                            is_active=True, is_verified=True, origin="signup")
+        db.add(rookie)
+        db.commit()
+        db.refresh(rookie)
+        try:
+            check("a new account is free with no site quota",
+                  rookie.subscription_tier == "free"
+                  and (rookie.pro_site_quota or 0) == 0
+                  and not rookie.is_pro)
+
+            granted = update_user(rookie.id,
+                                  UserUpdateRequest(subscription_tier="pro",
+                                                    pro_site_quota=1),
+                                  db=db, admin=user)
+            check("an admin can grant Pro and a site in one call",
+                  granted.is_pro and granted.pro_site_quota == 1)
+            check("the first grant stamps when they became a customer",
+                  granted.pro_started_at is not None)
+
+            # 'grow' describes where the row came from. Setting it by hand would
+            # claim an SSO relationship that does not exist, and the next
+            # handshake would overwrite it anyway.
+            check("'grow' cannot be granted by hand",
+                  status_of(update_user, user_id=rookie.id,
+                            update_data=UserUpdateRequest(subscription_tier="grow"),
+                            db=db, admin=user) == 422)
+            check("an absurd quota is refused",
+                  status_of(update_user, user_id=rookie.id,
+                            update_data=UserUpdateRequest(pro_site_quota=99),
+                            db=db, admin=user) == 422)
+
+            past = datetime.now(timezone.utc) - timedelta(days=1)
+            lapsed = update_user(rookie.id,
+                                 UserUpdateRequest(pro_expires_at=past),
+                                 db=db, admin=user)
+            check("an expired subscription keeps the tier and loses the entitlement",
+                  lapsed.subscription_tier == "pro" and not lapsed.is_pro)
+            check("a lapsed subscriber has no site quota however it is stored",
+                  E.site_quota(db.query(PublicUser).get(rookie.id)) == 0)
+
+            reopened = update_user(rookie.id,
+                                   UserUpdateRequest(clear_pro_expiry=True),
+                                   db=db, admin=user)
+            check("clearing the expiry restores an open-ended subscription",
+                  reopened.is_pro and reopened.pro_expires_at is None)
+
+            grow_row = db.query(PublicUser).filter(
+                PublicUser.origin == "grow").first()
+            if grow_row is not None:
+                check("a Grow projection's tier is not settable here",
+                      status_of(update_user, user_id=grow_row.id,
+                                update_data=UserUpdateRequest(subscription_tier="free"),
+                                db=db, admin=user) == 409)
+                item = user_to_list_item(grow_row)
+                check("and it still reads as Pro in the admin list",
+                      item.is_pro and item.subscription_tier == "grow")
+        finally:
+            db.delete(db.query(PublicUser).get(rookie.id))
+            db.commit()
 
         print("\ncascade")
         A.delete_site(site_id=site_id, db=db, user=user)

@@ -35,14 +35,21 @@ async def get_climate_zones_geojson(
     Only returns zones that have boundary geometry populated.
     """
     try:
+        # Draw the coast-clipped outline where there is one. The Atlas overlay
+        # and this layer are the same polygons seen twice, so trimming one and
+        # not the other would leave the Wine regions tab still running out over
+        # the sea. `cz.geometry` stays the fallback and stays authoritative for
+        # anything asking which zone a POINT is in.
         if simplify > 0:
             geometry_sql = """
                 ST_AsGeoJSON(
-                    ST_SimplifyPreserveTopology(cz.geometry, :tolerance)
+                    ST_SimplifyPreserveTopology(
+                        COALESCE(cz.geometry_clipped, cz.geometry), :tolerance)
                 ) as geometry_json
             """
         else:
-            geometry_sql = "ST_AsGeoJSON(cz.geometry) as geometry_json"
+            geometry_sql = ("ST_AsGeoJSON(COALESCE(cz.geometry_clipped, "
+                            "cz.geometry)) as geometry_json")
 
         query = text(f"""
             SELECT
@@ -57,7 +64,11 @@ async def get_climate_zones_geojson(
             FROM climate_zones cz
             LEFT JOIN wine_regions wr ON cz.region_id = wr.id
             WHERE cz.is_active = true AND cz.geometry IS NOT NULL
-            ORDER BY cz.display_order
+            -- Region first: a zone's display_order is its position WITHIN its
+            -- region, so on its own it interleaves the country. This is the
+            -- Atlas layer, so the order is also the draw order.
+            ORDER BY wr.display_order NULLS LAST, wr.name NULLS LAST,
+                     cz.display_order, cz.name
         """)
 
         results = db.execute(query, {"tolerance": simplify}).fetchall()

@@ -298,6 +298,8 @@ The Auxein Team
         subject_regions: str,
         reply_to: Optional[str] = None,
         to_email: Optional[str] = None,
+        subject: Optional[str] = None,
+        lead: Optional[str] = None,
     ) -> bool:
         """Email a public Insights feedback-form submission to the inbox.
 
@@ -310,7 +312,12 @@ The Auxein Team
         recipient = to_email or os.getenv(
             "INSIGHTS_FEEDBACK_INBOX", "insights@auxein.co.nz"
         )
-        subject = f"New Insights feedback — {subject_regions or '(no region given)'}"
+        # `subject` and `lead` let another public form reuse this renderer
+        # without pretending to be feedback — the Pro enquiry form does.
+        # Both default to the original wording, so the feedback caller is
+        # unchanged.
+        subject = subject or f"New Insights feedback — {subject_regions or '(no region given)'}"
+        lead = lead or "New Auxein Insights feedback received."
 
         def esc(s: str) -> str:
             return (
@@ -321,7 +328,7 @@ The Auxein Team
             )
 
         # Plain-text body
-        text_parts = ["New Auxein Insights feedback received.\n"]
+        text_parts = [lead + "\n"]
         for title, rows in sections:
             text_parts.append(f"— {title.upper()} —")
             for label, value in rows:
@@ -344,7 +351,7 @@ The Auxein Team
             )
         html_content = f"""
 <div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #2F2F2F; max-width: 640px;\">
-  <p style=\"margin: 0 0 8px 0;\">New Auxein Insights feedback received.</p>
+  <p style=\"margin: 0 0 8px 0;\">{esc(lead)}</p>
   {''.join(html_sections)}
 </div>
 """

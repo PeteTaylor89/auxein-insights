@@ -27,7 +27,15 @@ function format(metric, value) {
   return value.toFixed(1);
 }
 
-function ZoneOverviewCard({ zone, onClose }) {
+/**
+ * @param {number|null} vintage  the season the MAP is showing. The card follows
+ *   it: opening a zone while the Atlas is on 2014 must summarise 2014. A card
+ *   that always showed the newest season would silently contradict the surface
+ *   it was opened from, and the contradiction is invisible — both numbers look
+ *   plausible. When the requested vintage is not published the card falls back
+ *   to the newest and SAYS which one it is showing.
+ */
+function ZoneOverviewCard({ zone, vintage, onClose }) {
   const [data, setData] = useState(null);
   const [state, setState] = useState('loading');
 
@@ -51,10 +59,13 @@ function ZoneOverviewCard({ zone, onClose }) {
   if (!zone) return null;
 
   const series = data?.series ?? [];
-  const latest = series.reduce((acc, s) => {
+  const shown = series.reduce((acc, s) => {
     const points = s.points ?? [];
     if (!points.length) return acc;
-    const last = points[points.length - 1];
+    const wanted = vintage != null
+      ? points.find((p) => p.vintage_year === vintage)
+      : null;
+    const last = wanted || points[points.length - 1];
     const baseline = points.filter(
       (p) => p.vintage_year >= BASE_FROM && p.vintage_year <= BASE_TO && p.mean != null,
     );
@@ -65,7 +76,11 @@ function ZoneOverviewCard({ zone, onClose }) {
     return acc;
   }, {});
 
-  const vintage = series[0]?.points?.slice(-1)[0]?.vintage_year;
+  // What is actually on the card, which is not always what was asked for — the
+  // zone season table ends before the monthly surfaces do.
+  const shownVintage = Object.values(shown)[0]?.last?.vintage_year ?? null;
+  const missedVintage =
+    vintage != null && shownVintage != null && shownVintage !== vintage;
 
   return (
     <aside className="zone-card" aria-label={`${zone.name} overview`}>
@@ -73,7 +88,9 @@ function ZoneOverviewCard({ zone, onClose }) {
         <div>
           <h3 className="zone-card__title">{zone.name}</h3>
           <p className="zone-card__sub">
-            {vintage ? `${vintage - 1}/${String(vintage).slice(2)} season` : 'Growing season'}
+            {shownVintage
+              ? `${shownVintage - 1}/${String(shownVintage).slice(2)} season`
+              : 'Growing season'}
             {zone.planted_ha ? ` · ${Math.round(zone.planted_ha).toLocaleString()} ha planted` : ''}
           </p>
         </div>
@@ -90,7 +107,7 @@ function ZoneOverviewCard({ zone, onClose }) {
         <>
           <dl className="zone-card__stats">
             {METRICS.map((metric) => {
-              const entry = latest[metric];
+              const entry = shown[metric];
               if (!entry) return null;
               const delta = entry.base != null && entry.last?.mean != null
                 ? entry.last.mean - entry.base
@@ -114,10 +131,17 @@ function ZoneOverviewCard({ zone, onClose }) {
           {/* The range across real vineyards is the honest companion to the
               mean — a zone number without it implies a uniformity that a zone
               spanning 3.4 degC does not have. */}
-          {latest.tmean?.last?.min != null && latest.tmean?.last?.max != null && (
+          {shown.tmean?.last?.min != null && shown.tmean?.last?.max != null && (
             <p className="zone-card__spread">
-              Across vineyards in this zone: {latest.tmean.last.min.toFixed(1)}°C to{' '}
-              {latest.tmean.last.max.toFixed(1)}°C
+              Across vineyards in this zone: {shown.tmean.last.min.toFixed(1)}°C to{' '}
+              {shown.tmean.last.max.toFixed(1)}°C
+            </p>
+          )}
+
+          {/* Say it rather than quietly showing a different year from the map. */}
+          {missedVintage && (
+            <p className="zone-card__note">
+              The {vintage} season is not published yet — showing {shownVintage}.
             </p>
           )}
 

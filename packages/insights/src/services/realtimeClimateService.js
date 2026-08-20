@@ -179,6 +179,23 @@ export const getRegionalOverview = async (params = {}) => {
   return fetchApi(`/regional-overview${query}`);
 };
 
+/**
+ * Warmest, coldest and wettest STATION in the country right now, read off raw
+ * observations rather than the zone aggregates every other call here uses.
+ *
+ * The aggregates are a day or two behind by design. This is the one call on
+ * the home page that can say "46 minutes ago", which is the whole point of it.
+ *
+ * @param {Object} params
+ * @param {number} params.window_hours - Look-back for the extremes (default 24)
+ * @returns {Promise<{window_hours, generated_at, network_latest_at,
+ *                    network_window_hours, reporting_stations, extremes}>}
+ */
+export const getLiveExtremes = async (params = {}) => {
+  const query = buildQuery(params);
+  return fetchApi(`/live-extremes${query}`);
+};
+
 // =============================================================================
 // CONSTANTS & HELPERS
 // =============================================================================

@@ -22,6 +22,7 @@ function SiteFooter() {
             <h3>Explore</h3>
             <Link to="/map">Vine Atlas</Link>
             <Link to="/regions">Wine regions</Link>
+            <Link to="/pro">Insights Pro</Link>
             <Link to="/articles">Articles</Link>
             <Link to="/research">Research</Link>
           </div>

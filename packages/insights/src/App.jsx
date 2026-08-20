@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import About from './pages/About';
+import Pro from './pages/Pro';
 import Feedback from './pages/Feedback';
 import './components/legal/legal.css';
 import LegalPage from './components/legal/LegalPage';
@@ -61,6 +62,7 @@ function AppRoutes() {
           <Route path="/regions" element={<RegionsPage />} />
           <Route path="/regions/:slug" element={<RegionDetail />} />
           <Route path="/about" element={<About />} />
+          <Route path="/pro" element={<Pro />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/legal" element={<LegalPage />} />
           <Route path="/articles" element={<ArticlesPage />} />

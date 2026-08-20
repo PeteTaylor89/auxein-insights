@@ -53,6 +53,25 @@ export function granularityFor(variable) {
   return VARIABLE_GRANULARITY[variable] || DEFAULT_GRANULARITY;
 }
 
+/**
+ * The vintage a monthly step belongs to.
+ *
+ * The NZ growing season runs September to April and is labelled by the HARVEST
+ * year: Sep 2013 through Apr 2014 is the 2014 season. May to August sits
+ * between seasons; those months are attributed to the season that has just
+ * finished, so scrubbing through winter keeps a region summary on the vintage a
+ * grower last picked rather than blanking it or jumping a year early.
+ *
+ * Seasonal layers do not need this — their steps carry `season` from the
+ * server, which is authoritative. Use that when it is present.
+ */
+export function vintageFor(validAt) {
+  if (!validAt) return null;
+  const [y, m] = String(validAt).split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+  return m >= 9 ? y + 1 : y;
+}
+
 // §5 variable vocabulary. Units are the contract's and are NOT negotiable at
 // the display layer — a chart that relabels C as F must convert, not rename.
 /**
@@ -63,7 +82,7 @@ export function granularityFor(variable) {
  * top of its own children and every click hits the parent. Pick one level per
  * zoom band.
  */
-export async function fetchZoneLayer({ level = 'region', metric = 'gdd10', simplify = 0.004 } = {}) {
+export async function fetchZoneLayer({ level = 'region', metric = 'gdd10', simplify = 0.001 } = {}) {
   const base = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
   const params = new URLSearchParams({ level, metric, simplify: String(simplify) });
   const res = await fetch(`${base}/surfaces/zones?${params}`);
@@ -334,6 +353,7 @@ export default {
   monthsAvailable,
   stepsAvailable,
   granularityFor,
+  vintageFor,
   monthStamp,
   isSurfacesUnavailable,
   SURFACE_VARIABLES,

@@ -9,7 +9,6 @@ export { default as PublicClimateContainer } from './PublicClimateContainer';
 export { default as ZoneSelector } from './ZoneSelector';
 export { default as SeasonExplorer } from './SeasonExplorer';
 export { default as ProjectionsExplorer } from './ProjectionsExplorer';
-export { default as ClimateAbout } from './ClimateAbout';
 
 // Re-export service utilities
 export {

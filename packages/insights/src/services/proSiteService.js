@@ -99,6 +99,23 @@ export async function getSiteMonthly(id, { variable = 'temp_mean',
   return data;
 }
 
+/**
+ * The whole dashboard in one call: the site's climatology tiles, and this
+ * season beside them.
+ *
+ * The two halves come from DIFFERENT SOURCES and the payload says so on every
+ * field. `tiles` are the site's own cell from the 1986-2023 surface archive;
+ * `season_to_date` is station data aggregated to the region, because no live
+ * surface exists yet. Nothing here may merge them into one figure — the server
+ * deliberately does not, and re-deriving on the client would undo that.
+ */
+export async function getSiteDashboard(id, { baseline } = {}) {
+  const { data } = await publicApi.get(`${BASE}/${id}/dashboard`, {
+    params: baseline ? { baseline } : {},
+  });
+  return data;
+}
+
 // Metrics worth charting on the Pro page, in the order a grower reads them.
 // `r99p` is absent because the API omits it per site and says so in
 // `meta.omitted` — showing it computed a different way from the regional figure
@@ -116,5 +133,5 @@ export const SITE_METRICS = [
 
 export default {
   listSites, getSite, placeSite, updateSite, deleteSite,
-  getSiteSeason, getSiteMonthly, refusalOf, SITE_METRICS,
+  getSiteSeason, getSiteMonthly, getSiteDashboard, refusalOf, SITE_METRICS,
 };

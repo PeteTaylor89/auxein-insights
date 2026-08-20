@@ -1,0 +1,424 @@
+/* pages/Pro.css — the Insights Pro landing page.
+ *
+ * Wider measure than /about (960 vs 860): that page is a reading document,
+ * this one is a grid of features and a comparison table. Same tokens, same
+ * block rhythm, so the two read as one site.
+ */
+
+.pro-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+}
+
+.pro-main {
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 20px 8px;
+}
+
+/* ---- Hero ---------------------------------------------------------------- */
+
+.pro-hero {
+  margin-bottom: 48px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.09);
+}
+
+.pro-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(68, 97, 69, 0.1);
+  border: 1px solid rgba(68, 97, 69, 0.25);
+  color: var(--primary);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pro-hero h1 {
+  margin: 0 0 16px;
+  /* 19ch broke "Measure it." across two lines and orphaned "it." on its own.
+     A headline that has to be reassembled by the reader is not a headline. */
+  max-width: 26ch;
+  font-size: 2.35rem;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -0.02em;
+}
+
+.pro-hero__lede {
+  margin: 0 0 26px;
+  max-width: 58ch;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.pro-hero__lede em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.pro-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.pro-hero__note {
+  font-size: var(--font-sm);
+  color: var(--text-light);
+}
+
+/* ---- CTAs ---------------------------------------------------------------- */
+
+.pro-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 12px 20px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: var(--font-md);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.pro-cta:hover {
+  background: #35502F;
+  border-color: #35502F;
+  transform: translateY(-1px);
+}
+
+.pro-cta--ghost {
+  background: transparent;
+  color: var(--primary);
+}
+
+.pro-cta--ghost:hover {
+  background: rgba(68, 97, 69, 0.08);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ---- Sections ------------------------------------------------------------ */
+
+.pro-section {
+  margin-bottom: 48px;
+}
+
+.pro-section > h2 {
+  margin: 0 0 10px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -0.01em;
+}
+
+.pro-section__lede {
+  margin: 0 0 22px;
+  max-width: 64ch;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* ---- Feature grid -------------------------------------------------------- */
+
+.pro-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.pro-feature {
+  padding: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 10px;
+  background: var(--white);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.pro-feature:hover {
+  border-color: rgba(68, 97, 69, 0.35);
+  transform: translateY(-2px);
+}
+
+.pro-feature__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 13px;
+  border-radius: 10px;
+  background: rgba(68, 97, 69, 0.11);
+  color: var(--primary);
+}
+
+.pro-feature h3 {
+  margin: 0 0 8px;
+  font-size: var(--font-md);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--charcoal);
+}
+
+.pro-feature p {
+  margin: 0;
+  font-size: var(--font-base);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* ---- Comparison table ---------------------------------------------------- */
+
+/* Wide content scrolls in its own box rather than making the page scroll
+   sideways on a phone. */
+.pro-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.pro-table {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+}
+
+.pro-table thead th {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--card-bg);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-light);
+  text-align: center;
+}
+
+.pro-table thead th:first-child { text-align: left; }
+
+.pro-table tbody th {
+  padding: 13px 16px;
+  font-size: var(--font-base);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
+  text-align: left;
+}
+
+.pro-table tbody td {
+  padding: 13px 16px;
+  text-align: center;
+  width: 92px;
+}
+
+.pro-table tbody tr + tr th,
+.pro-table tbody tr + tr td {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* The Pro column is the answer to the question the table asks. */
+.pro-table tbody td:last-child,
+.pro-table thead th:last-child {
+  background: rgba(68, 97, 69, 0.045);
+}
+
+.pro-yes { color: var(--primary); }
+.pro-no  { color: rgba(0, 0, 0, 0.25); }
+
+/* ---- Grow block ---------------------------------------------------------- */
+
+.pro-grow {
+  margin-bottom: 48px;
+  padding: 26px 24px;
+  border: 1px solid rgba(68, 97, 69, 0.25);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(68, 97, 69, 0.07), rgba(68, 97, 69, 0.02));
+}
+
+.pro-grow h2 {
+  margin: 0 0 10px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.pro-grow p {
+  margin: 0 0 18px;
+  max-width: 62ch;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* ---- Steps --------------------------------------------------------------- */
+
+.pro-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+  gap: 16px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.pro-step {
+  display: flex;
+  gap: 13px;
+  padding: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.pro-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--white);
+  font-size: var(--font-sm);
+  font-weight: 700;
+}
+
+.pro-step h3 {
+  margin: 4px 0 7px;
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+.pro-step p {
+  margin: 0;
+  font-size: var(--font-base);
+  line-height: 1.55;
+  color: var(--text);
+}
+
+/* ---- Sign up ------------------------------------------------------------- */
+
+.pro-signup {
+  margin: 0 0 48px;
+  scroll-margin-top: 96px;   /* clears the sticky header on the #enquire jump */
+}
+
+.pro-signup h2 {
+  margin: 0 0 10px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: -0.01em;
+}
+
+.pro-signup__lede {
+  margin: 0 0 20px;
+  max-width: 64ch;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.pro-signup__alt {
+  margin: 14px 0 0;
+  font-size: var(--font-sm);
+  color: var(--text-light);
+}
+
+.pro-signup__alt a {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ---- Close --------------------------------------------------------------- */
+
+.pro-close {
+  margin: 0 0 48px;
+  padding: 34px 28px;
+  border-radius: 12px;
+  background: var(--charcoal);
+  text-align: center;
+}
+
+.pro-close h2 {
+  margin: 0 0 10px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.pro-close p {
+  margin: 0 auto 20px;
+  max-width: 52ch;
+  font-size: var(--font-md);
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* On the dark panel the olive primary loses contrast, so the button inverts. */
+.pro-close .pro-cta {
+  background: var(--white);
+  border-color: var(--white);
+  color: var(--charcoal);
+}
+
+.pro-close .pro-cta:hover {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.88);
+}
+
+.pro-close__alt {
+  margin: 18px 0 0 !important;
+  font-size: var(--font-sm) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.pro-close__alt a {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+}
+
+/* ---- Small screens ------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  .pro-main { padding: 26px 16px 4px; }
+
+  .pro-hero h1 { font-size: 1.75rem; max-width: none; }
+  .pro-hero__lede { font-size: var(--font-md); }
+
+  .pro-hero__actions .pro-cta { flex: 1 1 auto; justify-content: center; }
+
+  .pro-section > h2 { font-size: 1.3rem; }
+
+  .pro-close { padding: 26px 18px; }
+  .pro-close .pro-cta { width: 100%; justify-content: center; }
+
+  .pro-signup h2 { font-size: 1.3rem; }
+  .pro-signup { scroll-margin-top: 76px; }
+}

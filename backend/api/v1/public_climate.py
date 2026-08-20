@@ -299,9 +299,16 @@ def list_zones(db: Session = Depends(get_db)):
     """List all climate zones."""
     zones = db.query(ClimateZone).options(
         joinedload(ClimateZone.region)
+    ).outerjoin(
+        WineRegion, ClimateZone.region_id == WineRegion.id
     ).filter(
         ClimateZone.is_active == True
-    ).order_by(ClimateZone.display_order).all()
+    ).order_by(
+        WineRegion.display_order.nulls_last(),
+        WineRegion.name.nulls_last(),
+        ClimateZone.display_order,
+        ClimateZone.name,
+    ).all()
     
     return ZonesListResponse(zones=[
         ClimateZoneDetail(

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { User, LogOut, Settings, Shield, Menu, X } from 'lucide-react';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import UserPreferencesModal from './auth/UserPreferencesModal';
-import MainLogo from '../assets/Logo_September 2025.png';
+import MainLogo from '../assets/logo-mark.png';
 import './SiteHeader.css';
 
 // Scroll-aware header hook (hides on scroll down on mobile)
@@ -44,7 +44,7 @@ function useScrollDirection() {
   return { scrollDirection, isAtTop };
 }
 
-function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
+function SiteHeader({ onSignInClick }) {
   const { isAuthenticated, user, logout } = usePublicAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -111,7 +111,6 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             <img src={MainLogo} alt="Auxein Logo" className="header-logo" />
             <div className="header-title-block">
               <h1>Auxein Insights</h1>
-              <p>{subtitle}</p>
             </div>
           </Link>
 
@@ -128,7 +127,7 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             {/* Pro only. The page is reachable by anyone and explains itself,
                 but putting it in the nav for people who cannot use it turns
                 primary navigation into an advertisement. */}
-            {isProUser && <Link to="/my-site">Your site</Link>}
+            {isProUser && <Link to="/my-site">My Site</Link>}
 
             {isAdmin && (
               <Link to="/admin" className="admin-header-link">
@@ -203,7 +202,7 @@ function SiteHeader({ subtitle = 'Regional Intelligence', onSignInClick }) {
             <Link to="/articles" onClick={closeMobileMenu}>Articles</Link>
             <Link to="/research" onClick={closeMobileMenu}>Research</Link>
             {isProUser && (
-              <Link to="/my-site" onClick={closeMobileMenu}>Your site</Link>
+              <Link to="/my-site" onClick={closeMobileMenu}>My Site</Link>
             )}
             <Link to="/about" onClick={closeMobileMenu}>About</Link>
 

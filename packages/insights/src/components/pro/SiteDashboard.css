@@ -1,0 +1,254 @@
+/* components/pro/SiteDashboard.css — the Pro site dashboard.
+
+   Mobile first, one build. Tiles are a single column on a phone and an
+   auto-fitting grid from 520px up, so there is no breakpoint where a tile is
+   too narrow to read its own numbers.
+
+   The season strip is styled DIFFERENTLY from the tiles on purpose. It is a
+   different source at a different scale, and if it looked like the tiles a
+   reader would take a regional figure for their own site's. */
+
+.site-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-bottom: 28px;
+}
+
+.site-dashboard__loading,
+.site-dashboard__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7360;
+  font-size: 0.9rem;
+  margin: 16px 0;
+}
+
+.site-dashboard__head h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: #2f2f2f;
+}
+
+.site-dashboard__head p {
+  margin: 0 0 14px;
+  color: #6b7360;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  max-width: 62ch;
+}
+
+/* --- tiles ---------------------------------------------------------------- */
+
+.site-dashboard__tiles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 520px) {
+  .site-dashboard__tiles {
+    /* 240px is the width at which "1,180 GDD" and its delta still sit on one
+       line. Below that the number wraps and the tile stops scanning. */
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+.site-tile {
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 12px;
+  background: var(--white, #fff);
+}
+
+.site-tile__label {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7360;
+}
+
+.site-tile__value {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 650;
+  color: #2f2f2f;
+}
+
+.site-tile__unit {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7360;
+}
+
+.site-tile__caption {
+  margin: 2px 0 10px;
+  font-size: 0.76rem;
+  color: #8a8f80;
+}
+
+.site-tile__rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.84rem;
+}
+
+.site-tile__rows > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.site-tile__rows dt {
+  color: #6b7360;
+}
+
+.site-tile__rows dd {
+  margin: 0;
+  color: #2f2f2f;
+  text-align: right;
+}
+
+.site-tile__muted {
+  color: #8a8f80;
+  font-size: 0.78rem;
+}
+
+.site-tile__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+
+/* Colour marks the DIRECTION that costs a grower money, never the size. The
+   number reads the same either way. */
+.site-tile__delta.is-good { color: #4a7a3f; }
+.site-tile__delta.is-bad { color: #b4522c; }
+.site-tile__delta.is-flat { color: #8a8f80; }
+
+.site-tile__position {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #6b7360;
+}
+
+.site-tile__position.is-above { color: #b4522c; }
+.site-tile__position.is-below { color: #3f6b7a; }
+
+/* --- the season strip ----------------------------------------------------- */
+
+.season-strip {
+  padding: 16px;
+  border-radius: 14px;
+  /* Deliberately not a white card. This panel is a different source at a
+     different scale and has to read as a different KIND of thing. */
+  background: #f3f5ee;
+  border: 1px solid rgba(91, 104, 48, 0.18);
+}
+
+.season-strip--empty {
+  color: #6b7360;
+  font-size: 0.88rem;
+}
+
+.season-strip--empty p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.season-strip__head h3 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  color: #2f2f2f;
+}
+
+.season-strip__state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(91, 104, 48, 0.14);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #5b6830;
+}
+
+.season-strip__scope {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #6b7360;
+  max-width: 66ch;
+}
+
+.season-strip__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .season-strip__metrics {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.season-strip__metric-label {
+  margin: 0 0 2px;
+  font-size: 0.76rem;
+  color: #6b7360;
+}
+
+.season-strip__metric-value {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 650;
+  color: #2f2f2f;
+  line-height: 1.15;
+}
+
+.season-strip__metric-normal {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  color: #8a8f80;
+}
+
+.season-strip__metric-delta {
+  font-weight: 600;
+  color: #6b7360;
+}
+
+.season-strip__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(91, 104, 48, 0.16);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.season-strip__note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}

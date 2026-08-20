@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   Mail, Building, MapPin, Calendar, Clock, User, Check, X, 
-  Save, RefreshCw, Activity, MessageSquare, Shield, Briefcase
+  Save, RefreshCw, Activity, MessageSquare, Shield, Briefcase, Star, Link2
 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import adminService from '../services/adminService';
@@ -42,6 +42,30 @@ const OptInBadges = ({ newsletter, marketing, research }) => (
   </div>
 );
 
+// What the server DECIDED, next to what is stored. `is_pro` is the truth —
+// 'grow' counts as Pro and an expired 'pro' does not — so a screen that shows
+// only the tier string will disagree with what the user sees on the site.
+const ProBadge = ({ user }) => {
+  const tier = user.subscription_tier || 'free';
+  const lapsed = tier === 'pro' && !user.is_pro;
+  return (
+    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <span className={`badge ${user.is_pro ? 'badge-purple' : 'badge-blue'}`}>
+        {user.is_pro ? <><Star size={12} /> Pro</> : 'Free'}
+      </span>
+      {tier === 'grow' && (
+        <span className="badge badge-cyan"><Link2 size={12} /> via Grow</span>
+      )}
+      {lapsed && <span className="badge badge-red">Lapsed</span>}
+      {user.pro_site_quota > 0 && (
+        <span className="badge badge-indigo">
+          {user.pro_site_quota} site{user.pro_site_quota === 1 ? '' : 's'}
+        </span>
+      )}
+    </div>
+  );
+};
+
 const UserDetail = () => {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
@@ -50,6 +74,9 @@ const UserDetail = () => {
   const [user, setUser] = useState(null);
   const [isActive, setIsActive] = useState(true);
   const [notes, setNotes] = useState('');
+  const [tier, setTier] = useState('free');
+  const [quota, setQuota] = useState(0);
+  const [expires, setExpires] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   const fetchUser = async () => {
@@ -60,6 +87,10 @@ const UserDetail = () => {
       setUser(data);
       setIsActive(data.is_active);
       setNotes(data.notes || '');
+      setTier(data.subscription_tier || 'free');
+      setQuota(data.pro_site_quota ?? 0);
+      // <input type="date"> wants YYYY-MM-DD; the API sends an ISO timestamp.
+      setExpires(data.pro_expires_at ? data.pro_expires_at.slice(0, 10) : '');
       setHasChanges(false);
     } catch (err) {
       setError('Failed to load user details.');
@@ -72,19 +103,42 @@ const UserDetail = () => {
 
   useEffect(() => {
     if (user) {
-      setHasChanges(isActive !== user.is_active || notes !== (user.notes || ''));
+      setHasChanges(
+        isActive !== user.is_active
+        || notes !== (user.notes || '')
+        || tier !== (user.subscription_tier || 'free')
+        || Number(quota) !== (user.pro_site_quota ?? 0)
+        || expires !== (user.pro_expires_at ? user.pro_expires_at.slice(0, 10) : ''),
+      );
     }
-  }, [isActive, notes, user]);
+  }, [isActive, notes, tier, quota, expires, user]);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      const updated = await adminService.users.updateUser(id, { is_active: isActive, notes: notes || null });
+      const wasExpiring = Boolean(user.pro_expires_at);
+      const payload = {
+        is_active: isActive,
+        notes: notes || null,
+        pro_site_quota: Number(quota),
+      };
+      // A Grow projection's tier is not ours to set; the API refuses it with a
+      // 409 and the control below is disabled, so do not even send it.
+      if (user.origin !== 'grow') payload.subscription_tier = tier;
+      if (expires) {
+        // End of that day, not its first instant — an expiry of the 30th that
+        // lapses at midnight takes a day off what was sold.
+        payload.pro_expires_at = new Date(`${expires}T23:59:59Z`).toISOString();
+      } else if (wasExpiring) {
+        // Null cannot mean "open-ended" and "no change" at once.
+        payload.clear_pro_expiry = true;
+      }
+      const updated = await adminService.users.updateUser(id, payload);
       setUser(updated);
       setHasChanges(false);
     } catch (err) {
-      setError('Failed to save changes.');
+      setError(err?.response?.data?.detail || 'Failed to save changes.');
     } finally {
       setSaving(false);
     }
@@ -122,7 +176,10 @@ const UserDetail = () => {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{user.full_name}</h1>
           <p className="text-muted">{user.email}</p>
         </div>
-        <StatusBadge active={user.is_active} verified={user.is_verified} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+          <StatusBadge active={user.is_active} verified={user.is_verified} />
+          <ProBadge user={user} />
+        </div>
       </div>
 
       {error && <div className="error-container mb-4"><p className="error-text">{error}</p></div>}
@@ -185,6 +242,80 @@ const UserDetail = () => {
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
               {hasChanges && <p className="text-xs text-yellow mt-2" style={{ textAlign: 'center' }}>Unsaved changes</p>}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><h2>Subscription</h2></div>
+            <div className="card-body">
+              {/* There is no billing integration. Payment is arranged outside
+                  the platform and the entitlement is switched on here, so this
+                  card is the whole of Pro onboarding. */}
+              {user.origin === 'grow' ? (
+                <p className="text-xs text-muted mb-4">
+                  This is a Grow customer&rsquo;s Insights profile. They already
+                  hold Pro through that relationship, so the tier is not
+                  settable here &mdash; but a saved site is priced separately and
+                  can be granted below.
+                </p>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label"><Star size={14} /> Tier</label>
+                  <select
+                    value={tier}
+                    onChange={(e) => setTier(e.target.value)}
+                    className="form-input"
+                  >
+                    <option value="free">Free</option>
+                    <option value="pro">Pro</option>
+                  </select>
+                  <p className="text-xs text-muted mt-1">
+                    Pro opens the saved site, the regional background and the
+                    point sampler. Granting it is a commercial act &mdash; take
+                    payment first.
+                  </p>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label"><Calendar size={14} /> Expires</label>
+                <input
+                  type="date"
+                  value={expires}
+                  onChange={(e) => setExpires(e.target.value)}
+                  className="form-input"
+                />
+                <p className="text-xs text-muted mt-1">
+                  Leave empty for open-ended. A past date is a lapsed
+                  subscription: the account keeps the tier and loses the
+                  entitlement.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label"><MapPin size={14} /> Saved sites</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={quota}
+                  onChange={(e) => setQuota(e.target.value)}
+                  className="form-input"
+                />
+                <p className="text-xs text-muted mt-1">
+                  Priced separately and stacks, so it is <strong>not</strong>{' '}
+                  implied by Pro. At 0 the subscriber sees the placement map and
+                  is refused &mdash; the single most common thing to mistake for
+                  a bug.
+                </p>
+              </div>
+
+              {user.pro_started_at && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="text-muted">Customer since</span>
+                  <span>{formatDate(user.pro_started_at)}</span>
+                </div>
+              )}
             </div>
           </div>
 

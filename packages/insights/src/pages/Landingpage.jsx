@@ -103,7 +103,6 @@ function LandingPage() {
     <div className="landing-page">
       {/* Shared Sticky Header */}
       <SiteHeader
-        subtitle="Regional Intelligence"
         onSignInClick={() => { setAuthContext('header'); setAuthModalOpen(true); }}
       />
       <SiteBanner />

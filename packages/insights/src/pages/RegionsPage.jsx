@@ -55,7 +55,6 @@ function RegionsPage() {
   return (
     <div className="regions-page">
       <SiteHeader
-        subtitle="Regional Intelligence"
         onSignInClick={() => setAuthModalOpen(true)}
       />
 

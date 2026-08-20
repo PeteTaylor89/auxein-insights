@@ -13,13 +13,14 @@
 // "One point per subscription" discovered at the moment of refusal reads as a
 // bait-and-switch; stated up front it reads as the pricing model it is.
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { MapPin, Loader, AlertTriangle, Sparkles, Trash2 } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import SiteFooter from '../components/SiteFooter';
 import AuthModal from '../components/auth/AuthModal';
 import AccessGate from '../components/auth/AccessGate';
 import SitePlacementMap from '../components/pro/SitePlacementMap';
+import SiteDashboard from '../components/pro/SiteDashboard';
 import SiteSeasonChart from '../components/pro/SiteSeasonChart';
 import SiteMonthlyChart from '../components/pro/SiteMonthlyChart';
 import useProSites from '../hooks/useProSites';
@@ -40,6 +41,7 @@ const PRO_PREVIEW = [
 ];
 
 function MySite() {
+  const navigate = useNavigate();
   const { user, isAuthenticated } = usePublicAuth();
   const pro = isPro(user);
 
@@ -119,8 +121,7 @@ function MySite() {
 
   return (
     <div className="my-site-page">
-      <SiteHeader subtitle="Regional Intelligence"
-                  onSignInClick={() => setAuthOpen(true)} />
+      <SiteHeader onSignInClick={() => setAuthOpen(true)} />
 
       <main className="my-site-main">
         <header className="my-site__intro">
@@ -134,7 +135,17 @@ function MySite() {
         <AccessGate
           require="pro"
           allowed={pro}
-          onAction={() => (isAuthenticated ? null : setAuthOpen(true))}
+          cta={isAuthenticated ? 'See what Pro adds' : 'Sign in or register free'}
+          // A signed-in free user used to get a button that did NOTHING, then
+          // for a day got a raw mailto. Neither was a good answer to "what am
+          // I being asked to buy?" — /pro exists now, so the button explains
+          // the product first and the enquiry sits at the end of that page.
+          // There is still no self-serve purchase; access is arranged and
+          // invoiced through Xero.
+          onAction={() => {
+            if (!isAuthenticated) { setAuthOpen(true); return; }
+            navigate('/pro');
+          }}
           title="Put your own site on the map"
           preview={PRO_PREVIEW}
         >
@@ -247,6 +258,11 @@ function MySite() {
                   <Trash2 size={14} aria-hidden="true" /> Remove
                 </button>
               </div>
+
+              {/* The summary first: what this site usually does, and what
+                  this season has done. The charts below are for reading the
+                  detail once a number on a tile has raised a question. */}
+              <SiteDashboard siteId={site.id} />
 
               <div className="my-site__panel">
                 <h3>Season by season</h3>

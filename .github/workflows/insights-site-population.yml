@@ -1,0 +1,131 @@
+name: Insights Pro Site Population
+
+# A subscriber places a point and the API writes a row with status='populating'
+# and returns 202. NOTHING runs inline — no background task, no thread, no
+# queue — so without this workflow that row stays 'populating' for ever. The
+# page tells the customer something is wrong after ten minutes; nothing tells
+# us. That asymmetry is what this file exists to close.
+#
+# It is a GitHub Actions job, not an EB cron, because that is where every other
+# scheduled job on this platform already lives (weather-ingestion, daily-
+# processing, synop-live). `backend/.ebextensions` holds one Python config and
+# nothing scheduled. **So this does not depend on the EB deploy and should be
+# merged BEFORE it** — otherwise the first customer to place a point is the one
+# who discovers the gap.
+
+on:
+  schedule:
+    # Every five minutes, which is GitHub's finest granularity. Be honest about
+    # what that buys: scheduled runs are best-effort and are routinely delayed
+    # under load, occasionally by more than ten minutes, and can be dropped
+    # entirely. Extraction itself takes ~90 seconds. So the wait a customer sees
+    # is dominated by queue latency we do not control, not by the work.
+    - cron: '*/5 * * * *'
+
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'Populate one site by id (blank = every queued site)'
+        required: false
+      force:
+        description: 'Re-populate even if the site is already ready'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  populate:
+    runs-on: ubuntu-latest
+    # Queue rather than overlap. Two runs picking up the same 'populating' row
+    # would extract the same 7,700 cells twice and race on the stale-row
+    # cleanup. No cancel-in-progress: killing a run mid-extraction leaves the
+    # site exactly where it started, which is the state we are trying to leave.
+    concurrency:
+      group: insights-site-population
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install boto3 pydantic pydantic-settings
+          cd backend && pip install -r requirements.txt
+
+      - name: Populate queued sites
+        env:
+          ENV: staging
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_PORT: 5432
+          RDS_DATABASE: auxein_db
+          # Extraction is ~7,700 single-cell reads and the process sleeps on the
+          # network ~96% of the time. Serially it took over 20 minutes; a thread
+          # pool takes it to ~90 seconds. See services/insights_site_service.
+          INSIGHTS_SITE_WORKERS: '12'
+        run: |
+          cd backend
+          ARGS=""
+          if [ -n "${{ github.event.inputs.site }}" ]; then
+            ARGS="--site ${{ github.event.inputs.site }}"
+          fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          python scripts/populate_insights_sites.py $ARGS
+
+      # The populator marks a site 'failed' with a customer-readable detail when
+      # extraction throws, and leaves the previous rows in place. That is honest
+      # to the customer and invisible to us — there is no admin screen listing
+      # stuck sites and no email. This step makes a paying customer's broken
+      # site turn the workflow red, which is the only alerting this feature has.
+      - name: Alert on stuck or failed sites
+        if: always()
+        env:
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_DATABASE: auxein_db
+        run: |
+          cd backend
+          python - <<'PY'
+          import os, sys
+          import psycopg2
+
+          cn = psycopg2.connect(
+              host=os.environ["RDS_ENDPOINT"], port=os.environ.get("RDS_PORT", "5432"),
+              user=os.environ["RDS_USER"], password=os.environ["RDS_PASSWORD"],
+              dbname=os.environ["RDS_DATABASE"], connect_timeout=20)
+          cur = cn.cursor()
+          # 30 minutes is well past the ~90 second job and past any plausible
+          # queue delay, so anything still waiting is genuinely stuck rather
+          # than merely slow.
+          cur.execute("""
+              SELECT id, public_user_id, status, status_detail,
+                     date_trunc('second', now() - requested_at) AS waiting
+                FROM insights_site
+               WHERE status = 'failed'
+                  OR (status = 'populating' AND requested_at < now() - interval '30 minutes')
+               ORDER BY requested_at
+          """)
+          rows = cur.fetchall()
+          cn.close()
+
+          if not rows:
+              print("no stuck or failed sites")
+              sys.exit(0)
+
+          for sid, uid, status, detail, waiting in rows:
+              print(f"site {sid} (user {uid}) {status} for {waiting}: {detail or '-'}")
+          print(f"::error::{len(rows)} Insights site(s) stuck or failed")
+          sys.exit(1)
+          PY

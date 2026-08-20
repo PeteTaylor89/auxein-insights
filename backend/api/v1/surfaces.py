@@ -542,7 +542,15 @@ def region_stats(
 def zone_layer(
     level: Optional[str] = Query(
         None, description="region | sub_zone; omit for both"),
-    simplify: float = Query(0.002, ge=0, le=0.1),
+    # ~110 m. Measured against the LINZ coastline: at 0.004 (~440 m) the
+    # simplifier cuts across bays and puts 97 km2 of the sea back inside the
+    # outlines the clip had just removed — half the work undone at render time,
+    # invisibly. 0.001 costs 262 KB of GeoJSON for all 23 zones (a level at a
+    # time is half that, and it gzips hard) and leaves 23 km2.
+    simplify: float = Query(0.001, ge=0, le=0.1),
+    min_part_km2: float = Query(
+        0.05, ge=0, le=10,
+        description="drop land parts smaller than this from the drawn outline"),
     metric: str = Query("gdd10", description="headline metric for the overlay"),
     db: Session = Depends(get_db),
 ):
@@ -561,36 +569,86 @@ def zone_layer(
         raise HTTPException(501, "the zone layer has no stub; it needs the mask")
     if level is not None and level not in ("region", "sub_zone"):
         raise HTTPException(422, "level must be 'region' or 'sub_zone'")
+    # `check_surfaces_live.py` calls these router functions DIRECTLY — the venv
+    # has no httpx — so a FastAPI `Query(...)` default arrives as a Query object
+    # rather than a number and lands in the SQL parameters as one. Resolving it
+    # here costs a line and stops every direct caller having to know.
+    if not isinstance(min_part_km2, (int, float)):
+        min_part_km2 = 0.05
 
     latest = db.execute(text("""
         SELECT max(vintage_year) FROM climate_zone_surface_season
     """)).scalar()
 
+    # `geometry_clipped` is the LINZ-coastline-trimmed outline; `geometry` is the
+    # administrative polygon it came from. COALESCE rather than a join so a zone
+    # that has never been through `fetch_nz_coastline.py` still draws, and
+    # `clipped` travels with the feature so the difference is visible rather
+    # than being guessed from the shape.
     rows = db.execute(text("""
-        SELECT z.id, z.name, z.slug, z.zone_level, z.parent_zone_id,
-               ST_AsGeoJSON(ST_SimplifyPreserveTopology(z.geometry, :tol))
+        WITH raw AS (
+            SELECT z.id, z.name, z.slug, z.zone_level, z.parent_zone_id,
+                   z.display_order,
+                   z.geometry_clipped IS NOT NULL AS clipped,
+                   z.label_point,
+                   COALESCE(z.geometry_clipped, z.geometry) AS geom
+              FROM climate_zones z
+             WHERE z.geometry IS NOT NULL AND z.is_active = true
+               AND (:level IS NULL OR z.zone_level = :level)
+        ),
+        -- Clipping Marlborough to the coast turns it into 238 parts, most of
+        -- them rocks in the Sounds. They carry a fifth of the payload and are
+        -- sub-pixel at every zoom this layer is drawn at; dropping them takes
+        -- the region layer from 220 KB to 176 KB. COALESCE back to the whole
+        -- geometry so a zone whose every part is under the threshold still
+        -- draws rather than vanishing.
+        zone AS (
+            SELECT raw.*,
+                   COALESCE((SELECT ST_Multi(ST_Collect(d.geom))
+                               FROM ST_Dump(raw.geom) d
+                              WHERE ST_Area(d.geom::geography)
+                                    >= :min_part * 1e6),
+                            raw.geom) AS drawn
+              FROM raw
+        )
+        SELECT zone.id, zone.name, zone.slug, zone.zone_level, zone.parent_zone_id,
+               zone.clipped,
+               ST_AsGeoJSON(ST_SimplifyPreserveTopology(zone.drawn, :tol))
                    AS geom,
+               ST_X(COALESCE(zone.label_point, lbl.pt)) AS label_lon,
+               ST_Y(COALESCE(zone.label_point, lbl.pt)) AS label_lat,
                m.cells, m.ha,
                s.mean AS headline, s.unit AS headline_unit,
                b.mean AS headline_baseline
-          FROM climate_zones z
+          FROM zone
           JOIN (SELECT zone_id, count(*) AS cells, sum(planted_ha) AS ha
                   FROM climate_zone_cell_mask GROUP BY zone_id) m
-            ON m.zone_id = z.id
+            ON m.zone_id = zone.id
+          -- `label_point` is precomputed on the part carrying the most
+          -- registered vine area (fetch_nz_coastline.py) — ranking by area
+          -- alone puts "Auckland" on the wrong island by a 6% margin. This
+          -- lateral is only the fallback for a zone that has never been through
+          -- that script: a point on the largest part, which still beats a
+          -- centroid (the centroid of a crescent like Hawke's Bay is at sea).
+          -- LEFT JOIN so an empty geometry loses its label, not the whole zone.
+          LEFT JOIN LATERAL (
+              SELECT ST_PointOnSurface(d.geom) AS pt
+                FROM ST_Dump(zone.drawn) d
+               ORDER BY ST_Area(d.geom) DESC
+               LIMIT 1
+          ) lbl ON true
           LEFT JOIN climate_zone_surface_season s
-            ON s.zone_id = z.id AND s.metric = :metric
+            ON s.zone_id = zone.id AND s.metric = :metric
            AND s.vintage_year = :latest
           LEFT JOIN (SELECT zone_id, avg(mean) AS mean
                        FROM climate_zone_surface_season
                       WHERE metric = :metric
                         AND vintage_year BETWEEN 1987 AND 2016
                       GROUP BY zone_id) b
-            ON b.zone_id = z.id
-         WHERE z.geometry IS NOT NULL AND z.is_active = true
-           AND (:level IS NULL OR z.zone_level = :level)
-         ORDER BY z.display_order
+            ON b.zone_id = zone.id
+         ORDER BY zone.display_order
     """), {"tol": simplify, "metric": metric, "latest": latest,
-           "level": level}).fetchall()
+           "level": level, "min_part": min_part_km2}).fetchall()
 
     features = []
     for r in rows:
@@ -602,6 +660,13 @@ def zone_layer(
             "properties": {
                 "id": r.id, "name": r.name, "slug": r.slug,
                 "level": r.zone_level, "parent_zone_id": r.parent_zone_id,
+                # Where to put the zone's name. A label placed by the renderer
+                # from the polygon itself drifts offshore on a coastal region.
+                "label_lon": float(r.label_lon) if r.label_lon is not None else None,
+                "label_lat": float(r.label_lat) if r.label_lat is not None else None,
+                # False means this outline is still the administrative polygon
+                # and may run out over water.
+                "clipped": bool(r.clipped),
                 "n_cells": r.cells,
                 "planted_ha": float(r.ha) if r.ha else 0.0,
                 "headline_metric": metric,
@@ -625,6 +690,12 @@ def zone_layer(
                  "latest_vintage": latest,
                  "baseline": "1987-2016 mean",
                  "overlaps": "zones nest; do not sum across features",
+                 # The outline is trimmed to the coast for drawing only. Every
+                 # number on this response still comes from the vineyard cell
+                 # mask, which never read the polygon.
+                 "coastline": "LINZ NZ Coastlines and Islands Polygons "
+                              "(Topo 1:50k), CC BY 4.0",
+                 "clipped": sum(1 for f in features if f["properties"]["clipped"]),
                  "count": len(features)},
     }
 

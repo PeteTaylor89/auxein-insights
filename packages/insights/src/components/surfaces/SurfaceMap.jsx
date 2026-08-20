@@ -23,12 +23,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Play, Pause, Lock } from 'lucide-react';
+import {
+  Play, Pause, Lock,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+} from 'lucide-react';
 import useSurfaceAvailability from '../../hooks/useSurfaceAvailability';
 import {
   tileUrlTemplate,
   fetchZoneLayer,
   granularityFor,
+  vintageFor,
   SURFACE_VARIABLES,
   DEFAULT_STATISTIC,
 } from '../../services/surfaceService';
@@ -43,6 +47,8 @@ const SOURCE_ID = 'climate-surface';
 const ZONE_SOURCE = 'wine-zones';
 const ZONE_FILL = 'wine-zones-fill';
 const ZONE_LINE = 'wine-zones-line';
+const ZONE_LABEL_SOURCE = 'wine-zone-labels';
+const ZONE_LABEL = 'wine-zone-labels-text';
 const PLAY_MS = 420;
 
 // Zones NEST — Marlborough contains Lower Wairau, Awatere and Upper Wairau — so
@@ -54,8 +60,13 @@ const SUBZONE_FROM_ZOOM = 8;
 // Statistics worth putting in front of a visitor. The archive publishes more
 // (argmin_day, wet_top3, ...) but those are analysis bands, not map layers, and
 // a day-of-month index on a continuous ramp reads as noise.
+// `sd` (within-month variability) is deliberately absent from temp_mean. On a
+// fixed temperature ramp it renders as a near-uniform field that reads as a
+// broken layer rather than as a spread in degrees, and it answers a question
+// nobody arriving at the Atlas is asking. The band still exists in the archive
+// and is still what the GDD integration is built on — it is just not a map.
 const FEATURED_STATISTICS = {
-  temp_mean: ['mean', 'min', 'max', 'sd'],
+  temp_mean: ['mean', 'min', 'max'],
   temp_min: ['mean', 'frost_days', 'min'],
   temp_max: ['mean', 'days_over_25', 'days_over_30', 'max'],
   rainfall: ['sum', 'wet_days', 'max', 'max_dry_spell'],
@@ -203,6 +214,58 @@ function SurfaceMap({ onSignInRequired }) {
 
   const currentSeason = currentStep?.season ?? null;
 
+  // The vintage the map is currently showing. Seasonal layers carry it from the
+  // server; monthly layers derive it from the Sep-Apr season definition. This is
+  // what any panel opened FROM the map must follow, so the numbers on screen
+  // and the numbers in a card describe the same year.
+  const vintage = currentSeason ?? vintageFor(current);
+
+  // --- stepping -------------------------------------------------------------
+  // The slider alone cannot answer "this month, last year": 456 monthly steps
+  // makes one year 2.6% of the track, which is a few pixels on a phone. These
+  // move by a known interval instead of by pixels.
+  const navDisabled = !months.length || locked;
+
+  const stepBy = useCallback((delta) => {
+    setPlaying(false);
+    setIndex((prev) => {
+      if (!months.length) return prev;
+      const from = prev ?? months.length - 1;
+      return Math.min(months.length - 1, Math.max(0, from + delta));
+    });
+  }, [months.length]);
+
+  const jumpYear = useCallback((delta) => {
+    if (!months.length || !current) return;
+    setPlaying(false);
+
+    if (granularity === 'season') {
+      // Hold the position WITHIN the season, so Octobers compare with Octobers
+      // and the accumulation is read at the same point of the run. `months` and
+      // `steps` are the same list here, so the indices line up.
+      const target = (currentSeason ?? 0) + delta;
+      const tail = current.slice(5);
+      const within = steps.findIndex((s) => s.season === target && s.valid_at.slice(5) === tail);
+      const first = steps.findIndex((s) => s.season === target);
+      const next = within >= 0 ? within : first;
+      if (next >= 0) setIndex(next);
+      return;
+    }
+
+    // Monthly: shift the CALENDAR year and look the month up, rather than
+    // moving 12 index positions. The archive has gaps, and 12 steps across one
+    // lands on the wrong month with nothing on screen to say so.
+    const [y, m] = current.split('-');
+    const wanted = `${String(Number(y) + delta).padStart(4, '0')}-${m}`;
+    const exact = months.indexOf(wanted);
+    if (exact >= 0) { setIndex(exact); return; }
+    // Nearest month on that side, so a gap year still moves rather than
+    // swallowing the click.
+    const ordered = delta > 0 ? months : [...months].reverse();
+    const hit = ordered.find((s) => (delta > 0 ? s > wanted : s < wanted));
+    if (hit) setIndex(months.indexOf(hit));
+  }, [months, current, granularity, currentSeason, steps]);
+
   const availableStatistics = available?.meta?.statistics ?? [];
   const statisticOptions = useMemo(() => {
     const featured = FEATURED_STATISTICS[variable] || ['mean'];
@@ -270,12 +333,19 @@ function SurfaceMap({ onSignInRequired }) {
       bounds: [NZ_BOUNDS[0][0], NZ_BOUNDS[0][1], NZ_BOUNDS[1][0], NZ_BOUNDS[1][1]],
       maxzoom: 12,
     });
+    // UNDER the zone furniture, always. `addLayer` with no `beforeId` appends
+    // to the TOP of the stack, and this effect re-runs on every variable,
+    // statistic and month change — so after the first scrub the surface climbed
+    // over the outlines and labels that exist to be read against it. It looked
+    // right on first load only because the zone fetch resolves later, which is
+    // exactly the kind of ordering that survives a demo and fails in use.
+    const beneath = map.getLayer(ZONE_FILL) ? ZONE_FILL : undefined;
     map.addLayer({
       id: SOURCE_ID,
       type: 'raster',
       source: SOURCE_ID,
       paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 150 },
-    });
+    }, beneath);
   }, [mapReady, variable, statistic, current, granularity]);
 
   // --- wine zone overlay ----------------------------------------------------
@@ -307,6 +377,8 @@ function SurfaceMap({ onSignInRequired }) {
 
     const fc = zones[zoneLevel];
     const remove = () => {
+      if (map.getLayer(ZONE_LABEL)) map.removeLayer(ZONE_LABEL);
+      if (map.getSource(ZONE_LABEL_SOURCE)) map.removeSource(ZONE_LABEL_SOURCE);
       if (map.getLayer(ZONE_LINE)) map.removeLayer(ZONE_LINE);
       if (map.getLayer(ZONE_FILL)) map.removeLayer(ZONE_FILL);
       if (map.getSource(ZONE_SOURCE)) map.removeSource(ZONE_SOURCE);
@@ -314,7 +386,15 @@ function SurfaceMap({ onSignInRequired }) {
     remove();
     if (!showZones || !fc || fc === false) return remove;
 
-    map.addSource(ZONE_SOURCE, { type: 'geojson', data: fc, promoteId: 'id' });
+    map.addSource(ZONE_SOURCE, {
+      type: 'geojson',
+      data: fc,
+      promoteId: 'id',
+      // The outlines are trimmed to the LINZ coastline, so the licence has to
+      // appear on the map. Mapbox folds a source attribution into the control
+      // that is already there.
+      attribution: 'Coastline: LINZ CC BY 4.0',
+    });
     // Near-transparent fill: the surface underneath IS the content, so the
     // polygon is a hit target and an outline, not a colour of its own.
     map.addLayer({
@@ -332,6 +412,54 @@ function SurfaceMap({ onSignInRequired }) {
       source: ZONE_SOURCE,
       paint: { 'line-color': '#1f2933', 'line-width': 1.4, 'line-opacity': 0.75 },
     });
+
+    // Labels ride on their OWN point source, using the anchor the server
+    // computed on the largest part of each zone. Letting the renderer label the
+    // polygon puts "Hawke's Bay" out in the bay, because the centroid of a
+    // crescent is not inside it.
+    const labels = {
+      type: 'FeatureCollection',
+      features: (fc.features || [])
+        .filter((f) => f.properties?.label_lon != null && f.properties?.label_lat != null)
+        .map((f) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [f.properties.label_lon, f.properties.label_lat],
+          },
+          // planted_ha travels with the label so the collision sort can keep
+          // the bigger region's name when two collide.
+          properties: {
+            name: f.properties.name,
+            planted_ha: f.properties.planted_ha ?? 0,
+          },
+        })),
+    };
+    if (labels.features.length) {
+      map.addSource(ZONE_LABEL_SOURCE, { type: 'geojson', data: labels });
+      map.addLayer({
+        id: ZONE_LABEL,
+        type: 'symbol',
+        source: ZONE_LABEL_SOURCE,
+        layout: {
+          'text-field': ['get', 'name'],
+          // Stock Mapbox glyphs. A font the style does not carry silently
+          // renders nothing at all rather than falling back.
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 5, 11, 9, 15],
+          'text-padding': 6,
+          // Collide rather than stack: 23 nested zones would otherwise print
+          // over each other at national zoom.
+          'text-allow-overlap': false,
+          'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'planted_ha'], 0]],
+        },
+        paint: {
+          'text-color': '#1f2933',
+          'text-halo-color': 'rgba(255, 255, 255, 0.92)',
+          'text-halo-width': 1.6,
+        },
+      });
+    }
 
     let hovered = null;
     const setHover = (id) => {
@@ -470,7 +598,11 @@ function SurfaceMap({ onSignInRequired }) {
         )}
 
         {selectedZone && (
-          <ZoneOverviewCard zone={selectedZone} onClose={() => setSelectedZone(null)} />
+          <ZoneOverviewCard
+            zone={selectedZone}
+            vintage={vintage}
+            onClose={() => setSelectedZone(null)}
+          />
         )}
       </div>
 
@@ -555,6 +687,29 @@ function SurfaceMap({ onSignInRequired }) {
             {playing ? <Pause size={18} /> : <Play size={18} />}
           </button>
 
+          <div className="surface-map__nav" role="group" aria-label="Step back">
+            <button
+              type="button"
+              className="surface-map__play surface-map__play--nav"
+              onClick={() => jumpYear(-1)}
+              disabled={navDisabled}
+              aria-label={granularity === 'season' ? 'Previous season' : 'Same month, previous year'}
+              title={granularity === 'season' ? 'Previous season' : 'Same month, previous year'}
+            >
+              <ChevronsLeft size={18} />
+            </button>
+            <button
+              type="button"
+              className="surface-map__play surface-map__play--nav"
+              onClick={() => stepBy(-1)}
+              disabled={navDisabled || (index ?? 0) <= 0}
+              aria-label={granularity === 'season' ? 'Previous step' : 'Previous month'}
+              title={granularity === 'season' ? 'Previous step' : 'Previous month'}
+            >
+              <ChevronLeft size={18} />
+            </button>
+          </div>
+
           <input
             type="range"
             min={0}
@@ -565,6 +720,29 @@ function SurfaceMap({ onSignInRequired }) {
             aria-label="Month"
             className="surface-map__range"
           />
+
+          <div className="surface-map__nav" role="group" aria-label="Step forward">
+            <button
+              type="button"
+              className="surface-map__play surface-map__play--nav"
+              onClick={() => stepBy(1)}
+              disabled={navDisabled || (index ?? 0) >= months.length - 1}
+              aria-label={granularity === 'season' ? 'Next step' : 'Next month'}
+              title={granularity === 'season' ? 'Next step' : 'Next month'}
+            >
+              <ChevronRight size={18} />
+            </button>
+            <button
+              type="button"
+              className="surface-map__play surface-map__play--nav"
+              onClick={() => jumpYear(1)}
+              disabled={navDisabled}
+              aria-label={granularity === 'season' ? 'Next season' : 'Same month, next year'}
+              title={granularity === 'season' ? 'Next season' : 'Same month, next year'}
+            >
+              <ChevronsRight size={18} />
+            </button>
+          </div>
 
           <div className="surface-map__readout">
             <strong>

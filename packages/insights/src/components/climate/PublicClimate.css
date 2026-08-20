@@ -95,6 +95,24 @@
   color: #1a1a1a;
 }
 
+/* The "About" badge was retired 2026-08-20 — the methodology it opened now
+   lives on /about. `.about-btn` rules below are kept for now because the class
+   is also referenced by two mobile sheets; delete all four together.
+   This link is its replacement in the attribution row. */
+.climate-attribution__method {
+  margin-left: auto;
+  color: var(--primary, #446145);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.climate-attribution__method:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .climate-attribution__method { margin-left: 0; }
+}
+
 .about-btn {
   display: flex;
   align-items: center;

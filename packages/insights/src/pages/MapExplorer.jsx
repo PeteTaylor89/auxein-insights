@@ -50,7 +50,6 @@ function MapExplorer() {
   return (
     <div className="map-explorer-page">
       <SiteHeader
-        subtitle="Regional Intelligence"
         onSignInClick={() => setAuthModalOpen(true)}
       />
 

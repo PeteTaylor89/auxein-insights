@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -41,6 +41,8 @@ from db.models.insights_site import (
 from db.models.public_user import PublicUser
 from db.session import get_db
 from services import insights_site_service as svc
+from services import insights_dashboard as dashboard
+from services import workflow_dispatch
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,6 +78,12 @@ class SiteResponse(BaseModel):
 
 
 def _parse_baseline(baseline: str) -> tuple[int, int]:
+    # `check_insights_sites.py` calls these router functions DIRECTLY — the venv
+    # has no httpx — so an untouched `Query(...)` default arrives as a Query
+    # object rather than the string it stands for. Resolve it here, once, rather
+    # than making every direct caller pass a baseline it does not care about.
+    if not isinstance(baseline, str):
+        baseline = DEFAULT_BASELINE
     try:
         lo, hi = (int(p) for p in baseline.split("-"))
     except Exception:                                               # noqa: BLE001
@@ -133,7 +141,9 @@ def list_sites(db: Session = Depends(get_db),
 
 
 @router.post("/sites", status_code=202)
-def place_site(body: PlaceSiteRequest, db: Session = Depends(get_db),
+def place_site(body: PlaceSiteRequest,
+               background: BackgroundTasks = None,
+               db: Session = Depends(get_db),
                user: PublicUser = Depends(require_pro)):
     """Claim a slot and queue the extraction. 202: the work has not happened yet."""
     held = (db.query(InsightsSite)
@@ -172,6 +182,14 @@ def place_site(body: PlaceSiteRequest, db: Session = Depends(get_db),
     db.commit()
     db.refresh(site)
     log.info("site %s placed by public_user %s", site.id, user.id)
+    # Ask Actions to start now rather than at the next */5 sweep. AFTER the
+    # response, because the customer should not wait on a call to GitHub, and
+    # never blocking: `workflow_dispatch` swallows every failure and the site
+    # stays queued for the sweep either way. `background` is None when the
+    # router function is called directly (the acceptance suite), which is also
+    # exactly when we do not want to fire a real workflow.
+    if background is not None:
+        background.add_task(workflow_dispatch.populate_site, site.id)
     return {
         "site": _serialise(db, site),
         # The message the UI shows while the job runs. Named here so the API and
@@ -183,6 +201,7 @@ def place_site(body: PlaceSiteRequest, db: Session = Depends(get_db),
 
 @router.patch("/sites/{site_id}")
 def update_site(site_id: int, body: PlaceSiteRequest,
+                background: BackgroundTasks = None,
                 db: Session = Depends(get_db),
                 user: PublicUser = Depends(require_pro)):
     """Rename and/or move. Moving re-queues the extraction and spends an allowance."""
@@ -213,6 +232,10 @@ def update_site(site_id: int, body: PlaceSiteRequest,
 
     db.commit()
     db.refresh(site)
+    # A move re-queues the extraction, so it needs the same head start as a
+    # placement. A rename does not — nothing was re-queued.
+    if moved and background is not None:
+        background.add_task(workflow_dispatch.populate_site, site.id)
     return {"site": _serialise(db, site), "repopulating": moved}
 
 
@@ -289,6 +312,33 @@ def site_season(site_id: int,
                                "methods, not places."),
         },
     }
+
+
+@router.get("/sites/{site_id}/dashboard")
+def site_dashboard(site_id: int,
+                   baseline: str = Query(DEFAULT_BASELINE),
+                   db: Session = Depends(get_db),
+                   user: PublicUser = Depends(require_pro)):
+    """Everything a subscriber sees on opening their site.
+
+    Two panels from two sources, kept apart on purpose — see
+    `services/insights_dashboard`. The tiles are the site's own 1986-2023
+    record; the season strip is station data at regional scale, because no live
+    surface exists yet.
+    """
+    site = _owned(db, site_id, user)
+    if site.status != "ready":
+        raise HTTPException(409, {"code": site.status,
+                                  "message": "This site is still populating."
+                                  if site.status == "populating"
+                                  else (site.status_detail or "Population failed.")})
+    lo, hi = _parse_baseline(baseline)
+    # The ORM row, not the serialised response — the builder needs `zone_id`
+    # and the site's primary key, and a schema object is not the place to add
+    # them just so this call type-checks.
+    payload = dashboard.build(db, site, (lo, hi))
+    payload["site"] = _serialise(db, site)
+    return payload
 
 
 @router.get("/sites/{site_id}/monthly")

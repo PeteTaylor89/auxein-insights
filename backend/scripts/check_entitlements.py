@@ -85,5 +85,24 @@ check("require_pro 200 pro", status_of(require_pro, user=user("pro")) == 200)
 check("require_pro 200 GROW", status_of(require_pro, user=user("grow")) == 200)
 
 print()
+print("=" * 70); print("5. the anonymous path actually reaches the endpoint"); print("=" * 70)
+# Everything in section 4 calls the dependency FUNCTION with user=None, which is
+# not how an anonymous request arrives. It arrives with no Authorization header,
+# and `HTTPBearer()` defaults to auto_error=True — which raises 403 while
+# RESOLVING the dependency, before any of the code above runs. That is how the
+# free tier shipped broken: `require_pro` answered 401 in this suite and 403 in
+# production, and `get_optional_public_user` never once returned None.
+import asyncio as _asyncio
+from core.public_security import get_optional_public_user, optional_security, security
+
+check("the optional bearer scheme does NOT auto-error",
+      optional_security.auto_error is False,
+      "auto_error=True turns every signed-out request into a 403")
+check("the required bearer scheme still does",
+      security.auto_error is True)
+check("no Authorization header yields an anonymous user, not an exception",
+      _asyncio.run(get_optional_public_user(credentials=None, db=None)) is None)
+
+print()
 print("ALL PASS" if ok else "FAILURES ABOVE")
 sys.exit(0 if ok else 1)

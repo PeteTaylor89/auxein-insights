@@ -113,8 +113,21 @@ function MiniSurfaceMap({ variable = 'temp_mean', to = '/map' }) {
 
       <div className="mini-surface-map__caption">
         <div className="mini-surface-map__labels">
-          <strong>{meta.label || variable}</strong>
-          {latest && <span className="mini-surface-map__date">{formatMonth(latest)}</span>}
+          {/* The pitch, not the label. "Mean temperature, July 2023" describes
+              what is on screen; it does not give anyone a reason to click. A
+              cold visitor does not yet know what 500 m resolution buys them,
+              so the line promises the ACTION instead of the specification.
+              Swappable in one string — the alternatives considered were
+              "Every hectare of New Zealand, at 500 m" and "38 years of
+              climate, mapped to your block", both of which land better once
+              the reader already knows what this is. */}
+          <strong className="mini-surface-map__pitch">
+            Explore NZ's climate, current conditions, and projections
+          </strong>
+          <span className="mini-surface-map__meta">
+            {meta.label || variable}
+            {latest && <> &middot; {formatMonth(latest)}</>}
+          </span>
           {isStub && <span className="mini-surface-map__demo">demo data</span>}
         </div>
         <span className="mini-surface-map__cta">

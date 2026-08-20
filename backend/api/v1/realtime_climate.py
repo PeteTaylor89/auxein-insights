@@ -13,16 +13,21 @@ Endpoints:
 - /varieties - List varieties with GDD thresholds
 - /disease-pressure/{zone_slug} - Disease risk indicators
 - /regional-overview - All zones summary
+- /live-extremes - Warmest/coldest/wettest station right now, from raw obs
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, and_, desc
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+import logging
+import time
+from functools import lru_cache
+
+from sqlalchemy import func, and_, desc, text, bindparam
 from sqlalchemy.orm import Session, joinedload
 
-from db.session import get_db
+from db.session import get_db, SessionLocal
 from db.models.wine_region import WineRegion
 from db.models.climate import ClimateZone
 from db.models.realtime_climate import (
@@ -54,7 +59,11 @@ from schemas.realtime_climate import (
     ZoneClimateSnapshot,
     RegionalOverviewResponse,
     ZonesListResponse,
+    LiveStationExtreme,
+    LiveExtremesResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["realtime-climate"])
 
@@ -295,7 +304,14 @@ def list_zones_with_current_data(
         db.query(zones_with_data.c.zone_id)
     ))
     
-    zones = query.order_by(ClimateZone.display_order).all()
+    zones = query.outerjoin(
+        WineRegion, ClimateZone.region_id == WineRegion.id
+    ).order_by(
+        WineRegion.display_order.nulls_last(),
+        WineRegion.name.nulls_last(),
+        ClimateZone.display_order,
+        ClimateZone.name,
+    ).all()
     
     return ZonesListResponse(
         zones=[get_zone_brief(z) for z in zones],
@@ -940,7 +956,18 @@ def get_regional_overview(
     if region_id:
         zone_query = zone_query.filter(ClimateZone.region_id == region_id)
     
-    zones = zone_query.order_by(ClimateZone.display_order).all()
+    # Region first. `display_order` on a zone is now its position WITHIN its
+    # region (migration zone_display_order), so ordering on it alone would
+    # interleave the country — every region's own zone first, then everybody's
+    # first sub-region, and so on.
+    zones = zone_query.outerjoin(
+        WineRegion, ClimateZone.region_id == WineRegion.id
+    ).order_by(
+        WineRegion.display_order.nulls_last(),
+        WineRegion.name.nulls_last(),
+        ClimateZone.display_order,
+        ClimateZone.name,
+    ).all()
     
     # Get latest climate data for each zone
     snapshots = []
@@ -1051,3 +1078,481 @@ def get_regional_overview(
         min_gdd_zone=min_gdd_zone,
         max_gdd_zone=max_gdd_zone,
     )
+
+
+# =============================================================================
+# ENDPOINTS: LIVE STATION EXTREMES
+# =============================================================================
+
+# Variable names as they appear in `weather_data`. Sources disagree on
+# spelling, so these mirror daily_aggregation.py rather than restating a subset
+# of it — a headline that silently ignored 'air_temperature' would quietly drop
+# every SYNOP and ECan air-quality station.
+LIVE_TEMP_VARS = ['temp', 'temperature', 'air_temperature']
+LIVE_RAIN_VARS = ['rainfall', 'precipitation', 'precip', 'rain']
+
+# Matches daily_aggregation.QUARANTINE_QUALITY. Quarantined rows are marked,
+# not deleted, precisely so a failed sensor stays provable — which means every
+# read path has to exclude them itself.
+LIVE_QUARANTINE_QUALITY = 'QUARANTINED'
+
+# --- Guard 1: absolute bounds ------------------------------------------------
+# Deliberately wider than any plausible NZ reading rather than tuned close to
+# it. NZ's records are -25.6 and 42.4 degC, so clipping a genuine record would
+# be its own kind of lie. This layer only catches nonsense: HORIZONS' Hautapu
+# station reports exactly -100, and TDC once published 214699991.0 as an air
+# temperature.
+LIVE_TEMP_MIN_C = -30.0
+LIVE_TEMP_MAX_C = 45.0
+
+# One observation, not a daily total. NZ's 24 hour record is around 758 mm, so
+# a single sub-daily reading above 250 mm is an instrument fault or a unit
+# error, not weather. The window TOTAL gets its own ceiling above the record.
+LIVE_RAIN_MAX_MM = 250.0
+LIVE_RAIN_MAX_WINDOW_MM = 800.0
+
+# --- Guard 2: outlier against the national field -----------------------------
+# Absolute bounds are not enough, and the reason is worth stating because it is
+# not obvious. Measured 2026-08-19: the warmest reading in the country was
+# 29.3 degC at Winton, Southland — at 1am, in August. That station sits at
+# 21-29 degC day and night through a Southland winter, so it is not measuring
+# air. Every one of the national top fifteen readings was that one sensor.
+# 29.3 is individually plausible, so no fixed bound can reject it.
+#
+# What does reject it is the rest of the network, at the same moment. Every
+# station is reduced to its current reading, and a candidate is refused if it
+# sits more than OUTLIER_MARGIN_C beyond the 95th percentile of those readings.
+# Measured 2026-08-20 on the 2h current window: p95 was 11.6 so the cut was
+# 19.6, Winton at 26.2 was refused, and Kapoaiaia at Cape Egmont at 13.3 stood
+# as the genuine national high.
+#
+# The margin is generous on purpose. A real extreme IS an outlier, and the cold
+# side has to leave room for inland frost hollows: Upper Waikaia at Hyde Rock
+# reported -1.7 against a 5th-percentile of 2.4, and that is real weather.
+#
+# This is READ-SIDE ONLY. It decides what the home page prints; it never writes,
+# flags or quarantines a row, so it cannot collide with the ingest-side
+# physical-range QC. Three stations it keeps rejecting — 330, 473, 760 — are
+# quarantine candidates for whoever owns that, not for this endpoint to fix.
+LIVE_OUTLIER_MARGIN_C = 8.0
+LIVE_HI_PERCENTILE = 0.95
+LIVE_LO_PERCENTILE = 0.05
+
+# How many candidates to pull per side. If the top few are all one broken
+# sensor there is nothing left to fall back to, and the tile is omitted rather
+# than filled with the next-worst guess.
+LIVE_CANDIDATES = 6
+
+# TEMPERATURE IS "NOW", NOT "TODAY".
+#
+# This started as a 24 hour window, which made Warmest the afternoon high and
+# Coldest the overnight low. Both are useful numbers but neither is current:
+# on 2026-08-20 they were showing readings 22 and 9 hours old on a page whose
+# whole point is that the network is live.
+#
+# So temperature is each station's LATEST reading, and the window is only there
+# to decide what still counts as current. Two hours, measured the same day:
+#
+#     1h ->  72 stations      2h -> 193      3h -> 193      6h -> 193
+#
+# Ingestion is hourly, so one hour catches barely a third of the network and
+# whichever third depends on where the clock is. At two hours it saturates —
+# 3h, 4h and 6h return the identical station set and the identical extremes —
+# so 2 is the smallest window that is also stable.
+LIVE_CURRENT_WINDOW_HOURS = 2
+
+# Rainfall CANNOT use that window. It is an accumulation, not a state: over two
+# hours the national wettest was 3.0 mm against 20.5 mm over 24, and 3.0 mm
+# describes nothing. A rain total needs a period long enough to be weather, so
+# this tile stays on 24 hours and says so.
+LIVE_RAIN_WINDOW_HOURS = 24
+
+# The station count also stays on 24 hours — see LIVE_BREADTH_CACHE_TTL_SECONDS
+# below for why a short window makes it swing by hundreds.
+LIVE_WINDOW_HOURS = 24
+
+# The station count is deliberately taken over the SAME window as the extremes,
+# after a short window was tried and rejected. Distinct public stations
+# reporting, measured 2026-08-19:
+#
+#     1h -> 2     2h -> 482    3h -> 786    6h -> 836
+#    12h -> 843   24h -> 854   48h -> 863   (881 active in total)
+#
+# Ingestion runs hourly, so anything under about three hours sits on the knee
+# of that curve and the figure swings with where the clock happens to be: two
+# successive calls eleven minutes apart returned 784 and then 483. A headline
+# that says "784 stations" and then "483 stations" reads as a broken feed, and
+# the shorter window buys nothing — 24 hours is both stable and nearly the
+# whole network.
+#
+# Counting distinct stations across ALL variables cannot use the variable
+# filter, so it is the most expensive query here (1.6-5.5s). It gets its own
+# hourly cache rather than being recomputed every time the extremes refresh:
+# the size of the network is not a five-minute quantity.
+LIVE_BREADTH_CACHE_TTL_SECONDS = 3600
+
+# Ingestion runs hourly (`weather-ingestion.yml` at :05) and SYNOP every three,
+# so nothing here can change faster than once an hour. Five minutes keeps the
+# page honest about being live while removing essentially all of the load: the
+# uncached query set costs a few seconds against a 47-partition view, which is
+# far too slow to sit in front of a home page render.
+LIVE_CACHE_TTL_SECONDS = 300
+
+# MAINLAND ONLY. The network reaches the Kermadecs and the subantarctic, and
+# those stations kept winning: Raoul Island at -29.25 is subtropical and took
+# the national high every day, which tells a New Zealand grower nothing about
+# New Zealand. Excluded by this box, verified 2026-08-20 as exactly four
+# stations, all SYNOP_GTS:
+#
+#     Raoul Island        -29.250, -177.933   (Kermadecs)
+#     Chatham Island       -43.817, -176.483  (note: NEGATIVE longitude)
+#     Enderby Island       -50.483,  166.300  (Auckland Islands)
+#     Campbell Island      -52.550,  169.150
+#
+# The longitude bound is what catches the Chathams and Raoul — both sit east of
+# the dateline and are stored as negative degrees, so they fall outside
+# 166..179.2 rather than needing a special case. The latitude bound catches the
+# subantarctic pair. Stewart Island (-47.0) and Cape Reinga (-34.4) are inside.
+#
+# Every active public station has coordinates (checked: zero nulls), so this
+# drops nothing by accident. If that ever changes, a NULL fails the BETWEEN and
+# the station disappears silently — worth re-checking before trusting it.
+_MAINLAND_LAT_MIN, _MAINLAND_LAT_MAX = -47.5, -34.0
+_MAINLAND_LON_MIN, _MAINLAND_LON_MAX = 166.0, 179.2
+
+# `visibility` defaults to 'public' but a Grow customer's own station is
+# private, and it must never surface as a national headline on an anonymous
+# page. Written as a scalar subquery rather than a CTE: `eligible` referenced
+# more than once forces Postgres to materialise it, which measured 2.0s against
+# 0.07s for the same filter inline.
+_PUBLIC_STATION_IDS_SQL = f"""
+    SELECT station_id FROM weather_stations
+    WHERE is_active = true AND visibility = 'public'
+      AND latitude  BETWEEN {_MAINLAND_LAT_MIN} AND {_MAINLAND_LAT_MAX}
+      AND longitude BETWEEN {_MAINLAND_LON_MIN} AND {_MAINLAND_LON_MAX}
+"""
+
+
+def _live_temperature_candidates(db: Session, since: datetime):
+    """
+    Warmest and coldest station RIGHT NOW, plus the reference percentiles
+    needed to judge them.
+
+    `DISTINCT ON (station_id) ... ORDER BY timestamp DESC` takes each station's
+    most recent reading inside the window, so the comparison is between places
+    at the same moment rather than between one station's afternoon and
+    another's dawn. That is what makes "warmest" a current claim.
+
+    Candidates come back UNFILTERED by the outlier guard. The guard is applied
+    in Python so a rejection can be logged by name — a query that filtered
+    silently would hide exactly the broken sensors this is here to catch.
+    """
+    sql = text(f"""
+        WITH obs AS (
+            SELECT DISTINCT ON (wd.station_id)
+                   wd.station_id, wd.value, wd.timestamp
+            FROM weather_data wd
+            WHERE wd.timestamp >= :since
+              AND wd.variable IN :temp_vars
+              AND wd.value IS NOT NULL
+              AND wd.value BETWEEN :temp_lo AND :temp_hi
+              AND coalesce(wd.quality, '') <> :quarantine
+              AND wd.station_id IN ({_PUBLIC_STATION_IDS_SQL})
+            ORDER BY wd.station_id, wd.timestamp DESC
+        ),
+        bounds AS (
+            SELECT percentile_cont(:hi_pct) WITHIN GROUP (ORDER BY value) AS hi_ref,
+                   percentile_cont(:lo_pct) WITHIN GROUP (ORDER BY value) AS lo_ref,
+                   -- Newest temperature anywhere, carried out of a scan that is
+                   -- happening anyway. A dedicated MAX(timestamp) over all
+                   -- variables measured 1.9s; this costs nothing.
+                   MAX(timestamp) AS newest_at
+            FROM obs
+        )
+        (
+            SELECT 'warmest' AS key, o.station_id, o.value,
+                   o.timestamp AS observed_at, b.hi_ref AS ref, b.newest_at
+            FROM obs o CROSS JOIN bounds b
+            ORDER BY o.value DESC, o.timestamp DESC LIMIT :limit
+        )
+        UNION ALL
+        (
+            SELECT 'coldest' AS key, o.station_id, o.value,
+                   o.timestamp AS observed_at, b.lo_ref AS ref, b.newest_at
+            FROM obs o CROSS JOIN bounds b
+            ORDER BY o.value ASC, o.timestamp DESC LIMIT :limit
+        )
+    """).bindparams(bindparam('temp_vars', expanding=True))
+
+    return db.execute(sql, {
+        'since': since,
+        'temp_vars': LIVE_TEMP_VARS,
+        'temp_lo': LIVE_TEMP_MIN_C,
+        'temp_hi': LIVE_TEMP_MAX_C,
+        'quarantine': LIVE_QUARANTINE_QUALITY,
+        'hi_pct': LIVE_HI_PERCENTILE,
+        'lo_pct': LIVE_LO_PERCENTILE,
+        'limit': LIVE_CANDIDATES,
+    }).mappings().all()
+
+
+def _pick_temperature(rows, key: str):
+    """
+    First candidate that survives the outlier guard, or None.
+
+    Rejections are logged at WARNING with the station named. This project has
+    been bitten repeatedly by code that discards data and reports success, so a
+    guard that silently swallowed a 57.9 degC sensor would be trading one
+    invisible fault for another.
+    """
+    warmest = key == 'warmest'
+    candidates = [r for r in rows if r['key'] == key]
+
+    for row in candidates:
+        ref = row['ref']
+        value = row['value']
+        if ref is None or value is None:
+            continue
+        limit = (float(ref) + LIVE_OUTLIER_MARGIN_C) if warmest \
+            else (float(ref) - LIVE_OUTLIER_MARGIN_C)
+        passes = float(value) <= limit if warmest else float(value) >= limit
+        if passes:
+            return row
+        logger.warning(
+            "live-extremes: rejected station %s as %s outlier — %.1f vs limit %.1f "
+            "(p%d of %s = %.1f). Sensor is a quarantine candidate.",
+            row['station_id'], key, float(value), limit,
+            int((LIVE_HI_PERCENTILE if warmest else LIVE_LO_PERCENTILE) * 100),
+            'current readings', float(ref),
+        )
+
+    logger.warning("live-extremes: no %s candidate survived the guard (%d examined)",
+                   key, len(candidates))
+    return None
+
+
+def _live_rainfall(db: Session, since: datetime):
+    """
+    Wettest station by window TOTAL.
+
+    Rain has no instantaneous reading to be "wettest" with — a tipping bucket
+    reports an increment, so a spot value is meaningless. The honest headline
+    is the total over the window, stamped with the last observation that
+    contributed to it.
+    """
+    sql = text(f"""
+        WITH obs AS (
+            SELECT wd.station_id, wd.value, wd.timestamp
+            FROM weather_data wd
+            WHERE wd.timestamp >= :since
+              AND wd.variable IN :rain_vars
+              AND wd.value IS NOT NULL
+              AND wd.value >= 0
+              AND wd.value <= :rain_hi
+              AND coalesce(wd.quality, '') <> :quarantine
+              AND wd.station_id IN ({_PUBLIC_STATION_IDS_SQL})
+        )
+        SELECT station_id, SUM(value) AS value, MAX(timestamp) AS observed_at,
+               MAX(MAX(timestamp)) OVER () AS newest_at
+        FROM obs
+        GROUP BY station_id
+        HAVING SUM(value) > 0 AND SUM(value) <= :window_hi
+        ORDER BY value DESC
+        LIMIT 1
+    """).bindparams(bindparam('rain_vars', expanding=True))
+
+    rows = db.execute(sql, {
+        'since': since,
+        'rain_vars': LIVE_RAIN_VARS,
+        'rain_hi': LIVE_RAIN_MAX_MM,
+        'window_hi': LIVE_RAIN_MAX_WINDOW_MM,
+        'quarantine': LIVE_QUARANTINE_QUALITY,
+    }).mappings().all()
+    return rows[0] if rows else None
+
+
+def _compute_live_extremes(db: Session, window_hours: int) -> LiveExtremesResponse:
+    """
+    Three tiles on two different clocks, which is why each carries its own
+    `window_hours` rather than inheriting one from the response.
+
+    Temperature is a STATE — the warmest place in the country right now — so it
+    reads each station's latest value inside a short window. Rainfall is an
+    ACCUMULATION and has no instantaneous value, so it totals a long one. Giving
+    both the same window would either make temperature stale or make rainfall
+    meaningless; there is no single number that is right for both.
+    """
+    now = datetime.now(timezone.utc)
+    temp_since = now - timedelta(hours=LIVE_CURRENT_WINDOW_HOURS)
+    rain_since = now - timedelta(hours=LIVE_RAIN_WINDOW_HOURS)
+
+    temp_rows = _live_temperature_candidates(db, temp_since)
+    winners = {
+        'warmest': _pick_temperature(temp_rows, 'warmest'),
+        'coldest': _pick_temperature(temp_rows, 'coldest'),
+        'wettest': _live_rainfall(db, rain_since),
+    }
+
+    # `latest_at` is separate from any tile's `observed_at` and it matters. It
+    # says when the network last spoke, where the tile says when ITS reading was
+    # taken. Assembled from the two scans already done rather than bought with a
+    # third query.
+    latest_candidates = [r['newest_at'] for r in temp_rows if r.get('newest_at')]
+    rain_row = winners['wettest']
+    if rain_row is not None and rain_row.get('newest_at'):
+        latest_candidates.append(rain_row['newest_at'])
+    latest_at = max(latest_candidates) if latest_candidates else None
+
+    reporting = _live_reporting_stations(
+        window_hours, int(time.time() // LIVE_BREADTH_CACHE_TTL_SECONDS))
+
+    station_ids = [r['station_id'] for r in winners.values() if r is not None]
+    details = {}
+    if station_ids:
+        for row in db.execute(text("""
+            SELECT ws.station_id, ws.station_name, ws.region,
+                   cz.slug AS zone_slug, cz.name AS zone_name
+            FROM weather_stations ws
+            LEFT JOIN climate_zones cz ON cz.id = ws.zone_id
+            WHERE ws.station_id = ANY(:ids)
+        """), {'ids': station_ids}).mappings().all():
+            details[row['station_id']] = row
+
+    # "now" and "24h" are load-bearing, not decoration: without them the strip
+    # shows a 12 degC current temperature beside a 20 mm total and invites the
+    # reader to think both describe the same moment.
+    labels = {'warmest': 'Warmest now', 'coldest': 'Coldest now', 'wettest': 'Wettest 24h'}
+    units = {'warmest': '°C', 'coldest': '°C', 'wettest': 'mm'}
+    windows = {
+        'warmest': LIVE_CURRENT_WINDOW_HOURS,
+        'coldest': LIVE_CURRENT_WINDOW_HOURS,
+        'wettest': LIVE_RAIN_WINDOW_HOURS,
+    }
+
+    extremes = []
+    # Ordered warmest, coldest, wettest — the strip reads in that order and the
+    # frontend should not have to sort a response to lay itself out.
+    for key in ('warmest', 'coldest', 'wettest'):
+        row = winners.get(key)
+        # A missing key is a real state, not an error. No rain anywhere in the
+        # country is a dry day, and the tile should be absent rather than
+        # showing 0.0 mm as though it had been measured.
+        if row is None or row['value'] is None:
+            continue
+        detail = details.get(row['station_id'], {})
+        extremes.append(LiveStationExtreme(
+            key=key,
+            label=labels[key],
+            value=row['value'],
+            unit=units[key],
+            station_id=row['station_id'],
+            station_name=detail.get('station_name') or f"Station {row['station_id']}",
+            station_region=detail.get('region'),
+            zone_slug=detail.get('zone_slug'),
+            zone_name=detail.get('zone_name'),
+            observed_at=row['observed_at'],
+            window_hours=windows[key],
+        ))
+
+    return LiveExtremesResponse(
+        generated_at=now,
+        network_latest_at=latest_at,
+        reporting_stations=reporting,
+        reporting_window_hours=window_hours,
+        mainland_only=True,
+        extremes=extremes,
+    )
+
+
+@lru_cache(maxsize=8)
+def _live_reporting_stations(window_hours: int, hour_bucket: int) -> int:
+    """
+    Distinct public stations that reported ANYTHING in the window — not just
+    temperature and rainfall. 854 against 228 on 2026-08-19; the wider figure
+    is the one that describes the network, and it is counted rather than
+    asserted.
+
+    Cached on its own hourly bucket. It is the most expensive query in this
+    module and the least time-sensitive, so recomputing it every time the
+    extremes refresh would pay the whole cost for none of the benefit.
+    """
+    db = SessionLocal()
+    try:
+        since = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        return db.execute(text(f"""
+            SELECT COUNT(DISTINCT wd.station_id)
+            FROM weather_data wd
+            WHERE wd.timestamp >= :since
+              AND wd.value IS NOT NULL
+              AND coalesce(wd.quality, '') <> :quarantine
+              AND wd.station_id IN ({_PUBLIC_STATION_IDS_SQL})
+        """), {'since': since, 'quarantine': LIVE_QUARANTINE_QUALITY}).scalar() or 0
+    finally:
+        db.close()
+
+
+@lru_cache(maxsize=8)
+def _live_extremes_cached(window_hours: int, bucket: int) -> LiveExtremesResponse:
+    """
+    Time-bucketed cache. `bucket` is wall clock floor-divided by the TTL, so a
+    new key appears every TTL seconds and lru_cache evicts the old one — a TTL
+    without another dependency.
+
+    Opens its own session: the request-scoped one cannot be a cache key, and
+    holding a request's session across a cache hit for another request would be
+    worse than opening one here.
+    """
+    db = SessionLocal()
+    try:
+        return _compute_live_extremes(db, window_hours)
+    finally:
+        db.close()
+
+
+@router.get("/live-extremes", response_model=LiveExtremesResponse)
+def get_live_extremes(
+    response: Response,
+    window_hours: int = Query(
+        LIVE_WINDOW_HOURS, ge=1, le=72,
+        description=(
+            "Window for the reporting-station COUNT only. The readings "
+            "themselves use fixed windows suited to each: temperature is the "
+            "latest value within 2h, rainfall is a 24h total."
+        ),
+    ),
+):
+    """
+    The warmest, coldest and wettest station in the country right now.
+
+    Read straight off raw observations rather than the zone aggregates the rest
+    of this router uses. Those are a day or two behind by design; the point of
+    this endpoint is that the home page can show a real reading with the time
+    it was taken. Measured 2026-08-19, most councils were 0.7 hours behind
+    real time, so "live" is an honest word for it.
+
+    MAINLAND ONLY. The network reaches the Kermadecs and the subantarctic, and
+    Raoul Island took the national high every day — true, and useless to a New
+    Zealand grower. Four stations are excluded; see the bounding box above.
+    Breadth is still shown, through the reporting-station count.
+
+    Tiles only carry a link when the station falls inside a wine zone, which
+    most do not — the network runs well past the wine regions.
+
+    TWO CLOCKS. Temperature is a state, so it is each station's latest reading
+    within 2 hours. Rainfall is an accumulation with no instantaneous value, so
+    it is a 24 hour total. Each tile carries its own `window_hours`; there is no
+    single window that is honest for both.
+
+    Two guards stand between a sensor fault and the home page: absolute bounds,
+    and an outlier test against the rest of the network. See the constants
+    above for what each one is for and why neither is sufficient alone. Both
+    are READ-SIDE only — this endpoint never writes, flags or quarantines
+    anything, so it cannot collide with the ingest-side QC work.
+
+    `weather_data` is a VIEW over 47 partitions. Every query here is bounded on
+    `timestamp` so the planner can prune; an unbounded one reads all of them.
+    """
+    bucket = int(time.time() // LIVE_CACHE_TTL_SECONDS)
+    result = _live_extremes_cached(window_hours, bucket)
+    response.headers['Cache-Control'] = f'public, max-age={LIVE_CACHE_TTL_SECONDS}'
+    return result

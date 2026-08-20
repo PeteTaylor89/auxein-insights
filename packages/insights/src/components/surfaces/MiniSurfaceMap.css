@@ -67,17 +67,28 @@
   border-top: 1px solid rgba(0, 0, 0, 0.07);
 }
 
+/* Stacked now rather than inline: the pitch is a sentence and the variable
+   name is a footnote to it, so they cannot share a baseline. */
 .mini-surface-map__labels {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
 .mini-surface-map__labels strong {
   font-size: var(--font-md);
   color: var(--charcoal);
+}
+
+.mini-surface-map__pitch {
+  line-height: 1.3;
+}
+
+.mini-surface-map__meta {
+  font-size: var(--font-xs);
+  color: var(--text-light);
+  font-variant-numeric: tabular-nums;
 }
 
 .mini-surface-map__date {

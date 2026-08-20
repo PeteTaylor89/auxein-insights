@@ -22,6 +22,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days for public users
 # Bearer token scheme
 security = HTTPBearer()
 
+# The OPTIONAL bearer scheme, for endpoints that must also serve anonymous
+# callers. `HTTPBearer()` defaults to `auto_error=True`, which raises **403
+# Not authenticated** when the Authorization header is absent — and it raises it
+# while RESOLVING the dependency, before the function body runs. So an endpoint
+# declaring `Depends(get_optional_public_user)` rejected every signed-out
+# request with a 403, and that function's own `if credentials is None: return
+# None` branch was unreachable in production. `auto_error=False` hands the body
+# a None instead, which is what the whole free tier depends on.
+optional_security = HTTPBearer(auto_error=False)
+
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
     return pwd_context.hash(password)
@@ -290,7 +300,7 @@ async def get_insights_user(
 
 
 async def get_optional_public_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
     db: Session = Depends(get_db)
 ):
     """
