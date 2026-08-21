@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db_connection import get_ingestion_session
 from sources.http_util import get_with_hard_timeout
+from sources.db_util import bulk_upsert_observations
 
 # Backend service for credential resolution (Phase B1)
 backend_path = Path(__file__).parent.parent.parent / "backend"
@@ -144,6 +145,15 @@ class HarvestIngestion:
                 else:
                     break
             
+            if page_count >= max_pages:
+                # Reaching the cap exits the loop and returns the partial set as if
+                # it were complete — a silent truncation, and the caller then writes
+                # a `last timestamp` that makes the gap look ingested. Say so.
+                # At ~186 records/page a 6.5-year window needs ~2,370 pages, so a
+                # whole-range backfill DOES hit this; chunk by year.
+                print(f"    !! PAGE CAP {max_pages} REACHED for trace {trace_id} — "
+                      f"result is TRUNCATED at {all_data[-1].get('time_stamp')}; "
+                      f"re-run in smaller windows")
             print(f"    Received {len(all_data)} total records across {page_count} page(s)")
             
             # Return in same format as original
@@ -213,28 +223,31 @@ class HarvestIngestion:
         return records
     
     def insert_data(self, records):
-        """Insert weather data records into database"""
+        """Insert weather data records into database.
+
+        Uses the shared `execute_values` path rather than the per-row executemany
+        this used to run. The record dicts already match OBS_COLUMNS exactly, so
+        the switch is a drop-in — and it is what makes a multi-year backfill
+        possible at all.
+
+        Measured 2026-08-20: the Harvest API itself is fast (0.6 s for a 200-record
+        page, ~1.1 days of 10-minute data per request), so a station-year is only
+        ~3 minutes of fetching. The old executemany sent ONE round-trip PER ROW to
+        RDS in Sydney at ~30-60 ms each, which is ~50 minutes per station-year of
+        pure insert latency — a 2020-2025 fleet backfill would have taken on the
+        order of 200 hours, and a single station-MONTH timed out at 4 minutes.
+
+        `bulk_upsert_observations` also applies the physical-range screen and the
+        spring-forward dedupe, so Harvest picks both up rather than needing its own.
+        """
         if not records:
             return 0
-        
+
         with self.Session() as session:
             try:
-                # Use executemany for bulk insert
-                session.execute(
-                    text("""
-                        INSERT INTO weather_data 
-                            (station_id, timestamp, variable, value, unit, quality)
-                        VALUES (:station_id, :timestamp, :variable, :value, :unit, :quality)
-                        ON CONFLICT (station_id, timestamp, variable)
-                        DO UPDATE SET
-                            value = EXCLUDED.value,
-                            quality = EXCLUDED.quality,
-                            created_at = NOW()
-                    """),
-                    records
-                )
+                n = bulk_upsert_observations(session, records)
                 session.commit()
-                return len(records)
+                return n
             except Exception as e:
                 session.rollback()
                 print(f"    Database error: {e}")

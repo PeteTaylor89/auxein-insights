@@ -135,3 +135,175 @@ looks healthy because the rows that remain are real.
   variable, opposite direction (archive vs live). Unrelated cause.
 - `docs/plans/LIVE_SURFACES_DISCOVERY_2026-08-19.md` §4 — this is listed there
   as a Phase 0 blocker for the live daily surfaces.
+
+---
+
+# DIAGNOSIS 2026-08-20 — the `LABEL = 'Primary'` hypothesis is FALSIFIED
+
+Not our bug. No code change will recover this data. It needs an email to BoP.
+
+The SOS endpoint is IP-allowlisted to the ingestion box and is unreachable from a
+workstation, so this was settled from an artefact already on disk:
+`ingestion/scripts/probes/boprc_sos.json`, captured **2026-08-13T03:06Z — eleven
+days AFTER the cutover**, and therefore a picture of the server *during* the
+outage.
+
+That probe's `series` map is built as `f"{parameter}.{LABEL}@{loc}"` with
+`LABEL = 'Primary'` (`seed_boprc_from_sos.py:258`), and a location only enters it
+at all if `label == LABEL` (:230). So every figure below is specifically
+`Air Temp.Primary`.
+
+## `Air Temp.Primary` still exists for all ten. Its record simply stops.
+
+Period of record from BoP's own `GetDataAvailability`:
+
+| station | Air Temp.Primary begin → end |
+|---|---|
+| Mount Maunganui at Bridge Marina Entrance | 2024-09-26 → **2026-07-31T12:00** |
+| Mount Maunganui at Ranch Rd | 2024-02-01 → **2026-07-31T12:00** |
+| Mount Maunganui at Rata St | 2018-12-13 → **2026-07-31T12:00** |
+| Mount Maunganui at Totara St | 2006-03-02 → **2026-07-31T12:00** |
+| Mount Maunganui at Totara St Rail Crossing | 2024-01-19 → **2026-07-31T12:00** |
+| Mount Maunganui at Whareroa Marae | 2015-09-25 → **2026-07-31T12:00** |
+| Rotorua at Edmund Rd | 2006-02-04 → **2026-07-31T12:00** |
+| Rotorua at Moses Rd | 2018-01-08 → **2026-07-31T12:00** |
+| Tauranga at Otumoetai | 1998-07-27 → **2026-07-31T12:00** |
+| Whakatane at Kopeopeo | 2006-07-12 → **2026-07-31T12:00** |
+
+Against the four hydrology survivors, all current as at the probe:
+Lochinver 2026-08-13T02:40, Edgecumbe 02:50, Horomanga 03:00, Ohope 02:50.
+
+**All ten stop at the same instant to the minute.** `2026-07-31T12:00:00Z` is
+`2026-08-01 00:00` NZST. Ten independent sensors do not fail on the same second;
+one upstream system does.
+
+Our ingester fetched right up to that boundary and stopped because there was
+nothing beyond it — the last stored record for each of the ten is exactly
+2026-08-01 00:00 NZT (10 stations x 1 record in the 1-7 Aug window). It has been
+behaving correctly the whole time.
+
+## No alternative label carries them
+`hourly_offerings` is empty for all ten (Kopeopeo has `Precip Total` only), and
+their `series` sets are exactly `[Air Temp, Atmos Pres, Rel Humidity]` — the
+three variables that stopped, and nothing else to fall back to. There is no
+server-side hourly or renamed series to switch to.
+
+## It is NOT an annual cycle
+Worth ruling out, because three previously-decommissioned BoP sites carry end
+stamps of `2023-07-31T12:00` and `2024-07-31T12:00` — the same 31 July boundary,
+which looks like a seasonal pattern and is not one. Those are *different*
+stations that stopped permanently in earlier years. Our own record for these ten:
+
+| year | records 25-31 Jul | records 1-7 Aug |
+|---|---|---|
+| 2020 | 6,048 | 6,048 |
+| 2021 | 7,045 | 7,015 |
+| 2022 | 7,036 | 7,056 |
+| 2023 | 7,051 | 6,587 |
+| 2024 | 9,044 | 9,072 |
+| 2025 | 10,010 | 10,080 |
+| **2026** | **10,080** | **10** |
+
+Six clean crossings, then a cliff. What the recurring `07-31T12:00` stamp does
+suggest is that **BoP closes a decommissioned series at that reporting-year
+boundary** — which makes "these ten AQ sites were decommissioned or migrated in
+BoP's system on 1 August 2026" the hypothesis to put to them.
+
+## Ask BoP
+Whether the ten air-quality sites' met parameters (`Air Temp`, `Rel Humidity`,
+`Atmos Pres`) were decommissioned, migrated to a new location id, or moved to a
+separate AQ service on 1 August 2026 — and if migrated, what the new offering
+key is. Rainfall on the same stations is unaffected and still current, so the
+sites themselves are alive.
+
+## The code change that IS warranted
+Not a parser fix — a watchdog. `ingestion_log` recorded **15,508 SUCCESS** across
+the fortnight this was losing ten stations, because a run that fetches 3 of 4
+variables is a success. A per-(station, variable) last-seen alert — a pair that
+reported daily for 30 days going 48 h silent — catches this on 2026-08-03 instead
+of day 18. Same blind spot as INGEST_STATUS_REPORT_2026-08-19.md and the
+incremental-clamp gap.
+
+---
+
+# CORRECTION 2026-08-20 (later) — the LABEL hypothesis was RIGHT for 3 of the 10
+
+Pete noticed BoP's own portal showing **7** live air-temperature stations against
+the 4 we store, which does not fit the "all ten stopped upstream" verdict above.
+He was right and that verdict was wrong for three of them.
+
+## What the portal shows
+
+`envdata.boprc.govt.nz/Data/Map/Parameter/Air Temp/Interval/Latest`
+(AQUARIUS WebPortal) legend reads **Temperature (7)** — Cool 4, Mild 3 — under
+Value = *Latest - Continuous*.
+
+Enumerating every BoP location's Air Temp datasets through the portal's own
+`/Data/DataSets/?locationid=` endpoint:
+
+| location | Air Temp datasets |
+|---|---|
+| FB471317 Bore 1001238 at Lochinver | `Air Temp.Primary` |
+| JL671469 Edgecumbe at Edgecumbe | `Air Temp.Primary` |
+| JH105608 Galatea Basin at Horomanga Rd | `Air Temp.Primary` |
+| ML293777 Ohope Spit at Ohope Golf Course | `Air Temp.Primary` |
+| **EK171423 Rotorua at Edmund Rd** | **`Air Temp.Operational`** + `Air Temp.Primary` |
+| **EK687314 Rotorua at Moses Rd** | **`Air Temp.Operational`** + `Air Temp.Primary` |
+| **DP650467 Tauranga at Otumoetai** | **`Air Temp.Operational`** + `Air Temp.Primary` |
+| the other 7 dead AQ sites | `Air Temp.Primary` only |
+| EK596409 RRF3180 at Sulphur Point | `Air Temp.FieldResult` (manual spot samples, correctly excluded, and the map's *Continuous* filter excludes it too) |
+
+**4 still on Primary + 3 moved to Operational = 7.** The count reconciles exactly.
+
+## Why the earlier diagnosis missed it
+
+The falsification above rested on `ingestion/scripts/probes/boprc_sos.json`, and
+that artefact **cannot express this failure**. `seed_boprc_from_sos.py:230` only
+admits an offering `if label == LABEL`, and builds its series map as
+`f"{parameter}.{LABEL}@{loc}"`. A series that MOVED TO A NEW LABEL is therefore
+structurally invisible in it — it shows only that `Primary` stopped, which is
+true and is not the whole truth.
+
+The supporting claim "no alternative label carries them" was drawn from
+`hourly_offerings` being empty, but that field only ever records `SERVER_HOURLY`
+labels, never arbitrary ones. That inference was not sound.
+
+Confirmed independently from the other artefact on disk: `aquarius_boprc.json`
+contains **`Air Temp.Operational@EK171423`, `@EK687314`, `@DP650467`** and no
+others — the same three, exposed through the same `<Parameter>.<Label>@<Location>`
+offering grammar the SOS ingester uses.
+
+## What remains TRUE from the earlier diagnosis
+
+The other **seven** — six Mount Maunganui sites and Whakatane at Kopeopeo — have
+`Air Temp.Primary` and nothing else, and their record still ends at
+`2026-07-31T12:00:00Z`. For those, it is upstream at BoP and the question to put
+to them stands. So the outage is 7 stations, not 10, and 3 are ours to fix.
+
+## The fix, implemented
+
+`ingestion/sources/boprc.py`: `FALLBACK_LABELS = ('Operational',)`, consulted
+**only when `Primary` returns nothing for the window**, so a location publishing
+both is never ingested twice into the same (station, variable, timestamp) key.
+Records from a fallback label are stored `FALLBACK_QUALITY = 'PROVISIONAL'`, not
+`GOOD` — `Operational` is unapproved data (BoP's export refuses to serve it for
+that reason), and PROVISIONAL is the value SYNOP already uses for the same
+meaning. The daily rollup accepts PROVISIONAL (only QUARANTINED is excluded), so
+the three stations rejoin the surface fit while staying distinguishable in raw.
+
+Bare `Operational` is BoP's OWN telemetry and is deliberately distinct from
+`Operational_GDC` / `_HBRC` / `_ESNZ`, which remain excluded as another agency's
+republication.
+
+**NOT YET VERIFIED AGAINST THE LIVE SERVER.** `sos.boprc.govt.nz` is IP-allowlisted
+to the ingestion box and unreachable from a workstation, so the offering's
+existence is established from the probe artefact and the portal, not from a live
+GetObservation. Run `python -m sources.boprc --station BOPRC_ROTORUA_AT_EDMUND_RD
+--variable temp` from the ingestion box (or via the workflow) to confirm before
+trusting it.
+
+## The watchdog point is unchanged and now stronger
+A per-(station, variable) last-seen alert would have caught this on 2026-08-03.
+Note it would ALSO have caught the three that merely moved — which no amount of
+reasoning about `ingestion_log` ever would, because those three never stopped
+producing data at all.

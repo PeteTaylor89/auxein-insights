@@ -57,6 +57,7 @@ from sqlalchemy import text
 from psycopg2.extras import execute_values, Json
 
 from db_connection import get_ingestion_session, get_ingestion_engine
+from sources.db_util import screen_daily_rows, screen_records
 
 DATA_SOURCE = 'SYNOP_GTS'  # NOAA fills the authoritative tier for SYNOP devices
 
@@ -276,6 +277,9 @@ class NoaaIngestion:
         """Upsert-with-precedence into timeseries_observations (chunked)."""
         if not records:
             return 0
+        records = screen_records(records)
+        if not records:
+            return 0
         conn = self.engine.raw_connection()
         try:
             cur = conn.cursor()
@@ -382,6 +386,12 @@ class NoaaIngestion:
         return rows
 
     def insert_daily(self, rows: list) -> int:
+        if not rows:
+            return 0
+        # GHCN-Daily is the AUTHORITATIVE writer of weather_data_daily.rainfall_mm,
+        # so its values win the B4.1 COALESCE outright. A sentinel arriving here is
+        # not diluted by a rollup average the way a raw one is — it lands whole.
+        rows = screen_daily_rows(rows)
         if not rows:
             return 0
         conn = self.engine.raw_connection()

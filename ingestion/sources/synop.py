@@ -54,6 +54,7 @@ from psycopg2.extras import execute_values, Json
 
 from db_connection import get_ingestion_session, get_ingestion_engine
 from config.synop_sites import OGIMET_GETSYNOP
+from sources.db_util import screen_records
 
 DATA_SOURCE = 'SYNOP_GTS'
 
@@ -335,6 +336,9 @@ class SynopIngestion:
     def insert_data(self, records: list) -> int:
         """Upsert-with-precedence into timeseries_observations. A PROVISIONAL
         row (rank 1) never overwrites a CONFIRMED/AUTHORITATIVE one."""
+        if not records:
+            return 0
+        records = screen_records(records)
         if not records:
             return 0
         conn = self.engine.raw_connection()

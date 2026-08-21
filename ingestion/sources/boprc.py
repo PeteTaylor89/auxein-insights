@@ -140,8 +140,42 @@ NS = {
     'gml': 'http://www.opengis.net/gml/3.2',
 }
 
-# The ONLY label we ingest. A whitelist of one — see the module docstring.
+# The PREFERRED label. See the module docstring for why the vocabulary is curated
+# rather than taken wholesale.
 LABEL = 'Primary'
+
+# Labels accepted ONLY when `Primary` yields nothing for the requested window.
+#
+# Added 2026-08-20. On 1 August 2026 BoP moved three air-quality sites' air
+# temperature from `Air Temp.Primary` to `Air Temp.Operational`:
+#
+#     Air Temp.Operational@EK171423   Rotorua at Edmund Rd
+#     Air Temp.Operational@EK687314   Rotorua at Moses Rd
+#     Air Temp.Operational@DP650467   Tauranga at Otumoetai
+#
+# `Primary` still EXISTS for all three — GetDataAvailability reports it, its period
+# of record simply stops at 2026-07-31T12:00:00Z — so nothing errored and nothing
+# looked missing. The whitelist-of-one dropped the replacement series in silence
+# and BoP's own portal showed 7 live thermometers against the 4 we were storing.
+#
+# Note this is BARE `Operational`, which is BoP's own unapproved telemetry. It is
+# NOT the same as `Operational_GDC` / `Operational_HBRC` / `Operational_ESNZ`,
+# which are other agencies' data republished by BoP and stay excluded — we ingest
+# GDC and HBRC directly and seeding those would double-weight one coordinate in
+# the surface fit.
+#
+# Ordering matters: this is a FALLBACK, never a parallel source. A location that
+# publishes both would otherwise be ingested twice into the same (station,
+# variable, timestamp) key, with the two series disagreeing on the same instant.
+FALLBACK_LABELS = ('Operational',)
+
+# Quality stamped on records that came from a fallback label. `Operational` is
+# unapproved data — BoP's export page refuses to serve it for that reason — so it
+# must not be stored as GOOD alongside quality-assured Primary. PROVISIONAL is the
+# value SYNOP already uses for the same meaning, and the daily rollup accepts it
+# (only QUARANTINED is excluded), so these stations return to the surface fit while
+# staying distinguishable in the raw table.
+FALLBACK_QUALITY = 'PROVISIONAL' 
 
 # SOS observableProperty -> (canonical_variable, canonical_unit, scale)
 # Every BoP unit is already canonical, so every scale is 1.0. If a scale ever needs to be
@@ -422,7 +456,7 @@ class BoPRCIngestion:
     # ------------------------------------------------------------------ parsing
 
     def parse_observation(self, station_id, body, parameter,
-                          not_before=None, not_after=None):
+                          not_before=None, not_after=None, quality='GOOD'):
         """WaterML 2.0 -> records, checking the server-declared unit first.
 
         Parsed with iterparse and cleared as it goes: a backfill chunk is tens of MB and
@@ -493,7 +527,7 @@ class BoPRCIngestion:
                 # "NO QUALITY"). Deliberately not mapped: the full NEMS vocabulary has not
                 # been observed, and inventing a mapping is exactly the guess this module
                 # avoids elsewhere. Every other source in the platform stores 'GOOD'.
-                'quality': 'GOOD',
+                'quality': quality,
             })
             elem.clear()
 
@@ -699,6 +733,33 @@ class BoPRCIngestion:
                         records = self.parse_observation(
                             station_id, body, parameter,
                             not_before=not_before, not_after=None)
+
+                        # Primary returned nothing for this window. Before accepting
+                        # that as "no data", try the fallback labels — a series that
+                        # has been MOVED looks exactly like a series that has stopped,
+                        # and on 2026-08-01 three BoP air-quality sites did move. Only
+                        # reached when Primary is empty, so a station publishing both
+                        # is never ingested twice. See FALLBACK_LABELS.
+                        if not records and not server_hourly:
+                            for alt in FALLBACK_LABELS:
+                                alt_offering = build_offering(parameter, location_id, alt)
+                                try:
+                                    alt_body = self.fetch_observation(
+                                        alt_offering, cursor, chunk_end)
+                                    records = self.parse_observation(
+                                        station_id, alt_body, parameter,
+                                        not_before=not_before, not_after=None,
+                                        quality=FALLBACK_QUALITY)
+                                except Exception as alt_err:
+                                    # A missing fallback offering is the normal case for
+                                    # most stations; do not let it kill the Primary run.
+                                    print(f"      {alt} fallback unavailable: {alt_err}")
+                                    continue
+                                if records:
+                                    print(f"      {parameter}: Primary empty, "
+                                          f"{len(records)} record(s) from .{alt} "
+                                          f"(stored {FALLBACK_QUALITY})")
+                                    break
                         if server_hourly:
                             # Already hourly from the server — do NOT resample again.
                             # Re-stamp to the hour START; see SERVER_HOURLY above.
