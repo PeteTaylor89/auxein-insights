@@ -31,7 +31,14 @@ export RDS_USER=$(aws ssm get-parameter --name /auxein/ingest/RDS_USER --with-de
 export RDS_PASSWORD=$(aws ssm get-parameter --name /auxein/ingest/RDS_PASSWORD --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
 
 PY=/opt/auxein/.venv/bin/python
-SOURCES="${*:-harvest ecan mdc gw hbrc tdc gdc southland nrc wcrc horizons trc boprc}"   # optional args = specific source(s)
+# THIS LIST IS THE SCHEDULE. The box's cron runs this wrapper, so a source missing
+# here is simply never ingested — no error, no failed job, just a series that stops.
+# `ecan_air` sat in exactly that state from 2026-08-19 to 2026-08-21: it had been
+# added to run_ingestion.py and to the (now-fallback) GitHub matrix, but not here,
+# and Canterbury's only 12 thermometers went dark for two days while every dashboard
+# stayed green. Adding a source means editing all six wiring points, and this is the
+# one that decides whether it actually runs.
+SOURCES="${*:-harvest ecan ecan_air mdc gw hbrc tdc gdc southland nrc wcrc horizons trc boprc waikato}"   # optional args = specific source(s)
 
 for s in $SOURCES; do
   ( timeout 40m "$PY" run_ingestion.py --source "$s" --period incremental \

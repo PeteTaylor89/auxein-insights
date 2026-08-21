@@ -29,6 +29,8 @@ on:
           - wcrc
           - horizons
           - trc
+          - boprc
+          - waikato
       period:
         description: 'Ingestion period'
         required: true
@@ -53,7 +55,7 @@ jobs:
         # never scheduled. `ecan_air` was in that state for its first day.
         source: >-
           ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.source == 'all')
-              && fromJSON('["harvest","ecan","ecan_air","mdc","gw","hbrc","tdc","gdc","southland","nrc","wcrc","horizons","trc","boprc"]')
+              && fromJSON('["harvest","ecan","ecan_air","mdc","gw","hbrc","tdc","gdc","southland","nrc","wcrc","horizons","trc","boprc","waikato"]')
               || fromJSON(format('["{0}"]', github.event.inputs.source)) }}
 
     runs-on: ubuntu-latest

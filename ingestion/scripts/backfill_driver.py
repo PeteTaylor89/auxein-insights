@@ -56,6 +56,16 @@ SOURCE_MODULE = {  # source -> (data_source in DB, source script, backfill style
     # 5-minutely with record depth to 1901, so a per-station timeout well above the
     # default is appropriate for a deep window.
     "boprc":     ("BOPRC",     "ingestion/sources/boprc.py",     "range"),
+    # Waikato takes an explicit --start and ignores --interval: KiWIS serves each
+    # series at the resolution it is defined at and has no resampling parameter.
+    # The equivalent choice was made at SEED time, by preferring `Hour.Total` over
+    # the native event series where the station offers it.
+    #
+    # Its window limit is a ROW cap, not a time cap, so waikato.py halves a chunk
+    # the server refuses rather than using a fixed length. A per-station timeout
+    # around the default is fine — 2020-onward is ~365 rows/day at the 5-minute
+    # gauges and the whole 51-station run is minutes, not hours.
+    "waikato":   ("WRC",       "ingestion/sources/waikato.py",   "range"),
 }
 
 # Per-style progress counter: how far back a row has to be to count as "backfilled".

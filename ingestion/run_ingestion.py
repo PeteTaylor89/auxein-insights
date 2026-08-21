@@ -25,6 +25,7 @@ from sources.southland import SouthlandIngestion
 from sources.nrc import NRCIngestion
 from sources.trc import TRCIngestion
 from sources.boprc import BoPRCIngestion
+from sources.waikato import WaikatoIngestion
 from sources.noaa import NoaaIngestion
 from sources.synop import SynopIngestion
 
@@ -33,7 +34,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run weather data ingestion')
     parser.add_argument(
         '--source', 
-        choices=['harvest', 'ecan', 'ecan_air', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'trc', 'boprc', 'noaa', 'synop', 'all'],
+        choices=['harvest', 'ecan', 'ecan_air', 'mdc', 'gw', 'hbrc', 'tdc', 'gdc', 'southland', 'nrc', 'wcrc', 'horizons', 'trc', 'boprc', 'waikato', 'noaa', 'synop', 'all'],
         default='all',
         help='Data source to ingest (noaa/synop are backfill/bootstrap and boprc is '
              'still access-gated, so all three are excluded from "all")'
@@ -403,6 +404,31 @@ def main():
             print("✓ BoP ingestion step complete\n")
         except Exception as e:
             print(f"✗ BoP ingestion failed: {e}\n")
+            success = False
+
+    # Run Waikato (WRC) ingestion — KiWIS, public and keyless.
+    #
+    # A different platform from every other council source: Kisters/WISKI rather
+    # than Hilltop, OGC SOS or a bespoke portal. Reached on
+    # envdata.waikatoregion.govt.nz:8080, which is neither of the two Waikato hosts
+    # that blocked us in August 2026 (the Imperva-fronted enviromap XHR and the
+    # Azure APIM gateway) — see ingestion/config/waikato_sites.py.
+    if args.source in ['waikato', 'all']:
+        try:
+            print("▶ Starting Waikato (WRC) ingestion...\n")
+            ingester = WaikatoIngestion()
+            ingester.run(
+                period=args.period,
+                backfill_days=args.days,
+                start_date=args.start,
+                end_date=args.end,
+                dry_run=args.dry_run,
+                interval=args.interval,
+                station_code=args.station
+            )
+            print("✓ Waikato ingestion complete\n")
+        except Exception as e:
+            print(f"✗ Waikato ingestion failed: {e}\n")
             success = False
 
     # Run NOAA NCEI ingestion (backfill/authoritative — explicit only, not 'all')
