@@ -1,0 +1,213 @@
+/* The season in progress, at the site's own cell.
+   Deliberately the most prominent block on the page: it is the question a
+   grower opens the dashboard to ask. The regional strip below it is quieter
+   because it answers a question about a season that has already finished. */
+.current-season {
+  margin: 0 0 22px;
+  padding: 18px 20px;
+  border: 1px solid rgba(91, 104, 48, 0.22);
+  border-left: 3px solid #5b6830;
+  border-radius: 10px;
+  background: var(--white, #fff);
+}
+
+.current-season--pending {
+  border-left-color: #b8c19a;
+}
+
+.current-season__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  color: #3d4632;
+}
+
+.current-season__state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(91, 104, 48, 0.1);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5b6830;
+}
+
+.current-season__state.is-not_started {
+  background: rgba(120, 128, 105, 0.12);
+  color: #78806a;
+}
+
+.current-season__scope {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6b7360;
+}
+
+.current-season__progress {
+  height: 4px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(91, 104, 48, 0.12);
+  overflow: hidden;
+}
+
+.current-season__progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #8a9a5b;
+}
+
+.current-season__reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 14px 0 0;
+  font-size: 0.82rem;
+  color: #6b7360;
+}
+
+.current-season__reason svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* --- a usual season, shown before one starts --- */
+.current-season__usual {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(91, 104, 48, 0.14);
+}
+
+.current-season__usual-label {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a9276;
+}
+
+.current-season__usual dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.current-season__usual dt {
+  font-size: 0.74rem;
+  color: #6b7360;
+}
+
+.current-season__usual dd {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #3d4632;
+}
+
+.current-season__usual dd span {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #8a9276;
+}
+
+/* --- the season so far --- */
+.current-season__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.current-season__metric-label {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #6b7360;
+}
+
+.current-season__metric-value {
+  margin: 3px 0 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.1;
+  color: #3d4632;
+}
+
+.current-season__metric-unit {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #8a9276;
+}
+
+.current-season__metric-normal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: #6b7360;
+}
+
+.current-season__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.current-season__delta.is-good { color: #4a7c3f; }
+.current-season__delta.is-bad { color: #a8562c; }
+.current-season__delta.is-flat { color: #8a9276; }
+
+.current-season__metric-days {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  color: #a0a692;
+}
+
+.current-season__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(91, 104, 48, 0.16);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.current-season__note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.current-season__era {
+  margin-top: 10px;
+  font-size: 0.76rem;
+  color: #6b7360;
+}
+
+.current-season__era summary {
+  cursor: pointer;
+  color: #5b6830;
+}
+
+.current-season__era p,
+.current-season__era ul {
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.current-season__era ul {
+  padding-left: 18px;
+}
+
+.current-season__era li + li {
+  margin-top: 6px;
+}

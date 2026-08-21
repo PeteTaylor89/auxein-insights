@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date as _date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import text
@@ -369,6 +369,37 @@ SITE_SEASON_UNITS = {
 }
 
 
+# Frost, and why it is the one family of metrics that never gets a site-versus-
+# region comparison.
+#
+# The 500 m surfaces model no cold-air drainage and no pooling. Frost is made by
+# exactly those things: a hollow four metres lower than its neighbour can hold a
+# frost the surface has no way to see. So a site-level frost figure is not merely
+# uncertain, it is confident about the one thing it cannot resolve, and setting
+# it beside a regional spread invites precisely the reading it cannot support —
+# "am I more frost-prone than the vineyard next door".
+#
+# Two different rules follow, and they are not in conflict:
+#
+#   * On the SEASON charts, frost is shown as the regional average only. No site
+#     series, no p10/p90 band.
+#   * On the TILES, the site's own value stays — including the last spring frost
+#     DATE, which is a timing statement the surface does support — but the
+#     "warmer/cooler than 90% of the region" line is withheld.
+#
+# Enforced server-side in both places. Hiding it in the client would leave the
+# claim in the payload for the next consumer to render.
+FROST_METRICS = frozenset({
+    "frost_days", "early_frost_days", "last_spring_frost_doy",
+})
+
+FROST_DISCLAIMER = (
+    "Frost is a micro-climate effect. Our 500 m surfaces do not model cold-air "
+    "drainage or pooling, so frost is reported as the regional average rather "
+    "than at your site."
+)
+
+
 def derive_season(monthly: dict, gdd: dict) -> list[tuple]:
     """Season metrics at this cell, from its own monthly rows.
 
@@ -456,3 +487,191 @@ def derive_season(monthly: dict, gdd: dict) -> list[tuple]:
             out.append((None, vintage, metric, float(value),
                         SITE_SEASON_UNITS[metric], None))
     return out
+
+
+# --- the daily record, for a season in progress -------------------------------
+#
+# The monthly extraction above is a one-off: a site is placed, its 1986-2023
+# record is pulled, and it never changes. This is the opposite shape. It runs
+# every day, it re-reads days it has already read, and the values it wrote last
+# week can be wrong today.
+#
+# That is not a defect in this code, it is what the surface engine does: it
+# re-fits D-9 through D-3 every week because `daily_aggregation.py` keeps
+# revising `weather_data_daily` for about three days after the fact. So every
+# write here is an UPSERT and every season total is RECOMPUTED from the stored
+# days rather than accumulated as days arrive. A running total that adds each
+# new day once diverges from the surface within a fortnight, and nothing about
+# the number on the screen would look wrong.
+
+# surface variable -> the column it lands in. `rainfall` is the surface's name;
+# `rainfall_mm` is the column's, because a bare `rainfall` column invites the
+# question this name answers.
+DAILY_VARIABLES = {
+    "temp_min": "temp_min",
+    "temp_max": "temp_max",
+    "temp_mean": "temp_mean",
+    "rainfall": "rainfall_mm",
+}
+
+# The era a live season is read from, and it is PINNED rather than inferred.
+#
+# `uq_surface_run_timestep` is unique on (variable, granularity, valid_at,
+# resolution_m, model_version) where the statistic is NULL. So within one era a
+# day has exactly ONE daily object per variable, and the weekly re-fit
+# necessarily UPDATES that row in place rather than adding a second. The only
+# way a day can carry two objects for one variable is two MODEL VERSIONS — that
+# is, two eras.
+#
+# Which is exactly what must not be averaged together. The live era and the
+# published archive share an estimator but not their observations, and the
+# measured provenance offset is tmean -0.27 °C, tmin +0.29, tmax -0.43. A season
+# assembled from whichever row happened to be written last would report that
+# offset as weather, and it would do it inconsistently from day to day.
+#
+# So the era is chosen, not raced for. Overridable because the version string
+# will change when the estimator does, and that should not need a code deploy.
+LIVE_MODEL_VERSION = os.getenv("SURFACE_LIVE_MODEL_VERSION", "tps-2.0.0-ridge-db")
+
+
+def daily_surfaces(db: Session, start: _date, end: _date,
+                   model_version: Optional[str] = LIVE_MODEL_VERSION) -> list[dict]:
+    """The daily surface objects covering [start, end], from ONE era.
+
+    `statistic IS NULL` is the daily/hourly signature — see
+    `surface_index_tables`: monthly rows carry a statistic, daily rows are the
+    value itself and have none. Filtering on the four variables alone would also
+    sweep up every monthly statistic band for the same dates.
+
+    `model_version` pins the era; passing None lifts the pin and takes the most
+    recently created object per (variable, day), which is for diagnostics rather
+    than for anything a subscriber sees. The DISTINCT ON stays either way, so
+    the query is deterministic whichever it is asked.
+    """
+    return [dict(r) for r in db.execute(text("""
+        SELECT DISTINCT ON (variable, valid_at)
+               variable, valid_at, s3_key, model_version
+          FROM surface_run
+         WHERE granularity = 'daily'
+           AND statistic IS NULL
+           AND status <> 'failed'
+           AND variable = ANY(:vars)
+           AND valid_at >= :start AND valid_at <= :end
+           AND (:mv IS NULL OR model_version = :mv)
+         ORDER BY variable, valid_at, created_at DESC
+    """), {"vars": list(DAILY_VARIABLES), "start": start, "end": end,
+           "mv": model_version}).mappings().all()]
+
+
+def extract_daily(db: Session, site: InsightsSite,
+                  start: _date, end: _date,
+                  model_version: Optional[str] = LIVE_MODEL_VERSION) -> list[dict]:
+    """This site's cell across every daily surface in [start, end].
+
+    One windowed 1x1 read per object, run concurrently for the same reason the
+    monthly extraction does: the cost is round trips, not work.
+
+    An unreadable object is skipped with a warning rather than failing the run.
+    One missing day in a season is a gap the charts already draw; abandoning the
+    whole extraction over it would leave a subscriber with nothing on the day a
+    single COG happened to be slow.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    records = daily_surfaces(db, start, end, model_version)
+    if not records:
+        return []
+
+    row_i, col_i = site.grid_row, site.grid_col
+
+    def task(rec):
+        try:
+            return rec, _read_cell(rec, row_i, col_i)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("site %s: daily %s unreadable: %s", site.id,
+                        rec["s3_key"], exc)
+            return rec, ...
+
+    by_day: dict = {}
+    with ThreadPoolExecutor(max_workers=EXTRACT_WORKERS) as pool:
+        for rec, value in pool.map(task, records):
+            if value is ...:
+                continue
+            valid = rec["valid_at"]
+            day = valid.date() if hasattr(valid, "date") else valid
+            entry = by_day.setdefault(day, {"site_id": site.id, "date": day,
+                                            "versions": set()})
+            entry[DAILY_VARIABLES[rec["variable"]]] = value
+            if rec["model_version"]:
+                entry["versions"].add(rec["model_version"])
+
+    out = []
+    for day in sorted(by_day):
+        entry = by_day[day]
+        versions = entry.pop("versions")
+        # With the era pinned this is always one value. It is still assembled
+        # as a set and joined, because the pin can be lifted for diagnostics and
+        # a mixed day must then SAY it is mixed rather than name one era and
+        # look consistent.
+        entry["model_version"] = ",".join(sorted(versions)) or None
+        for column in DAILY_VARIABLES.values():
+            entry.setdefault(column, None)
+        out.append(entry)
+    return out
+
+
+def upsert_daily(db: Session, rows: list[dict]) -> int:
+    """Write days, correcting any that were already written.
+
+    ON CONFLICT DO UPDATE, not DO NOTHING. A re-fit exists precisely to change
+    a value that is already here; DO NOTHING would make the weekly re-fit a
+    silent no-op and leave the site permanently on the first, worst estimate of
+    every day.
+    """
+    if not rows:
+        return 0
+    db.execute(text("""
+        INSERT INTO insights_site_daily
+            (site_id, date, temp_min, temp_max, temp_mean, rainfall_mm,
+             model_version, extracted_at)
+        VALUES
+            (:site_id, :date, :temp_min, :temp_max, :temp_mean, :rainfall_mm,
+             :model_version, now())
+        ON CONFLICT (site_id, date) DO UPDATE SET
+            temp_min = EXCLUDED.temp_min,
+            temp_max = EXCLUDED.temp_max,
+            temp_mean = EXCLUDED.temp_mean,
+            rainfall_mm = EXCLUDED.rainfall_mm,
+            model_version = EXCLUDED.model_version,
+            extracted_at = EXCLUDED.extracted_at
+    """), rows)
+    return len(rows)
+
+
+def populate_daily(db: Session, site: InsightsSite,
+                   start: _date, end: _date,
+                   model_version: Optional[str] = LIVE_MODEL_VERSION) -> dict:
+    """Extract and store one site's daily record over a window.
+
+    Returns a summary rather than raising on an empty result: before the daily
+    engine runs there are no daily surfaces at all, and that is a stated
+    condition of the platform rather than a failure of this site.
+    """
+    if site.grid_row is None or site.grid_col is None:
+        return {"site_id": site.id, "days": 0, "written": 0,
+                "reason": "the site has no resolved cell"}
+
+    rows = extract_daily(db, site, start, end, model_version)
+    written = upsert_daily(db, rows)
+    db.commit()
+
+    with_value = sum(1 for r in rows
+                     if any(r[c] is not None for c in DAILY_VARIABLES.values()))
+    return {
+        "site_id": site.id, "days": len(rows), "written": written,
+        # Days present but entirely NULL mean the surfaces exist and this cell
+        # is not on them — a land-mask problem, not a missing-data one, and it
+        # needs a different fix from an empty window.
+        "days_with_value": with_value,
+        "reason": None if rows else "no daily surfaces cover this window",
+    }

@@ -252,3 +252,13 @@
   flex: 0 0 auto;
   margin-top: 2px;
 }
+
+/* The scale marker on the strip's "usual". It sits directly under a number the
+   tiles also call "usual", for a different place, so it carries weight. */
+.season-strip__metric-scope {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.68rem;
+  letter-spacing: 0.01em;
+  color: #8a9276;
+}

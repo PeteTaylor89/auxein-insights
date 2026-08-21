@@ -100,14 +100,19 @@ export async function getSiteMonthly(id, { variable = 'temp_mean',
 }
 
 /**
- * The whole dashboard in one call: the site's climatology tiles, and this
- * season beside them.
+ * The whole dashboard in one call: the site's climatology tiles, the season in
+ * progress, and the season just finished.
  *
- * The two halves come from DIFFERENT SOURCES and the payload says so on every
- * field. `tiles` are the site's own cell from the 1986-2023 surface archive;
- * `season_to_date` is station data aggregated to the region, because no live
- * surface exists yet. Nothing here may merge them into one figure — the server
- * deliberately does not, and re-deriving on the client would undo that.
+ * THREE BLOCKS, and they do not share a source or a scale. The payload says
+ * which on every field, and nothing here may merge them into one figure — the
+ * server deliberately does not, and re-deriving on the client would undo that.
+ *
+ *   tiles             the site's own cell, 1986-2023 surface archive
+ *   season_current    the site's own cell, live daily surface, against that
+ *                     cell's own 1986-2005 curve. Both sides, one place.
+ *   season_previous   stations aggregated to the REGION, against the regional
+ *                     normal. A finished season is only fully recorded at
+ *                     station scale, so this one stays regional and says so.
  */
 export async function getSiteDashboard(id, { baseline } = {}) {
   const { data } = await publicApi.get(`${BASE}/${id}/dashboard`, {

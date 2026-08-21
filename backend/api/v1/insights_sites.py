@@ -23,6 +23,12 @@ Three refusals, all 4xx with a code the client can act on:
 `/monthly` and `/season` take a `baseline` and use it for the site normal AND
 the regional normal. Letting them differ would be the easiest way to
 manufacture an anomaly that is really just two different reference periods.
+
+## And it is ONE period across the whole Pro page
+
+Every panel — tiles, season strip, season-by-season, month-by-month and the
+projections — reads the same 1986-2005 normal. See `PRO_BASELINE` below for
+why that period and not the WMO one.
 """
 from __future__ import annotations
 
@@ -42,16 +48,35 @@ from db.models.public_user import PublicUser
 from db.session import get_db
 from services import insights_site_service as svc
 from services import insights_dashboard as dashboard
+from services import insights_site_baseline as site_baseline
 from services import workflow_dispatch
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-# WMO standard normal, and it sits wholly inside the 1986-2023 archive. Not
-# 1986-2005: that is the r99p baseline, chosen for an extremes threshold, and
-# reusing it as the everyday normal would quietly make every site look warmer
-# than it is against a period that ends 20 years ago.
-DEFAULT_BASELINE = "1991-2020"
+# 1986-2005, not the 1991-2020 WMO normal, and the reason is comparability
+# rather than convention.
+#
+# 1. **The SSP projections are deltas measured off 1986-2005.** Applying one to
+#    a 1991-2020 normal double-counts the warming between the two periods, so a
+#    projections panel on this page is only arithmetically sound if the page's
+#    normal is the period the deltas came from.
+# 2. **The only DAILY climatology that exists is 1986-2005** —
+#    `climate_zone_daily_baseline`, which is what a current-season curve is
+#    plotted against. A season strip on one period beside tiles on another would
+#    put two normals on one screen with no way to tell them apart.
+# 3. `aggregate_zone_season` already defaults to 1986-2005 for r99p, and
+#    `climate_zone_surface_season.baseline` records it, so the zone side of every
+#    comparison was partly on this period already.
+#
+# The cost is real and is stated on the page rather than hidden: against a
+# period ending in 2005, every site reads warmer than it would against
+# 1991-2020. That is a true statement about a warming climate, but it is a
+# visible change to numbers subscribers have already seen.
+#
+# Sourced from the baseline service so the API and the curve builder cannot
+# drift apart.
+PRO_BASELINE = f"{site_baseline.BASELINE_LO}-{site_baseline.BASELINE_HI}"
 
 
 class PlaceSiteRequest(BaseModel):
@@ -83,7 +108,7 @@ def _parse_baseline(baseline: str) -> tuple[int, int]:
     # object rather than the string it stands for. Resolve it here, once, rather
     # than making every direct caller pass a baseline it does not care about.
     if not isinstance(baseline, str):
-        baseline = DEFAULT_BASELINE
+        baseline = PRO_BASELINE
     try:
         lo, hi = (int(p) for p in baseline.split("-"))
     except Exception:                                               # noqa: BLE001
@@ -287,12 +312,25 @@ def site_season(site_id: int,
 
     series: dict = {}
     for r in rows:
-        entry = series.setdefault(r["metric"], {"metric": r["metric"],
-                                                "unit": r["unit"], "points": []})
+        metric = r["metric"]
+        # Frost is the regional average and nothing else on this chart. The
+        # site's own value and the planted spread are BOTH withheld: the value
+        # because the surfaces cannot resolve cold-air pooling, the spread
+        # because drawing a site inside or outside it is exactly the
+        # site-versus-neighbour claim the model cannot support. See
+        # `insights_site_service.FROST_METRICS`.
+        regional_only = metric in svc.FROST_METRICS
+        entry = series.setdefault(metric, {
+            "metric": metric, "unit": r["unit"], "points": [],
+            "regional_only": regional_only,
+            "regional_only_reason": svc.FROST_DISCLAIMER if regional_only else None,
+        })
         entry["points"].append({
-            "vintage": r["vintage_year"], "value": r["value"],
-            "zone_mean": r["zone_mean"], "zone_p10": r["zone_p10"],
-            "zone_p90": r["zone_p90"],
+            "vintage": r["vintage_year"],
+            "value": None if regional_only else r["value"],
+            "zone_mean": r["zone_mean"],
+            "zone_p10": None if regional_only else r["zone_p10"],
+            "zone_p90": None if regional_only else r["zone_p90"],
         })
     return {
         "site": _serialise(db, site),
@@ -305,6 +343,11 @@ def site_season(site_id: int,
             "site_spread": "none — a site is a single 500 m cell",
             "zone_spread": "across planted cells, weighted by hectares",
             "regional_comparison": site.zone_id is not None,
+            # Not an omission — the metric IS here, at regional scale, which is
+            # the scale it is defensible at. Listed separately from `omitted`
+            # for that reason.
+            "regional_only": sorted(svc.FROST_METRICS & set(series)),
+            "regional_only_reason": svc.FROST_DISCLAIMER,
             "omitted": ["r99p"],
             "omitted_reason": ("r99p needs the wet-day tail bands and is not yet "
                                "derived per site; showing it computed a different "
@@ -316,7 +359,7 @@ def site_season(site_id: int,
 
 @router.get("/sites/{site_id}/dashboard")
 def site_dashboard(site_id: int,
-                   baseline: str = Query(DEFAULT_BASELINE),
+                   baseline: str = Query(PRO_BASELINE),
                    db: Session = Depends(get_db),
                    user: PublicUser = Depends(require_pro)):
     """Everything a subscriber sees on opening their site.
@@ -345,7 +388,7 @@ def site_dashboard(site_id: int,
 def site_monthly(site_id: int,
                  variable: str = Query("temp_mean"),
                  statistic: str = Query("mean"),
-                 baseline: str = Query(DEFAULT_BASELINE),
+                 baseline: str = Query(PRO_BASELINE),
                  db: Session = Depends(get_db),
                  user: PublicUser = Depends(require_pro)):
     """Month-by-month at this site, against its own normal and its region's.
@@ -397,7 +440,12 @@ def site_monthly(site_id: int,
                                 and site_normal.get(r["month"]) is not None
                                 else None)}
                    for r in points],
-        "meta": {"baseline": baseline,
+        # The period ACTUALLY used, rebuilt from the parsed bounds rather than
+        # echoing the parameter. They differ whenever the default is in play and
+        # the caller is not FastAPI — `check_insights_sites` calls this function
+        # directly, so an untouched `Query(...)` arrives as a Query object and
+        # would be reported to the client as the baseline.
+        "meta": {"baseline": f"{lo}-{hi}",
                  "baseline_applies_to": "both the site and the regional normal",
                  "regional_comparison": site.zone_id is not None,
                  "n_months": len(points)},

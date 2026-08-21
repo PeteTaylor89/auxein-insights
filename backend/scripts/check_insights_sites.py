@@ -213,9 +213,51 @@ def main() -> int:
         check("the site declares it has no spread of its own",
               "single" in season["meta"]["site_spread"])
 
+        frost_series = A.site_season(site_id=site_id,
+                                     metrics="frost_days,gdd10",
+                                     db=db, user=user)
+        fby = {x["metric"]: x for x in frost_series["series"]}
+        fs = fby.get("frost_days")
+        check("frost is present on the season chart, not omitted",
+              fs is not None)
+        if fs:
+            check("frost is flagged regional-only", fs["regional_only"] is True)
+            check("frost carries the regional average",
+                  any(p["zone_mean"] is not None for p in fs["points"]))
+            check("frost withholds the site's own series",
+                  all(p["value"] is None for p in fs["points"]))
+            # The band is withheld too. A site drawn inside or outside a spread
+            # is the same neighbour claim as a site line.
+            check("frost withholds the planted spread",
+                  all(p["zone_p10"] is None and p["zone_p90"] is None
+                      for p in fs["points"]))
+        check("gdd10 is untouched by the frost rule",
+              fby["gdd10"]["regional_only"] is False
+              and any(p["value"] is not None for p in fby["gdd10"]["points"]))
+        check("regional-only metrics are listed apart from omitted ones",
+              "frost_days" in frost_series["meta"]["regional_only"]
+              and "frost_days" not in frost_series["meta"]["omitted"])
+
+        # An explicit period, not the default, so the parameter is exercised
+        # rather than assumed. The DEFAULT is asserted separately below.
         monthly = A.site_monthly(site_id=site_id, variable="temp_mean",
                                  statistic="mean", baseline="1991-2020",
                                  db=db, user=user)
+        check("an explicit baseline is honoured",
+              monthly["meta"]["baseline"] == "1991-2020",
+              monthly["meta"]["baseline"])
+
+        # The whole Pro page is on 1986-2005: the period the SSP deltas are
+        # measured from, and the only one with a daily climatology. A default
+        # that drifted off it would silently break the projections arithmetic.
+        defaulted = A.site_monthly(site_id=site_id, variable="temp_mean",
+                                   statistic="mean", db=db, user=user)
+        check("the default baseline is 1986-2005",
+              defaulted["meta"]["baseline"] == "1986-2005",
+              defaulted["meta"]["baseline"])
+        check("the dashboard is on the same baseline as the charts",
+              A.site_dashboard(site_id=site_id, db=db,
+                               user=user)["baseline"] == A.PRO_BASELINE)
         check("456 months of temp_mean", monthly["meta"]["n_months"] == 456,
               monthly["meta"]["n_months"])
         check("one baseline drives both normals",
@@ -250,7 +292,49 @@ def main() -> int:
         check("the warmest season is not before the coolest in value",
               gdd["warmest"]["value"] >= gdd["coolest"]["value"])
 
-        strip = dash["season_to_date"]
+        # Frost never carries a site-versus-region claim, and the suppression is
+        # SERVER side: the payload must not contain the zone block at all, or the
+        # next consumer renders what this client hides.
+        frost = next(t for t in dash["tiles"] if t["metric"] == "frost_days")
+        check("the frost tile keeps the site's own value",
+              frost["normal"] is not None and frost["latest"]["value"] is not None)
+        check("the frost tile carries NO regional comparison",
+              frost["zone"] is None and frost["regional_comparison"] is False,
+              str(frost["zone"])[:60])
+        check("and says why", "cold-air" in (frost["no_comparison_reason"] or ""))
+        check("a non-frost tile still carries one",
+              gdd["zone"] is not None and gdd["regional_comparison"] is True)
+
+        last_frost = next((t for t in dash["tiles"]
+                           if t["metric"] == "last_spring_frost_doy"), None)
+        if last_frost:
+            # The one deliberate exception: the DATE is a timing statement the
+            # surface supports, so it stays. Only the neighbour comparison goes.
+            check("the last spring frost DATE stays at site level",
+                  last_frost["latest"]["value"] is not None)
+            check("but with no regional comparison",
+                  last_frost["zone"] is None)
+
+        # The normal under the tile is averaged over the BASELINE years, not the
+        # whole record. Captioning it with the series length claims a period it
+        # was never computed over.
+        check("the tile's normal is counted over the baseline, not the record",
+              0 < gdd["normal_years"] < gdd["n_seasons"],
+              f"{gdd['normal_years']} of {gdd['n_seasons']}")
+        check("the tile declares its scale", gdd["normal_scope"] == "site")
+
+        # Two season panels now, and the payload must keep them distinct. The
+        # previous one is the regional strip that used to be `season_to_date`;
+        # the current one is the site's own cell and is asserted in detail by
+        # `check_site_season.py`.
+        strip = dash["season_previous"]
+        current = dash["season_current"]
+        moved_zone_id = dash["site"].zone_id
+        check("the two seasons are different vintages",
+              current["vintage"] == strip["vintage"] + 1,
+              f"{current['vintage']} vs {strip['vintage']}")
+        check("and declare different scales",
+              current["scope"] == "site" and strip["scope"] == "region")
         check("a season strip is offered for a site inside a zone",
               strip is not None and strip.get("available") is True,
               str(strip)[:120])
@@ -272,6 +356,37 @@ def main() -> int:
                       for m in strip["metrics"]))
             check("the strip says it is regional, not the site",
                   strip["scope"] == "region")
+            check("each metric names the scale of its own normal",
+                  all(m["normal_scope"] == "region" for m in strip["metrics"]))
+
+            # A PARTIAL YEAR MUST NOT ENTER THE NORMAL. Vintage 1986 needs
+            # September to December 1985, which predates the archive, so it
+            # contributes four months to the sum while counting as a whole year
+            # in the divisor. That understated every regional normal in all 23
+            # zones — 1.3% on rain, 5.0% on frost nights. The normal is
+            # recomputed here independently, over complete years only.
+            want = db.execute(text("""
+                SELECT avg(total), count(*) FROM (
+                    SELECT yr, sum(m) AS total FROM (
+                        SELECT CASE WHEN month >= 9 THEN year + 1 ELSE year END AS yr,
+                               mean AS m
+                          FROM climate_zone_surface_monthly
+                         WHERE zone_id = :zid AND variable = 'temp_mean'
+                           AND statistic = 'gdd10'
+                           AND month = ANY(:months) AND mean IS NOT NULL
+                    ) t WHERE yr BETWEEN 1986 AND 2005
+                     GROUP BY yr HAVING count(*) = :n
+                ) whole_years
+            """), {"zid": moved_zone_id, "n": len(strip["months_compared"]),
+                    "months": [int(m[-2:]) for m in strip["months_compared"]]}
+            ).first()
+            check("the regional normal averages only COMPLETE baseline years",
+                  want[0] is not None
+                  and abs(live_gdd["normal"] - float(want[0])) < 0.5,
+                  f"{live_gdd['normal']:.1f} vs {float(want[0]):.1f}")
+            check("and reports how many years stand behind it",
+                  live_gdd["normal_years"] == want[1],
+                  f"{live_gdd['normal_years']} vs {want[1]}")
 
         print("\nmoves")
         moved = A.update_site(site_id=site_id,

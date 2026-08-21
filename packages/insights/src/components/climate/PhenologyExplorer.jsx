@@ -182,6 +182,14 @@ const PhenologyExplorer = ({ zone }) => {
     );
   }
 
+  // Before a season starts the model has no accumulation to project from, and
+  // the server withholds every date rather than shipping the flowering-in-April
+  // and harvest-in-2028 values it would otherwise produce. Say so ONCE, instead
+  // of letting nine varieties each render a row of "N/A".
+  const noBasis = phenologyData.varieties?.length > 0
+    && phenologyData.varieties.every(
+      (v) => v.stages?.length && v.stages.every((st) => st.status === 'no_basis'));
+
   return (
     <div className="phenology-explorer">
       {/* Header */}
@@ -199,6 +207,17 @@ const PhenologyExplorer = ({ zone }) => {
           </span>
         </div>
       </div>
+
+      {noBasis && (
+        <div className="phenology-no-basis">
+          <AlertCircle size={15} aria-hidden="true" />
+          <span>
+            The season has not accumulated any growing degree days yet, so stage
+            and harvest dates cannot be projected. Current stage and accumulation
+            are shown; dates return once the season is under way.
+          </span>
+        </div>
+      )}
 
       {/* Variety Filter */}
       {varietiesList.length > 0 && (
@@ -267,8 +286,9 @@ const PhenologyExplorer = ({ zone }) => {
                 <span className="progress-label">{progress.toFixed(0)}% to harvest</span>
               </div>
 
-              {/* Key Dates Summary */}
-              <div className="key-dates-summary">
+              {/* Key Dates Summary. Suppressed entirely with no basis — a
+                  chip reading "Flowering N/A" is worse than no chip. */}
+              <div className="key-dates-summary" hidden={noBasis}>
                 {flowering && (
                   <div className={`date-chip ${flowering.is_actual ? 'actual' : ''}`}>
                     <span className="date-label">Flowering</span>

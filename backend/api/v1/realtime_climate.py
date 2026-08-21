@@ -28,6 +28,8 @@ from sqlalchemy import func, and_, desc, text, bindparam
 from sqlalchemy.orm import Session, joinedload
 
 from db.session import get_db, SessionLocal
+from services import insights_site_baseline
+from services import phenology_basis
 from db.models.wine_region import WineRegion
 from db.models.climate import ClimateZone
 from db.models.realtime_climate import (
@@ -750,7 +752,11 @@ def get_phenology_estimates(
     # Build response
     variety_results = []
     today = date.today()
-    
+    # The Sep-Apr window this vintage covers. A projected date outside it is
+    # wrong for this vintage however healthy the accumulation looks, and that is
+    # the second of the two basis tests.
+    season_start, season_end = insights_site_baseline.season_bounds(vintage_year)
+
     for est in estimates:
         threshold = thresholds.get(est.variety_code)
         variety_name = threshold.variety_name if threshold else est.variety_code
@@ -760,17 +766,42 @@ def get_phenology_estimates(
         
         # Build stages list
         stages = []
-        
+
+        def staged(stage_name, gdd_threshold, predicted, is_actual):
+            """One stage, with an unprojectable date WITHHELD rather than shown.
+
+            Before a season starts the model accumulates zero GDD and projects
+            flowering into April and harvest into the following year, all at
+            `confidence = 'high'`. Every one of the 5,733 rows in the 2027
+            vintage sat at zero on 2026-08-19. See `services/phenology_basis`.
+
+            The date is removed from the RESPONSE, not merely hidden by a
+            client, and `status` says which of the five reasons applies so the
+            page can word its empty state correctly.
+            """
+            status = phenology_basis.classify(
+                predicted, is_actual, current_gdd, season_start, season_end)
+            show = phenology_basis.is_shown(status)
+            return PhenologyStage(
+                stage_name=stage_name,
+                gdd_threshold=to_decimal(gdd_threshold) if gdd_threshold else None,
+                predicted_date=predicted if show else None,
+                is_actual=is_actual,
+                days_from_now=((predicted - today).days
+                               if show and predicted and predicted > today
+                               else None),
+                status=status,
+            )
+
         # Flowering - check if GDD has passed flowering threshold
         flowering_threshold = float(threshold.gdd_flowering) if threshold and threshold.gdd_flowering else None
         flowering_is_actual = flowering_threshold is not None and current_gdd >= flowering_threshold
-        
-        stages.append(PhenologyStage(
-            stage_name='Flowering',
-            gdd_threshold=to_decimal(threshold.gdd_flowering) if threshold else None,
-            predicted_date=est.flowering_date,
-            is_actual=flowering_is_actual,
-            days_from_now=(est.flowering_date - today).days if est.flowering_date and est.flowering_date > today else None,
+
+        stages.append(staged(
+            'Flowering',
+            threshold.gdd_flowering if threshold else None,
+            est.flowering_date,
+            flowering_is_actual,
         ))
         
         # Note: Véraison removed - unreliable predictions pending better calibration data
@@ -791,14 +822,9 @@ def get_phenology_estimates(
             gdd_threshold = getattr(threshold, f'gdd_{attr}', None) if threshold else None
             harvest_threshold_val = float(gdd_threshold) if gdd_threshold else None
             is_harvest_actual = harvest_threshold_val is not None and current_gdd >= harvest_threshold_val
-            
-            stages.append(PhenologyStage(
-                stage_name=label,
-                gdd_threshold=to_decimal(gdd_threshold) if gdd_threshold else None,
-                predicted_date=harvest_date,
-                is_actual=is_harvest_actual,
-                days_from_now=(harvest_date - today).days if harvest_date and harvest_date > today else None,
-            ))
+
+            stages.append(staged(label, gdd_threshold, harvest_date,
+                                 is_harvest_actual))
         
         # Calculate progress percentage (toward typical harvest ~200g/L)
         progress = None

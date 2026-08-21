@@ -1,0 +1,123 @@
+/* A placeholder that reserves its shape. Deliberately quieter than the panels
+   holding real numbers — it should read as "this is coming", never as a section
+   that failed to load. */
+.projections {
+  margin: 0 0 22px;
+  padding: 18px 20px;
+  border: 1px dashed rgba(91, 104, 48, 0.3);
+  border-radius: 10px;
+  background: rgba(91, 104, 48, 0.02);
+}
+
+.projections__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  color: #3d4632;
+}
+
+.projections__state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 128, 105, 0.12);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #78806a;
+}
+
+.projections__scope {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6b7360;
+}
+
+/* One header column plus one column per horizon. Driven by the server's
+   vocabulary, so this stays correct if a fourth scenario ever appears. */
+.projections__grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) repeat(3, 1fr);
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.projections__corner {
+  min-height: 1px;
+}
+
+.projections__period,
+.projections__scenario {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #4a5340;
+}
+
+.projections__period small,
+.projections__scenario small {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #8a9276;
+}
+
+.projections__scenario {
+  justify-content: center;
+}
+
+.projections__cell {
+  min-height: 46px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(138, 154, 91, 0.07),
+    rgba(138, 154, 91, 0.07) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+.projections__reason {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(91, 104, 48, 0.14);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.projections__link {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+}
+
+.projections__link a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5b6830;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.projections__link a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+  /* The 3x3 stops being readable well before this, and a squashed grid reads
+     as broken rather than as pending. */
+  .projections__grid {
+    grid-template-columns: minmax(90px, 1fr) repeat(3, 1fr);
+    font-size: 0.7rem;
+  }
+
+  .projections__cell {
+    min-height: 34px;
+  }
+}

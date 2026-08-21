@@ -149,7 +149,16 @@ function Pro() {
               <tbody>
                 {PRO_COMPARISON.map((row) => (
                   <tr key={row.feature}>
-                    <th scope="row">{row.feature}</th>
+                    <th scope="row">
+                      {row.feature}
+                      {/* A tick in a comparison table reads as a promise. Where
+                          a row is only true in some regions it has to say so on
+                          the row itself — a caveat further down the page is not
+                          read by someone scanning the ticks. */}
+                      {row.note && (
+                        <span className="pro-table__note">{row.note}</span>
+                      )}
+                    </th>
                     <td>
                       {row.free ? (
                         <>

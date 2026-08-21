@@ -1,0 +1,124 @@
+/* Three cards, one per model. Colour carries the level, but the level is also
+   always written out — a colour alone fails for anyone who cannot separate the
+   greens from the ambers, and this drives spray decisions. */
+.disease__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.disease__card {
+  padding: 12px 14px;
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-left: 3px solid #b8c19a;
+  border-radius: 8px;
+  background: var(--white, #fff);
+}
+
+.disease__label {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #6b7360;
+}
+
+.disease__level {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: #3d4632;
+}
+
+.disease__model {
+  margin: 3px 0 0;
+  font-size: 0.66rem;
+  color: #a0a692;
+}
+
+.disease__card.is-low { border-left-color: #7fa05f; }
+.disease__card.is-low .disease__level { color: #4a7c3f; }
+
+.disease__card.is-moderate { border-left-color: #d9a441; }
+.disease__card.is-moderate .disease__level { color: #a8752c; }
+
+.disease__card.is-high { border-left-color: #c8703c; }
+.disease__card.is-high .disease__level { color: #a8562c; }
+
+.disease__card.is-extreme { border-left-color: #a83c3c; }
+.disease__card.is-extreme .disease__level { color: #8f2f2f; }
+
+.disease__card.is-unknown { border-left-color: #c2c7b6; }
+
+.disease__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 10px 0 0;
+  font-size: 0.73rem;
+  color: #8a9276;
+}
+
+/* The cards are buttons now — the chart is behind a click — so they need to
+   look pressable without becoming three loud call-to-actions. */
+.disease__card {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.disease__card:hover {
+  background: rgba(91, 104, 48, 0.03);
+}
+
+.disease__card.is-open {
+  background: rgba(91, 104, 48, 0.05);
+  border-color: rgba(91, 104, 48, 0.3);
+}
+
+.disease__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.disease__chevron {
+  color: #a0a692;
+  transition: transform 140ms ease;
+}
+
+.disease__card.is-open .disease__chevron {
+  transform: rotate(180deg);
+}
+
+.disease__detail {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-radius: 8px;
+  background: var(--white, #fff);
+}
+
+.disease__chart {
+  height: 180px;
+}
+
+.disease__chart-note {
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+  color: #a0a692;
+}
+
+.disease__loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6b7360;
+}

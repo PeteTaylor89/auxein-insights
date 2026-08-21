@@ -35,6 +35,7 @@ import './MySite.css';
 
 const PRO_PREVIEW = [
   'Your own point, sampled from the 500 m climate surface',
+  'This season tracked day by day against your site’s own record',
   'Every season back to 1986, against your site’s own normal',
   'Your site measured against the spread of vineyards around it',
   'Month-by-month anomalies you can act on',

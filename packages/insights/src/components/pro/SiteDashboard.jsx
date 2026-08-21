@@ -1,19 +1,29 @@
 // components/pro/SiteDashboard.jsx — what a subscriber sees on opening a site.
 //
-// TWO SOURCES, KEPT APART. The tiles are this cell's own 1986-2023 record from
-// the surface archive. The season strip is station data aggregated to the
-// REGION, because there is no live surface yet. They are drawn as two panels
-// with two headings and two source lines, and no number is ever computed across
-// the boundary — the server does not merge them and neither does this.
+// FOUR BLOCKS, THREE SCALES, KEPT APART. Reading order is the order the
+// questions get asked:
 //
-// Everything numeric here is server-computed. Normals, anomalies and trends
-// arrive ready; re-deriving any of them in the browser is how the site's normal
-// and the chart's normal start to disagree.
+//   season_current   this season, at the site's OWN cell, against that cell's
+//                    own 1986-2005 curve. Both sides describe one place.
+//   season_previous  the season just finished, at the REGION, from stations —
+//                    a finished season is only fully recorded at station scale.
+//   tiles            what this cell usually does, 1986-2023 surface archive.
+//   projections      a placeholder. Region-only today; site-level needs
+//                    projection surfaces to sample.
+//
+// No number is ever computed across those boundaries — the server does not
+// merge them and neither does this. Everything numeric arrives ready: normals,
+// anomalies and trends are all server-computed, because the moment the browser
+// starts summing days it can disagree with the server about which days counted.
 import { useEffect, useState } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, Info, Loader, Radio,
 } from 'lucide-react';
 import { getSiteDashboard } from '../../services/proSiteService';
+import BaselineNote from './BaselineNote';
+import CurrentSeasonPanel from './CurrentSeasonPanel';
+import ProjectionsPanel from './ProjectionsPanel';
+import RegionalModelsPanel from './RegionalModelsPanel';
 import './SiteDashboard.css';
 
 // Day-of-year reads as a number and means a date. 288 is not a quantity of
@@ -65,13 +75,17 @@ function toneFor(anomaly, direction) {
 // merely vague. "Warmer / higher" on a frost-nights tile says the opposite of
 // what the number means — more frost nights is colder — and on rainfall it is
 // not a temperature statement at all.
+//
+// FROST IS ABSENT FROM THIS MAP ON PURPOSE. The server no longer sends a `zone`
+// block for frost metrics, so no phrase here could ever render — and leaving
+// "More frost-prone than 90% of the vineyards in this region" sitting in the
+// file is an invitation to switch it back on. Our surfaces model no cold-air
+// drainage; that sentence is the one claim they cannot make.
 const POSITION_COPY = {
   gdd10: { above: 'Warmer', below: 'Cooler' },
   tmean: { above: 'Warmer', below: 'Cooler' },
   rain: { above: 'Wetter', below: 'Drier' },
-  frost_days: { above: 'More frost-prone', below: 'Less frost-prone' },
   hot_days_25: { above: 'Hotter', below: 'Cooler' },
-  last_spring_frost_doy: { above: 'Frosts later', below: 'Frosts earlier' },
 };
 
 const WITHIN_COPY = 'Inside the range 90% of the region sits in';
@@ -102,8 +116,12 @@ function Tile({ tile }) {
         {format(tile.normal, unit)}
         <span className="site-tile__unit">{unit === 'date' ? '' : ` ${unit}`}</span>
       </p>
+      {/* The count under the normal must be the count the NORMAL was averaged
+          over, not the length of the whole series. They differ: a site's record
+          runs 37 seasons but the 1986-2005 normal is built from 19 of them. The
+          range and trend below still come from all 37. */}
       <p className="site-tile__caption">
-        typical season · {tile.n_seasons} seasons
+        typical season at this site · {tile.normal_years} seasons
       </p>
 
       <dl className="site-tile__rows">
@@ -200,6 +218,15 @@ function SeasonStrip({ strip }) {
                       {' '}({signed(delta, m.unit)})
                     </span>
                   )}
+                  {/* The tiles below say "usual" too, for THIS SITE, and the
+                      numbers differ because the places differ. Naming the scale
+                      on the number itself is the only thing that stops the two
+                      reading as a contradiction — the scope paragraph in the
+                      header is too far from the figure to do that work. */}
+                  <span className="season-strip__metric-scope">
+                    across {strip.zone_name || 'the region'}
+                    {m.normal_years ? ` · ${m.normal_years} seasons` : ''}
+                  </span>
                 </p>
               )}
             </div>
@@ -250,7 +277,18 @@ function SiteDashboard({ siteId, baseline }) {
 
   return (
     <div className="site-dashboard">
-      <SeasonStrip strip={data.season_to_date} />
+      {/* Once, at the top. Every panel below names its own baseline; only this
+          one explains why the page sits on a period that ends in 2005. */}
+      <BaselineNote baseline={data.baseline} />
+
+      {/* Reading order is the order the questions get asked: what is happening
+          now, what happened last season, what usually happens. The first two
+          are different SHAPES on purpose — the current season is this cell
+          against its own record, the previous one is the region from stations,
+          because a finished season is only fully recorded at station scale. */}
+      <CurrentSeasonPanel season={data.season_current} />
+
+      <SeasonStrip strip={data.season_previous} />
 
       <section aria-labelledby="climatology-heading">
         <header className="site-dashboard__head">
@@ -265,6 +303,15 @@ function SiteDashboard({ siteId, baseline }) {
           {data.tiles.map((tile) => <Tile key={tile.metric} tile={tile} />)}
         </div>
       </section>
+
+      {/* Regional models, below the site's own record because that is the order
+          of confidence: everything above is this cell, these two are the region
+          around it. */}
+      <RegionalModelsPanel models={data.models} />
+
+      {/* Last, because it is the only block that answers a question about the
+          future rather than the record. It is a placeholder today. */}
+      <ProjectionsPanel projections={data.projections} />
     </div>
   );
 }

@@ -1,0 +1,72 @@
+/* Two regional models on a site page. The wrapper is deliberately plain — the
+   explorers inside bring their own dense styling from the region pages, and a
+   second decorated frame around them reads as clutter. What this adds is the
+   scale badge and the absent states. */
+.regional-models {
+  margin: 0 0 22px;
+}
+
+.regional-models__head {
+  margin-bottom: 12px;
+}
+
+.regional-models h3 {
+  margin: 0 0 3px;
+  font-size: 1.02rem;
+  color: #3d4632;
+}
+
+/* The badge line. It has to survive being read on its own, because a grower
+   scrolling to a spray recommendation may never read the page heading. */
+.regional-models__scope {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6b7360;
+}
+
+.regional-models__block + .regional-models__block {
+  margin-top: 18px;
+}
+
+.regional-models__block-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.regional-models__block-head h4 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #4a5340;
+}
+
+.regional-models__note {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #8a9276;
+}
+
+.regional-models__absent,
+.regional-models__loading {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.03);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.regional-models__absent svg,
+.regional-models__loading svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}

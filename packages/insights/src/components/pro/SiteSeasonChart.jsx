@@ -11,6 +11,13 @@
 // 90% of the region sits in" is the one worth paying for, and only the band can
 // say it.
 //
+// FROST IS THE EXCEPTION. For frost metrics the server sends the regional mean
+// and nothing else — no site value, no band — because the 500 m surfaces model
+// no cold-air drainage, and a site drawn inside or outside a regional spread is
+// exactly the site-versus-neighbour claim they cannot support. This component
+// reads `series.regional_only` rather than inferring it from null values, so a
+// genuinely missing value and a deliberately withheld one stay distinguishable.
+//
 // The band is two datasets with a fill between them, which is Chart.js's only
 // way to express one. They are hidden from the legend and from the tooltip
 // individually — a reader wants "the region", not "regional p10" and "regional
@@ -28,12 +35,13 @@ const BAND_FILL = 'rgba(138, 154, 91, 0.18)';
 function SiteSeasonChart({ series, siteLabel = 'Your site', zoneName, height = 320 }) {
   const points = series?.points || [];
   const hasZone = points.some((p) => p.zone_mean != null);
+  const regionalOnly = Boolean(series?.regional_only);
 
   const data = useMemo(() => {
     const labels = points.map((p) => p.vintage);
     const datasets = [];
 
-    if (hasZone) {
+    if (hasZone && !regionalOnly) {
       // Lower edge first, then upper filling back to it. Order matters:
       // `fill: '-1'` targets the PREVIOUS dataset.
       datasets.push({
@@ -53,6 +61,9 @@ function SiteSeasonChart({ series, siteLabel = 'Your site', zoneName, height = 3
         fill: '-1',
         order: 3,
       });
+    }
+
+    if (hasZone) {
       datasets.push({
         label: zoneName ? `${zoneName} average` : 'Regional average',
         data: points.map((p) => p.zone_mean),
@@ -65,20 +76,22 @@ function SiteSeasonChart({ series, siteLabel = 'Your site', zoneName, height = 3
       });
     }
 
-    datasets.push({
-      label: siteLabel,
-      data: points.map((p) => p.value),
-      borderColor: SITE_COLOUR,
-      backgroundColor: SITE_COLOUR,
-      borderWidth: 2.2,
-      pointRadius: 2,
-      pointHoverRadius: 5,
-      fill: false,
-      order: 1,
-    });
+    if (!regionalOnly) {
+      datasets.push({
+        label: siteLabel,
+        data: points.map((p) => p.value),
+        borderColor: SITE_COLOUR,
+        backgroundColor: SITE_COLOUR,
+        borderWidth: 2.2,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        fill: false,
+        order: 1,
+      });
+    }
 
     return { labels, datasets };
-  }, [points, hasZone, siteLabel, zoneName]);
+  }, [points, hasZone, regionalOnly, siteLabel, zoneName]);
 
   const options = useMemo(() => ({
     responsive: true,
@@ -123,6 +136,14 @@ function SiteSeasonChart({ series, siteLabel = 'Your site', zoneName, height = 3
   return (
     <div className="site-chart" style={{ height }}>
       <Line data={data} options={options} />
+      {regionalOnly && (
+        // The reason travels with the payload rather than being restated here,
+        // so the API and the page cannot end up giving two different accounts
+        // of why the site's own line is missing.
+        <p className="site-chart__note">
+          {series.regional_only_reason}
+        </p>
+      )}
       {!hasZone && (
         // Not an error: Pro is not wine-only, and a site outside every zone has
         // no regional background to sit against. Saying so beats a chart that

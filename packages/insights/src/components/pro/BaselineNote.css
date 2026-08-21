@@ -1,0 +1,33 @@
+/* Matches .season-strip__note deliberately — both are the same kind of
+   statement (here is what you are looking at, and its limits), so they should
+   not read as two different weights of remark. */
+.baseline-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 18px;
+  padding: 11px 13px;
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.04);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.baseline-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.baseline-note strong {
+  color: #4a5340;
+  font-weight: 600;
+}
+
+.baseline-note--compact {
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+}

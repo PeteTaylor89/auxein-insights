@@ -16,8 +16,8 @@ they read as omissions otherwise:
 """
 
 from sqlalchemy import (
-    Column, BigInteger, Integer, SmallInteger, String, Text, Float, DateTime,
-    ForeignKey, func
+    Column, BigInteger, Date, Integer, SmallInteger, String, Text, Float,
+    DateTime, ForeignKey, func
 )
 
 from db.base_class import Base
@@ -105,6 +105,45 @@ class InsightsSiteMonthly(Base):
     def __repr__(self) -> str:
         return (f"<InsightsSiteMonthly {self.site_id} {self.variable}/"
                 f"{self.statistic} {self.year}-{self.month:02d}>")
+
+
+class InsightsSiteDaily(Base):
+    """One day at this site's cell, from the live daily surface.
+
+    Created by `alembic/versions/insights_site_daily.py`; the reasoning is
+    there. The two things that read as omissions from here:
+
+    * Four columns rather than the (variable, statistic) keying of
+      `InsightsSiteMonthly`, because a daily surface has no statistic — it is
+      the value, not an aggregate over a period.
+    * (site_id, date) is the whole key so that writing a day is an UPSERT. The
+      engine re-fits D-9..D-3 weekly and those values CHANGE; a row written once
+      and never corrected would drift away from the surface it claims to come
+      from.
+    """
+    __tablename__ = 'insights_site_daily'
+
+    site_id = Column(BigInteger,
+                     ForeignKey('insights_site.id', ondelete='CASCADE'),
+                     primary_key=True)
+    date = Column(Date, primary_key=True)
+
+    # NULL means the surface held no value at this cell on that day. NEVER
+    # zero — an absent rainfall day and a dry day are different facts.
+    temp_min = Column(Float, nullable=True)
+    temp_max = Column(Float, nullable=True)
+    temp_mean = Column(Float, nullable=True)
+    rainfall_mm = Column(Float, nullable=True)
+
+    # Which era this day came from. The live surface and the archive share an
+    # estimator but not their observations, and the offset between them is
+    # measured, not negligible.
+    model_version = Column(Text, nullable=True)
+    extracted_at = Column(DateTime(timezone=True), server_default=func.now(),
+                          nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<InsightsSiteDaily {self.site_id} {self.date}>"
 
 
 class InsightsSiteSeason(Base):

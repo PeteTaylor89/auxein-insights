@@ -228,6 +228,17 @@
   text-align: left;
 }
 
+/* A row that is only true in some regions. Sits under the feature name, in the
+   same cell, so it cannot be scanned past on the way to the tick. */
+.pro-table__note {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-muted, #6b7360);
+}
+
 .pro-table tbody td {
   padding: 13px 16px;
   text-align: center;

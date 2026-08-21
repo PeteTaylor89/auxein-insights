@@ -1,0 +1,122 @@
+/* Nine varieties by six columns. It has to stay readable at a glance, so the
+   type is small, the rows are tight, and only the variety name carries weight. */
+.phenology {
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-radius: 8px;
+  background: var(--white, #fff);
+  overflow: hidden;
+}
+
+/* Wide content scrolls inside its own box rather than pushing the page sideways. */
+.phenology__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.phenology__table thead th {
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(91, 104, 48, 0.16);
+  background: rgba(91, 104, 48, 0.04);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: #78806a;
+  white-space: nowrap;
+}
+
+.phenology__table thead th svg {
+  vertical-align: -2px;
+  margin-right: 3px;
+}
+
+.phenology__table tbody tr + tr {
+  border-top: 1px solid rgba(91, 104, 48, 0.08);
+}
+
+.phenology__table tbody th {
+  padding: 8px 12px;
+  font-size: 0.79rem;
+  font-weight: 600;
+  text-align: left;
+  color: #3d4632;
+}
+
+.phenology__table td {
+  padding: 8px 12px;
+  color: #4a5340;
+}
+
+.phenology__stage {
+  color: #6b7360;
+}
+
+.phenology__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.phenology__cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.phenology__cell.is-muted {
+  color: #a0a692;
+  font-size: 0.72rem;
+}
+
+/* An observed date is a different kind of fact from a projected one and has to
+   look like it. None exist yet — nothing in the model has ever been confirmed
+   against an observation — but the styling is here for when they do. */
+.phenology__cell.is-actual {
+  font-weight: 600;
+  color: #3d4632;
+}
+
+.phenology__actual {
+  margin-left: 4px;
+  color: #5b6830;
+}
+
+/* The veraison caveat. Same weight as the withheld-dates notice below it —
+   both are statements about what a number in this table does and does not
+   mean, and neither is a footnote. */
+.phenology__caveat {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 11px 13px;
+  border-top: 1px solid rgba(91, 104, 48, 0.14);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #8a9276;
+}
+
+.phenology__caveat svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.phenology__withheld {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 11px 13px;
+  border-top: 1px solid rgba(91, 104, 48, 0.14);
+  background: rgba(91, 104, 48, 0.03);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.phenology__withheld svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}

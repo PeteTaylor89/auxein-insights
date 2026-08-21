@@ -86,9 +86,36 @@ export const PRO_FEATURES = [
 
 // Honest on both sides. The free tier is genuinely good and saying so is not a
 // weakness — it is why anyone trusts the paid claim.
+//
+// A ROW MAY CARRY A `note`, AND ONE OF THEM HAS TO.
+//
+// Coverage is not uniform across regions, and the row that says "current
+// season, phenology and disease pressure" was making one unqualified claim
+// about three things that are not equally available. Measured 2026-08-21
+// against 23 mapped zones:
+//
+//     regional climate history      23 of 23
+//     projections                   23 of 23
+//     current season                14 of 23   (needs a live station network)
+//     phenology                     13 of 23
+//     disease pressure              12 of 23
+//
+// Ten zones carry both models, eight carry neither, and five carry exactly one.
+// The eight with neither include Martinborough, Waiheke, Auckland and Upper
+// Wairau and Southern Valleys — which is to say core Marlborough and several of
+// the regions most likely to be reading this page. Someone subscribing BECAUSE
+// of that row would be entitled to feel misled.
+//
+// The note deliberately carries no count. Coverage moves as the station network
+// grows, and a number here would rot silently while reading as a commitment.
 export const PRO_COMPARISON = [
   { feature: 'Regional climate history and projections', free: true, pro: true },
-  { feature: 'Current season, phenology and disease pressure by region', free: true, pro: true },
+  {
+    feature: 'Current season, phenology and disease pressure by region',
+    free: true,
+    pro: true,
+    note: 'These run on live weather stations, so they are only available in regions where the network supports them — not everywhere yet. Your region’s page shows what it currently carries.',
+  },
   { feature: 'The national climate Atlas', free: true, pro: true },
   { feature: 'A point you choose, resolved from the climate surface', free: false, pro: true },
   { feature: 'That point’s own record and its own normal', free: false, pro: true },

@@ -151,9 +151,13 @@ function RegionLauncher() {
       <h2 id="region-launcher-heading" className="region-launcher__heading">
         Your region, in detail
       </h2>
+      {/* Climate history and projections cover every mapped region. The current
+          season, phenology and disease pressure run on live weather stations
+          and reach roughly half of them, so they are named as conditional
+          rather than listed flat alongside the two that are not. */}
       <p className="region-launcher__blurb">
-        Current season, phenology, disease pressure, climate history and
-        projections.
+        Climate history and projections for every region — plus the current
+        season, phenology and disease pressure where our stations reach.
       </p>
 
       <div className="region-launcher__picker" ref={wrapRef}>

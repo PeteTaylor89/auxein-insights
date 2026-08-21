@@ -172,6 +172,13 @@ class PhenologyStage(BaseModel):
     days_from_now: Optional[int] = None
     baseline_date: Optional[date] = None
     days_vs_baseline: Optional[int] = None
+    # Why `predicted_date` is or is not populated: observed, projected,
+    # no_basis, beyond_season, not_modelled. See `services/phenology_basis` —
+    # before a season starts the model projects flowering into April and harvest
+    # into the following year, so a null date here is frequently a WITHHELD one
+    # rather than a missing one, and a client needs to be able to tell them
+    # apart to word its empty state honestly.
+    status: Optional[str] = None
 
 
 class VarietyPhenology(BaseModel):

@@ -68,8 +68,8 @@ export const PHENOLOGY_NOTES = [
     body: 'Actual dates depend on site-specific conditions, vine age, crop load and management practices.',
   },
   {
-    lead: 'Véraison is deliberately not reported.',
-    body: 'Its estimation error is materially higher than flowering or harvest. We are holding it back until the model is calibrated against local data rather than publishing a number we do not trust.',
+    lead: 'Véraison is modelled on colour change, not on sugar.',
+    body: 'The estimate is the point at which about half the berries have changed colour. It is not a soluble-solids measurement, so it is not directly comparable to a Brix or g/L reading taken in the vineyard. The thresholds behind it carry a northern hemisphere bias, which means it can report véraison later than it is actually recorded here.',
   },
   {
     lead: 'Harvest windows assume typical ripening.',
