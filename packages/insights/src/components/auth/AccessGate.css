@@ -6,9 +6,9 @@
   max-width: 520px;
   margin: 18px auto;
   padding: 30px 24px;
-  border: 1px solid rgba(68, 97, 69, 0.22);
+  border: 1px solid rgb(var(--primary-rgb) / 0.22);
   border-radius: 10px;
-  background: linear-gradient(180deg, rgba(68, 97, 69, 0.05), rgba(68, 97, 69, 0.015));
+  background: linear-gradient(180deg, rgb(var(--primary-rgb) / 0.05), rgb(var(--primary-rgb) / 0.015));
   text-align: center;
 }
 
@@ -24,7 +24,7 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(68, 97, 69, 0.1);
+  background: rgb(var(--primary-rgb) / 0.1);
   color: var(--primary);
 }
 
@@ -91,7 +91,7 @@
   transition: background 0.15s ease;
 }
 
-.access-gate__cta:hover { background: #35502F; }
+.access-gate__cta:hover { background: var(--primary-hover); }
 
 .access-gate--pro .access-gate__cta { background: var(--terracotta); }
 .access-gate--pro .access-gate__cta:hover { background: #B0472F; }

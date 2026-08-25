@@ -11,14 +11,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(91, 104, 48, 0.15);
+  border-bottom: 1px solid rgb(var(--primary-rgb) / 0.15);
 }
 
 .feedback-back {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #5B6830; /* Olive */
+  color: var(--primary); /* Olive */
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
@@ -43,7 +43,7 @@
 }
 
 .feedback-intro h1 {
-  color: #5B6830;
+  color: var(--primary);
   font-size: 26px;
   margin: 8px 0 8px;
 }
@@ -61,11 +61,11 @@
 }
 
 .feedback-section h2 {
-  color: #5B6830;
+  color: var(--primary);
   font-size: 18px;
   margin: 28px 0 12px;
   padding-bottom: 8px;
-  border-bottom: 2px solid rgba(91, 104, 48, 0.2);
+  border-bottom: 2px solid rgb(var(--primary-rgb) / 0.2);
 }
 
 /* Fields */
@@ -116,7 +116,7 @@
   margin-top: 2px;
   width: 18px;
   height: 18px;
-  accent-color: #5B6830;
+  accent-color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -138,8 +138,8 @@
 .feedback-field textarea:focus,
 .feedback-field input[type='email']:focus {
   outline: none;
-  border-color: #5B6830;
-  box-shadow: 0 0 0 2px rgba(91, 104, 48, 0.15);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgb(var(--primary-rgb) / 0.15);
 }
 
 .feedback-field input.input-error {
@@ -158,22 +158,22 @@
   padding: 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #5B6830;
+  color: var(--primary);
   background: #fff;
-  border: 1px solid rgba(91, 104, 48, 0.4);
+  border: 1px solid rgb(var(--primary-rgb) / 0.4);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
 
 .scale-btn:hover {
-  background: rgba(91, 104, 48, 0.08);
+  background: rgb(var(--primary-rgb) / 0.08);
 }
 
 .scale-btn.active {
-  background: #5B6830;
+  background: var(--primary);
   color: #fff;
-  border-color: #5B6830;
+  border-color: var(--primary);
 }
 
 .scale-labels {
@@ -209,7 +209,7 @@
   font-size: 16px;
   font-weight: 600;
   color: #fff;
-  background: #5B6830;
+  background: var(--primary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -250,13 +250,13 @@
   margin: 64px auto;
   text-align: center;
   background: #fff;
-  border: 1px solid rgba(91, 104, 48, 0.2);
+  border: 1px solid rgb(var(--primary-rgb) / 0.2);
   border-radius: 12px;
   padding: 40px 28px;
 }
 
 .feedback-confirm h1 {
-  color: #5B6830;
+  color: var(--primary);
   font-size: 26px;
   margin: 0 0 12px;
 }
@@ -269,10 +269,10 @@
 
 .feedback-confirm-link {
   display: inline-block;
-  color: #5B6830;
+  color: var(--primary);
   font-weight: 600;
   text-decoration: none;
-  border-bottom: 2px solid #5B6830;
+  border-bottom: 2px solid var(--primary);
   padding-bottom: 2px;
 }
 

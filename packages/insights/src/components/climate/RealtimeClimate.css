@@ -1885,9 +1885,9 @@
   gap: 8px;
   margin: 0 0 14px;
   padding: 12px 14px;
-  border: 1px solid rgba(91, 104, 48, 0.18);
+  border: 1px solid rgb(var(--primary-rgb) / 0.18);
   border-radius: 8px;
-  background: rgba(91, 104, 48, 0.04);
+  background: rgb(var(--primary-rgb) / 0.04);
   font-size: 0.82rem;
   line-height: 1.5;
   color: #5a6152;

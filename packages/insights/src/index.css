@@ -1,13 +1,18 @@
 /* index.css - Auxein Regional Intelligence */
 
 :root {
-  --primary: #446145;
-  --primary-dark: #388E3C;
-  --primary-light: #A5D6A7;
+  /* THE THEME GREEN IS OLIVE. Decided 2026-08-23.
+     The site had been running two greens: olive #5B6830 across the header,
+     landing page and the older components (107 literal uses), and #446145 in
+     everything rebuilt from August onwards. `--primary` now holds olive, so the
+     two families resolve to one colour and `--olive` is kept only as an alias
+     for the stylesheets that still name it. Change the green here and nowhere
+     else. */
+  --primary: #5B6830;
+  --olive: var(--primary);
   --secondary: #8BC34A;
   --accent: #FFC107;
   --terracotta: #D1583B;
-  --olive: #5B6830;
   --charcoal: #2F2F2F;
   --text: #525151;
   --text-light: #505050;
@@ -16,6 +21,47 @@
   --white: #FFFFFF;
   --border-radius: 4px;
   --box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+
+  /* Hover pairs for the two brand colours. Both values were already in use,
+     hand-copied into half a dozen stylesheets; naming them is what stops the
+     next one inventing a seventh shade of green. */
+  /* #4A5628 rather than a newly mixed shade: it is the darker olive the
+     landing page and the climate explorers already end their gradients on, so
+     hovers and gradient depth now use one value instead of three. */
+  --primary-hover: #4A5628;
+  --terracotta-hover: #B84A2E;
+
+  /* The same brand colours as bare channels, for tints.
+     `rgba(91, 104, 48, 0.2)` cannot reference a token — the alpha has to be
+     applied to components — so every tinted border and background on the site
+     is a hand-written triple that would survive a change of brand colour and
+     quietly disagree with it. `rgb(var(--olive-rgb) / 0.2)` does not. */
+  --primary-rgb: 91 104 48;
+  --olive-rgb: var(--primary-rgb);
+  --terracotta-rgb: 209 88 59;
+
+  /* Neutrals.
+     The article pages and the banner were built on Tailwind's default cool
+     greys (#6b7280, #e5e7eb, #f9fafb …), which is the single biggest reason
+     they read as a different site sitting inside this one. These are the same
+     LIGHTNESSES warmed towards the cream/olive palette, so swapping onto them
+     changes hue and not contrast — nothing becomes harder to read. */
+  --surface: #FAFAF7;         /* panel / page tint      (was #f9fafb, #fafafa) */
+  --surface-sunken: #F2F1EC;  /* chips, code, wells     (was #f3f4f6)          */
+  --border: #E4E2DB;          /* hairlines, dividers    (was #e5e7eb)          */
+  --border-strong: #CFCCC3;   /* inputs, active edges   (was #d1d5db)          */
+  --text-muted: #6E6A62;      /* meta, captions         (was #6b7280)          */
+  --text-faint: #9B978D;      /* timestamps, disabled   (was #9ca3af)          */
+
+  /* Prose links. Article body copy linked in Tailwind blue, which nothing else
+     on the site does. Pointed at a brand colour rather than a new one. */
+  --link: var(--primary);
+  --link-hover: var(--primary-hover);
+
+  /* Errors and destructive actions. */
+  --danger: #B4342A;
+  --danger-bg: #FBF1EF;
+  --danger-border: #E9C6BF;
 
   /* Typography scale — consistent sizing across the app */
   --font-xs: 0.75rem;    /* 12px — captions, badges, meta */

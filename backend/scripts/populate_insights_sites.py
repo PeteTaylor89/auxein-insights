@@ -75,7 +75,9 @@ def populate(db, site: InsightsSite) -> int:
                            "land mask")
 
     gdd = svc.derive_gdd10(monthly)
-    season = svc.derive_season(monthly, gdd)
+    # Ask the archive how far it reaches rather than inheriting a constant
+    # that was true in August and wrong in September.
+    season = svc.derive_season(monthly, gdd, last=svc.last_vintage(db))
 
     from psycopg2.extras import execute_values
     raw = db.connection().connection

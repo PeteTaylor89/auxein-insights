@@ -14,12 +14,18 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, case, and_, desc
+from sqlalchemy import func, case, and_, desc, text
 from sqlalchemy.orm import Session, joinedload
 
 from db.session import get_db
+from core import scope as scope_mod
+from core.entitlements import is_pro, is_registered
+from db.models.public_user import PublicUser
+from core.public_security import get_optional_public_user
+from services import insights_region_dashboard as region_dashboard
 from db.models.wine_region import WineRegion
 from db.models.climate import (
+    ClimateHistoryMonthlySurface,
     ClimateZone,
     ClimateHistoryMonthly,
     ClimateBaselineMonthly,
@@ -80,7 +86,20 @@ GROWING_SEASON_MONTHS = [9, 10, 11, 12, 1, 2, 3, 4]  # Sep-Apr
 # Truncated seasons to exclude from queries (incomplete data)
 # 1986 = 85/86 season (missing Oct-Dec 1985)
 # 2024 = 23/24 season (incomplete/current season)
-EXCLUDED_VINTAGE_YEARS = [1986, 2024]
+# Seasons that cannot be complete, and therefore must never be offered.
+#
+# **1986** genuinely cannot exist: a Sep-Apr vintage labelled 1986 needs
+# September to December 1985, which is before the archive starts.
+#
+# **2024 was removed on 2026-08-24.** It was excluded because the archive
+# stopped part-way through it — not because the season is truncated in
+# principle. The archive now runs to 2026-07 and vintage 2024 has all eight of
+# its months across all 23 zones (verified), so excluding it was hiding a
+# complete season.
+#
+# Anything added here should be a season that is IMPOSSIBLE, not one that is
+# merely not published yet — a missing season already falls out of the data.
+EXCLUDED_VINTAGE_YEARS = [1986]
 
 SSP_SCENARIOS = {
     "SSP126": SSPScenario(
@@ -119,7 +138,6 @@ METRIC_LABELS = {
 # monthly history). Map: metric -> (column attr [same on stats + baseline], label).
 SEASON_EXTREME_FIELDS = {
     "frost_days": ("frost_days_mean", "Frost Days"),
-    "early_frost": ("early_frost_mean", "Spring Frost"),
     "hot_days30": ("hot_days30_mean", "Hot Days >30°C"),
     "r99p": ("r99p_mean", "Extreme Rain (R99p)"),
 }
@@ -191,18 +209,105 @@ def calculate_season_baseline(db: Session, zone_id: int) -> SeasonBaseline:
     )
 
 
-def build_season_extremes(s: Optional[ClimateZoneSeasonStats]) -> Optional[SeasonExtremes]:
-    """Map a season-stats row to the SeasonExtremes schema."""
-    if not s:
+# p90 - p10 spans this many standard deviations for a normal distribution.
+# Same estimator, and same caveat, as `history_surface_view`: fair for the
+# symmetric fields, understates the upper tail for counts bounded at zero.
+_SD_FROM_P10_P90 = 2.5631
+
+
+
+
+def build_season_extremes(metrics: Optional[dict]) -> Optional[SeasonExtremes]:
+    """Season extremes for one vintage, from the SURFACE roll-up.
+
+    Repointed 2026-08-24. This used to take a `ClimateZoneSeasonStats` row,
+    which stops at vintage 2023 and is 100% `source='modelled'` — so frost,
+    spring frost, hot days and extreme rainfall simply vanished for every
+    season after 2023 while the rest of the row rendered fine.
+
+    `climate_zone_surface_season` carries all four for **1987..2026**, over each
+    zone's planted cells, which is the same basis as everything else on the
+    page.
+
+    `metrics` is `{metric_name: row}` for one vintage. `sd` is derived from the
+    p10/p90 spread — the roll-up stores percentiles, not a standard deviation.
+
+    ## TOTAL FROST DAYS ARE NOT EMITTED
+
+    Total frost days were removed on 2026-08-24 after a diagnosis, not a preference.
+
+The count is produced by thresholding an interpolated Tmin field at 0 degC, and
+that field is lapse-rate retrended (0.4-0.6 degC per 100 m). On calm frost nights
+the atmosphere INVERTS - cold air drains to the valley floor - so the lapse is
+wrong in SIGN for exactly the nights that generate the count. Measured against
+stations in July 2025: Red Hills at 1328 m observed 1 frost night and its own
+pixel says 20; Flaxbourne at 39 m observed 6 and its pixel says 0. Frost is
+loaded onto the tops and erased from the valley floors, which is where the vines
+are.
+
+It only breaks where the July mean Tmin sits near zero. Central Otago (well
+below) is accurate to within 5%; Marlborough (2.37 degC normal) lost 95% of its
+frost. Publishing a number that is right in Otago and absent in Marlborough is
+worse than publishing none.
+
+SPRING FROST IS KEPT because it is what growers act on, but it is derived from
+the same field and carries the same bias - it is simply smaller, so the error is
+less visible. It should be revisited with the fix, not trusted because it looks
+plausible. The fix is in the engine: interpolate the COUNT rather than threshold
+an interpolated temperature.
+\n    """
+    if not metrics:
         return None
+
+    def val(name):
+        r = metrics.get(name)
+        if r is None or r["mean"] is None:
+            return ClimateValue()
+        sd = None
+        if r["p10"] is not None and r["p90"] is not None:
+            sd = (float(r["p90"]) - float(r["p10"])) / _SD_FROM_P10_P90
+        return ClimateValue(mean=r["mean"], sd=sd)
+
     return SeasonExtremes(
-        last_frost_doy=s.last_frost_doy,
-        last_frost_date=s.last_frost_date,
-        early_frost=ClimateValue(mean=s.early_frost_mean, sd=s.early_frost_sd),
-        frost_days=ClimateValue(mean=s.frost_days_mean, sd=s.frost_days_sd),
-        hot_days30=ClimateValue(mean=s.hot_days30_mean, sd=s.hot_days30_sd),
-        r99p=ClimateValue(mean=s.r99p_mean, sd=s.r99p_sd),
-        source=s.source,
+        hot_days30=val("hot_days_30"),
+        r99p=val("r99p"),
+        # Every row here is derived from the interpolated surface archive. The
+        # old table distinguished 'modelled' from an 'observed' fold-in that
+        # never actually ran, so nothing is lost by stating the one true source.
+        source="surface",
+    )
+
+
+# The page's baseline window. Matches `insights_site_baseline.BASELINE_LO/HI`
+# and the projection composition, so a normal means one thing site-wide.
+SURFACE_BASELINE_LO, SURFACE_BASELINE_HI = 1986, 2005
+
+
+def build_surface_baseline_extremes(metrics: dict) -> Optional[SeasonExtremesBaseline]:
+    """The 1986-2005 normal for the extremes, from the surface roll-up.
+
+    Deliberately built the same way and from the same table as
+    `build_season_extremes`, because the two are rendered against each other.
+    Any divergence between them is invisible on the page and reads as a wild
+    season rather than as a mismatched baseline — which is exactly what
+    happened with the old 1987-2006 table's annual frost count.
+    """
+    if not metrics:
+        return None
+
+    def val(name):
+        r = metrics.get(name)
+        if r is None or r["mean"] is None:
+            return ClimateValue()
+        sd = None
+        if r["p10"] is not None and r["p90"] is not None:
+            sd = (float(r["p90"]) - float(r["p10"])) / _SD_FROM_P10_P90
+        return ClimateValue(mean=r["mean"], sd=sd)
+
+    return SeasonExtremesBaseline(
+        baseline_period=f"{SURFACE_BASELINE_LO}-{SURFACE_BASELINE_HI}",
+        hot_days30=val("hot_days_30"),
+        r99p=val("r99p"),
     )
 
 
@@ -261,22 +366,36 @@ def season_extreme_baseline(db: Session, zone_id: int, metric: str) -> Optional[
 # =============================================================================
 
 @router.get("/regions", response_model=RegionsListResponse)
-def list_regions(db: Session = Depends(get_db)):
+def list_regions(
+    country: Optional[str] = Query(None, description="ISO2, defaults to NZ"),
+    industry: Optional[str] = Query(None, description="Industry key, defaults to wine"),
+    db: Session = Depends(get_db),
+):
     """
     List all wine regions with their climate zones.
-    
+
     Returns regions that have at least one climate zone.
+
+    Scoped by (country, industry); both default to New Zealand wine, which is
+    the entire contents of the database, so an unscoped call is unchanged.
     """
+    sc = scope_mod.resolve(db, country, industry)
+
     # Get regions that have climate zones
     regions = db.query(WineRegion).join(
         ClimateZone, ClimateZone.region_id == WineRegion.id
+    ).filter(
+        WineRegion.country_id == sc.country_id,
+        WineRegion.industry_id == sc.industry_id,
     ).distinct().order_by(WineRegion.display_order).all()
-    
+
     result = []
     for region in regions:
         zones = db.query(ClimateZone).filter(
             ClimateZone.region_id == region.id,
-            ClimateZone.is_active == True
+            ClimateZone.is_active == True,
+            ClimateZone.country_id == sc.country_id,
+            ClimateZone.industry_id == sc.industry_id,
         ).order_by(ClimateZone.display_order).all()
         
         result.append(RegionWithZones(
@@ -295,14 +414,26 @@ def list_regions(db: Session = Depends(get_db)):
 
 
 @router.get("/zones", response_model=ZonesListResponse)
-def list_zones(db: Session = Depends(get_db)):
-    """List all climate zones."""
+def list_zones(
+    country: Optional[str] = Query(None, description="ISO2, defaults to NZ"),
+    industry: Optional[str] = Query(None, description="Industry key, defaults to wine"),
+    db: Session = Depends(get_db),
+):
+    """List all climate zones for a (country, industry) scope.
+
+    Both default to New Zealand wine, so an unscoped call returns exactly what
+    it always has.
+    """
+    sc = scope_mod.resolve(db, country, industry)
+
     zones = db.query(ClimateZone).options(
         joinedload(ClimateZone.region)
     ).outerjoin(
         WineRegion, ClimateZone.region_id == WineRegion.id
     ).filter(
-        ClimateZone.is_active == True
+        ClimateZone.is_active == True,
+        ClimateZone.country_id == sc.country_id,
+        ClimateZone.industry_id == sc.industry_id,
     ).order_by(
         WineRegion.display_order.nulls_last(),
         WineRegion.name.nulls_last(),
@@ -416,24 +547,24 @@ def get_zone_history(
             detail=f"Cannot retrieve truncated season {vintage_year}. This season has incomplete data."
         )
     
-    query = db.query(ClimateHistoryMonthly).filter(
-        ClimateHistoryMonthly.zone_id == zone.id
+    query = db.query(ClimateHistoryMonthlySurface).filter(
+        ClimateHistoryMonthlySurface.zone_id == zone.id
     )
     
     # Apply filters
     if vintage_year:
-        query = query.filter(ClimateHistoryMonthly.vintage_year == vintage_year)
+        query = query.filter(ClimateHistoryMonthlySurface.vintage_year == vintage_year)
     else:
         if start_year:
-            query = query.filter(ClimateHistoryMonthly.year >= start_year)
+            query = query.filter(ClimateHistoryMonthlySurface.year >= start_year)
         if end_year:
-            query = query.filter(ClimateHistoryMonthly.year <= end_year)
+            query = query.filter(ClimateHistoryMonthlySurface.year <= end_year)
     
     if months:
         month_list = [int(m.strip()) for m in months.split(",")]
-        query = query.filter(ClimateHistoryMonthly.month.in_(month_list))
+        query = query.filter(ClimateHistoryMonthlySurface.month.in_(month_list))
     
-    records = query.order_by(ClimateHistoryMonthly.date).all()
+    records = query.order_by(ClimateHistoryMonthlySurface.date).all()
     
     data = [
         MonthlyHistory(
@@ -499,33 +630,49 @@ def get_zone_seasons(
     # Get baseline
     baseline = calculate_season_baseline(db, zone.id)
 
-    # Seasonal extremes (per vintage) + baseline extremes
-    stats_by_vintage = {
-        s.vintage_year: s for s in db.query(ClimateZoneSeasonStats).filter(
-            ClimateZoneSeasonStats.zone_id == zone.id
-        ).all()
-    }
-    baseline_extremes = build_season_extremes_baseline(
-        db.query(ClimateZoneSeasonBaseline).filter(
-            ClimateZoneSeasonBaseline.zone_id == zone.id
-        ).first()
-    )
+    # Seasonal extremes (per vintage) + baseline extremes.
+    #
+    # From `climate_zone_surface_season`, not `climate_zone_season_stats`: the
+    # latter ends at vintage 2023, which is why frost, hot days and extreme
+    # rainfall disappeared from every newer season.
+    stats_by_vintage: dict = {}
+    for r in db.execute(text("""
+        SELECT vintage_year, metric, mean, p10, p90, unit
+          FROM climate_zone_surface_season
+         WHERE zone_id = :z
+    """), {"z": zone.id}).mappings():
+        stats_by_vintage.setdefault(r["vintage_year"], {})[r["metric"]] = r
+    # The baseline MUST come from the same table as the seasons it is compared
+    # against. It used to read `climate_zone_season_baseline`, stamped
+    # 1987-2006 and carrying an ANNUAL frost count — so the page put a
+    # growing-season 13.7 next to a baseline of 105.7 and the comparison was
+    # meaningless. Averaged over the page's own 1986-2005 window, from the
+    # surface roll-up, every figure below is the same quantity as the rows.
+    base_rows = db.execute(text("""
+        SELECT metric, avg(mean) AS mean, avg(p10) AS p10, avg(p90) AS p90
+          FROM climate_zone_surface_season
+         WHERE zone_id = :z AND vintage_year BETWEEN :lo AND :hi
+         GROUP BY metric
+    """), {"z": zone.id, "lo": SURFACE_BASELINE_LO,
+           "hi": SURFACE_BASELINE_HI}).mappings().all()
+    baseline_extremes = build_surface_baseline_extremes(
+        {r["metric"]: r for r in base_rows})
 
     # Get available vintage years (excluding truncated seasons)
     vintage_query = db.query(
-        ClimateHistoryMonthly.vintage_year
+        ClimateHistoryMonthlySurface.vintage_year
     ).filter(
-        ClimateHistoryMonthly.zone_id == zone.id,
-        ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
-        ~ClimateHistoryMonthly.vintage_year.in_(EXCLUDED_VINTAGE_YEARS)
+        ClimateHistoryMonthlySurface.zone_id == zone.id,
+        ClimateHistoryMonthlySurface.month.in_(GROWING_SEASON_MONTHS),
+        ~ClimateHistoryMonthlySurface.vintage_year.in_(EXCLUDED_VINTAGE_YEARS)
     ).distinct()
     
     if start_vintage:
-        vintage_query = vintage_query.filter(ClimateHistoryMonthly.vintage_year >= start_vintage)
+        vintage_query = vintage_query.filter(ClimateHistoryMonthlySurface.vintage_year >= start_vintage)
     if end_vintage:
-        vintage_query = vintage_query.filter(ClimateHistoryMonthly.vintage_year <= end_vintage)
+        vintage_query = vintage_query.filter(ClimateHistoryMonthlySurface.vintage_year <= end_vintage)
     
-    vintage_query = vintage_query.order_by(desc(ClimateHistoryMonthly.vintage_year))
+    vintage_query = vintage_query.order_by(desc(ClimateHistoryMonthlySurface.vintage_year))
     
     if limit:
         vintage_query = vintage_query.limit(limit)
@@ -538,23 +685,23 @@ def get_zone_seasons(
     
     # Get all seasons for ranking calculation (excluding truncated)
     all_vintages = db.query(
-        ClimateHistoryMonthly.vintage_year,
-        func.sum(ClimateHistoryMonthly.gdd_mean).label('gdd_total')
+        ClimateHistoryMonthlySurface.vintage_year,
+        func.sum(ClimateHistoryMonthlySurface.gdd_mean).label('gdd_total')
     ).filter(
-        ClimateHistoryMonthly.zone_id == zone.id,
-        ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS),
-        ~ClimateHistoryMonthly.vintage_year.in_(EXCLUDED_VINTAGE_YEARS)
-    ).group_by(ClimateHistoryMonthly.vintage_year).all()
+        ClimateHistoryMonthlySurface.zone_id == zone.id,
+        ClimateHistoryMonthlySurface.month.in_(GROWING_SEASON_MONTHS),
+        ~ClimateHistoryMonthlySurface.vintage_year.in_(EXCLUDED_VINTAGE_YEARS)
+    ).group_by(ClimateHistoryMonthlySurface.vintage_year).all()
     
     gdd_ranking = sorted([(v.vintage_year, float(v.gdd_total or 0)) for v in all_vintages], 
                          key=lambda x: x[1], reverse=True)
     
     for vintage_year in vintage_years:
         # Get season data
-        season_data = db.query(ClimateHistoryMonthly).filter(
-            ClimateHistoryMonthly.zone_id == zone.id,
-            ClimateHistoryMonthly.vintage_year == vintage_year,
-            ClimateHistoryMonthly.month.in_(GROWING_SEASON_MONTHS)
+        season_data = db.query(ClimateHistoryMonthlySurface).filter(
+            ClimateHistoryMonthlySurface.zone_id == zone.id,
+            ClimateHistoryMonthlySurface.vintage_year == vintage_year,
+            ClimateHistoryMonthlySurface.month.in_(GROWING_SEASON_MONTHS)
         ).all()
         
         if not season_data:
@@ -1118,3 +1265,59 @@ def compare_zones_seasons(
         vintage_years=vintage_years,
         zones=zones_trends,
     )
+
+# =============================================================================
+# ENDPOINT: REGIONAL DASHBOARD
+# =============================================================================
+
+@router.get("/zones/{slug}/dashboard")
+def get_zone_dashboard(
+    slug: str,
+    user: Optional[PublicUser] = Depends(get_optional_public_user),
+    db: Session = Depends(get_db),
+):
+    """The whole regional dashboard in one payload.
+
+    Phase 3 of `docs/plans/COUNTRY_INDUSTRY_REGIONS_2026-08-24.md`. The lighter,
+    regional sibling of the Pro site dashboard: current-season curve against the
+    1986-2005 normal, phenology, disease pressure, a seasonal-history summary
+    and regional projections.
+
+    One call rather than five. Every block on the page keys off the same zone,
+    so five round trips would be five chances for a partial render — and the
+    blocks have DIFFERENT coverage, which the client has to reconcile in one
+    place to decide what the page looks like.
+
+    ## Coverage is per block and each block says so
+
+    Thirteen of 23 zones have a live season, 12 have disease, 13 phenology, 21
+    seasonal history, 23 projections. No single availability flag can be
+    correct, so each block carries `available` and a `reason` written for a
+    reader. A region with a season curve, no phenology and full projections is a
+    normal response, not a degraded one.
+
+    ## Entitlement
+
+    Public, like every sibling `/zones/{slug}/*` route: the endpoint always
+    answers, and two of its blocks answer with a stub instead of numbers.
+
+    **History and projections need a FREE ACCOUNT, not Pro** (changed
+    2026-08-25). They were gated on `is_pro`, which withheld what a region IS
+    and what it is becoming — the two things that make a region page worth
+    linking to and worth landing on from a search, and neither of them a
+    decision anyone takes this week. Pro sells the subscriber's own POINT.
+    Nothing on this page is Pro any more.
+
+    The stub still names the span and the metrics behind it, so the page shell
+    stays crawlable and the prompt can say what signing in actually opens.
+    """
+    zone = get_zone_or_404(db, slug)
+    payload = region_dashboard.build(db, zone.slug,
+                                     registered=is_registered(user))
+    if payload is None:
+        # get_zone_or_404 passed, so the zone exists but is inactive — the
+        # builder filters on is_active and this is the only way to reach here.
+        raise HTTPException(
+            status_code=404,
+            detail=f"Climate zone '{slug}' is not active")
+    return payload

@@ -52,19 +52,31 @@ const buildQuery = (params) => {
 // =============================================================================
 
 /**
- * Get all wine regions with their climate zones
+ * Get all regions with their climate zones, for a (country, industry) scope.
+ *
+ * Both default server-side to New Zealand wine, so an unscoped call returns
+ * exactly what it always did. Pass the scope from `useCountryIndustry()` —
+ * never from component state, or the request stops matching the URL.
+ *
+ * @param {{country?: string, industry?: string}} [scope]
  * @returns {Promise<{regions: Array}>}
  */
-export const getRegions = async () => {
-  return fetchApi('/regions');
+export const getRegions = async (scope) => {
+  return fetchApi(`/regions${buildQuery(scope)}`);
 };
 
 /**
- * Get all climate zones
+ * Get every climate zone in a (country, industry) scope.
+ *
+ * This is the FULL list. `realtimeClimateService.getZones` returns only the
+ * subset with current-season data (13 of 23 today) — a dropdown or a sitemap
+ * needs this one and must mark the rest as uncovered rather than drop them.
+ *
+ * @param {{country?: string, industry?: string}} [scope]
  * @returns {Promise<{zones: Array}>}
  */
-export const getZones = async () => {
-  return fetchApi('/zones');
+export const getZones = async (scope) => {
+  return fetchApi(`/zones${buildQuery(scope)}`);
 };
 
 /**

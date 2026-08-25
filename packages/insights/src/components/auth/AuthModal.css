@@ -123,7 +123,7 @@
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #5B6830;
+  border-color: var(--primary);
 }
 
 .form-group small {
@@ -190,7 +190,7 @@
 .link-button {
   background: none;
   border: none;
-  color: #5B6830;
+  color: var(--primary);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -221,16 +221,16 @@
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: #5B6830;
+  color: var(--primary);
   background: white;
-  border: 1.5px solid #5B6830;
+  border: 1.5px solid var(--primary);
   border-radius: 6px;
   text-decoration: none;
   transition: all 0.2s;
 }
 
 .legal-notice .link-button:hover {
-  background: #5B6830;
+  background: var(--primary);
   color: white;
   text-decoration: none;
 }
@@ -251,16 +251,16 @@
 .legal-accepted-notice .link-button {
   padding: 4px 12px;
   font-size: 12px;
-  color: #5B6830;
+  color: var(--primary);
   background: white;
-  border: 1px solid #5B6830;
+  border: 1px solid var(--primary);
   border-radius: 4px;
   margin-left: auto;
   text-decoration: none;
 }
 
 .legal-accepted-notice .link-button:hover {
-  background: #5B6830;
+  background: var(--primary);
   color: white;
   text-decoration: none;
 }
@@ -328,8 +328,8 @@
 }
 
 .progress-step.active {
-  background: #5B6830;
-  border-color: #5B6830;
+  background: var(--primary);
+  border-color: var(--primary);
   color: white;
 }
 
@@ -341,7 +341,7 @@
 }
 
 .progress-line.active {
-  background: #5B6830;
+  background: var(--primary);
 }
 
 .signup-step h3 {
@@ -379,7 +379,7 @@
 
 .checkbox-label:hover {
   background: #fff;
-  border-color: #5B6830;
+  border-color: var(--primary);
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -433,8 +433,8 @@
 }
 
 .preferences-tabs .tab.active {
-  color: #5B6830;
-  border-bottom-color: #5B6830;
+  color: var(--primary);
+  border-bottom-color: var(--primary);
 }
 
 .preferences-content {
@@ -512,7 +512,7 @@
 
 .spinner {
   border: 4px solid #f3f4f6;
-  border-top: 4px solid #5B6830;
+  border-top: 4px solid var(--primary);
   border-radius: 50%;
   width: 50px;
   height: 50px;
@@ -644,7 +644,7 @@
 }
 
 .password-toggle:hover {
-  color: #5B6830;
+  color: var(--primary);
 }
 
 /* Password match/mismatch indicators */

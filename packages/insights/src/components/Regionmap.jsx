@@ -15,7 +15,7 @@ function RegionMap({ regions }) {
       padding: '40px',
       textAlign: 'center'
     }}>
-      <MapPin size={64} style={{ color: '#5B6830', marginBottom: '20px' }} />
+      <MapPin size={64} style={{ color: 'var(--primary)', marginBottom: '20px' }} />
       <h3 style={{ 
         fontSize: '18pt', 
         fontWeight: '600', 
@@ -58,7 +58,7 @@ function RegionMap({ regions }) {
               display: 'inline-block', 
               verticalAlign: 'middle', 
               marginRight: '8px',
-              color: '#5B6830'
+              color: 'var(--primary)'
             }} />
             {region.name}
           </div>

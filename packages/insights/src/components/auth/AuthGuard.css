@@ -18,9 +18,9 @@
   text-align: center;
   padding: 48px 32px;
   background: linear-gradient(135deg, #f8fbff 0%, #e8f4ff 100%);
-  border: 2px solid #5B6830;
+  border: 2px solid var(--primary);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(91, 104, 48, 0.15);
+  box-shadow: 0 8px 32px rgb(var(--primary-rgb) / 0.15);
 }
 
 .auth-required-message h3 {

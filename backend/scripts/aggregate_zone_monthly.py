@@ -132,6 +132,15 @@ def main() -> int:
     import rasterio
     from rasterio.windows import Window
 
+    # This workstation has a PostGIS 3.5 install that sets a machine-level
+    # PROJ_LIB pointing at an older `proj.db` schema, and it wins over
+    # rasterio's bundled copy. Every CRS lookup then fails — as a GDAL LOG LINE
+    # rather than an exception, which is the dangerous part: the read appears to
+    # succeed. Every other raster-touching script in this tree calls this; this
+    # one did not, which is a gap rather than a decision.
+    from scripts.interpolation.raster import _configure_proj
+    _configure_proj()
+
     db = SessionLocal()
     try:
         # --- the mask, grouped per zone, with a fixed read window each -------

@@ -32,6 +32,7 @@ import {
   SITE_METRICS,
 } from '../services/proSiteService';
 import './MySite.css';
+import { useCountryIndustry } from '../contexts/CountryIndustryContext';
 
 const PRO_PREVIEW = [
   'Your own point, sampled from the 500 m climate surface',
@@ -42,6 +43,11 @@ const PRO_PREVIEW = [
 ];
 
 function MySite() {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   const navigate = useNavigate();
   const { user, isAuthenticated } = usePublicAuth();
   const pro = isPro(user);
@@ -251,7 +257,7 @@ function MySite() {
                   {site.latitude.toFixed(4)}, {site.longitude.toFixed(4)}
                   {site.zone_slug && (
                     <> · compared against{' '}
-                      <Link to={`/regions/${site.zone_slug}`}>{site.zone_name}</Link>
+                      <Link to={path(site.zone_slug)}>{site.zone_name}</Link>
                     </>
                   )}
                 </p>

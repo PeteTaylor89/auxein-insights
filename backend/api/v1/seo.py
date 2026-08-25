@@ -1,7 +1,7 @@
 # backend/api/v1/seo.py - SEO endpoints (sitemap, RSS, validation)
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
-from sqlalchemy import desc
+from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
 
 from db.session import get_db
@@ -22,7 +22,10 @@ SITE_URL = "https://insights.auxein.co.nz"
 STATIC_PAGES = [
     ("/", "daily", "1.0"),
     ("/map", "daily", "0.9"),
-    ("/regions", "daily", "0.9"),
+    # /regions and /regions/{slug} are NOT here any more. They became permanent
+    # redirects to /{country}/{industry}[/{slug}] on 2026-08-24 and a sitemap
+    # must list canonical URLs, not redirects. The scoped hubs and region pages
+    # are generated below, from the same tables the routes are driven by.
     ("/articles", "daily", "0.9"),
     # /research is a placeholder as of 2026-08-13 and is deliberately omitted —
     # an empty "coming soon" page competing with real article content in search
@@ -45,19 +48,51 @@ async def sitemap(db: Session = Depends(get_db)):
         for path, freq, priority in STATIC_PAGES
     ]
 
-    # Region pages. Each active climate zone is a real page at /regions/{slug}
-    # as of 2026-08-13; before that a zone was only selector state inside a
-    # component and had no URL at all, so none of this was indexable. These are
-    # the strongest organic-search assets the site has — "<region> climate" is
-    # exactly what growers search — so they rank just under the section indexes.
-    zones = db.query(ClimateZone.slug).filter(
-        ClimateZone.is_active == True  # noqa: E712 — SQLAlchemy needs ==, not `is`
-    ).order_by(ClimateZone.display_order).all()
-    for (slug,) in zones:
+    # Scoped hubs and region pages: /{country}/{industry} and
+    # /{country}/{industry}/{zone}.
+    #
+    # Each active climate zone is a real page as of 2026-08-13; before that a
+    # zone was only selector state inside a component and had no URL at all, so
+    # none of this was indexable. These are the strongest organic-search assets
+    # the site has — "<region> climate" is exactly what growers search — so they
+    # rank just under the section indexes.
+    #
+    # ONLY ACTIVE (country, industry) PAIRS ARE EMITTED. Australia and the four
+    # pending industries exist in the registry and their pages render as "coming
+    # soon", but submitting an empty page to a search engine competes with real
+    # content for the same terms and teaches the crawler the site is thin. They
+    # join the sitemap when they have data, which is the same boolean flip that
+    # makes them selectable in the UI.
+    #
+    # The zone query is scoped by BOTH keys rather than listing every zone under
+    # every pair. A zone belongs to exactly one (country, industry) — a
+    # kiwifruit region is a different polygon, so a different row — and emitting
+    # the cross product would publish URLs that 404.
+    scopes = db.execute(text("""
+        SELECT lower(c.iso2) AS country, lower(i.key) AS industry,
+               c.id AS country_id, i.id AS industry_id
+          FROM countries c
+          CROSS JOIN industries i
+         WHERE c.is_active AND i.is_active
+         ORDER BY c.display_order, i.display_order
+    """)).mappings().all()
+
+    for sc in scopes:
+        hub = f"/{sc['country']}/{sc['industry']}"
         urls.append(
-            f'<url><loc>{SITE_URL}/regions/{slug}</loc>'
-            f'<changefreq>daily</changefreq><priority>0.8</priority></url>'
+            f'<url><loc>{SITE_URL}{hub}</loc>'
+            f'<changefreq>daily</changefreq><priority>0.9</priority></url>'
         )
+        zones = db.query(ClimateZone.slug).filter(
+            ClimateZone.is_active == True,  # noqa: E712 — SQLAlchemy needs ==, not `is`
+            ClimateZone.country_id == sc['country_id'],
+            ClimateZone.industry_id == sc['industry_id'],
+        ).order_by(ClimateZone.display_order).all()
+        for (slug,) in zones:
+            urls.append(
+                f'<url><loc>{SITE_URL}{hub}/{slug}</loc>'
+                f'<changefreq>daily</changefreq><priority>0.8</priority></url>'
+            )
 
     articles = db.query(Article.slug, Article.updated_at).filter(
         Article.status == "published"

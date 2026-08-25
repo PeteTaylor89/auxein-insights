@@ -32,8 +32,8 @@
   gap: 6px;
   padding: 8px 16px;
   background: white;
-  color: #5B6830;
-  border: 1px solid #5B6830;
+  color: var(--primary);
+  border: 1px solid var(--primary);
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
@@ -42,7 +42,7 @@
 }
 
 .climate-error-retry:hover {
-  background: #5B6830;
+  background: var(--primary);
   color: white;
 }
 
@@ -101,7 +101,7 @@
    This link is its replacement in the attribution row. */
 .climate-attribution__method {
   margin-left: auto;
-  color: var(--primary, #446145);
+  color: var(--primary);
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
@@ -2661,16 +2661,16 @@
 }
 
 .view-tab:hover {
-  border-color: #5B6830;
-  color: #5B6830;
+  border-color: var(--primary);
+  color: var(--primary);
   background: #f0fdf4;
 }
 
 .view-tab.active {
-  background: #5B6830;
-  border-color: #5B6830;
+  background: var(--primary);
+  border-color: var(--primary);
   color: white;
-  box-shadow: 0 2px 4px rgba(91, 104, 48, 0.2);
+  box-shadow: 0 2px 4px rgb(var(--primary-rgb) / 0.2);
 }
 
 .view-tab.active svg {
@@ -2679,7 +2679,7 @@
 
 .view-tab svg {
   flex-shrink: 0;
-  color: #5B6830;
+  color: var(--primary);
   transition: color 0.2s;
 }
 
@@ -2817,7 +2817,7 @@
    ============================================ */
 
 .view-tab:focus-visible {
-  outline: 2px solid #5B6830;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -2836,21 +2836,21 @@
   align-items: center;
   gap: 12px;
   padding: 16px 28px;
-  background: linear-gradient(135deg, #5B6830 0%, #4a5628 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
   font-size: 1.1rem;
   font-weight: 600;
   text-decoration: none;
   border-radius: 12px;
-  box-shadow: 0 4px 14px rgba(91, 104, 48, 0.3);
+  box-shadow: 0 4px 14px rgb(var(--primary-rgb) / 0.3);
   transition: all 0.3s ease;
   margin-top: 1.5rem;
 }
 
 .datasets-hero-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(91, 104, 48, 0.4);
-  background: linear-gradient(135deg, #6a7a3a 0%, #5B6830 100%);
+  box-shadow: 0 6px 20px rgb(var(--primary-rgb) / 0.4);
+  background: linear-gradient(135deg, #6a7a3a 0%, var(--primary) 100%);
 }
 
 .datasets-hero-btn:active {
@@ -2870,7 +2870,7 @@
     padding: 12px 20px;
     margin-bottom: 20px;
     background: linear-gradient(135deg, #f0f5e8 0%, #e8f0dd 100%);
-    border: 1px solid rgba(91, 104, 48, 0.2);
+    border: 1px solid rgb(var(--primary-rgb) / 0.2);
     border-radius: 10px;
     font-size: 14px;
     color: #3d4a1e;
@@ -2902,16 +2902,16 @@
 
   .zone-dropdown-trigger.demo-locked {
     background: #f8faf5;
-    border-color: rgba(91, 104, 48, 0.3);
+    border-color: rgb(var(--primary-rgb) / 0.3);
     cursor: pointer;
   }
 
   .zone-dropdown-trigger.demo-locked:hover {
-    border-color: #5B6830;
+    border-color: var(--primary);
   }
 
   .demo-lock-icon {
-    color: #5B6830;
+    color: var(--primary);
     opacity: 0.6;
   }
 

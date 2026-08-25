@@ -35,10 +35,10 @@ import {
 const SEASON_MONTH_LABELS = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
 const SEASON_MONTH_ORDER = [9, 10, 11, 12, 1, 2, 3, 4];
 
-// Full vintage year (Jul→Jun) — used for the monthly frost view so the winter
-// frost peak (Jul/Aug) is visible, not just the growing season.
-const VINTAGE_MONTH_LABELS = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-const VINTAGE_MONTH_ORDER = [7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
+// The full vintage year (Jul→Jun) existed only so the monthly FROST view could
+// show the winter peak. Total frost days were removed on 2026-08-24 (see
+// `build_season_extremes`), and every remaining metric is a growing-season one,
+// so the season order is the only order left.
 
 // Chart colors
 const CHART_COLORS = [
@@ -57,31 +57,23 @@ const OVERVIEW_METRIC_LABELS = {
   rain: 'Season Rainfall (mm)',
   tmean: 'Season Avg Temp (°C)',
   tmax: 'Season Max Temp (°C)',
-  frost_days: 'Frost days',
-  early_frost: 'Spring frost (Sep–Nov)',
   hot_days30: 'Hot days >30°C',
   r99p: 'Extreme Rain (mm)',
 };
 
 // Extreme metrics selectable on the Overview trend (per-season values).
-// `early_frost` reads SeasonExtremes.early_frost (the SON spring-frost count).
 const OVERVIEW_EXTREME_METRICS = [
-  { key: 'frost_days', label: 'Frost' },
-  { key: 'early_frost', label: 'Spring Frost' },
   { key: 'hot_days30', label: 'Hot days' },
   { key: 'r99p', label: 'Extreme Rain' },
 ];
 
 // Per-season extreme keys (baseline lookup on the Overview trend)
-const SEASON_EXTREME_KEYS = ['frost_days', 'early_frost', 'hot_days30', 'r99p'];
+const SEASON_EXTREME_KEYS = ['hot_days30', 'r99p'];
 
 // Which views each non-base metric is valid in (base metrics work everywhere).
-// frost_days = annual total in Overview/Zone-compare-trend, per-month in
-// Monthly/Season-compare. Seasonal extremes compare only in the zone-compare
-// Trend sub-mode (single value per season); rx1day is monthly-grained.
+// Seasonal extremes compare only in the zone-compare Trend sub-mode (single
+// value per season); rx1day is monthly-grained.
 const METRIC_VALID_VIEWS = {
-  frost_days: ['overview', 'monthly', 'season-compare', 'zone-compare'],
-  early_frost: ['overview', 'zone-compare'],
   hot_days30: ['overview', 'zone-compare'],
   r99p: ['overview', 'zone-compare'],
   rx1day: ['monthly', 'season-compare'],
@@ -89,16 +81,12 @@ const METRIC_VALID_VIEWS = {
 
 // Seasonal extremes that compare across zones via the Trend sub-mode only.
 const ZONE_COMPARE_EXTREMES = [
-  { key: 'frost_days', label: 'Frost' },
-  { key: 'early_frost', label: 'Spring Frost' },
   { key: 'hot_days30', label: 'Hot days' },
   { key: 'r99p', label: 'Extreme Rain' },
 ];
 
 // Short explainers shown under the chart when a metric is selected.
 const METRIC_EXPLAINERS = {
-  frost_days: 'Frost days — nights below 0°C. Most occur in winter; summer months are typically zero.',
-  early_frost: 'Spring frost — frost nights during spring (Sep–Nov), when budburst and flowering are most vulnerable.',
   hot_days30: 'Hot days — days reaching above 30°C (summer).',
   r99p: 'Extreme Rain (R99p) — the one-day rainfall total exceeded on only the most extreme 1% of wet days.',
   rx1day: 'Max 1-day Rain (Rx1day) — the wettest single day in each month.',
@@ -135,7 +123,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   // Seasonal extremes compare only in the zone-compare Trend sub-mode.
   useEffect(() => {
     if (viewMode === 'zone-compare' && zoneCompareMode !== 'trend' &&
-        ['frost_days', 'early_frost', 'hot_days30', 'r99p'].includes(chartMetric)) {
+        ['hot_days30', 'r99p'].includes(chartMetric)) {
       setChartMetric('gdd');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,7 +236,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
       case 'gdd': return monthData.gdd;
       case 'rain': return monthData.rain;
       case 'rx1day': return monthData.rx1day;
-      case 'frost_days': return monthData.frost_days;
       case 'tmean': return monthData.tmean;
       case 'tmax': return monthData.tmax;
       case 'tmin': return monthData.tmin;
@@ -271,8 +258,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         case 'rain': return s.rain_total;
         case 'tmean': return s.tmean_avg;
         case 'tmax': return s.tmax_avg;
-        case 'frost_days': return s.extremes?.frost_days?.mean;
-        case 'early_frost': return s.extremes?.early_frost?.mean;
         case 'hot_days30': return s.extremes?.hot_days30?.mean;
         case 'r99p': return s.extremes?.r99p?.mean;
         default: return s.gdd_total;
@@ -325,12 +310,12 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   const monthlyChartData = useMemo(() => {
     if (!monthlyData?.data || monthlyData.data.length === 0) return null;
 
-    const isRainfall = chartMetric === 'rain' || chartMetric === 'rx1day' || chartMetric === 'frost_days';
+    const isRainfall = chartMetric === 'rain' || chartMetric === 'rx1day';
 
     // Frost spans the full vintage year (winter peak); other metrics show the
     // growing season only.
-    const monthOrder = chartMetric === 'frost_days' ? VINTAGE_MONTH_ORDER : SEASON_MONTH_ORDER;
-    const monthLabels = chartMetric === 'frost_days' ? VINTAGE_MONTH_LABELS : SEASON_MONTH_LABELS;
+    const monthOrder = SEASON_MONTH_ORDER;
+    const monthLabels = SEASON_MONTH_LABELS;
 
     const sortedData = monthlyData.data
       .filter(d => monthOrder.includes(d.month))
@@ -341,7 +326,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         case 'gdd': return d.gdd?.mean;
         case 'rain': return d.rain?.mean;
         case 'rx1day': return d.rx1day?.mean;
-        case 'frost_days': return d.frost_days?.mean;
         case 'tmean': return d.tmean?.mean;
         case 'tmax': return d.tmax?.mean;
         default: return d.gdd?.mean;
@@ -353,21 +337,42 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         case 'gdd': return d.gdd?.sd;
         case 'rain': return d.rain?.sd;
         case 'rx1day': return d.rx1day?.sd;
-        case 'frost_days': return d.frost_days?.sd;
         case 'tmean': return d.tmean?.sd;
         case 'tmax': return d.tmax?.sd;
         default: return d.gdd?.sd;
       }
     };
 
-    const values = sortedData.map(d => {
+    const rawValues = sortedData.map(d => {
       const v = getValue(d);
       return v != null ? Number(v) : null;
     });
-    const sds = sortedData.map(d => {
+    const rawSds = sortedData.map(d => {
       const sd = getSD(d);
       return sd != null ? Number(sd) : null;
     });
+
+    // GDD IS CUMULATIVE (2026-08-24). Growing degree days are read as a season
+    // accumulation — "where is this season by veraison" — and a bar per month
+    // answers a question nobody asks. Only GDD: temperature is a level and
+    // cannot be accumulated, and rainfall's monthly pattern is what a grower
+    // reads it for.
+    const isCumulative = chartMetric === 'gdd';
+    const accumulate = (arr) => {
+      let run = 0;
+      return arr.map((v) => (v === null ? null : (run += v)));
+    };
+    const values = isCumulative ? accumulate(rawValues) : rawValues;
+
+    // NO BAND ON THE CUMULATIVE LINE. `sd` here is the SPATIAL spread across
+    // the region's cells in one month. Accumulating it needs an assumption
+    // about how correlated those cells are from month to month — sum if
+    // perfectly correlated, root-sum-square if independent, and the truth is
+    // between. Neither is defensible, and a band drawn on a guess is worse than
+    // no band. The overview's season chart carries a properly derived
+    // across-year band instead; this view shows the deviation from the baseline
+    // directly, which is the thing being asked.
+    const sds = isCumulative ? rawSds.map(() => null) : rawSds;
     
     const datasets = [];
 
@@ -415,10 +420,13 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
 
     // Add baseline from monthly data — always a dashed line
     if (baselineData?.monthly && includeLTA) {
-      const baselineValues = monthOrder.map(month => {
+      const rawBaseline = monthOrder.map(month => {
         const v = getBaselineMonthlyValue(month, chartMetric);
         return v != null ? Number(v) : null;
       });
+      // The baseline accumulates with the season, or the two lines are on
+      // different scales and the comparison is meaningless.
+      const baselineValues = isCumulative ? accumulate(rawBaseline) : rawBaseline;
 
       datasets.push({
         type: 'line',
@@ -475,9 +483,13 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         beginAtZero: chartMetric !== 'tmean' && chartMetric !== 'tmax' && chartMetric !== 'gdd',
         title: {
           display: true,
-          text: chartMetric === 'gdd' ? 'GDD (°C·days)' :
+          // Cumulative in the monthly view — the axis has to say so, or a
+          // season total of 1,400 reads as a single month.
+          text: chartMetric === 'gdd'
+            ? (viewMode === 'monthly' ? 'Cumulative GDD (°C·days)' : 'GDD (°C·days)')
+            :
                 (chartMetric === 'rain' || chartMetric === 'r99p' || chartMetric === 'rx1day') ? 'Rainfall (mm)' :
-                (chartMetric === 'frost_days' || chartMetric === 'early_frost' || chartMetric === 'hot_days30') ? 'Days' :
+                (chartMetric === 'hot_days30') ? 'Days' :
                 'Temperature (°C)',
         }
       },
@@ -565,7 +577,7 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
   const isRainfall = chartMetric === 'rain' || chartMetric === 'r99p';
   // Monthly view renders these as columns (must match the monthlyChartData
   // builder, which sets the main series type:'bar' + a dashed-line LTA).
-  const monthlyIsBar = chartMetric === 'rain' || chartMetric === 'rx1day' || chartMetric === 'frost_days';
+  const monthlyIsBar = chartMetric === 'rain' || chartMetric === 'rx1day';
 
   return (
     <div className="season-explorer">
@@ -601,14 +613,10 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
           <Calendar size={16} />
           Compare Seasons
         </button>
-        <button
-          className={`mode-btn ${viewMode === 'zone-compare' ? 'active' : ''}`}
-          onClick={() => setViewMode('zone-compare')}
-        >
-          <MapPin size={16} />
-          Compare Zones
-        </button>
-      </div>
+        {/* The zone-compare mode was removed on 2026-08-24 along with the
+            comparison picker. Its branches below are unreachable rather than
+            deleted — mothballed, not ripped out. */}
+              </div>
 
       {/* Baseline Summary */}
       {seasonsData.baseline && (
@@ -688,12 +696,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
               >
                 Max 1-day Rain
               </button>
-              <button
-                className={`chart-type-btn ${chartMetric === 'frost_days' ? 'active' : ''}`}
-                onClick={() => setChartMetric('frost_days')}
-              >
-                Frost days
-              </button>
             </>
           )}
           {viewMode === 'season-compare' && (
@@ -703,12 +705,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
                 onClick={() => setChartMetric('rx1day')}
               >
                 Max 1-day Rain
-              </button>
-              <button
-                className={`chart-type-btn ${chartMetric === 'frost_days' ? 'active' : ''}`}
-                onClick={() => setChartMetric('frost_days')}
-              >
-                Frost days
               </button>
             </>
           )}
@@ -817,9 +813,11 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
         return (
           <div className="monthly-extremes-summary">
             <span className="mes-label">{sel.season_label} season:</span>
-            <span className="mes-chip" title="Frost nights below 0°C across the year (spring = Sep–Nov)">
-              <Snowflake size={13} />{Number(ex.frost_days?.mean ?? 0).toFixed(0)} frost ({Number(ex.early_frost?.mean ?? 0).toFixed(0)} spring)
-            </span>
+            {/* No frost chip. Every frost figure was withdrawn on 2026-08-24:
+                the count is thresholded off a lapse-retrended Tmin field that
+                inverts on frost nights, so it loads frost onto high ground and
+                erases it from the valley floors where the vines are. Spring
+                frost came off the same field and went with it. */}
             <span className="mes-chip" title="Days above 30°C">
               <Flame size={13} />{Number(ex.hot_days30?.mean ?? 0).toFixed(0)} hot days
             </span>
@@ -899,8 +897,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
               <thead>
                 <tr>
                   <th>Season</th>
-                  <th>Frost days</th>
-                  <th>Spring frost</th>
                   <th>Hot days &gt;30°C</th>
                   <th>Extreme rain</th>
                 </tr>
@@ -909,8 +905,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
                 {rows.map(s => (
                   <tr key={s.vintage_year}>
                     <td>{s.season_label}</td>
-                    <td>{cell(s.extremes.frost_days?.mean)}</td>
-                    <td>{cell(s.extremes.early_frost?.mean)}</td>
                     <td>{cell(s.extremes.hot_days30?.mean)}</td>
                     <td>{cell(s.extremes.r99p?.mean)} mm</td>
                   </tr>
@@ -918,8 +912,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
                 {bx && (
                   <tr className="baseline-row">
                     <td>LTA baseline</td>
-                    <td>{cell(bx.frost_days?.mean)}</td>
-                    <td>{cell(bx.early_frost?.mean)}</td>
                     <td>{cell(bx.hot_days30?.mean)}</td>
                     <td>{cell(bx.r99p?.mean)} mm</td>
                   </tr>
@@ -1007,9 +999,6 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
               </div>
               {season.extremes && (
                 <div className="season-card-extremes">
-                  <span className="extreme-chip" title="Frost days (Tmin < 0°C)">
-                    <Snowflake size={12} />{Number(season.extremes.frost_days?.mean ?? 0).toFixed(0)}
-                  </span>
                   <span className="extreme-chip" title="Hot days (Tmax > 30°C)">
                     <Flame size={12} />{Number(season.extremes.hot_days30?.mean ?? 0).toFixed(0)}
                   </span>
@@ -1037,10 +1026,10 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const isRainfall = metric === 'rain' || metric === 'rx1day' || metric === 'frost_days';
+  const isRainfall = metric === 'rain' || metric === 'rx1day';
   // Frost spans the full vintage year (winter peak); others show Sep–Apr.
-  const monthOrder = metric === 'frost_days' ? VINTAGE_MONTH_ORDER : SEASON_MONTH_ORDER;
-  const monthLabels = metric === 'frost_days' ? VINTAGE_MONTH_LABELS : SEASON_MONTH_LABELS;
+  const monthOrder = SEASON_MONTH_ORDER;
+  const monthLabels = SEASON_MONTH_LABELS;
 
   useEffect(() => {
     if (!zone?.slug || seasons.length === 0) {
@@ -1074,7 +1063,6 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
               case 'gdd': return d.gdd?.mean;
               case 'rain': return d.rain?.mean;
               case 'rx1day': return d.rx1day?.mean;
-              case 'frost_days': return d.frost_days?.mean;
               case 'tmean': return d.tmean?.mean;
               case 'tmax': return d.tmax?.mean;
               default: return d.gdd?.mean;
@@ -1086,7 +1074,6 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
               case 'gdd': return d.gdd?.sd;
               case 'rain': return d.rain?.sd;
               case 'rx1day': return d.rx1day?.sd;
-              case 'frost_days': return d.frost_days?.sd;
               case 'tmean': return d.tmean?.sd;
               case 'tmax': return d.tmax?.sd;
               default: return d.gdd?.sd;
@@ -1142,7 +1129,6 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
               case 'gdd': return monthData.gdd;
               case 'rain': return monthData.rain;
               case 'rx1day': return monthData.rx1day;
-              case 'frost_days': return monthData.frost_days;
               case 'tmean': return monthData.tmean;
               case 'tmax': return monthData.tmax;
               default: return null;
@@ -1218,11 +1204,11 @@ const SeasonCompareChart = ({ zone, seasons, metric, includeLTA, baselineData })
               display: true,
               text: metric === 'gdd' ? 'GDD (°C·days)' :
                     (metric === 'rain' || metric === 'rx1day') ? 'Rainfall (mm)' :
-                    metric === 'frost_days' ? 'Frost days' : 'Temperature (°C)',
+                    'Temperature (°C)',
             }
           },
           x: {
-            title: { display: true, text: metric === 'frost_days' ? 'Month (Jul–Jun)' : 'Growing Season Month' }
+            title: { display: true, text: 'Growing Season Month' }
           }
         },
       }}
@@ -1582,8 +1568,6 @@ const ZoneTrendChart = ({ mainZone, comparisonZones = [], metric, seasonLimit, s
                     metric === 'rain' ? 'Season Rainfall' :
                     metric === 'tmean' ? 'Season Avg Temp' :
                     metric === 'tmax' ? 'Season Max Temp' :
-                    metric === 'frost_days' ? 'Frost days (annual)' :
-                    metric === 'early_frost' ? 'Spring frost (Sep–Nov)' :
                     metric === 'hot_days30' ? 'Hot days >30°C' :
                     metric === 'r99p' ? 'Extreme rain (R99p)' : 'Season Min Temp'} by zone`,
             font: { size: 14, weight: 'bold' },
@@ -1596,7 +1580,7 @@ const ZoneTrendChart = ({ mainZone, comparisonZones = [], metric, seasonLimit, s
               display: true,
               text: metric === 'gdd' ? 'GDD (°C·days)' :
                     (metric === 'rain' || metric === 'r99p') ? 'Rainfall (mm)' :
-                    (metric === 'frost_days' || metric === 'early_frost' || metric === 'hot_days30') ? 'Days' :
+                    (metric === 'hot_days30') ? 'Days' :
                     'Temperature (°C)',
             }
           },

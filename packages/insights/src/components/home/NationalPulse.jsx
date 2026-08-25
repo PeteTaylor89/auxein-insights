@@ -40,6 +40,7 @@ import { Link } from 'react-router-dom';
 import { Thermometer, Snowflake, CloudRain, TrendingUp, Sprout, Radio } from 'lucide-react';
 import { getRegionalOverview, getLiveExtremes } from '../../services/realtimeClimateService';
 import './NationalPulse.css';
+import { useCountryIndustry } from '../../contexts/CountryIndustryContext';
 
 const ICONS = {
   warmest: <Thermometer size={18} />,
@@ -112,7 +113,12 @@ function buildLiveTiles(live) {
     return {
       key: e.key,
       icon: ICONS[e.key] ?? <Thermometer size={18} />,
-      label: e.label,
+      // "Warmest now" -> "Warmest". The server label is right for an API
+      // consumer reading it cold; on the strip the live dot beside it already
+      // says "now", and the word was being repeated on all three tiles.
+      // "Wettest 24h" keeps its qualifier — that one is a window, not an
+      // instant, and dropping it would make the number mean something else.
+      label: String(e.label).replace(/\s+now$/i, ''),
       value: isTemp ? `${value.toFixed(1)}°C` : `${value.toFixed(1)} mm`,
       // The station is the detail, not the region. "Omaka at Ramshead Saddle"
       // is a specific claim; "Marlborough" is the one the aggregates already
@@ -187,7 +193,22 @@ function buildSeasonTiles(overview) {
   return tiles;
 }
 
-function NationalPulse() {
+/**
+ * @param {boolean} [compact]  tighter tiles, for a hero column rather than a
+ *                             full-width strip
+ * @param {number}  [limit]    cap the number of tiles
+ *
+ * The compact form exists because the home hero became three even columns on
+ * 2026-08-24: the clickable region map takes the left, and this sits above
+ * ProTeaser in the middle. At full size it made the middle column taller than
+ * the other two, which is the thing the three-column layout is for.
+ */
+function NationalPulse({ compact = false, limit }) {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   const [live, setLive] = useState(null);
   const [overview, setOverview] = useState(null);
   // Only the LIVE call gates the skeleton. Measured 2026-08-20: /live-extremes
@@ -216,13 +237,18 @@ function NationalPulse() {
 
   if (!liveSettled) {
     return (
-      <div className="national-pulse national-pulse--loading" aria-busy="true">
-        {[0, 1, 2, 3].map((i) => <div key={i} className="pulse-tile pulse-tile--skeleton" />)}
+      <div className={`national-pulse national-pulse--loading${
+        compact ? ' national-pulse--compact' : ''}`} aria-busy="true">
+        {Array.from({ length: limit || 4 }, (_, i) => i).map((i) => (
+          <div key={i} className="pulse-tile pulse-tile--skeleton" />))}
       </div>
     );
   }
 
-  const tiles = [...buildLiveTiles(live), ...buildSeasonTiles(overview)];
+  // Live tiles lead, because they are the ones that change hour to hour and the
+  // reason the strip exists. A `limit` therefore trims the season tiles first.
+  const allTiles = [...buildLiveTiles(live), ...buildSeasonTiles(overview)];
+  const tiles = limit ? allTiles.slice(0, limit) : allTiles;
 
   // Nothing to say is better than an empty frame with an error in it. The home
   // page still has the map and the articles.
@@ -233,18 +259,28 @@ function NationalPulse() {
 
   return (
     <section className="national-pulse-section" aria-label="Current national conditions">
-      <div className="national-pulse">
+      <div className={`national-pulse${compact ? ' national-pulse--compact' : ''}`}>
         {tiles.map((t) => {
           const body = (
             <>
-              <span className={`pulse-tile__icon pulse-tile__icon--${t.tone}`}>{t.icon}</span>
-              <span className="pulse-tile__body">
+              {/* Icon and label share a line. Stacked, the label sat under the
+                  icon and the tile read as two unrelated things. */}
+              <span className="pulse-tile__head">
+                <span className={`pulse-tile__icon pulse-tile__icon--${t.tone}`}>{t.icon}</span>
                 <span className="pulse-tile__label">{t.label}</span>
+                {/* Replaces the word "now" that used to be in every label. */}
+                {t.live && <span className="pulse-tile__live" title="Live station reading" aria-label="live" />}
+              </span>
+              <span className="pulse-tile__body">
                 <span className="pulse-tile__value">
                   {t.value}
                   {t.flag && <span className="pulse-tile__flag">{t.flag}</span>}
                 </span>
-                <span className="pulse-tile__detail">{t.detail}</span>
+                {/* THE STATION NAME. Without it the tile is an unattributed
+                    number that links somewhere unexplained — "coldest" landing
+                    on Lower Wairau reads as a bug until you can see it is
+                    Blenheim Bowling Club, which really is in Lower Wairau. */}
+                <span className="pulse-tile__detail" title={t.detail}>{t.detail}</span>
                 {/* Every tile says how old it is, because they are not all the
                     same age. A single date on the section would be wrong for
                     at least one of them. */}
@@ -257,7 +293,7 @@ function NationalPulse() {
           );
 
           return t.slug ? (
-            <Link key={t.key} to={`/regions/${t.slug}`} className="pulse-tile pulse-tile--link">
+            <Link key={t.key} to={path(t.slug)} className="pulse-tile pulse-tile--link">
               {body}
             </Link>
           ) : (

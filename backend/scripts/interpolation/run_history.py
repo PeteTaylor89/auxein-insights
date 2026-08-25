@@ -18,19 +18,39 @@ per day instead of 2.8 ms, turning 25 minutes into 41 hours.
 
     python backend/scripts/interpolation/run_history.py --variable temp_mean
     python backend/scripts/interpolation/run_history.py --variable temp_mean --end 1986-12
+
+The DB-sourced live era additionally takes the era-offset field, which is
+subtracted from each DAY on the grid before the monthly reduction — the only
+stage at which the threshold counts can be corrected at all:
+
+    python backend/scripts/interpolation/run_history.py --variable temp_min \\
+        --era-offset scratchpad/live_surfaces/offset_final_temp_min \\
+        --model-version tps-2.0.0-ridge-db-adj
+
+Every invocation leaves an immutable record at
+`<out>/<variable>/_runs/<run_id>/` — parameters, code digest, git revision, the
+fit network with per-station reporting counts, and (on completion) copies of
+`manifest.json` and `validation_stats.csv`. The directory beside it stays a
+working copy that the next run overwrites; the records do not overwrite. That
+distinction is the whole point: a run's network and its code are its two
+independent variables, and re-running a variable used to destroy the evidence
+of the run before it.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
+import platform
 import shutil
+import subprocess
 import sys
 import time
 from calendar import monthrange
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -45,7 +65,8 @@ from scripts.interpolation.fastgrid import GridBasis, estimate_bytes  # noqa: E4
 # precip's own imports are numpy/pandas/tps only — rasterio stays lazy, so this
 # does not pull GDAL into a temperature run.
 from scripts.interpolation.precip import DEFAULT_SMOOTH_KM             # noqa: E402
-from scripts.interpolation.raster import (DEFAULT_MAX_Z_ERROR, RasterTemplate,  # noqa: E402
+from scripts.interpolation.raster import (DEFAULT_MAX_Z_ERROR, NODATA,  # noqa: E402
+                                          RasterTemplate, _configure_proj,
                                           grid_from_csv, write_cog)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
@@ -60,7 +81,18 @@ DEFAULT_INPUTS = REPO / "scratchpad" / "climate_history" / "inputs"
 DEFAULT_OUT = REPO / "scratchpad" / "climate_history" / "bucket"
 DEFAULT_GRID = REPO / "backend" / "models" / "example data" / "VCDN_500m.csv"
 
+# Stamped into every manifest entry and every surface_run tag. Overridable with
+# --model-version because the live-era (2020->present, DB-sourced) surfaces MUST NOT
+# share a model_version with the published 1986-2023 CLIFLO archive: the estimator is
+# identical but the observations are not, and the two carry a measured provenance
+# offset (tmean -0.27 degC, see the overlap bias study). Sharing the key would make
+# the eras indistinguishable in `surface_run` and silently mix them in one chart.
 MODEL_VERSION = "tps-2.0.0-ridge"
+# Frozen copy of the archive's key. `MODEL_VERSION` is mutable (--model-version),
+# so the era-offset guard needs a constant to compare against: an era-corrected
+# run stamped with the ARCHIVE's own version would be indistinguishable from the
+# archive in `surface_run`, and `store.resolve` would mix the two in one chart.
+ARCHIVE_MODEL_VERSION = MODEL_VERSION
 CONTRACT_VERSION = "v2"
 EPOCH = date(1986, 1, 1)
 
@@ -119,6 +151,169 @@ INTEGER_BANDS = {"argmin_day", "argmax_day", "frost_days", "days_over_25",
                  "first_frost_day", "last_frost_day"}
 # `wet_top1..K` are deliberately NOT integer bands: they are rainfall depths in
 # mm and take the variable's own LERC tolerance.
+
+
+def _set_model_version(value: str) -> None:
+    """Override the module-level MODEL_VERSION stamped into manifests and tags."""
+    global MODEL_VERSION
+    if value != MODEL_VERSION:
+        log.warning("model_version = %s (default %s)", value, MODEL_VERSION)
+    MODEL_VERSION = value
+
+
+# ---------------------------------------------------------------------------
+# Era offset, applied to DAILY values
+#
+# The DB-sourced era (2024-10 onward) is reconciled to the CLIFLO archive by the
+# per-cell seasonal field built in `era_offset.py`. That script can also apply the
+# field POST HOC to finished monthly rasters, and that is how the surfaces
+# published on 2026-08-21 were corrected — but a post-hoc shift can only touch
+# bands that are themselves temperatures.
+#
+# **You cannot apply a temperature offset to a day COUNT.** `frost_days`,
+# `first_frost_day`, `last_frost_day`, `days_over_25` and `days_over_30` are
+# counted by thresholding each DAY, and once the month has been reduced to a mean
+# the daily values are gone — `run_history.py` streams days through the monthly
+# accumulator and never writes a daily raster. So those five bands had to be
+# stripped from the live-era manifests, which left frost — a headline product —
+# unavailable from 2024-10 on.
+#
+# Correcting HERE fixes that by construction. The offset is subtracted from every
+# day's grid values before `monthly_stats` sees them, so every band is computed
+# from corrected temperatures: the counts get the right threshold crossings, and
+# `mean`/`median`/`min`/`max` come out identical to the post-hoc path.
+#
+# Some bands are invariant, and that is a property worth knowing rather than a
+# coincidence: the field is constant per cell within a calendar month, so `sd`
+# (a dispersion) and `argmin_day`/`argmax_day` (indices) are unchanged by it.
+# `era_offset.apply_field` reaches the same conclusion by listing them in
+# COPY_BANDS. The two paths therefore have to agree, which is the cross-check.
+#
+# One measured exception, and it is a tie-break rather than a defect. The block
+# is corrected in float64 and then cast to float32 for the reduction, so on a
+# cell where two days are the month's extreme to within float32 epsilon, the
+# rounding can pick the other one. Measured over 2024-10..2026-07 x 3 variables:
+# **exactly one cell of 1,429,944 in about ten of the sixty-six months**, and in
+# every case the extreme VALUE is identical to five decimals while only the day
+# index moves (e.g. temp_min 2025-11: 16.9655 degC on both day 28 and day 10).
+# The month genuinely had two equal warmest nights and either index is equally
+# true. Check `argmin_day`/`argmax_day` by asserting the VALUE band agrees, not
+# by requiring the index to be bit-identical.
+#
+# Fit statistics are NOT corrected and must not be. `cv_rmse` and friends measure
+# the spline against its own observations in station space; the offset is a grid-
+# space reconciliation between two networks and has nothing to say about how well
+# the DB network was fitted.
+class EraOffset:
+    """The per-cell DB->archive correction, as land-cell vectors on THIS grid.
+
+    Sign: the field is `DB surface - archive surface`, so expressing a DB-era
+    surface on the archive scale means SUBTRACTING it. Gibbston's field is
+    negative (the DB reads ~1.1 degC cold there with no high-country thermometer
+    to anchor it) and the correction must warm the cell.
+    """
+
+    def __init__(self, fields: dict, meta: dict):
+        self.fields = fields          # calendar month 1..12 -> (n_cells,) float32
+        self.meta = meta
+
+    @classmethod
+    def load(cls, field_dir: Path, variable: str, template: RasterTemplate):
+        _configure_proj()
+        import rasterio
+
+        tifs = sorted(field_dir.glob(f"offset_{variable}_*.tif"))
+        if not tifs:
+            raise SystemExit(f"no offset_{variable}_*.tif in {field_dir}")
+
+        want = np.array(template.transform)[:6]
+        by_name: dict[str, np.ndarray] = {}
+        digest = hashlib.sha256()
+        for p in tifs:
+            with rasterio.open(p) as ds:
+                if (ds.height, ds.width) != (template.height, template.width):
+                    raise SystemExit(
+                        f"{p.name}: {ds.height}x{ds.width} against the run's "
+                        f"{template.height}x{template.width} — the offset field "
+                        "was built on a different grid")
+                if not np.allclose(np.array(ds.transform)[:6], want, atol=1e-9):
+                    raise SystemExit(
+                        f"{p.name}: georeferencing differs from the run's grid; "
+                        "same shape but a different origin or cell size")
+                arr = ds.read(1)
+                nd = ds.nodata if ds.nodata is not None else float(NODATA)
+            vec = arr.ravel()[template.flat_index]
+            # Every land cell the run will fit must have an offset. A missing one
+            # would otherwise subtract the -9999 sentinel and write a raster that
+            # looks plausible per-band while being nonsense — the same failure
+            # `apply_field` guards with its orphan check.
+            bad = int((~np.isfinite(vec) | (vec == nd)).sum())
+            if bad:
+                raise SystemExit(
+                    f"{p.name}: {bad:,} of {len(vec):,} land cells have no "
+                    "offset — the field and the run disagree about the land mask")
+            vec = vec.astype(np.float32)
+            name = p.stem.rsplit("_", 1)[-1]
+            by_name[name] = vec
+            digest.update(name.encode())
+            digest.update(vec.tobytes())
+
+        man_path = field_dir / "manifest.json"
+        man = json.loads(man_path.read_text()) if man_path.exists() else {}
+        if str(man.get("sign", "")).upper().startswith("ADD"):
+            # Fields built before 2026-08-23 carry an inverted `sign` string. The
+            # rasters are fine — only the wording was wrong — but say so rather
+            # than let a reader trust it.
+            log.warning("%s/manifest.json says sign=ADD; that text is a known "
+                        "error, the field is SUBTRACTED", field_dir.name)
+
+        if "annual" in by_name and len(by_name) == 1:
+            fields = {mo: by_name["annual"] for mo in range(1, 13)}
+            mode = "annual"
+        else:
+            fields = {}
+            for mo in range(1, 13):
+                v = by_name.get(f"m{mo:02d}")
+                if v is None:
+                    raise SystemExit(
+                        f"{field_dir} has no field for calendar month {mo:02d} "
+                        f"(found {sorted(by_name)}); a run covering that month "
+                        "would silently go uncorrected")
+                fields[mo] = v
+            mode = "seasonal"
+
+        # Deliberately no absolute path: this dict is copied into the manifest
+        # that ships to S3, and a local scratchpad path is meaningless there.
+        # `field_dir` plus `sha256` identify the field precisely enough.
+        meta = {"field_dir": field_dir.name,
+                "mode": mode, "n_fields": len(by_name),
+                "train_span": man.get("train_span"),
+                "n_train_months": man.get("n_months"),
+                "sha256": digest.hexdigest()[:16],
+                "sign": "corrected = fitted - offset"}
+        log.warning("[%s] ERA OFFSET %s (%s, %d fields, trained %s) — daily "
+                    "values are corrected BEFORE the monthly reduction",
+                    variable, field_dir.name, mode, len(by_name),
+                    man.get("train_span", "unknown"))
+        for mo in (1, 7):
+            v = fields[mo]
+            log.info("[%s]   m%02d  mean %+.3f  p5 %+.3f  p95 %+.3f  min %+.3f  "
+                     "max %+.3f", variable, mo, float(v.mean()),
+                     float(np.percentile(v, 5)), float(np.percentile(v, 95)),
+                     float(v.min()), float(v.max()))
+        return cls(fields, meta)
+
+    def for_month(self, mo: int) -> np.ndarray:
+        return self.fields[mo]
+
+    def tags(self) -> dict:
+        return {"era_offset_applied": "true",
+                "era_offset_field": self.meta["field_dir"],
+                "era_offset_mode": self.meta["mode"],
+                "era_offset_sha256": self.meta["sha256"],
+                "era_offset_train_span": str(self.meta.get("train_span")),
+                "era_offset_stage": "daily, before the monthly reduction",
+                "era_offset_sign": "published = fitted - offset"}
 
 
 def month_key(d: date) -> tuple:
@@ -240,6 +435,22 @@ def clear_checkpoint(out: Path, variable: str) -> None:
     if d.exists():
         shutil.rmtree(d, ignore_errors=True)
 
+# ---------------------------------------------------------------------------
+# Immutable run records — see `runrecord.py`. Imported by name because this
+# module's own code refers to them unqualified.
+# The modules whose contents determine the numbers. Hashing these is deliberate
+# in preference to a git revision: nothing in this directory is committed today,
+# so a revision hash would report "dirty" and nothing else, and a repo-wide hash
+# would change on an unrelated frontend commit. A digest over the estimator's
+# own sources is precise, and it sees UNCOMMITTED edits — which is the only
+# state this code has ever run in.
+CODE_MODULES = ("run_history.py", "tps.py", "fastgrid.py", "raster.py",
+                "monthly.py", "precip.py", "consolidate_history.py")
+
+from scripts.interpolation.runrecord import (             # noqa: E402
+    RUNS_DIRNAME, RunRecord, _code_digest, _environment, _git_revision,
+    latest_record, station_frame, warn_if_code_changed, write_station_snapshot)
+
 
 def open_climatology(smooth_km: float):
     """Open LENZ and condition it once, for reuse across station and grid reads.
@@ -318,7 +529,8 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
         start: str | None, end: str | None, workers: int, max_months: int | None,
         resume: bool = False, restart: bool = False,
         precip_method: str = PRECIP_METHOD_RATIO_LENZ,
-        mar_smooth_km: float = DEFAULT_SMOOTH_KM):
+        mar_smooth_km: float = DEFAULT_SMOOTH_KM,
+        era_offset_dir: Path | None = None):
     """`mar_smooth_km` low-passes the climatology on the GRID SIDE ONLY.
 
     The asymmetry is deliberate and was measured on 2026-08-17. Smoothing both
@@ -342,6 +554,27 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     unsmoothed) and only the grid multiplier is smoothed. Residual level change
     is then the -0.66% that is genuine peak compression.
     """
+    # Cheap era-offset guards first — the field itself cannot be validated until
+    # the grid template exists, but these two need nothing and a wrong invocation
+    # should not cost a minute of basis build before it is told so.
+    if era_offset_dir is not None:
+        if variable == "rainfall":
+            raise SystemExit(
+                "--era-offset is temperature only. Rainfall is deliberately "
+                "published UNCORRECTED: the DB has ~838 gauges against CLIFLO's "
+                "~343, so correcting toward CLIFLO would be correcting toward "
+                "the worse network.")
+        if MODEL_VERSION == ARCHIVE_MODEL_VERSION:
+            raise SystemExit(
+                f"--era-offset with the archive's own model_version "
+                f"({ARCHIVE_MODEL_VERSION}). A corrected surface must be "
+                "distinguishable from the archive in `surface_run`, or "
+                "`store.resolve` will mix the two eras in one chart. Pass "
+                "--model-version tps-2.0.0-ridge-db-adj (or another distinct "
+                "value).")
+        if not era_offset_dir.is_dir():
+            raise SystemExit(f"--era-offset {era_offset_dir} is not a directory")
+
     values, stations, dates = load_inputs(inputs, variable)
     log.info("[%s] %d days x %d stations, %s..%s", variable, len(dates),
              len(stations), dates[0], dates[-1])
@@ -368,6 +601,10 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     origin = (basis.lat0, basis.lon0)
     log.info("[%s] basis built in %.1f s; origin %.5f, %.5f", variable,
              time.perf_counter() - t0, *origin)
+
+    era = None
+    if era_offset_dir is not None:
+        era = EraOffset.load(era_offset_dir, variable, template)
 
     lapse = LAPSE[variable]
     unit = UNITS[variable]
@@ -433,6 +670,13 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     # resume across a smoothing change would weld two different models together
     # inside one variable's history exactly as a method change would.
     fingerprint["mar_smooth_km"] = mar_smooth_km if is_ratio else None
+    # The strongest reason of the lot to be in here. A resume that gained or lost
+    # the correction — or picked up a REBUILT field — would leave one variable's
+    # history half on the archive scale and half on the DB scale, with a step of
+    # up to ~1.5 degC in the middle of it and nothing downstream able to see it.
+    # The digest is over the field VALUES, so a retrained field of the same name
+    # is caught too.
+    fingerprint["era_offset"] = era.meta["sha256"] if era else None
     ckpt_dir, _, ckpt_json = _ckpt_paths(out, variable)
 
     if restart:
@@ -450,6 +694,7 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     dry_carry = 0
     total_bytes = 0
     n_stats_rows = 0
+    resumed_after = None
 
     if resume:
         records, state = load_checkpoint(out, variable, n_cells, fingerprint)
@@ -457,12 +702,56 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
         dry_carry = state["dry_carry"]
         total_bytes, n_stats_rows = state["total_bytes"], state["n_stats_rows"]
         last_key = tuple(state["last_key"])
+        resumed_after = "%04d-%02d" % last_key
         truncate_stats(stats_csv, n_stats_rows)
         keys = [k for k in keys if k > last_key]
         log.warning("[%s] RESUMING after %04d-%02d — %d months done, %d to go",
                     variable, last_key[0], last_key[1], len(manifest), len(keys))
         if not keys:
             log.warning("[%s] every month already done; finalising only", variable)
+
+    # The run's own immutable evidence. Opened HERE — after the resume
+    # decision, before a single month is fitted — so that the network and the
+    # code survive a kill at 1%, which is exactly when they are hardest to
+    # reconstruct afterwards.
+    record = RunRecord(out / variable)
+    code = _code_digest(CODE_MODULES)
+    if resume:
+        warn_if_code_changed(latest_record(out / variable), code)
+    window_idx = sorted(i for k in all_keys for i in months[k])
+    record.open({
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "variable": variable,
+        "argv": sys.argv,
+        "parameters": {
+            "inputs": str(inputs), "out": str(out), "grid": str(grid_csv),
+            "dtype": np.dtype(dtype).name, "workers": workers,
+            "start": start, "end": end, "months": max_months,
+            "resume": resume, "restart": restart,
+            "model_version": MODEL_VERSION,
+            "contract_version": CONTRACT_VERSION,
+            "lapse_rate": float(lapse), "resolution_m": int(res),
+            "n_cells": int(n_cells),
+            "origin": [float(origin[0]), float(origin[1])],
+            "relevance_km": tps.DEFAULT_RELEVANCE_KM,
+            "max_z_error": DEFAULT_MAX_Z_ERROR.get(variable),
+            "precip_method": precip_method if variable == "rainfall" else None,
+            "mar_smooth_km": mar_smooth_km if is_ratio else None,
+            "era_offset_dir": str(era_offset_dir) if era_offset_dir else None},
+        "fingerprint": fingerprint,
+        "code": {"digest": code, "git": _git_revision()},
+        "environment": _environment(),
+        "network": {"n_in_fit": int(len(stations)),
+                    "n_rejected": int(len(rejected)),
+                    "snapshot": "stations.csv"},
+        "window": {"first_month": "%04d-%02d" % all_keys[0],
+                   "last_month": "%04d-%02d" % all_keys[-1],
+                   "n_months": len(all_keys), "n_days": len(window_idx),
+                   "n_months_this_invocation": len(keys),
+                   "resumed_after": resumed_after},
+        "era_offset": era.meta if era else None})
+    write_station_snapshot(record.dir / "stations.csv", stations, values,
+                           window_idx, dates, rejected)
 
     done_offset = len(manifest)
     t_fit = t_proj = t_write = 0.0
@@ -528,6 +817,15 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
             # bordering wet ones. Rainfall cannot be negative, and a negative
             # would corrupt `sum` and `max_dry_spell` in opposite directions.
             np.maximum(block, 0.0, out=block)
+        if era is not None:
+            # THE point of this path. Correct every day, then reduce — so the
+            # threshold counts (frost_days, days_over_25/30) are counted against
+            # corrected temperatures and come out right by construction, instead
+            # of being unpublishable because a post-hoc shift cannot move a count.
+            #
+            # One field per CALENDAR month, so the whole block takes the same
+            # vector: a month never spans two fields.
+            block -= era.for_month(mo)[:, None]
         t_proj += time.perf_counter() - t0
 
         result = M.monthly_stats(block.astype(np.float32, copy=False), variable,
@@ -551,7 +849,8 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
                     "mar_smooth_km": mar_smooth_km,
                     "climatology": "LENZ/NZEnvDS total annual precipitation v1.0 "
                                    "(Landcare Research, CC BY 4.0)"}
-                   if is_ratio else {})}
+                   if is_ratio else {}),
+                **(era.tags() if era else {})}
         paths = {n: out_path(out, variable, y, mo, res, n) for n in result.bands}
         t0 = time.perf_counter()
         total_bytes += write_bands(result.bands, template, paths, tags, unit, workers)
@@ -591,7 +890,8 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
              "resolution_m": res, "model_version": MODEL_VERSION,
              "contract_version": CONTRACT_VERSION,
              "date_epoch": EPOCH.isoformat(),
-             "note": "*_day bands are days since date_epoch"}
+             "note": "*_day bands are days since date_epoch",
+             **(era.tags() if era else {})}
     total_bytes += write_bands(rec, template, rpaths, rtags, unit, workers)
 
     # `validation_stats.csv` was built up month by month, so read it back rather
@@ -603,6 +903,25 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
         "contract_version": CONTRACT_VERSION, "model_version": MODEL_VERSION,
         "resolution_m": res, "lapse_rate": lapse,
         "cv_units": "ratio" if is_ratio else unit,
+        **({"era_offset": {
+            **era.meta,
+            "stage": "applied to daily grid values before the monthly reduction",
+            "why": "a temperature offset cannot be applied to a day count, so "
+                   "correcting after the reduction leaves frost_days, "
+                   "first_frost_day, last_frost_day, days_over_25 and "
+                   "days_over_30 unpublishable for the corrected era",
+            "invariant_bands": ["sd", "argmin_day", "argmax_day"],
+            "invariant_note": "the field is constant per cell within a calendar "
+                              "month, so a dispersion and a day index cannot "
+                              "move. The one exception is an exact tie: about "
+                              "one cell in 1.4M per month has two days at the "
+                              "month's extreme within float32 epsilon, and the "
+                              "correction can pick the other one. The extreme "
+                              "VALUE is identical; only the index differs",
+            "note": "cv_rmse and every other fit statistic are UNCORRECTED by "
+                    "design — they measure the spline against its own stations, "
+                    "not the reconciliation between two networks"}}
+           if era else {}),
         **({"precip_method": precip_method,
             "climatology": {
                 "name": "LENZ/NZEnvDS Total annual precipitation v1.0",
@@ -642,11 +961,29 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
              stats["cv_rmse"].median(), stats["cv_rmse"].mean(),
              stats["cv_rmse"].quantile(0.9), stats["cv_rmse"].max())
 
+    # Copies `manifest.json` and `validation_stats.csv` in and stamps the record
+    # complete. From here the working copy is free to be overwritten by the next
+    # run; this directory is not.
+    record.close({
+        "n_months": len(manifest), "n_days_fitted": int(len(stats)),
+        "n_days_skipped": len(skipped), "bytes": int(total_bytes),
+        "cv_units": "ratio" if is_ratio else unit,
+        "cv_rmse": {"median": float(stats["cv_rmse"].median()),
+                    "mean": float(stats["cv_rmse"].mean()),
+                    "p90": float(stats["cv_rmse"].quantile(0.9)),
+                    "max": float(stats["cv_rmse"].max())},
+        "timings_s": {"fit": round(t_fit, 1), "project": round(t_proj, 1),
+                      "write": round(t_write, 1), "total": round(elapsed, 1)}})
+    log.info("[%s] run record complete: %s", variable, record.dir)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--variable", required=True, choices=sorted(UNITS))
+    ap.add_argument("--model-version", default=MODEL_VERSION,
+                    help="stamped into manifest + surface_run tags; use a DISTINCT "
+                         "value for DB-sourced live-era runs (default: %(default)s)")
     ap.add_argument("--inputs", default=str(DEFAULT_INPUTS))
     ap.add_argument("--out", default=str(DEFAULT_OUT))
     ap.add_argument("--grid", default=str(DEFAULT_GRID))
@@ -659,7 +996,9 @@ def main() -> int:
     g.add_argument("--resume", action="store_true",
                    help="continue from the last committed month")
     g.add_argument("--restart", action="store_true",
-                   help="discard any checkpoint and refit from the beginning")
+                   help="discard any checkpoint and refit from the beginning "
+                        "(the previous run's immutable record under _runs/ is "
+                        "not touched)")
     ap.add_argument("--precip-method",
                     choices=[PRECIP_METHOD_RATIO_LENZ, PRECIP_METHOD_RAW],
                     default=PRECIP_METHOD_RATIO_LENZ,
@@ -668,12 +1007,20 @@ def main() -> int:
                     help="low-pass applied to the LENZ climatology before it is "
                          "used as the covariate; 0 disables it and reprints the "
                          "raster's own fitting artefacts into every surface")
+    ap.add_argument("--era-offset", type=Path, default=None, metavar="DIR",
+                    help="directory of era_offset.py fields; subtracted from "
+                         "DAILY grid values before the monthly reduction, so the "
+                         "threshold counts are correct by construction. "
+                         "Temperature only, and requires a distinct "
+                         "--model-version")
     args = ap.parse_args()
 
+    _set_model_version(args.model_version)
     run(args.variable, Path(args.inputs), Path(args.out), Path(args.grid),
         getattr(np, args.dtype), args.start, args.end, args.workers, args.months,
         resume=args.resume, restart=args.restart,
-        precip_method=args.precip_method, mar_smooth_km=args.mar_smooth_km)
+        precip_method=args.precip_method, mar_smooth_km=args.mar_smooth_km,
+        era_offset_dir=args.era_offset)
     return 0
 
 

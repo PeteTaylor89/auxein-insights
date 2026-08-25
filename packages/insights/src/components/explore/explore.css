@@ -1,0 +1,650 @@
+/* components/explore/explore.css — the Explore page and the regional dashboard.
+   Phase 4 of docs/plans/COUNTRY_INDUSTRY_REGIONS_2026-08-24.md.
+
+   ONE stylesheet for the whole feature rather than seven. These components are
+   only ever used together and share a visual language — the block frame, the
+   figure, the muted note — and splitting them across files would mean the same
+   three rules defined seven times and drifting.
+
+   Tokens only. `--primary` is the olive; `--primary-rgb` exists because rgba()
+   cannot reference a colour token. No hex, no raw brand rgba.
+
+   Mobile-native: 44px minimum tap targets (48px on the primary control), native
+   scroll over JS sliders, nothing depends on hover. */
+
+/* ---------------------------------------------------------------- industry pills */
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pills--loading {
+  min-height: 44px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pill:hover { border-color: var(--border-strong); }
+
+.pill--on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.pill--on:hover { border-color: var(--primary-hover); background: var(--primary-hover); }
+
+.pill--pending { color: var(--text-faint); }
+
+.pill__tag {
+  padding: 0.05rem 0.35rem;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* --------------------------------------------------------------- region select */
+
+.regionsel { position: relative; }
+
+.regionsel__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* 48px: this is the page's primary control. */
+  min-height: 48px;
+  min-width: min(20rem, 100%);
+  padding: 0 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.regionsel__button:disabled { color: var(--text-faint); cursor: default; }
+.regionsel__label { flex: 1; text-align: left; }
+.regionsel__chev--open { transform: rotate(180deg); }
+
+.regionsel__menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  /* min-width beats max-width in CSS — a menu wider than its column spills out
+     of the card. Capped against the viewport for that reason. */
+  width: max(20rem, 100%);
+  max-width: calc(100vw - 2rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 24px rgb(var(--primary-rgb) / 0.14);
+}
+
+.regionsel__search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+}
+
+.regionsel__search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.regionsel__list {
+  /* Capped and scrolling, so opening the list never pushes the page. */
+  max-height: min(60vh, 24rem);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+}
+
+.regionsel__group + .regionsel__group { margin-top: 0.35rem; }
+
+.regionsel__group-name {
+  padding: 0.35rem 0.6rem 0.2rem;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.regionsel__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  background: transparent;
+  border: 0;
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.regionsel__item:hover { background: var(--surface-sunken); }
+.regionsel__item--on { color: var(--primary); font-weight: 600; }
+
+.regionsel__tag {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  background: var(--surface-sunken);
+  border-radius: var(--border-radius);
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.regionsel__empty {
+  padding: 0.9rem 0.7rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* -------------------------------------------------------------------- blocks */
+
+.dash {
+  display: grid;
+  gap: 1rem;
+}
+
+.block {
+  padding: 1.1rem 1.2rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+}
+
+.block--skeleton {
+  min-height: 12rem;
+  background: var(--surface-sunken);
+  animation: block-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes block-pulse { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .block--skeleton { animation: none; }
+}
+
+.block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.block__head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.block__head h2 svg { color: var(--primary); flex-shrink: 0; }
+
+.block__sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.block__toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.block__toggle button {
+  min-height: 34px;
+  padding: 0 0.65rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.block__toggle button.on {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* A block with nothing to show explains itself. This style is intentionally
+   quiet — an unavailable block is not an error, it is a region we do not model
+   yet, and shouting about it on ten of 23 regions would read as a broken site. */
+.block__absent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.9rem;
+  background: var(--surface-sunken);
+  border-radius: var(--border-radius);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.block__absent svg { flex-shrink: 0; margin-top: 0.15rem; }
+
+.block__absent--error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+}
+
+/* The pre-season state. Louder than `absent` because it is an answer rather
+   than an absence — the season starts on a date and that date is the content. */
+.block__pending {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: var(--surface-sunken);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--border-radius);
+}
+
+.block__pending svg { color: var(--primary); flex-shrink: 0; margin-top: 0.1rem; }
+.block__pending strong { display: block; color: var(--text); font-size: 0.95rem; }
+.block__pending span { color: var(--text-muted); font-size: 0.85rem; }
+
+.block__note {
+  margin: 0.7rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.block__note--quiet { color: var(--text-faint); }
+.block__note svg { vertical-align: -1px; }
+
+/* Wide content scrolls inside its own container. The page body must never
+   scroll horizontally. */
+.block__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.block__chart { height: 320px; }
+.block__chart--short { height: 240px; }
+
+/* -------------------------------------------------------------------- tables */
+
+.ph, .totals {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ph th, .ph td, .totals th, .totals td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ph thead th, .totals thead th {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ph tbody th, .totals tbody th { color: var(--text); font-weight: 600; }
+.ph tbody tr:last-child td, .totals tbody tr:last-child td { border-bottom: 0; }
+
+.ph__num, .totals .ph__num { text-align: right; font-variant-numeric: tabular-nums; }
+.ph__num small, .totals small { color: var(--text-faint); font-size: 0.75rem; }
+
+.ph__stage { color: var(--text-muted); text-transform: capitalize; }
+.ph__cell--withheld { color: var(--text-faint); }
+
+.ph__cell--actual {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.ph__cell--actual svg { vertical-align: -2px; margin-left: 0.2rem; }
+
+.totals { margin-top: 1rem; }
+
+/* ------------------------------------------------------------------- disease */
+
+.disease__now {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.risk { display: inline-flex; align-items: center; gap: 0.4rem; }
+.risk strong { color: var(--text); text-transform: capitalize; }
+.risk--high strong, .risk--extreme strong { color: var(--terracotta); }
+
+.risk i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------- figures */
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.9rem;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--surface-sunken);
+  border-radius: var(--border-radius);
+}
+
+.figure__label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.figure__value {
+  color: var(--text);
+  font-size: 1.45rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.figure__value small { color: var(--text-faint); font-size: 0.8rem; font-weight: 400; }
+.figure__value--delta { color: var(--primary); }
+
+.figure__sub { color: var(--text-faint); font-size: 0.72rem; }
+
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* `direction` says which way is good for a grower. Colour only — it never
+   hides or reorders a number. */
+.trend--good { color: var(--primary); }
+.trend--bad { color: var(--terracotta); }
+.trend--neutral, .trend--flat, .trend--none { color: var(--text-faint); }
+
+/* ------------------------------------------------------------- explore layout */
+
+.explore-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 26px 24px 40px;
+}
+
+.explore-head { margin-bottom: 1.1rem; }
+
+.explore-head h1 {
+  margin: 0 0 0.35rem;
+  color: var(--text);
+  font-size: var(--font-2xl);
+}
+
+.explore-head p {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--text-muted);
+}
+
+.explore-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.1rem 0 1.4rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.explore-controls .regionsel { margin-left: auto; }
+
+.explore-pending {
+  padding: 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  color: var(--text-muted);
+}
+
+.explore-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.8rem;
+  color: var(--text-muted);
+  font-size: 0.87rem;
+  text-decoration: none;
+}
+
+.explore-back:hover { color: var(--primary); }
+
+.explore-full {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.explore-full:hover { border-color: var(--primary); color: var(--primary); }
+
+@media (max-width: 700px) {
+  .explore-main { padding: 20px 16px 32px; }
+  .explore-head h1 { font-size: var(--font-xl); }
+  .explore-controls { flex-direction: column; align-items: stretch; }
+  .explore-controls .regionsel { margin-left: 0; }
+  .regionsel__button { width: 100%; }
+  .block { padding: 0.95rem 0.9rem 1rem; }
+  .block__chart { height: 260px; }
+  .block__chart--short { height: 210px; }
+  .block__toggle { margin-left: 0; width: 100%; }
+  .block__toggle button { flex: 1; }
+}
+
+/* The "annual" marker on a projection figure whose band has no growing-season
+   arm. Quiet on purpose — it is a qualifier, not a warning. */
+.figure__season {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-faint);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* --- region pills (2026-08-24) ----------------------------------------
+   Replaced the tile grid on the Explore page. 23 regions as tiles ran four
+   rows deep and pushed most of the choices below the fold; as pills they fit
+   in roughly the space four tiles used to occupy. */
+
+.regions-group--pills { margin-bottom: 1.1rem; }
+
+.regions-group--pills h2 {
+  margin: 0 0 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.regionpills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.regionpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  /* 36px rather than the usual 44px minimum. These sit in a dense wrapped
+     field where 44px would undo the compaction that is the whole point, and
+     every one of them is also reachable from the dropdown above, which IS
+     48px. */
+  min-height: 36px;
+  padding: 0 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.regionpill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.regionpill svg { color: var(--text-faint); flex-shrink: 0; }
+.regionpill:hover svg { color: var(--primary); }
+
+/* A region with no live season is still worth visiting — it has history and
+   projections — so it is dimmed, never hidden or disabled. Same distinction
+   the dropdown and the map both make. */
+.regionpill--quiet { color: var(--text-muted); }
+.regionpill--quiet:hover { color: var(--primary); }
+
+.regionpill--skeleton {
+  width: 7rem;
+  border-color: transparent;
+  background: var(--surface-sunken);
+  animation: block-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .regionpill--skeleton { animation: none; }
+}
+
+/* --- free tier: recent conditions + locked blocks (2026-08-24) --------- */
+
+.recent__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin-bottom: 0.8rem;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.recent__summary span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.recent__summary strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.recent__summary svg { color: var(--primary); }
+
+/* A paid block. Deliberately not a grey blur over fake numbers — it states
+   what is behind it and offers the way in. An upsell that will not say what it
+   is selling reads as a broken page. */
+.locked {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--terracotta);
+  border-radius: var(--border-radius);
+}
+
+.locked > svg { color: var(--terracotta); flex-shrink: 0; margin-top: 0.1rem; }
+.locked > div { flex: 1; min-width: 0; }
+.locked strong { display: block; color: var(--text); font-size: var(--font-md); }
+
+.locked span {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: var(--font-base);
+  line-height: 1.5;
+}
+
+.locked__cta {
+  flex-shrink: 0;
+  align-self: center;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.9rem;
+  background: var(--primary);
+  border-radius: var(--border-radius);
+  color: #fff;
+  font-size: var(--font-base);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.locked__cta:hover { background: var(--primary-hover); }
+
+@media (max-width: 620px) {
+  .locked { flex-wrap: wrap; }
+  .locked__cta { width: 100%; justify-content: center; }
+}

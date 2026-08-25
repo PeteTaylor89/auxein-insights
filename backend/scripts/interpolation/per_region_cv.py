@@ -30,7 +30,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -41,15 +41,24 @@ from scripts.interpolation import tps                                  # noqa: E
 from scripts.interpolation.run_history import (LAPSE, UNITS, DEFAULT_INPUTS,  # noqa: E402
                                                DEFAULT_GRID, LENZ_MAR,
                                                PRECIP_METHOD_RATIO_LENZ,
-                                               load_inputs, load_mar)
+                                               load_inputs, load_mar,
+                                               open_climatology)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                     datefmt="%H:%M:%S")
+from scripts.interpolation.runrecord import (             # noqa: E402
+    RunRecord, _code_digest, _environment, _git_revision)
+
 log = logging.getLogger("perregion")
 logging.getLogger("tps").setLevel(logging.ERROR)      # silence per-fit GCV chatter
 
 REPO = Path(__file__).resolve().parents[3]
 OUT_DIR = REPO / "scratchpad" / "per_region_cv"
+
+# Hashed into every run record. This measures the production fit, so the whole
+# estimator is in scope — a per-zone cv_rmse means nothing without it.
+CODE_MODULES = ("per_region_cv.py", "tps.py", "run_history.py",
+                "fastgrid.py", "raster.py")
 
 
 def sample_days(dates: list, per_month: int) -> list:
@@ -90,8 +99,23 @@ def collect_residuals(variable: str, inputs: Path, origin: tuple,
 
     mar = None
     if is_ratio:
-        mar = load_mar(stations["latitude"].to_numpy(float),
-                       stations["longitude"].to_numpy(float), "station")
+        # STATION MAR, and therefore UNSMOOTHED — `smooth_km=0`. The 3 km
+        # low-pass belongs to the GRID multiplier only; applying it here would
+        # raise station MAR ~3% (gauges sit in sheltered, locally dry spots, so
+        # a low-pass pulls each one up toward its wetter surroundings) and every
+        # residual would be divided by the wrong denominator.
+        #
+        # This call lost its `clim` argument when `open_climatology` was
+        # introduced with the LENZ conditioning on 2026-08-17, so the rainfall
+        # arm had been raising TypeError ever since — which is why rainfall was
+        # never among the variables anyone had run.
+        clim = open_climatology(0.0)
+        try:
+            mar = load_mar(stations["latitude"].to_numpy(float),
+                           stations["longitude"].to_numpy(float),
+                           "station", clim)
+        finally:
+            clim.close()
 
     sid = stations["station_id"].to_numpy()
     lat = stations["latitude"].to_numpy(float)
@@ -247,7 +271,27 @@ def main() -> int:
     origin = grid_origin(Path(args.grid))
     log.info("projection origin %.5f, %.5f (grid centroid, matches production)", *origin)
 
-    for variable in args.variables.split(","):
+    # A re-run replaced `<var>_residuals.csv` and `<var>_by_region.csv` in
+    # place, and these are the numbers a per-zone confidence figure quotes.
+    # Comparing two measurements needs both to still exist.
+    wanted = [v.strip() for v in args.variables.split(",") if v.strip()]
+    record = RunRecord(OUT_DIR)
+    record.open({
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "engine": "per_region_cv", "argv": sys.argv,
+        "parameters": {"variables": wanted, "inputs": str(args.inputs),
+                       "grid": str(args.grid), "per_month": args.per_month,
+                       # 20 km was a first pass and is still not decided; a
+                       # figure quoted without it is not interpretable.
+                       "buffer_km": args.buffer_km,
+                       "origin": [float(origin[0]), float(origin[1])]},
+        "sources": {"inputs": str(args.inputs),
+                    "zones": "backend/data/Climate_Zones/*.shp"},
+        "code": {"digest": _code_digest(CODE_MODULES), "git": _git_revision()},
+        "environment": _environment()})
+    summary = {}
+
+    for variable in wanted:
         variable = variable.strip()
         unit = "mm" if variable == "rainfall" else UNITS[variable]
         resid = collect_residuals(variable, Path(args.inputs), origin, args.per_month)
@@ -259,13 +303,22 @@ def main() -> int:
         table.to_csv(OUT_DIR / f"{variable}_by_region.csv", index=False)
 
         natl = table.loc[table.region.str.startswith("NATIONAL"), "rmse"].iloc[0]
+        summary[variable] = {
+            "unit": unit, "national_rmse": float(natl),
+            "n_zones": int(len(table)),
+            "n_station_days": int(table["n_station_days"].sum()),
+            "worst_zone": str(table.loc[table["rmse"].idxmax(), "region"]),
+            "best_zone": str(table.loc[table["rmse"].idxmin(), "region"])}
         print(f"\n=== {variable} ({unit}) — CV RMSE by wine GI ===")
         print(f"{'region':<34}{'stns':>5}{'st-days':>9}{'rmse':>9}{'vs natl':>9}"
               f"{'bias':>9}")
         for r in table.itertuples():
             print(f"{r.region:<34}{r.n_stations:>5}{r.n_station_days:>9}"
                   f"{r.rmse:>9.3f}{100*(r.rmse/natl-1):>+8.0f}%{r.bias:>9.3f}")
+    record.close(summary, copy=tuple(
+        f"{v}_{kind}.csv" for v in summary for kind in ("residuals", "by_region")))
     print(f"\nwritten to {OUT_DIR}")
+    print(f"run record {record.dir}")
     return 0
 
 

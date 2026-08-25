@@ -39,15 +39,13 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-play-service-account.json",
         "track": "internal",
         "releaseStatus": "draft",
         "changesNotSentForReview": false
       },
       "ios": {
         "appleId": "pete.taylor@auxein.co.nz",
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+        "ascAppId": "6774847550"
       }
     }
   }

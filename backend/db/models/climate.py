@@ -63,12 +63,21 @@ class ClimateZone(Base):
     zone_level = Column(String(20), nullable=False, server_default='region')
     country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
 
+    # Which primary industry this zone belongs to (`country_industry_dim`).
+    # A plain FK, not a join table: a kiwifruit zone is a DIFFERENT polygon from
+    # the wine zone of the same name, because zones are block-intersected
+    # against that industry's own plantings. So a second industry means new rows
+    # here, never a sharing of these ones.
+    industry_id = Column(Integer, ForeignKey('industries.id'), nullable=False,
+                         server_default='1')
+
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Relationships
     region = relationship("WineRegion", backref="climate_zones")
+    industry = relationship("Industry", foreign_keys=[industry_id])
     parent_zone = relationship("ClimateZone", remote_side=[id], backref="sub_zones")
     country = relationship("Country", foreign_keys=[country_id])
     history = relationship("ClimateHistoryMonthly", back_populates="zone", cascade="all, delete-orphan")
@@ -289,6 +298,71 @@ class ClimateProjection(Base):
             '2080_2099': 'End of century (2080-2099)',
         }
         return names.get(self.period, self.period)
+
+
+class ClimateHistoryMonthlySurface(Base):
+    """`climate_history_monthly`, rebuilt from the surface archive.
+
+    A VIEW, created by the `history_surface_view` migration, presenting
+    `climate_zone_surface_monthly` in the exact column shape of
+    `ClimateHistoryMonthly`. That is the whole trick: the two public history
+    endpoints keep their filtering and grouping verbatim and swap one model
+    reference, so "the same level of detail" is checkable rather than hoped for.
+
+    **Read-only.** Nothing writes here; `aggregate_zone_monthly.py` fills the
+    table underneath. The old `climate_history_monthly` is left alone and still
+    records what the pre-surface pipeline produced.
+
+    Two differences from the table it stands in for, both deliberate:
+
+    * `solar_*` is always NULL — the surfaces do not carry solar radiation, and
+      nothing renders it.
+    * `*_sd` is DERIVED from `(p90 - p10) / 2.5631`, the normal-distribution
+      relationship. Fair for the symmetric fields, and it understates the upper
+      tail for rainfall and frost days, which are skewed and bounded at zero.
+      The real spread is exposed as `*_p10` / `*_p90`; prefer those.
+
+    The primary key is synthetic (`zone_id * 1e6 + year * 100 + month`) because
+    SQLAlchemy needs one to map a row and the view has no natural surrogate.
+    """
+    __tablename__ = "climate_history_monthly_surface"
+
+    id = Column(BigInteger, primary_key=True)
+    zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    month = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)
+    vintage_year = Column(Integer, nullable=False)
+
+    tmean_mean = Column(Numeric)
+    tmean_sd = Column(Numeric)
+    tmin_mean = Column(Numeric)
+    tmin_sd = Column(Numeric)
+    tmax_mean = Column(Numeric)
+    tmax_sd = Column(Numeric)
+    gdd_mean = Column(Numeric)
+    gdd_sd = Column(Numeric)
+    rain_mean = Column(Numeric)
+    rain_sd = Column(Numeric)
+    rx1day_mean = Column(Numeric)
+    rx1day_sd = Column(Numeric)
+    frost_days_mean = Column(Numeric)
+    frost_days_sd = Column(Numeric)
+    solar_mean = Column(Numeric)
+    solar_sd = Column(Numeric)
+
+    # The honest spatial spread over planted cells, for anything that would
+    # rather not inherit the normal assumption baked into `*_sd`.
+    tmean_p10 = Column(Numeric)
+    tmean_p90 = Column(Numeric)
+    gdd_p10 = Column(Numeric)
+    gdd_p90 = Column(Numeric)
+    rain_p10 = Column(Numeric)
+    rain_p90 = Column(Numeric)
+
+    def __repr__(self):
+        return (f"<ClimateHistoryMonthlySurface(zone_id={self.zone_id}, "
+                f"{self.year}-{self.month:02d})>")
 
 
 class ClimateZoneSeasonStats(Base):

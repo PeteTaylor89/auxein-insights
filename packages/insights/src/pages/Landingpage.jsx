@@ -22,10 +22,15 @@ import SiteBanner from '../components/SiteBanner';
 import SiteHeader from '../components/SiteHeader';
 import SiteFooter from '../components/SiteFooter';
 import NationalPulse from '../components/home/NationalPulse';
-import RegionLauncher from '../components/home/RegionLauncher';
+import RegionMap from '../components/home/RegionMap';
+import IndustryPills from '../components/explore/IndustryPills';
+import ProTeaser from '../components/home/ProTeaser';
 import ArticleShowcase from '../components/home/ArticleShowcase';
 import { MiniSurfaceMap } from '../components/surfaces';
 import articleService from '../services/articleService';
+import {
+  useCountryIndustry, readScopeHint, DEFAULT_COUNTRY, DEFAULT_INDUSTRY,
+} from '../contexts/CountryIndustryContext';
 
 // Old deep links opened an explorer inside the landing page:
 //   /?view=phenology&zone=marlborough
@@ -37,6 +42,20 @@ const VIEW_DEEP_LINKS = [
 ];
 
 function LandingPage() {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
+  // The hero's own scope. `/` carries no country or industry in the URL and is
+  // deliberately left that way, so the map and the pills share local state
+  // seeded from wherever this visitor last was. A region click then navigates
+  // to the full `/{country}/{industry}/{slug}`, which IS scoped.
+  const heroHint = readScopeHint();
+  const [heroCountry] = useState(heroHint?.country || DEFAULT_COUNTRY);
+  const [heroIndustry, setHeroIndustry] = useState(
+    heroHint?.industry || DEFAULT_INDUSTRY);
+
   const navigate = useNavigate();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authContext, setAuthContext] = useState('');
@@ -56,8 +75,8 @@ function LandingPage() {
     // through to the region index instead of 404ing on an empty slug.
     if (!deepLinkView || !VIEW_DEEP_LINKS.includes(deepLinkView)) return;
     const target = deepLinkZone
-      ? `/regions/${deepLinkZone}?view=${deepLinkView}`
-      : '/regions';
+      ? `${path(deepLinkZone)}?view=${deepLinkView}`
+      : path();
     navigate(target, { replace: true });
   }, [deepLinkView, deepLinkZone, navigate]);
 
@@ -122,17 +141,43 @@ function LandingPage() {
 
           <p>
             <b>Climate history</b>, projections, current season development, and pressures -
-            by region or specific to your site. Built on over 1,000 weather stations
+            by region or specific to your site. Built on over 900 weather stations
             feeding data to Insights.
           </p>
         </div>
 
+        {/* Three even columns (2026-08-24): pick a region, see the headlines
+            and the Pro offer, see the product. It replaced a two-column row
+            whose left side held a dropdown and whose stats strip ran full
+            width above it.
+
+            RegionLauncher is gone from here. It navigated with `navigate()`,
+            so the landing page contained NO crawlable link to any region — the
+            site's strongest organic-search URLs were invisible from its
+            busiest page. Every region on the map is a real `<a href>`. The
+            dropdown still exists on the Explore page, where a returning
+            grower who knows their region wants it. */}
         <div className="home-hero__grid">
-          <div className="home-hero__stats">
-            <NationalPulse />
-            <RegionLauncher />
+          <div className="home-hero__col home-hero__col--regions">
+            {/* The picker sits with the map because it decides what the map
+                shows. `/` is unscoped and must stay that way — a redirect here
+                would drop the `#insights_sso=` fragment Grow arrives with — so
+                the industry is LOCAL state and only a region click navigates
+                to a real scoped URL. */}
+            <IndustryPills value={heroIndustry} onSelect={setHeroIndustry} />
+            <RegionMap
+              country={heroCountry}
+              industry={heroIndustry}
+              title="Choose your region"
+            />
           </div>
-          <div className="home-hero__map">
+
+          <div className="home-hero__col home-hero__col--offer">
+            <NationalPulse compact limit={3} />
+            <ProTeaser />
+          </div>
+
+          <div className="home-hero__col home-hero__col--map">
             <MiniSurfaceMap variable="temp_mean" />
           </div>
         </div>

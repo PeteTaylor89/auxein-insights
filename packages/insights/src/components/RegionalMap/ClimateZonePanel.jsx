@@ -11,6 +11,7 @@ import {
   formatMetricValue,
 } from '../../services/publicClimateService';
 import { getZonesWithData } from '../../services/realtimeClimateService';
+import { useCountryIndustry } from '../../contexts/CountryIndustryContext';
 
 const SSP_LABELS = {
   SSP126: { label: 'Low emissions', color: '#22c55e', desc: 'SSP1-2.6 — Strong climate action, rapid emissions cuts' },
@@ -59,6 +60,11 @@ function MonthBar({ month, onHover, onLeave }) {
 }
 
 function ClimateZonePanel({ zone, onClose }) {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   const navigate = useNavigate();
   const [baselineData, setBaselineData] = useState(null);
   const [projectionsData, setProjectionsData] = useState(null);
@@ -104,7 +110,7 @@ function ClimateZonePanel({ zone, onClose }) {
     // The explorers moved off the landing page to /regions/:slug (2026-08-13).
     // The old `/?view=…&zone=…` form still forwards here, but linking straight
     // to the destination avoids a pointless redirect hop.
-    navigate(`/regions/${zone.slug}?view=climatehistory`);
+    navigate(`${path(zone.slug)}?view=climatehistory`);
   };
 
   const handleTooltip = (month, e) => {

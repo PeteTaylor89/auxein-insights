@@ -45,6 +45,16 @@ const VARIANTS = {
 //                           mis-identified if someone forgets the env block
 //   3. 'development'      — no EAS build and no override means local Metro, which
 //                           must match the installed dev client, NOT production
+//
+// SUBMIT TRAP: EAS_BUILD_PROFILE is set by EAS Build on the SERVER only. Local
+// commands that resolve this config — `eas submit` above all — see neither var
+// and fall through to 'development', so they ask the stores about
+// nz.co.auxein.grow.dev, which is not a listing on either. The build artifact
+// is correct; only the lookup is wrong. Always prefix:
+//   $env:APP_VARIANT='production'   (PowerShell)
+//   APP_VARIANT=production           (bash)
+// before `eas submit`, and submit by --id, not --latest (--latest ignores the
+// profile and will happily push a development build).
 const VARIANT =
   process.env.APP_VARIANT || process.env.EAS_BUILD_PROFILE || 'development';
 

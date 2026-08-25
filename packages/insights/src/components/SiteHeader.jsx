@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { User, LogOut, Settings, Shield, Menu, X } from 'lucide-react';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
+import { useCountryIndustry, readScopeHint, scopePath, DEFAULT_COUNTRY, DEFAULT_INDUSTRY } from '../contexts/CountryIndustryContext';
+import CountrySwitcher from './scope/CountrySwitcher';
 import UserPreferencesModal from './auth/UserPreferencesModal';
 import MainLogo from '../assets/logo-mark.png';
 import './SiteHeader.css';
@@ -58,6 +60,20 @@ function SiteHeader({ onSignInClick }) {
   // fully entitled, so that comparison silently hides the nav from paying
   // customers — the exact failure `core/entitlements.py` exists to prevent.
   const isProUser = isAuthenticated && user?.is_pro;
+
+  // Where "Explore" points. The header renders on scoped and unscoped pages
+  // alike, so this resolves in three steps: the scope of the page we are on,
+  // then the scope this visitor last chose, then New Zealand wine.
+  //
+  // The remembered scope is read HERE and not used to redirect `/`. Redirecting
+  // the landing page would drop the `#insights_sso=` fragment Grow opens the
+  // site with, and would put a redirect on the highest-value URL on the domain.
+  const { isScoped, country, industry } = useCountryIndustry();
+  const hint = readScopeHint();
+  const exploreHref = isScoped
+    ? scopePath(country, industry)
+    : scopePath(hint?.country || DEFAULT_COUNTRY,
+                hint?.industry || DEFAULT_INDUSTRY);
 
   // Detect mobile viewport
   useEffect(() => {
@@ -117,17 +133,28 @@ function SiteHeader({ onSignInClick }) {
           {/* Desktop Navigation — content-led and flat (site map §3, Option A).
               The off-site auxein.co.nz links moved to SiteFooter: primary nav
               should navigate the product, and /map and /research were both
-              missing from it entirely. `Regions` joins when /regions ships. */}
+              missing from it entirely.
+
+              "Regions" became "Explore" when the page gained industry pills:
+              it is no longer a list of wine regions, and the label has to keep
+              working for every future country and industry. The target is the
+              CURRENT scope when there is one, otherwise the scope this visitor
+              last used, otherwise New Zealand wine. */}
           <nav className="header-nav desktop-nav">
             <Link to="/">Home</Link>
             <Link to="/map">Atlas</Link>
-            <Link to="/regions">Regions</Link>
+            <Link to={exploreHref}>Explore</Link>
             <Link to="/articles">Articles</Link>
             <Link to="/research">Research</Link>
             {/* Pro only. The page is reachable by anyone and explains itself,
                 but putting it in the nav for people who cannot use it turns
                 primary navigation into an advertisement. */}
             {isProUser && <Link to="/my-site">My Site</Link>}
+
+            {/* Renders nothing at all while only one country has data, so this
+                is invisible today and appears on its own the moment a second
+                country goes active. No code change needed for that. */}
+            <CountrySwitcher />
 
             {isAdmin && (
               <Link to="/admin" className="admin-header-link">
@@ -198,7 +225,8 @@ function SiteHeader({ onSignInClick }) {
 
             <Link to="/" onClick={closeMobileMenu}>Home</Link>
             <Link to="/map" onClick={closeMobileMenu}>Atlas</Link>
-            <Link to="/regions" onClick={closeMobileMenu}>Regions</Link>
+            <Link to={exploreHref} onClick={closeMobileMenu}>Explore</Link>
+            <CountrySwitcher className="mobile-nav__country" />
             <Link to="/articles" onClick={closeMobileMenu}>Articles</Link>
             <Link to="/research" onClick={closeMobileMenu}>Research</Link>
             {isProUser && (

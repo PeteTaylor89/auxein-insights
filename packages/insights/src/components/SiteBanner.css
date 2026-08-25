@@ -25,23 +25,45 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid rgba(91, 104, 48, 0.2);
-  background: white;
-  color: #5B6830;
+  /* A 20%-alpha olive ring on white was very nearly invisible, so the carousel
+     read as static. Same size, a real edge and a resting shadow. */
+  border: 1px solid var(--border-strong);
+  background: var(--white);
+  color: var(--olive);
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(47, 47, 47, 0.06);
   transition: all 0.2s;
 }
 
 .banner-arrow:hover {
-  background: #5B6830;
-  color: white;
-  border-color: #5B6830;
+  background: var(--olive);
+  color: var(--white);
+  border-color: var(--olive);
 }
 
 /* ============================================
    BANNER CARD
    ============================================ */
 
+/* PROMINENCE WITHOUT SIZE.
+   The brief was more prominent, NOT larger — so every lever here is contrast,
+   hierarchy or weight. Padding, gap, icon size and the type ramp are untouched,
+   and the card's height is still governed by the 32px icon rather than by its
+   text, so none of this grows it.
+
+   What it was: #FDF6E3 cream on a white page behind a 1px 20%-alpha rule, one
+   undifferentiated run of text, and elevation only on hover. Cream on white is
+   almost no contrast at all, which is most of why it receded into the header.
+
+   Three changes, in order of how much they do:
+     1. a 4px left accent rule in the banner's own type colour. This is already
+        the site's call-out pattern (`.map-cta-card` on the landing page), and
+        with the global `box-sizing: border-box` it costs nothing in height and
+        3px of inner width.
+     2. the icon chip goes solid instead of an 8% wash — one small saturated
+        block is what gives a flat card a focal point.
+     3. elevation AT REST. A hover-only shadow means the state every reader
+        actually sees is the flat one. */
 .site-banner {
   position: relative;
   flex: 1;
@@ -50,24 +72,26 @@
   gap: 14px;
   padding: 14px 20px;
   border-radius: 10px;
-  font-size: 14px;
-  background: #FDF6E3;
-  border: 1px solid rgba(91, 104, 48, 0.2);
-  color: #2F2F2F;
+  font-size: var(--font-base);
+  background: var(--card-bg);
+  border: 1px solid rgb(var(--olive-rgb) / 0.28);
+  border-left: 4px solid var(--olive);
+  color: var(--charcoal);
   cursor: pointer;
-  transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.2s ease;
+  box-shadow: 0 1px 2px rgba(47, 47, 47, 0.05), 0 3px 10px rgba(47, 47, 47, 0.06);
+  transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.2s ease,
+              border-color 0.2s ease;
+}
+
+/* `border-color` covers all four edges, so the left accent is restated after
+   it. Reversing these two lines silently drops the accent back to a tint. */
+.site-banner-coming_soon {
+  border-color: rgb(var(--terracotta-rgb) / 0.28);
+  border-left-color: var(--terracotta);
 }
 
 .site-banner:hover {
-  box-shadow: 0 2px 8px rgba(91, 104, 48, 0.12);
-}
-
-.site-banner-update .banner-icon {
-  color: #5B6830;
-}
-
-.site-banner-coming_soon .banner-icon {
-  color: #D1583B;
+  box-shadow: 0 2px 4px rgba(47, 47, 47, 0.07), 0 8px 20px rgba(47, 47, 47, 0.10);
 }
 
 .banner-icon {
@@ -78,11 +102,12 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: rgba(91, 104, 48, 0.08);
+  background: var(--olive);
+  color: var(--white);
 }
 
 .site-banner-coming_soon .banner-icon {
-  background: rgba(209, 88, 59, 0.08);
+  background: var(--terracotta);
 }
 
 /* ============================================
@@ -98,20 +123,32 @@
   min-width: 0;
 }
 
+/* The title used to be bigger AND bolder AND coloured — three signals for one
+   distinction, which is what made it read as shouty rather than authoritative,
+   while the message itself sat smaller and greyer than the heading above it.
+   Now both are var(--font-base) and the difference is weight and colour alone.
+   The type is carried by the accent rule and the icon, which do it better than
+   olive text on cream ever did, and dropping the colour here is also what makes
+   the title properly legible. */
 .banner-title {
   font-weight: 700;
-  font-size: 15px;
-  color: #5B6830;
+  font-size: var(--font-base);
+  color: var(--charcoal);
 }
 
-.site-banner-coming_soon .banner-title {
-  color: #D1583B;
-}
+/* The message is the reason the banner exists, so it is no longer the least
+   prominent thing in it: 13px --text-light becomes 14px --text.
 
+   THE LINE-HEIGHT IS DOING REAL WORK — do not restore it to 1.5. A single-line
+   banner is sized by the 32px icon and would not have grown either way, but
+   `-webkit-line-clamp: 2` lets a long message run to two lines, and there the
+   card is sized by the text. 13px x 1.5 = 19.5px per line; 14px x 1.4 = 19.6px.
+   So the type gets a point larger at the same height in BOTH cases, which is
+   the whole "more prominent, not larger" constraint in one number. */
 .banner-text {
-  color: #505050;
-  line-height: 1.5;
-  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+  font-size: var(--font-base);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -134,7 +171,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(91, 104, 48, 0.2);
+  background: rgb(var(--olive-rgb) / 0.3);
   border: none;
   padding: 0;
   cursor: pointer;
@@ -142,7 +179,7 @@
 }
 
 .banner-dot.active {
-  background: #5B6830;
+  background: var(--olive);
   transform: scale(1.4);
 }
 
@@ -191,7 +228,7 @@
 
 .banner-modal {
   position: relative;
-  background: white;
+  background: var(--white);
   border-radius: 16px;
   max-width: 520px;
   width: 100%;
@@ -211,7 +248,7 @@
   right: 12px;
   background: none;
   border: none;
-  color: #999;
+  color: var(--text-faint);
   cursor: pointer;
   padding: 6px;
   border-radius: 50%;
@@ -221,8 +258,8 @@
 }
 
 .banner-modal-close:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface);
+  color: var(--charcoal);
 }
 
 .banner-modal-icon {
@@ -236,34 +273,34 @@
 }
 
 .banner-modal-icon-update {
-  background: rgba(91, 104, 48, 0.1);
-  color: #5B6830;
+  background: rgb(var(--olive-rgb) / 0.1);
+  color: var(--olive);
 }
 
 .banner-modal-icon-coming_soon {
-  background: rgba(209, 88, 59, 0.1);
-  color: #D1583B;
+  background: rgb(var(--terracotta-rgb) / 0.1);
+  color: var(--terracotta);
 }
 
 .banner-modal-title {
   margin: 0 0 12px 0;
-  font-size: 20px;
+  font-size: var(--font-xl);
   font-weight: 700;
 }
 
 .banner-modal-title-update {
-  color: #5B6830;
+  color: var(--olive);
 }
 
 .banner-modal-title-coming_soon {
-  color: #D1583B;
+  color: var(--terracotta);
 }
 
 .banner-modal-content {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-md);
   line-height: 1.7;
-  color: #505050;
+  color: var(--text-light);
 }
 
 /* ============================================
@@ -278,7 +315,7 @@
   }
 
   .site-banner {
-    font-size: 13px;
+    font-size: var(--font-sm);
     padding: 12px 14px;
     gap: 10px;
   }
@@ -293,12 +330,8 @@
     gap: 2px;
   }
 
-  .banner-title {
-    font-size: 14px;
-  }
-
   .banner-text {
-    font-size: 12px;
+    font-size: var(--font-xs);
     -webkit-line-clamp: 2;
   }
 
@@ -323,10 +356,10 @@
   }
 
   .banner-modal-title {
-    font-size: 18px;
+    font-size: var(--font-lg);
   }
 
   .banner-modal-content {
-    font-size: 14px;
+    font-size: var(--font-base);
   }
 }

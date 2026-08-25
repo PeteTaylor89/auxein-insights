@@ -107,15 +107,37 @@ const ProjectionsExplorer = ({ zone }) => {
       }
     };
 
-    const baselineData = sortedMonthly.map(m => getValue(m, 'baseline'));
-    const projectedData = sortedMonthly.map(m => getValue(m, 'projected'));
+    // GDD IS CUMULATIVE (2026-08-24). Growing degree days are read as a season
+    // accumulation — "where will this region be by veraison" — and a bar per
+    // month answers a question nobody asks. `sortedMonthly` is already in
+    // growing-season order, so a running sum over it IS the season curve.
+    //
+    // Only GDD. Temperature is a level and cannot be accumulated; rainfall
+    // could be, but the monthly pattern is what a grower reads it for — a wet
+    // February matters differently from a wet October.
+    const accumulate = (series) => {
+      let run = 0;
+      return series.map((v) => {
+        if (v === null || v === undefined) return null;
+        run += Number(v);
+        return run;
+      });
+    };
+
+    const rawBaseline = sortedMonthly.map(m => getValue(m, 'baseline'));
+    const rawProjected = sortedMonthly.map(m => getValue(m, 'projected'));
+    const isCumulative = chartMetric === 'gdd';
+    const baselineData = isCumulative ? accumulate(rawBaseline) : rawBaseline;
+    const projectedData = isCumulative ? accumulate(rawProjected) : rawProjected;
     const sdData = sortedMonthly.map(m => getSD(m));
 
     const sspColor = SSP_SCENARIOS[selectedSSP]?.color || '#3B82F6';
 
     const datasets = [
       {
-        label: 'Baseline (1986-2005)',
+        label: isCumulative
+          ? 'Baseline (1986-2005), cumulative'
+          : 'Baseline (1986-2005)',
         data: baselineData,
         borderColor: '#9CA3AF',
         backgroundColor: 'transparent',
@@ -155,7 +177,8 @@ const ProjectionsExplorer = ({ zone }) => {
 
     // Main projected line
     datasets.push({
-      label: `Projected (${PROJECTION_PERIODS[selectedPeriod]?.label})`,
+      label: `Projected (${PROJECTION_PERIODS[selectedPeriod]?.label})`
+        + (isCumulative ? ', cumulative' : ''),
       data: projectedData,
       borderColor: sspColor,
       backgroundColor: chartMetric === 'rain' ? `${sspColor}40` : sspColor,
@@ -207,8 +230,12 @@ const ProjectionsExplorer = ({ zone }) => {
         beginAtZero: chartMetric === 'rain' || chartMetric === 'gdd',
         title: {
           display: true,
+          // GDD is drawn as a season accumulation, so the axis has to say so
+          // — the same chart with a monthly axis label would read as a single
+          // month topping 1,400 GDD.
           text: chartMetric === 'tmean' || chartMetric === 'tmax' ? 'Temperature (°C)' :
-                chartMetric === 'rain' ? 'Rainfall (mm)' : 'GDD (°C·days)',
+                chartMetric === 'rain' ? 'Rainfall (mm)' :
+                'Cumulative GDD (°C·days)',
         }
       }
     },

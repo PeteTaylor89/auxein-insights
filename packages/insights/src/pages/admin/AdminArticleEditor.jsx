@@ -21,7 +21,11 @@ import {
 const ClimateWidgetRenderer = lazy(() => import('../../components/climate/ClimateWidgetRenderer'));
 
 /* ── Tiptap JSON → React preview renderer ── */
-function ArticlePreviewBody({ body }) {
+// `asOf` mirrors what ArticleDetail passes, so the preview shows the author what
+// a reader will actually see. An unset publication date (a draft) renders live,
+// which is what you want while composing — and is also the moment to hit
+// "snapshot" if the widget should be frozen rather than pinned.
+function ArticlePreviewBody({ body, asOf }) {
   if (!body || !body.content) return <p style={{ color: '#9ca3af' }}>Start writing to see a preview...</p>;
 
   const renderNode = (node, key) => {
@@ -81,6 +85,7 @@ function ArticlePreviewBody({ body }) {
               seasonLimit={node.attrs?.seasonLimit || 10}
               scenario={node.attrs?.scenario || ''}
               period={node.attrs?.period || ''}
+              asOf={asOf || null}
             />
           </Suspense>
         );
@@ -462,7 +467,7 @@ function AdminArticleEditor() {
               )}
               {/* Body */}
               <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem 2.5rem', lineHeight: 1.8, fontSize: '1.05rem', color: '#374151' }}>
-                <ArticlePreviewBody body={form.body} />
+                <ArticlePreviewBody body={form.body} asOf={form.published_at || null} />
               </div>
             </div>
           )}

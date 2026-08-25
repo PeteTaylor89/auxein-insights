@@ -51,7 +51,7 @@
   margin: 0;
   font-size: var(--font-md);
   font-style: italic;
-  color: #5B6830;
+  color: var(--primary);
 }
 
 .header-nav {
@@ -61,7 +61,7 @@
 }
 
 .header-nav a {
-  color: #5B6830;
+  color: var(--primary);
   text-decoration: none;
   font-size: var(--font-base);
   font-weight: 600;
@@ -129,8 +129,8 @@
   width: 100%;
   padding: 24px 28px;
   background: linear-gradient(135deg, #f5f8ee 0%, #eaf0dd 100%);
-  border: 1.5px solid rgba(91, 104, 48, 0.2);
-  border-left: 4px solid #5B6830;
+  border: 1.5px solid rgb(var(--primary-rgb) / 0.2);
+  border-left: 4px solid var(--primary);
   border-radius: 12px;
   text-decoration: none;
   color: inherit;
@@ -140,25 +140,25 @@
 
 .map-cta-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(91, 104, 48, 0.15);
-  border-color: #5B6830;
+  box-shadow: 0 6px 20px rgb(var(--primary-rgb) / 0.15);
+  border-color: var(--primary);
 }
 
 .map-cta-icon {
   width: 56px;
   height: 56px;
-  background: rgba(91, 104, 48, 0.1);
+  background: rgb(var(--primary-rgb) / 0.1);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5B6830;
+  color: var(--primary);
   flex-shrink: 0;
   transition: all 0.2s;
 }
 
 .map-cta-card:hover .map-cta-icon {
-  background: #5B6830;
+  background: var(--primary);
   color: white;
 }
 
@@ -182,12 +182,12 @@
 
 .map-cta-chevron {
   flex-shrink: 0;
-  color: rgba(91, 104, 48, 0.3);
+  color: rgb(var(--primary-rgb) / 0.3);
   transition: all 0.2s;
 }
 
 .map-cta-card:hover .map-cta-chevron {
-  color: #5B6830;
+  color: var(--primary);
   transform: translateX(3px);
 }
 
@@ -207,7 +207,7 @@
 
 .featured-region-card {
   background: #FDF6E3;
-  border: 1px solid rgba(91, 104, 48, 0.25);
+  border: 1px solid rgb(var(--primary-rgb) / 0.25);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -225,7 +225,7 @@
 .region-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #446145 0%, #5B6830 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -253,7 +253,7 @@
 .view-all-btn {
   display: inline-block;
   padding: 12px 32px;
-  background: #5B6830;
+  background: var(--primary);
   color: white;
   text-decoration: none;
   font-size: var(--font-base);
@@ -263,9 +263,9 @@
 }
 
 .view-all-btn:hover {
-  background: #446145;
+  background: var(--primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(91, 104, 48, 0.3);
+  box-shadow: 0 4px 12px rgb(var(--primary-rgb) / 0.3);
 }
 
 /* ============================================
@@ -316,22 +316,171 @@
 /* Stats lead, map beside them. The map is a fixed-ish column so the stat grid
    gets the flexible space and reflows into 2 or 3 columns rather than
    stretching four tiles across the full width. */
+/* Three even columns (2026-08-24): pick a region | headlines + Pro | the
+   product. `1fr 1fr 1fr` rather than anything weighted, because the brief was
+   explicitly that the three read as equal — and `minmax(0, 1fr)` because a
+   bare `1fr` refuses to shrink below its content and an SVG or a Mapbox canvas
+   will happily blow the row out sideways. */
 .home-hero__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
-.home-hero__stats {
+/* `stretch` above plus a flex column here makes all three the same height
+   whatever they contain, which is the entire point of the layout. */
+.home-hero__col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
 }
 
+/* The map card takes the space the pills leave, rather than the pills being
+   pushed around by however tall the map decided to be. */
+.home-hero__col--regions .regionmap { flex: 1; }
+
+/* Three SQUARE tiles on ONE row. Stacked they made the middle column far
+   taller than its neighbours, which is the opposite of what a three-even-column
+   hero is for.
+
+   `aspect-ratio: 1` with `minmax(0, 1fr)` is what keeps them square AND lets
+   them shrink — a bare `1fr` refuses to go below its content width and the row
+   overflows instead of the tiles getting smaller. */
+.home-hero__col--offer .national-pulse--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* TYPE SCALES WITH THE SQUARE, not with the viewport.
+   These tiles are three-across inside a third of the hero, so their width is
+   set by the grid and can land anywhere between about 90px and 190px. Fixed rem
+   sizes were tuned for the wide end and left the narrow end — and, worse, the
+   wide end — mostly empty: a 2.2rem-tall stack floating in a 190px box.
+   `container-type: inline-size` makes `cqi` mean "percent of THIS tile", so the
+   number is always the same fraction of the square it sits in. The clamps are
+   the floor and ceiling, not the usual size. */
+.home-hero__col--offer .national-pulse--compact .pulse-tile {
+  aspect-ratio: 1;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  /* `space-between` rather than `center`: label to the top edge, number through
+     the middle, station name to the bottom. That is what "fills the square"
+     means — the same three things, using the whole box. */
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 2px;
+  padding: 9% 7%;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Icon and label on one line, centred. */
+.home-hero__col--offer .national-pulse--compact .pulse-tile__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-hero__col--offer .national-pulse--compact .pulse-tile__icon {
+  /* The rounded plate behind the icon is dropped here. At this size it read as
+     a second box inside the box and stole width from the label beside it; the
+     icon keeps the tone colour, which is what carried the meaning. */
+  width: auto;
+  height: auto;
+  background: none;
+  border-radius: 0;
+}
+
+.home-hero__col--offer .national-pulse--compact .pulse-tile__icon svg {
+  width: clamp(11px, 11cqi, 16px);
+  height: clamp(11px, 11cqi, 16px);
+}
+
+.home-hero__col--offer .national-pulse--compact .pulse-tile__label {
+  font-size: clamp(0.66rem, 9.2cqi, 0.88rem);
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.home-hero__col--offer .national-pulse--compact .pulse-tile__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* The number leads, but it no longer shouts over the two things that give it
+   meaning. At 27% of the tile width the reading crowded the label above it and
+   the station name below; 22% keeps it clearly the headline while leaving the
+   tag and the place legible, which is what makes the tile readable at a
+   glance rather than just big. */
+.home-hero__col--offer .national-pulse--compact .pulse-tile__value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 4px;
+  font-size: clamp(0.95rem, 22cqi, 1.78rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/* The flag ("record", "unusual") cannot scale with the number or it becomes a
+   second headline. */
+.home-hero__col--offer .national-pulse--compact .pulse-tile__flag {
+  padding: 0 4px;
+  font-size: clamp(0.5rem, 6.5cqi, 0.62rem);
+}
+
+/* The station name. It is the whole point of the tile and station names are
+   long ("Omaka at Ramshead Saddle"), so it gets two lines and then an ellipsis
+   rather than being allowed to push the tile out of square. The full name is
+   on the element's title. */
+.home-hero__col--offer .national-pulse--compact .pulse-tile__detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: clamp(0.66rem, 8.8cqi, 0.82rem);
+  line-height: 1.2;
+  color: var(--text-muted);
+}
+
+/* The timestamp is the first thing to go at this size — the live dot already
+   says the reading is current, and the exact age is on the Explore strip. */
+.home-hero__col--offer .national-pulse--compact .pulse-tile__when {
+  display: none;
+}
+
+.home-hero__col--offer .pro-teaser { flex: 1; }
+.home-hero__col--map .mini-surface-map { flex: 1; }
+
+/* Two columns first: the map and the offer pair up, the surface preview drops
+   below full width. Three narrow columns lose the country's shape before they
+   lose anything else. */
+@media (max-width: 1180px) {
+  .home-hero__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-hero__col--map { grid-column: 1 / -1; }
+}
+
 @media (max-width: 900px) {
-  /* Map above the stats on narrow screens: it is the more immediate signal of
-     what this site is, and the stat grid reads fine below it. */
   .home-hero__grid { grid-template-columns: 1fr; }
-  .home-hero__map { order: -1; }
+  /* The region map leads on narrow screens. It is the clearest statement of
+     what the site is and it is the primary action; the surface preview and the
+     Pro offer both read fine below it. */
+  .home-hero__col--regions { order: -1; }
+  .home-hero__col--map { grid-column: auto; }
 }
 
 @media (max-width: 600px) {
@@ -361,8 +510,8 @@
 .insight-card {
   position: relative;
   background: linear-gradient(135deg, #fafdf5 0%, #f5f8ee 100%);
-  border: 1.5px solid rgba(91, 104, 48, 0.2);
-  border-left: 4px solid #5B6830;
+  border: 1.5px solid rgb(var(--primary-rgb) / 0.2);
+  border-left: 4px solid var(--primary);
   border-radius: 10px;
   padding: 16px 16px 16px 18px;
   display: flex;
@@ -376,32 +525,32 @@
 
 .insight-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(91, 104, 48, 0.15);
-  border-color: #5B6830;
+  box-shadow: 0 4px 16px rgb(var(--primary-rgb) / 0.15);
+  border-color: var(--primary);
   background: linear-gradient(135deg, #f2f7e8 0%, #eaf0dd 100%);
 }
 
 .insight-card.active {
-  background: linear-gradient(135deg, #5B6830 0%, #4a5628 100%);
-  border-color: #5B6830;
-  box-shadow: 0 4px 16px rgba(91, 104, 48, 0.3);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  border-color: var(--primary);
+  box-shadow: 0 4px 16px rgb(var(--primary-rgb) / 0.3);
 }
 
 .insight-icon {
   width: 42px;
   height: 42px;
-  background: rgba(91, 104, 48, 0.1);
+  background: rgb(var(--primary-rgb) / 0.1);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5B6830;
+  color: var(--primary);
   flex-shrink: 0;
   transition: all 0.2s;
 }
 
 .insight-card:hover .insight-icon {
-  background: #5B6830;
+  background: var(--primary);
   color: white;
 }
 
@@ -426,12 +575,12 @@
 
 .insight-chevron {
   flex-shrink: 0;
-  color: rgba(91, 104, 48, 0.3);
+  color: rgb(var(--primary-rgb) / 0.3);
   transition: all 0.2s;
 }
 
 .insight-card:hover .insight-chevron {
-  color: #5B6830;
+  color: var(--primary);
   transform: translateX(2px);
 }
 
@@ -442,11 +591,11 @@
 /* Active Insight Container */
 .active-insight-container {
   background: white;
-  border: 2px solid #5B6830;
+  border: 2px solid var(--primary);
   border-radius: 16px;
   padding: 32px;
   margin-top: 32px;
-  box-shadow: 0 8px 32px rgba(91, 104, 48, 0.15);
+  box-shadow: 0 8px 32px rgb(var(--primary-rgb) / 0.15);
   animation: slideIn 0.3s ease-out;
 }
 
@@ -547,7 +696,7 @@
 
 .premium-cta {
   background: #FDF6E3;
-  border: 2px solid rgba(91, 104, 48, 0.25);
+  border: 2px solid rgb(var(--primary-rgb) / 0.25);
   border-radius: 16px;
   padding: 48px;
   margin-top: 48px;
@@ -556,7 +705,7 @@
 .premium-cta h3 {
   font-size: var(--font-xl);
   font-weight: 700;
-  color: #5B6830;
+  color: var(--primary);
   margin: 0 0 16px 0;
 }
 
@@ -903,7 +1052,7 @@
 
 .user-menu-trigger:hover {
   background: #e8e8e8;
-  border-color: #5B6830;
+  border-color: var(--primary);
 }
 
 .user-dropdown {
@@ -921,7 +1070,7 @@
 
 .user-dropdown-header {
   padding: 16px;
-  background: linear-gradient(135deg, #446145 0%, #5B6830 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: white;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -980,7 +1129,7 @@
   margin: 32px 0;
   padding: 32px;
   background: linear-gradient(135deg, #f8fbff 0%, #e8f4ff 100%);
-  border: 2px solid #5B6830;
+  border: 2px solid var(--primary);
   border-radius: 12px;
   text-align: center;
 }
@@ -1126,7 +1275,7 @@
 }
 
 .map-lock-content svg {
-  color: #5B6830;
+  color: var(--primary);
   margin-bottom: 20px;
 }
 
@@ -1256,7 +1405,7 @@
   text-decoration: none;
   transition: all 0.2s ease;
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
-  color: #5B6830;
+  color: var(--primary);
   text-decoration: none;
   font-size: var(--font-base);
   font-weight: 600;
@@ -1312,7 +1461,7 @@
   padding: 0;
   background: none;
   border: 1px solid #e0e0e0;
-  color: #5B6830;
+  color: var(--primary);
   cursor: pointer;
   border-radius: 8px;
   transition: all 0.2s;
@@ -1321,7 +1470,7 @@
 
 .mobile-menu-btn:hover {
   background: #f5f5f5;
-  border-color: #5B6830;
+  border-color: var(--primary);
 }
 
 /* ============================================
@@ -1423,7 +1572,7 @@
 
 .mobile-nav svg {
   flex-shrink: 0;
-  color: #5B6830;
+  color: var(--primary);
 }
 
 /* Divider */
@@ -1482,7 +1631,7 @@
   width: 44px;
   height: 44px;
   padding: 10px;
-  background: #5B6830;
+  background: var(--primary);
   color: white !important;
   border-radius: 50%;
   flex-shrink: 0;
@@ -1738,8 +1887,8 @@
   .card-demo-badge {
     display: inline-block;
     padding: 2px 8px;
-    background: rgba(91, 104, 48, 0.15);
-    color: #5B6830;
+    background: rgb(var(--primary-rgb) / 0.15);
+    color: var(--primary);
     border-radius: 10px;
     font-size: 10px;
     font-weight: 600;
@@ -1754,8 +1903,8 @@
   }
 
   .demo-hint {
-    background: rgba(91, 104, 48, 0.1) !important;
-    color: #5B6830 !important;
+    background: rgb(var(--primary-rgb) / 0.1) !important;
+    color: var(--primary) !important;
   }
 
   .demo-hint-btn {

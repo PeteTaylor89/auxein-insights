@@ -7,8 +7,14 @@
 import { Link } from 'react-router-dom';
 import Logo from '../assets/App_Logo_September 20251.jpg';
 import './SiteFooter.css';
+import { useCountryIndustry } from '../contexts/CountryIndustryContext';
 
 function SiteFooter() {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   return (
     <footer className="site-footer">
       <div className="site-footer__content">
@@ -21,7 +27,7 @@ function SiteFooter() {
           <div className="site-footer__column">
             <h3>Explore</h3>
             <Link to="/map">Vine Atlas</Link>
-            <Link to="/regions">Wine regions</Link>
+            <Link to={path()}>Regions</Link>
             <Link to="/pro">Insights Pro</Link>
             <Link to="/articles">Articles</Link>
             <Link to="/research">Research</Link>

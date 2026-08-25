@@ -272,6 +272,203 @@ def screen_relevance(
     return kept, rejected
 
 
+# Defaults for `screen_outliers`. Both conditions must fire, and the reason for
+# the pair is that either alone is wrong:
+#
+#   * A robust z-score ALONE over-rejects on a calm day. When every station
+#     agrees to within a few tenths the MAD collapses, and an ordinary 2 degC
+#     local difference scores z = 20.
+#   * An absolute threshold ALONE is the failure this exists to fix. 29.3 degC
+#     is perfectly legal in New Zealand; it is not legal in Southland in August
+#     beside neighbours reading 10 degC. A fixed plausibility bound cannot see
+#     that, which is why the live-headlines work concluded the test has to be
+#     outlier-VERSUS-NETWORK.
+#
+# `MIN_ABS` is set high on purpose. Cold-air drainage is real and large: an
+# inland vineyard basin genuinely runs 5-8 degC below its neighbours on tmin,
+# and those Harvest sites were measured to carry mean DTR of 13.2-13.5 degC
+# against a network norm of 8-9. Rejecting one would delete exactly the
+# information a thin network most needs. 8 degC clears every real hollow seen so
+# far while Winton's +18.5 degC is not close.
+DEFAULT_OUTLIER_K = 6
+DEFAULT_OUTLIER_MAX_KM = 60.0
+DEFAULT_OUTLIER_Z = 4.0
+DEFAULT_OUTLIER_MIN_ABS = 8.0
+# Cold-side floor, applied to NEGATIVE residuals only. Deliberately far looser,
+# because the two directions are not physically symmetric:
+#
+#   * A station CAN legitimately sit far below its neighbours. Cold-air drainage
+#     into a basin is real, routine, and nonlinear — a lapse rate corrects for
+#     mean elevation and cannot describe pooling at all. Measured here:
+#     "Bore 1001238 at Lochinver" (726 m) reads winter minima of -9 to -15 degC
+#     and did the SAME last winter (-9.0 / -10.7 / -9.4 in Jun-Aug 2025), and
+#     "Te Wharau at CDC Shed" likewise. Both are genuine frost hollows and a
+#     symmetric 8 degC floor threw both out.
+#   * A station CANNOT legitimately sit far above its neighbours on tmin. The
+#     only mechanism is urban heat, and the co-located audit measured that at
+#     +4.19 degC worst case (MDC_BLENHEIM_OFFICE).
+#
+# So the warm side stays tight and the cold side is loosened to a level no real
+# inversion in this network has reached. Excluding a real frost hollow in a thin
+# network makes the surface WORSE — frost is also the least trustworthy column
+# we publish, and it is the one growers act on.
+DEFAULT_OUTLIER_MIN_ABS_COLD = 15.0
+
+# The warm floor SCALES WITH NEIGHBOUR DISTANCE, and it has to.
+#
+# A fixed floor is blind to how far away the neighbours are, and the two
+# regimes are nothing alike. Over 60 km of Canterbury terrain an 8 degC
+# difference can be real; over 400 m of the same vineyard it cannot be.
+#
+# Measured failure that forced this: on 2026-08-13 station 9
+# "GREYSTONE B5/6" read **28.10 degC** while its six nearest neighbours - at
+# 0.38 to 1.16 km - read 20.1 to 22.7, and Christchurch 54 km away read 16.1.
+# There WAS a genuine nor'wester that day (the whole Waipara cluster sat 4-6
+# degC above Christchurch), but 28.10 sits on TOP of it: +7.13 degC over
+# neighbours a few hundred metres away, and roughly 3 degC above New Zealand's
+# entire winter record. A flat 8.0 floor kept it.
+#
+# So the floor runs from MIN_ABS_NEAR at zero separation to MIN_ABS at
+# FLOOR_SCALE_KM and beyond.
+#
+# **Applied to the WARM side only.** Cold-air drainage is genuinely a
+# short-distance phenomenon - a hollow 500 m from a slope really is several
+# degrees colder, and that is signal the surface should carry. There is no
+# matching short-distance mechanism that makes a screen read 7 degC hot; that
+# is siting or failure.
+DEFAULT_OUTLIER_MIN_ABS_NEAR = 3.0
+# 20 km, chosen against a measured föhn boundary rather than by feel. On the
+# same 2026-08-13, Rangiora read 23.13 degC while stations ~23 km away read
+# ~15.6 — a genuine +7.5 degC gradient across the nor'west front, and 23.13 is
+# comfortably inside NZ's winter record. The scale therefore has to reach its
+# full floor by ~20 km so a real frontal gradient survives, while still leaving
+# a ~3.2 degC floor at the sub-kilometre spacing of a vineyard cluster.
+DEFAULT_OUTLIER_FLOOR_SCALE_KM = 20.0
+
+
+def screen_outliers(
+    df: pd.DataFrame,
+    value_col: str = "value",
+    *,
+    k: int = DEFAULT_OUTLIER_K,
+    max_km: float = DEFAULT_OUTLIER_MAX_KM,
+    z_cutoff: float = DEFAULT_OUTLIER_Z,
+    min_abs: float = DEFAULT_OUTLIER_MIN_ABS,
+    min_abs_cold: Optional[float] = None,
+    min_abs_near: float = DEFAULT_OUTLIER_MIN_ABS_NEAR,
+    floor_scale_km: float = DEFAULT_OUTLIER_FLOOR_SCALE_KM,
+    lapse_rate: float = DEFAULT_LAPSE_RATE,
+    lat_col: str = "latitude",
+    lon_col: str = "longitude",
+    elev_col: str = "elevation",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split one day's stations into (kept, rejected) against their neighbours.
+
+    A station is rejected when it disagrees with the median of its `k` nearest
+    neighbours (within `max_km`) by more than `min_abs` AND by more than
+    `z_cutoff` robust standard deviations of that day's residual distribution.
+
+    **Why this is needed at FIT time and not only at ingest.** One bad station
+    destroys a whole day's national fit: the spline has to pass near it, GCV
+    accommodates the outlier rather than rejecting it, and the damage spreads
+    over the smoothing radius. Every existing guard passes a sensor like this —
+    the value is physically legal, the record count is full, and it is not
+    pinned to a constant. Measured case: station 473 "Winton at Essex Street"
+    read 29.30 degC on 2026-08-19 while its six neighbours 13-31 km away read
+    9.8-11.5 degC.
+
+    Returns `rejected` carrying the numbers behind the decision, and the caller
+    is expected to LOG it. A silent drop is the escalation-ladder failure mode
+    that `screen_relevance` was also written to avoid: a screen nobody can see
+    is indistinguishable from a station that stopped reporting.
+
+    Rainfall is deliberately not screened this way by its callers. Convective
+    rain is genuinely cellular — a gauge can legitimately record 40 mm while one
+    12 km away records nothing — so a neighbour-disagreement test would reject
+    real extremes, and the archive already under-predicts heavy rain.
+
+    **ELEVATION IS NOT OPTIONAL HERE, and getting it wrong is dangerous in the
+    worst direction.** The comparison is made on LAPSE-REDUCED values — every
+    station brought to sea level at `lapse_rate` before differencing — for the
+    same reason `fit_surface` detrends before fitting. Without it the screen
+    rejects high-country stations by construction: station 460 "Upper Waikaia at
+    Hyde Rock" sits at **1,622 m** and read 1.10 degC on 2026-08-20 while
+    neighbours 1,500 m below it read 11.75. That reading is correct — its own
+    January mean is 9.83 — but a raw comparison scores it z = -8.5 and throws it
+    out. Those are precisely the stations the network most lacks; a missing
+    high-altitude anchor is what produced the 30% Central Otago GDD error, so a
+    screen that preferentially deletes them would be worse than no screen.
+    """
+    empty = df.iloc[:0].copy()
+    n = len(df)
+    if n < k + 2:
+        return df.copy(), empty
+
+    lat = df[lat_col].to_numpy(float)
+    lon = df[lon_col].to_numpy(float)
+    raw = df[value_col].to_numpy(float)
+
+    # Reduce to a common datum before comparing. `elevation` missing is treated
+    # as sea level, which is what the rest of the pipeline assumes.
+    elev = (df[elev_col].to_numpy(float) if elev_col in df.columns
+            else np.zeros(len(df)))
+    elev = np.nan_to_num(elev, nan=0.0)
+    vals = raw + lapse_rate * elev / 100.0
+
+    d = _pairwise_km(lat, lon)
+    np.fill_diagonal(d, np.inf)
+
+    resid = np.full(n, np.nan)
+    n_used = np.zeros(n, dtype=int)
+    mean_km = np.full(n, np.nan)
+    for i in range(n):
+        near = np.where(d[i] <= max_km)[0]
+        if len(near) < 3:
+            # Too isolated to test. Keeping it is the deliberate choice: an
+            # unverifiable station is not the same as a bad one, and the thin
+            # parts of this network are where the surface needs the most help.
+            continue
+        near = near[np.argsort(d[i, near])[:k]]
+        resid[i] = vals[i] - np.median(vals[near])
+        n_used[i] = len(near)
+        mean_km[i] = float(np.mean(d[i, near]))
+
+    testable = np.isfinite(resid)
+    if testable.sum() < 3:
+        return df.copy(), empty
+
+    mad = np.median(np.abs(resid[testable] - np.median(resid[testable])))
+    scale = 1.4826 * mad
+    z = np.zeros(n)
+    if scale > 1e-9:
+        z[testable] = resid[testable] / scale
+
+    # Asymmetric floor: see DEFAULT_OUTLIER_MIN_ABS_COLD. A station far BELOW
+    # its neighbours may be a frost hollow; one far ABOVE has no such excuse.
+    cold = min_abs if min_abs_cold is None else min_abs_cold
+    # ... and the warm side additionally tightens as the neighbours get closer.
+    span = np.clip(np.nan_to_num(mean_km, nan=floor_scale_km) / floor_scale_km,
+                   0.0, 1.0)
+    warm = min_abs_near + (min_abs - min_abs_near) * span
+    floor = np.where(resid < 0, cold, warm)
+    bad = testable & (np.abs(resid) > floor) & (np.abs(z) > z_cutoff)
+
+    rejected = df.loc[bad].copy()
+    # Reported back on the OBSERVED scale, not the lapse-reduced one, so the
+    # warning a human reads is in degrees they recognise.
+    rejected["neighbour_median"] = [
+        vals[i] - resid[i] - lapse_rate * elev[i] / 100.0
+        for i in np.flatnonzero(bad)]
+    rejected["residual"] = resid[bad]
+    rejected["robust_z"] = z[bad]
+    rejected["n_neighbours"] = n_used[bad]
+    rejected["neighbour_km"] = mean_km[bad]
+    rejected["floor_applied"] = floor[bad]
+    rejected["reject_reason"] = "disagrees with neighbours"
+
+    return df.loc[~bad].copy(), rejected
+
+
 def decluster(
     df: pd.DataFrame,
     threshold_km: float,

@@ -28,6 +28,7 @@ from sqlalchemy import func, and_, desc, text, bindparam
 from sqlalchemy.orm import Session, joinedload
 
 from db.session import get_db, SessionLocal
+from core import scope as scope_mod
 from services import insights_site_baseline
 from services import phenology_basis
 from db.models.wine_region import WineRegion
@@ -281,19 +282,32 @@ def adjust_gdd_to_sep1(gdd_from_july1: Decimal, aug31_offset: Decimal, day_of_vi
 @router.get("/zones", response_model=ZonesListResponse)
 def list_zones_with_current_data(
     region_id: Optional[int] = Query(None, description="Filter by region ID"),
+    country: Optional[str] = Query(None, description="ISO2, defaults to NZ"),
+    industry: Optional[str] = Query(None, description="Industry key, defaults to wine"),
     db: Session = Depends(get_db)
 ):
     """
     List all climate zones that have current season data.
-    
+
     Returns zones with real-time data available for the current vintage year.
+    This is the COVERAGE list, not the full zone list — 14 of 23 zones have
+    `climate_zone_daily` rows, so a caller that needs every region (a dropdown,
+    a sitemap) must use `/public/public_climate/zones` and mark the rest as
+    uncovered rather than assume this is everything.
+
+    Scoped by (country, industry), both defaulting to New Zealand wine.
     """
     vintage_year = get_current_vintage_year()
-    
+    sc = scope_mod.resolve(db, country, industry)
+
     query = db.query(ClimateZone).options(
         joinedload(ClimateZone.region)
-    ).filter(ClimateZone.is_active == True)
-    
+    ).filter(
+        ClimateZone.is_active == True,
+        ClimateZone.country_id == sc.country_id,
+        ClimateZone.industry_id == sc.industry_id,
+    )
+
     if region_id:
         query = query.filter(ClimateZone.region_id == region_id)
     
@@ -330,28 +344,56 @@ def get_current_season_climate(
     zone_slug: str,
     recent_days: int = Query(14, ge=1, le=90, description="Number of recent days to include"),
     base: str = Query(DEFAULT_GDD_BASE, description="GDD base: 'base10' (default) or 'base0'"),
+    as_of: Optional[date] = Query(
+        None,
+        description="Report the season AS IT STOOD on this date. Default: today.",
+    ),
+    vintage_year: Optional[int] = Query(
+        None,
+        description="Vintage year (July-June). Default: the vintage current at `as_of`.",
+    ),
     db: Session = Depends(get_db)
 ):
     """
     Get current season climate summary for a zone.
-    
+
     Returns:
     - Season summary with GDD/rainfall totals and baseline comparisons
     - Recent daily data for charts/tables
     - Chart-ready data structure
+
+    ## `as_of` — why this endpoint is not only about *now*
+
+    A published article embeds this widget and keeps rendering it for years. With
+    no `as_of` the widget silently follows the calendar, so an article headed
+    "week ending 27 February 2026" ends up drawing a season that had not started
+    when the reader opens it. `as_of` pins BOTH halves of that: the vintage, and
+    how far into it the data is allowed to run. Passing only a vintage would show
+    the whole finished season, including everything that happened after the piece
+    was written.
+
+    Defaults are unchanged — no `as_of` and no `vintage_year` behaves exactly as
+    before.
     """
     zone = get_zone_or_404(db, zone_slug)
-    vintage_year = get_current_vintage_year()
-    
-    # Get all data for current season
-    season_data = db.query(ClimateZoneDaily).filter(
+    if vintage_year is None:
+        vintage_year = get_current_vintage_year(as_of)
+
+    # Get all data for the season, truncated at `as_of` when one is given. The
+    # filter has to be here rather than applied to the result: `recent_days`,
+    # the season totals and `doy` are all derived from this list, so trimming it
+    # afterwards would leave the totals running past the recent window.
+    query = db.query(ClimateZoneDaily).filter(
         ClimateZoneDaily.zone_id == zone.id,
         ClimateZoneDaily.vintage_year == vintage_year
-    ).order_by(ClimateZoneDaily.date.desc()).all()
-    
+    )
+    if as_of is not None:
+        query = query.filter(ClimateZoneDaily.date <= as_of)
+    season_data = query.order_by(ClimateZoneDaily.date.desc()).all()
+
     if not season_data:
         raise HTTPException(
-            status_code=404, 
+            status_code=404,
             detail=f"No current season data for zone '{zone_slug}'"
         )
     
@@ -498,25 +540,37 @@ def get_gdd_progress(
     zone_slug: str,
     vintage_year: Optional[int] = Query(None, description="Vintage year (default: current)"),
     base: str = Query(DEFAULT_GDD_BASE, description="GDD base: 'base10' (default) or 'base0'"),
+    as_of: Optional[date] = Query(
+        None,
+        description="Stop the curve on this date, and default the vintage to the "
+                    "one current then. Default: today.",
+    ),
     db: Session = Depends(get_db)
 ):
     """
     Get GDD accumulation progress compared to baseline.
-    
+
     Returns daily GDD accumulation with baseline comparison for charts
     showing season progression and phenology milestones.
+
+    `as_of` exists for embedded widgets in published articles — see the note on
+    `/current-season`. `vintage_year` alone would draw the whole finished season
+    under a heading written mid-season.
     """
     zone = get_zone_or_404(db, zone_slug)
-    
+
     if vintage_year is None:
-        vintage_year = get_current_vintage_year()
-    
+        vintage_year = get_current_vintage_year(as_of)
+
     # Get season data
-    season_data = db.query(ClimateZoneDaily).filter(
+    query = db.query(ClimateZoneDaily).filter(
         ClimateZoneDaily.zone_id == zone.id,
         ClimateZoneDaily.vintage_year == vintage_year
-    ).order_by(ClimateZoneDaily.date).all()
-    
+    )
+    if as_of is not None:
+        query = query.filter(ClimateZoneDaily.date <= as_of)
+    season_data = query.order_by(ClimateZoneDaily.date).all()
+
     if not season_data:
         raise HTTPException(
             status_code=404,
@@ -856,24 +910,37 @@ def get_phenology_estimates(
 def get_disease_pressure(
     zone_slug: str,
     recent_days: int = Query(14, ge=1, le=30, description="Number of recent days"),
+    as_of: Optional[date] = Query(
+        None,
+        description="Treat this date as 'now', so the window is the N days "
+                    "ending then. Default: today.",
+    ),
     db: Session = Depends(get_db)
 ):
     """
     Get disease pressure indicators for a zone.
-    
+
     Returns current and recent disease risk levels with contributing
     factors and spray recommendations based on validated scientific models:
     - Powdery Mildew: UC Davis Risk Index
     - Botrytis: González-Domínguez mechanistic model
     - Downy Mildew: 3-10 primary model + Goidanich Index
+
+    Note this endpoint takes `as_of` and NOT a vintage: disease pressure is a
+    rolling window of recent days, not a season, so "which season" is the wrong
+    question to pin it with. An article embedding it wants the N days that ended
+    when it was written.
     """
     zone = get_zone_or_404(db, zone_slug)
-    
+
     # Get recent disease pressure data
-    pressure_data = db.query(DiseasePressure).filter(
+    query = db.query(DiseasePressure).filter(
         DiseasePressure.zone_id == zone.id
-    ).order_by(DiseasePressure.date.desc()).limit(recent_days).all()
-    
+    )
+    if as_of is not None:
+        query = query.filter(DiseasePressure.date <= as_of)
+    pressure_data = query.order_by(DiseasePressure.date.desc()).limit(recent_days).all()
+
     if not pressure_data:
         raise HTTPException(
             status_code=404,
@@ -1185,7 +1252,17 @@ LIVE_CANDIDATES = 6
 # whichever third depends on where the clock is. At two hours it saturates —
 # 3h, 4h and 6h return the identical station set and the identical extremes —
 # so 2 is the smallest window that is also stable.
-LIVE_CURRENT_WINDOW_HOURS = 2
+# Widened from 2 to 4 hours on 2026-08-24, when the strip was gated to SYNOP.
+#
+# Two hours was tuned for the council network, which was measured at 0.7 hours
+# behind real time. SYNOP arrives hourly over the GTS with a longer ingest lag —
+# measured 2h09 at the moment of the change — so a 2-hour window returned
+# **zero candidates** and the warmest and coldest tiles silently disappeared.
+#
+# Four rather than three: three would have cleared today's lag by fifty minutes,
+# which is not margin. The tile prints the reading's own age, so a stale one is
+# visible rather than being passed off as current.
+LIVE_CURRENT_WINDOW_HOURS = 4
 
 # Rainfall CANNOT use that window. It is an accumulation, not a state: over two
 # hours the national wettest was 3.0 mm against 20.5 mm over 24, and 3.0 mm
@@ -1246,16 +1323,69 @@ LIVE_CACHE_TTL_SECONDS = 300
 _MAINLAND_LAT_MIN, _MAINLAND_LAT_MAX = -47.5, -34.0
 _MAINLAND_LON_MIN, _MAINLAND_LON_MAX = 166.0, 179.2
 
+# SYNOP ONLY, as well as mainland (2026-08-24).
+#
+# The strip was drawing from all ~800 public stations, and most of them are
+# council hydrometry: gauges sited for river management, in gullies, under
+# canopy, on bridges, with no shielding standard and no obligation to be
+# comparable with anything. They produced a stream of implausible national
+# headlines — the coldest in the country reading exactly 0.0 from a bowling
+# club, a 29.3 degC winter maximum from a sensor nobody was auditing.
+#
+# `SYNOP_GTS` is the World Meteorological Organization synoptic network: 54
+# stations on the GTS, sited and maintained to a standard, and the set every
+# published New Zealand weather statistic is actually built on. A national
+# "warmest right now" is a claim about the country, and it should come from the
+# network that exists to make that claim.
+#
+# The trade is breadth: 54 stations rather than ~800, so the strip can miss a
+# genuine local extreme that only a council gauge saw. That is the right way
+# round — a missed extreme is invisible, a wrong one is on the home page. The
+# reporting-station COUNT still runs over the whole network, so the footnote
+# keeps describing the real breadth of the platform.
+#
+# This does NOT change the zone aggregates. Those are interpolated from every
+# station and want the density; it is only the single-station headline that
+# needs a defensible source.
+_SYNOP_SOURCE = 'SYNOP_GTS'
+
+# TWO ELIGIBILITY SETS, AND THEY ARE NOT THE SAME QUESTION.
+#
 # `visibility` defaults to 'public' but a Grow customer's own station is
 # private, and it must never surface as a national headline on an anonymous
-# page. Written as a scalar subquery rather than a CTE: `eligible` referenced
-# more than once forces Postgres to materialise it, which measured 2.0s against
-# 0.07s for the same filter inline.
-_PUBLIC_STATION_IDS_SQL = f"""
+# page. That much both sets share. Written as a scalar subquery rather than a
+# CTE: `eligible` referenced more than once forces Postgres to materialise it,
+# which measured 2.0s against 0.07s for the same filter inline.
+#
+# HEADLINE set — mainland SYNOP, per the note above. A single named station
+# making a claim about the whole country has to come from the network that
+# exists to make that claim.
+_SYNOP_STATION_IDS_SQL = f"""
     SELECT station_id FROM weather_stations
     WHERE is_active = true AND visibility = 'public'
+      AND data_source = '{_SYNOP_SOURCE}'
       AND latitude  BETWEEN {_MAINLAND_LAT_MIN} AND {_MAINLAND_LAT_MAX}
       AND longitude BETWEEN {_MAINLAND_LON_MIN} AND {_MAINLAND_LON_MAX}
+"""
+
+# BREADTH set — every active public station, no source and no bounding box.
+#
+# Split back out on 2026-08-25. When the SYNOP filter landed on 2026-08-24 it
+# was added to the ONE constant both the headlines and the count were reading,
+# so the footnote silently went from "854 stations reporting" to the 54 GTS
+# stations — while the comment above still promised the count ran over the
+# whole network. The two questions are genuinely different and now have
+# genuinely different SQL:
+#
+#   headline   which station may make a national claim   -> defensible siting
+#   footnote   how big is this platform's network        -> everything we ingest
+#
+# No mainland box here either. Campbell Island and the Chathams are stations we
+# ingest hourly; they are excluded from the headline because a subtropical
+# record tells a grower nothing, not because they are not part of the network.
+_ALL_PUBLIC_STATION_IDS_SQL = """
+    SELECT station_id FROM weather_stations
+    WHERE is_active = true AND visibility = 'public'
 """
 
 
@@ -1283,7 +1413,7 @@ def _live_temperature_candidates(db: Session, since: datetime):
               AND wd.value IS NOT NULL
               AND wd.value BETWEEN :temp_lo AND :temp_hi
               AND coalesce(wd.quality, '') <> :quarantine
-              AND wd.station_id IN ({_PUBLIC_STATION_IDS_SQL})
+              AND wd.station_id IN ({_SYNOP_STATION_IDS_SQL})
             ORDER BY wd.station_id, wd.timestamp DESC
         ),
         bounds AS (
@@ -1376,7 +1506,7 @@ def _live_rainfall(db: Session, since: datetime):
               AND wd.value >= 0
               AND wd.value <= :rain_hi
               AND coalesce(wd.quality, '') <> :quarantine
-              AND wd.station_id IN ({_PUBLIC_STATION_IDS_SQL})
+              AND wd.station_id IN ({_SYNOP_STATION_IDS_SQL})
         )
         SELECT station_id, SUM(value) AS value, MAX(timestamp) AS observed_at,
                MAX(MAX(timestamp)) OVER () AS newest_at
@@ -1494,9 +1624,14 @@ def _compute_live_extremes(db: Session, window_hours: int) -> LiveExtremesRespon
 def _live_reporting_stations(window_hours: int, hour_bucket: int) -> int:
     """
     Distinct public stations that reported ANYTHING in the window — not just
-    temperature and rainfall. 854 against 228 on 2026-08-19; the wider figure
-    is the one that describes the network, and it is counted rather than
-    asserted.
+    temperature and rainfall, and NOT restricted to the headline set. 854
+    against 228 on 2026-08-19; the wider figure is the one that describes the
+    network, and it is counted rather than asserted.
+
+    Reads `_ALL_PUBLIC_STATION_IDS_SQL`, deliberately not the SYNOP set the
+    headlines use. Sharing one constant is what silently cut this number to 54
+    on 2026-08-24 — the whole point of the footnote is that the platform is
+    much wider than the handful of stations a national headline may come from.
 
     Cached on its own hourly bucket. It is the most expensive query in this
     module and the least time-sensitive, so recomputing it every time the
@@ -1511,7 +1646,7 @@ def _live_reporting_stations(window_hours: int, hour_bucket: int) -> int:
             WHERE wd.timestamp >= :since
               AND wd.value IS NOT NULL
               AND coalesce(wd.quality, '') <> :quarantine
-              AND wd.station_id IN ({_PUBLIC_STATION_IDS_SQL})
+              AND wd.station_id IN ({_ALL_PUBLIC_STATION_IDS_SQL})
         """), {'since': since, 'quarantine': LIVE_QUARANTINE_QUALITY}).scalar() or 0
     finally:
         db.close()
@@ -1556,10 +1691,19 @@ def get_live_extremes(
     it was taken. Measured 2026-08-19, most councils were 0.7 hours behind
     real time, so "live" is an honest word for it.
 
-    MAINLAND ONLY. The network reaches the Kermadecs and the subantarctic, and
+    MAINLAND SYNOP ONLY. Two filters, for two different reasons.
+
+    Mainland, because the network reaches the Kermadecs and the subantarctic and
     Raoul Island took the national high every day — true, and useless to a New
-    Zealand grower. Four stations are excluded; see the bounding box above.
-    Breadth is still shown, through the reporting-station count.
+    Zealand grower.
+
+    SYNOP, because the rest of the network is council hydrometry sited for river
+    management rather than meteorology, and it produced a steady supply of
+    implausible headlines. The 54 GTS stations are the ones every published New
+    Zealand weather statistic is built on.
+
+    Breadth is still shown, through the reporting-station count, which runs over
+    the whole network.
 
     Tiles only carry a link when the station falls inside a wine zone, which
     most do not — the network runs well past the wine regions.

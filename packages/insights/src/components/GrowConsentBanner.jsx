@@ -60,7 +60,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '12px 20px',
-    background: '#5B6830',
+    background: 'var(--primary)',
     color: '#fff',
     boxShadow: '0 -2px 12px rgba(0,0,0,0.15)',
     fontSize: '14px',
@@ -69,7 +69,7 @@ const styles = {
   actions: { display: 'flex', gap: '8px' },
   subscribe: {
     background: '#fff',
-    color: '#5B6830',
+    color: 'var(--primary)',
     border: 'none',
     borderRadius: '6px',
     padding: '7px 16px',

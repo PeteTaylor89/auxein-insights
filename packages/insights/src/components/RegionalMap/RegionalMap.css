@@ -195,7 +195,7 @@
 }
 
 .section-title svg {
-  color: #5B6830;
+  color: var(--primary);
 }
 
 .chevron {
@@ -236,12 +236,12 @@
 }
 
 .style-btn:hover {
-  border-color: #5B6830;
+  border-color: var(--primary);
   background: #f0fdf4;
 }
 
 .style-btn.active {
-  border-color: #5B6830;
+  border-color: var(--primary);
   background: #dcfce7;
   font-weight: 600;
 }
@@ -381,9 +381,9 @@
 }
 
 .region-btn:hover {
-  border-color: #5B6830;
+  border-color: var(--primary);
   background: #f0fdf4;
-  color: #5B6830;
+  color: var(--primary);
 }
 
 .region-btn svg {
@@ -3257,8 +3257,8 @@
   width: 100%;
   padding: 12px;
   background: white;
-  color: #5B6830;
-  border: 2px solid #5B6830;
+  color: var(--primary);
+  border: 2px solid var(--primary);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
@@ -3268,7 +3268,7 @@
 }
 
 .czp-explore-btn:hover {
-  background: #5B6830;
+  background: var(--primary);
   color: white;
 }
 

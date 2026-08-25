@@ -15,8 +15,14 @@ import SiteFooter from '../components/SiteFooter';
 import AuthModal from '../components/auth/AuthModal';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import './ResearchPage.css';
+import { useCountryIndustry } from '../contexts/CountryIndustryContext';
 
 function ResearchPage() {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useDocumentMeta({
@@ -46,7 +52,7 @@ function ResearchPage() {
           <Link to="/articles" className="research-placeholder__link">
             Read the articles <ArrowRight size={15} aria-hidden="true" />
           </Link>
-          <Link to="/regions" className="research-placeholder__link research-placeholder__link--ghost">
+          <Link to={path()} className="research-placeholder__link research-placeholder__link--ghost">
             Explore the regions
           </Link>
         </div>

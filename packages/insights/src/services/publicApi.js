@@ -45,12 +45,27 @@ publicApi.interceptors.response.use(
       return Promise.reject(error);
     }
     
-    // Format error message for better handling
+    // Format error message for better handling.
+    //
+    // THE STATUS AND THE RESPONSE SURVIVE. This used to reject with a bare
+    // `new Error(message)`, which threw away `error.response` — and callers
+    // read it. `surfaceService.isSurfacesUnavailable` tests
+    // `error?.response?.status` and then falls through to `!error?.response`,
+    // so with the response stripped EVERY failure looked like "surfaces are
+    // switched off" and the panel hid itself instead of reporting an outage.
+    // `RegionDashboard` reads `error.status` to tell a 404 from a real fault.
+    //
+    // Both are attached rather than one: `.status` because it is what a caller
+    // actually wants, `.response` because that is the axios shape existing code
+    // already checks for.
     if (error.response) {
-      const message = error.response.data?.detail || 
-                     error.response.data?.message || 
+      const message = error.response.data?.detail ||
+                     error.response.data?.message ||
                      error.message;
-      return Promise.reject(new Error(message));
+      const wrapped = new Error(message);
+      wrapped.status = error.response.status;
+      wrapped.response = error.response;
+      return Promise.reject(wrapped);
     }
     
     // Network error

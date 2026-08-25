@@ -199,6 +199,13 @@ function ArticleDetail() {
               seasonLimit={node.attrs?.seasonLimit || 10}
               scenario={node.attrs?.scenario || ''}
               period={node.attrs?.period || ''}
+              // Current-season widgets resolve against the date the article was
+              // published, not the date it is read. Without this they follow the
+              // calendar for ever and an article headed "week ending 27 February
+              // 2026" draws whatever season happens to be running now. A draft
+              // has no published_at, so it renders live — which is what an
+              // unpublished article should do.
+              asOf={article?.published_at || null}
             />
           </Suspense>
         );
@@ -276,7 +283,7 @@ function ArticleDetail() {
     return (
       <div className="article-detail-gate">
         <div className="article-gate-card">
-          <LogIn size={40} style={{ color: '#5B6830', marginBottom: '8px' }} />
+          <LogIn size={40} style={{ color: 'var(--primary)', marginBottom: '8px' }} />
           <h2>Sign in to read this article</h2>
           <p>Create a free account or sign in to access all articles and insights.</p>
           <div className="article-gate-actions">

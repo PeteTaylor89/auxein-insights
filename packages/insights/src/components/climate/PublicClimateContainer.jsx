@@ -23,15 +23,16 @@ import {
   X, Info, CloudSunRain, Grape,
   ShieldCheck, History, ChartSpline, Loader
 } from 'lucide-react';
-import ZoneSelector from './ZoneSelector';
-import ZoneSelectorRealtime from './ZoneSelectorRealtime';
-import WinterHoldingPage from './WinterHoldingPage';
 import { ClimateErrorBoundary } from './ClimateErrorCard';
-import { isGrowingSeason } from '../../utils/season';
 
-const CurrentSeasonExplorer = lazy(() => import('./CurrentSeasonExplorer'));
-const PhenologyExplorer = lazy(() => import('./PhenologyExplorer'));
-const DiseasePressureExplorer = lazy(() => import('./DiseasePressureExplorer'));
+// Current season, phenology and disease pressure were REMOVED from this
+// container on 2026-08-24: all three now live on the regional dashboard, which
+// is the default view of a region page. Leaving them lazy-imported here would
+// have kept three chunks in the build that nothing routes to.
+//
+// The explorer components themselves are NOT deleted — `ClimateWidgetRenderer`
+// still renders the same models inside articles, and the widgets are a separate
+// contract from this navigator.
 const SeasonExplorer = lazy(() => import('./SeasonExplorer'));
 const ProjectionsExplorer = lazy(() => import('./ProjectionsExplorer'));
 import { 
@@ -43,39 +44,16 @@ import {
 import './PublicClimate.css';
 import './RealtimeClimate.css';
 import './climate-mobile-responsive.css';
+// The two surviving explorers, restyled to the site's card idiom. An OVERRIDE
+// over PublicClimate.css rather than a replacement for it: that file is
+// injected app-wide and the article widgets have no stylesheet of their own,
+// so deleting it would strip every widget inside a published article.
+// Deliberately BEFORE the guardrails, which own the mobile cascade.
+import './climate-explorer.css';
 import './climate-mobile-guardrails.css'; // must stay LAST — wins the mobile cascade
 import { getZone } from '../../services/publicClimateService';
 
 const VIEW_CONFIG = {
-  currentseason: {
-    label: 'Current Season',
-    shortLabel: 'Season',
-    description: 'Live climate data and GDD accumulation',
-    component: CurrentSeasonExplorer,
-    allowComparison: false,
-    useRealtimeSelector: true,
-    icon: CloudSunRain,
-  },
-  phenology: {
-    label: 'Phenology',
-    shortLabel: 'Phenology',
-    description: 'Growth stage estimates and harvest predictions',
-    component: PhenologyExplorer,
-    allowComparison: false,
-    useRealtimeSelector: true,
-    seasonGated: true,
-    icon: Grape,
-  },
-  disease: {
-    label: 'Disease Pressure',
-    shortLabel: 'Disease',
-    description: 'Risk indicators for downy mildew, powdery mildew, and botrytis',
-    component: DiseasePressureExplorer,
-    allowComparison: false,
-    useRealtimeSelector: true,
-    seasonGated: true,
-    icon: ShieldCheck,
-  },
   seasons: {
     label: 'Climate History',
     shortLabel: 'History',
@@ -96,17 +74,25 @@ const VIEW_CONFIG = {
   },
 };
 
-const VIEW_ORDER = ['currentseason', 'phenology', 'disease', 'seasons', 'projections'];
+// Two views. The other three moved to the regional dashboard overview, which
+// renders them tighter and without a tab strip.
+const VIEW_ORDER = ['seasons', 'projections'];
 
 const PublicClimateContainer = ({
-  initialView = 'currentseason',
+  initialView = 'seasons',
   initialZoneSlug = null,
   onClose,
   demoMode = false,
   onAuthRequired,
 }) => {
   const [selectedZone, setSelectedZone] = useState(null);
-  const [comparisonZones, setComparisonZones] = useState([]);
+  // Regional comparison is MOTHBALLED (2026-08-24). The picker is gone and
+  // nothing can populate this, so it stays as a frozen empty array: the
+  // explorers still accept the prop and their comparison branches simply never
+  // fire. Removing those branches outright would be a few hundred lines of
+  // change to code that works — this turns the feature off at its entry point,
+  // which is what "mothball" means.
+  const comparisonZones = [];
   const [activeView, setActiveView] = useState(initialView);
   const tabsRef = useRef(null);
   const previousViewRef = useRef(null);
@@ -212,10 +198,14 @@ const PublicClimateContainer = ({
     }
   }, [demoMode, initialZoneSlug]);
 
-  const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.currentseason;
+  const currentViewConfig = VIEW_CONFIG[activeView] || VIEW_CONFIG.seasons;
   const ContentComponent = currentViewConfig.component;
-  const inSeason = isGrowingSeason();
-  const showWinterHolding = currentViewConfig.seasonGated && !inSeason;
+  // The winter-holding branch went with the three season views on 2026-08-24.
+  // `seasonGated` was only ever set on current-season, phenology and disease;
+  // with those gone `showWinterHolding` could never be true again, and an
+  // unreachable branch that looks live is worse than no branch.
+  // `WinterHoldingPage` itself is kept — the overview will want the same idea
+  // when a season has not started.
 
   const handleZoneChange = (zone) => {
     // In demo mode, only allow Waipara - redirect others to auth
@@ -225,7 +215,6 @@ const PublicClimateContainer = ({
     }
 
     setSelectedZone(zone);
-    setComparisonZones([]);
 
     if (zone) {
       trackClimateZoneSelected(zone.name || zone.slug, activeView);
@@ -233,10 +222,8 @@ const PublicClimateContainer = ({
   };
 
 
-  const handleComparisonZonesChange = (zones) => {
-    const filtered = zones.filter(z => z.slug !== selectedZone?.slug);
-    setComparisonZones(filtered.slice(0, 4));
-  };
+  // No-op: nothing can change the comparison set while the picker is gone.
+  const handleComparisonZonesChange = () => {};
 
   const handleViewChange = (viewKey) => {
     if (viewKey === activeView) return; // Don't track if same view
@@ -257,30 +244,17 @@ const PublicClimateContainer = ({
   };
 
   // Render appropriate zone selector based on view type
-  const renderZoneSelector = () => {
-    if (currentViewConfig.useRealtimeSelector) {
-      return (
-        <ZoneSelectorRealtime
-          selectedZone={selectedZone}
-          onZoneChange={handleZoneChange}
-          label="Climate Zone"
-          autoSelect={!zoneResolving}
-        />
-      );
-    }
+  // THE ZONE PICKER WAS REMOVED FROM HERE on 2026-08-24.
+  //
+  // The region page above already carries one (`explore/RegionSelect`), so the
+  // explorer was rendering a second picker for the same choice a few hundred
+  // pixels below the first. The page owns the region; this component is handed
+  // one and renders it.
+  //
+  // `ZoneSelector` and `ZoneSelectorRealtime` are no longer imported. Both
+  // files remain — the realtime one has no caller left at all now that the
+  // realtime views are gone.
 
-    return (
-      <ZoneSelector
-        selectedZone={selectedZone}
-        onZoneChange={handleZoneChange}
-        comparisonZones={comparisonZones}
-        onComparisonZonesChange={handleComparisonZonesChange}
-        allowComparison={currentViewConfig.allowComparison && !demoMode}
-        demoMode={demoMode}
-        onAuthRequired={onAuthRequired}
-      />
-    );
-  };
 
   // Get attribution text based on view
   const getAttribution = () => {
@@ -332,9 +306,7 @@ const PublicClimateContainer = ({
       </div>
 
       {/* Zone Selector */}
-      <div className="zone-selector-container">
-        {renderZoneSelector()}
-      </div>
+
 
 
       {/* Demo Mode CTA */}
@@ -349,23 +321,15 @@ const PublicClimateContainer = ({
 
       {/* Main Content */}
       <div className="climate-content" role="tabpanel" aria-label={currentViewConfig.label}>
-        {showWinterHolding ? (
-          <WinterHoldingPage
-            feature={currentViewConfig.label}
-            onViewChange={handleViewChange}
-          />
-        ) : (
-          <ClimateErrorBoundary key={activeView}>
-            <Suspense fallback={<div className="climate-explorer-loading"><Loader size={20} className="spin" /> Loading explorer...</div>}>
-              <ContentComponent
-                zone={selectedZone}
-                comparisonZones={comparisonZones}
-                onComparisonZonesChange={handleComparisonZonesChange}
-                inSeason={inSeason}
-              />
-            </Suspense>
-          </ClimateErrorBoundary>
-        )}
+        <ClimateErrorBoundary key={activeView}>
+          <Suspense fallback={<div className="climate-explorer-loading"><Loader size={20} className="spin" /> Loading explorer...</div>}>
+            <ContentComponent
+              zone={selectedZone}
+              comparisonZones={comparisonZones}
+              onComparisonZonesChange={handleComparisonZonesChange}
+            />
+          </Suspense>
+        </ClimateErrorBoundary>
       </div>
 
       {/* Data attribution.

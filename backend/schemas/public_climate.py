@@ -128,10 +128,11 @@ class MonthlyHistory(BaseModel):
 
 class SeasonExtremes(BaseModel):
     """Per-season extreme metrics for a zone. source = modelled | observed."""
-    last_frost_doy: Optional[Decimal] = None
-    last_frost_date: Optional[str] = None
-    early_frost: ClimateValue = ClimateValue()   # spring (SON) frost count
-    frost_days: ClimateValue = ClimateValue()    # FD (Tmin < 0)
+    # EVERY FROST FIELD was removed on 2026-08-24 — the total count, the spring
+    # count and the last-spring-frost date. All three are thresholded off the
+    # same lapse-retrended Tmin field, which inverts on frost nights. See
+    # `build_season_extremes` for the measurements. Do not restore any of them
+    # without fixing the interpolation first.
     hot_days30: ClimateValue = ClimateValue()    # TX30 (Tmax > 30)
     r99p: ClimateValue = ClimateValue()          # 99th-pctile wet-day rain (mm)
     source: Optional[str] = None
@@ -140,10 +141,6 @@ class SeasonExtremes(BaseModel):
 class SeasonExtremesBaseline(BaseModel):
     """Seasonal extreme baseline (1987-2006 normal) for a zone."""
     baseline_period: Optional[str] = None
-    last_frost_doy: ClimateValue = ClimateValue()
-    last_frost_date: Optional[str] = None
-    early_frost: ClimateValue = ClimateValue()
-    frost_days: ClimateValue = ClimateValue()
     hot_days30: ClimateValue = ClimateValue()
     r99p: ClimateValue = ClimateValue()
 

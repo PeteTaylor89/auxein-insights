@@ -1,0 +1,650 @@
+/* climate-explorer.css — the climate history and projections explorers,
+   restyled to the site's card idiom.
+   2026-08-24. Replaces `climate-explorer-tighten.css`, which was a first pass
+   and did not go far enough.
+
+   ## Override, not replacement — deliberately
+
+   `PublicClimate.css` (2,944 lines, 242 hex, 21 tokens) stays imported. It is
+   injected app-wide by Vite, and the article widgets have NO stylesheet of
+   their own — they inherit from it. Deleting it to force a clean rewrite would
+   silently strip the widgets inside every published article.
+
+   So this sheet restates all 138 classes the two surviving views actually use,
+   enumerated from their JSX rather than guessed. The visual result is a
+   rewrite; the failure mode is not. A class missed here falls back to the old
+   styling instead of rendering unstyled.
+
+   Tokens only: no hex, no raw rgba. `--primary` is the olive.
+   Loaded AFTER PublicClimate.css and BEFORE climate-mobile-guardrails.css,
+   which owns the mobile cascade and says so. */
+
+/* ============================================================ the container */
+
+.public-climate-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  box-shadow: none;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.climate-header {
+  padding: 0.9rem 1.1rem 0;
+  border-bottom: 0;
+}
+
+.climate-header .header-title h2 { font-size: var(--font-lg); color: var(--text); }
+.climate-header .header-title p { font-size: var(--font-base); color: var(--text-muted); }
+
+/* Two tabs now, not five, so this reads as a small control rather than as
+   primary navigation. Underline rather than pills: pills competed with the
+   industry pills a few hundred pixels up the page. */
+.climate-view-tabs-wrapper {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+
+.climate-view-tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.5rem 1rem 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.climate-view-tabs::-webkit-scrollbar { display: none; }
+
+.view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-base);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.view-tab:hover { background: transparent; color: var(--text); }
+
+.view-tab.active {
+  background: transparent;
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.climate-content { padding: 1.1rem; }
+
+/* ========================================================= the zone selector */
+
+.zone-selector-container { margin-bottom: 1rem; }
+.zone-selector-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+
+.zone-selector-label,
+.selector-label {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.zone-dropdown-container { position: relative; }
+
+.zone-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 15rem;
+  padding: 0 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: var(--font-md);
+  cursor: pointer;
+}
+
+.zone-dropdown-text { flex: 1; text-align: left; }
+.dropdown-chevron { color: var(--text-faint); transition: transform 0.15s; }
+.dropdown-chevron.rotated { transform: rotate(180deg); }
+
+.zone-dropdown-overlay { background: transparent; }
+
+.zone-dropdown-menu {
+  position: absolute;
+  z-index: 60;
+  margin-top: 0.35rem;
+  min-width: 100%;
+  max-height: min(60vh, 22rem);
+  overflow-y: auto;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 24px rgb(var(--primary-rgb) / 0.14);
+}
+
+.zone-region-group + .zone-region-group { margin-top: 0.3rem; }
+
+.zone-region-header {
+  padding: 0.35rem 0.6rem 0.2rem;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.zone-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 0.6rem;
+  background: transparent;
+  border: 0;
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: var(--font-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.zone-option:hover { background: var(--surface-sunken); }
+.zone-option.selected { color: var(--primary); font-weight: 600; }
+.zone-option-name { flex: 1; }
+.zone-region { color: var(--text-faint); font-size: var(--font-xs); }
+.zone-lock-icon { color: var(--text-faint); }
+
+.zone-selector-loading,
+.zone-selector-error { color: var(--text-muted); font-size: var(--font-base); }
+
+/* Comparison zone tags. */
+.zone-comparison-section { margin-top: 0.6rem; }
+.zone-comparison-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.zone-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+
+.zone-tag-remove {
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.zone-tag-remove:hover { color: var(--terracotta); }
+.comparison-hint { color: var(--text-faint); font-size: var(--font-xs); }
+
+/* ================================================================== headers */
+
+.explorer-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.explorer-header h2,
+.seasons-header h2 { margin: 0; font-size: var(--font-lg); color: var(--text); }
+.explorer-header p { margin: 0; font-size: var(--font-base); color: var(--text-muted); }
+
+.explorer-loading,
+.explorer-placeholder,
+.chart-loading,
+.chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 8rem;
+  color: var(--text-muted);
+  font-size: var(--font-base);
+}
+
+.explorer-error {
+  padding: 0.9rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--border-radius);
+  color: var(--danger);
+  font-size: var(--font-base);
+}
+
+.chart-loading-overlay {
+  background: rgb(var(--primary-rgb) / 0.04);
+  backdrop-filter: none;
+}
+
+/* ================================================================= controls */
+
+.chart-controls,
+.chart-metric-selector,
+.period-buttons,
+.period-selector,
+.ssp-tabs,
+.ssp-selector,
+.view-mode-selector,
+.compare-type-toggle,
+.season-selector,
+.comparison-season-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.chart-type-btn,
+.period-btn,
+.ssp-tab,
+.mode-btn,
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 34px;
+  padding: 0 0.7rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  cursor: pointer;
+}
+
+.chart-type-btn:hover:not(.active),
+.period-btn:hover:not(.active),
+.ssp-tab:hover:not(.active),
+.mode-btn:hover:not(.active),
+.page-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.chart-type-btn.active,
+.period-btn.active,
+.ssp-tab.active,
+.mode-btn.active {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.page-btn:disabled { color: var(--text-faint); opacity: 0.55; cursor: default; }
+.page-info { color: var(--text-muted); font-size: var(--font-sm); }
+
+.ssp-name { font-weight: 600; }
+.ssp-short { font-variant-numeric: tabular-nums; }
+.ssp-description,
+.period-years,
+.metric-explainer,
+.projection-extremes-note {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+}
+
+.period-name { font-weight: 600; }
+
+.season-select,
+.season-limit-select {
+  min-height: 34px;
+  padding: 0 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+
+.include-lta-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+/* =================================================================== charts */
+
+.chart-container {
+  position: relative;
+  height: 320px;
+  padding: 0.4rem 0;
+}
+
+/* ============================================================ season pills */
+
+.season-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+}
+
+.season-pill {
+  min-height: 32px;
+  padding: 0 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.season-pill:hover { border-color: var(--border-strong); color: var(--text); }
+
+.season-pill.active,
+.season-pill.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ============================================================ season cards */
+
+.seasons-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+
+.seasons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.season-card {
+  padding: 0.8rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+}
+
+.season-card:hover { border-color: var(--border-strong); }
+
+.season-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.season-label {
+  color: var(--text);
+  font-size: var(--font-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.season-ranking {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.season-card-stats,
+.baseline-stats,
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: 0.5rem;
+}
+
+.season-stat,
+.baseline-stat,
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--surface-sunken);
+  border: 0;
+  border-radius: var(--border-radius);
+}
+
+.stat-label,
+.summary-label,
+.baseline-label {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.stat-value,
+.summary-value {
+  color: var(--text);
+  font-size: var(--font-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-diff,
+.summary-change {
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Up is not automatically good, but where the explorers already colour a
+   change, use the brand pair rather than a generic green and red. */
+.stat-diff.positive, .summary-change.positive, .trend.positive { color: var(--primary); }
+.stat-diff.negative, .summary-change.negative, .trend.negative { color: var(--terracotta); }
+.stat-diff.neutral, .summary-change.neutral, .trend.neutral { color: var(--text-faint); }
+
+.trend-icon { vertical-align: -2px; }
+
+.summary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--border-radius);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.summary-content { min-width: 0; }
+
+/* Metric tints. Kept distinct but all inside the palette. */
+.summary-icon.gdd, .summary-icon.temp, .summary-icon.tmean { color: var(--primary); }
+.summary-icon.rain { color: var(--link); }
+.summary-icon.tmax { color: var(--terracotta); }
+
+/* ============================================================== extremes */
+
+.season-card-extremes,
+.monthly-extremes-summary,
+.compare-extremes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.extreme-chip,
+.mes-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mes-label { color: var(--text-faint); }
+
+/* An observed value is a different claim from a modelled one. */
+.extreme-chip.observed,
+.mes-chip.observed { border: 1px solid var(--border-strong); }
+
+/* ================================================================= tables */
+
+.monthly-table-wrapper,
+.compare-extremes-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 0.9rem;
+}
+
+.monthly-details { margin-top: 1rem; }
+
+.monthly-table,
+.compare-extremes-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-base);
+}
+
+.monthly-table th,
+.monthly-table td,
+.compare-extremes-table th,
+.compare-extremes-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.monthly-table th:first-child,
+.monthly-table td:first-child,
+.compare-extremes-table th:first-child,
+.compare-extremes-table td:first-child { text-align: left; }
+
+.monthly-table thead th,
+.compare-extremes-table thead th {
+  background: transparent;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.monthly-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ============================================================ attribution */
+
+.climate-attribution {
+  margin-top: 1rem;
+  padding: 0.7rem 1.1rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  line-height: 1.55;
+}
+
+.projection-summary { margin-bottom: 1rem; }
+.baseline-summary { margin-bottom: 1rem; }
+
+.baseline-header {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.baseline-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* ================================================================= mobile */
+
+@media (max-width: 700px) {
+  .climate-content { padding: 0.85rem 0.8rem 1rem; }
+  .climate-header { padding: 0.8rem 0.8rem 0; }
+  .climate-view-tabs { padding: 0.4rem 0.8rem 0; }
+  .chart-container { height: 250px; }
+  .seasons-grid { grid-template-columns: 1fr; }
+  .zone-dropdown-trigger { width: 100%; min-width: 0; }
+  .chart-type-btn, .period-btn, .ssp-tab, .mode-btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* ------------------------------------------- the last of the class surface
+   Wrappers and small pieces that were inheriting from PublicClimate.css.
+   Enumerated from a coverage pass over the JSX rather than eyeballed, so the
+   two views are now fully described here. Demo-mode classes are deliberately
+   left inheriting: demo mode is a Pro upsell path, not part of these views. */
+
+.season-explorer,
+.projections-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.seasons-section { margin-top: 0.4rem; }
+
+.seasons-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.climate-explorer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 10rem;
+  color: var(--text-muted);
+  font-size: var(--font-base);
+}
+
+.zone-region-zones { display: flex; flex-direction: column; }
+
+.season-compare,
+.zone-compare { margin-top: 0.9rem; }
+
+/* The tab strip shows the long label where there is room and the short one
+   where there is not. Both exist in the DOM; only one is ever visible. */
+.tab-label-short { display: none; }
+
+@media (max-width: 560px) {
+  .tab-label-full { display: none; }
+  .tab-label-short { display: inline; }
+}

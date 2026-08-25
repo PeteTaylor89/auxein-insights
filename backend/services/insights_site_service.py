@@ -54,7 +54,39 @@ log = logging.getLogger(__name__)
 REFERENCE_VARIABLE = "temp_mean"
 REFERENCE_STATISTIC = "mean"
 
-FIRST_VINTAGE, LAST_VINTAGE = 1987, 2023
+FIRST_VINTAGE = 1987
+
+# The last vintage worth ASKING for. Was hardcoded to 2023 — set when the
+# archive stopped there, and left behind when it was extended to 2026-07, so
+# every Pro site's record ended three seasons early no matter how much data
+# existed underneath it.
+#
+# Derived now, and deliberately generous: `derive_season.total()` already
+# returns None for a season missing any of its eight months, so asking for one
+# vintage too many costs nothing and produces nothing. Asking for one too few is
+# invisible — which is exactly how this went stale.
+#
+# `last_vintage()` reads the archive; the constant is the fallback for callers
+# with no session, and it is a floor rather than a ceiling.
+LAST_VINTAGE = 2023
+
+
+def last_vintage(db: Session) -> int:
+    """The newest vintage the surface archive could possibly support.
+
+    A Sep-Apr season labelled by its end year needs data through April of that
+    year, so the archive's last month maps to a vintage of `year + 1` when that
+    month is at or after September and `year` otherwise.
+    """
+    row = db.execute(text("""
+        SELECT EXTRACT(YEAR FROM max(valid_at))::int  AS y,
+               EXTRACT(MONTH FROM max(valid_at))::int AS m
+          FROM surface_run
+         WHERE granularity = 'monthly' AND variable = :v
+    """), {"v": REFERENCE_VARIABLE}).mappings().first()
+    if not row or row["y"] is None:
+        return LAST_VINTAGE
+    return row["y"] + 1 if row["m"] >= 9 else row["y"]
 SEASON_MONTHS = [(9, -1), (10, -1), (11, -1), (12, -1),
                  (1, 0), (2, 0), (3, 0), (4, 0)]
 
@@ -400,7 +432,8 @@ FROST_DISCLAIMER = (
 )
 
 
-def derive_season(monthly: dict, gdd: dict) -> list[tuple]:
+def derive_season(monthly: dict, gdd: dict,
+                  last: Optional[int] = None) -> list[tuple]:
     """Season metrics at this cell, from its own monthly rows.
 
     `monthly` is {(variable, statistic): {(year, month): value}}.
@@ -418,7 +451,7 @@ def derive_season(monthly: dict, gdd: dict) -> list[tuple]:
         return monthly.get((variable, statistic), {})
 
     out: list[tuple] = []
-    for vintage in range(FIRST_VINTAGE, LAST_VINTAGE + 1):
+    for vintage in range(FIRST_VINTAGE, (last or LAST_VINTAGE) + 1):
         span = [(vintage + off, m) for m, off in SEASON_MONTHS]
 
         def collect(variable, statistic):

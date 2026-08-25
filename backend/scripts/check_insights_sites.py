@@ -187,7 +187,20 @@ def main() -> int:
         n_season = db.execute(text(
             "SELECT count(DISTINCT vintage_year) FROM insights_site_season "
             "WHERE site_id = :s"), {"s": site_id}).scalar()
-        check("37 vintages of season metrics", n_season == 37, n_season)
+        # DERIVED, not 37. That constant was written when the archive stopped
+        # at vintage 2023 and it failed the moment the record was extended to
+        # 2026 — the third hardcoded span in this suite family to go stale the
+        # same way. What matters is that the site covers everything the archive
+        # can support, whatever that is today.
+        expected_season = svc.last_vintage(db) - svc.FIRST_VINTAGE + 1
+        check(f"{expected_season} vintages of season metrics "
+              f"({svc.FIRST_VINTAGE}..{svc.last_vintage(db)})",
+              n_season == expected_season, n_season)
+        check("the site reaches the archive's last vintage",
+              db.execute(text(
+                  "SELECT max(vintage_year) FROM insights_site_season "
+                  "WHERE site_id = :s"), {"s": site_id}).scalar()
+              == svc.last_vintage(db))
 
         print("\nthe numbers")
         season = A.site_season(site_id=site_id, metrics="gdd10,rain,tmean",
@@ -258,7 +271,17 @@ def main() -> int:
         check("the dashboard is on the same baseline as the charts",
               A.site_dashboard(site_id=site_id, db=db,
                                user=user)["baseline"] == A.PRO_BASELINE)
-        check("456 months of temp_mean", monthly["meta"]["n_months"] == 456,
+        # Also derived. Every month the archive holds for the reference
+        # variable should appear at the site — extraction has no date bound, so
+        # a shortfall means a raster failed to read, not that the record ends.
+        expected_months = db.execute(text("""
+            SELECT count(*) FROM surface_run
+             WHERE granularity = 'monthly' AND variable = :v
+               AND statistic = :st
+        """), {"v": svc.REFERENCE_VARIABLE,
+               "st": svc.REFERENCE_STATISTIC}).scalar()
+        check(f"{expected_months} months of temp_mean",
+              monthly["meta"]["n_months"] == expected_months,
               monthly["meta"]["n_months"])
         check("one baseline drives both normals",
               "both" in monthly["meta"]["baseline_applies_to"])

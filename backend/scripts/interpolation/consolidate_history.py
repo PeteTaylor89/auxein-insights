@@ -32,7 +32,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -40,6 +40,13 @@ import numpy as np
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+# This module has no other intra-package import, so the path setup every other
+# script in here already does has to happen before the record import.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.interpolation.runrecord import (             # noqa: E402
+    RunRecord, _code_digest, _environment, _git_revision)
+
 log = logging.getLogger("consolidate")
 
 REPO = Path(__file__).resolve().parents[3]
@@ -78,6 +85,11 @@ def apply_elevation_overrides(stations: pd.DataFrame) -> pd.DataFrame:
     return stations
 
 # variable -> (input folder, value column, station-metadata file)
+# Hashed into every run record. Staging is a READER: what determines the
+# contents of an .npz is this module's parsing and the elevation overrides it
+# applies, nothing else.
+CODE_MODULES = ("consolidate_history.py",)
+
 VARIABLES = {
     "temp_mean": ("TEMP_DAILY_Tmean(C)_SPLINE_INPUTS", "Tmean(C)",
                   "CLIFLO_RAW_Temp_Daily.csv"),
@@ -306,7 +318,24 @@ def main() -> int:
 
     t0 = time.perf_counter()
     out = Path(args.out)
+
+    # Opened before the read, which takes tens of minutes off a network drive.
+    record = RunRecord(out)
+    record.open({
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "engine": "consolidate_history", "argv": sys.argv,
+        "parameters": {"source": str(args.source), "out": str(out),
+                       "variables": wanted, "workers": args.workers},
+        # `Z:` is a mapped network drive holding the ONLY copy of a record that
+        # can never be re-pulled — CLIFLO closed 2024-10. Which tree an .npz was
+        # read from is not reconstructable from the .npz itself.
+        "sources": {"tree": str(args.source), "kind": "one CSV per day"},
+        "code": {"digest": _code_digest(CODE_MODULES), "git": _git_revision()},
+        "environment": _environment()})
+
     summaries = [consolidate(v, Path(args.source), out, args.workers) for v in wanted]
+    record.close({s["variable"]: s for s in summaries},
+                 copy=tuple(f"{s['variable']}.json" for s in summaries))
     log.info("done in %.1f min -> %s", (time.perf_counter() - t0) / 60, out)
     for s in summaries:
         log.info("  %-10s %s..%s  %d days  %d stations",

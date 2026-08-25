@@ -56,6 +56,62 @@ const DISEASE_LABELS = {
   botrytis: 'Botrytis',
 };
 
+// --- Pinning a widget to when it was written ---------------------------------
+//
+// These widget types read THE SEASON IN PROGRESS. Left unpinned they follow the
+// calendar for ever, so an article published in February 2026 under the heading
+// "2025 - 2026 Season GDD" ends up drawing the 2027 season — which, on a Sep-Apr
+// definition, has not started. Audited 2026-08-23: 24 live widgets across 11
+// published articles had done exactly that.
+//
+// So an article passes its `published_at` as `asOf` and these types resolve
+// against that date instead of today. Everything else is deliberately NOT in
+// this set:
+//
+//   historical_trend, region_trend_compare*, projection_outlook — long-run
+//   series. They gain a year and stay correct; freezing them would make an
+//   article about long-term trends go stale on purpose.
+//
+//   season_comparison — already carries explicit `vintages` where an author set
+//   them. Only its FALLBACK is pinned, below.
+const AS_OF_WIDGETS = new Set([
+  'gdd_progress',
+  'temperature_rainfall',
+  'current_season_summary',
+  'recent_observations',
+  'disease_pressure',
+]);
+
+/** ISO timestamp -> 'YYYY-MM-DD', or null. Date-only, because the API takes a date. */
+function toAsOfDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The vintage current at a date, on the JULY-JUNE cycle.
+ *
+ * This must match `realtime_climate.get_current_vintage_year`, which is what
+ * `climate_zone_daily.vintage_year` is keyed on. It is NOT the Sep-Apr vintage
+ * used by `insights_dashboard.current_vintage` on the Pro page — the two
+ * conventions disagree in May and June, and using the wrong one here would ask
+ * for a vintage the live table has no rows for.
+ */
+function vintageAt(isoDate) {
+  if (!isoDate) return null;
+  const [year, month] = isoDate.split('-').map(Number);
+  return month >= 7 ? year + 1 : year;
+}
+
+function formatAsOf(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? isoDate
+    : d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 function ClimateWidgetRenderer({
   widgetType,
   zoneSlug,
@@ -71,12 +127,18 @@ function ClimateWidgetRenderer({
   seasonLimit,
   scenario,
   period,
+  asOf,
 }) {
   const [data, setData] = useState(snapshotData || null);
   const [loading, setLoading] = useState(!snapshotData);
   const [error, setError] = useState(null);
   const isSnapshot = !!snapshotData;
   const isInteractive = widgetType === 'region_trend_compare_interactive';
+
+  // Resolved once and used by both the fetch and the caption, so the date the
+  // widget asks for can never disagree with the date it prints.
+  const asOfDate = useMemo(() => toAsOfDate(asOf), [asOf]);
+  const isPinned = !!asOfDate && AS_OF_WIDGETS.has(widgetType);
 
   // Reader-driven selection for interactive widget. Seeded from default zoneSlugs.
   const defaultPair = useMemo(() => {
@@ -123,26 +185,35 @@ function ClimateWidgetRenderer({
 
     const fetchData = async () => {
       try {
+        // Empty when the widget is not pinned, so an unpinned widget sends
+        // exactly the request it always did.
+        const asOfParams = isPinned ? { as_of: asOfDate } : {};
+
         switch (widgetType) {
           case 'gdd_progress': {
-            setData(await getGddProgress(zoneSlug));
+            setData(await getGddProgress(zoneSlug, asOfParams));
             break;
           }
           case 'temperature_rainfall':
           case 'current_season_summary':
           case 'recent_observations': {
-            setData(await getCurrentSeason(zoneSlug));
+            setData(await getCurrentSeason(zoneSlug, asOfParams));
             break;
           }
           case 'disease_pressure': {
-            setData(await getDiseasePressure(zoneSlug));
+            setData(await getDiseasePressure(zoneSlug, asOfParams));
             break;
           }
           case 'season_comparison': {
             let vintagesParam = vintages;
             if (!vintagesParam) {
-              const currentYear = new Date().getFullYear();
-              vintagesParam = `${currentYear},${currentYear - 1}`;
+              // The fallback pair, resolved at publication rather than at read
+              // time. An author who set `vintages` explicitly is untouched —
+              // that is already a pinned widget and article 14 relies on it.
+              const refYear = asOfDate
+                ? vintageAt(asOfDate)
+                : new Date().getFullYear();
+              vintagesParam = `${refYear},${refYear - 1}`;
             }
             setData(await compareSeasons({
               zone: zoneSlug,
@@ -184,7 +255,7 @@ function ClimateWidgetRenderer({
     };
 
     fetchData();
-  }, [widgetType, zoneSlug, activeSlugsForFetch, effectiveMetric, effectiveSeasonLimit, effectiveIncludeBaseline, snapshotData, vintages, scenario, period, isInteractive]);
+  }, [widgetType, zoneSlug, activeSlugsForFetch, effectiveMetric, effectiveSeasonLimit, effectiveIncludeBaseline, snapshotData, vintages, scenario, period, isInteractive, asOfDate, isPinned]);
 
   const content = useMemo(() => {
     if (!data && !isInteractive) return null;
@@ -262,6 +333,11 @@ function ClimateWidgetRenderer({
       </div>
       <div style={S.attribution}>
         {isSnapshot && <span style={{ marginRight: '0.5rem', color: '#92400e' }}>Snapshot</span>}
+        {/* Without this a pinned widget is indistinguishable from a broken one:
+            the reader sees a season that stops partway and no reason why. */}
+        {isPinned && !isSnapshot && (
+          <span style={{ marginRight: '0.5rem' }}>As at {formatAsOf(asOfDate)}</span>
+        )}
         Data: Auxein Climate Network
       </div>
     </div>

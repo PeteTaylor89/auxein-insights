@@ -1,0 +1,80 @@
+/* ProTeaser — the paid door in the home hero, under the compact pulse strip.
+   Geometry is copied from .region-launcher on purpose (same margin-top,
+   padding, radius and border weight) so the two cards line up rather than
+   looking like a card and a banner. Only the accent differs: terracotta for
+   Pro against the olive of the free regional card. */
+.pro-teaser {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  padding: 16px 17px 15px;
+  border: 1px solid rgba(209, 88, 59, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(209, 88, 59, 0.06), rgba(209, 88, 59, 0.02));
+}
+
+.pro-teaser__eyebrow {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(209, 88, 59, 0.28);
+  background: rgba(209, 88, 59, 0.1);
+  color: var(--terracotta);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.pro-teaser__heading {
+  margin: 0 0 4px;
+  font-size: var(--font-lg);
+  color: var(--charcoal);
+}
+
+.pro-teaser__blurb {
+  margin: 0 0 13px;
+  font-size: var(--font-base);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Pushed to the bottom so the CTA sits on the same line as the neighbouring cards'
+   when the two blurbs run to different lengths. The row stretches both cards
+   to equal height; without this the button floats mid-card. */
+.pro-teaser__cta {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 9px;
+  margin-top: auto;
+  min-height: 44px;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 6px;
+  background: var(--terracotta);
+  color: var(--white);
+  font-size: var(--font-base);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.pro-teaser__cta:hover,
+.pro-teaser__cta:focus-visible {
+  background: #B84A2E;
+  color: var(--white);
+}
+
+.pro-teaser__cta-arrow {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.pro-teaser__cta:hover .pro-teaser__cta-arrow {
+  transform: translateX(2px);
+}

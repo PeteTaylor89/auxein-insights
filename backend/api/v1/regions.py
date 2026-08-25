@@ -16,6 +16,7 @@ import json
 import logging
 
 from db.session import get_db
+from core import scope as scope_mod
 from db.models.wine_region import WineRegion
 from api.v1.public_auth import get_current_public_user, PublicUser
 from core.public_security import get_any_authenticated_user, get_insights_user
@@ -71,16 +72,28 @@ class RegionDetail(BaseModel):
 
 @router.get("", response_model=List[RegionListItem])
 async def list_regions(
+    country: Optional[str] = Query(None, description="ISO2, defaults to NZ"),
+    industry: Optional[str] = Query(None, description="Industry key, defaults to wine"),
     current_user: PublicUser = Depends(get_insights_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get list of all wine regions for sidebar/navigation.
+    Get list of regions for sidebar/navigation.
     Returns basic info with bounds for fly-to functionality.
+
+    Scoped by (country, industry), both defaulting to New Zealand wine — which
+    is the entire contents of the table, so an unscoped call is unchanged.
+
+    The Atlas sidebar carries a hardcoded eleven-region fallback for when this
+    request FAILS. That fallback is New Zealand wine and always will be; it is
+    an error path, not a data source, and it should not grow a second country.
     """
     try:
+        sc = scope_mod.resolve(db, country, industry)
         regions = db.query(WineRegion).filter(
-            WineRegion.is_active == True
+            WineRegion.is_active == True,
+            WineRegion.country_id == sc.country_id,
+            WineRegion.industry_id == sc.industry_id,
         ).order_by(WineRegion.display_order).all()
         
         result = []

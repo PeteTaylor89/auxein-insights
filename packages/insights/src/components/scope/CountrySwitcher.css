@@ -1,0 +1,104 @@
+/* components/scope/CountrySwitcher.css
+   Tokens only — no hex, no raw brand rgba. `--primary-rgb` exists precisely
+   because rgba() cannot reference a colour token. */
+
+.country-switcher {
+  position: relative;
+  display: inline-block;
+}
+
+.country-switcher__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* 44px: the standing mobile-native minimum for a tap target. */
+  min-height: 44px;
+  padding: 0 0.7rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.country-switcher__button:hover {
+  border-color: var(--border-strong);
+  color: var(--primary);
+}
+
+.country-switcher__label {
+  white-space: nowrap;
+}
+
+.country-switcher__chev--open {
+  transform: rotate(180deg);
+}
+
+.country-switcher__menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 60;
+  /* min-width beats max-width in CSS, and a switcher in a narrow header column
+     will spill without a ceiling. Capped rather than fixed for that reason —
+     the same trap that forced .home-hero__doors to collapse at 1120px. */
+  min-width: 12rem;
+  max-width: min(16rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 6px 20px rgb(var(--primary-rgb) / 0.12);
+}
+
+.country-switcher__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  background: transparent;
+  border: 0;
+  border-radius: var(--border-radius);
+  color: var(--text);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.country-switcher__item:hover {
+  background: var(--surface-sunken);
+}
+
+.country-switcher__item--current {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.country-switcher__item--pending {
+  color: var(--text-muted);
+}
+
+.country-switcher__tag {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  background: var(--surface-sunken);
+  border-radius: var(--border-radius);
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.country-switcher__item svg {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.country-switcher__tag + svg,
+.country-switcher__item--current .country-switcher__tag {
+  margin-left: 0.4rem;
+}

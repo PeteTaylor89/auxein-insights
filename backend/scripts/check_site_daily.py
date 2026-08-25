@@ -66,17 +66,41 @@ def main() -> int:
         print("1. against the real index")
         recent = date.today() - timedelta(days=1)
         live = svc.daily_surfaces(db, recent - timedelta(days=30), recent)
-        check("no daily surface is indexed yet, and that is reported not raised",
-              live == [], f"{len(live)} found")
+
+        # These two used to assert that NO daily surface existed — true when
+        # they were written, and false as of 2026-08-24: the live pipeline began
+        # publishing dailies on 2026-08-01. Asserting an absence is only ever
+        # right until someone fills it, so both now assert the BEHAVIOUR that
+        # was actually being protected — that an empty window is reported rather
+        # than raised — and work whether or not surfaces are there.
+        n_daily = db.execute(text(
+            "SELECT count(*) FROM surface_run WHERE granularity = 'daily'"
+        )).scalar()
+        print(f"        ({n_daily} daily surfaces indexed; "
+              f"{len(live)} in the last 30 days)")
+        check("daily_surfaces returns a list either way, never raises",
+              isinstance(live, list))
 
         site = (db.query(InsightsSite)
                   .filter(InsightsSite.status == "ready").order_by(InsightsSite.id)
                   .first())
         if site:
-            got = svc.populate_daily(db, site, recent - timedelta(days=7), recent)
+            # A window that is genuinely empty: before the archive begins, so
+            # this stays a test of the empty path however far the live record
+            # extends.
+            empty = svc.populate_daily(db, site, date(1980, 1, 1),
+                                       date(1980, 1, 8))
             check("an empty window is a stated condition, not a failure",
-                  got["written"] == 0 and got["reason"] is not None,
-                  got["reason"] or "")
+                  empty["written"] == 0 and empty["reason"] is not None,
+                  empty["reason"] or "")
+
+            got = svc.populate_daily(db, site, recent - timedelta(days=7), recent)
+            check("a real window either writes rows or says why",
+                  got["written"] > 0 or got.get("reason"),
+                  f"wrote {got['written']}, reason {got.get('reason')!r}")
+            if got["written"]:
+                print(f"        (live window wrote {got['written']} days — the "
+                      f"Pro daily panel has data for the first time)")
 
         # --- 2. synthetic surfaces, rolled back at the end --------------------
         print("")

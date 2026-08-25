@@ -1,0 +1,216 @@
+/* components/home/RegionMap.css — the clickable country map in the home hero.
+   Phase 4b of docs/plans/COUNTRY_INDUSTRY_REGIONS_2026-08-24.md.
+
+   Tokens only. Nothing here is country-specific: the aspect ratio comes from
+   the SVG viewBox the server sends, so the box fits whatever shape arrives. */
+
+.regionmap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 14px 16px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+}
+
+.regionmap__title {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.regionmap__svg {
+  /* The intrinsic aspect ratio comes from the viewBox, so the SVG sizes itself
+     from the column width and never needs a hardcoded height. `min-height: 0`
+     lets it shrink inside the flex column instead of forcing the card taller
+     than its neighbours — which is the whole point of the three-column row. */
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-height: 340px;
+  /* MUST clip. An SVG clips to its viewport by default; `overflow: visible`
+     was set so edge labels were not trimmed, and it was harmless until zoom
+     arrived — at 2x the country simply drew straight over the rest of the
+     page. Labels near an edge now clip, which is the correct trade. */
+  overflow: hidden;
+}
+
+/* The land. Never interactive — it sits under the regions and would otherwise
+   swallow clicks aimed at the small ones. */
+.regionmap__land {
+  fill: var(--surface-sunken);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.regionmap__a {
+  cursor: pointer;
+  /* Removes the focus ring the browser draws around the whole <a> box, which
+     for a scattered MultiPolygon is a rectangle spanning half the country.
+     The visible focus state is on the path itself, below. */
+  outline: none;
+}
+
+.regionmap__region {
+  fill: var(--primary);
+  fill-opacity: 0.55;
+  stroke: var(--primary);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  transition: fill-opacity 0.12s ease;
+}
+
+/* A region with no live season still has history and projections, so it is
+   fully clickable — just quieter. Same distinction the dropdown makes. */
+.regionmap__a--quiet .regionmap__region {
+  fill: var(--text-faint);
+  fill-opacity: 0.35;
+  stroke: var(--text-muted);
+}
+
+.regionmap__region--on {
+  fill-opacity: 0.95;
+  stroke-width: 2;
+}
+
+/* Keyboard focus has to be visible, and on a shape the outline has to be drawn
+   by the shape. Tab order follows the DOM, which follows display_order — so
+   tabbing walks the country north to south. */
+.regionmap__a:focus-visible .regionmap__region {
+  fill-opacity: 0.95;
+  stroke: var(--terracotta);
+  stroke-width: 3;
+}
+
+.regionmap__label {
+  fill: var(--text-muted);
+  font-size: 26px;
+  font-weight: 600;
+  paint-order: stroke;
+  /* A halo, so a label crossing the coastline stays readable against both the
+     land fill and the page behind it. */
+  stroke: var(--surface);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  user-select: none;
+}
+
+.regionmap__label--on { fill: var(--primary); }
+
+.regionmap__readout {
+  margin: 6px 0 0;
+  min-height: 1.2em;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  text-align: center;
+}
+
+.regionmap--skeleton {
+  min-height: 260px;
+  background: var(--surface-sunken);
+  animation: regionmap-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes regionmap-pulse { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .regionmap--skeleton { animation: none; }
+  .regionmap__region { transition: none; }
+}
+
+.regionmap--absent {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 260px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.regionmap--absent svg { color: var(--text-faint); }
+.regionmap--absent p { margin: 0; font-size: var(--font-base); }
+
+/* Labels crowd badly once the column is narrow, and the shapes plus the
+   readout carry the meaning without them. */
+@media (max-width: 1100px) {
+  .regionmap__label { display: none; }
+}
+
+@media (max-width: 900px) {
+  .regionmap__svg { max-height: 420px; }
+}
+
+/* --- zoom + pan (2026-08-24) ------------------------------------------- */
+
+.regionmap {
+  position: relative;
+  /* The card is the boundary. Without this a transformed or oversized child
+     can still paint outside the rounded border. */
+  overflow: hidden;
+}
+
+.regionmap__svg { cursor: grab; touch-action: pan-y; }
+.regionmap__svg--dragging { cursor: grabbing; }
+
+/* `touch-action: pan-y` above is the load-bearing half of not hijacking the
+   page: a vertical swipe still scrolls the page, a horizontal drag pans the
+   map. Without it the map would swallow every scroll that started on it.
+
+   ZOOMED IN, THE MAP TAKES THE GESTURE. `pan-y` leaves the browser owning
+   vertical drags, which means a zoomed map cannot be panned up or down on
+   touch at all — and up and down is the only direction that matters on a
+   country this shape. Nothing is lost at scale 1, where the clamp forbids
+   panning anyway, so the trade only applies once someone has deliberately
+   zoomed in. */
+.regionmap__svg--zoomed { touch-action: none; }
+
+.regionmap__zoom {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.regionmap__zoom button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Below the 44px minimum on purpose: these are secondary controls sitting on
+     top of the map, and at 44px three of them cover a third of its height.
+     Every destination they lead to is reachable without them. */
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--border-radius);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.regionmap__zoom button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.regionmap__zoom button:disabled {
+  color: var(--text-faint);
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Strokes are in USER units, so zooming the viewBox would scale them too and a
+   3x view would get fat borders. `vector-effect` holds them at their rendered
+   width. Labels have no equivalent for glyph size, so RegionMap divides their
+   font-size and halo by the current scale inline. */
+.regionmap__land,
+.regionmap__region {
+  vector-effect: non-scaling-stroke;
+}

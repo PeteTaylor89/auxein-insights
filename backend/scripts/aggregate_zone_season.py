@@ -66,7 +66,12 @@ SEASON_MONTHS = [(9, -1), (10, -1), (11, -1), (12, -1),
                  (1, 0), (2, 0), (3, 0), (4, 0)]
 SPRING_MONTHS = [(9, -1), (10, -1), (11, -1)]
 
-FIRST_VINTAGE, LAST_VINTAGE = 1987, 2023
+FIRST_VINTAGE = 1987
+# The DEFAULT upper bound only. Was 2023, which silently stopped every unbounded
+# run three seasons short once the archive was extended. A season with missing
+# months produces nothing anyway, so an over-generous default is safe and a
+# stale one is not.
+LAST_VINTAGE = 2100
 DEFAULT_BASELINE = "1986-2005"
 
 # Pass A: metric -> (variable, statistic, how). "sum" adds the months; "wmean"
@@ -265,27 +270,98 @@ def main() -> int:
             return {zid: (np.vstack(v) if v else None)
                     for zid, v in stack.items()}
 
+        def season_wet_days(vintage: int):
+            """Wet days per cell over the season. Turns a rank into a percentile."""
+            total = {zid: None for zid in per_zone}
+            for month, offset in SEASON_MONTHS:
+                wd = read_band("rainfall", "wet_days", vintage + offset, month)
+                if wd is None:
+                    continue
+                for zid in per_zone:
+                    v = np.nan_to_num(wd[zid], nan=0.0)
+                    total[zid] = v if total[zid] is None else total[zid] + v
+            return total
+
+        def nth_largest(arr, k_per_cell):
+            """The k-th largest finite value per column, k varying by column."""
+            ordered = np.sort(np.where(np.isfinite(arr), arr, -np.inf),
+                              axis=0)[::-1, :]
+            available = np.isfinite(arr).sum(axis=0)
+            out = np.full(arr.shape[1], np.nan)
+            for i in range(arr.shape[1]):
+                k = k_per_cell[i]
+                if k >= 1 and k <= available[i]:
+                    out[i] = ordered[int(k) - 1, i]
+            return out
+
         # r99p threshold per cell, from the baseline seasons.
+        #
+        # ## The bug this replaces (found 2026-08-24)
+        #
+        # R99p is the season total from days exceeding the 99th percentile of
+        # WET-DAY rainfall in the base period. The archive has no daily rasters,
+        # so the pool available here is the five largest falls per month —
+        # already the extreme tail of the distribution.
+        #
+        # Taking `np.percentile(pool, 99)` of THAT is not the 99th percentile of
+        # wet days; it is roughly the 99th percentile of the top 1-2% of wet
+        # days, which lands near the all-time maximum. Almost nothing in a
+        # normal season cleared it, so **477 of 920 stored values were exactly
+        # 0.00** — Northland 1994 reported 0.0 mm of extreme rainfall in a
+        # season whose largest single fall was 66 mm.
+        #
+        # ## The correction
+        #
+        # The 99th percentile of W wet days is the value exceeded by 0.01 x W of
+        # them — so it is the ceil(0.01 x W)-th LARGEST fall. The top-5 pool
+        # holds the largest ~800 falls of the base period, and 0.01 x W is
+        # typically around 12, so the rank we need sits comfortably inside the
+        # pool and the truncation does not matter.
+        #
+        # Where it would matter the threshold is NaN rather than wrong: if the
+        # required rank exceeds what the pool holds, the true percentile is
+        # below the pool's floor and cannot be recovered from these bands.
         print(f"pass B: pooling {base_lo}-{base_hi} for the r99p threshold")
         pool = {zid: [] for zid in per_zone}
+        # Total wet days per cell over the same base seasons. This is what turns
+        # a rank into a percentile, and it is why `wet_days` is read here.
+        wet_total = {zid: None for zid in per_zone}
         for vintage in range(base_lo, base_hi + 1):
             falls = season_pooled_falls(vintage)
             for zid, arr in falls.items():
                 if arr is not None:
                     pool[zid].append(arr)
+            for month, offset in SEASON_MONTHS:
+                wd = read_band("rainfall", "wet_days", vintage + offset, month)
+                if wd is None:
+                    continue
+                for zid in per_zone:
+                    v = np.nan_to_num(wd[zid], nan=0.0)
+                    wet_total[zid] = v if wet_total[zid] is None else wet_total[zid] + v
+
         threshold = {}
         for zid in per_zone:
-            if not pool[zid]:
+            if not pool[zid] or wet_total[zid] is None:
                 threshold[zid] = None
                 continue
             allf = np.vstack(pool[zid])
-            # Wet days only: the bands are 0-padded and sub-1 mm is zeroed.
-            thr = np.full(allf.shape[1], np.nan)
-            for i in range(allf.shape[1]):
-                col = allf[:, i]
-                wet = col[np.isfinite(col) & (col > 0)]
-                if wet.size >= 20:
-                    thr[i] = np.percentile(wet, 99.0)
+            n_cells = allf.shape[1]
+            thr = np.full(n_cells, np.nan)
+            # Descending, NaNs last, so rank k-1 is the k-th largest fall.
+            ordered = np.sort(np.where(np.isfinite(allf), allf, -np.inf),
+                              axis=0)[::-1, :]
+            available = np.isfinite(allf).sum(axis=0)
+            for i in range(n_cells):
+                w = float(wet_total[zid][i])
+                if w < 100:
+                    # Too few wet days in twenty seasons for a 99th percentile
+                    # to mean anything.
+                    continue
+                k = max(1, int(np.ceil(0.01 * w)))
+                if k > available[i]:
+                    # The rank falls below what the top-5 pool retains.
+                    continue
+                thr[i] = ordered[k - 1, i]
             threshold[zid] = thr
         pool = None
 
@@ -323,6 +399,7 @@ def main() -> int:
                 last[zid] = np.where(last[zid] < 0, np.nan, last[zid])
 
             falls = season_pooled_falls(vintage)
+            season_wd = season_wet_days(vintage)
 
             for zid, z in per_zone.items():
                 n_total = len(z["w"])
@@ -339,15 +416,50 @@ def main() -> int:
                 thr, arr = threshold[zid], falls[zid]
                 if thr is None or arr is None:
                     continue
+
+                # `r99p` — THE 99th PERCENTILE OF THIS SEASON'S WET DAYS, in mm.
+                #
+                # Changed 2026-08-24. It used to be the ETCCDI exceedance TOTAL:
+                # the season's rainfall from days above a fixed base-period
+                # threshold. That is a legitimate index and it is legitimately
+                # ZERO whenever no day cleared the bar — which over a ~70-wet-day
+                # season is about 40% of the time. 166 of 437 baseline
+                # zone-seasons read 0.0 mm of "extreme rainfall".
+                #
+                # The statistic this product has always published under that
+                # name — and the one the label "99th percentile" describes — is
+                # the percentile VALUE. The old 5 km table carried exactly that:
+                # mean 46.8, sd 15.9, range 14.8-141.2, never zero.
+                #
+                # The 99th percentile of W wet days is the ceil(0.01 x W)-th
+                # largest fall. At season scale W is around 70, so k is 1 or 2 —
+                # this is "the wettest or second-wettest day", which is what a
+                # 99th percentile MEANS over a single season. It is close to
+                # rx1day by construction and diverges in wet regions, where W is
+                # large enough for k to reach 2 or 3.
+                wd = season_wd[zid]
+                if wd is not None:
+                    k = np.maximum(1, np.ceil(0.01 * wd))
+                    pct = nth_largest(arr, k)
+                    st = summarise(pct, z["w"], n_total)
+                    if st:
+                        out.append((zid, vintage, "r99p", st["mean"], st["min"],
+                                    st["max"], st["p10"], st["p90"], "mm",
+                                    st["coverage"], st["n_cells"],
+                                    st["planted_ha"], None, grid_key))
+
+                # The ETCCDI index, kept under an honest name rather than
+                # discarded. Zero here is a real answer: no day this season
+                # exceeded the 1986-2005 1-in-100-wet-days threshold.
                 over = np.where(np.isfinite(arr) & (arr > thr[None, :]), arr, 0.0)
-                r99p = over.sum(axis=0)
-                r99p[~np.isfinite(thr)] = np.nan
-                s = summarise(r99p, z["w"], n_total)
-                if s:
-                    out.append((zid, vintage, "r99p", s["mean"], s["min"],
-                                s["max"], s["p10"], s["p90"], "mm",
-                                s["coverage"], s["n_cells"], s["planted_ha"],
-                                args.baseline, grid_key))
+                total = over.sum(axis=0)
+                total[~np.isfinite(thr)] = np.nan
+                st = summarise(total, z["w"], n_total)
+                if st:
+                    out.append((zid, vintage, "r99p_total", st["mean"],
+                                st["min"], st["max"], st["p10"], st["p90"],
+                                "mm", st["coverage"], st["n_cells"],
+                                st["planted_ha"], args.baseline, grid_key))
 
             if vintage % 5 == 0 or vintage == vintages[-1]:
                 print(f"  {vintage}")

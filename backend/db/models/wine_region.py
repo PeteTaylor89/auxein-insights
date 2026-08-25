@@ -16,6 +16,13 @@ class WineRegion(Base):
     # Data Ingestion Platform (Phase 0.2) — country + region hierarchy
     country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
     parent_region_id = Column(Integer, ForeignKey('wine_regions.id'), nullable=True)
+
+    # `country_industry_dim`. The table keeps its wine-specific NAME on purpose:
+    # renaming an 11-row table with several FK dependents would touch the ORM,
+    # the public API and two ordering migrations for no user-visible gain.
+    # Logged as debt in docs/plans/COUNTRY_INDUSTRY_REGIONS_2026-08-24.md.
+    industry_id = Column(Integer, ForeignKey('industries.id'), nullable=False,
+                         server_default='1')
     
     # Boundary geometry (from LINZ council boundaries)
     geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=True)

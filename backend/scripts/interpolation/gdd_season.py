@@ -83,7 +83,15 @@ from scripts.interpolation.raster import (  # noqa: E402
     NODATA, _configure_proj, write_cog,
 )
 
+from scripts.interpolation.runrecord import (             # noqa: E402
+    RunRecord, _code_digest, _environment, _git_revision)
+
 log = logging.getLogger("gdd_season")
+
+# Hashed into every run record. GDD is DERIVED from the monthly mean and sd
+# bands by a normal integral — there is no fit — so the estimator is this module
+# plus the raster reader beneath it.
+CODE_MODULES = ("gdd_season.py", "raster.py")
 
 SOURCE_VARIABLE = "temp_mean"
 CONTRACT_VERSION = "v2"
@@ -290,6 +298,37 @@ def build(root: Path, base: float, *, first: int, last: int,
     source = json.loads((root / SOURCE_VARIABLE / "manifest.json").read_text())
     res_m = int(source["resolution_m"])
     months_index = {m["valid_at"]: m for m in source["months"]}
+    dest = (out_root or root) / variable
+
+    # Opened before the season loop, and only when this run will actually
+    # write: `--stats-only` measures a distribution and publishes nothing, so
+    # there is no artefact whose provenance needs recording.
+    record = None
+    if write:
+        record = RunRecord(dest)
+        record.open({
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "engine": "gdd_season", "argv": sys.argv,
+            "parameters": {
+                "variable": variable, "gdd_base_c": base,
+                "root": str(root), "out_root": str(out_root or root),
+                "first_vintage": first, "last_vintage": last,
+                "resolution_m": res_m, "max_z_error": MAX_Z_ERROR,
+                "contract_version": CONTRACT_VERSION},
+            # The source manifest IS the provenance: this product is a pure
+            # function of that archive, so the run is only reproducible if the
+            # exact monthly surfaces it read are identified.
+            "sources": {
+                "derived_from": SOURCE_VARIABLE,
+                "source_manifest": str(root / SOURCE_VARIABLE / "manifest.json"),
+                "source_model_version": source.get("model_version"),
+                "source_first": source.get("first"),
+                "source_last": source.get("last"),
+                "source_n_months": source.get("n_months"),
+                "source_cv_rmse": source.get("cv_rmse")},
+            "code": {"digest": _code_digest(CODE_MODULES),
+                     "git": _git_revision()},
+            "environment": _environment()})
 
     seasons: list[dict] = []
     for vintage in range(first, last + 1):
@@ -340,9 +379,14 @@ def build(root: Path, base: float, *, first: int, last: int,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     if write:
-        dest = (out_root or root) / variable
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    if record is not None:
+        record.close({"variable": variable, "n_seasons": len(seasons),
+                      "first": manifest["first"], "last": manifest["last"],
+                      "distribution": pooled,
+                      "source_cv_rmse_median": manifest["cv_rmse"]["median"]},
+                     copy=("manifest.json",))
     return manifest
 
 

@@ -32,7 +32,7 @@
 .pulse-tile__icon--warm { background: rgba(209, 88, 59, 0.12); color: var(--terracotta); }
 .pulse-tile__icon--cool { background: rgba(33, 113, 181, 0.12); color: #2171B5; }
 .pulse-tile__icon--wet  { background: rgba(107, 174, 214, 0.18); color: #2171B5; }
-.pulse-tile__icon--grow { background: rgba(68, 97, 69, 0.12); color: var(--primary); }
+.pulse-tile__icon--grow { background: rgb(var(--primary-rgb) / 0.12); color: var(--primary); }
 
 .pulse-tile__body {
   display: flex;
@@ -113,7 +113,7 @@ a.pulse-tile--link {
 
 a.pulse-tile--link:hover,
 a.pulse-tile--link:focus-visible {
-  border-color: rgba(68, 97, 69, 0.45);
+  border-color: rgb(var(--primary-rgb) / 0.45);
   transform: translateY(-1px);
 }
 
@@ -172,4 +172,67 @@ a.pulse-tile--link:focus-visible {
   .national-pulse { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
   .pulse-tile { padding: 11px 12px; gap: 9px; }
   .pulse-tile__value { font-size: var(--font-lg); }
+}
+
+/* Compact — the hero's middle column, above ProTeaser.
+   Added 2026-08-24 when the hero became three even columns: the region map
+   takes the left, this plus ProTeaser the middle, the surface map the right.
+   At full size these tiles made the middle column the tallest of the three,
+   which defeats the layout. Everything here shrinks; nothing is hidden. */
+.national-pulse--compact {
+  gap: 8px;
+}
+
+.national-pulse--compact .pulse-tile {
+  padding: 8px 10px;
+  min-height: 0;
+}
+
+.national-pulse--compact .pulse-tile__label {
+  font-size: var(--font-xs);
+}
+
+.national-pulse--compact .pulse-tile__value {
+  font-size: var(--font-lg);
+}
+
+.national-pulse--compact .pulse-tile__detail,
+.national-pulse--compact .pulse-tile__when {
+  font-size: var(--font-xs);
+}
+
+/* The "where"/context line is the first thing to go: at this width it wraps to
+   a second line and pushes every tile taller than the tile beside it. */
+.national-pulse--compact .pulse-tile__where {
+  display: none;
+}
+
+/* The live dot, which replaced the word "now" in all three labels
+   (2026-08-24). A quietly pulsing mark says "this is a reading taken minutes
+   ago" once, rather than three tiles each repeating it in words. */
+.pulse-tile__live {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--terracotta);
+  animation: pulse-live 2.2s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still visible, just not moving — the dot carries meaning, the motion does
+     not. */
+  .pulse-tile__live { animation: none; }
+}
+
+/* Icon and label share a line in every variant, not just the compact one. */
+.pulse-tile__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
