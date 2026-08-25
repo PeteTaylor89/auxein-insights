@@ -58,16 +58,32 @@ router = APIRouter(tags=["insights-pro"])
 # cadence. Calling this "yearly billing" conflates the discounted rate with the
 # invoice schedule, which Xero owns and this product does not model. The label
 # below says "committed" for that reason; do not shorten it to "annual".
-PRO_ANNUAL_PER_SITE_EX_GST = Decimal('600.00')
+# INSIGHTS PRO IS TIERED, NOT FLAT (Pete, 2026-08-25). The first site carries
+# the subscription; each one after it is cheaper, because most of what the first
+# site pays for — the archive, the surfaces, the models, the account — is not
+# bought again when a second point is placed on the same map.
+#
+# The old constant was called `PRO_ANNUAL_PER_SITE_EX_GST` and multiplied. It is
+# renamed rather than re-valued on purpose: a name that says "per site" over a
+# model that is not per-site is precisely the kind of thing that survives a
+# review and then quietly produces a wrong invoice.
+PRO_ANNUAL_FIRST_SITE_EX_GST = Decimal('600.00')
+PRO_ANNUAL_ADDITIONAL_SITE_EX_GST = Decimal('400.00')
 GROW_ANNUAL_PER_HA_EX_GST = Decimal('85.00')
 
 # Grow only. Insights Pro has NO setup fee, confirmed 2026-08-20, and that is
 # a selling point rather than an omission — the /pro page says so.
 #
-# It is charged once, in year one, and it moves the crossover a long way:
-# ongoing breakeven is 7.06 ha (600/85) but first-year breakeven is 4.12 ha
-# ((600-250)/85). Between those, Pro is cheaper in year one and Grow is cheaper
-# thereafter, so both comparisons are computed and both are recorded.
+# It is charged once, in year one, and it moves the crossover a long way. At
+# ONE site: ongoing breakeven is 7.06 ha (600/85) but first-year breakeven is
+# 4.12 ha ((600-250)/85). Between those, Pro is cheaper in year one and Grow is
+# cheaper thereafter, so both comparisons are computed and both are recorded.
+#
+# **Those two figures are no longer THE breakeven, only the one-site case.**
+# Since Pro went tiered the crossover moves with the site count — at two sites
+# it is 11.76 ha ongoing and 8.82 ha in year one. Nothing here hardcodes them;
+# they are named because they are the numbers the copy quotes, and the copy has
+# to say "for one site" wherever it does.
 GROW_SETUP_ONE_OFF_EX_GST = Decimal('250.00')
 GST_RATE = Decimal('0.15')          # New Zealand
 CURRENCY = 'NZD'
@@ -148,6 +164,12 @@ class RateOut(BaseModel):
     # One-off charges, separate from the recurring rate. None for Insights Pro.
     setup_ex_gst: Optional[Decimal] = None
     setup_inc_gst: Optional[Decimal] = None
+    # The rate for each site AFTER the first. None for anything not tiered.
+    # Published so the page can print it rather than hardcoding it — the whole
+    # contract of this endpoint is that no price appears on screen that the
+    # server does not hold, and a second rate is a second chance to break it.
+    additional_ex_gst: Optional[Decimal] = None
+    additional_inc_gst: Optional[Decimal] = None
 
 
 class PricingOut(BaseModel):
@@ -168,10 +190,15 @@ def get_pricing():
         currency=CURRENCY,
         gst_rate=GST_RATE,
         pro=RateOut(
-            ex_gst=_money(PRO_ANNUAL_PER_SITE_EX_GST),
-            inc_gst=_with_gst(PRO_ANNUAL_PER_SITE_EX_GST),
-            unit='site / year',
+            ex_gst=_money(PRO_ANNUAL_FIRST_SITE_EX_GST),
+            inc_gst=_with_gst(PRO_ANNUAL_FIRST_SITE_EX_GST),
+            # NOT 'site / year' any more. The headline rate buys the
+            # subscription and the first site; saying "per site" over a tiered
+            # model overstates the cost of every multi-site quote.
+            unit='year, first site',
             label='Insights Pro',
+            additional_ex_gst=_money(PRO_ANNUAL_ADDITIONAL_SITE_EX_GST),
+            additional_inc_gst=_with_gst(PRO_ANNUAL_ADDITIONAL_SITE_EX_GST),
         ),
         grow=RateOut(
             ex_gst=_money(GROW_ANNUAL_PER_HA_EX_GST),
@@ -221,9 +248,23 @@ def _verdict(pro: Decimal, grow: Decimal) -> str:
     return 'grow' if grow < pro else 'pro'
 
 
+def _pro_annual_ex_gst(sites: int) -> Decimal:
+    """Tiered: the first site at the full rate, the rest at the additional one.
+
+    ZERO SITES IS ZERO, and it needs saying because the obvious expression is
+    wrong there — `first + (sites - 1) * additional` quietly returns $200 for a
+    visitor who has typed nothing yet, and $200 is a price we do not charge for
+    a thing nobody bought.
+    """
+    if sites <= 0:
+        return Decimal('0.00')
+    extra = Decimal(sites - 1) * PRO_ANNUAL_ADDITIONAL_SITE_EX_GST
+    return _money(PRO_ANNUAL_FIRST_SITE_EX_GST + extra)
+
+
 def _compute(hectares: Decimal, sites: int) -> dict:
     """Both comparisons. Pro has no setup fee, so its two are the same figure."""
-    pro_ex = _money(PRO_ANNUAL_PER_SITE_EX_GST * Decimal(sites))
+    pro_ex = _pro_annual_ex_gst(sites)
     grow_ex = _money(GROW_ANNUAL_PER_HA_EX_GST * hectares)
     grow_first_ex = _money(grow_ex + GROW_SETUP_ONE_OFF_EX_GST)
 
@@ -284,7 +325,13 @@ def record_pricing_quote(
             difference_ex_gst=result['difference_ex'],
             cheaper_first_year=result['cheaper_first'],
             difference_first_year_ex_gst=result['difference_first_ex'],
-            pro_rate_ex_gst=PRO_ANNUAL_PER_SITE_EX_GST,
+            # The FIRST-site rate. One scalar cannot describe a tiered model,
+            # and rather than add a column for the second rate: the row already
+            # stores `sites` and the computed `pro_annual_ex_gst`, so the
+            # additional rate is exactly (total - first) / (sites - 1) whenever
+            # sites > 1. Nothing about a historical quote is unrecoverable if
+            # either rate later moves.
+            pro_rate_ex_gst=PRO_ANNUAL_FIRST_SITE_EX_GST,
             grow_rate_ex_gst=GROW_ANNUAL_PER_HA_EX_GST,
             session_key=_clean(payload.session_key, 64),
         ))

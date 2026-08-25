@@ -1,7 +1,7 @@
 /* Nine varieties by six columns. It has to stay readable at a glance, so the
    type is small, the rows are tight, and only the variety name carries weight. */
 .phenology {
-  border: 1px solid rgba(91, 104, 48, 0.16);
+  border: 1px solid rgb(var(--primary-rgb) / 0.16);
   border-radius: 8px;
   background: var(--white, #fff);
   overflow: hidden;
@@ -19,8 +19,8 @@
 
 .phenology__table thead th {
   padding: 9px 12px;
-  border-bottom: 1px solid rgba(91, 104, 48, 0.16);
-  background: rgba(91, 104, 48, 0.04);
+  border-bottom: 1px solid rgb(var(--primary-rgb) / 0.16);
+  background: rgb(var(--primary-rgb) / 0.04);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -36,7 +36,7 @@
 }
 
 .phenology__table tbody tr + tr {
-  border-top: 1px solid rgba(91, 104, 48, 0.08);
+  border-top: 1px solid rgb(var(--primary-rgb) / 0.08);
 }
 
 .phenology__table tbody th {
@@ -80,7 +80,7 @@
 
 .phenology__actual {
   margin-left: 4px;
-  color: #5b6830;
+  color: var(--primary);
 }
 
 /* The veraison caveat. Same weight as the withheld-dates notice below it —
@@ -92,7 +92,7 @@
   gap: 7px;
   margin: 0;
   padding: 11px 13px;
-  border-top: 1px solid rgba(91, 104, 48, 0.14);
+  border-top: 1px solid rgb(var(--primary-rgb) / 0.14);
   font-size: 0.74rem;
   line-height: 1.5;
   color: #8a9276;
@@ -109,8 +109,8 @@
   gap: 7px;
   margin: 0;
   padding: 11px 13px;
-  border-top: 1px solid rgba(91, 104, 48, 0.14);
-  background: rgba(91, 104, 48, 0.03);
+  border-top: 1px solid rgb(var(--primary-rgb) / 0.14);
+  background: rgb(var(--primary-rgb) / 0.03);
   font-size: 0.76rem;
   line-height: 1.5;
   color: #6b7360;

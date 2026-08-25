@@ -45,14 +45,22 @@ import {
   PRO_COMPARISON,
   PRO_ACCESS,
   GROW_INCLUDED_NOTE,
+  DATA_LICENSING,
+  dataLicenceHref,
 } from '../data/proContent';
 import PricingCalculator from '../components/pro/PricingCalculator';
 import ProEnquiryForm from '../components/pro/ProEnquiryForm';
 import './Pro.css';
+import { useCountryIndustry } from '../contexts/CountryIndustryContext';
 
 const ICONS = { MapPin, History, Snowflake, BarChart3, TrendingUp, Radio };
 
 function Pro() {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const { user, isAuthenticated } = usePublicAuth();
 
@@ -63,7 +71,7 @@ function Pro() {
   const alreadyPro = isAuthenticated && user?.is_pro;
 
   useDocumentMeta({
-    title: 'Insights Pro — your vineyard’s own climate record',
+    title: 'Pro',
     description:
       'Auxein Insights Pro resolves New Zealand’s climate surface to a point you choose: your site’s own record back to 1986, its frost dates, and how it sits against the vineyards around it.',
     path: '/pro',
@@ -102,7 +110,7 @@ function Pro() {
                 <Mail size={15} aria-hidden="true" />
                 Enquire about Pro
               </a>
-              <Link to="/regions" className="pro-cta pro-cta--ghost">
+              <Link to={path()} className="pro-cta pro-cta--ghost">
                 See the free regional data
               </Link>
             </div>
@@ -189,6 +197,41 @@ function Pro() {
             for themselves what each costs at their own size. Rates are fetched
             from the server; nothing here hardcodes a price. */}
         <PricingCalculator />
+
+        {/* ---- Data licensing ----
+            Sits immediately after the calculator, which is where the pricing
+            story would otherwise stop. Free -> one site -> several sites ->
+            "and if you want the data itself". An organisation that has just
+            read a per-site price and needs a national feed is at exactly this
+            point in the page, and the honest answer is a different transaction
+            rather than a bigger number of sites.
+
+            Before the Grow block, not after: Grow is a note to existing
+            customers, and burying a commercial tier behind it would hide it
+            from the people it is for. */}
+        <section className="pro-licence" aria-labelledby="pro-licence-heading">
+          <p className="pro-licence__eyebrow">{DATA_LICENSING.eyebrow}</p>
+          <h2 id="pro-licence-heading">{DATA_LICENSING.title}</h2>
+          <p className="pro-licence__lede">{DATA_LICENSING.lede}</p>
+
+          <ul className="pro-licence__list">
+            {DATA_LICENSING.points.map((point) => (
+              <li key={point.title} className="pro-licence__item">
+                <h3>{point.title}</h3>
+                <p>{point.body}</p>
+              </li>
+            ))}
+          </ul>
+
+          {/* Not small print. What we may sub-licence differs by layer, and a
+              licensee finding that out after signing is far worse than being
+              told here. */}
+          <p className="pro-licence__note">{DATA_LICENSING.note}</p>
+
+          <a href={dataLicenceHref()} className="pro-cta">
+            {DATA_LICENSING.cta}
+          </a>
+        </section>
 
         {/* ---- Grow ---- */}
         <section className="pro-grow" aria-labelledby="pro-grow-heading">

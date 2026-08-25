@@ -1,11 +1,43 @@
 import { useEffect } from 'react';
 
+// ONE NAME. The product had three — "Auxein Regional Intelligence" in the
+// emails, "Auxein Regional Insights" in this file and in index.html's og tags,
+// and "Auxein Insights" everywhere a human had written copy recently. A visitor
+// who signs up, gets an email and then looks at their browser tab was being
+// shown three different products. It is Auxein Insights.
+const BRAND = 'Auxein Insights';
+
 const DEFAULTS = {
-  title: 'Auxein Regional Insights | Free Climate Intelligence for NZ Wine',
-  description: 'Free regional climate intelligence for New Zealand wine regions. Historical trends, seasonal comparisons, and climate projections built on over 1 billion data points.',
+  title: `${BRAND} - Climate intelligence for New Zealand`,
+  description: 'Free climate intelligence for New Zealand growing regions. Historical trends, seasonal comparisons, and climate projections built on over 1 billion data points.',
   url: 'https://insights.auxein.co.nz',
   image: 'https://insights.auxein.co.nz/og-image.jpg',
 };
+
+/**
+ * `Auxein Insights - Page`. Brand first, one separator, a plain hyphen.
+ *
+ * The separator is normalised rather than trusted. Page titles come from three
+ * places — this repo's own strings, article `seo_title`s typed into the admin
+ * editor, and research report titles — and the last two are written by people
+ * who use em dashes. A tab strip that reads "Auxein Insights - Pro" beside
+ * "Auxein Insights — A warming decade" looks like two different sites, so the
+ * dashes are folded here, in the one place every title passes through, rather
+ * than by asking every author to remember.
+ *
+ * A page that already leads with the brand is left alone, so nothing can come
+ * out as "Auxein Insights - Auxein Insights - ...".
+ */
+function composeTitle(page) {
+  if (!page) return DEFAULTS.title;
+  const clean = String(page)
+    .replace(/[‒–—―]/g, '-')  // figure, en, em, horizontal bar
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return DEFAULTS.title;
+  if (clean.toLowerCase().startsWith(BRAND.toLowerCase())) return clean;
+  return `${BRAND} - ${clean}`;
+}
 
 function setMeta(property, content) {
   let el = document.querySelector(`meta[property="${property}"]`) ||
@@ -54,7 +86,7 @@ function setRobots(noindex) {
 
 export default function useDocumentMeta({ title, description, path, image, noindex = false } = {}) {
   useEffect(() => {
-    const fullTitle = title ? `${title} | Auxein Regional Insights` : DEFAULTS.title;
+    const fullTitle = composeTitle(title);
     const desc = description || DEFAULTS.description;
     const url = path ? `${DEFAULTS.url}${path}` : DEFAULTS.url;
     const img = image || DEFAULTS.image;

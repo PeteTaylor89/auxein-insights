@@ -5,8 +5,8 @@
 .current-season {
   margin: 0 0 22px;
   padding: 18px 20px;
-  border: 1px solid rgba(91, 104, 48, 0.22);
-  border-left: 3px solid #5b6830;
+  border: 1px solid rgb(var(--primary-rgb) / 0.22);
+  border-left: 3px solid var(--primary);
   border-radius: 10px;
   background: var(--white, #fff);
 }
@@ -27,12 +27,12 @@
 .current-season__state {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(91, 104, 48, 0.1);
+  background: rgb(var(--primary-rgb) / 0.1);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #5b6830;
+  color: var(--primary);
 }
 
 .current-season__state.is-not_started {
@@ -50,7 +50,7 @@
   height: 4px;
   margin-top: 10px;
   border-radius: 999px;
-  background: rgba(91, 104, 48, 0.12);
+  background: rgb(var(--primary-rgb) / 0.12);
   overflow: hidden;
 }
 
@@ -79,7 +79,7 @@
 .current-season__usual {
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid rgba(91, 104, 48, 0.14);
+  border-top: 1px solid rgb(var(--primary-rgb) / 0.14);
 }
 
 .current-season__usual-label {
@@ -176,7 +176,7 @@
   gap: 7px;
   margin: 16px 0 0;
   padding-top: 12px;
-  border-top: 1px solid rgba(91, 104, 48, 0.16);
+  border-top: 1px solid rgb(var(--primary-rgb) / 0.16);
   font-size: 0.78rem;
   line-height: 1.5;
   color: #6b7360;
@@ -195,7 +195,7 @@
 
 .current-season__era summary {
   cursor: pointer;
-  color: #5b6830;
+  color: var(--primary);
 }
 
 .current-season__era p,

@@ -101,7 +101,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <AdminLayout title="Admin Dashboard" subtitle="Regional Intelligence monitoring overview">
+    <AdminLayout title="Admin Dashboard" subtitle="Auxein Insights monitoring overview">
       {/* Refresh Button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
         <button onClick={fetchDashboardData} className="btn btn-secondary">

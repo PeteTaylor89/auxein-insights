@@ -109,8 +109,22 @@ class PublicUser(Base):
     
     @property
     def is_wine_professional(self):
-        """Check if user is a wine industry professional"""
+        """Wine industry specifically. NOT "works in the primary sector".
+
+        A grower, an agronomist or a council hydrologist is a professional user
+        and is not a wine professional, and the difference matters wherever this
+        gates wine-specific content. `is_industry_professional` is the wider
+        test; reach for that one unless the thing being gated is about wine.
+        """
         return self.user_type in ['wine_company_owner', 'wine_company_employee', 'consultant']
+
+    @property
+    def is_industry_professional(self):
+        """Works in the primary sector in any capacity, wine included."""
+        return self.user_type in [
+            'wine_company_owner', 'wine_company_employee', 'consultant',
+            'grower', 'agronomist', 'public_sector',
+        ]
     
     @property
     def marketing_segment(self):
@@ -128,6 +142,12 @@ class PublicUser(Base):
             return 'community_member'  # Engagement, not conversion
         elif self.user_type == 'researcher':
             return 'academic_partner'  # Potential collaboration
+        elif self.user_type == 'grower':
+            return 'high_value_prospect'  # Buys the same thing for another crop
+        elif self.user_type == 'agronomist':
+            return 'referral_partner'  # Advises growers, same as a consultant
+        elif self.user_type == 'public_sector':
+            return 'institutional'  # Councils supply the data and may licence it
         else:
             return 'general_user'
     

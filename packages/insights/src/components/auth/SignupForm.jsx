@@ -1,5 +1,21 @@
-// src/components/auth/SignupForm.jsx
-// Updated with password confirmation and legal agreement modal integration
+// src/components/auth/SignupForm.jsx — create an Auxein Insights account.
+//
+// THE PROFESSIONS COME FROM THE SERVER, not from this file. `user_type` and
+// `region_of_interest` are fetched from `/public/auth/user-types` and
+// `/public/auth/regions`, so the list of who we think our users are lives in
+// one place (`backend/schemas/public_user.py`) rather than being duplicated
+// into a dropdown here. Widening the audience is a change there, not here.
+//
+// THE COPY IS DELIBERATELY NOT WINE-ONLY (2026-08-25). The wine professions are
+// still first and still specific — that is the industry the archive, the zones
+// and the phenology models are built on — but the surrounding fields no longer
+// assume it. "Your winery or vineyard" as the only organisation placeholder
+// told an orchardist, an agronomist or a council hydrologist that they had come
+// to the wrong site.
+//
+// ONE NAME: Auxein Insights. Not "Regional Intelligence", not "Regional
+// Insights". A visitor who signs up here and then reads the verification email
+// should see the same product named the same way.
 import { useState, useEffect } from 'react';
 import { usePublicAuth } from '../../contexts/PublicAuthContext';
 import publicAuthService from '../../services/publicAuthService';
@@ -140,7 +156,7 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
       // Remove confirmPassword before sending to API
       const { confirmPassword, ...signupData } = formData;
       await signup(signupData);
-      setSuccess('Account created! Please check your email to verify your account.');
+      setSuccess('Account created. Check your email to verify your address.');
       
       // Auto-close after showing success message
       setTimeout(() => {
@@ -180,7 +196,7 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
         {/* Step 1: Basic Info */}
         {step === 1 && (
           <div className="signup-step">
-            <h3>Basic Information</h3>
+            <h3>Your details</h3>
             
             <div className="form-row">
               <div className="form-group">
@@ -191,7 +207,7 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                   name="first_name"
                   value={formData.first_name}
                   onChange={handleChange}
-                  placeholder="John"
+                  placeholder="First name"
                 />
               </div>
 
@@ -203,7 +219,7 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                   name="last_name"
                   value={formData.last_name}
                   onChange={handleChange}
-                  placeholder="Doe"
+                  placeholder="Last name"
                 />
               </div>
             </div>
@@ -288,18 +304,21 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
         {/* Step 2: About You */}
         {step === 2 && (
           <div className="signup-step">
-            <h3>About You (Optional)</h3>
-            <p className="step-description">Help us personalise your experience</p>
+            <h3>About you</h3>
+            <p className="step-description">
+              All optional. It helps us show you the right region and build the
+              right things.
+            </p>
 
             <div className="form-group">
-              <label htmlFor="user_type">I am a...</label>
+              <label htmlFor="user_type">What best describes you?</label>
               <select
                 id="user_type"
                 name="user_type"
                 value={formData.user_type}
                 onChange={handleChange}
               >
-                <option value="">Select type</option>
+                <option value="">Select a role</option>
                 {userTypes.map(type => (
                   <option key={type.value} value={type.value}>
                     {type.label}
@@ -313,41 +332,41 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
 
             {requiresCompany && (
               <div className="form-group">
-                <label htmlFor="company_name">Company Name</label>
+                <label htmlFor="company_name">Organisation</label>
                 <input
                   type="text"
                   id="company_name"
                   name="company_name"
                   value={formData.company_name}
                   onChange={handleChange}
-                  placeholder="Your winery or vineyard"
+                  placeholder="Your business, orchard, vineyard or agency"
                 />
               </div>
             )}
 
             {formData.user_type && (
               <div className="form-group">
-                <label htmlFor="job_title">Job Title / Role</label>
+                <label htmlFor="job_title">Role</label>
                 <input
                   type="text"
                   id="job_title"
                   name="job_title"
                   value={formData.job_title}
                   onChange={handleChange}
-                  placeholder="e.g., Viticulturist, Owner"
+                  placeholder="e.g. Viticulturist, Agronomist, Owner"
                 />
               </div>
             )}
 
             <div className="form-group">
-              <label htmlFor="region_of_interest">Region of Interest</label>
+              <label htmlFor="region_of_interest">Region of interest</label>
               <select
                 id="region_of_interest"
                 name="region_of_interest"
                 value={formData.region_of_interest}
                 onChange={handleChange}
               >
-                <option value="">Select region</option>
+                <option value="">Select a region</option>
                 {regions.map(region => (
                   <option key={region.value} value={region.value}>
                     {region.label}
@@ -370,8 +389,11 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
         {/* Step 3: Stay Connected */}
         {step === 3 && (
           <div className="signup-step">
-            <h3>Stay Connected</h3>
-            <p className="step-description">Choose what you'd like to receive</p>
+            <h3>Staying in touch</h3>
+            <p className="step-description">
+              Choose what you would like to receive. You can change these at any
+              time from your account.
+            </p>
 
             <div className="checkbox-group">
               <label className="checkbox-label">
@@ -382,8 +404,8 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                   onChange={handleChange}
                 />
                 <div className="checkbox-content">
-                  <strong>Platform Updates & Climate Insights</strong>
-                  <small>Monthly newsletter with regional climate trends</small>
+                  <strong>The Auxein Insights newsletter</strong>
+                  <small>Monthly, covering regional climate trends and how the season is tracking</small>
                 </div>
               </label>
 
@@ -395,8 +417,8 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                   onChange={handleChange}
                 />
                 <div className="checkbox-content">
-                  <strong>Premium Features & Offers</strong>
-                  <small>Information about Auxein Insights Pro platform</small>
+                  <strong>Auxein Insights Pro</strong>
+                  <small>Occasional news about the paid tier and what it adds</small>
                 </div>
               </label>
 
@@ -408,8 +430,8 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                   onChange={handleChange}
                 />
                 <div className="checkbox-content">
-                  <strong>Research & Surveys</strong>
-                  <small>Help improve wine industry climate intelligence</small>
+                  <strong>Research and surveys</strong>
+                  <small>Occasional invitations to help shape what we build next</small>
                 </div>
               </label>
             </div>
@@ -444,7 +466,7 @@ function SignupForm({ onSuccess, onSwitchToLogin }) {
                 ← Back
               </button>
               <button type="submit" className="auth-submit-btn" disabled={loading}>
-                {loading ? 'Creating Account...' : 'Create Account'}
+                {loading ? 'Creating account...' : 'Create account'}
               </button>
             </div>
           </div>

@@ -30,8 +30,8 @@
 
 /* Pro is the product this page sells, so it leads. */
 .pricing__card--pro {
-  border-color: rgba(68, 97, 69, 0.45);
-  box-shadow: 0 2px 14px rgba(68, 97, 69, 0.09);
+  border-color: rgb(var(--primary-rgb) / 0.45);
+  box-shadow: 0 2px 14px rgb(var(--primary-rgb) / 0.09);
 }
 
 .pricing__card--grow {
@@ -187,7 +187,7 @@
 
 .pricing__input-wrap:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(68, 97, 69, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--primary-rgb) / 0.14);
 }
 
 .pricing__input-wrap input {
@@ -257,7 +257,7 @@
   padding: 11px 14px;
   border-left: 3px solid var(--primary);
   border-radius: 0 6px 6px 0;
-  background: rgba(68, 97, 69, 0.08);
+  background: rgb(var(--primary-rgb) / 0.08);
   font-size: var(--font-base);
   line-height: 1.55;
   color: var(--text);

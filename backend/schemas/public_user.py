@@ -7,12 +7,26 @@ from pydantic import BaseModel, EmailStr, validator, Field, ConfigDict
 # ENUMS / CONSTANTS
 # ============================================
 
+# EXISTING VALUES ARE NEVER RENAMED. `user_type` is a plain VARCHAR(50) with
+# live rows in it and it drives `PublicUser.marketing_segment`, so the four
+# `wine_*`/`consultant` values keep their exact spelling; only their LABELS
+# changed. New values are added alongside.
+#
+# The audience widened on 2026-08-25 because the product did. Insights is a
+# climate platform with a country/industry dimension underneath it, and a
+# sign-up form whose only professions were wine ones told an orchardist, an
+# agronomist or a council hydrologist that they had come to the wrong site. The
+# wine professions stay first and stay specific — they are still who most of
+# this is built for.
 USER_TYPE_OPTIONS = Literal[
     'wine_company_owner',
-    'wine_company_employee', 
+    'wine_company_employee',
     'wine_enthusiast',
-    'researcher',
+    'grower',
+    'agronomist',
     'consultant',
+    'researcher',
+    'public_sector',
     'other'
 ]
 
@@ -303,41 +317,67 @@ class UserTypeInfo(BaseModel):
     requires_company: bool  # Whether company_name should be asked
 
 # Example data for user types
+# ORDER IS THE MESSAGE. Wine first, because that is the industry the archive,
+# the zones and the phenology models are actually built on and it would be
+# dishonest to bury it. Everything after it is there so that someone who is not
+# in wine can still describe themselves accurately instead of picking "Other".
+#
+# `requires_company` drives whether the form asks for an organisation. It is
+# False for the individual roles on purpose — an enthusiast or a student typing
+# a company name to get past a field is worse data than no company name.
 USER_TYPE_DESCRIPTIONS = [
     {
         "value": "wine_company_owner",
-        "label": "Wine Company Owner/Manager",
+        "label": "Vineyard or winery owner / manager",
         "description": "I own or manage a vineyard or winery",
         "requires_company": True
     },
     {
         "value": "wine_company_employee",
-        "label": "Wine Industry Professional",
-        "description": "I work in viticulture, winemaking, or wine production",
+        "label": "Wine industry professional",
+        "description": "I work in viticulture, winemaking or wine production",
         "requires_company": True
     },
     {
-        "value": "wine_enthusiast",
-        "label": "Wine Enthusiast",
-        "description": "I enjoy wine as a consumer or collector",
-        "requires_company": False
+        "value": "grower",
+        "label": "Grower or orchardist",
+        "description": "I grow another crop - horticulture, arable or pasture",
+        "requires_company": True
     },
     {
-        "value": "researcher",
-        "label": "Researcher/Academic",
-        "description": "I'm conducting research or studying viticulture",
+        "value": "agronomist",
+        "label": "Agronomist or field advisor",
+        "description": "I advise growers on agronomy, spray programmes or crop management",
         "requires_company": False
     },
     {
         "value": "consultant",
-        "label": "Wine Consultant/Advisor",
-        "description": "I provide consulting services to the wine industry",
+        "label": "Consultant or advisor",
+        "description": "I provide consulting services to the wine or primary sector",
+        "requires_company": False
+    },
+    {
+        "value": "researcher",
+        "label": "Researcher or academic",
+        "description": "I am conducting research or studying",
+        "requires_company": False
+    },
+    {
+        "value": "public_sector",
+        "label": "Regional council or public sector",
+        "description": "I work in local government, a CRI or a public agency",
+        "requires_company": True
+    },
+    {
+        "value": "wine_enthusiast",
+        "label": "Wine enthusiast",
+        "description": "I follow wine as a consumer or collector",
         "requires_company": False
     },
     {
         "value": "other",
-        "label": "Other",
-        "description": "None of the above categories fit",
+        "label": "Something else",
+        "description": "None of these fit",
         "requires_company": False
     }
 ]
@@ -349,17 +389,22 @@ class RegionInfo(BaseModel):
     description: str
 
 # Example data for regions
+# Described by CLIMATE, not by variety. This is a climate platform and the
+# blurbs read beside a "region of interest" field, so "Famous for Sauvignon
+# Blanc" was both off-product and off-putting to anyone here for a different
+# crop. The regions themselves are unchanged - they are the areas the surfaces
+# and zone statistics actually cover.
 NZ_REGION_DESCRIPTIONS = [
-    {"value": "Marlborough", "label": "Marlborough", "description": "Famous for Sauvignon Blanc"},
-    {"value": "Central Otago", "label": "Central Otago", "description": "World-class Pinot Noir"},
-    {"value": "Waipara", "label": "Waipara", "description": "Diverse cool climate wines"},
-    {"value": "Hawke's Bay", "label": "Hawke's Bay", "description": "Premium red wine region"},
-    {"value": "Martinborough", "label": "Martinborough", "description": "Boutique Pinot Noir"},
-    {"value": "Wairarapa", "label": "Wairarapa", "description": "Cool climate excellence"},
-    {"value": "Nelson", "label": "Nelson", "description": "Sunshine and Sauvignon Blanc"},
-    {"value": "Gisborne", "label": "Gisborne", "description": "Chardonnay capital"},
-    {"value": "Auckland", "label": "Auckland", "description": "Urban wine region"},
-    {"value": "Northland", "label": "Northland", "description": "Emerging warm climate"},
-    {"value": "Canterbury", "label": "Canterbury", "description": "Cool climate Pinot & Riesling"},
-    {"value": "Other", "label": "Other/Multiple", "description": "Other or multiple regions"}
+    {"value": "Marlborough", "label": "Marlborough", "description": "Dry, sunny, cool nights"},
+    {"value": "Central Otago", "label": "Central Otago", "description": "Continental, wide temperature range"},
+    {"value": "Waipara", "label": "Waipara", "description": "Sheltered and cool, warm summers"},
+    {"value": "Hawke's Bay", "label": "Hawke's Bay", "description": "Warm, high sunshine hours"},
+    {"value": "Martinborough", "label": "Martinborough", "description": "Cool and windy, low rainfall"},
+    {"value": "Wairarapa", "label": "Wairarapa", "description": "Cool climate, marked seasons"},
+    {"value": "Nelson", "label": "Nelson", "description": "High sunshine, moderate rainfall"},
+    {"value": "Gisborne", "label": "Gisborne", "description": "Warm and humid, early season"},
+    {"value": "Auckland", "label": "Auckland", "description": "Warm, humid, higher disease pressure"},
+    {"value": "Northland", "label": "Northland", "description": "Subtropical, warmest in the country"},
+    {"value": "Canterbury", "label": "Canterbury", "description": "Cool and dry, strong nor'westers"},
+    {"value": "Other", "label": "Other or multiple", "description": "Elsewhere, or more than one"}
 ]

@@ -1,4 +1,4 @@
-// src/App.jsx - Auxein Regional Intelligence (Public)
+// src/App.jsx - Auxein Insights (public)
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
@@ -13,9 +13,16 @@ import ArticlesPage from './pages/ArticlesPage';
 import ArticleDetail from './pages/ArticleDetail';
 import ResearchPage from './pages/ResearchPage';
 import ResearchDetail from './pages/ResearchDetail';
-import RegionsPage from './pages/RegionsPage';
+import Explore from './pages/Explore';
 import RegionDetail from './pages/RegionDetail';
 import NotFound from './pages/NotFound';
+
+// Country + industry scoping. See docs/plans/COUNTRY_INDUSTRY_REGIONS_2026-08-24.md.
+import {
+  ScopedLayout,
+  LegacyRegionsRedirect,
+  LegacyRegionDetailRedirect,
+} from './components/scope/ScopeRouting';
 
 // Lazy-loaded pages
 const MapExplorer = lazy(() => import('./pages/MapExplorer'));
@@ -53,14 +60,18 @@ function AppRoutes() {
     <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/map" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: '#5B6830' }}>Loading map...</div>}><MapExplorer /></Suspense>} />
+          <Route path="/map" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: 'var(--primary)' }}>Loading map...</div>}><MapExplorer /></Suspense>} />
           {/* The route is NOT gated here — the page renders its own explanation
               and Pro offer to anyone who arrives, so a shared or bookmarked
               link lands on something that says what it is rather than a
               redirect that looks like the link is broken. */}
-          <Route path="/my-site" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: '#5B6830' }}>Loading…</div>}><MySite /></Suspense>} />
-          <Route path="/regions" element={<RegionsPage />} />
-          <Route path="/regions/:slug" element={<RegionDetail />} />
+          <Route path="/my-site" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: 'var(--primary)' }}>Loading…</div>}><MySite /></Suspense>} />
+          {/* The old, never-published region URLs. Kept as permanent
+              redirects rather than deleted: they are emitted by the sitemap
+              generator and appear in `ClimateZonePanel` links and in email that
+              has already gone out. */}
+          <Route path="/regions" element={<LegacyRegionsRedirect />} />
+          <Route path="/regions/:slug" element={<LegacyRegionDetailRedirect />} />
           <Route path="/about" element={<About />} />
           <Route path="/pro" element={<Pro />} />
           <Route path="/feedback" element={<Feedback />} />
@@ -88,6 +99,21 @@ function AppRoutes() {
           <Route path="/admin/email" element={<AdminRoute><AdminEmailCampaignList /></AdminRoute>} />
           <Route path="/admin/email/new" element={<AdminRoute><AdminEmailCampaignEditor /></AdminRoute>} />
           <Route path="/admin/email/:id/edit" element={<AdminRoute><AdminEmailCampaignEditor /></AdminRoute>} />
+
+          {/* Country + industry scoped pages: /nz/wine and /nz/wine/marlborough.
+              This sits LAST among the public routes on purpose. React Router
+              ranks static segments above dynamic ones, so /articles/:slug and
+              every /admin/* path still win against `/:country/:industry` — but
+              keeping it here makes that ordering visible rather than something
+              you have to know about the router.
+
+              An unknown scope 404s inside ScopedLayout. A known-but-inactive
+              one (Australia today) renders, because a "coming soon" page for a
+              country we intend to cover should be indexable. */}
+          <Route path="/:country/:industry" element={<ScopedLayout />}>
+            <Route index element={<Explore />} />
+            <Route path=":slug" element={<RegionDetail />} />
+          </Route>
 
           {/* Catch-all. Deliberately a 404 page rather than a redirect to `/`:
               redirecting hides dead links from us and answers crawlers with

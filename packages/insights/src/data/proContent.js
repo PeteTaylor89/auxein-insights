@@ -6,18 +6,22 @@
 // list. Pro has never had a paying customer, so the first thing anyone buys
 // must be the thing they were shown.
 //
-// Two things are deliberately NOT claimed:
-//   - The AI assistant. It is a later phase, and the AccessGate copy was
-//     already corrected once for promising it.
-//   - `r99p` (extreme wet-day tail). It is omitted per site on purpose and
-//     declared in the API's `meta.omitted`, because computing it differently
-//     from the zone figure would compare methods dressed up as places.
+// Not claimed: `r99p` (extreme wet-day tail). It is omitted per site on purpose
+// and declared in the API's `meta.omitted`, because computing it differently
+// from the zone figure would compare methods dressed up as places.
 //
-// PRICING IS NOT IN THIS FILE, and that is not an oversight. No price for
-// Insights Pro exists anywhere in the product, and inventing one to fill a
-// layout would put a number on a public page that nobody has agreed to honour.
-// Access is arranged by enquiry and invoiced through Xero, the same way Grow
-// is billed — see PRO_ACCESS below.
+// ONE STANDING EXCEPTION TO THE RULE ABOVE, added by Pete 2026-08-25: the
+// comparison table now lists an AI agent. It is NOT built — it is item 7 of
+// `docs/plans/INSIGHTS_PRO_ROADMAP_2026-08-24.md` — and the AccessGate copy was
+// corrected once before for promising exactly this. It is a forward claim on a
+// page that otherwise only describes what ships, and it should either land
+// before anyone is sold on it or be qualified in the row.
+//
+// PRICING IS NOT HARDCODED IN THIS FILE, and that is not an oversight. Rates
+// live on the server and reach the page through `GET /public/insights-pro/
+// pricing`, so no price can appear that the server does not hold — see
+// `PricingCalculator`. Access is still arranged by enquiry and invoiced through
+// Xero, the same way Grow is billed; see PRO_ACCESS below.
 
 // The address for public Insights enquiries. NOT grow@ — the two inboxes are
 // deliberately separate and conflating them has bitten before.
@@ -46,9 +50,21 @@ export function proEnquiryHref() {
 
 // --- What you get ---------------------------------------------------------
 
-// Mirrors `TILES` in insights_dashboard.py. The last-spring-frost entry is the
-// one worth reading twice: a zone CANNOT carry it, because averaging "no
-// frost" against "the 28th" is not a date. A single cell can.
+// Mirrors `TILES` in insights_dashboard.py.
+//
+// FROST IS NOT CLAIMED ANYWHERE HERE, and it used to be. This block once made
+// the case for last-spring-frost as a Pro feature — a zone cannot carry a frost
+// DATE, because averaging "no frost" against "the 28th" is not a date, while a
+// single cell can. The argument was sound and the underlying field was not:
+// every frost metric was withdrawn from the product on 2026-08-24 because the
+// count is thresholded off a lapse-retrended Tmin field that INVERTS on frost
+// nights, loading frost onto the ridges and erasing it from the valley floors
+// where the vines are.
+//
+// Nothing may put frost back on this page until the engine is fixed — see
+// project_insights_metric_definitions. That includes a season-summary sentence
+// that merely lists it among other metrics, which is how it survived here after
+// the comparison table had already dropped it.
 export const PRO_FEATURES = [
   {
     key: 'point',
@@ -60,7 +76,7 @@ export const PRO_FEATURES = [
     key: 'record',
     icon: 'History',
     title: 'Its whole record, back to 1986',
-    body: 'Every season your site has had, with its own normal derived from its own history. Growing degree days, mean temperature, growing-season rain, frost nights and days over 25 °C, season by season.',
+    body: 'Every season your site has had, with its own normal derived from its own history. Growing degree days, mean temperature, growing-season rain and days over 25 °C, season by season.',
   },
   {
     key: 'band',
@@ -116,11 +132,13 @@ export const PRO_COMPARISON = [
     pro: true,
     note: 'These run on live weather stations, so they are only available in regions where the network supports them — not everywhere yet. Your region’s page shows what it currently carries.',
   },
-  { feature: 'The national climate Atlas', free: true, pro: true },
+  { feature: 'The national climate Atlas - Monthly', free: true, pro: true },
+  { feature: 'The national climate Atlas - Daily', free: false, pro: true },
   { feature: 'A point you choose, resolved from the climate surface', free: false, pro: true },
-  { feature: 'That point’s own record and its own normal', free: false, pro: true },
-  { feature: 'Last spring frost as a date', free: false, pro: true },
+  { feature: 'Your sites record and baseline - downloadable', free: false, pro: true },
   { feature: 'Your site against the regional spread', free: false, pro: true },
+  { feature: 'Link your own weather station into your insights', free: false, pro: true },
+  { feature: 'An AI agent trained on climate data to assist in decision making', free: false, pro: true },
 ];
 
 // --- How access works -----------------------------------------------------
@@ -145,6 +163,90 @@ export const PRO_ACCESS = [
     body: 'Your account is enabled, you drop a marker on your vineyard, and the extraction runs. It usually takes a few minutes.',
   },
 ];
+
+// --- Data licensing -------------------------------------------------------
+
+// FOR THE ORGANISATION THAT DOES NOT WANT A SITE, IT WANTS THE DATA.
+// Added 2026-08-25. Insights Pro is one point on a map billed as a
+// subscription; a research group, a large corporate or another platform asking
+// for programmatic access to the whole archive is a different transaction with
+// different obligations, and quoting them a per-site rate answers the wrong
+// question.
+//
+// DELIBERATELY NO PRICE. Not an oversight and not coyness — the scope genuinely
+// determines it. "The daily surfaces for one region" and "the full 1986-onward
+// national archive with the projections" are not the same product, and putting
+// a number on a public page for a thing whose shape is unknown would be a
+// number nobody has agreed to honour. Every other figure on this page comes
+// from the server precisely so that cannot happen.
+
+export const DATA_LICENCE_SUBJECT = 'Auxein Insights — data licence enquiry';
+
+export const DATA_LICENCE_BODY = [
+  'Hello,',
+  '',
+  'I would like to talk about a data licence for Auxein Insights.',
+  '',
+  'Organisation:',
+  'What we would use the data for:',
+  'Which data (stations / surfaces / regional aggregates / projections):',
+  'Coverage needed (regions, date range):',
+  'How you would want it delivered (API, bulk export, scheduled):',
+  '',
+  'Thanks,',
+].join('\n');
+
+/** A mailto for the licensing conversation, with the scoping questions asked. */
+export function dataLicenceHref() {
+  return `mailto:${PRO_ENQUIRY_EMAIL}`
+    + `?subject=${encodeURIComponent(DATA_LICENCE_SUBJECT)}`
+    + `&body=${encodeURIComponent(DATA_LICENCE_BODY)}`;
+}
+
+export const DATA_LICENSING = {
+  eyebrow: 'For larger organisations',
+  title: 'Data licensing and API access',
+  lede: 'Insights Pro is a subscription to one site. If what you need is the '
+      + 'data itself - programmatically, in bulk, or across the whole country - '
+      + 'that is a licence rather than a subscription, and it is priced on what '
+      + 'you actually need.',
+  // Only things that exist and are already served. Same rule as PRO_FEATURES:
+  // the first thing anyone buys must be the thing they were shown.
+  points: [
+    {
+      title: 'The station network',
+      body: 'Observations from the wider station network at the cadence they are recorded.',
+    },
+    {
+      title: 'The 500 m climate surfaces',
+      body: 'The interpolated national field - the monthly archive from 1986, the seasonal accumulations, and the daily surfaces.',
+    },
+    {
+      title: 'Regional and sub-regional aggregates',
+      body: 'The same numbers the region pages are built from, weighted by your use case.',
+    },
+    {
+      title: 'Climate projections',
+      body: 'The MfE 2024 downscaled scenarios composed onto our own 1986-2005 normals, at 500 m. Optional for full annual and seasonal projections to 2100',
+    },
+    {
+      title: 'Delivered how it suits you',
+      body: 'A scoped API key, a scheduled bulk export, or a one-off extract. Lets discuss which one fits.',
+    },
+  ],
+  // THIS PARAGRAPH IS NOT A DISCLAIMER, IT IS THE FIRST THING A LICENCE HAS TO
+  // SETTLE. Parts of the archive are built on third-party data carrying their
+  // own terms — the MfE projections are CC BY 4.0, the land and coastline
+  // layers are LINZ, and the station records belong to the councils that
+  // operate them. What we can sub-licence differs by layer, and finding that
+  // out after signing is far worse than being told before.
+  note: 'Some layers are derived from third-party data with their own licence '
+      + 'terms - the climate projections, the land and coastline layers, and '
+      + 'the council station records each carry their own. What can be '
+      + 'sub-licensed differs between them, so that is the first thing we work '
+      + 'through with you rather than the last.',
+  cta: 'Talk to us about a licence',
+};
 
 // --- Grow relationship ----------------------------------------------------
 

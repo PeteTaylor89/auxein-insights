@@ -155,7 +155,7 @@
   /* Deliberately not a white card. This panel is a different source at a
      different scale and has to read as a different KIND of thing. */
   background: #f3f5ee;
-  border: 1px solid rgba(91, 104, 48, 0.18);
+  border: 1px solid rgb(var(--primary-rgb) / 0.18);
 }
 
 .season-strip--empty {
@@ -183,12 +183,12 @@
 .season-strip__state {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(91, 104, 48, 0.14);
+  background: rgb(var(--primary-rgb) / 0.14);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #5b6830;
+  color: var(--primary);
 }
 
 .season-strip__scope {
@@ -242,7 +242,7 @@
   gap: 7px;
   margin: 14px 0 0;
   padding-top: 12px;
-  border-top: 1px solid rgba(91, 104, 48, 0.16);
+  border-top: 1px solid rgb(var(--primary-rgb) / 0.16);
   font-size: 0.78rem;
   line-height: 1.5;
   color: #6b7360;

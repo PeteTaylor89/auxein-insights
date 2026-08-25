@@ -1,6 +1,7 @@
 # backend/services/email_service.py - Unified Email Service for All Apps
 import smtplib
 import os
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
@@ -12,9 +13,20 @@ logger = logging.getLogger(__name__)
 class UnifiedEmailService:
     """
     Unified email service that handles emails for:
-    - Regional Intelligence (Public app - port 5174)
-    - Insights Pro (Main app - port 5173)
+    - Auxein Insights (public app - port 5174)
+    - Insights Pro (main app - port 5173)
     - Contractor Portal (if needed)
+
+    ONE PRODUCT NAME: **Auxein Insights**. It was called "Auxein Regional
+    Intelligence" in every subject line and header here, "Auxein Regional
+    Insights" in the web app's meta tags, and "Auxein Insights" in every piece
+    of copy written recently. Someone who signed up, read the verification
+    email and then looked at their browser tab was shown three products.
+
+    THE ENV VAR IS STILL `REGIONAL_INTELLIGENCE_URL`. Only the Python attribute
+    was renamed to `insights_url`; the variable is deployed configuration on
+    Elastic Beanstalk and renaming it here would break the running environment
+    until someone remembered to change it there too.
     """
     
     def __init__(self):
@@ -27,15 +39,16 @@ class UnifiedEmailService:
         self.from_name = os.getenv("FROM_NAME", "Auxein")
         self.send_emails = os.getenv("SEND_EMAILS", "false").lower() == "true"
         
-        # App-specific URLs
-        self.regional_intelligence_url = os.getenv(
+        # App-specific URLs. The env var names are unchanged deployed config;
+        # see the class docstring.
+        self.insights_url = os.getenv(
             "EMAIL_VERIFICATION_BASE_URL",
             os.getenv("REGIONAL_INTELLIGENCE_URL", "http://localhost:5174")
         )
         self.insights_pro_url = os.getenv("INSIGHTS_PRO_URL", "http://localhost:5173")
-        
+
         logger.info(f"Email Service initialized:")
-        logger.info(f"  - Regional Intelligence: {self.regional_intelligence_url}")
+        logger.info(f"  - Auxein Insights: {self.insights_url}")
         logger.info(f"  - Insights Pro: {self.insights_pro_url}")
         logger.info(f"  - Send emails: {self.send_emails}")
     
@@ -120,66 +133,73 @@ class UnifiedEmailService:
             return False
     
     # ============================================
-    # REGIONAL INTELLIGENCE (PUBLIC) EMAILS
+    # AUXEIN INSIGHTS (PUBLIC) EMAILS
     # ============================================
     
     def send_public_verification_email(self, email: str, token: str, name: str = "there"):
-        """Send email verification for Regional Intelligence public users"""
-        verification_url = f"{self.regional_intelligence_url}?token={token}"
-        
-        subject = "Verify Your Auxein Regional Intelligence Account"
-        
+        """Send email verification for Auxein Insights public users"""
+        verification_url = f"{self.insights_url}?token={token}"
+
+        subject = "Verify your Auxein Insights account"
+
         html_content = self._get_public_verification_template(name, verification_url)
-        text_content = f"""
-Hi {name},
+        text_content = f"""Hi {name},
 
-Welcome to Auxein Regional Intelligence!
+Thanks for creating an Auxein Insights account.
 
-Please verify your email by clicking: {verification_url}
+Please confirm your email address to finish setting it up:
+{verification_url}
 
-This link expires in 24 hours.
+This link expires in 24 hours. If you did not create an account, you can
+ignore this email and nothing further will happen.
 
-Best regards,
-The Auxein Team
-        """
+Auxein Insights
+insights.auxein.co.nz
+"""
         
         return self._send_email(email, subject, html_content, text_content)
     
     def send_public_password_reset_email(self, email: str, token: str, name: str = "there"):
-        """Send password reset for Regional Intelligence"""
-        reset_url = f"{self.regional_intelligence_url}?reset_token={token}"
-        
-        subject = "Reset Your Auxein Regional Intelligence Password"
-        
+        """Send password reset for Auxein Insights"""
+        reset_url = f"{self.insights_url}?reset_token={token}"
+
+        subject = "Reset your Auxein Insights password"
+
         html_content = self._get_public_reset_template(name, reset_url)
-        text_content = f"""
-Hi {name},
+        text_content = f"""Hi {name},
 
-Reset your password: {reset_url}
+We received a request to reset the password on your Auxein Insights account.
 
-This link expires in 1 hour.
+Set a new password here:
+{reset_url}
 
-Best regards,
-The Auxein Team
-        """
+This link expires in 1 hour. If you did not request this, you can ignore this
+email - your password will not change.
+
+Auxein Insights
+insights.auxein.co.nz
+"""
         
         return self._send_email(email, subject, html_content, text_content)
     
     def send_public_welcome_email(self, email: str, name: str = "there"):
-        """Send welcome email for Regional Intelligence"""
-        subject = "Welcome to Auxein Regional Intelligence!"
-        
+        """Send welcome email for Auxein Insights"""
+        subject = "Welcome to Auxein Insights"
+
         html_content = self._get_public_welcome_template(name)
-        text_content = f"""
-Hi {name},
+        text_content = f"""Hi {name},
 
-Welcome to Auxein Regional Intelligence!
+Your Auxein Insights account is ready.
 
-Start exploring: {self.regional_intelligence_url}
+You now have the full regional picture: the climate record back to 1986, how
+the current season compares with it, and the national climate Atlas at 500 m.
+It is free and it stays free.
 
-Best regards,
-The Auxein Team
-        """
+Start here: {self.insights_url}
+
+Auxein Insights
+insights.auxein.co.nz
+"""
         
         return self._send_email(email, subject, html_content, text_content)
     
@@ -367,7 +387,7 @@ The Auxein Team
         """Render a single-article spotlight email.
         article dict: title, excerpt, slug, featured_image_url (optional)
         """
-        article_url = f"{self.regional_intelligence_url}/articles/{article.get('slug', '')}"
+        article_url = f"{self.insights_url}/articles/{article.get('slug', '')}"
         user_name = getattr(user, 'first_name', None) or 'there'
         intro = campaign.intro_text or ''
         outro = campaign.outro_text or ''
@@ -386,7 +406,7 @@ The Auxein Team
     <tr>
         <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
             <h1 style="margin: 0; color: #ffffff; font-size: 24px;">Featured Article</h1>
-            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Auxein Regional Intelligence</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Auxein Insights</p>
         </td>
     </tr>
     <tr>
@@ -419,7 +439,7 @@ The Auxein Team
         """Render a weekly roundup email pointing to a roundup article.
         Uses the same layout as spotlight but with roundup branding.
         """
-        article_url = f"{self.regional_intelligence_url}/articles/{article.get('slug', '')}"
+        article_url = f"{self.insights_url}/articles/{article.get('slug', '')}"
         user_name = getattr(user, 'first_name', None) or 'there'
         intro = campaign.intro_text or ''
         outro = campaign.outro_text or ''
@@ -438,14 +458,14 @@ The Auxein Team
     <tr>
         <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
             <h1 style="margin: 0; color: #ffffff; font-size: 24px;">Weekly Roundup</h1>
-            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Auxein Regional Intelligence</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Auxein Insights</p>
         </td>
     </tr>
     <tr>
         <td style="padding: 30px 40px 10px 40px;">
             <p style="margin: 0; color: #505050; font-size: 16px; line-height: 1.6;">Hi {user_name},</p>
             <p style="margin: 12px 0 0 0; color: #505050; font-size: 16px; line-height: 1.6;">
-                {intro if intro else "Here's your weekly roundup of the latest from Auxein Regional Intelligence."}
+                {intro if intro else "Here's your weekly roundup of the latest from Auxein Insights."}
             </p>
         </td>
     </tr>
@@ -474,7 +494,7 @@ The Auxein Team
         alert_data dict: alert_type, region, metric_name, current_value,
                          threshold_value, description
         """
-        dashboard_url = self.regional_intelligence_url
+        dashboard_url = self.insights_url
         user_name = getattr(user, 'first_name', None) or 'there'
 
         content = f"""
@@ -510,7 +530,7 @@ The Auxein Team
 
     def _get_unsubscribe_footer(self, user) -> str:
         """Standard email footer with manage preferences link (satisfies NZ UEM Act 2007)."""
-        preferences_url = self.regional_intelligence_url
+        preferences_url = self.insights_url
 
         return f"""
     <tr>
@@ -553,28 +573,30 @@ The Auxein Team
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
     <tr>
         <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
-            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Auxein Regional Intelligence</h1>
+            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Auxein Insights</h1>
         </td>
     </tr>
     <tr>
         <td style="padding: 40px;">
-            <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Welcome, {name}!</h2>
+            <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Confirm your email address</h2>
             <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">
-                Thank you for creating an account. Please verify your email address to get started.
+                Hi {name}, thanks for creating an Auxein Insights account. Confirm your email address to finish setting it up.
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                     <td align="center" style="padding: 20px 0;">
-                        <a href="{verification_url}" style="display: inline-block; padding: 16px 40px; background-color: #D1583B; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Verify Email Address</a>
+                        <a href="{verification_url}" style="display: inline-block; padding: 16px 40px; background-color: #D1583B; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Confirm email address</a>
                     </td>
                 </tr>
             </table>
-            <p style="margin: 20px 0 0 0; color: #999999; font-size: 13px;">This link expires in 24 hours.</p>
+            <p style="margin: 20px 0 0 0; color: #999999; font-size: 13px; line-height: 1.6;">
+                This link expires in 24 hours. If you did not create an account, you can ignore this email and nothing further will happen.
+            </p>
         </td>
     </tr>
     <tr>
         <td style="padding: 30px; background-color: #f8f9fa; text-align: center;">
-            <p style="margin: 0; color: #999999; font-size: 12px;">© 2025 Auxein Limited</p>
+            <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {datetime.now().year} Auxein Limited</p>
         </td>
     </tr>
 </table>
@@ -587,19 +609,19 @@ The Auxein Team
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
     <tr>
         <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
-            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Password Reset</h1>
+            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Auxein Insights</h1>
         </td>
     </tr>
     <tr>
         <td style="padding: 40px;">
-            <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Hi {name},</h2>
-            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px;">
-                Click the button below to reset your password.
+            <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Reset your password</h2>
+            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                Hi {name}, we received a request to reset the password on your Auxein Insights account.
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                     <td align="center" style="padding: 20px 0;">
-                        <a href="{reset_url}" style="display: inline-block; padding: 16px 40px; background-color: #D1583B; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Reset Password</a>
+                        <a href="{reset_url}" style="display: inline-block; padding: 16px 40px; background-color: #D1583B; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Set a new password</a>
                     </td>
                 </tr>
             </table>
@@ -608,7 +630,7 @@ The Auxein Team
     </tr>
     <tr>
         <td style="padding: 30px; background-color: #f8f9fa; text-align: center;">
-            <p style="margin: 0; color: #999999; font-size: 12px;">© 2025 Auxein Limited</p>
+            <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {datetime.now().year} Auxein Limited</p>
         </td>
     </tr>
 </table>
@@ -621,34 +643,34 @@ The Auxein Team
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px;">
     <tr>
         <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
-            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Welcome to Auxein</h1>
+            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Auxein Insights</h1>
         </td>
     </tr>
     <tr>
         <td style="padding: 40px;">
-            <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Hi {name}!</h2>
-            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px;">
-                You're all set to explore New Zealand's wine regions, and have direct insight to historical, and projected climate with Auxein's climate intelligence.
+            <h2 style="margin: 0 0 20px 0; color: #2F2F2F;">Your account is ready</h2>
+            <p style="margin: 0 0 20px 0; color: #505050; font-size: 16px; line-height: 1.6;">
+                Hi {name}, you now have the full regional picture: the climate record back to 1986, how the current season compares with it, and the national climate Atlas at 500 m resolution. It is free and it stays free.
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                     <td align="center" style="padding: 20px 0;">
-                        <a href="{self.regional_intelligence_url}" style="display: inline-block; padding: 16px 40px; background-color: #5B6830; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Start Exploring</a>
+                        <a href="{self.insights_url}" style="display: inline-block; padding: 16px 40px; background-color: #5B6830; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">Explore your region</a>
                     </td>
                 </tr>
             </table>
-            <div style="margin: 30px 0 0 0; padding: 20px; background-color: #FDF6E3; border: 2px solid #D1583B; border-radius: 8px;">
-                <h3 style="margin: 0 0 10px 0; color: #2F2F2F;">Need Vineyard-Specific Insights?</h3>
-                <p style="margin: 0; color: #505050; font-size: 14px;">
-                    Check out Auxein Insights Pro for vineyard management tools.
+            <div style="margin: 30px 0 0 0; padding: 20px; background-color: #FDF6E3; border: 1px solid #E4D9BC; border-radius: 8px;">
+                <h3 style="margin: 0 0 10px 0; color: #2F2F2F; font-size: 16px;">Need your own site rather than the region?</h3>
+                <p style="margin: 0 0 10px 0; color: #505050; font-size: 14px; line-height: 1.6;">
+                    Insights Pro resolves the climate surface to a point you choose and gives you that point's own record and its own normal.
                 </p>
-                <a href="https://www.auxein.co.nz/insights-pro" style="color: #D1583B; font-weight: 600;">Learn More →</a>
+                <a href="{self.insights_url}/pro" style="color: #D1583B; font-weight: 600; font-size: 14px;">About Insights Pro</a>
             </div>
         </td>
     </tr>
     <tr>
         <td style="padding: 30px; background-color: #f8f9fa; text-align: center;">
-            <p style="margin: 0; color: #999999; font-size: 12px;">© 2025 Auxein Limited</p>
+            <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {datetime.now().year} Auxein Limited</p>
         </td>
     </tr>
 </table>
@@ -683,7 +705,7 @@ The Auxein Team
     </tr>
     <tr>
         <td style="padding: 30px; background-color: #f8f9fa; text-align: center;">
-            <p style="margin: 0; color: #999999; font-size: 12px;">© 2025 Auxein Limited</p>
+            <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {datetime.now().year} Auxein Limited</p>
         </td>
     </tr>
 </table>
@@ -716,7 +738,7 @@ The Auxein Team
     </tr>
     <tr>
         <td style="padding: 30px; background-color: #f8f9fa; text-align: center;">
-            <p style="margin: 0; color: #999999; font-size: 12px;">© 2025 Auxein Limited</p>
+            <p style="margin: 0; color: #999999; font-size: 12px;">&copy; {datetime.now().year} Auxein Limited</p>
         </td>
     </tr>
 </table>

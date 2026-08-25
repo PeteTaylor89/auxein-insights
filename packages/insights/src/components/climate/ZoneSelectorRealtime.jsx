@@ -250,7 +250,7 @@ const ZoneSelectorRealtime = ({
             </a>
 
             <p className="cta-privacy">
-              Your data remains yours. We aggregate anonymised data for Regional Insights and other Auxein Products.
+              Your data remains yours. We aggregate anonymised data for Auxein Insights and other Auxein products.
             </p>
           </div>
         </div>

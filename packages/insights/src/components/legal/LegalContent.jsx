@@ -487,7 +487,7 @@ export function TermsOfUse() {
         
         <h3>7.1 Free and Paid Services</h3>
         <p>
-          The Regional Intelligence Platform features are available for free; others require a paid subscription. 
+          The Auxein Insights regional features are available for free; others require a paid subscription. 
           Current pricing and features are displayed on the Platform.
         </p>
 

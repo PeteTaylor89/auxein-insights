@@ -19,8 +19,14 @@ import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, LineChart } from 'lucide-react';
 import './ProjectionsPanel.css';
+import { useCountryIndustry } from '../../contexts/CountryIndustryContext';
 
 function ProjectionsPanel({ projections }) {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   if (!projections) return null;
 
   const { scenarios = [], periods = [] } = projections;
@@ -70,7 +76,7 @@ function ProjectionsPanel({ projections }) {
           the honest framing of what is and is not available at site scale. */}
       {projections.regional_available && projections.zone_slug && (
         <p className="projections__link">
-          <Link to={`/regions/${projections.zone_slug}`}>
+          <Link to={path(projections.zone_slug)}>
             See the projections for {projections.zone_name}
             <ArrowRight size={14} aria-hidden="true" />
           </Link>

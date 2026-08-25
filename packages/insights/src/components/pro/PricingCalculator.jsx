@@ -1,9 +1,13 @@
 // components/pro/PricingCalculator.jsx — the price, and the Grow comparison.
 //
-// Two jobs in one block, because they are one question. "$600 per site" only
+// Two jobs in one block, because they are one question. "$600 a year" only
 // means something next to "and Grow is $85 a hectare and includes it", and a
 // grower cannot answer which is better for them without doing arithmetic we
 // can do for them.
+//
+// PRO IS TIERED (2026-08-25): the first site carries the subscription, each one
+// after it is cheaper. That is a second rate, and a second rate is a second
+// chance to break the rule below — so it is fetched too, never typed here.
 //
 // WHERE THE NUMBERS COME FROM
 // Nowhere in this file. Rates are fetched from `GET /public/insights-pro/
@@ -70,12 +74,23 @@ function PricingCalculator() {
   const result = useMemo(() => {
     if (!pricing) return null;
     const proRate = Number(pricing.pro.ex_gst);
+    // Falls back to the first-site rate, so an older server that does not
+    // publish a second rate degrades to the flat model it actually charges
+    // rather than to a free one.
+    const proAddRate = pricing.pro.additional_ex_gst != null
+      ? Number(pricing.pro.additional_ex_gst)
+      : proRate;
     const growRate = Number(pricing.grow.ex_gst);
     const gst = Number(pricing.gst_rate);
 
     const growSetup = Number(pricing.grow.setup_ex_gst || 0);
 
-    const proEx = proRate * siteCount;
+    // Tiered, and zero sites is zero. `proRate + (siteCount - 1) * proAddRate`
+    // is the obvious form and it is wrong at the bottom: it quotes $200 to
+    // someone who has typed nothing, which is a price we do not charge.
+    const proEx = siteCount <= 0
+      ? 0
+      : proRate + (siteCount - 1) * proAddRate;
     const growEx = growRate * ha;                 // recurring, setup excluded
     const growFirstEx = growEx + growSetup;       // year one
     const withGst = (v) => v * (1 + gst);
@@ -92,9 +107,15 @@ function PricingCalculator() {
       growInc: withGst(growEx),
       growSetup,
       growFirstEx,
-      // Two verdicts, because between 4.12 and 7.06 ha they disagree: Pro is
-      // cheaper in year one while Grow is cheaper every year after. Showing
-      // one of them across that band would be picking a side.
+      // Two verdicts, because across a band of hectares they disagree: Pro is
+      // cheaper in year one while Grow is cheaper every year after. Showing one
+      // of them across that band would be picking a side.
+      //
+      // AT ONE SITE that band is 4.12 to 7.06 ha. It is NOT a constant any
+      // more — Pro went tiered on 2026-08-25, so the band moves with the site
+      // count (at two sites it is 8.82 to 11.76 ha). Both verdicts are computed
+      // from the figures rather than compared against a remembered threshold,
+      // which is why nothing here needed changing when the model did.
       cheaper: verdict(proEx, growEx),
       differenceEx: Math.abs(proEx - growEx),
       cheaperFirst: verdict(proEx, growFirstEx),
@@ -143,7 +164,7 @@ function PricingCalculator() {
           <h3>Insights Pro</h3>
           <p className="pricing__amount">
             {pricing ? formatNZD(pricing.pro.ex_gst) : '—'}
-            <span className="pricing__unit">+ GST per site, per year</span>
+            <span className="pricing__unit">+ GST per year</span>
           </p>
           <p className="pricing__inc">
             {pricing ? `${formatNZD(pricing.pro.inc_gst, { decimals: 2 })} including GST` : ' '}
@@ -151,7 +172,12 @@ function PricingCalculator() {
           <ul className="pricing__points">
             <li><Check size={15} aria-hidden="true" /> One monitored site, its whole record</li>
             <li><Check size={15} aria-hidden="true" /> Everything in the free regional tier</li>
-            <li><Check size={15} aria-hidden="true" /> Add further sites at the same rate</li>
+            <li>
+              <Check size={15} aria-hidden="true" />
+              {pricing?.pro?.additional_ex_gst != null
+                ? `Add further sites at ${formatNZD(pricing.pro.additional_ex_gst)} + GST each`
+                : 'Add further sites at the same rate'}
+            </li>
             <li><Check size={15} aria-hidden="true" /> No setup fee</li>
           </ul>
         </div>

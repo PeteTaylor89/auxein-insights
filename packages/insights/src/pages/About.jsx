@@ -21,9 +21,6 @@
 //      match rather than left to disagree with this page.
 //   2. The historical record was given as "1986 - 2024". The database says
 //      1986-2023 monthly and vintages 1987-2023. See HISTORICAL_FACTS.
-//   3. The retired About page said "1987-2023" and credited NIWA's Virtual
-//      Climate Station Network; the methodology says the former NIWA CliFlo
-//      database. CliFlo is what this page states.
 //
 // Content data lives in src/data/aboutContent.js — thresholds and citations
 // are tabular and belong in a table, not in markup.
@@ -124,7 +121,7 @@ function About() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useDocumentMeta({
-    title: 'About the data — sources, methods and acknowledgements',
+    title: 'About the data',
     description:
       'How Auxein Insights calculates growing degree days, phenology, disease pressure and climate projections, where the observations come from, and the regional councils and station operators whose monitoring makes it possible.',
     path: '/about',
@@ -267,10 +264,8 @@ function About() {
             <h3 id="about-history-source">Where the record comes from</h3>
             <p>
               The historical series is built from a network of weather stations
-              and data from the former NIWA CliFlo database. Those observations are put
-              through an Auxein-developed interpolation model to estimate daily
-              climate at every vineyard in New Zealand, producing a gridded
-              climate record rather than a set of point readings.
+              and data. Those observations are put through an Auxein-developed interpolation model to estimate daily
+              climate producing a gridded virtual climate record rather than a set of point readings. Auxein's interpolation model was validated against NZ Climate Databases and normals. 
             </p>
             <dl className="about-facts">
               {HISTORICAL_FACTS.map((f) => (

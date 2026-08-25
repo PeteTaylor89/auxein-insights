@@ -35,8 +35,8 @@
   margin: 0 0 12px;
   padding: 5px 11px;
   border-radius: 999px;
-  background: rgba(68, 97, 69, 0.1);
-  border: 1px solid rgba(68, 97, 69, 0.25);
+  background: rgb(var(--primary-rgb) / 0.1);
+  border: 1px solid rgb(var(--primary-rgb) / 0.25);
   color: var(--primary);
   font-size: var(--font-xs);
   font-weight: 700;
@@ -101,8 +101,8 @@
 }
 
 .pro-cta:hover {
-  background: #35502F;
-  border-color: #35502F;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
   transform: translateY(-1px);
 }
 
@@ -112,7 +112,7 @@
 }
 
 .pro-cta--ghost:hover {
-  background: rgba(68, 97, 69, 0.08);
+  background: rgb(var(--primary-rgb) / 0.08);
   color: var(--primary);
   border-color: var(--primary);
 }
@@ -157,7 +157,7 @@
 }
 
 .pro-feature:hover {
-  border-color: rgba(68, 97, 69, 0.35);
+  border-color: rgb(var(--primary-rgb) / 0.35);
   transform: translateY(-2px);
 }
 
@@ -169,7 +169,7 @@
   height: 40px;
   margin-bottom: 13px;
   border-radius: 10px;
-  background: rgba(68, 97, 69, 0.11);
+  background: rgb(var(--primary-rgb) / 0.11);
   color: var(--primary);
 }
 
@@ -253,7 +253,7 @@
 /* The Pro column is the answer to the question the table asks. */
 .pro-table tbody td:last-child,
 .pro-table thead th:last-child {
-  background: rgba(68, 97, 69, 0.045);
+  background: rgb(var(--primary-rgb) / 0.045);
 }
 
 .pro-yes { color: var(--primary); }
@@ -264,9 +264,9 @@
 .pro-grow {
   margin-bottom: 48px;
   padding: 26px 24px;
-  border: 1px solid rgba(68, 97, 69, 0.25);
+  border: 1px solid rgb(var(--primary-rgb) / 0.25);
   border-radius: 10px;
-  background: linear-gradient(180deg, rgba(68, 97, 69, 0.07), rgba(68, 97, 69, 0.02));
+  background: linear-gradient(180deg, rgb(var(--primary-rgb) / 0.07), rgb(var(--primary-rgb) / 0.02));
 }
 
 .pro-grow h2 {
@@ -432,4 +432,82 @@
 
   .pro-signup h2 { font-size: 1.3rem; }
   .pro-signup { scroll-margin-top: 76px; }
+}
+
+/* --- data licensing --------------------------------------------------------
+   A commercial tier for a different buyer, so it reads as a distinct block
+   rather than as another pricing card. Tinted and bounded on purpose: someone
+   scanning for "can I just get the data" should be able to find it without
+   reading the subscription copy first. */
+
+.pro-licence {
+  max-width: 1100px;
+  margin: 0 auto 48px;
+  padding: 28px 28px 30px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 14px;
+  background: #f6f7f2;
+}
+
+.pro-licence__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.pro-licence h2 {
+  margin: 0 0 10px;
+  font-size: var(--font-xl);
+  color: var(--charcoal);
+}
+
+.pro-licence__lede {
+  max-width: 68ch;
+  margin: 0 0 22px;
+  font-size: var(--font-base);
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.pro-licence__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px 26px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+.pro-licence__item h3 {
+  margin: 0 0 3px;
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.pro-licence__item p {
+  margin: 0;
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--text-light);
+}
+
+/* The third-party terms. Quieter than the offer, but full width and never
+   collapsed — it is the first thing a licence has to settle, not a footnote. */
+.pro-licence__note {
+  max-width: 72ch;
+  margin: 0 0 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text-light);
+}
+
+@media (max-width: 600px) {
+  .pro-licence { padding: 22px 18px 24px; border-radius: 12px; }
+  .pro-licence__list { grid-template-columns: 1fr; gap: 16px; }
 }

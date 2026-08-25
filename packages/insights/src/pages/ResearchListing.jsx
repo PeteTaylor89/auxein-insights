@@ -70,7 +70,7 @@ function ResearchListing() {
       <header className="research-header">
         <div className="research-header-content">
           <Link to="/" className="research-back-link">
-            <ChevronLeft size={16} /> Back to Regional Insights
+            <ChevronLeft size={16} /> Back to Auxein Insights
           </Link>
           <h1>Research Portal</h1>
           <p>In-depth research reports and data analysis for New Zealand viticulture.</p>

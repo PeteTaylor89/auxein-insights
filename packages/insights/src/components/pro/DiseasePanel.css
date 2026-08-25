@@ -9,7 +9,7 @@
 
 .disease__card {
   padding: 12px 14px;
-  border: 1px solid rgba(91, 104, 48, 0.16);
+  border: 1px solid rgb(var(--primary-rgb) / 0.16);
   border-left: 3px solid #b8c19a;
   border-radius: 8px;
   background: var(--white, #fff);
@@ -72,12 +72,12 @@
 }
 
 .disease__card:hover {
-  background: rgba(91, 104, 48, 0.03);
+  background: rgb(var(--primary-rgb) / 0.03);
 }
 
 .disease__card.is-open {
-  background: rgba(91, 104, 48, 0.05);
-  border-color: rgba(91, 104, 48, 0.3);
+  background: rgb(var(--primary-rgb) / 0.05);
+  border-color: rgb(var(--primary-rgb) / 0.3);
 }
 
 .disease__label {
@@ -99,7 +99,7 @@
 .disease__detail {
   margin-top: 10px;
   padding: 12px 14px;
-  border: 1px solid rgba(91, 104, 48, 0.16);
+  border: 1px solid rgb(var(--primary-rgb) / 0.16);
   border-radius: 8px;
   background: var(--white, #fff);
 }
