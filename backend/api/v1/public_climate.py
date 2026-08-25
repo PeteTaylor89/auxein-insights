@@ -15,7 +15,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, case, and_, desc, text
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 
 from db.session import get_db
 from core import scope as scope_mod
@@ -381,8 +381,18 @@ def list_regions(
     """
     sc = scope_mod.resolve(db, country, industry)
 
-    # Get regions that have climate zones
-    regions = db.query(WineRegion).join(
+    # LOAD ONLY WHAT IS RETURNED. Same defect as `list_zones` below and worse
+    # here: this was SELECT * over `wine_regions`, whose `geometry` column is
+    # 77 MB across the table, and then an N+1 loop doing SELECT * over
+    # `climate_zones` (16 MB of `geometry` plus 14 MB of `geometry_clipped`)
+    # once PER REGION. The response is names and slugs.
+    #
+    # `.distinct()` made it worse again: DISTINCT across a selected geometry
+    # column has to compare the polygons.
+    regions = db.query(WineRegion).options(
+        load_only(WineRegion.id, WineRegion.name, WineRegion.slug,
+                  WineRegion.display_order),
+    ).join(
         ClimateZone, ClimateZone.region_id == WineRegion.id
     ).filter(
         WineRegion.country_id == sc.country_id,
@@ -391,7 +401,10 @@ def list_regions(
 
     result = []
     for region in regions:
-        zones = db.query(ClimateZone).filter(
+        zones = db.query(ClimateZone).options(
+            load_only(ClimateZone.id, ClimateZone.name, ClimateZone.slug,
+                      ClimateZone.display_order),
+        ).filter(
             ClimateZone.region_id == region.id,
             ClimateZone.is_active == True,
             ClimateZone.country_id == sc.country_id,
@@ -426,8 +439,25 @@ def list_zones(
     """
     sc = scope_mod.resolve(db, country, industry)
 
+    # LOAD ONLY THE COLUMNS THIS RETURNS. `db.query(ClimateZone)` is SELECT *,
+    # and `climate_zones` carries `geometry` (16 MB across 23 active zones),
+    # `geometry_clipped` (14 MB) and `label_point`, while `joinedload(region)`
+    # drags in `wine_regions.geometry` on top of that — 77 MB across the table.
+    #
+    # So a listing that returns names and slugs was hauling ~30 MB out of the
+    # database per call, materialising it into WKBElements, and discarding all
+    # of it. Both zone listings are called on EVERY page through the
+    # country/industry context, on a t3.small with two gunicorn workers, and the
+    # result was requests that never returned: the browser spent its six
+    # connections on them and the rest of the page starved behind it.
     zones = db.query(ClimateZone).options(
-        joinedload(ClimateZone.region)
+        load_only(
+            ClimateZone.id, ClimateZone.name, ClimateZone.slug,
+            ClimateZone.description, ClimateZone.region_id,
+        ),
+        joinedload(ClimateZone.region).load_only(
+            WineRegion.id, WineRegion.name, WineRegion.slug,
+        ),
     ).outerjoin(
         WineRegion, ClimateZone.region_id == WineRegion.id
     ).filter(

@@ -25,7 +25,7 @@ import time
 from functools import lru_cache
 
 from sqlalchemy import func, and_, desc, text, bindparam
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 
 from db.session import get_db, SessionLocal
 from core import scope as scope_mod
@@ -300,8 +300,25 @@ def list_zones_with_current_data(
     vintage_year = get_current_vintage_year()
     sc = scope_mod.resolve(db, country, industry)
 
+    # LOAD ONLY THE COLUMNS THIS RETURNS. `db.query(ClimateZone)` is SELECT *,
+    # and `climate_zones` carries `geometry` (16 MB across 23 active zones),
+    # `geometry_clipped` (14 MB) and `label_point`, while `joinedload(region)`
+    # drags in `wine_regions.geometry` on top of that — 77 MB across the table.
+    #
+    # So a listing that returns names and slugs was hauling ~30 MB out of the
+    # database per call, materialising it into WKBElements, and discarding all
+    # of it. Both zone listings are called on EVERY page through the
+    # country/industry context, on a t3.small with two gunicorn workers, and the
+    # result was requests that never returned: the browser spent its six
+    # connections on them and the rest of the page starved behind it.
     query = db.query(ClimateZone).options(
-        joinedload(ClimateZone.region)
+        load_only(
+            ClimateZone.id, ClimateZone.name, ClimateZone.slug,
+            ClimateZone.region_id,
+        ),
+        joinedload(ClimateZone.region).load_only(
+            WineRegion.id, WineRegion.name,
+        ),
     ).filter(
         ClimateZone.is_active == True,
         ClimateZone.country_id == sc.country_id,
@@ -1041,9 +1058,17 @@ def get_regional_overview(
     else:
         region_name = "All Regions"
     
-    # Get all active zones
+    # Get all active zones.
+    #
+    # `load_only` for the same reason as the zone listings: SELECT * here pulls
+    # `geometry` and `geometry_clipped` for every zone plus `wine_regions.
+    # geometry` through the join, and this endpoint is on the HOME PAGE.
     zone_query = db.query(ClimateZone).options(
-        joinedload(ClimateZone.region)
+        load_only(ClimateZone.id, ClimateZone.name, ClimateZone.slug,
+                  ClimateZone.region_id, ClimateZone.display_order),
+        joinedload(ClimateZone.region).load_only(
+            WineRegion.id, WineRegion.name, WineRegion.slug,
+        ),
     ).filter(ClimateZone.is_active == True)
     
     if region_id:
