@@ -39,6 +39,19 @@ class Country(Base):
     name = Column(String(100), nullable=False)
     hemisphere = Column(String(1), nullable=False)  # 'N' | 'S'
     vintage_start_month = Column(Integer, nullable=False)  # 1-12
+
+    # The GROWING season start (1 September for NZ wine), which is NOT the same
+    # quantity as vintage_start_month (July) — that one is the vintage-year
+    # boundary. Conflating them silently shifts every seasonal total.
+    # Added by `country_industry_dim`. Nothing reads it yet: the services keep
+    # their SEASON_START_MONTH constant until a Northern Hemisphere country
+    # exists, because Australia is Southern Hemisphere and needs no change.
+    # Known limitation: on `countries`, so it is correct only while every active
+    # industry in a country shares a season start. Kiwifruit does not start in
+    # September; when a second industry activates this moves to a
+    # (country, industry) grain.
+    season_start_month = Column(Integer, nullable=False, server_default='9')
+
     default_timezone = Column(String(50), nullable=False)  # IANA TZ
     is_active = Column(Boolean, nullable=False, server_default=text('true'))
     display_order = Column(Integer, nullable=False, server_default='0')
@@ -48,10 +61,40 @@ class Country(Base):
     __table_args__ = (
         CheckConstraint("hemisphere IN ('N','S')", name='ck_countries_hemisphere'),
         CheckConstraint('vintage_start_month BETWEEN 1 AND 12', name='ck_countries_vintage_month'),
+        CheckConstraint('season_start_month BETWEEN 1 AND 12', name='ck_countries_season_month'),
     )
 
     def __repr__(self):
         return f"<Country(iso2='{self.iso2}', name='{self.name}')>"
+
+
+class Industry(Base):
+    """Primary industries the platform covers.
+
+    Created by `country_industry_dim` to replace the hardcoded INDUSTRIES array
+    in `packages/insights/src/components/home/IndustryChips.jsx`. `is_active`
+    is the launch gate — wine is true, the other four are visibly pending.
+
+    `key` is the URL segment: /nz/wine/marlborough. `icon` names a lucide-react
+    export so the chips keep their glyphs without a second source of truth.
+
+    An industry owns its own `climate_zones` ROWS rather than sharing them: a
+    kiwifruit "Bay of Plenty" is block-intersected against kiwifruit plantings
+    and is a different polygon from the wine zone of the same name.
+    """
+    __tablename__ = 'industries'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(30), nullable=False, unique=True, index=True)
+    name = Column(String(100), nullable=False)
+    icon = Column(String(50), nullable=True)
+    is_active = Column(Boolean, nullable=False, server_default=text('false'))
+    display_order = Column(Integer, nullable=False, server_default='0')
+    created_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
+    updated_at = Column(DateTime(timezone=True), server_default=text('NOW()'))
+
+    def __repr__(self):
+        return f"<Industry(key='{self.key}', active={self.is_active})>"
 
 
 class DataSource(Base):

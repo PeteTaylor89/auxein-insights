@@ -181,10 +181,35 @@ def _i(row: dict, name: str) -> Optional[int]:
     return None if value is None else int(value)
 
 
+# --- era suffix -------------------------------------------------------------
+# One bucket now carries two eras of the same variable: the published 1986-2023
+# CLIFLO archive and the DB-sourced live era from 2024 on. They are the same
+# estimator over different observations and carry a measured provenance offset,
+# so they are stamped with distinct `model_version` values and MUST be indexed
+# as separate runs.
+#
+# The obstacle is that a variable's metadata lives at ONE key per tree —
+# `temp_mean/manifest.json` — and `run_history.py` writes the S3 key layout
+# verbatim, so publishing the live era over the archive would replace the
+# manifest that says 456 months exist with one that says 31 do. `--suffix live`
+# reads `manifest-live.json` / `validation_stats-live.csv` instead, so both eras
+# describe themselves in the same bucket and neither overwrites the other.
+#
+# `model_version` is in RUN_KEYS and VALIDATION_KEYS, so the two eras upsert
+# side by side rather than clobbering each other.
+
+def _meta_key(variable: str, name: str, suffix: str) -> str:
+    """`temp_mean/manifest.json`, or `temp_mean/manifest-live.json`."""
+    if not suffix:
+        return f"{variable}/{name}"
+    stem, dot, ext = name.rpartition(".")
+    return f"{variable}/{stem}-{suffix}{dot}{ext}"
+
+
 def read_validation_rows(source: Source, variable: str, res_m: int,
-                         model_version: str) -> list[dict]:
+                         model_version: str, suffix: str = "") -> list[dict]:
     """One row per FIT — per variable per day. Mirrors validation_stats.csv."""
-    text = source.read_text(f"{variable}/validation_stats.csv")
+    text = source.read_text(_meta_key(variable, "validation_stats.csv", suffix))
     rows: list[dict] = []
     for raw in csv.DictReader(io.StringIO(text)):
         valid_on = datetime.strptime(raw["valid_at"], "%Y-%m-%d").date()
@@ -264,9 +289,10 @@ def summarise_by_month(rows: Iterable[dict]) -> dict[tuple[int, int], dict]:
 
 # --- row construction -------------------------------------------------------
 
-def build_rows(source: Source, variable: str) -> tuple[list[dict], list[dict], dict]:
+def build_rows(source: Source, variable: str,
+               suffix: str = "") -> tuple[list[dict], list[dict], dict]:
     """Return (surface_run rows, validation rows, manifest) for one variable."""
-    manifest = json.loads(source.read_text(f"{variable}/manifest.json"))
+    manifest = json.loads(source.read_text(_meta_key(variable, "manifest.json", suffix)))
     res_m = int(manifest["resolution_m"])
     model_version = manifest["model_version"]
     unit = manifest["unit"]
@@ -274,7 +300,8 @@ def build_rows(source: Source, variable: str) -> tuple[list[dict], list[dict], d
     # their CV is in the variable's own unit.
     cv_units = manifest.get("cv_units") or unit
 
-    validation = read_validation_rows(source, variable, res_m, model_version)
+    validation = read_validation_rows(source, variable, res_m, model_version,
+                                      suffix)
     by_month = summarise_by_month(validation)
     for row in validation:
         row.pop("edf_fraction", None)
@@ -373,7 +400,8 @@ def build_rows(source: Source, variable: str) -> tuple[list[dict], list[dict], d
 # partial unique indexes are satisfied, and anything reasoning about storage
 # must therefore DISTINCT on `s3_key` rather than counting rows.
 
-def build_season_rows(source: Source, variable: str) -> tuple[list[dict], list[dict], dict]:
+def build_season_rows(source: Source, variable: str,
+                      suffix: str = "") -> tuple[list[dict], list[dict], dict]:
     """Return (surface_run rows, [], manifest) for one derived season variable.
 
     The empty middle element is not an oversight. `surface_validation_stats`
@@ -385,7 +413,7 @@ def build_season_rows(source: Source, variable: str) -> tuple[list[dict], list[d
     unit guard suppresses it rather than printing degree-days as degrees. Same
     mechanism that already protects rainfall's ratio-space CV.
     """
-    manifest = json.loads(source.read_text(f"{variable}/manifest.json"))
+    manifest = json.loads(source.read_text(_meta_key(variable, "manifest.json", suffix)))
     res_m = int(manifest["resolution_m"])
     model_version = manifest["model_version"]
     overall_cv = (manifest.get("cv_rmse") or {}).get("median")
@@ -507,7 +535,19 @@ def upsert(conn, rows: list[dict], table: str, columns: tuple[str, ...],
 # must repeat its predicate — naming a constraint would not resolve. Every row
 # this script writes is monthly or records, so `statistic` is never NULL and the
 # aggregate index is always the one that applies.
-RUN_KEYS = ("variable", "granularity", "statistic", "valid_at",
+#
+# `country_id` leads the tuple because `country_industry_dim` added it to both
+# unique indexes — an Australian raster for a New Zealand date must be a
+# distinct object, not a duplicate. Postgres resolves ON CONFLICT by MATCHING
+# the inference clause against an index, so omitting it here would not degrade
+# gracefully: the statement fails outright with "no unique or exclusion
+# constraint matching the ON CONFLICT specification".
+#
+# It is deliberately NOT in the inserted `columns`. Inference columns need not
+# be supplied by the INSERT, and `surface_run.country_id` carries a server
+# default of New Zealand, so this script keeps writing exactly the columns it
+# always did and its rows still land with the right country.
+RUN_KEYS = ("country_id", "variable", "granularity", "statistic", "valid_at",
             "resolution_m", "model_version")
 RUN_PREDICATE = "statistic IS NOT NULL"
 VALIDATION_KEYS = ("variable", "valid_on", "resolution_m", "model_version")
@@ -535,6 +575,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="s3://bucket or a local path to the bucket mirror")
     parser.add_argument("--variable", action="append", choices=ALL_VARIABLES,
                         help="restrict to one variable (repeatable)")
+    parser.add_argument("--suffix", default="",
+                        help="read <variable>/manifest-<SUFFIX>.json and "
+                             "validation_stats-<SUFFIX>.csv instead of the "
+                             "bare names, so a second era can be indexed from "
+                             "the same bucket without overwriting the first "
+                             "(e.g. --suffix live)")
     parser.add_argument("--dry-run", action="store_true",
                         help="build and check rows, write nothing")
     parser.add_argument("--verify-keys", action="store_true", default=None,
@@ -554,7 +600,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         verify = bool(args.verify_keys)
 
     variables = args.variable or list(ALL_VARIABLES)
-    log.info("source %s | variables %s", source.describe(), ", ".join(variables))
+    log.info("source %s | variables %s%s", source.describe(), ", ".join(variables),
+             f" | suffix {args.suffix}" if args.suffix else "")
 
     listing: set[str] = set()
     if verify:
@@ -567,14 +614,16 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     for variable in variables:
         if variable in SEASON_VARIABLES:
-            runs, validation, manifest = build_season_rows(source, variable)
+            runs, validation, manifest = build_season_rows(source, variable,
+                                                           args.suffix)
             log.info("%-10s %4d seasons %s..%s, %d run rows over %d objects, "
                      "0 validation rows (derived, not fitted)",
                      variable, manifest["n_seasons"], manifest["first"],
                      manifest["last"], len(runs),
                      len({r["s3_key"] for r in runs}))
         else:
-            runs, validation, manifest = build_rows(source, variable)
+            runs, validation, manifest = build_rows(source, variable,
+                                                    args.suffix)
             log.info("%-10s %4d months, %d run rows, %d validation rows "
                      "(cv median %s %s)", variable, manifest["n_months"],
                      len(runs), len(validation),

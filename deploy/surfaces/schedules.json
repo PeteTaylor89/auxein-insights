@@ -1,0 +1,64 @@
+{
+  "_comment": "EventBridge Scheduler, not EventBridge Rules and not cron on a box. The reason is ScheduleExpressionTimezone: Scheduler resolves NZDT/NZST itself, so 03:00 NZ means 03:00 NZ all year. Every other option here needs the two-cron daylight-saving hack the GitHub workflow carried, where each pair fires twice a year at the wrong hour and one of them has to be discarded by a guard inside the job.",
+  "schedules": [
+    {
+      "Name": "auxein-surfaces-daily",
+      "GroupName": "default",
+      "Description": "Fit D-2 daily surfaces. D+2 not D+1: ECAN_AIR lands ~24.8 h behind and is 10 thermometers in the largest temperature deficit region.",
+      "ScheduleExpression": "cron(0 3 * * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-surfaces",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "_comment_network": "RDS auxein-db is PubliclyAccessible in vpc-03a13bd8504825dd9, so a public-subnet task with a public IP reaches it without NAT. The task's security group must be added to the RDS security group's inbound rules.",
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": ["subnet-0317587a16a8b5e59"],
+              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "RetryPolicy": {
+          "_comment": "One retry. The job is idempotent — S3 objects overwrite and the index upserts — but a second failure is a real fault and should be seen, not buried under retries.",
+          "MaximumRetryAttempts": 1,
+          "MaximumEventAgeInSeconds": 3600
+        },
+        "Input": "{\"containerOverrides\":[{\"name\":\"surfaces\",\"environment\":[{\"name\":\"MODE\",\"value\":\"daily\"}]}]}"
+      }
+    },
+    {
+      "Name": "auxein-surfaces-refit",
+      "GroupName": "default",
+      "Description": "Weekly re-fit of D-9..D-3. daily_aggregation revises weather_data_daily for ~3 days after the fact; without this the surface and the DB disagree permanently and invisibly.",
+      "ScheduleExpression": "cron(0 4 ? * SUN *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-surfaces",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": ["subnet-0317587a16a8b5e59"],
+              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "RetryPolicy": { "MaximumRetryAttempts": 1, "MaximumEventAgeInSeconds": 3600 },
+        "Input": "{\"containerOverrides\":[{\"name\":\"surfaces\",\"environment\":[{\"name\":\"MODE\",\"value\":\"refit\"}]}]}"
+      }
+    }
+  ]
+}

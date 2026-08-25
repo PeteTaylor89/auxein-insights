@@ -1,0 +1,272 @@
+name: Daily Live Surfaces
+
+# Fits one day of temp_mean / temp_min / temp_max / rainfall from the DB,
+# publishes the COGs to S3 and indexes them into `surface_run` at
+# granularity='daily'.
+#
+# WHY D+2 AND NOT D+1
+# ECAN_AIR lands ~24.8 h behind wall clock and is 10 thermometers in the largest
+# temperature deficit region in the country, so a D+1 fit would omit them
+# systematically — not occasionally. `daily_aggregation` also runs every 6 h
+# with a 3-day lookback, so `weather_data_daily` keeps being revised for about
+# three days after the fact. That is what the weekly re-fit below is for:
+# without it the surface and the DB disagree permanently, and nothing downstream
+# can see the disagreement.
+#
+# WHY THE ASSETS COME FROM S3
+# The 500 m grid definition (73 MB) is gitignored and the LENZ mean-annual-
+# rainfall raster (49 MB) is untracked, so neither is in a checkout. The
+# era-offset field is not either. All three live under `_assets/` and `_fields/`
+# in the surfaces bucket and are fetched here. A missing LENZ raster fails
+# MINUTES into the run, after the 4.6 GB rainfall basis is already built.
+
+on:
+  schedule:
+    # GitHub cron is UTC only and NZ observes DST, so each NZ wall-clock time
+    # needs two entries. Exactly one of each pair lands on the intended NZ hour;
+    # the other is dropped by the DST guard in "Resolve target window" rather
+    # than being allowed to run the job twice a day for the whole year.
+    - cron: '0 14 * * *'   # daily  D-2, 03:00 NZDT (UTC+13)
+    - cron: '0 15 * * *'   # daily  D-2, 03:00 NZST (UTC+12)
+    - cron: '0 15 * * 6'   # weekly refit, Sun 04:00 NZDT
+    - cron: '0 16 * * 6'   # weekly refit, Sun 04:00 NZST
+
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Single day to fit (YYYY-MM-DD). Default: D-2 NZ.'
+        required: false
+      start:
+        description: 'Range start (YYYY-MM-DD), used with end'
+        required: false
+      end:
+        description: 'Range end (YYYY-MM-DD)'
+        required: false
+      refit:
+        description: 'Re-fit the D-9..D-3 catch-up window'
+        type: boolean
+        default: false
+
+concurrency:
+  # Two overlapping runs would fit the same day and race on the same S3 keys and
+  # the same `uq_surface_run_timestep` row.
+  group: daily-surfaces
+  cancel-in-progress: false
+
+jobs:
+  fit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AWS_REGION: ap-southeast-2
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      RDS_USER: ${{ secrets.RDS_USER }}
+      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+      RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+      RDS_PORT: 5432
+      RDS_DATABASE: auxein_db
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      ENV: staging
+      BUCKET: auxein-climate-surfaces
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # rasterio brings its own GDAL wheels; no apt packages needed, and no
+          # system PROJ to collide with (`raster._configure_proj` handles the
+          # workstation's PostGIS install, which does not exist here).
+          pip install 'rasterio>=1.3' scipy numpy pandas boto3 \
+                      sqlalchemy psycopg2-binary python-dotenv pytz
+
+      - name: Resolve target window
+        id: window
+        run: |
+          set -euo pipefail
+          # Everything below is in NZ time, deliberately. `date.today()` in UTC
+          # is YESTERDAY for the whole NZ morning — the surface would silently
+          # be labelled with the wrong day on every single run.
+          NZ_HOUR=$(TZ=Pacific/Auckland date +%H)
+          NZ_DOW=$(TZ=Pacific/Auckland date +%u)     # 7 = Sunday
+          SCHED="${{ github.event.schedule }}"
+
+          MODE=daily
+          SKIP=false
+          if [ -n "$SCHED" ]; then
+            case "$SCHED" in
+              # The weekly pair. Only proceed on the firing that actually lands
+              # at 04:00 NZ on a Sunday; its twin is the wrong side of DST.
+              '0 15 * * 6'|'0 16 * * 6')
+                MODE=refit
+                if [ "$NZ_HOUR" != "04" ] || [ "$NZ_DOW" != "7" ]; then
+                  SKIP=true
+                fi
+                ;;
+              *)
+                MODE=daily
+                if [ "$NZ_HOUR" != "03" ]; then SKIP=true; fi
+                ;;
+            esac
+          elif [ "${{ github.event.inputs.refit }}" = "true" ]; then
+            MODE=refit
+          fi
+
+          if [ "$SKIP" = "true" ]; then
+            echo "::notice::skipping - cron '$SCHED' fired at ${NZ_HOUR}:00 NZ "\
+                 "(dow $NZ_DOW), which is its daylight-saving twin"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          if [ -n "${{ github.event.inputs.start }}" ]; then
+            START="${{ github.event.inputs.start }}"
+            END="${{ github.event.inputs.end }}"
+          elif [ -n "${{ github.event.inputs.date }}" ]; then
+            START="${{ github.event.inputs.date }}"
+            END="$START"
+          elif [ "$MODE" = "refit" ]; then
+            # `daily_aggregation` runs every 6 h with a 3-day lookback, so
+            # `weather_data_daily` keeps changing for ~3 days after the fact. A
+            # surface fitted once at D+2 would never see those revisions and
+            # would disagree with the DB permanently, invisibly.
+            START=$(TZ=Pacific/Auckland date -d '9 days ago' +%F)
+            END=$(TZ=Pacific/Auckland date -d '3 days ago' +%F)
+          else
+            START=$(TZ=Pacific/Auckland date -d '2 days ago' +%F)
+            END="$START"
+          fi
+          echo "mode=$MODE"   >> "$GITHUB_OUTPUT"
+          echo "start=$START" >> "$GITHUB_OUTPUT"
+          echo "end=$END"     >> "$GITHUB_OUTPUT"
+          echo "::notice::mode=$MODE fitting $START .. $END (NZ ${NZ_HOUR}:00)"
+          # consolidate_db drops any station with fewer than 30 days in the
+          # staged window, so staging only the target day would drop EVERY
+          # station. Stage a wide window and fit a narrow one.
+          echo "stage_start=$(TZ=Pacific/Auckland date -d "$START -120 days" +%F)" >> "$GITHUB_OUTPUT"
+          echo "days=$(( ( $(date -d "$END" +%s) - $(date -d "$START" +%s) ) / 86400 + 1 ))" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch grid, climatology and era-offset fields
+        if: steps.window.outputs.skip != 'true'
+        run: |
+          mkdir -p "backend/models/example data"
+          mkdir -p docs/models/lris-nzenvds-total-annual-precipitation-v10-GTiff
+          aws s3 cp "s3://$BUCKET/_assets/grid/VCDN_500m.csv" \
+                    "backend/models/example data/VCDN_500m.csv" --only-show-errors
+          aws s3 cp "s3://$BUCKET/_assets/lenz/precip_ann_uc.tif" \
+                    "docs/models/lris-nzenvds-total-annual-precipitation-v10-GTiff/precip_ann_uc.tif" \
+                    --only-show-errors
+          for v in temp_mean temp_min temp_max; do
+            aws s3 sync "s3://$BUCKET/_fields/era_offset/$v/" \
+                        "scratchpad/live_surfaces/era_fields/$v/" --only-show-errors
+          done
+          # Assert on presence, not on the exit code of a sync that copied
+          # nothing. A missing field would otherwise surface as a warning and
+          # then publish an UNCORRECTED surface under a corrected era's
+          # model_version.
+          test -s "backend/models/example data/VCDN_500m.csv"
+          test -s docs/models/lris-nzenvds-total-annual-precipitation-v10-GTiff/precip_ann_uc.tif
+          for v in temp_mean temp_min temp_max; do
+            test "$(ls scratchpad/live_surfaces/era_fields/$v/*.tif | wc -l)" -eq 12
+          done
+
+      - name: QC the daily table
+        if: steps.window.outputs.skip != 'true'
+        # BEFORE staging, not after. The spline reads `weather_data_daily`, so
+        # a value rejected here never reaches the fit — and, just as important,
+        # never reaches the zone rollups, disease pressure or phenology either.
+        #
+        # This also re-applies standing quarantine windows to late-arriving
+        # observations. A quarantine is a one-time UPDATE; the hourly ingest
+        # keeps delivering rows for days already covered, and without this step
+        # a station that was quarantined this morning is back in the surface by
+        # tonight.
+        run: |
+          python backend/scripts/daily_qc.py             --start "${{ steps.window.outputs.stage_start }}"             --end "${{ steps.window.outputs.end }}"             --apply
+
+      - name: Stage station inputs
+        if: steps.window.outputs.skip != 'true'
+        run: |
+          python backend/scripts/interpolation/consolidate_db.py \
+            --variables temp_mean,temp_min,temp_max,rainfall \
+            --start "${{ steps.window.outputs.stage_start }}" \
+            --end "${{ steps.window.outputs.end }}" \
+            --out scratchpad/live_surfaces/inputs_daily
+
+      - name: Fit surfaces
+        if: steps.window.outputs.skip != 'true'
+        run: |
+          python backend/scripts/interpolation/run_live.py \
+            --start "${{ steps.window.outputs.start }}" \
+            --end "${{ steps.window.outputs.end }}" \
+            --inputs scratchpad/live_surfaces/inputs_daily \
+            --out scratchpad/live_surfaces/daily_live \
+            --era-offset-root scratchpad/live_surfaces/era_fields \
+            --require-days "${{ steps.window.outputs.days }}"
+
+      - name: Publish to S3
+        if: steps.window.outputs.skip != 'true'
+        run: |
+          # No --delete, ever. The bucket holds 29k+ objects from the archive
+          # and this tree contains only the days just fitted.
+          # `_runs/` carries this run's immutable record (parameters, code
+          # digest, station set, validation stats). It MUST be published: the
+          # container filesystem is discarded, so a record that stays local is
+          # a record that never existed.
+          aws s3 sync scratchpad/live_surfaces/daily_live/ "s3://$BUCKET/" \
+            --exclude "*" --include "surfaces/*" --include "_runs/*" \
+            --only-show-errors
+
+      - name: Index
+        if: steps.window.outputs.skip != 'true'
+        run: |
+          python backend/scripts/index_daily.py \
+            --manifest scratchpad/live_surfaces/daily_live/manifest.json
+
+      - name: Report screened stations
+        # Never fails the run: a rejected station is the screen doing its job.
+        # It is surfaced because a PERSISTENT offender is a source problem that
+        # this job cannot fix — the station keeps poisoning weather_data_daily,
+        # climate_zone_daily, disease and phenology until it is quarantined.
+        if: always() && steps.window.outputs.skip != 'true'
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p = pathlib.Path("scratchpad/live_surfaces/daily_live/manifest.json")
+          if not p.exists():
+              print("no manifest"); raise SystemExit(0)
+          m = json.loads(p.read_text())
+          scr = m.get("outlier_screen", {})
+          flags = scr.get("by_station", [])
+          print(f"::notice::outlier screen rejected {scr.get('n_rejected', 0)} "
+                f"station-days across {len(flags)} station(s)")
+          for f in flags:
+              msg = (f"station {f['station_id']} rejected "
+                     f"{f['n_rejected']} station-day(s) "
+                     f"({100*f['trip_rate']:.0f}%), residual "
+                     f"{f['residual_min']:+.2f}..{f['residual_max']:+.2f} "
+                     f"on {','.join(f['variables'])}")
+              if f["persistent"]:
+                  print(f"::warning::PERSISTENT — {msg}. Candidate for source "
+                        f"quarantine.")
+              else:
+                  print(f"::notice::{msg}")
+          PY
+
+      - name: Upload logs
+        if: always() && steps.window.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-surfaces-${{ steps.window.outputs.start }}
+          path: |
+            scratchpad/live_surfaces/daily_live/manifest.json
+            scratchpad/live_surfaces/daily_live/validation_stats.csv
+          if-no-files-found: warn
+          retention-days: 30

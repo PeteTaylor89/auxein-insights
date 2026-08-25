@@ -1,0 +1,37 @@
+# CodeBuild — builds and pushes the surfaces image.
+#
+# Built here rather than locally because the workstation has no Docker, and
+# because a build that only ever happens on one laptop is not a deployment
+# process. CodeBuild also runs inside the account, so pushing to ECR needs no
+# long-lived credentials anywhere.
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: ap-southeast-2
+    ECR_REPO: auxein-surfaces
+    IMAGE_TAG: latest
+
+phases:
+  pre_build:
+    commands:
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - REGISTRY="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+      - aws ecr describe-repositories --repository-names "$ECR_REPO" >/dev/null 2>&1
+        || aws ecr create-repository --repository-name "$ECR_REPO"
+        --image-scanning-configuration scanOnPush=true
+      - aws ecr get-login-password --region "$AWS_REGION"
+        | docker login --username AWS --password-stdin "$REGISTRY"
+  build:
+    commands:
+      # Tagged with the commit as well as `latest`, so a surface can always be
+      # traced back to the code that produced it. `model_version` records the
+      # estimator family only — it cannot distinguish two builds of it.
+      - SHA=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:12}
+      - docker build -f deploy/surfaces/Dockerfile
+        -t "$REGISTRY/$ECR_REPO:$IMAGE_TAG" -t "$REGISTRY/$ECR_REPO:$SHA" .
+  post_build:
+    commands:
+      - docker push "$REGISTRY/$ECR_REPO:$IMAGE_TAG"
+      - docker push "$REGISTRY/$ECR_REPO:$SHA"
+      - echo "pushed $REGISTRY/$ECR_REPO:$SHA"

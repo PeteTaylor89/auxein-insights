@@ -242,29 +242,75 @@ def _build_record(station_id: int, target_date: date, row) -> dict:
 # ::date takes the local calendar day — the same partition the per-day path got
 # from NZ_TZ.localize(midnight) bounds, DST included (NZ transitions at 2/3am,
 # so local midnight is never ambiguous).
+# THE MEAN IS HOUR-WEIGHTED, and it has to be. Fixed 2026-08-24.
+#
+# This used to be a plain `AVG(value)` over records, which is only a daily mean
+# when the station samples evenly through the day. Several do not, and the error
+# is not small. Station 11 GREYSTONE_B18 on 2026-08-02 logged **60 records/hour
+# overnight (00-08h) and 6/hour through the warm part of the day**, so a flat
+# average weighted the cold hours ten-fold:
+#
+#     stored plain AVG          1.60 degC
+#     hour-weighted (correct)   7.51 degC
+#     (tmin+tmax)/2             7.40 degC   <- corroborates
+#
+# 13 of 257 reporting stations carried this, all of them the Harvest vineyard
+# sites in Waipara (Greystone / Netherwood / Barbour), all biased COLD by
+# 2.2-3.4 degC on every one of 84 days. It propagates straight into GDD, and
+# from there into phenology and disease pressure, in the zone with the most
+# assigned stations and live Grow customers.
+#
+# The fix is a two-level aggregation: average within each NZ-local hour, then
+# average those hourly means. MIN/MAX/SUM/COUNT are unaffected by the change —
+# the min of per-hour minima is the global minimum, and a sum of per-hour sums
+# is the total — so only the mean moves.
+#
+# A station reporting in only a few hours still yields a mean over just those
+# hours; that is what the record supports, and `temp_record_count` remains the
+# guard on whether to trust it at all.
 AGGREGATE_RANGE_SQL = text(f"""
+    WITH hourly AS (
+        SELECT
+            station_id,
+            (timestamp AT TIME ZONE 'Pacific/Auckland')::date AS obs_date,
+            date_trunc('hour', timestamp AT TIME ZONE 'Pacific/Auckland') AS obs_hour,
+            MIN(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_min_h,
+            MAX(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_max_h,
+            AVG(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_mean_h,
+            COUNT(CASE WHEN variable IN {TEMP_VARS} THEN 1 END) as temp_count_h,
+            MIN(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_min_h,
+            MAX(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_max_h,
+            AVG(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_mean_h,
+            COUNT(CASE WHEN variable IN {RH_VARS} THEN 1 END) as humidity_count_h,
+            SUM(CASE WHEN variable IN {RAIN_VARS} THEN value END) as rainfall_sum_h,
+            COUNT(CASE WHEN variable IN {RAIN_VARS} THEN 1 END) as rainfall_count_h,
+            SUM(CASE WHEN variable IN {SOLAR_VARS} THEN value END) as solar_sum_h,
+            COUNT(*) as total_count_h
+        FROM weather_data
+        WHERE station_id = ANY(:station_ids)
+          AND timestamp >= :start_dt
+          AND timestamp < :end_dt
+          AND value IS NOT NULL
+          AND coalesce(quality, '') <> '{QUARANTINE_QUALITY}'
+        GROUP BY station_id, 2, 3
+    )
     SELECT
         station_id,
-        (timestamp AT TIME ZONE 'Pacific/Auckland')::date AS obs_date,
-        MIN(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_min,
-        MAX(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_max,
-        AVG(CASE WHEN variable IN {TEMP_VARS} THEN value END) as temp_mean,
-        COUNT(CASE WHEN variable IN {TEMP_VARS} THEN 1 END) as temp_count,
-        MIN(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_min,
-        MAX(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_max,
-        AVG(CASE WHEN variable IN {RH_VARS} THEN value END) as humidity_mean,
-        COUNT(CASE WHEN variable IN {RH_VARS} THEN 1 END) as humidity_count,
-        SUM(CASE WHEN variable IN {RAIN_VARS} THEN value END) as rainfall_sum,
-        COUNT(CASE WHEN variable IN {RAIN_VARS} THEN 1 END) as rainfall_count,
-        SUM(CASE WHEN variable IN {SOLAR_VARS} THEN value END) as solar_sum,
-        COUNT(*) as total_count
-    FROM weather_data
-    WHERE station_id = ANY(:station_ids)
-      AND timestamp >= :start_dt
-      AND timestamp < :end_dt
-      AND value IS NOT NULL
-      AND coalesce(quality, '') <> '{QUARANTINE_QUALITY}'
-    GROUP BY station_id, 2
+        obs_date,
+        MIN(temp_min_h) as temp_min,
+        MAX(temp_max_h) as temp_max,
+        AVG(temp_mean_h) as temp_mean,
+        COALESCE(SUM(temp_count_h), 0) as temp_count,
+        MIN(humidity_min_h) as humidity_min,
+        MAX(humidity_max_h) as humidity_max,
+        AVG(humidity_mean_h) as humidity_mean,
+        COALESCE(SUM(humidity_count_h), 0) as humidity_count,
+        SUM(rainfall_sum_h) as rainfall_sum,
+        COALESCE(SUM(rainfall_count_h), 0) as rainfall_count,
+        SUM(solar_sum_h) as solar_sum,
+        COALESCE(SUM(total_count_h), 0) as total_count
+    FROM hourly
+    GROUP BY station_id, obs_date
 """)
 
 

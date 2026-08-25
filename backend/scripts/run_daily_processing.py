@@ -74,6 +74,15 @@ def main():
     parser.add_argument('--date', type=str, help='Process specific date (YYYY-MM-DD)')
     parser.add_argument('--dry-run', action='store_true', help='Test run without changes')
     parser.add_argument('--skip-daily', action='store_true', help='Skip daily aggregation')
+    parser.add_argument('--skip-qc', action='store_true',
+                        help='Skip the QC check/clean stage. NOT recommended — '
+                             'the zone rollups, disease and phenology have no '
+                             'other guard against a bad station.')
+    parser.add_argument('--max-reject-rate', type=float, default=0.05,
+                        help='QC refuses to act if rejects exceed this share of '
+                             'station-days. A rule that suddenly rejects the '
+                             'network is far more likely to be a broken rule '
+                             'than a broken network.')
     parser.add_argument('--skip-hourly', action='store_true', help='Skip hourly aggregation')
     parser.add_argument('--skip-zone', action='store_true', help='Skip zone aggregation')
     parser.add_argument('--skip-phenology', action='store_true', help='Skip phenology')
@@ -105,7 +114,13 @@ def main():
     logger.info("=" * 60)
     
     results = {}
-    
+
+    # Hoisted: the QC stage needs this window too, and it used to be defined
+    # only inside the aggregation branch — so `--skip-daily` alone raised
+    # NameError before QC ever ran.
+    start_date = (date.fromisoformat(target_date)
+                  - timedelta(days=max(0, args.lookback_days))).isoformat()
+
     # =========================================================================
     # Step 1: Daily Aggregation (weather_data → weather_data_daily)
     # =========================================================================
@@ -122,8 +137,6 @@ def main():
         # daily_aggregation is idempotent (upsert on station_id+date) and set-based,
         # so re-aggregating a few recent days is close to free and repairs any hole
         # inside the window automatically.
-        start_date = (date.fromisoformat(target_date)
-                      - timedelta(days=max(0, args.lookback_days))).isoformat()
         daily_args = (['--date', target_date] if args.lookback_days <= 0
                       else ['--start', start_date, '--end', target_date])
         if args.dry_run:
@@ -136,7 +149,30 @@ def main():
     else:
         logger.info("\n[1/6] DAILY AGGREGATION - SKIPPED")
         results['daily_aggregation'] = True
-    
+
+    # =========================================================================
+    # Step 1b: QC — check and clean weather_data_daily
+    # =========================================================================
+    # Runs HERE, between aggregation and every consumer, because a fit-time
+    # screen protects only the surface. The same bad value otherwise flows
+    # straight into climate_zone_daily, disease pressure and phenology, and
+    # those have no equivalent guard at all.
+    #
+    # It also re-applies standing quarantine windows to late-arriving data,
+    # which is not optional: station 473's quarantined values were back in the
+    # daily table within the hour, because a quarantine is a one-time UPDATE
+    # while the hourly ingest keeps delivering rows for days already covered.
+    if not args.skip_qc:
+        logger.info("\n[1b/6] DAILY QC (check + clean weather_data_daily)")
+        qc_args = ['--start', start_date, '--end', target_date,
+                   '--max-reject-rate', str(args.max_reject_rate)]
+        if not args.dry_run:
+            qc_args.append('--apply')
+        results['daily_qc'] = run_script('daily_qc.py', qc_args)
+    else:
+        logger.info("\n[1b/6] DAILY QC - SKIPPED")
+        results['daily_qc'] = True
+
     # =========================================================================
     # Step 2: Hourly Aggregation (weather_data → climate_zone_hourly)
     # =========================================================================
