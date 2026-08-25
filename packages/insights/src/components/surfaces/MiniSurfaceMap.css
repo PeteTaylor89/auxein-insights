@@ -125,3 +125,22 @@
   .mini-surface-map__canvas { aspect-ratio: 3 / 2; }
   .mini-surface-map__cta span { display: none; }
 }
+
+/* The Suspense placeholder for the lazily-loaded map. Same box as the real
+   thing so the hero's three-column row does not shift when mapbox-gl finishes
+   loading — an unsized fallback collapses the column and moves everything
+   beside it. */
+.mini-surface-map--loading {
+  /* `.mini-surface-map` takes its height from its children, and this has none,
+     so it needs a floor of its own. Without it the placeholder is zero-height
+     for as long as the mapbox chunk takes to arrive, and the hero row jumps. */
+  min-height: 260px;
+  background: var(--surface-sunken, #edf0ea);
+  animation: mini-surface-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes mini-surface-pulse { 50% { opacity: 0.6; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-surface-map--loading { animation: none; }
+}

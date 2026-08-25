@@ -11,7 +11,7 @@
 //
 // This route must stay at `/` and must not redirect: Grow hands off SSO to
 // `${insightsUrl}/#insights_sso=<token>` and a redirect loses the hash fragment.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 import './LandingPage.css';
@@ -26,7 +26,12 @@ import RegionMap from '../components/home/RegionMap';
 import IndustryPills from '../components/explore/IndustryPills';
 import ProTeaser from '../components/home/ProTeaser';
 import ArticleShowcase from '../components/home/ArticleShowcase';
-import { MiniSurfaceMap } from '../components/surfaces';
+// LAZY, and this is the single biggest thing on the landing page's critical
+// path. `MiniSurfaceMap` imports mapbox-gl; imported statically it put the
+// entire GL renderer in the ENTRY chunk, so nothing on any route rendered until
+// 2.9 MB of JavaScript had been parsed. The hero preview is one card below the
+// fold-ish and can arrive a moment later.
+const MiniSurfaceMap = lazy(() => import('../components/surfaces/MiniSurfaceMap'));
 import articleService from '../services/articleService';
 import {
   useCountryIndustry, readScopeHint, DEFAULT_COUNTRY, DEFAULT_INDUSTRY,
@@ -178,7 +183,12 @@ function LandingPage() {
           </div>
 
           <div className="home-hero__col home-hero__col--map">
-            <MiniSurfaceMap variable="temp_mean" />
+            {/* A sized placeholder, not a spinner: the hero is a three-column
+                grid and an unsized fallback would collapse the column and shift
+                the whole row when the map arrives. */}
+            <Suspense fallback={<div className="mini-surface-map mini-surface-map--loading" aria-hidden="true" />}>
+              <MiniSurfaceMap variable="temp_mean" />
+            </Suspense>
           </div>
         </div>
       </section>

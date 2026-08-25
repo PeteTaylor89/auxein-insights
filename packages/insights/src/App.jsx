@@ -30,6 +30,11 @@ const MapExplorer = lazy(() => import('./pages/MapExplorer'));
 // and only Pro subscribers ever open it. Loading either into the main bundle
 // would slow the free product down for the people who never see this page.
 const MySite = lazy(() => import('./pages/MySite'));
+// ADMIN ONLY, and it was eagerly imported. `StationMap` pulls in mapbox-gl,
+// which is 1.6 MB on its own, so every anonymous visitor to the landing page
+// was downloading and parsing the whole GL renderer to reach a page behind
+// AdminRoute that they can never open.
+const StationMap = lazy(() => import('./pages/StationMap'));
 
 // Admin pages
 import AdminDashboard from './pages/AdminDashboard';
@@ -37,7 +42,7 @@ import UserManagement from './pages/UserManagement';
 import UserDetail from './pages/UserDetail';
 import WeatherStatus from './pages/WeatherStatus';
 import StationDetail from './pages/StationDetail';
-import StationMap from './pages/StationMap';
+
 import BannerManagement from './pages/BannerManagement';
 import AdminArticleList from './pages/admin/AdminArticleList';
 import AdminArticleEditor from './pages/admin/AdminArticleEditor';
@@ -93,7 +98,7 @@ function AppRoutes() {
           <Route path="/admin/research/:id/edit" element={<AdminRoute><AdminResearchEditor /></AdminRoute>} />
           <Route path="/admin/weather" element={<AdminRoute><WeatherStatus /></AdminRoute>} />
           {/* Before the :id route — a literal segment must not be swallowed by it. */}
-          <Route path="/admin/weather/map" element={<AdminRoute><StationMap /></AdminRoute>} />
+          <Route path="/admin/weather/map" element={<AdminRoute><Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: 'var(--primary)' }}>Loading map…</div>}><StationMap /></Suspense></AdminRoute>} />
           <Route path="/admin/weather/:id" element={<AdminRoute><StationDetail /></AdminRoute>} />
           <Route path="/admin/banners" element={<AdminRoute><BannerManagement /></AdminRoute>} />
           <Route path="/admin/email" element={<AdminRoute><AdminEmailCampaignList /></AdminRoute>} />
