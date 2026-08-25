@@ -18,9 +18,9 @@
   /* Overrides the global `button { padding: 8px 16px }` rule, which otherwise
      inflates small inline controls out of line with the text they annotate. */
   padding: 1px 6px;
-  border: 1px solid rgba(68, 97, 69, 0.25);
+  border: 1px solid rgb(var(--primary-rgb) / 0.25);
   border-radius: 10px;
-  background: rgba(68, 97, 69, 0.06);
+  background: rgb(var(--primary-rgb) / 0.06);
   color: var(--text);
   font-size: var(--font-xs);
   font-variant-numeric: tabular-nums;
@@ -31,8 +31,8 @@
 
 .confidence-badge__chip:hover,
 .confidence-badge__chip[aria-expanded='true'] {
-  background: rgba(68, 97, 69, 0.13);
-  border-color: rgba(68, 97, 69, 0.45);
+  background: rgb(var(--primary-rgb) / 0.13);
+  border-color: rgb(var(--primary-rgb) / 0.45);
 }
 
 /* Demo/synthetic data must be conspicuous. The stub exists so the frontend can

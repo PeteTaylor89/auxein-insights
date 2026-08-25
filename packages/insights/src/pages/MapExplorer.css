@@ -32,15 +32,18 @@
 /* The climate surface and the region map are different products sharing a page,
    so the switch is a tab strip rather than a control inside either map. */
 
+/* Tight to the header. Every pixel spent above the tab strip is a pixel the
+   map does not get, and the Atlas opens on a country that is far taller than
+   it is wide. */
 .map-explorer-tabs {
   display: flex;
   gap: 6px;
-  padding: 10px 14px 0;
+  padding: 4px 14px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .map-explorer-tab {
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 16px;
   border: none;
   border-bottom: 2px solid transparent;
@@ -53,5 +56,5 @@
 
 .map-explorer-tab.is-active {
   color: #3d4632;
-  border-bottom-color: #5b6830;
+  border-bottom-color: var(--primary);
 }

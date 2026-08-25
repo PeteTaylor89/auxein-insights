@@ -342,8 +342,96 @@ export function stepsAvailable(available) {
   return Array.isArray(steps) ? steps.map((s) => s.valid_at) : [];
 }
 
+// --- projections ------------------------------------------------------------
+//
+// A separate address space from the observational surfaces, mirroring the
+// separate table and the separate endpoints. `/surfaces/tiles/...` is a
+// MEASUREMENT and `/surfaces/projections/tiles/...` is a SCENARIO, and nothing
+// in this file may let one be built by mistake from the other's arguments —
+// which is why the projection tile builder takes no `granularity` or `valid_at`
+// at all. A projection is not keyed by a date.
+
+/**
+ * The projection catalogue. Contract: backend/api/v1/surfaces.py.
+ *
+ * With no `variable` it returns only the layer list, which is what the mode
+ * switch needs in order to decide whether to appear. With one it also returns
+ * every published (scenario, period, season), each with the national medians
+ * the index already carries — so the change figure beside the map is available
+ * the instant a chip is pressed, with no second request.
+ *
+ * ANONYMOUS CALLERS GET THE LAYER LIST AND NOTHING ELSE. Read
+ * `meta.access.scope`; a client must not infer entitlement from whether the
+ * arrays came back empty.
+ */
+export async function getProjectionCatalogue({ variable, statistic } = {}) {
+  const { data } = await publicApi.get(`${BASE}/projections/available`, {
+    params: { variable, statistic },
+  });
+  return data;
+}
+
+/**
+ * The sentinel that addresses the 1986-2005 BASELINE instead of a scenario.
+ *
+ * The baseline lives in `surface_projection_run` alongside the projections,
+ * carrying this literal in BOTH `scenario` and `period` (a CHECK makes the two
+ * agree). That is why the flip between them is a change of two path segments
+ * rather than a second endpoint — one route, one renderer, no chance of the two
+ * drifting apart and rendering the same layer at two different scales.
+ *
+ * The server also publishes it as `meta.baseline_key`; prefer that when it is
+ * present, and treat this as the fallback rather than the source of truth.
+ */
+export const PROJECTION_BASELINE = 'baseline';
+
+/**
+ * Raster tile URL template for a projection. Mapbox substitutes {z}/{x}/{y}.
+ *
+ * No `ramp` parameter is offered. Every projected layer has a MEASURED display
+ * domain and a ramp chosen with it (`scripts/scan_projection_domains.py`), and
+ * three of them — rainfall and the two day counts — have a different domain per
+ * SEASON because a DJF total is three months and an ANN total is twelve.
+ * Overriding half of that pairing from the client is how a map ends up rendered
+ * at a scale its own legend does not describe.
+ */
+export function projectionTileUrlTemplate({
+  variable, statistic, scenario, period, season,
+}) {
+  const apiBase = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+  const path = [variable, statistic, scenario, period, season]
+    .map(encodeURIComponent).join('/');
+  return `${apiBase}${BASE}/projections/tiles/${path}/{z}/{x}/{y}.png`;
+}
+
+/**
+ * The (scenario, period) pairs that actually exist for a layer.
+ *
+ * THE MATRIX IS NOT FULL: 16 of the 18 pairs are published, because only
+ * ssp370 reaches the +3 C warming level. A client that renders the axes as a
+ * cross product offers two chips that 404, so every combination shown has to be
+ * checked against this.
+ */
+export function projectionCombinations(steps = []) {
+  const seen = new Set();
+  steps.forEach((s) => seen.add(`${s.scenario}|${s.period}`));
+  return seen;
+}
+
+/** One published step, or null. `steps` is the catalogue's own array. */
+export function findProjectionStep(steps = [], { scenario, period, season }) {
+  return steps.find(
+    (s) => s.scenario === scenario && s.period === period && s.season === season,
+  ) || null;
+}
+
 export default {
   getPoint,
+  getProjectionCatalogue,
+  projectionTileUrlTemplate,
+  PROJECTION_BASELINE,
+  projectionCombinations,
+  findProjectionStep,
   getRegion,
   getAvailable,
   tileUrlTemplate,

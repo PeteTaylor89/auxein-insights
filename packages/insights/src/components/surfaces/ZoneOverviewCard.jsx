@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchZoneSeason, isSurfacesUnavailable } from '../../services/surfaceService';
 import './ZoneOverviewCard.css';
+import { useCountryIndustry } from '../../contexts/CountryIndustryContext';
 
 // The headline set for a zone click. Deliberately small — this is a stepping
 // stone to the region page, not a dashboard.
@@ -36,6 +37,11 @@ function format(metric, value) {
  *   to the newest and SAYS which one it is showing.
  */
 function ZoneOverviewCard({ zone, vintage, onClose }) {
+  // Region links carry the current (country, industry) scope. Outside a
+  // scoped route this falls back to the visitor's last scope, then to
+  // New Zealand wine — so no link has to bounce through the /regions redirect.
+  const { path } = useCountryIndustry();
+
   const [data, setData] = useState(null);
   const [state, setState] = useState('loading');
 
@@ -145,7 +151,7 @@ function ZoneOverviewCard({ zone, vintage, onClose }) {
             </p>
           )}
 
-          <Link className="zone-card__cta" to={`/regions/${zone.slug}`}>
+          <Link className="zone-card__cta" to={path(zone.slug)}>
             Explore {zone.name} →
           </Link>
         </>

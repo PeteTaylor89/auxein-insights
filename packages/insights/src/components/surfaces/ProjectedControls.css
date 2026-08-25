@@ -1,0 +1,180 @@
+/* ProjectedControls — the Atlas rail in Projected mode.
+   Reuses `.surface-map__chip` and `.surface-map__group` deliberately: the two
+   modes must look like one instrument with two settings, not two instruments. */
+
+.proj {
+  gap: 12px;
+}
+
+/* Each axis is LABELLED. In Measured mode the chip rows are self-evident —
+   temperature, rainfall, a month — but "SSP2-4.5" and "+2 C" and "MAM" are
+   three different questions and an unlabelled stack of them is a puzzle. */
+.proj__subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.proj__sublabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7360;
+}
+
+/* --- the change, which is the point of the mode --------------------------- */
+
+.proj__readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f6f7f2;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* The baseline and the projection, as two rows of the same shape. Same label
+   column, same figure column, so the eye compares the two numbers by position
+   without either being styled as the answer — the answer is the change
+   underneath. */
+/* Buttons, because each row also DRAWS its own side. Two ways to flip is not
+   redundancy here: the control on the map is for flicking back and forth while
+   watching the colours, and these are for reaching the other number when the
+   figure is what you are reading. */
+.proj__pair {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  /* The global `button { padding: 8px 16px }` rule would inset these and break
+     the shared label/figure columns the comparison depends on. */
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 0.78rem;
+  color: #6b7360;
+  cursor: pointer;
+}
+
+.proj__pair:hover:not(:disabled):not(.is-showing) {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.proj__pair:disabled {
+  cursor: default;
+}
+
+/* Which row the map is currently drawing. A left rule rather than a fill: the
+   two figures have to stay equally readable, and shading one of them makes the
+   other look like a footnote. */
+.proj__pair.is-showing {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.proj__pair-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj__pair-value {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #3d4632;
+}
+
+/* The projected row is the one being chosen, so it carries the weight of the
+   two — but only just. Make it much louder and the baseline stops reading as a
+   peer and starts reading as a footnote, which defeats having it. */
+.proj__pair--projected {
+  color: #3d4632;
+}
+
+.proj__pair--projected .proj__pair-value {
+  color: #2f3527;
+}
+
+.proj__change {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 6px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(0, 0, 0, 0.09);
+}
+
+.proj__delta {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: #2f3527;
+}
+
+/* Said once, quietly, and never as a tooltip. A reader who takes these for
+   their own region is wrong by more than the change being shown. */
+.proj__basis {
+  margin-top: 5px;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a917f;
+}
+
+/* Quieter than the headline change, because it qualifies it. This is the range
+   across the COUNTRY, not a confidence interval — the wording in the JSX says
+   so and the styling must not lend it more authority than that. */
+.proj__spread {
+  font-size: 0.74rem;
+  color: #6b7360;
+  font-variant-numeric: tabular-nums;
+}
+
+.proj__pending {
+  font-size: 0.82rem;
+  color: #6b7360;
+}
+
+.proj__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: #6b7360;
+}
+
+.proj__note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* THE ATTRIBUTION. CC BY 4.0 requires it to travel with the work, so it is
+   small but never hidden, never truncated and never behind a disclosure. */
+.proj__source {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: #7d8474;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 8px;
+}
+
+/* Our own credit, under MfE's. No rule above it — the two are one attribution
+   block, not two sections. */
+.proj__source--ours {
+  border-top: none;
+  padding-top: 4px;
+}

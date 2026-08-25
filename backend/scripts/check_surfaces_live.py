@@ -49,6 +49,13 @@ BL = {"lon": 173.961, "lat": -41.514}
 passed = failed = 0
 
 
+def _months_between(first: str, last: str) -> int:
+    """Inclusive month count between two ISO dates, for continuity assertions."""
+    fy, fm = int(first[:4]), int(first[5:7])
+    ly, lm = int(last[:4]), int(last[5:7])
+    return (ly - fy) * 12 + (lm - fm) + 1
+
+
 def check(label: str, condition: bool, detail: str = "") -> None:
     global passed, failed
     if condition:
@@ -81,12 +88,19 @@ def main() -> int:
         # arrives as a `Query(...)` object rather than as its default value.
         av = S.available(variable="temp_mean", granularity="monthly",
                          statistic=None, db=db, user=FREE)
-        check("temp_mean monthly spans the published archive",
-              av.first == "1986-01-01" and av.last == "2023-12-01",
-              f"{av.first}..{av.last}")
-        check("456 months, no gaps",
-              av.meta["count"] == 456 and av.gaps == [],
-              f"count={av.meta['count']} gaps={len(av.gaps)}")
+        # DERIVED, not hardcoded. The record now grows: the CLIFLO archive was
+        # extended to 2024-09 and the era-corrected DB runs on from 2024-10, so
+        # any literal end date is stale the next time a month is published. What
+        # must hold is that it STARTS in 1986 and has NO INTERIOR GAP -- an
+        # unbroken 1986..present is the actual product claim.
+        expected_months = _months_between(av.first, av.last)
+        check("temp_mean monthly starts at the beginning of the archive",
+              av.first == "1986-01-01", f"{av.first}..{av.last}")
+        check("the monthly record is continuous, no gaps",
+              av.meta["count"] == expected_months and av.gaps == [],
+              f"count={av.meta['count']} of {expected_months} gaps={len(av.gaps)}")
+        check("it reaches at least the CLIFLO extension",
+              av.last >= "2024-09-01", av.last)
         check("resolution is 500 m only", av.resolutions == [500],
               str(av.resolutions))
         check("statistic vocabulary is reported",
@@ -106,28 +120,31 @@ def main() -> int:
               av.meta["access"]["scope"] == "full",
               str(av.meta["access"]))
 
-        # The free rule: anonymous sees the newest month of every layer, and
-        # the record behind it needs an account. Enforced server-side, because
-        # the scrubber renders whatever steps it is handed.
+        # THREE TIERS (2026-08-25). Anonymous gets the newest step, a free
+        # account opens the archive, Pro opens the daily cadence. All three are
+        # checked, because the failures are asymmetric: over-gating quietly
+        # costs organic traffic, under-gating gives the product away.
         anon = S.available(variable="temp_mean", granularity="monthly",
                            statistic=None, db=db, user=ANON)
         check("anonymous gets exactly one step",
               len(anon.meta["steps"]) == 1 and anon.meta["count"] == 1,
-              f"{anon.meta['count']} steps")
+              f'{anon.meta["count"]} steps')
+        newest = av.last[:7]
         check("that step is the NEWEST month, not the oldest",
-              anon.meta["steps"][0]["valid_at"] == "2023-12",
-              anon.meta["steps"][0]["valid_at"])
+              anon.meta["steps"][0]["valid_at"] == newest,
+              f'{anon.meta["steps"][0]["valid_at"]} (newest {newest})')
         check("the anonymous window collapses onto that month",
-              anon.first == anon.last == "2023-12-01",
+              anon.first == anon.last == av.last,
               f"{anon.first}..{anon.last}")
         # A one-step list has no interior, so shipping the archive's gaps would
         # describe holes in a record this caller cannot see.
-        check("no gaps are described to an anonymous caller", anon.gaps == [],
-              str(anon.gaps))
+        check("no gaps are described to an anonymous caller",
+              anon.gaps == [], str(anon.gaps))
         check("the archive's true span is still advertised",
-              anon.meta["access"]["scope"] == "latest_month"
+              anon.meta["access"]["scope"] == "latest_step"
+              and anon.meta["access"]["requires"] == "registration"
               and anon.meta["access"]["archive_first"] == "1986-01-01"
-              and anon.meta["access"]["archive_count"] == 456,
+              and anon.meta["access"]["archive_count"] == av.meta["count"],
               str(anon.meta["access"]))
         # The picture is the pitch: every layer must still be reachable
         # anonymously, or the free tier is one map instead of all of them.
@@ -138,6 +155,57 @@ def main() -> int:
               len(S.available(variable="rainfall", granularity="monthly",
                               statistic="sum", db=db,
                               user=ANON).meta["steps"]) == 1)
+        # And the other half: a FREE ACCOUNT opens the whole archive. Without
+        # this the anonymous assertions above would pass just as well against a
+        # gate that withheld the archive from everyone.
+        check("a free account opens the whole monthly archive",
+              av.meta["count"] > 1
+              and av.meta["access"]["scope"] == "full"
+              and av.meta["access"]["cadence"] == "monthly",
+              f'{av.meta["count"]} steps, {av.meta["access"]["scope"]}')
+
+        # DAILY is the paid cadence. A registered-but-not-Pro caller is the case
+        # that matters — an anonymous refusal could be an accident of not being
+        # signed in, this one can only be the rule.
+        daily_free = S.available(variable="temp_mean", granularity="daily",
+                                 statistic=None, db=db, user=FREE)
+        check("daily is withheld from a free account",
+              daily_free.meta["steps"] == [] and daily_free.meta["count"] == 0,
+              f'{daily_free.meta["count"]} steps')
+        check("the withheld daily window is not left populated",
+              daily_free.first is None and daily_free.last is None,
+              f"{daily_free.first}..{daily_free.last}")
+        check("daily says what it requires, and what is still free",
+              daily_free.meta["access"]["scope"] == "none"
+              and daily_free.meta["access"]["requires"] == "pro"
+              and bool(daily_free.meta["access"].get("unlock")),
+              str(daily_free.meta["access"]))
+        # CADENCE IS CHECKED BEFORE DATE. A signed-out caller asking for daily
+        # must be refused as PRO, not handed one free step as though daily were
+        # just another archive.
+        daily_anon = S.available(variable="temp_mean", granularity="daily",
+                                 statistic=None, db=db, user=ANON)
+        check("daily is refused to anonymous as PRO, not trimmed to one step",
+              daily_anon.meta["steps"] == []
+              and daily_anon.meta["access"]["requires"] == "pro",
+              str(daily_anon.meta["access"]))
+
+        # THE OTHER HALF, and it is the half that makes the first half mean
+        # anything. "Free gets no daily steps" passes just as happily when no
+        # daily surface has ever been published, which is the failure this
+        # platform keeps rediscovering — `run_ingestion` once printed "Found 0
+        # active Harvest stations" and exited 0 for a whole fleet backfill. So
+        # Pro must be shown a NON-EMPTY list from the same call.
+        daily_pro = S.available(variable="temp_mean", granularity="daily",
+                                statistic=None, db=db, user=PRO)
+        check("daily is a real gate, not an empty archive",
+              len(daily_pro.meta["steps"]) > 0,
+              f'pro sees {daily_pro.meta["count"]} days, '
+              f'free sees {daily_free.meta["count"]}')
+        check("Pro's daily span matches what free was told it is missing",
+              daily_pro.first == daily_free.meta["access"]["daily_first"]
+              and daily_pro.last == daily_free.meta["access"]["daily_last"],
+              f'{daily_pro.first}..{daily_pro.last}')
 
         print("\n/tiles")
         tile = S._real_tile(db, "temp_mean", "monthly", "2020-01", 5, 31, 20,
@@ -358,9 +426,21 @@ def main() -> int:
               len(big["features"]) == len(allparts["features"]) == 10)
 
         season = S._real_zone_season(db, "marlborough", "gdd10,rain")
+        # Compared against what is actually PUBLISHED, not a constant. This was
+        # `== 37`, which was true at first publication and silently became a
+        # false failure the moment the 2024-2026 vintages landed and the zone
+        # roll-up followed them to 40 — the sibling check below had already been
+        # taught to expect growth, this one had not. A magic number here asserts
+        # the calendar rather than the invariant.
+        from sqlalchemy import text as _t
+        published_vintages = db.execute(_t(
+            "SELECT count(DISTINCT date_part('year', period_start)) "
+            "FROM surface_run WHERE variable = 'gdd10' AND granularity = 'season'"
+        )).scalar()
+        n_points = len(season.series[0].points)
         check("zone season covers every vintage in the archive",
-              len(season.series[0].points) == 37,
-              len(season.series[0].points))
+              n_points == published_vintages and n_points >= 37,
+              f"{n_points} zone vintages vs {published_vintages} published")
         check("an unknown zone slug 404s",
               status_of(S.zone_season, slug="not-a-zone", metrics=None,
                         db=db) == 404)
@@ -368,8 +448,12 @@ def main() -> int:
         print("\nGDD season surfaces")
         gav = S.available(variable="gdd10", granularity="season",
                           statistic=None, db=db, user=FREE)
-        check("37 seasons x 8 accumulation months",
-              gav.meta["count"] == 296, gav.meta["count"])
+        # Eight accumulation months per season, and the season count grows as
+        # vintages are published -- 37 at first publication, 40 after the
+        # 2024-2026 vintages. Assert the SHAPE and that it never shrinks.
+        check("eight accumulation months per season, and never fewer seasons",
+              gav.meta["count"] % 8 == 0 and gav.meta["count"] >= 296,
+              f'{gav.meta["count"]} = {gav.meta["count"] / 8:.0f} seasons x 8')
         check("the default statistic is the running series, not the total",
               gav.meta["statistic"] == "cumulative", gav.meta["statistic"])
         # Sep-Apr then a jump to the next September. Emitting calendar gaps
@@ -377,9 +461,11 @@ def main() -> int:
         # missing data, it is not part of a growing season.
         check("no gaps are claimed across the winter", gav.gaps == [],
               str(gav.gaps)[:80])
+        seasons = [st["season"] for st in gav.meta["steps"]]
         check("each step names the vintage it accumulates into",
-              gav.meta["steps"][0]["season"] == 1987
-              and gav.meta["steps"][-1]["season"] == 2023)
+              seasons[0] == 1987 and seasons[-1] >= 2024
+              and seasons == sorted(seasons),
+              f"{seasons[0]}..{seasons[-1]}")
         check("the unit is degree days, not degrees",
               gav.meta["unit"] == "GDD", gav.meta["unit"])
         # cv_units is degC because GDD inherits temp_mean's fits and was never
@@ -388,10 +474,12 @@ def main() -> int:
         check("inherited confidence is in degC so the client suppresses it",
               gav.meta["steps"][-1]["cv_units"] == "C",
               gav.meta["steps"][-1]["cv_units"])
+        # One total per season, so exactly an eighth of the cumulative steps.
         check("season totals are separately addressable",
               S.available(variable="gdd10", granularity="season",
                           statistic="sum", db=db,
-                          user=FREE).meta["count"] == 37)
+                          user=FREE).meta["count"] == gav.meta["count"] // 8,
+              f'{gav.meta["count"] // 8} seasons')
 
         gtile = S._real_tile(db, "gdd10", "season", "2023-04", 5, 31, 20,
                              None, None, None, "cumulative")

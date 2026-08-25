@@ -8,12 +8,12 @@
 // error. `unavailable` is separated from `error` so a panel can hide itself
 // quietly in that case instead of showing an outage to a user.
 //
-// **The response depends on who is asking.** An anonymous caller gets the
-// newest month only; registering opens the whole record. That makes identity a
-// dependency of this fetch — without it, signing in leaves the scrubber locked
-// to one month until the page is reloaded, which reads as the sign-up not
-// having worked. Hence the auth context is consumed here rather than being
-// pushed in by every caller.
+// **The response depends on who is asking.** The free rule is a CADENCE
+// (2026-08-25): the whole monthly archive is open to everyone, and the daily
+// surface is Pro. That makes identity a dependency of this fetch — without it,
+// upgrading leaves a daily layer locked until the page is reloaded, which reads
+// as the purchase not having worked. Hence the auth context is consumed here
+// rather than being pushed in by every caller.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   getAvailable,
@@ -102,11 +102,12 @@ export default function useSurfaceAvailability(
     // The stub says so about itself; the real pipeline will not. Anything that
     // must not ship demo numbers to a user checks this.
     isStub: Boolean(available?.meta?.stub),
-    // What this caller may see, straight from the server. `scope` is
-    // 'latest_month' for anonymous visitors and 'full' once registered; the
-    // anonymous form also carries the archive's true span so the prompt can
-    // say what is actually on offer. Never infer this from local auth state —
-    // the server is the one that trimmed the list.
+    // What this caller may see, straight from the server. `scope` is 'full' at
+    // any FREE cadence — monthly, season, records — for everyone including
+    // anonymous, and 'none' at the daily cadence for anyone who is not Pro;
+    // that form also carries the daily span so the prompt can say what is
+    // actually on offer. Never infer this from local auth state — the server is
+    // the one that trimmed the list.
     access: available?.meta?.access ?? null,
   };
 }

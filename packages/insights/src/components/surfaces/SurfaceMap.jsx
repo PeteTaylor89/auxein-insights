@@ -20,6 +20,25 @@
 // 3. **Confidence travels with the month on screen.** Each step carries its own
 //    cv_rmse, and rainfall's is dimensionless (`cv_units: 'ratio'`), so it is
 //    suppressed rather than mislabelled as millimetres.
+//
+// TWO MODES, ONE MAP (2026-08-25)
+// -------------------------------
+// `mode` switches the canvas between the MEASURED archive and the MfE 2024
+// PROJECTIONS. They are two different kinds of claim on one basemap, so the
+// switch is loud and the controls under it change completely: a measurement is
+// addressed by a date and scrubbed, a projection is addressed by
+// (scenario, period, season) and has no date to scrub.
+//
+// The three temperature-mean layers render on the SAME colour domain in both
+// modes, on purpose — flipping the switch recolours the country, and that only
+// means something if the colours mean the same thing on both sides. Rainfall
+// and the day counts cannot share it (a projected annual total is twelve months
+// against a measured monthly archive) and carry their own measured domain per
+// season; `domain.shared_with_measured` says which is which.
+//
+// FROST IS ABSENT FROM THE PROJECTION LAYER LIST and that is deliberate — the
+// server withholds it, see `projection_store.WITHHELD`. Do not add it back
+// here; the exclusion belongs on the server where every client inherits it.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -28,8 +47,12 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
 import useSurfaceAvailability from '../../hooks/useSurfaceAvailability';
+import useProjectionCatalogue from '../../hooks/useProjectionCatalogue';
 import {
   tileUrlTemplate,
+  projectionTileUrlTemplate,
+  findProjectionStep,
+  PROJECTION_BASELINE,
   fetchZoneLayer,
   granularityFor,
   vintageFor,
@@ -37,6 +60,7 @@ import {
   DEFAULT_STATISTIC,
 } from '../../services/surfaceService';
 import ZoneOverviewCard from './ZoneOverviewCard';
+import ProjectedControls from './ProjectedControls';
 import './SurfaceMap.css';
 
 const NZ_BOUNDS = [[165.8, -47.6], [179.4, -33.9]];
@@ -134,8 +158,11 @@ function unitFor(variable, statistic) {
 // said otherwise. Only ever a fallback — `access.archive_first/last` is the
 // truth and moves when the archive is extended.
 function spanLabel(access) {
-  const first = access?.archive_first;
-  const last = access?.archive_last;
+  // Either gate. `archive_*` when the archive is what is withheld (signed out),
+  // `daily_*` when the cadence is (not Pro). One helper because the prompt that
+  // renders it is one component.
+  const first = access?.archive_first ?? access?.daily_first;
+  const last = access?.archive_last ?? access?.daily_last;
   if (!first || !last) return 'the full record';
   const y0 = String(first).slice(0, 4);
   const y1 = String(last).slice(0, 4);
@@ -159,6 +186,17 @@ function SurfaceMap({ onSignInRequired }) {
   const [selectedZone, setSelectedZone] = useState(null);
   const [showZones, setShowZones] = useState(true);
 
+  // --- projection mode ------------------------------------------------------
+  const [mode, setMode] = useState('measured');
+  const [projLayer, setProjLayer] = useState(null);
+  const [scenario, setScenario] = useState(null);
+  const [period, setPeriod] = useState(null);
+  const [season, setSeason] = useState(null);
+  // Which side of the flip the CANVAS is showing. The chips keep describing the
+  // projection either way — flipping to the baseline is asking "and what is it
+  // now?", not abandoning the scenario you were looking at.
+  const [projView, setProjView] = useState('projected');
+
   const containerRef = useRef(null);
   const mapRef = useRef(null);
 
@@ -166,16 +204,106 @@ function SurfaceMap({ onSignInRequired }) {
   const { available, loading, unavailable, months, error, access } =
     useSurfaceAvailability(variable, granularity, statistic);
 
-  // The FREE RULE, decided by the server: an anonymous visitor sees the newest
-  // month of every layer, and the record behind it needs an account. The
-  // server sends exactly one step in that case, so the scrubber has nothing to
-  // scrub even if this flag were missed — the flag exists to make the reason
-  // visible rather than to enforce anything.
-  const locked = access?.scope === 'latest_month';
+  // --- the projection catalogue --------------------------------------------
+  // Fetched with no layer first, so the mode switch knows whether projections
+  // exist at all before anyone presses it; once a layer is chosen the same
+  // endpoint returns that layer's whole matrix.
+  const projected = mode === 'projected';
+  const {
+    layers: projLayers,
+    scenarios, periods, seasons: projSeasonOptions, steps: projSteps,
+    domains: projDomains, combinations,
+    access: projAccess, source: projSource, baseline: projBaseline,
+    baselines: projBaselines, baselineSource, baselineKey,
+    loading: projLoading, unavailable: projUnavailable,
+  } = useProjectionCatalogue(projLayer?.variable, projLayer?.statistic);
+
+  // A season the baseline does not cover cannot be flipped to. Checked rather
+  // than assumed, so the control disables instead of the map 404ing.
+  const baselineStep = season ? projBaselines?.[season] ?? null : null;
+  const showingBaseline = projected && projView === 'baseline' && !!baselineStep;
+
+  const projLocked = projAccess?.scope === 'none';
+
+  // Settle on a layer as soon as the catalogue names one. Preferring the layer
+  // that matches the measured variable already on screen means flipping the
+  // switch keeps looking at the same quantity rather than jumping to whatever
+  // sorts first.
+  useEffect(() => {
+    if (!projected || projLayer || !projLayers.length) return;
+    const match = projLayers.find((l) => l.variable === variable)
+      || projLayers.find((l) => l.variable === 'temp_mean')
+      || projLayers[0];
+    setProjLayer({ variable: match.variable, statistic: match.statistic });
+  }, [projected, projLayers, projLayer, variable]);
+
+  // THE MATRIX IS NOT FULL — only ssp370 reaches +3 C — so a selection is
+  // validated against what is published rather than assumed. This also repairs
+  // a selection that a layer change has just invalidated: gdd10 publishes the
+  // Sep-Apr season ONLY, so carrying ANN across from temperature would ask for
+  // a surface that does not exist.
+  useEffect(() => {
+    if (!projSteps.length) return;
+    const has = (sc, pe) => combinations.has(`${sc}|${pe}`);
+    const scenarioOk = scenario && projSteps.some((st) => st.scenario === scenario);
+    const nextScenario = scenarioOk ? scenario
+      : (scenarios.find((o) => o.value === 'ssp245') || scenarios[0])?.value;
+    const periodOk = period && has(nextScenario, period);
+    const nextPeriod = periodOk ? period
+      : (periods.find((o) => has(nextScenario, o.value)) || periods[0])?.value;
+    const seasonOk = season && projSteps.some((st) => st.season === season);
+    const nextSeason = seasonOk ? season
+      : (projSeasonOptions.find((o) => o.value === 'ANN')
+         || projSeasonOptions[0])?.value;
+
+    if (nextScenario !== scenario) setScenario(nextScenario ?? null);
+    if (nextPeriod !== period) setPeriod(nextPeriod ?? null);
+    if (nextSeason !== season) setSeason(nextSeason ?? null);
+  }, [projSteps, combinations, scenarios, periods, projSeasonOptions,
+      scenario, period, season]);
+
+  useEffect(() => {
+    if (projView === 'baseline' && season && !baselineStep) setProjView('projected');
+  }, [projView, season, baselineStep]);
+
+  const projStep = useMemo(
+    () => (projected ? findProjectionStep(projSteps, { scenario, period, season }) : null),
+    [projected, projSteps, scenario, period, season],
+  );
+
+  // Per SEASON. A three-month rainfall total and a twelve-month one are not the
+  // same scale, so there is one domain per season rather than one per layer.
+  const projDomain = season ? projDomains?.[season] ?? null : null;
+
+  // TWO GATES, decided by the server (2026-08-25). `scope` says which:
+  //
+  //   'latest_step'  signed out. The newest month of every layer, and the
+  //                  archive behind it needs a free account.
+  //   'none'         the DAILY cadence, which is Pro.
+  //   'full'         nothing withheld.
+  //
+  // The server sends one step or none accordingly, so the scrubber has nothing
+  // to scrub even if this flag were missed — the flag exists to make the reason
+  // visible and to disable the transport, not to enforce anything.
+  //
+  // Anything other than 'full' is locked. Testing for the two withheld values
+  // by name rather than `!== 'full'` on purpose: a third gate should have to be
+  // added here deliberately rather than inheriting whichever prompt happens to
+  // be written below.
+  const locked = access?.scope === 'latest_step' || access?.scope === 'none';
+  // Which prompt to show. They ask for different things and cost different
+  // amounts, and offering the wrong one is worse than offering neither.
+  const needsAccount = access?.requires === 'registration';
 
   const steps = available?.meta?.steps ?? [];
-  const domain = available?.meta?.domain ?? null;
-  const unit = unitFor(variable, statistic);
+  // ONE legend serves both modes, because the server publishes the projection
+  // domain in the same shape as the measured one — min, max, stops, positions,
+  // saturates. Anything that read `available.meta.domain` directly would draw a
+  // measured scale over a projected map.
+  const domain = projected ? projDomain : (available?.meta?.domain ?? null);
+  const unit = projected
+    ? (projStep?.unit ?? projSteps[0]?.unit ?? '')
+    : unitFor(variable, statistic);
 
   // Keeping the step index across a variable change is deliberate for two
   // layers of the same shape — you stay on July while comparing rainfall to
@@ -317,11 +445,41 @@ function SurfaceMap({ onSignInRequired }) {
   // no "change the tile URL" operation, so the source is removed and re-added.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !current) return;
+    if (!map || !mapReady) return;
 
-    const url = tileUrlTemplate({
-      variable, valid_at: current, granularity, statistic,
-    });
+    // Two builders, and neither can be reached with the other's arguments. A
+    // projection has no `valid_at` and no granularity; a measurement has no
+    // scenario. Passing one set to the other function is the mistake that would
+    // put a 2090 scenario on screen labelled as measured weather, so they do not
+    // share a parameter object.
+    let url = null;
+    if (projected) {
+      if (projLayer && scenario && period && season && projDomain) {
+        // The SAME builder for both sides. The baseline is addressed by the
+        // sentinel in scenario and period, on the same route, rendered by the
+        // same tiler against the SAME domain — which is the only reason
+        // flipping between them means anything. Two endpoints would eventually
+        // be two scales.
+        const sentinel = baselineKey?.scenario || PROJECTION_BASELINE;
+        url = projectionTileUrlTemplate({
+          variable: projLayer.variable, statistic: projLayer.statistic,
+          scenario: showingBaseline ? sentinel : scenario,
+          period: showingBaseline ? (baselineKey?.period || PROJECTION_BASELINE) : period,
+          season,
+        });
+      }
+    } else if (current) {
+      url = tileUrlTemplate({ variable, valid_at: current, granularity, statistic });
+    }
+
+    // Nothing addressable yet — a layer still resolving, or a season with no
+    // measured display domain. Clear the raster rather than leaving the previous
+    // mode's surface under the new mode's legend.
+    if (!url) {
+      if (map.getLayer(SOURCE_ID)) map.removeLayer(SOURCE_ID);
+      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+      return;
+    }
 
     if (map.getLayer(SOURCE_ID)) map.removeLayer(SOURCE_ID);
     if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
@@ -346,7 +504,9 @@ function SurfaceMap({ onSignInRequired }) {
       source: SOURCE_ID,
       paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 150 },
     }, beneath);
-  }, [mapReady, variable, statistic, current, granularity]);
+  }, [mapReady, variable, statistic, current, granularity,
+      projected, projLayer, scenario, period, season, projDomain,
+      showingBaseline, baselineKey]);
 
   // --- wine zone overlay ----------------------------------------------------
   // Fetched per level and cached, because the geometry is static and the two
@@ -522,6 +682,9 @@ function SurfaceMap({ onSignInRequired }) {
   }, [mapReady, zones, zoneLevel, showZones]);
 
   // --- playback -------------------------------------------------------------
+  // A projection has no series, so nothing may be playing through one.
+  useEffect(() => { if (projected) setPlaying(false); }, [projected]);
+
   useEffect(() => {
     if (!playing || !months.length) return undefined;
     const timer = setInterval(() => {
@@ -597,6 +760,36 @@ function SurfaceMap({ onSignInRequired }) {
           </div>
         )}
 
+        {/* THE FLIP, and it belongs ON the map.
+            Same layer, same season, same colour domain — press it and the
+            country recolours. Putting it in the rail would mean looking away
+            from the one thing it changes, and the comparison only works if both
+            images are in the same place a moment apart. Absent, not disabled,
+            when the season has no baseline. */}
+        {projected && baselineStep && projDomain && (
+          <div className="surface-map__flip" role="group"
+               aria-label="Baseline or projected">
+            <button
+              type="button"
+              className={`surface-map__flip-btn${
+                showingBaseline ? ' is-active' : ''}`}
+              onClick={() => setProjView('baseline')}
+              aria-pressed={showingBaseline}
+            >
+              {projBaseline || '1986-2005'}
+            </button>
+            <button
+              type="button"
+              className={`surface-map__flip-btn${
+                showingBaseline ? '' : ' is-active'}`}
+              onClick={() => setProjView('projected')}
+              aria-pressed={!showingBaseline}
+            >
+              {periods.find((o) => o.value === period)?.label || 'Projected'}
+            </button>
+          </div>
+        )}
+
         {selectedZone && (
           <ZoneOverviewCard
             zone={selectedZone}
@@ -607,6 +800,67 @@ function SurfaceMap({ onSignInRequired }) {
       </div>
 
       <div className="surface-map__controls">
+        {/* MEASURED or PROJECTED. Two different kinds of claim on one basemap,
+            so the switch is a segmented control at the top of the rail rather
+            than a chip among the layers — nothing about "2080-2099 under
+            SSP3-7.0" should be one chip away from looking like a measurement.
+            Hidden entirely when nothing is published, so the control can never
+            offer a mode with no data behind it. */}
+        {projLayers.length > 0 && (
+          <div className="surface-map__modes" role="tablist" aria-label="What the map shows">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!projected}
+              className={`surface-map__mode${!projected ? ' is-active' : ''}`}
+              onClick={() => setMode('measured')}
+            >
+              Measured
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={projected}
+              className={`surface-map__mode${projected ? ' is-active' : ''}`}
+              onClick={() => setMode('projected')}
+            >
+              Projected
+            </button>
+          </div>
+        )}
+
+        {projected ? (
+          <ProjectedControls
+            layers={projLayers}
+            layer={projLayer}
+            onLayer={setProjLayer}
+            scenarios={scenarios}
+            periods={periods}
+            seasons={projSeasonOptions}
+            combinations={combinations}
+            scenario={scenario}
+            period={period}
+            season={season}
+            onScenario={setScenario}
+            onPeriod={setPeriod}
+            onSeason={setSeason}
+            step={projStep}
+            baselineStep={baselineStep}
+            view={projView}
+            onView={setProjView}
+            baselineSource={baselineSource}
+            unit={unit}
+            baseline={projBaseline}
+            source={projSource}
+            domain={projDomain}
+            loading={projLoading}
+            unavailable={projUnavailable}
+            locked={projLocked}
+            unlock={projAccess?.unlock}
+            onSignInRequired={onSignInRequired}
+          />
+        ) : (
+        <>
         <div className="surface-map__row">
           <div className="surface-map__group" role="group" aria-label="Variable">
             {VARIABLES.map((v) => (
@@ -643,18 +897,11 @@ function SurfaceMap({ onSignInRequired }) {
             >
               Wine regions
             </button>
-            {/* Projections are not published yet — Pete is preparing the data
-                files. The control is present and disabled rather than absent so
-                the Atlas shows what is coming, and so wiring it later is a data
-                source rather than a layout change. */}
-            <button
-              type="button"
-              className="surface-map__chip surface-map__chip--sub is-placeholder"
-              disabled
-              title="Climate projections are not published yet"
-            >
-              Projections · soon
-            </button>
+            {/* The projections placeholder that used to sit here was replaced
+                on 2026-08-25 by the Measured/Projected switch above. It belonged
+                in this group while it was an overlay you could add; a projection
+                REPLACES the surface rather than sitting on top of it, so it is a
+                mode, not a layer toggle. */}
           </div>
 
           {seasons.length > 1 && (
@@ -769,16 +1016,29 @@ function SurfaceMap({ onSignInRequired }) {
           </div>
         </div>
 
-        {/* The offer, not a toll booth. Every layer is already on screen at
-            full resolution — what an account adds is the record behind it, so
-            say how much record that is. */}
-        {locked && (
+        </>
+        )}
+
+        {/* The offer, not a toll booth. Every layer is on screen at full
+            resolution either way — what is withheld is the RECORD behind it, so
+            the prompt says how much record that is rather than implying the map
+            is crippled. */}
+        {!projected && locked && (
           <div className="surface-map__unlock">
             <Lock size={15} aria-hidden="true" />
             <p>
-              You are seeing the most recent month. The archive runs{' '}
-              <strong>{spanLabel(access)}</strong>
-              {access?.archive_count ? ` — ${access.archive_count} months` : ''}.
+              {access?.unlock
+                || 'Sign in free to open the full record back to 1986.'}
+              {spanLabel(access) && (
+                <>
+                  {' '}
+                  {needsAccount ? 'The archive runs' : 'Daily runs'}{' '}
+                  <strong>{spanLabel(access)}</strong>
+                  {needsAccount
+                    ? (access?.archive_count ? ` — ${access.archive_count} months` : '')
+                    : (access?.daily_count ? ` — ${access.daily_count} days` : '')}.
+                </>
+              )}
             </p>
             <button
               type="button"
@@ -786,12 +1046,14 @@ function SurfaceMap({ onSignInRequired }) {
               onClick={onSignInRequired}
               disabled={!onSignInRequired}
             >
-              Sign in free to open it
+              {needsAccount ? 'Sign in free to open it' : 'See Insights Pro'}
             </button>
           </div>
         )}
 
-        {error && <p className="surface-map__error">Could not load the surface index.</p>}
+        {!projected && error && (
+          <p className="surface-map__error">Could not load the surface index.</p>
+        )}
       </div>
     </div>
   );

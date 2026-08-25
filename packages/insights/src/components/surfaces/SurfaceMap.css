@@ -11,11 +11,17 @@
   background: var(--white, #fff);
 }
 
+/* TALLER THAN IT LOOKS LIKE IT NEEDS TO BE, on purpose. The default view is
+   New Zealand, which is ~1,600 km north to south and barely 400 km across, so
+   a landscape canvas fits the country by its HEIGHT and wastes the width. At
+   58vh the two islands were shrunk to fit a box that had spare room either
+   side; the extra vertical is what makes the map legible before anyone
+   touches it. */
 .surface-map__canvas {
   position: relative;
   flex: 1 1 auto;
-  min-height: 340px;
-  height: clamp(340px, 58vh, 720px);
+  min-height: 380px;
+  height: clamp(380px, 72vh, 880px);
   background: #edf0ea;
 }
 
@@ -32,7 +38,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: #5b6830;
+  color: var(--primary);
   text-align: center;
   padding: 24px;
 }
@@ -80,6 +86,44 @@
 
 .surface-map__legend-note {
   opacity: 0.8;
+}
+
+/* --- the Baseline / Projected flip ----------------------------------------
+   Top-left of the canvas, opposite Mapbox's own navigation control at
+   top-right, and over the map rather than in the rail: the two images have to
+   appear in the SAME place a moment apart or the comparison does not land. */
+
+.surface-map__flip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.surface-map__flip-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #6b7360;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.surface-map__flip-btn.is-active {
+  background: var(--primary);
+  color: #fff;
 }
 
 /* --- controls ------------------------------------------------------------- */
@@ -135,8 +179,8 @@
 }
 
 .surface-map__chip.is-active {
-  background: #5b6830;
-  border-color: #5b6830;
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -195,7 +239,7 @@
   flex: 1 1 200px;
   min-width: 160px;
   height: 44px;
-  accent-color: #5b6830;
+  accent-color: var(--primary);
   cursor: pointer;
 }
 
@@ -323,4 +367,236 @@
 .surface-map__season-pick select:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+
+/* --- Measured / Projected -------------------------------------------------
+   A segmented control, not two chips. The chips in this panel all choose WHAT
+   IS DRAWN within one kind of claim; this chooses the kind of claim, and it has
+   to read as a different order of decision or a scenario eventually gets
+   mistaken for a measurement. */
+
+.surface-map__modes {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #eef0e9;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.surface-map__mode {
+  flex: 1 1 0;
+  min-height: 38px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #6b7360;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.surface-map__mode.is-active {
+  background: var(--white, #fff);
+  color: #2f3527;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* --- the side rail ---------------------------------------------------------
+   From 1024px the controls move to a column on the LEFT of the canvas rather
+   than a bar underneath it. Two reasons, and the second is the real one:
+
+   1. The map gets the whole viewport height instead of sharing it with four
+      rows of chips. On a country shaped like New Zealand that is the
+      difference between seeing Northland and Southland at once and not.
+   2. The controls stop moving. In the bottom bar the number of chip rows
+      changes with the variable — `rainfall` has one statistic, `temp_mean` has
+      five — so choosing a variable resized the map under the cursor. A fixed
+      column cannot do that.
+
+   DOM order is deliberately left alone: canvas first, controls second, which
+   is the right order on a phone and the right order for a screen reader. The
+   swap is `grid-column`, not `order` on a flex row. */
+@media (min-width: 1024px) {
+  .surface-map {
+    display: grid;
+    grid-template-columns: minmax(280px, 330px) 1fr;
+    grid-template-rows: auto;
+    align-items: stretch;
+  }
+
+  .surface-map__canvas {
+    grid-column: 2;
+    grid-row: 1;
+    /* Matches the rail so the two sides end level. */
+    height: clamp(460px, calc(100vh - 190px), 1000px);
+  }
+
+  .surface-map__controls {
+    grid-column: 1;
+    grid-row: 1;
+    /* The divider moves with the panel. `border-top` here would draw a line
+       across the middle of the layout. */
+    border-top: none;
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 14px 14px 16px;
+    gap: 14px;
+    /* A long statistic list plus the unlock prompt can outrun the map on a
+       short screen; the rail scrolls rather than stretching the row. */
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  /* Undo the >=760px rule that put the chip groups side by side. In a 300px
+     column they stack, and each group wraps onto as many lines as it needs
+     instead of scrolling sideways with no visible affordance. */
+  .surface-map__row {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .surface-map__group {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .surface-map__season-pick,
+  .surface-map__season-pick select {
+    width: 100%;
+  }
+
+  /* The scrubber becomes three stacked lines: the slider, the transport
+     buttons centred under it, then the readout. `order` rather than moving the
+     markup — the horizontal arrangement is still correct at every width below
+     this one. */
+  .surface-map__scrubber {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .surface-map__range   { order: 1; flex: 1 1 100%; min-width: 0; }
+  .surface-map__nav:first-of-type { order: 2; }
+  .surface-map__play:not(.surface-map__play--nav) { order: 3; }
+  .surface-map__nav:last-of-type  { order: 4; }
+
+  .surface-map__readout {
+    order: 5;
+    flex: 1 1 100%;
+    min-width: 0;
+    text-align: center;
+  }
+
+  /* --- controls at rail size ---------------------------------------------
+     The 44px pill is a TOUCH target, and this breakpoint is not a touch
+     context — it is a pointer one, at a width where the controls sit in a
+     300px column with five or six groups stacked in it. Kept at 44 the rail
+     ran past the bottom of the map and the chips read as a list of buttons
+     rather than a set of settings.
+
+     Everything below only applies from 1024px up. The stacked layout under it
+     is unchanged and keeps every target at 44px, which is where it matters. */
+
+  .surface-map__group {
+    gap: 4px;
+  }
+
+  .surface-map__chip {
+    min-height: 30px;
+    padding: 0 10px;
+    /* A rounded rectangle, not a pill. Pills spend their width on their own end
+       caps, which is fine in a single scrolling row and wasteful in a wrapping
+       column — the rectangles tile into tidy rows and fit one more chip per
+       line at the same font size. */
+    border-radius: 7px;
+    border-color: rgba(0, 0, 0, 0.11);
+    background: #fbfcf9;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+  }
+
+  .surface-map__chip--sub {
+    min-height: 27px;
+    padding: 0 9px;
+    font-size: 0.735rem;
+    font-weight: 500;
+  }
+
+  .surface-map__chip:hover:not(:disabled):not(.is-active) {
+    border-color: rgba(0, 0, 0, 0.26);
+    background: #fff;
+  }
+
+  .surface-map__chip.is-active {
+    /* The one filled thing in its row, so the current setting is findable
+       without reading any of the labels. */
+    box-shadow: 0 1px 2px rgb(var(--primary-rgb, 90 106 62) / 0.35);
+  }
+
+  /* A combination that is not published — most often a warming level a low
+     scenario never reaches. Legible, obviously inert, and NOT hidden: a chip
+     that vanishes when you change scenario reads as a rendering fault. */
+  .surface-map__chip:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    background: transparent;
+  }
+
+  .surface-map__season-pick select {
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 0.78rem;
+  }
+
+  /* Transport. Round for play, square-ish for the steppers, both smaller — at
+     44px the five of them were a bigger object than the slider they drive. */
+  .surface-map__play {
+    width: 32px;
+    height: 32px;
+    border-color: rgba(0, 0, 0, 0.11);
+    background: #fbfcf9;
+  }
+
+  .surface-map__play:hover:not(:disabled) {
+    border-color: rgba(0, 0, 0, 0.26);
+    background: #fff;
+  }
+
+  .surface-map__play--nav {
+    width: 29px;
+    height: 29px;
+    border-radius: 7px;
+  }
+
+  .surface-map__play svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .surface-map__range {
+    height: 26px;
+    min-width: 0;
+  }
+
+  .surface-map__nav { gap: 3px; }
+
+  .surface-map__readout strong { font-size: 0.86rem; }
+  .surface-map__meta { font-size: 0.71rem; }
+
+  .surface-map__mode { min-height: 32px; font-size: 0.8rem; }
+
+  .surface-map__unlock { padding: 9px 10px; }
+  .surface-map__unlock p { font-size: 0.79rem; }
+  .surface-map__unlock-cta { min-height: 34px; font-size: 0.79rem; }
+
+  /* Bottom-left of a canvas that now starts at the rail's right edge. */
+  .surface-map__legend {
+    width: min(260px, calc(100% - 24px));
+  }
 }

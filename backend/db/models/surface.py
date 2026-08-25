@@ -22,7 +22,8 @@ because they look like mistakes otherwise:
 """
 
 from sqlalchemy import (
-    Column, BigInteger, Integer, Text, Boolean, Float, Date, DateTime, func
+    Column, BigInteger, Integer, Text, Boolean, Float, Date, DateTime,
+    ForeignKey, func
 )
 
 from db.base_class import Base
@@ -37,6 +38,19 @@ class SurfaceRun(Base):
     __tablename__ = 'surface_run'
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+    # `country_industry_dim`. NOT NULL with a server default of New Zealand,
+    # deliberately: `index_surfaces.py` and `stage_publish.py` write this table
+    # and know nothing about a country column, and a migration that redefines a
+    # table out from under its writer is what took production down on
+    # 2026-08-20. The default is transitional — drop it once a second country's
+    # archive exists and every writer names its country.
+    #
+    # It is also part of BOTH partial unique indexes. Without it an Australian
+    # temp_min for a given date is a DUPLICATE of the New Zealand one rather
+    # than a distinct object.
+    country_id = Column(Integer, ForeignKey('countries.id'), nullable=False,
+                        server_default='1')
 
     variable = Column(Text, nullable=False)
     granularity = Column(Text, nullable=False)     # daily|hourly|monthly|records

@@ -56,12 +56,14 @@ from sqlalchemy.orm import Session
 
 from db.session import get_db
 from services import surface_store as store
+from services import projection_store as projections
 
-# Entitlements. `/tiles` and `/region` stay open; `/available` is open but
-# TRIMMED for anonymous callers — see `_gate_steps`. `/point` is the Pro action:
+# Entitlements. `/tiles` and `/region` stay open; `/available` is open at the
+# free CADENCES and withheld at the daily one — see `_gate_steps`. `/point` is
+# the Pro action:
 # it answers "what is it at MY site", which is what the paid tier is sold on.
 # See docs/plans/INSIGHTS_SITE_MAP_2026-08-13.md §5a.
-from core.entitlements import require_pro, is_registered
+from core.entitlements import require_pro, is_registered, is_pro
 from core.public_security import get_optional_public_user
 from db.models.public_user import PublicUser
 
@@ -723,13 +725,15 @@ def available(variable: str = Query("temp_mean"), granularity: str = Query("dail
     `gaps` is authoritative: the time-scrubber must grey these out rather than
     request them and render holes.
 
-    Open to everyone, but the step list an ANONYMOUS caller gets is the newest
-    month only — `_gate_steps` explains why the gate lives here and not in the
-    client, and why `/tiles` is not gated alongside it.
+    Open to everyone at the MONTHLY, SEASONAL and RECORDS cadences — the whole
+    1986-onward archive, no account needed. The DAILY cadence is Pro.
+    `_gate_steps` explains why the gate lives here and not in the client, and
+    why `/tiles` is not gated alongside it.
     """
     if not _use_stub():
         return _real_available(db, variable, granularity, statistic,
-                               registered=is_registered(user))
+                               registered=is_registered(user),
+                               pro=is_pro(user))
     _require_enabled()
     if variable not in UNITS:
         raise HTTPException(422, f"unknown variable {variable!r}")
@@ -1057,50 +1061,117 @@ def _real_zone_season(db: Session, slug: str,
               "stub": False})
 
 
-def _gate_steps(info: dict, registered: bool) -> dict:
-    """Trim `/available` to the newest month for an anonymous visitor.
+# THREE TIERS. A CADENCE RULE AND A DATE RULE, AND BOTH ARE LOAD-BEARING.
+#
+# Anonymous   the NEWEST step of every monthly, seasonal and records layer.
+# Registered  the whole 1986-onward archive at those cadences. Free account.
+# Pro         the DAILY surface — what happened at your place this week.
+#
+# The cadence half landed first on 2026-08-25 and removed the anonymous trim
+# with it. Seeing it run, Pete put the trim back the same day: a signed-out
+# visitor could scrub forty years of every layer, which is the entire regional
+# product given away before anyone has told us who they are. Registration is
+# free, and the moment someone reaches for the archive is exactly when asking is
+# natural.
+#
+# The two rules compose and are checked in order — cadence first, because a
+# daily layer must be refused to a signed-out visitor as PRO, not offered to
+# them as one free step.
+#
+# Why the swap. The date rule withheld HISTORY: an anonymous visitor got the
+# newest month and the archive needed an account. History is the wrong thing to
+# withhold. It is the site's organic-search asset, it is what makes a region
+# page worth linking to, and it costs nothing to serve because it never changes.
+# Recency is the opposite on every count: it is the thing an operator makes
+# decisions against, it is expensive to produce (a daily fit, every day), and it
+# is worthless a month later. Withholding recency prices the work that is
+# actually being done.
+#
+# It is also enforceable in ONE predicate. `granularity` is already a column on
+# `surface_run`, already on every request, and already in every tile URL, so the
+# rule is a set membership rather than a date comparison threaded through the
+# step list — which is what let the old rule leak into `first`/`last`/`gaps` and
+# need three separate corrections in this function.
+FREE_GRANULARITIES = frozenset({"monthly", "season", "records"})
+PRO_GRANULARITIES = frozenset({"daily", "hourly"})
 
-    THE FREE RULE IS A DATE, NOT A COUNT. Anonymous visitors see the most
-    recent month of *every* variable and statistic; the 1986-onward record is
-    what registering buys. That is enforced here rather than in the client
-    because the scrubber renders whatever steps it is given — leave the full
-    list in the payload and the gate is a suggestion.
 
-    **`/tiles` is deliberately NOT gated.** A tile request is issued by a
-    Mapbox raster source, which sends no Authorization header, so a per-user
-    check there is not reachable without signed URLs or cookies (Pete's call,
+def _gate_steps(info: dict, granularity: str, registered: bool,
+                pro: bool) -> dict:
+    """Withhold the DAILY cadence from anyone who is not Pro, and the ARCHIVE
+    from anyone who is not signed in.
+
+    Enforced here rather than in the client because the scrubber renders
+    whatever steps it is given — leave the full list in the payload and the gate
+    is a suggestion.
+
+    **`/tiles` is deliberately NOT gated.** A tile request is issued by a Mapbox
+    raster source, which sends no Authorization header, so a per-user check
+    there is not reachable without signed URLs or cookies (Pete's call,
     2026-08-18: not worth the cache fragmentation for a 500 m PNG). Anyone who
-    constructs a tile URL by hand can still fetch it. This is a registration
-    nudge at the only moment it is natural to ask, not a paywall — the same
-    reasoning `useSurfaceQuota` was written under, applied to a rule that does
-    not need localStorage to hold it up.
+    constructs a tile URL by hand can still fetch it.
 
-    The archive's true span stays in `meta.access` on purpose. "38 years of
-    record, free with an account" is the reason to sign up; hiding the span
-    hides the offer.
+    **That trade is worth re-examining now the cadence rule is in.** Under the
+    date rule an ungated tile leaked archive months, which are free anyway under
+    this rule. Under the cadence rule it leaks the DAILY surface, which is the
+    paid product. The catalogue gate still stops a client from knowing which
+    dates exist, so it is a nudge and not a wall — same as before — but the
+    thing behind the wall is now the thing being sold. Flagged, not decided.
+
+    The withheld span stays in `meta.access` in both cases, on purpose: naming
+    what the next tier adds is the reason to take it, and hiding the span hides
+    the offer.
     """
-    if registered:
-        return {**info, "access": {"tier": "registered", "scope": "full"}}
+    # 1. CADENCE. Checked first so a daily layer is refused as Pro rather than
+    #    handed to a signed-out visitor as one free step.
+    if granularity in PRO_GRANULARITIES and not pro:
+        return _withhold_cadence(info, granularity, registered)
 
+    if granularity in PRO_GRANULARITIES:
+        return {**info, "access": {"tier": "pro", "scope": "full",
+                                   "cadence": granularity}}
+
+    # 2. DATE. A free cadence, but the archive behind the newest step needs an
+    #    account.
+    if not registered:
+        return _withhold_archive(info, granularity)
+
+    return {**info, "access": {
+        "tier": "pro" if pro else "registered",
+        "scope": "full",
+        "cadence": granularity,
+    }}
+
+
+def _withhold_archive(info: dict, granularity: str) -> dict:
+    """The newest step only, for a signed-out visitor.
+
+    THE PICTURE IS THE PITCH. Every layer and every statistic stays reachable —
+    what an account adds is the RECORD behind them, so the map still renders at
+    full resolution and only the scrubber is short. A gate that hid the layers
+    would hide the reason to sign up.
+    """
     steps = info.get("steps") or []
     newest = steps[-1:] if steps else []
     return {
         **info,
-        # Collapse the window onto the newest month. `first`/`last` are ISO
-        # DATES here while a monthly step's `valid_at` is 'YYYY-MM' — mixing the
-        # two formats in one response is how a date parser starts returning
-        # Invalid Date, so `first` is set from `last`, not from the step.
+        # Collapse the window onto the newest step. `first`/`last` are ISO DATES
+        # here while a monthly step's `valid_at` is 'YYYY-MM' — mixing the two
+        # formats in one response is how a date parser starts returning Invalid
+        # Date, so `first` is set from `last`, not from the step.
         "first": info.get("last") if newest else info.get("first"),
         "last": info.get("last"),
         # A one-step list has no interior, so there is nothing for the scrubber
-        # to grey out. Sending the archive's real gaps here would describe
-        # holes in a record the caller cannot see.
+        # to grey out. Sending the archive's real gaps here would describe holes
+        # in a record the caller cannot see.
         "gaps": [],
         "steps": newest,
         "count": len(newest),
         "access": {
             "tier": "anonymous",
-            "scope": "latest_month",
+            "scope": "latest_step",
+            "cadence": granularity,
+            "requires": "registration",
             "archive_first": info.get("first"),
             "archive_last": info.get("last"),
             "archive_count": info.get("count"),
@@ -1109,14 +1180,54 @@ def _gate_steps(info: dict, registered: bool) -> dict:
     }
 
 
+def _withhold_cadence(info: dict, granularity: str, registered: bool) -> dict:
+    """The daily cadence, for anyone who is not Pro."""
+
+    return {
+        **info,
+        # NO steps, and the window collapses with them. `first`/`last` describe
+        # the range the caller may address, so leaving them populated beside an
+        # empty step list is how a date picker starts offering days it will then
+        # be refused. The real span moves into `access`, where it reads as an
+        # offer rather than as data.
+        "first": None,
+        "last": None,
+        # An empty step list has no interior, so there is nothing to grey out.
+        # Sending the real gaps would describe holes in a record the caller
+        # cannot see at all.
+        "gaps": [],
+        "steps": [],
+        "count": 0,
+        "access": {
+            "tier": "registered" if registered else "anonymous",
+            "scope": "none",
+            "cadence": granularity,
+            "requires": "pro",
+            "daily_first": info.get("first"),
+            "daily_last": info.get("last"),
+            "daily_count": info.get("count"),
+            # Tier-aware. "The full monthly record is free" is true for a
+            # signed-in visitor and a half-truth for a signed-out one, who has
+            # the newest month and an account standing between them and the
+            # rest of it. Two gates means two sentences.
+            "unlock": ("Daily surfaces are part of Insights Pro. "
+                       "The full monthly record is free with an account."
+                       if not registered else
+                       "Daily surfaces are part of Insights Pro. "
+                       "The full monthly record is already open to you."),
+        },
+    }
+
+
 def _real_available(db: Session, variable: str, granularity: str,
                     statistic: Optional[str],
-                    registered: bool = True) -> AvailableResponse:
+                    registered: bool = True,
+                    pro: bool = True) -> AvailableResponse:
     if variable not in UNITS:
         raise HTTPException(422, f"unknown variable {variable!r}")
     stat = _default_statistic(granularity, statistic)
     info = _gate_steps(store.availability(db, variable, granularity, stat),
-                       registered)
+                       granularity, registered, pro)
     # The display domain is published here so a legend can be drawn truthfully.
     # Without it the client has to invent a scale, and any scale it invents will
     # disagree with the one the tiles were actually rendered against.
@@ -1299,3 +1410,211 @@ def _real_point(db: Session, lon: float, lat: float, variables: str,
                   "whole surface; expected_error is banded by distance to the "
                   "nearest contributing station. Rainfall cv_rmse is omitted "
                   "because it is dimensionless in this archive.")})
+
+
+# =============================================================================
+# PROJECTIONS — the MfE 2024 downscaled scenarios, composed onto our own normals
+# =============================================================================
+#
+# A separate address space from the observational surfaces on purpose, mirroring
+# the separate table. `/surfaces/tiles/...` is a measurement; `/surfaces/
+# projections/tiles/...` is a scenario, and no URL should be one path parameter
+# away from turning one into the other.
+#
+# ENTITLEMENT, AND THIS IS PETE'S CALL TO CHANGE
+# ----------------------------------------------
+# Served to any REGISTERED account, matching the archive gate rather than the
+# Pro gate, and `PROJECTIONS_REQUIRE` is the single switch. The reasoning is
+# that the Atlas projection is a regional, national-scale artefact — the thing
+# that makes the site worth linking to — while what Pro sells is the SITE-level
+# number, which is a different endpoint (`/point`) and already gated. If the
+# regional free/paid split in project_insights_free_tier is meant to cover this
+# too, change the constant here and nothing else.
+#
+# Like `/tiles`, `/projections/tiles` is NOT gated: a Mapbox raster source sends
+# no Authorization header, so the gate lives on the catalogue that tells a
+# client what to ask for. Same trade, same reasoning as `_gate_steps`.
+PROJECTIONS_REQUIRE = "registration"
+
+
+class ProjectionLayer(BaseModel):
+    variable: str
+    statistic: str
+    label: str
+    unit: str
+    rule: str
+    count: int
+
+
+class ProjectionCatalogueResponse(BaseModel):
+    layers: list[ProjectionLayer] = Field(default_factory=list)
+    # Present only when a specific layer was asked for.
+    variable: Optional[str] = None
+    statistic: Optional[str] = None
+    scenarios: list[dict] = Field(default_factory=list)
+    periods: list[dict] = Field(default_factory=list)
+    seasons: list[dict] = Field(default_factory=list)
+    steps: list[dict] = Field(default_factory=list)
+    # The 1986-2005 normal, per season. Its own block rather than a step of the
+    # matrix, because it is the one thing every step is measured against.
+    baselines: dict = Field(default_factory=dict)
+    meta: dict = Field(default_factory=dict)
+
+
+def _axis(values: set, labels: dict, order_key: str = "order") -> list[dict]:
+    """One axis of the scenario matrix, in a declared order and labelled.
+
+    Built from what is actually PUBLISHED, never from the constant lists in the
+    migration. The matrix is not full — 16 of the 18 (scenario, period) pairs
+    exist, because a low-emissions scenario never reaches the highest warming
+    level — and a client that renders the declared list would offer two chips
+    that 404. This is the same stale-constant trap that broke four check suites
+    on 2026-08-24: never assert a shape the archive can move.
+    """
+    out = []
+    for value in values:
+        info = dict(labels.get(value) or {})
+        info.setdefault("label", value)
+        info.setdefault(order_key, 99)
+        info["value"] = value
+        out.append(info)
+    out.sort(key=lambda d: (d.get(order_key, 99), d["value"]))
+    return out
+
+
+@router.get("/projections/available", response_model=ProjectionCatalogueResponse)
+def projections_available(
+    variable: Optional[str] = Query(None),
+    statistic: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: Optional[PublicUser] = Depends(get_optional_public_user),
+):
+    """The projection catalogue: which layers exist, and for one layer, every
+    published (scenario, period, season) with its national medians.
+
+    Called with no `variable` it returns the layer list only, which is what the
+    mode switch needs to know whether to appear at all.
+    """
+    registered = is_registered(user)
+    available_layers = projections.layers(db)
+    info = projections.meta(db)
+
+    if not registered:
+        # The offer, not a blank. The layer list and the attribution stay —
+        # they are the reason to sign in — and the matrix does not.
+        return ProjectionCatalogueResponse(
+            layers=[ProjectionLayer(**layer) for layer in available_layers],
+            meta={**info, "contract_version": CONTRACT_VERSION,
+                  "access": {
+                      "tier": "anonymous",
+                      "scope": "none",
+                      "requires": PROJECTIONS_REQUIRE,
+                      "unlock": "Sign in free to open the climate projections.",
+                  }})
+
+    access = {"tier": "registered", "scope": "full"}
+    if not variable:
+        return ProjectionCatalogueResponse(
+            layers=[ProjectionLayer(**layer) for layer in available_layers],
+            meta={**info, "contract_version": CONTRACT_VERSION, "access": access})
+
+    match = next((layer for layer in available_layers
+                  if layer["variable"] == variable
+                  and (statistic is None or layer["statistic"] == statistic)), None)
+    if match is None:
+        raise HTTPException(
+            404, f"no projection layer {variable!r}"
+            f"{'/' + statistic if statistic else ''}")
+
+    rows = projections.steps(db, match["variable"], match["statistic"])
+    baselines = projections.baselines(db, match["variable"], match["statistic"])
+    seasons = {r["season"] for r in rows}
+
+    # The domain is season-dependent for every layer that does not share the
+    # measured Atlas scale — a DJF rainfall total and an ANN one are three
+    # months and twelve — so one is published PER SEASON rather than per layer.
+    domains = {}
+    for season in seasons:
+        try:
+            domains[season] = projections.describe(
+                match["variable"], match["statistic"], season)
+        except projections.ProjectionNotFound as exc:
+            # Published but unrenderable: no measured domain. Say so rather than
+            # inventing a scale — the client greys the season out.
+            logger.warning("projection domain missing: %s", exc)
+            domains[season] = None
+
+    return ProjectionCatalogueResponse(
+        layers=[ProjectionLayer(**layer) for layer in available_layers],
+        variable=match["variable"], statistic=match["statistic"],
+        scenarios=_axis({r["scenario"] for r in rows}, projections.SCENARIO_LABELS),
+        periods=_axis({r["period"] for r in rows}, projections.PERIOD_LABELS),
+        seasons=_axis(seasons, projections.SEASON_LABELS),
+        steps=rows,
+        # Keyed by season, so the client can tell whether the flip is available
+        # for the season on screen rather than discovering it with a 404.
+        baselines=baselines,
+        meta={**info, "contract_version": CONTRACT_VERSION,
+              "unit": match["unit"], "rule": match["rule"],
+              "access": access,
+              "domains": domains,
+              # The baseline is OUR surface and carries OUR attribution. It is
+              # published separately from `meta.source` (which credits MfE for
+              # the change field) so a client showing the baseline alone never
+              # renders someone else's licence notice over our own work.
+              "baseline_source": next(
+                  (b["source"] for b in baselines.values() if b.get("source")),
+                  None),
+              # The sentinels a client puts in the tile URL to ask for the
+              # baseline. Served rather than hardcoded, so the two cannot drift.
+              "baseline_key": {"scenario": projections.BASELINE_SENTINEL,
+                               "period": projections.BASELINE_SENTINEL}},
+    )
+
+
+@router.get("/projections/tiles/{variable}/{statistic}/{scenario}/{period}"
+            "/{season}/{z}/{x}/{y}.png")
+def projection_tile(variable: str, statistic: str, scenario: str, period: str,
+                    season: str, z: int, x: int, y: int,
+                    vmin: Optional[float] = Query(None, alias="min"),
+                    vmax: Optional[float] = Query(None, alias="max"),
+                    db: Session = Depends(get_db)):
+    """Web-mercator PNG tile rendered from a projection COG.
+
+    Shares `surface_store.render_tile` with the observational tiler — the
+    reprojection, the nodata handling and the ramp interpolation are not worth
+    having two of — and differs only in which table resolved the key and which
+    table set the domain.
+    """
+    if not 0 <= z <= 14:
+        raise HTTPException(422, "zoom out of range (0-14)")
+    n_tiles = 2 ** z
+    if not (0 <= x < n_tiles and 0 <= y < n_tiles):
+        raise HTTPException(422, "tile index out of range for this zoom")
+
+    try:
+        row = projections.resolve(db, variable, statistic, scenario, period, season)
+        lo, hi, ramp = projections.domain_for(variable, statistic, season)
+    except projections.ProjectionNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    if vmin is not None:
+        lo = float(vmin)
+    if vmax is not None:
+        hi = float(vmax)
+
+    try:
+        png = store.render_tile(row["s3_key"], z, x, y, ramp, lo, hi)
+    except Exception as exc:                                       # noqa: BLE001
+        logger.exception("projection tile render failed for %s", row["s3_key"])
+        raise HTTPException(503, f"raster unreadable: {exc}") from exc
+
+    return Response(
+        content=png, media_type="image/png",
+        headers={
+            # A projection never changes once published — unlike a daily
+            # surface, there is no D+2 revision — so it caches hard.
+            "Cache-Control": "public, max-age=604800, immutable",
+            "X-Surface-Kind": "projection",
+            "X-Surface-Model-Version": row["model_version"],
+        })

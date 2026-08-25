@@ -4,9 +4,10 @@
 // the home hero and hid the only thing on the site that shows the product.
 // The gate moved down to the data (2026-08-18):
 //
-//   Climate surface  open, at the newest month of every layer. The archive
-//                    behind it needs a free account, enforced by the server
-//                    trimming `/available` — see surfaces.py `_gate_steps`.
+//   Climate surface  open, and since 2026-08-25 that means the WHOLE monthly
+//                    archive, no account needed. The free rule is a cadence:
+//                    daily is Pro, months and seasons are free. Enforced by the
+//                    server — see surfaces.py `_gate_steps`.
 //   Wine regions     needs an account. Blocks and GIs are the regional
 //                    product, not the free taste.
 import { useState } from 'react';
@@ -42,8 +43,8 @@ function MapExplorer() {
   const registered = isRegistered(user) || isAuthenticated;
 
   useDocumentMeta({
-    title: 'Vine Atlas — NZ Wine Region Map',
-    description: 'Explore New Zealand wine regions, vineyard blocks, and geographical indications on an interactive map.',
+    title: 'Atlas',
+    description: 'Explore the New Zealand climate surface, growing regions and vineyard blocks on an interactive map.',
     path: '/map',
   });
 
@@ -67,15 +68,7 @@ function MapExplorer() {
         >
           Climate surface
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'regions'}
-          className={`map-explorer-tab${view === 'regions' ? ' is-active' : ''}`}
-          onClick={() => setView('regions')}
-        >
-          Wine regions
-        </button>
+
       </div>
 
       <div className="map-explorer-container">

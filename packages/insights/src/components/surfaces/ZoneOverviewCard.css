@@ -98,7 +98,7 @@
   width: 100%;
   text-align: center;
   border-radius: 8px;
-  background: var(--color-primary, #5b6830);
+  background: var(--color-primary, var(--primary));
   color: #fff;
   font-weight: 600;
   text-decoration: none;
