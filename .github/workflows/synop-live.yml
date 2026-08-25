@@ -8,10 +8,27 @@ name: SYNOP Live Ingestion
 # is idempotent and catches late / COR-corrected reports.
 
 on:
-  schedule:
-    # Every 3 hours at :10 past (UTC) — aligns just after the SYNOP main +
-    # intermediate synoptic hours (00/03/06/09/12/15/18/21Z).
-    - cron: '10 */3 * * *'
+  # THE SCHEDULE IS OFF (2026-08-25). SYNOP moved to the EC2 ingest box's cron,
+  # in `ingestion/run_all.sh`, alongside every other source.
+  #
+  # It was the last job on GitHub's scheduler and the only unreliable one.
+  # Measured over 2026-08-23..24 its runs started 24, 30, 32, 36, 43, 48, 50,
+  # 52, 53, 61, 68 and 106 minutes after the cron time — while every source on
+  # the box starts at :05:07 to the second. On 2026-08-25 the 00:10Z run had
+  # still not landed by 01:24Z, the newest reading was 4h24m old against the
+  # home page's 4-hour currency window, and the warmest and coldest tiles
+  # vanished from the hero.
+  #
+  # A 3-hourly cron with 24-106 minutes of jitter cannot keep a 4-hour window
+  # fed: the worst case is 4h56m of staleness, so the strip was emptying most
+  # nights and nobody had noticed. The box polls hourly and on time.
+  #
+  # `workflow_dispatch` STAYS. This is still how a manual catch-up, a
+  # single-station probe, a dry run and the NOAA reconcile pass are run — and
+  # it is what to use right now if the feed is behind.
+  #
+  # schedule:
+  #   - cron: '10 */3 * * *'
 
   workflow_dispatch:
     inputs:

@@ -38,7 +38,28 @@ PY=/opt/auxein/.venv/bin/python
 # and Canterbury's only 12 thermometers went dark for two days while every dashboard
 # stayed green. Adding a source means editing all six wiring points, and this is the
 # one that decides whether it actually runs.
-SOURCES="${*:-harvest ecan ecan_air mdc gw hbrc tdc gdc southland nrc wcrc horizons trc boprc waikato}"   # optional args = specific source(s)
+#
+# `synop` JOINED THIS LIST 2026-08-25, and it is the same lesson from the other
+# side. It was the last source still driven by the GitHub Actions cron
+# (`synop-live.yml`, every 3 hours at :10), and GitHub's scheduler is not a
+# scheduler — measured over two days its runs started 24 to 106 minutes late,
+# every single time, while every source in this list starts at :05:07 to the
+# second. On 2026-08-25 the 00:10Z run was still not in at 01:24Z and the
+# newest SYNOP reading was 4h24m old, which is past the 4-hour window the home
+# page's warmest/coldest tiles use, so both silently disappeared.
+#
+# The stations report HOURLY (48 of them, every hour), so the 3-hourly pull was
+# only ever batching data that was already sitting there. Hourly here makes the
+# worst-case reading about an hour old instead of five.
+#
+# `--period incremental` is IGNORED by the SYNOP branch of run_ingestion.py — it
+# runs its own 48-hour sliding re-pull, which is idempotent and catches late and
+# COR-corrected reports. Passing it costs nothing and keeps this loop uniform.
+#
+# The schedule in `synop-live.yml` is disabled in the same change. Two schedules
+# on one idempotent upsert would not corrupt anything, but they would race for
+# the same rows and make the run log impossible to read.
+SOURCES="${*:-harvest ecan ecan_air mdc gw hbrc tdc gdc southland nrc wcrc horizons trc boprc waikato synop}"   # optional args = specific source(s)
 
 for s in $SOURCES; do
   ( timeout 40m "$PY" run_ingestion.py --source "$s" --period incremental \
