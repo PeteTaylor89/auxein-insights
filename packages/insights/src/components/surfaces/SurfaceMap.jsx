@@ -131,6 +131,26 @@ const COUNT_STATISTICS = new Set([
 // accumulation" on a degree-day layer. One label cannot carry both.
 const SEASON_STAT_LABELS = { sum: 'Season total' };
 
+/**
+ * Is this Mapbox map still usable?
+ *
+ * EVERY `Map` method dereferences `map.style`, and `map.remove()` sets that to
+ * undefined. React runs effect cleanups in DECLARATION ORDER, and the effect
+ * that owns the map is declared first - so on unmount `map.remove()` runs
+ * BEFORE the overlay effects clean up after themselves. Each of those then
+ * calls `getLayer()` on a destroyed map and throws:
+ *
+ *   Cannot read properties of undefined (reading 'getOwnLayer')
+ *
+ * It surfaces when you leave the Atlas while it is busy, because that is when
+ * there are most layers and listeners still attached. Reordering the effects
+ * would fix it today and break again the moment one is moved, so every teardown
+ * path asks this instead.
+ */
+function mapAlive(map) {
+  return Boolean(map && map.style);
+}
+
 function statLabel(stat, variable) {
   if (granularityFor(variable) === 'season' && SEASON_STAT_LABELS[stat]) {
     return SEASON_STAT_LABELS[stat];
@@ -445,7 +465,7 @@ function SurfaceMap({ onSignInRequired }) {
   // no "change the tile URL" operation, so the source is removed and re-added.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady) return;
+    if (!mapAlive(map) || !mapReady) return;
 
     // Two builders, and neither can be reached with the other's arguments. A
     // projection has no `valid_at` and no granularity; a measurement has no
@@ -528,7 +548,7 @@ function SurfaceMap({ onSignInRequired }) {
       setZoneLevel(map.getZoom() >= SUBZONE_FROM_ZOOM ? 'sub_zone' : 'region');
     };
     map.on('zoomend', onZoom);
-    return () => map.off('zoomend', onZoom);
+    return () => { if (mapAlive(map)) map.off('zoomend', onZoom); };
   }, [mapReady]);
 
   useEffect(() => {
@@ -537,6 +557,8 @@ function SurfaceMap({ onSignInRequired }) {
 
     const fc = zones[zoneLevel];
     const remove = () => {
+      // The map may already be gone - see mapAlive.
+      if (!mapAlive(map)) return;
       if (map.getLayer(ZONE_LABEL)) map.removeLayer(ZONE_LABEL);
       if (map.getSource(ZONE_LABEL_SOURCE)) map.removeSource(ZONE_LABEL_SOURCE);
       if (map.getLayer(ZONE_LINE)) map.removeLayer(ZONE_LINE);
@@ -672,6 +694,7 @@ function SurfaceMap({ onSignInRequired }) {
     map.on('touchend', onTouchEnd);
 
     return () => {
+      if (!mapAlive(map)) return;
       map.off('click', ZONE_FILL, onClick);
       map.off('mousemove', onMove);
       map.off('mouseleave', ZONE_FILL, onLeave);
