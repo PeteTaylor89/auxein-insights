@@ -10,6 +10,7 @@ import { useToast } from '../components/ToastProvider';
 import './ObservationDashboard.css';
 import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
 import { getInsightKind } from '../utils/observationInsight';
+import { usePersistentState, usePersistentSet, usePruneToOptions } from '../hooks/usePersistentState';
 
 
 function readTemplateFields(tpl) {
@@ -205,6 +206,15 @@ function TemplatePreviewModal({ open, template, onClose }) {
   return createPortal(modalContent, document.body);
 }
 
+// Run status is a fixed vocabulary, unlike blocks/templates/assignees which are
+// derived from the data. Hoisted so the chips and the stale-value prune below
+// can't drift apart.
+const RUN_STATUS_OPTIONS = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'in progress', label: 'In Progress' },
+  { value: 'complete', label: 'Complete' },
+];
+
 function ManagementTab({ StatusBadge }) {
   const navigate = useNavigate();
   const companyId = authService.getCompanyId();
@@ -216,12 +226,17 @@ function ManagementTab({ StatusBadge }) {
   // Filters (beta: "Observation Management — a few filters here would go a long
   // way"). Client-side over the already-loaded run list, matching how TasksTab
   // filters: the run count per company is small and it keeps this instant.
-  const [statusFilter, setStatusFilter] = useState(() => new Set());
-  const [blockFilter, setBlockFilter] = useState(() => new Set());
-  const [templateFilter, setTemplateFilter] = useState(() => new Set());
-  const [assigneeFilter, setAssigneeFilter] = useState(() => new Set());
+  // Persisted per user + company, so the view you left is the view you come back
+  // to. Search stays transient — see the note in TasksTab.
+  const [statusFilter, setStatusFilter] = usePersistentSet('observations.filter.status');
+  const [blockFilter, setBlockFilter] = usePersistentSet('observations.filter.block');
+  const [templateFilter, setTemplateFilter] = usePersistentSet('observations.filter.template');
+  const [assigneeFilter, setAssigneeFilter] = usePersistentSet('observations.filter.assignee');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Open on arrival if filters were restored, so a filtered table always shows
+  // the chips explaining why — a count badge over a collapsed panel doesn't.
+  const [filtersOpen, setFiltersOpen] = useState(() =>
+    statusFilter.size + blockFilter.size + templateFilter.size + assigneeFilter.size > 0);
 
   const reload = async () => {
     try {
@@ -260,6 +275,15 @@ function ManagementTab({ StatusBadge }) {
   const blockOptions = uniqueSorted(runs.map(r => r.block_name));
   const templateOptions = uniqueSorted(runs.map(r => r.template_name));
   const assigneeOptions = uniqueSorted(runs.map(r => r.assigned_to_user_name));
+
+  // A restored filter can outlive what it points at — a deleted template, a
+  // block renamed. Prune once the runs are loaded, so a stale value can't filter
+  // the table to nothing with no chip on screen to unclick.
+  const runsReady = !loading && runs.length > 0;
+  usePruneToOptions(setStatusFilter, RUN_STATUS_OPTIONS.map(o => o.value), true);
+  usePruneToOptions(setBlockFilter, blockOptions, runsReady);
+  usePruneToOptions(setTemplateFilter, templateOptions, runsReady);
+  usePruneToOptions(setAssigneeFilter, ['__unassigned__', ...assigneeOptions], runsReady);
 
   const toggleIn = (setter) => (value) => {
     setter(prev => {
@@ -355,11 +379,7 @@ function ManagementTab({ StatusBadge }) {
             <>
               <FilterChipGroup
                 label="Status"
-                options={[
-                  { value: 'scheduled', label: 'Scheduled' },
-                  { value: 'in progress', label: 'In Progress' },
-                  { value: 'complete', label: 'Complete' },
-                ]}
+                options={RUN_STATUS_OPTIONS}
                 selected={statusFilter}
                 onToggle={toggleIn(setStatusFilter)}
               />
@@ -1043,19 +1063,25 @@ function TasksTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Client-side filters: each is a Set so multi-select toggles cleanly.
-  const [statusFilter, setStatusFilter] = useState(() => new Set());
-  const [categoryFilter, setCategoryFilter] = useState(() => new Set());
-  const [priorityFilter, setPriorityFilter] = useState(() => new Set());
-  const [locationFilter, setLocationFilter] = useState(() => new Set());
-  const [assigneeFilter, setAssigneeFilter] = useState(() => new Set());
-  const [contractorFilter, setContractorFilter] = useState(() => new Set());
+  // Client-side filters: each is a Set so multi-select toggles cleanly, and each
+  // is persisted per user + company so the view you left is the view you come
+  // back to (beta: filters resetting on every reload).
+  const [statusFilter, setStatusFilter] = usePersistentSet('tasks.filter.status');
+  const [categoryFilter, setCategoryFilter] = usePersistentSet('tasks.filter.category');
+  const [priorityFilter, setPriorityFilter] = usePersistentSet('tasks.filter.priority');
+  const [locationFilter, setLocationFilter] = usePersistentSet('tasks.filter.location');
+  const [assigneeFilter, setAssigneeFilter] = usePersistentSet('tasks.filter.assignee');
+  const [contractorFilter, setContractorFilter] = usePersistentSet('tasks.filter.contractor');
+  // Search stays transient: a forgotten search term restored days later reads as
+  // an empty task list, with nothing in the filter chips to explain it.
   const [searchQuery, setSearchQuery] = useState('');
 
   // Sort + paginate. Default sort matches backend: earliest scheduled first.
   // Click a sortable header to toggle direction.
-  const [sortKey, setSortKey] = useState('date'); // 'date' | 'location' | 'title' | 'priority'
-  const [sortDir, setSortDir] = useState('asc');  // 'asc' | 'desc'
+  const [sortKey, setSortKey] = usePersistentState('tasks.sortKey', 'date',
+    v => ['date', 'location', 'title', 'priority'].includes(v));
+  const [sortDir, setSortDir] = usePersistentState('tasks.sortDir', 'asc',
+    v => ['asc', 'desc'].includes(v));
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
@@ -1063,7 +1089,8 @@ function TasksTab() {
   // For example, tracking every broken wire report across the whole vineyard").
   // Rendered as header rows inside the existing table rather than as separate
   // tables, so pagination and the bulk bar keep working unchanged.
-  const [groupKey, setGroupKey] = useState('none'); // 'none' | 'location' | 'category' | 'template'
+  const [groupKey, setGroupKey] = usePersistentState('tasks.groupKey', 'none',
+    v => ['none', 'location', 'category', 'template'].includes(v));
 
   // Multi-select. `lastClickedId` anchors shift-click range selection.
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -1229,6 +1256,16 @@ function TasksTab() {
       .filter(c => c.status === 'active')
       .sort((a, b) => (a.contractor_name || '').localeCompare(b.contractor_name || ''));
   }, [contractors]);
+
+  // Restored filters can outlive what they point at — a block renamed, a user
+  // who left, a contractor deactivated. Prune those once the option list they
+  // belong to has loaded, so a stale value can't filter the table to nothing
+  // with no chip on screen to explain it. `0` is Unassigned, always valid.
+  const assigneeValues = useMemo(() => [0, ...assigneeOptions.map(u => u.id)], [assigneeOptions]);
+  const contractorValues = useMemo(() => contractorOptions.map(c => c.contractor_id), [contractorOptions]);
+  usePruneToOptions(setLocationFilter, locationOptions, !loading && tasks.length > 0);
+  usePruneToOptions(setAssigneeFilter, assigneeValues, assigneeOptions.length > 0);
+  usePruneToOptions(setContractorFilter, contractorValues, contractorOptions.length > 0);
 
   const filteredTasks = useMemo(() => (Array.isArray(tasks) ? tasks : []).filter(task => {
     // Rolled-up children are not top-level rows — they render inside their
