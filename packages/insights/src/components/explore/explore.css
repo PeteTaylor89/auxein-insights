@@ -158,16 +158,6 @@
 .regionsel__item:hover { background: var(--surface-sunken); }
 .regionsel__item--on { color: var(--primary); font-weight: 600; }
 
-.regionsel__tag {
-  margin-left: auto;
-  padding: 0.1rem 0.4rem;
-  background: var(--surface-sunken);
-  border-radius: var(--border-radius);
-  color: var(--text-faint);
-  font-size: 0.7rem;
-  white-space: nowrap;
-}
-
 .regionsel__empty {
   padding: 0.9rem 0.7rem;
   color: var(--text-muted);
@@ -571,9 +561,6 @@
 /* A region with no live season is still worth visiting — it has history and
    projections — so it is dimmed, never hidden or disabled. Same distinction
    the dropdown and the map both make. */
-.regionpill--quiet { color: var(--text-muted); }
-.regionpill--quiet:hover { color: var(--primary); }
-
 .regionpill--skeleton {
   width: 7rem;
   border-color: transparent;

@@ -2,13 +2,24 @@
 //
 // Phase 4 of docs/plans/COUNTRY_INDUSTRY_REGIONS_2026-08-24.md.
 //
-// COVERAGE IS THE WHOLE DESIGN PROBLEM. Thirteen of 23 zones have a live season
-// and ten do not, so a plain list of 23 sends a third of visitors to a page of
-// explanations. The alternative — listing only the 13 — is worse: those region
-// pages are the site's strongest organic-search assets and they still carry
-// climate history, projections and a description. So all 23 are listed and the
-// uncovered ones are MARKED, which is the only version that is both complete
-// and honest.
+// ALL ZONES ARE LISTED PLAINLY. Every one has a region page carrying climate
+// history, projections and a description, and those pages are the site's
+// strongest organic-search assets, so the list has always been complete.
+//
+// It used to also MARK the zones without a live season, read off
+// `/public/realtime/zones` (the zones with `climate_zone_daily` rows). That tag
+// came off on 2026-08-26 because it had stopped describing anything a visitor
+// could see. It was measuring one table's coverage, not the page: Bannockburn
+// was tagged "no live data" while serving disease pressure, and for an
+// anonymous visitor the only block that actually differed was Recent
+// conditions, which is behind a flag. Each block on the region page states its
+// own reason — "the 2027 season starts on 1 September", "sign in to see this
+// region's history" — which is more accurate than one tag on the picker could
+// ever be, because it is the block's own answer rather than a proxy for it.
+//
+// The real fix is upstream and is being done separately: sampling the daily
+// national surface at `climate_zone_cell_mask` gives all 23 zones a
+// `climate_zone_daily` record, at which point the distinction disappears.
 //
 // Grouping and order come from the database. `wine_regions.display_order` runs
 // north to south and `climate_zones.display_order` encodes region rank times
@@ -40,7 +51,7 @@ function groupByRegion(zones) {
   return groups;
 }
 
-function RegionSelect({ zones, covered, currentSlug, loading }) {
+function RegionSelect({ zones, currentSlug, loading }) {
   const { path } = useCountryIndustry();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -119,31 +130,19 @@ function RegionSelect({ zones, covered, currentSlug, loading }) {
               return (
                 <li key={g.name} className="regionsel__group">
                   <div className="regionsel__group-name">{g.name}</div>
-                  {shown.map((z) => {
-                    // `covered` is the set with a live season. A zone missing
-                    // from it still has history and projections, so it is
-                    // navigable — it just says what it has.
-                    const hasLive = covered.has(z.slug);
-                    return (
-                      <button
-                        key={z.slug}
-                        type="button"
-                        role="option"
-                        aria-selected={z.slug === currentSlug}
-                        className={`regionsel__item${
-                          z.slug === currentSlug ? ' regionsel__item--on' : ''}`}
-                        onClick={() => go(z.slug)}
-                      >
-                        <span>{z.name}</span>
-                        {!hasLive && (
-                          <span className="regionsel__tag"
-                                title="History and projections only — no live season data">
-                            no live data
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {shown.map((z) => (
+                    <button
+                      key={z.slug}
+                      type="button"
+                      role="option"
+                      aria-selected={z.slug === currentSlug}
+                      className={`regionsel__item${
+                        z.slug === currentSlug ? ' regionsel__item--on' : ''}`}
+                      onClick={() => go(z.slug)}
+                    >
+                      <span>{z.name}</span>
+                    </button>
+                  ))}
                 </li>
               );
             })}

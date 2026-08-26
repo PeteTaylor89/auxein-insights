@@ -33,7 +33,6 @@ import { useCountryIndustry } from '../contexts/CountryIndustryContext';
 import { isRegistered } from '../utils/entitlements';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { getZones } from '../services/publicClimateService';
-import { getZonesWithData } from '../services/realtimeClimateService';
 import '../components/explore/explore.css';
 import './RegionDetail.css';
 
@@ -77,7 +76,6 @@ function RegionDetail() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authContext, setAuthContext] = useState('');
   const [zones, setZones] = useState([]);
-  const [covered, setCovered] = useState(new Set());
   const [zonesLoading, setZonesLoading] = useState(true);
 
   // A `?view=` deep link opens the explorers; everything else gets the
@@ -112,14 +110,10 @@ function RegionDetail() {
     // Scoped, like everything else on the page. An unscoped fetch would fill
     // the selector with New Zealand wine regions regardless of which scope the
     // URL is actually showing.
-    Promise.all([
-      getZones({ country, industry }),
-      getZonesWithData({ country, industry }).catch(() => ({ zones: [] })),
-    ])
-      .then(([all, live]) => {
+    getZones({ country, industry })
+      .then((all) => {
         if (cancelled) return;
         setZones(all?.zones || []);
-        setCovered(new Set((live?.zones || []).map((z) => z.slug)));
       })
       .catch(() => { /* the selector degrades to a disabled control */ })
       .finally(() => { if (!cancelled) setZonesLoading(false); });
@@ -156,7 +150,6 @@ function RegionDetail() {
           <IndustryPills />
           <RegionSelect
             zones={zones}
-            covered={covered}
             currentSlug={slug}
             loading={zonesLoading}
           />

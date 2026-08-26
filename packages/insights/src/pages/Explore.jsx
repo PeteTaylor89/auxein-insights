@@ -31,7 +31,6 @@ import RegionSelect from '../components/explore/RegionSelect';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useCountryIndustry } from '../contexts/CountryIndustryContext';
 import { getZones } from '../services/publicClimateService';
-import { getZonesWithData } from '../services/realtimeClimateService';
 import '../components/explore/explore.css';
 import './RegionsPage.css';
 
@@ -40,7 +39,6 @@ function Explore() {
     country, industry, countryName, industryName, active, path,
   } = useCountryIndustry();
   const [zones, setZones] = useState([]);
-  const [covered, setCovered] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -64,19 +62,15 @@ function Explore() {
     setLoading(true);
     setError(null);
 
-    // TWO lists, and they are different questions. `getZones` is every region
-    // in the scope — that is what the tiles and the dropdown must show, because
-    // a region with no live season still has history, projections and a page
-    // worth ranking. `getZonesWithData` is the subset with a current season,
-    // which is what marks the rest as "no live data" rather than dropping them.
-    Promise.all([
-      getZones({ country, industry }),
-      getZonesWithData({ country, industry }).catch(() => ({ zones: [] })),
-    ])
-      .then(([all, live]) => {
+    // ONE list: every region in the scope. There used to be a second call to
+    // `getZonesWithData` purely to mark the zones without a live season, which
+    // came off on 2026-08-26 — see RegionSelect for why the tag stopped meaning
+    // anything. Dropping it also takes a request off every load of this page
+    // and of every region page.
+    getZones({ country, industry })
+      .then((all) => {
         if (cancelled) return;
         setZones(all?.zones || []);
-        setCovered(new Set((live?.zones || []).map((z) => z.slug)));
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || 'Could not load regions');
@@ -116,7 +110,6 @@ function Explore() {
           <IndustryPills />
           <RegionSelect
             zones={zones}
-            covered={covered}
             currentSlug={null}
             loading={loading}
           />
@@ -151,21 +144,12 @@ function Explore() {
           <section key={regionName} className="regions-group regions-group--pills">
             <h2>{regionName}</h2>
             <div className="regionpills">
-              {regionZones.map((z) => {
-                const hasLive = covered.has(z.slug);
-                return (
-                  <Link
-                    key={z.id}
-                    to={path(z.slug)}
-                    className={`regionpill${hasLive ? '' : ' regionpill--quiet'}`}
-                    title={hasLive ? undefined
-                      : 'History and projections only — no live season data'}
-                  >
-                    <MapPin size={13} aria-hidden="true" />
-                    {z.name}
-                  </Link>
-                );
-              })}
+              {regionZones.map((z) => (
+                <Link key={z.id} to={path(z.slug)} className="regionpill">
+                  <MapPin size={13} aria-hidden="true" />
+                  {z.name}
+                </Link>
+              ))}
             </div>
           </section>
         ))}
