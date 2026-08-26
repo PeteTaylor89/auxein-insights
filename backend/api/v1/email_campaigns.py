@@ -25,6 +25,66 @@ from schemas.email_campaign import (
 router = APIRouter()
 
 
+# ========== Rendering ==========
+
+def _render_campaign(db: Session, campaign: EmailCampaign,
+                     template: Optional[EmailTemplate], user,
+                     sample: bool = False) -> str:
+    """Render one campaign for one recipient.
+
+    Preview, test-send and the real send used to carry three near-identical
+    copies of this dispatch, which is how `general` would have become three
+    places to forget. They differ in exactly two ways, both parameters here:
+    WHO the email is addressed to, and whether a data alert is illustrated with
+    sample figures (`sample=True`, for preview and test) or built from the
+    campaign itself.
+
+    An unknown or missing template renders through `render_general` rather than
+    returning `body_html` bare. The bare path had no unsubscribe footer, which
+    the Unsolicited Electronic Messages Act 2007 requires.
+    """
+    ttype = template.template_type if template else None
+
+    if ttype in ("spotlight", "roundup") and campaign.article_ids:
+        article = db.query(Article).filter(
+            Article.id == campaign.article_ids[0]
+        ).first()
+        if article:
+            article_dict = {
+                "title": article.title,
+                "excerpt": article.excerpt or "",
+                "slug": article.slug,
+                "featured_image_url": article.featured_image_url,
+            }
+            render_fn = (email_service.render_article_spotlight
+                         if ttype == "spotlight"
+                         else email_service.render_weekly_roundup)
+            return render_fn(campaign, article_dict, user)
+
+    if ttype == "data_alert":
+        if sample:
+            alert = {
+                "alert_type": "Disease Pressure",
+                "region": (campaign.target_regions or ["Marlborough"])[0],
+                "metric_name": "Botrytis Risk Index",
+                "current_value": "High",
+                "threshold_value": "Moderate",
+                "description": "Disease pressure has exceeded the alert "
+                               "threshold for this region.",
+            }
+        else:
+            alert = {
+                "alert_type": "Climate Alert",
+                "region": (campaign.target_regions or [""])[0],
+                "metric_name": "Alert",
+                "current_value": "",
+                "description": campaign.intro_text or "",
+            }
+        return email_service.render_data_alert(campaign, alert, user)
+
+    return email_service.render_general(campaign, user)
+
+
 # ========== ADMIN: Templates ==========
 
 @router.get("/admin/email/templates", response_model=List[EmailTemplateResponse])
@@ -147,6 +207,37 @@ async def update_campaign(campaign_id: int, data: CampaignUpdate,
     return CampaignResponse.model_validate(campaign)
 
 
+@router.delete("/admin/email/campaigns/{campaign_id}", status_code=204)
+async def delete_campaign(campaign_id: int, db: Session = Depends(get_db),
+                          admin: PublicUser = Depends(require_admin)):
+    """Delete an unsent campaign (admin only).
+
+    Only `draft` and `scheduled` are deletable, and the exclusions are for two
+    different reasons. A `sent` campaign is a RECORD - who was mailed, how many
+    opened, when - and deleting it would quietly remove the evidence of a
+    message that real people received and can still reply to. A `sending`
+    campaign has a background task walking its `email_sends` rows right now;
+    deleting it mid-flight would strand that task on rows the cascade had
+    already taken out from under it.
+
+    `email_sends.campaign_id` is `ON DELETE CASCADE` in Postgres, so any queued
+    rows go with it. A draft has none - sends are only created when a campaign
+    is actually sent - but a scheduled one that was previously drafted might.
+    """
+    campaign = db.query(EmailCampaign).filter(EmailCampaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.status not in ("draft", "scheduled"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete a campaign that is {campaign.status}. "
+                   "Only drafts and scheduled campaigns can be deleted.",
+        )
+    db.delete(campaign)
+    db.commit()
+    return None
+
+
 @router.post("/admin/email/campaigns/{campaign_id}/preview")
 async def preview_campaign(campaign_id: int, db: Session = Depends(get_db),
                            admin: PublicUser = Depends(require_admin)):
@@ -159,33 +250,7 @@ async def preview_campaign(campaign_id: int, db: Session = Depends(get_db),
         EmailTemplate.id == campaign.template_id
     ).first()
 
-    rendered_html = campaign.body_html or ""
-
-    # Render using the appropriate template method
-    if template and campaign.article_ids:
-        article = db.query(Article).filter(Article.id == campaign.article_ids[0]).first()
-        if article:
-            article_dict = {
-                "title": article.title,
-                "excerpt": article.excerpt or "",
-                "slug": article.slug,
-                "featured_image_url": article.featured_image_url,
-            }
-            if template.template_type == "spotlight":
-                rendered_html = email_service.render_article_spotlight(campaign, article_dict, admin)
-            elif template.template_type == "roundup":
-                rendered_html = email_service.render_weekly_roundup(campaign, article_dict, admin)
-
-    if template and template.template_type == "data_alert":
-        sample_alert = {
-            "alert_type": "Disease Pressure",
-            "region": (campaign.target_regions or ["Marlborough"])[0],
-            "metric_name": "Botrytis Risk Index",
-            "current_value": "High",
-            "threshold_value": "Moderate",
-            "description": "Disease pressure has exceeded the alert threshold for this region.",
-        }
-        rendered_html = email_service.render_data_alert(campaign, sample_alert, admin)
+    rendered_html = _render_campaign(db, campaign, template, admin, sample=True)
 
     return {
         "subject": campaign.subject,
@@ -218,32 +283,7 @@ async def test_send_campaign(
 
     test_user = _TestUser()
 
-    rendered_html = campaign.body_html or ""
-
-    if template and campaign.article_ids:
-        article = db.query(Article).filter(Article.id == campaign.article_ids[0]).first()
-        if article:
-            article_dict = {
-                "title": article.title,
-                "excerpt": article.excerpt or "",
-                "slug": article.slug,
-                "featured_image_url": article.featured_image_url,
-            }
-            if template.template_type == "spotlight":
-                rendered_html = email_service.render_article_spotlight(campaign, article_dict, test_user)
-            elif template.template_type == "roundup":
-                rendered_html = email_service.render_weekly_roundup(campaign, article_dict, test_user)
-
-    if template and template.template_type == "data_alert":
-        sample_alert = {
-            "alert_type": "Disease Pressure",
-            "region": (campaign.target_regions or ["Marlborough"])[0],
-            "metric_name": "Botrytis Risk Index",
-            "current_value": "High",
-            "threshold_value": "Moderate",
-            "description": "Disease pressure has exceeded the alert threshold for this region.",
-        }
-        rendered_html = email_service.render_data_alert(campaign, sample_alert, test_user)
+    rendered_html = _render_campaign(db, campaign, template, test_user, sample=True)
 
     email_service._send_email(
         to_email=data.email,
@@ -406,18 +446,6 @@ def _send_campaign_emails(campaign_id: int):
             EmailTemplate.id == campaign.template_id
         ).first()
 
-        # Pre-load article for spotlight/roundup templates
-        article_dict = None
-        if campaign.article_ids:
-            article = db.query(Article).filter(Article.id == campaign.article_ids[0]).first()
-            if article:
-                article_dict = {
-                    "title": article.title,
-                    "excerpt": article.excerpt or "",
-                    "slug": article.slug,
-                    "featured_image_url": article.featured_image_url,
-                }
-
         sends = db.query(EmailSend).filter(
             EmailSend.campaign_id == campaign_id,
             EmailSend.status == "queued",
@@ -425,25 +453,10 @@ def _send_campaign_emails(campaign_id: int):
 
         for send in sends:
             try:
-                # Render personalized HTML per user (for unsubscribe token)
+                # Rendered per user, because the unsubscribe footer carries
+                # that user's own token.
                 user = db.query(PublicUser).filter(PublicUser.id == send.user_id).first()
-                html_content = campaign.body_html or ""
-
-                if template and user:
-                    if template.template_type in ("spotlight", "roundup") and article_dict:
-                        render_fn = (email_service.render_article_spotlight
-                                     if template.template_type == "spotlight"
-                                     else email_service.render_weekly_roundup)
-                        html_content = render_fn(campaign, article_dict, user)
-                    elif template.template_type == "data_alert":
-                        alert_data = {
-                            "alert_type": "Climate Alert",
-                            "region": (campaign.target_regions or [""])[0],
-                            "metric_name": "Alert",
-                            "current_value": "",
-                            "description": campaign.intro_text or "",
-                        }
-                        html_content = email_service.render_data_alert(campaign, alert_data, user)
+                html_content = _render_campaign(db, campaign, template, user)
 
                 email_service._send_email(
                     to_email=send.email_address,

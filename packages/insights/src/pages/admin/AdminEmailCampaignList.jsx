@@ -1,7 +1,7 @@
 // src/pages/admin/AdminEmailCampaignList.jsx - Admin email campaign management
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, BarChart2, RefreshCw, Send } from 'lucide-react';
+import { Plus, Edit, BarChart2, RefreshCw, Send, Trash2 } from 'lucide-react';
 import AdminLayout from '../../components/AdminLayout';
 import emailCampaignService from '../../services/emailCampaignService';
 
@@ -12,6 +12,13 @@ function AdminEmailCampaignList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // The row awaiting confirmation, and the row currently being deleted. Two
+  // pieces of state rather than a window.confirm so the question appears in the
+  // row it is about - the list can run to pages of similar subject lines, and a
+  // modal that just says "Delete this campaign?" does not say WHICH.
+  const [confirmingId, setConfirmingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const pageSize = 20;
 
   const fetchCampaigns = async () => {
@@ -30,6 +37,26 @@ function AdminEmailCampaignList() {
   };
 
   useEffect(() => { fetchCampaigns(); }, [page, statusFilter]);
+
+  // Only drafts and scheduled campaigns are deletable. A sent one is the record
+  // of a message real people received, and a sending one has a background task
+  // walking its rows - the API refuses both, and the button is not offered.
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    setActionError(null);
+    try {
+      await emailCampaignService.deleteCampaign(id);
+      setConfirmingId(null);
+      // Deleting the last row of a page would otherwise leave an empty page
+      // with no way back except the Previous button.
+      if (campaigns.length === 1 && page > 1) setPage((p) => p - 1);
+      else await fetchCampaigns();
+    } catch (err) {
+      setActionError(err.response?.data?.detail || err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
 
@@ -52,6 +79,12 @@ function AdminEmailCampaignList() {
 
   return (
     <AdminLayout title="Email Campaigns" subtitle={`${total} total campaigns`}>
+      {actionError && (
+        <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', color: '#dc2626', marginBottom: '1rem', fontSize: '0.875rem' }}>
+          {actionError}
+        </div>
+      )}
+
       {/* Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -119,14 +152,43 @@ function AdminEmailCampaignList() {
                   <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>{pctDisplay(c.opens_count, c.recipients_count)}</td>
                   <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>{pctDisplay(c.clicks_count, c.recipients_count)}</td>
                   <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                      {(c.status === 'draft' || c.status === 'scheduled') && (
-                        <Link to={`/admin/email/${c.id}/edit`} style={{ color: '#2563eb' }} title="Edit"><Edit size={16} /></Link>
-                      )}
-                      {c.status === 'sent' && (
-                        <Link to={`/admin/email/${c.id}/edit`} style={{ color: '#6b7280' }} title="View stats"><BarChart2 size={16} /></Link>
-                      )}
-                    </div>
+                    {confirmingId === c.id ? (
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>Delete?</span>
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          disabled={deletingId === c.id}
+                          style={{ padding: '2px 10px', border: 'none', borderRadius: '4px', background: '#dc2626', color: 'white', fontSize: '0.8rem', cursor: 'pointer' }}
+                        >
+                          {deletingId === c.id ? 'Deleting…' : 'Yes'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmingId(null)}
+                          disabled={deletingId === c.id}
+                          style={{ padding: '2px 10px', border: '1px solid #d1d5db', borderRadius: '4px', background: 'white', color: '#374151', fontSize: '0.8rem', cursor: 'pointer' }}
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        {(c.status === 'draft' || c.status === 'scheduled') && (
+                          <>
+                            <Link to={`/admin/email/${c.id}/edit`} style={{ color: '#2563eb' }} title="Edit"><Edit size={16} /></Link>
+                            <button
+                              onClick={() => setConfirmingId(c.id)}
+                              title="Delete"
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#dc2626', display: 'flex' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                        {c.status === 'sent' && (
+                          <Link to={`/admin/email/${c.id}/edit`} style={{ color: '#6b7280' }} title="View stats"><BarChart2 size={16} /></Link>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

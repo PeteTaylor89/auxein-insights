@@ -137,6 +137,13 @@ function AdminEmailCampaignEditor() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Which content fields the chosen template actually consumes. A general email
+  // has no article behind it and writes its own body; the other three take an
+  // article (or a metric) and ignore `body_html` entirely, so showing both sets
+  // to both would offer fields that silently do nothing.
+  const selectedTemplate = templates.find((t) => t.id === parseInt(form.template_id));
+  const isGeneral = selectedTemplate?.template_type === 'general';
+
   const addArticle = (articleId) => {
     const article = allArticles.find((a) => a.id === articleId);
     if (!article) return;
@@ -366,7 +373,28 @@ function AdminEmailCampaignEditor() {
             />
           </div>
 
+          {/* Body — general emails only. The article templates build their own
+              body from the article, so a body field there would be ignored. */}
+          {isGeneral && (
+            <div>
+              <label style={labelStyle}>Body</label>
+              <textarea
+                value={form.body_html}
+                onChange={(e) => updateField('body_html', e.target.value)}
+                rows={14}
+                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.8rem', lineHeight: 1.6 }}
+                placeholder={'<p>Write the email here.</p>'}
+              />
+              <small style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
+                HTML, passed through as written and dropped into the standard
+                Auxein Insights shell. The greeting, header and unsubscribe
+                footer are added for you.
+              </small>
+            </div>
+          )}
+
           {/* Article Picker */}
+          {!isGeneral && (
           <div>
             <label style={labelStyle}>Content — Select Article(s)</label>
             {selectedArticles.length > 0 && (
@@ -398,6 +426,7 @@ function AdminEmailCampaignEditor() {
                 ))}
             </select>
           </div>
+          )}
 
           {/* Outro */}
           <div>

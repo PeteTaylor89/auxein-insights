@@ -14,6 +14,7 @@ const emailCampaignService = {
   getCampaign: (id) => publicApi.get(`${ADMIN}/campaigns/${id}`).then(r => r.data),
   createCampaign: (data) => publicApi.post(`${ADMIN}/campaigns`, data).then(r => r.data),
   updateCampaign: (id, data) => publicApi.put(`${ADMIN}/campaigns/${id}`, data).then(r => r.data),
+  deleteCampaign: (id) => publicApi.delete(`${ADMIN}/campaigns/${id}`).then(r => r.data),
   previewCampaign: (id) => publicApi.post(`${ADMIN}/campaigns/${id}/preview`).then(r => r.data),
   testSendCampaign: (id, email) => publicApi.post(`${ADMIN}/campaigns/${id}/test-send`, { email }).then(r => r.data),
   sendCampaign: (id, data = {}) => publicApi.post(`${ADMIN}/campaigns/${id}/send`, data).then(r => r.data),

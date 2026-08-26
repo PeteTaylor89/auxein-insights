@@ -489,6 +489,55 @@ The Auxein Team
         """
         return self._get_email_header_footer(content)
 
+    def render_general(self, campaign, user) -> str:
+        """Render a general email - branded shell, no content object behind it.
+
+        The other three campaign templates are each ABOUT something the database
+        already holds: a spotlight is about an article, a roundup is about a
+        roundup article, an alert is about a metric crossing a threshold. There
+        was no way to simply write to the list - a service notice, a price
+        change, a season opening - without inventing an article to hang it on.
+
+        `body_html` is the admin's own markup and is passed through as authored.
+        It is admin-only input rendered into an email, never into the site, so
+        it is not sanitised here; the same is already true of `intro_text` and
+        `outro_text` in every other template.
+
+        The footer matters more here than anywhere else. Before this existed an
+        unrecognised template type fell through to a raw `campaign.body_html`
+        with NO unsubscribe link, which the Unsolicited Electronic Messages Act
+        2007 requires on a commercial message. Going through a renderer means
+        the footer cannot be forgotten.
+        """
+        user_name = getattr(user, 'first_name', None) or 'there'
+        intro = campaign.intro_text or ''
+        body = campaign.body_html or ''
+        outro = campaign.outro_text or ''
+
+        content = f"""
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+    <tr>
+        <td style="padding: 40px; background: linear-gradient(135deg, #446145 0%, #5B6830 100%); border-radius: 8px 8px 0 0; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 24px;">Auxein Insights</h1>
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 30px 40px 10px 40px;">
+            <p style="margin: 0; color: #505050; font-size: 16px; line-height: 1.6;">Hi {user_name},</p>
+            {f'<p style="margin: 12px 0 0 0; color: #505050; font-size: 16px; line-height: 1.6;">{intro}</p>' if intro else ''}
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 10px 40px 20px 40px; color: #505050; font-size: 16px; line-height: 1.6;">
+            {body}
+            {f'<p style="margin: 20px 0 0 0; color: #505050; font-size: 14px; line-height: 1.5;">{outro}</p>' if outro else ''}
+        </td>
+    </tr>
+    {self._get_unsubscribe_footer(user)}
+</table>
+        """
+        return self._get_email_header_footer(content)
+
     def render_data_alert(self, campaign, alert_data: dict, user) -> str:
         """Render a climate data alert email.
         alert_data dict: alert_type, region, metric_name, current_value,

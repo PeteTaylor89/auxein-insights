@@ -2,10 +2,11 @@
 """
 scripts/seed_email_templates.py
 
-Seed the email_templates table with the 3 campaign template types:
+Seed the email_templates table with the 4 campaign template types:
   - Article Spotlight (single article feature)
   - Weekly Roundup (auto-composed roundup article, sent spotlight-style)
   - Climate Data Alert (data-triggered notification)
+  - General Email (free-form; no article, no metric behind it)
 
 Usage:
     python scripts/seed_email_templates.py
@@ -54,6 +55,17 @@ TEMPLATES = [
         "template_type": "data_alert",
         "subject_template": "{alert_type} alert for {region} - Auxein Insights",
         "body_template": "Climate data trigger notification with metric highlight and dashboard link.",
+    },
+    {
+        # The other three are each ABOUT a row in the database. This one is not,
+        # which is the whole point: a service notice, a price change or a season
+        # opening had no way out to the list without inventing an article to
+        # hang it on. The subject is left empty because a general email has no
+        # recurring shape to prefill - the admin writes it.
+        "name": "General Email",
+        "template_type": "general",
+        "subject_template": "",
+        "body_template": "Free-form email. Intro, body and outro in the standard Auxein Insights shell. No article or metric attached.",
     },
 ]
 
