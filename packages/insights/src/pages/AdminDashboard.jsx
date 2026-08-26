@@ -1,18 +1,13 @@
 // src/pages/AdminDashboard.jsx - Admin Overview Dashboard
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Users, 
-  UserCheck, 
+import {
+  Users,
+  UserCheck,
   UserPlus,
-  Cloud,
-  CloudOff,
-  AlertTriangle,
-  Database,
   Activity,
   TrendingUp,
   RefreshCw,
-  Check
 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import adminService from '../services/adminService';
@@ -34,35 +29,34 @@ const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'blue' }) => (
   </div>
 );
 
-// Status Badge Component
-const StatusBadge = ({ status }) => (
-  <span className={`status-badge status-${status}`}>{status}</span>
-);
+// How many events the activity feed asks for. This is now the substance of the
+// page rather than a footnote under the weather cards, so it is worth more than
+// the ten it used to show.
+const ACTIVITY_LIMIT = 25;
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userStats, setUserStats] = useState(null);
-  const [weatherStats, setWeatherStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState(null);
-  const [ingestionSummary, setIngestionSummary] = useState(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const [users, weather, activity, ingestion] = await Promise.all([
+      // Weather deliberately does NOT load here. Station health, ingestion
+      // success and the source breakdown all live at /admin/weather, which is
+      // where they are acted on. Duplicating them on the overview also meant
+      // every dashboard load paid for `/weather/stations/stats`, a ~58s cold
+      // call behind a TTL cache, to render numbers nobody worked from.
+      const [users, activity] = await Promise.all([
         adminService.users.getStats(),
-        adminService.weather.getStationStats(),
-        adminService.users.getActivity(7, 10),
-        adminService.weather.getIngestionSummary(7),
+        adminService.users.getActivity(7, ACTIVITY_LIMIT),
       ]);
-      
+
       setUserStats(users);
-      setWeatherStats(weather);
       setRecentActivity(activity);
-      setIngestionSummary(ingestion);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
       setError('Failed to load dashboard data. Please try again.');
@@ -101,7 +95,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <AdminLayout title="Admin Dashboard" subtitle="Auxein Insights monitoring overview">
+    <AdminLayout title="Admin Dashboard" subtitle="Users and recent activity">
       {/* Refresh Button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
         <button onClick={fetchDashboardData} className="btn btn-secondary">
@@ -187,111 +181,19 @@ const AdminDashboard = () => {
         )}
       </section>
 
-      {/* Weather Infrastructure Section */}
-      <section className="mb-6">
-        <div className="section-header">
-          <h2 className="section-title"><Cloud size={20} /> Weather Infrastructure</h2>
-          <Link to="/admin/weather" className="section-link">View all stations →</Link>
-        </div>
-        
-        <div className="stats-grid">
-          <StatsCard
-            title="Active Stations"
-            value={weatherStats?.active_stations || 0}
-            subtitle={`${weatherStats?.total_stations || 0} total`}
-            icon={Cloud}
-            color="cyan"
-          />
-          <StatsCard
-            title="Healthy"
-            value={weatherStats?.healthy_stations || 0}
-            icon={Check}
-            color="green"
-          />
-          <StatsCard
-            title="Stale"
-            value={weatherStats?.stale_stations || 0}
-            icon={AlertTriangle}
-            color="yellow"
-          />
-          <StatsCard
-            title="Offline"
-            value={weatherStats?.offline_stations || 0}
-            icon={CloudOff}
-            color="red"
-          />
-        </div>
-
-        {/* By Source */}
-        {weatherStats?.by_source && (
-          <div className="card mt-4">
-            <div className="card-body">
-              <h3 className="text-sm font-medium text-gray mb-3">Stations by Source</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                {Object.entries(weatherStats.by_source).map(([source, count]) => (
-                  <div key={source} className="breakdown-item" style={{ padding: '0.5rem 1rem' }}>
-                    <span className="font-medium">{source}</span>
-                    <span className="text-muted"> ({count})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Ingestion Success Rates */}
-        {ingestionSummary?.by_source && ingestionSummary.by_source.length > 0 && (
-          <div className="card mt-4">
-            <div className="card-body">
-              <h3 className="text-sm font-medium text-gray mb-3">
-                Ingestion Success (Last 7 Days) — {ingestionSummary.overall_success_rate_pct}% overall
-              </h3>
-              {ingestionSummary.by_source.map((src) => (
-                <div key={src.data_source} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span className="text-sm">{src.data_source}</span>
-                  <div className="progress-with-label">
-                    <div className="progress-bar">
-                      <div 
-                        className={`progress-bar-fill ${src.success_rate_pct >= 95 ? 'green' : src.success_rate_pct >= 80 ? 'yellow' : 'red'}`}
-                        style={{ width: `${src.success_rate_pct}%` }}
-                      />
-                    </div>
-                    <span className={`progress-label ${src.success_rate_pct >= 95 ? 'green' : src.success_rate_pct >= 80 ? 'yellow' : 'red'}`}>
-                      {src.success_rate_pct}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Records Summary */}
-        {weatherStats?.records_last_7d !== undefined && (
-          <div className="card mt-4">
-            <div className="card-body">
-              <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
-                <div>
-                  <p className="stats-card-value">{weatherStats.records_last_7d?.toLocaleString() || 0}</p>
-                  <p className="text-sm text-muted">Records (7 days)</p>
-                </div>
-                <div>
-                  <p className="stats-card-value">{weatherStats.records_last_24h?.toLocaleString() || 0}</p>
-                  <p className="text-sm text-muted">Records (24 hours)</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
       {/* Recent Activity */}
-      {recentActivity?.events && recentActivity.events.length > 0 && (
-        <section>
-          <h2 className="section-title mb-4"><Activity size={20} /> Recent Activity</h2>
+      <section>
+        <h2 className="section-title mb-4"><Activity size={20} /> Recent Activity</h2>
+        {!recentActivity?.events?.length ? (
+          <div className="card">
+            <div className="card-body">
+              <p className="text-sm text-muted">No sign-ins or sign-ups in the last 7 days.</p>
+            </div>
+          </div>
+        ) : (
           <div className="card">
             <ul className="activity-list">
-              {recentActivity.events.slice(0, 10).map((event, idx) => (
+              {recentActivity.events.slice(0, ACTIVITY_LIMIT).map((event, idx) => (
                 <li key={idx} className="activity-item">
                   <div className="activity-item-left">
                     <span className={`activity-dot ${event.event_type}`} />
@@ -310,8 +212,8 @@ const AdminDashboard = () => {
               ))}
             </ul>
           </div>
-        </section>
-      )}
+        )}
+      </section>
     </AdminLayout>
   );
 };
