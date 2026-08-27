@@ -74,6 +74,34 @@ class SurfaceNotFound(LookupError):
     """No indexed surface matches the request."""
 
 
+# --- bands withheld from serving --------------------------------------------
+#
+# WITHHELD 2026-08-27: rainfall/max_dry_spell.
+#
+# Every published month from 1986-02 onward is wrong. The producer carried the
+# running dry-spell length across month boundaries as a single NATIONAL SCALAR
+# (`monthly.monthly_stats`, `carry_out = int(run.max())`) and broadcast it back
+# into every cell, so the driest cell in the country set a floor under the whole
+# map and the floor could only ever rise. Measured on the live archive:
+#
+#     1986-01  min  2  p50  7  max 12     <- the first month, carry 0, correct
+#     2020-06  min 68  p50 70  max 73     <- a 68-day dry spell in every cell
+#     2026-06  min 42  p50 42  max 65     <- in the middle of the wet season
+#
+# The producer is fixed (per-cell carry, `best` starting at zero) but the
+# ARCHIVE still holds the bad values, and a band that is visibly impossible is
+# worse on a public map than an absent one. This is the holding line until
+# rainfall is republished; it is one entry to delete when it has been.
+#
+# Withholding here rather than in the client for the same reason the projection
+# exclusion lives in `projection_store`: every consumer — tiles, /probe, /point,
+# the catalogue — inherits it from one place, and a client that has not been
+# redeployed cannot keep serving it.
+WITHHELD_STATISTICS: set[tuple[str, str]] = {
+    ("rainfall", "max_dry_spell"),
+}
+
+
 # --- colour ramps -----------------------------------------------------------
 
 RAMPS: dict[str, list[list[int]]] = {
@@ -287,6 +315,62 @@ def domain_for(variable: str, statistic: Optional[str]) -> tuple[float, float, s
     return (0.0, 1.0, "viridis")
 
 
+# THE UNIT IS A PROPERTY OF THE BAND, NOT OF THE VARIABLE.
+#
+# `UNITS` above answers "what is temp_min measured in" and the answer is degrees
+# — but `temp_min/frost_days` is a COUNT OF DAYS, and `rainfall/wet_days` is a
+# count of days too. Reading the unit off the variable labels both of those with
+# the variable's own unit, which is how a frost count reaches a reader as
+# "12 C" and a wet-day count as "9 mm". Same shape as the rainfall `cv_units`
+# trap: a number whose unit is inherited rather than stated.
+#
+# Three kinds of band live here and they are NOT interchangeable:
+#   * counts — how many days in the period met a condition;
+#   * day-of-month INDICES — which day it happened on, 1..31. "Day 27" is not
+#     "27 days", and a reader who adds them up is wrong in a way no error will
+#     catch;
+#   * days since the archive epoch — `all_time_*_day`, folded across the whole
+#     record by `run_history.EPOCH`, which is 1986-01-01 and is also written
+#     into the manifest as `date_epoch`.
+#
+# `sd` deliberately keeps the variable's unit: a dispersion in degrees IS in
+# degrees. So do `wet_top1..K`, which are rainfall depths in mm and not counts —
+# the same distinction `run_history.INTEGER_BANDS` draws for LERC tolerance.
+STATISTIC_UNITS: dict[str, str] = {
+    "frost_days": "days",
+    "wet_days": "days",
+    "days_over_25": "days",
+    "days_over_30": "days",
+    "days_over_10mm": "days",
+    "days_over_25mm": "days",
+    "max_dry_spell": "days",
+    "argmin_day": "day of month",
+    "argmax_day": "day of month",
+    "first_frost_day": "day of month",
+    "last_frost_day": "day of month",
+    "all_time_max_day": "days since 1986-01-01",
+    "all_time_min_day": "days since 1986-01-01",
+}
+
+# Units whose values are whole numbers. A count of 12.4 days is not a count, and
+# a fractional day-of-month index is not a date. Clients round on this rather
+# than on a list of statistic names, so a band added here needs no client change.
+INTEGER_UNITS = frozenset({"days", "day of month", "days since 1986-01-01"})
+
+
+def unit_for(variable: str, statistic: Optional[str]) -> Optional[str]:
+    """The unit of the BAND, which is not always the unit of the variable.
+
+    Statistic first: a count is days whatever it was counted from. Falls back to
+    the variable's own unit, which is right for `mean`, `min`, `max`, `sd`, the
+    ranked wet-day depths and the degree-day accumulations.
+    """
+    stat = statistic or "mean"
+    if stat in STATISTIC_UNITS:
+        return STATISTIC_UNITS[stat]
+    return UNITS.get(variable)
+
+
 # --- GDAL environment -------------------------------------------------------
 
 def _configure_proj() -> None:
@@ -395,6 +479,11 @@ def _valid_at_for(granularity: str, when: str) -> datetime:
 def resolve(db: Session, variable: str, granularity: str,
             statistic: Optional[str], valid_at: Optional[str]) -> dict:
     """One indexed surface, or SurfaceNotFound. Never invents a row."""
+    # Deliberately the same error as an absent surface. A withheld band should
+    # not advertise itself by returning a distinguishable refusal, and every
+    # read path (tiles, probe, point) reaches the archive through here.
+    if statistic and (variable, statistic) in WITHHELD_STATISTICS:
+        raise SurfaceNotFound(f"no {variable}/{statistic} surface")
     params: dict = {"variable": variable, "granularity": granularity}
     where = ["variable = :variable", "granularity = :granularity",
              "status <> 'failed'"]
@@ -439,7 +528,8 @@ def statistics_for(db: Session, variable: str, granularity: str) -> list[str]:
         WHERE variable = :v AND granularity = :g AND statistic IS NOT NULL
         ORDER BY statistic
     """), {"v": variable, "g": granularity}).scalars().all()
-    return [r for r in rows if r]
+    return [r for r in rows
+            if r and (variable, r) not in WITHHELD_STATISTICS]
 
 
 def variables_for(db: Session) -> list[dict]:
@@ -462,6 +552,12 @@ def availability(db: Session, variable: str, granularity: str,
     (`surfaceService.parseGaps`); emitting inclusive intervals here would grey
     out two good months per hole with no error anywhere.
     """
+    if statistic and (variable, statistic) in WITHHELD_STATISTICS:
+        return {"variable": variable, "granularity": granularity,
+                "statistic": statistic, "first": None, "last": None,
+                "count": 0, "gaps": [], "resolutions": [], "steps": [],
+                "unit": unit_for(variable, statistic),
+                "contract_version": CONTRACT_VERSION}
     params: dict = {"v": variable, "g": granularity}
     where = ["variable = :v", "granularity = :g", "status <> 'failed'"]
     if statistic:
@@ -538,7 +634,9 @@ def availability(db: Session, variable: str, granularity: str,
         "gaps": gaps,
         "resolutions": resolutions,
         "steps": steps,
-        "unit": UNITS.get(variable),
+        # The BAND's unit, not the variable's: a `frost_days` catalogue that
+        # says 'C' is the same defect as a popup that says it. See unit_for.
+        "unit": unit_for(variable, statistic),
         "contract_version": CONTRACT_VERSION,
     }
 

@@ -312,10 +312,19 @@ def main() -> int:
         check("rainfall cv_rmse is SUPPRESSED, not shown as mm",
               rp.confidence.cv_rmse is None)
 
-        check("daily granularity is refused, not faked",
+        # DAILY IS SERVED NOW. This asserted a 422 until 2026-08-27, which was
+        # true when it was written and stale from the day `run_live.py` first
+        # published a daily surface. A day with no surface still comes back as a
+        # null point with a reason — the 422 was about the CADENCE not existing,
+        # and it does.
+        check("daily granularity is served, not refused",
               status_of(S.point_sample, _user=PRO, **BL, variables="temp_mean",
                         start="2020-01-01", end="2020-01-05",
-                        granularity="daily", statistic=None, db=db) == 422)
+                        granularity="daily", statistic=None, db=db) == 200)
+        check("an unsupported granularity still 422s",
+              status_of(S.point_sample, _user=PRO, **BL, variables="temp_mean",
+                        start="2020-01-01", end="2020-01-05",
+                        granularity="fortnightly", statistic=None, db=db) == 422)
         check("an unknown variable 422s",
               status_of(S.point_sample, _user=PRO, **BL, variables="nope",
                         start="2020-01", end="2020-01",
@@ -324,6 +333,324 @@ def main() -> int:
               status_of(S.point_sample, _user=PRO, **BL, variables="temp_mean",
                         start="2020-06", end="2020-01",
                         granularity="monthly", statistic=None, db=db) == 422)
+
+        # --- /probe -------------------------------------------------------
+        # FREE AT THE CADENCE YOU CAN ALREADY SEE. The whole point of this
+        # section is that the probe and the catalogue cannot disagree about who
+        # may see what: every assertion here pairs a probe with the step list
+        # `/available` handed the same caller.
+        print("\n/probe")
+        from fastapi import Response as _Response
+
+        steps = av.meta["steps"]
+        newest = steps[-1]["valid_at"]
+        archive = steps[0]["valid_at"]
+
+        def probe(user, **kw):
+            kw.setdefault("variable", "temp_mean")
+            kw.setdefault("granularity", "monthly")
+            kw.setdefault("statistic", None)
+            kw.setdefault("lon", BL["lon"])
+            kw.setdefault("lat", BL["lat"])
+            return S.probe(response=_Response(), db=db, user=user, **kw)
+
+        def probe_status(user, **kw) -> int:
+            try:
+                probe(user, **kw)
+                return 200
+            except HTTPException as exc:
+                return exc.status_code
+
+        anon_av = S.available(variable="temp_mean", granularity="monthly",
+                              statistic=None, db=db, user=ANON)
+        check("anonymous sees exactly one step",
+              len(anon_av.meta["steps"]) == 1, str(len(anon_av.meta["steps"])))
+        check("and it is the same newest step a member sees",
+              anon_av.meta["steps"][-1]["valid_at"] == newest)
+
+        pb = probe(ANON, valid_at=newest)
+        check("anonymous probes the newest step and gets a value",
+              pb.value is not None, f"{pb.value} {pb.unit}")
+        check("the probe is in degrees, at 500 m",
+              pb.unit == "C" and pb.resolution_m == 500,
+              f"{pb.unit} {pb.resolution_m}")
+        check("Blenheim's value is physically plausible",
+              pb.value is not None and 0.0 < pb.value < 25.0, str(pb.value))
+        # The confidence block is the Pro line. It must not be reachable here at
+        # all — not empty, ABSENT — or the split is decorative.
+        check("the probe carries NO confidence block",
+              not hasattr(pb, "confidence"))
+        check("meta names the tier it answered as",
+              pb.meta.get("tier") == "anonymous", str(pb.meta.get("tier")))
+
+        # The archive is behind sign-in, and the refusal has to say so rather
+        # than reporting the month as missing.
+        check("anonymous is refused the archive with a 401",
+              probe_status(ANON, valid_at=archive) == 401)
+        try:
+            probe(ANON, valid_at=archive)
+            detail = ""
+        except HTTPException as exc:
+            detail = str(exc.detail)
+        check("and the 401 carries the catalogue's own offer",
+              detail == (anon_av.meta["access"] or {}).get("unlock"), detail)
+        check("a member probes the same archive month",
+              probe(FREE, valid_at=archive).value is not None)
+
+        # THE CADENCE GATE, checked before the date one. This holds whether or
+        # not any daily surface exists, because the withholding happens in
+        # `_gate_steps` before the steps are looked at.
+        check("daily is 401 for anonymous",
+              probe_status(ANON, granularity="daily",
+                           valid_at="2026-08-01") == 401)
+        check("daily is 402 for a signed-in free account",
+              probe_status(FREE, granularity="daily",
+                           valid_at="2026-08-01") == 402)
+        daily_av = S.available(variable="temp_mean", granularity="daily",
+                               statistic=None, db=db, user=PRO)
+        daily_steps = daily_av.meta["steps"]
+        if daily_steps:
+            dpb = probe(PRO, granularity="daily",
+                        valid_at=daily_steps[-1]["valid_at"])
+            check("Pro probes the newest daily surface",
+                  dpb.value is not None,
+                  f'{daily_steps[-1]["valid_at"]} = {dpb.value}')
+        else:
+            check("Pro probes the newest daily surface", False,
+                  "no daily steps indexed — the daily engine has published none")
+
+        # A month that does not exist is 404 for EVERYONE. Reporting it as 401
+        # would tell a visitor the archive has a hole where it does not.
+        check("a nonexistent month is 404, not a gate",
+              probe_status(FREE, valid_at="1900-01") == 404)
+        check("and 404 for anonymous too, not 401",
+              probe_status(ANON, valid_at="1900-01") == 404)
+
+        # A client holding a full date for a monthly layer must land on the
+        # month that contains it. `stampFor` on the client and `_normalise_stamp`
+        # here have to agree or the popup quotes a month the map is not showing.
+        check("a full date resolves to the month containing it",
+              probe(FREE, valid_at=f"{archive[:7]}-17").value
+              == probe(FREE, valid_at=archive).value)
+
+        # THE TWO READ PATHS MUST AGREE. If the probe and /point ever return
+        # different numbers for one cell, one of them is reading a different
+        # surface and the free one is the one a visitor will quote.
+        parity = S.point_sample(_user=PRO, **BL, variables="temp_mean",
+                                start=newest, end=newest, granularity="monthly",
+                                statistic=None, db=db).series[0].points[0].value
+        check("probe and /point agree to the millidegree",
+              parity is not None and abs(parity - probe(PRO, valid_at=newest).value) < 1e-6,
+              f"{parity} vs {probe(PRO, valid_at=newest).value}")
+
+        sea = probe(FREE, lon=168.0, lat=-41.0, valid_at=newest)
+        check("a probe at sea is null, not zero",
+              sea.value is None and "land mask" in (sea.reason or ""),
+              f"{sea.value} / {sea.reason}")
+        check("an unknown variable 422s",
+              probe_status(FREE, variable="nope", valid_at=newest) == 422)
+        check("an unparseable date 422s",
+              probe_status(FREE, valid_at="not-a-date") == 422)
+
+        rain = probe(FREE, variable="rainfall", statistic="sum", valid_at=newest)
+        check("rainfall probes in millimetres",
+              rain.unit == "mm" and (rain.value is None or rain.value >= 0),
+              f"{rain.value} {rain.unit}")
+
+        # THE UNIT IS THE BAND'S, NOT THE VARIABLE'S. `temp_min/frost_days` is a
+        # count of days measured off a degree layer and `rainfall/wet_days` a
+        # count off a millimetre one; both read the variable's unit until
+        # 2026-08-27 and reached the popup as '12.4 C' and '9.0 mm'.
+        frost = probe(FREE, variable="temp_min", statistic="frost_days",
+                      valid_at=newest)
+        check("a frost COUNT is in days, not degrees",
+              frost.unit == "days", f"{frost.value} {frost.unit}")
+        wet = probe(FREE, variable="rainfall", statistic="wet_days",
+                    valid_at=newest)
+        check("a wet-day COUNT is in days, not millimetres",
+              wet.unit == "days", f"{wet.value} {wet.unit}")
+        # A day-of-month index is not a count of days. Adding two of them is
+        # meaningless, so they must not share a unit with something you can add.
+        check("a day-of-month index says so",
+              probe(FREE, variable="temp_min", statistic="argmin_day",
+                    valid_at=newest).unit == "day of month")
+        # And the value bands are untouched by the fix.
+        check("a mean temperature is still in degrees",
+              probe(FREE, variable="temp_min", statistic="mean",
+                    valid_at=newest).unit == "C")
+        check("a ranked wet-day DEPTH is still millimetres",
+              probe(FREE, variable="rainfall", statistic="wet_top1",
+                    valid_at=newest).unit == "mm")
+        check("a season accumulation is still degree days",
+              S.store.unit_for("gdd10", "cumulative") == "GDD")
+
+        # The same unit has to reach the catalogue and the series, or the legend
+        # and the popup disagree about one number on one screen.
+        check("/available reports the band's unit too",
+              S.available(variable="temp_min", granularity="monthly",
+                          statistic="frost_days", db=db,
+                          user=FREE).meta["unit"] == "days")
+        check("/point reports the band's unit too",
+              S.point_sample(_user=PRO, **BL, variables="temp_min",
+                             start=newest, end=newest, granularity="monthly",
+                             statistic="frost_days", db=db).series[0].unit
+              == "days")
+
+        # EXHAUSTIVE, so a band added to the archive cannot inherit a unit by
+        # accident. Every statistic that is genuinely in the variable's own unit
+        # is named here; anything else must be declared in STATISTIC_UNITS.
+        VALUE_BANDS = {
+            "mean", "median", "min", "max", "sd", "sum", "cumulative",
+            "all_time_max", "all_time_min",
+            "wet_top1", "wet_top2", "wet_top3", "wet_top4", "wet_top5",
+        }
+        from sqlalchemy import text as _t
+        published_stats = [r[0] for r in db.execute(_t(
+            "SELECT DISTINCT statistic FROM surface_run "
+            "WHERE status <> 'failed' AND statistic IS NOT NULL"
+        )).all()]
+        undecided = sorted(st for st in published_stats
+                           if st not in VALUE_BANDS
+                           and st not in S.store.STATISTIC_UNITS)
+        check("every published band has a decided unit",
+              not undecided, f"undecided: {undecided}")
+
+        # --- /projections/probe -------------------------------------------
+        print("\n/projections/probe")
+        players = S.projections.layers(db)
+        if not players:
+            check("a projection layer is published", False, "catalogue is empty")
+        else:
+            layer = players[0]
+            psteps = S.projections.steps(db, layer["variable"], layer["statistic"])
+            st = psteps[0] if psteps else None
+            if st is None:
+                check("the layer has a step", False, str(layer))
+            else:
+                def pprobe(user):
+                    return S.projection_probe(
+                        response=_Response(), lon=BL["lon"], lat=BL["lat"],
+                        variable=layer["variable"], statistic=layer["statistic"],
+                        scenario=st["scenario"], period=st["period"],
+                        season=st["season"], db=db, user=user)
+
+                try:
+                    pprobe(ANON)
+                    check("projections stay behind sign-in", False, "anonymous got a value")
+                except HTTPException as exc:
+                    check("projections stay behind sign-in", exc.status_code == 401,
+                          str(exc.status_code))
+                pp = pprobe(FREE)
+                check("a member probes a projection",
+                      pp.value is not None, f"{pp.value} {pp.unit}")
+                # THE UNIT COMES OFF THE ROW. A projected rainfall CHANGE field
+                # is a percentage while the measured layer is millimetres, and
+                # labelling one with the other's unit is the trap this checks.
+                row_unit = S.projections.resolve(
+                    db, layer["variable"], layer["statistic"], st["scenario"],
+                    st["period"], st["season"])["unit"]
+                check("the projection unit is the row's, not the variable's",
+                      pp.unit == row_unit, f"{pp.unit} vs {row_unit}")
+                # The vocabulary is the TABLE's, not the UI's: the column
+                # holds 'projection' / 'baseline' while the client's mode is
+                # called Projected. Echoing the row verbatim keeps the popup
+                # attributable to a row rather than to a label.
+                check("the probe says which side of the flip it quoted",
+                      pp.meta.get("kind") in (S.projections.KIND_PROJECTION,
+                                              S.projections.KIND_BASELINE),
+                      str(pp.meta.get("kind")))
+
+            # Frost is withdrawn. It must not be reachable through the probe
+            # either — the exclusion lives in projection_store.resolve, and this
+            # asserts the probe inherits it rather than restating it.
+            for wvar, wstat in sorted(S.projections.WITHHELD):
+                try:
+                    S.projection_probe(
+                        response=_Response(), lon=BL["lon"], lat=BL["lat"],
+                        variable=wvar, statistic=wstat, scenario="ssp245",
+                        period="2040-2059", season="ANN", db=db, user=FREE)
+                    check(f"{wvar}/{wstat} is unreachable by probe", False,
+                          "RESOLVED — a withdrawn metric is reachable")
+                except HTTPException as exc:
+                    check(f"{wvar}/{wstat} is unreachable by probe",
+                          exc.status_code == 404, str(exc.status_code))
+
+        # --- withheld bands, and the invariant that will police the fix ----
+        print("\nwithheld bands")
+        MDS = ("rainfall", "max_dry_spell")
+
+        # THE PRODUCER REGRESSION, and it needs no database. A cell that
+        # receives 10 mm every single day for six consecutive months must report
+        # a longest dry spell of ZERO. It reported 150 days until 2026-08-27,
+        # because the carry between months was the national maximum broadcast
+        # into every cell instead of each cell's own trailing run.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import numpy as _np
+        from interpolation import monthly as _M
+        soaked = _np.full((2, 30), 10.0, dtype=_np.float32)
+        soaked[0] = 0.0                        # one permanently dry cell beside it
+        _carry = 0
+        for _ in range(6):
+            _r = _M.monthly_stats(soaked, "rainfall", list(range(1, 31)),
+                                  dry_run_carry_in=_carry)
+            _carry = _r.dry_run_carry_out
+        check("a cell that rains every day reports no dry spell",
+              _r.bands["max_dry_spell"][1] == 0.0,
+              f'{_r.bands["max_dry_spell"][1]} days after six wet months')
+        check("and the dry cell beside it still accumulates",
+              _r.bands["max_dry_spell"][0] == 180.0,
+              str(_r.bands["max_dry_spell"][0]))
+        check("the carry between months is per cell, not a national scalar",
+              getattr(_r.dry_run_carry_out, "shape", None) == (2,),
+              str(type(_r.dry_run_carry_out)))
+
+        if MDS in S.store.WITHHELD_STATISTICS:
+            # HOLDING LINE. The producer is fixed; the published archive is not.
+            check("rainfall/max_dry_spell is absent from the vocabulary",
+                  "max_dry_spell" not in S.store.statistics_for(
+                      db, "rainfall", "monthly"))
+            check("its catalogue is empty, not merely short",
+                  S.available(variable="rainfall", granularity="monthly",
+                              statistic="max_dry_spell", db=db,
+                              user=PRO).meta["count"] == 0)
+            check("a probe of it 404s",
+                  probe_status(PRO, variable="rainfall",
+                               statistic="max_dry_spell", valid_at=newest) == 404)
+            check("a tile of it 404s",
+                  status_of(S.tile, variable="rainfall", granularity="monthly",
+                            valid_at=newest, z=5, x=31, y=19, ramp=None,
+                            vmin=None, vmax=None, statistic="max_dry_spell",
+                            db=db) == 404)
+            print("        (withheld pending a rainfall republish. Delete the "
+                  "entry in surface_store.WITHHELD_STATISTICS and the archive "
+                  "invariant below starts running.)")
+        else:
+            # The withhold has been lifted, so the archive is claimed to be
+            # republished. THIS is the check that would have caught the original
+            # defect: the national MINIMUM of a dry-spell field is the wettest
+            # cell in the country, and it cannot exceed the length of the month.
+            # It read 68 days for June 2020 and 42 for June 2026.
+            import rasterio
+            from calendar import monthrange as _mr
+            for stamp in ("1986-06", "2010-06", "2020-06", "2026-06"):
+                try:
+                    row = S.store.resolve(db, "rainfall", "monthly",
+                                          "max_dry_spell", stamp)
+                except Exception as exc:                           # noqa: BLE001
+                    check(f"{stamp} dry-spell floor", False, str(exc))
+                    continue
+                with S.store.gdal_env():
+                    with rasterio.open(S.store.object_url(row["s3_key"])) as ds:
+                        arr = ds.read(1, out_shape=(1, ds.height // 8,
+                                                    ds.width // 8))
+                        nod = ds.nodata
+                a = arr.astype("float64")
+                good = _np.isfinite(a) if nod is None else (a != nod) & _np.isfinite(a)
+                v = a[good]
+                days = _mr(int(stamp[:4]), int(stamp[5:7]))[1]
+                check(f"{stamp}: the wettest cell's dry spell fits in the month",
+                      v.size > 0 and v.min() <= days,
+                      f"floor {v.min():.0f} days vs {days} in the month")
 
         print("\n/region + /zones")
         from sqlalchemy import text as _text

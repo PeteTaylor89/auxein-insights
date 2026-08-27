@@ -357,7 +357,10 @@ def out_path(root: Path, variable: str, y: int, m: int, res: int, stat: str) -> 
 # overwriting its COGs. A kill between the stats append and the commit leaves
 # extra rows in the CSV, which is why the committed row COUNT is recorded and
 # the CSV is truncated back to it on resume.
-CKPT_VERSION = 1
+# 2 (2026-08-27): `dry_carry` became a PER-CELL array and moved from state.json
+# into records.npz. A v1 checkpoint holds the scalar national maximum that made
+# `max_dry_spell` wrong, so resuming onto one must refuse rather than continue.
+CKPT_VERSION = 2
 
 
 def _ckpt_paths(out: Path, variable: str):
@@ -397,14 +400,22 @@ def save_checkpoint(out: Path, variable: str, *, records, manifest: list,
         np.savez(fh,                           # otherwise re-append ".npz"
                  max_value=records.max_value, min_value=records.min_value,
                  max_date=records.max_date, min_date=records.min_date,
-                 n_months=np.int64(records.n_months))
+                 n_months=np.int64(records.n_months),
+                 # PER CELL, so it belongs with the other per-cell state rather
+                 # than in state.json. A resume that restarted the dry-spell
+                 # carry at zero would leave a seam in exactly one band, in the
+                 # middle of a history, with nothing downstream to flag it.
+                 dry_carry=(np.zeros(0, dtype=np.float32)
+                            if dry_carry is None
+                            else np.asarray(dry_carry, dtype=np.float32)))
     os.replace(tmp_npz, npz)
 
     tmp_js = d / "state.json.tmp"
     tmp_js.write_text(json.dumps({
         "fingerprint": fingerprint, "last_key": list(last_key),
         "manifest": manifest, "skipped": skipped,
-        "dry_carry": None if dry_carry is None else int(dry_carry),
+        # `dry_carry` lives in records.npz now -- it is an (n_cells,) array and
+        # was silently truncated to a single int here until 2026-08-27.
         "total_bytes": int(total_bytes), "n_stats_rows": int(n_stats_rows)}))
     os.replace(tmp_js, js)                     # <- commit point
 
@@ -427,6 +438,8 @@ def load_checkpoint(out: Path, variable: str, n_cells: int, expect: dict):
     rec.max_value, rec.min_value = z["max_value"], z["min_value"]
     rec.max_date, rec.min_date = z["max_date"], z["min_date"]
     rec.n_months = int(z["n_months"])
+    carry = z["dry_carry"] if "dry_carry" in z.files else np.zeros(0, np.float32)
+    state["dry_carry"] = None if carry.size == 0 else carry
     return rec, state
 
 
@@ -691,7 +704,10 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
 
     records = M.RecordAccumulator(n_cells)
     manifest, skipped = [], []
-    dry_carry = 0
+    # Zero in every cell for the first month of a chain. Scalar 0 would also
+    # broadcast correctly, but naming the shape here keeps the per-cell contract
+    # visible at the top of the loop.
+    dry_carry = np.zeros(n_cells, dtype=np.float32)
     total_bytes = 0
     n_stats_rows = 0
     resumed_after = None
@@ -699,7 +715,8 @@ def run(variable: str, inputs: Path, out: Path, grid_csv: Path, dtype,
     if resume:
         records, state = load_checkpoint(out, variable, n_cells, fingerprint)
         manifest, skipped = state["manifest"], state["skipped"]
-        dry_carry = state["dry_carry"]
+        if state["dry_carry"] is not None:
+            dry_carry = state["dry_carry"]
         total_bytes, n_stats_rows = state["total_bytes"], state["n_stats_rows"]
         last_key = tuple(state["last_key"])
         resumed_after = "%04d-%02d" % last_key

@@ -93,7 +93,9 @@ class MonthlyResult:
     bands: dict                       # name -> (n_cells,) float32
     n_days: int                       # days actually fitted and included
     day_numbers: np.ndarray           # day-of-month for each column of the block
-    dry_run_carry_out: Optional[int] = None   # trailing dry-run length, for chaining
+    # Trailing dry-run length PER CELL, for chaining into the next month.
+    # (n_cells,) float32, NOT a scalar — see the note in monthly_stats.
+    dry_run_carry_out: Optional[np.ndarray] = None
 
     def band_names(self) -> list:
         return list(self.bands)
@@ -162,7 +164,7 @@ def monthly_stats(
     variable: str,
     day_numbers: Sequence[int],
     *,
-    dry_run_carry_in: int = 0,
+    dry_run_carry_in=0,
 ) -> MonthlyResult:
     """Reduce `(n_cells, n_days)` of daily values into the published bands.
 
@@ -173,8 +175,10 @@ def monthly_stats(
     array position.
 
     `dry_run_carry_in` is the length of the dry spell running at the end of the
-    previous month, so `max_dry_spell` is not silently truncated at month
-    boundaries. The driver threads `dry_run_carry_out` into the next call.
+    previous month IN EACH CELL — an `(n_cells,)` array, or 0 for the first
+    month of a chain — so `max_dry_spell` is not silently truncated at month
+    boundaries. The driver threads `dry_run_carry_out` into the next call, and
+    must checkpoint it: a resume that restarts the carry at zero leaves a seam.
     """
     if block.ndim != 2:
         raise ValueError(f"block must be 2-D (cells, days); got {block.shape}")
@@ -209,14 +213,42 @@ def monthly_stats(
         for i, col in enumerate(_wet_day_tail(block), start=1):
             b[f"wet_top{i}"] = col
         # Longest run of days below DRY_DAY_MM, carried across month boundaries.
-        run = np.full(n_cells, float(dry_run_carry_in), dtype=np.float32)
-        best = run.copy()
+        #
+        # THE CARRY IS PER CELL. It was a scalar until 2026-08-27 —
+        # `carry_out = int(run.max())` — which took the driest cell in the
+        # country and seeded EVERY cell with its spell length on the first of
+        # the next month. Because `best` also started at the carry, the national
+        # MINIMUM could never fall below it, and because the carry-out was the
+        # max over already-carried runs it could only ever grow: a ratchet, not
+        # a carry. Measured on the published archive before the fix, June 2026
+        # read min 42.0 / median 42.0 / max 64.9 days over a country where June
+        # is the wet season, and June 2020 read a floor of 68 days. A synthetic
+        # cell receiving 10 mm every single day for six months reported a
+        # 150-day dry spell.
+        #
+        # `best` starts at ZERO, not at the carry. A spell that ended on the
+        # last day of the previous month did not touch this one, and reporting
+        # its length here would attribute the previous month's dryness to this
+        # one. A spell that DOES continue is measured in full — that is the
+        # point of carrying it — so a value may still legitimately exceed the
+        # number of days in the month.
+        carry = np.asarray(dry_run_carry_in, dtype=np.float32)
+        if carry.ndim == 0:
+            run = np.full(n_cells, float(carry), dtype=np.float32)
+        elif carry.shape != (n_cells,):
+            raise ValueError(f"dry_run_carry_in has shape {carry.shape} for "
+                             f"{n_cells} cells")
+        else:
+            run = carry.astype(np.float32, copy=True)
+        best = np.zeros(n_cells, dtype=np.float32)
         for j in range(n_days):
             dry = block[:, j] < DRY_DAY_MM
             run = np.where(dry, run + 1.0, 0.0)
             np.maximum(best, run, out=best)
         b["max_dry_spell"] = best
-        carry_out = int(run.max()) if n_days else dry_run_carry_in
+        # `run` is rebuilt by `np.where` on every iteration, so this is a fresh
+        # array and not an alias of anything the caller handed in.
+        carry_out = run
     elif variable == "solar_rad":
         b["sum"] = block.sum(axis=1, dtype=np.float64).astype(np.float32)
 

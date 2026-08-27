@@ -40,10 +40,11 @@
 // server withholds it, see `projection_store.WITHHELD`. Do not add it back
 // here; the exclusion belongs on the server where every client inherits it.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
-  Play, Pause, Lock,
+  Play, Pause, Lock, Layers,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
 import useSurfaceAvailability from '../../hooks/useSurfaceAvailability';
@@ -51,6 +52,8 @@ import useProjectionCatalogue from '../../hooks/useProjectionCatalogue';
 import {
   tileUrlTemplate,
   projectionTileUrlTemplate,
+  getProbe,
+  getProjectionProbe,
   findProjectionStep,
   PROJECTION_BASELINE,
   fetchZoneLayer,
@@ -75,6 +78,37 @@ const ZONE_LABEL_SOURCE = 'wine-zone-labels';
 const ZONE_LABEL = 'wine-zone-labels-text';
 const PLAY_MS = 420;
 
+// --- basemap and opacity ---------------------------------------------------
+// The surface is a continuous field with no landmarks in it: read alone it is a
+// coloured blob that happens to be New Zealand-shaped. Everything that lets a
+// grower locate themselves — the town they drive to, the river, the range that
+// makes the frost — lives in the basemap UNDER it, and at a flat 0.85 the
+// surface hid all of it. So the basemap is choosable and the surface's opacity
+// is a slider, which are the same fix approached from either side.
+//
+// `light-v11` stays the default because the legend is calibrated against a pale
+// ground: the same 0.6 opacity that reads correctly over light reads as a
+// different colour over satellite, and the domain is fixed server-side (see the
+// header). Satellite is for finding a place, not for reading a value off.
+//
+// Mapbox GL v3 renders the GLOBE by default below zoom ~5, and `setStyle` keeps
+// the camera and the projection — so switching basemaps does not lose it.
+const BASEMAPS = [
+  { id: 'light', label: 'Plain', url: 'mapbox://styles/mapbox/light-v11' },
+  { id: 'outdoors', label: 'Terrain', url: 'mapbox://styles/mapbox/outdoors-v12' },
+  { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
+];
+const DEFAULT_BASEMAP = 'light';
+const DEFAULT_OPACITY = 0.85;
+// Below this the surface stops being readable against the legend; above it the
+// basemap is gone again. The floor is not 0 on purpose — an invisible layer
+// with a live legend under it is a bug report, not a setting.
+const MIN_OPACITY = 0.2;
+
+function basemapUrl(id) {
+  return (BASEMAPS.find((b) => b.id === id) || BASEMAPS[0]).url;
+}
+
 // Zones NEST — Marlborough contains Lower Wairau, Awatere and Upper Wairau — so
 // only one level is ever drawn. Drawing both stacks a parent over its children
 // and every click lands on the parent. Sub-zones appear once zoomed in enough
@@ -93,7 +127,21 @@ const FEATURED_STATISTICS = {
   temp_mean: ['mean', 'min', 'max'],
   temp_min: ['mean', 'frost_days', 'min'],
   temp_max: ['mean', 'days_over_25', 'days_over_30', 'max'],
-  rainfall: ['sum', 'wet_days', 'max', 'max_dry_spell'],
+  // `max_dry_spell` PULLED 2026-08-27 — Pete's call, and deliberately here as
+  // well as on the server.
+  //
+  // Every published month from 1986-02 carried a national scalar into every
+  // cell (`surface_store.WITHHELD_STATISTICS` has the measurements), so the
+  // server already drops it from `meta.statistics` and the chip would filter
+  // itself out. That is not enough on its own: the filter below falls back to
+  // showing every featured statistic when the statistics list is EMPTY, which
+  // is what an unreachable or slow `/available` looks like — so on a bad
+  // request the chip would come back, and clicking it would 404 the tiles.
+  //
+  // To restore after rainfall is republished, put 'max_dry_spell' back here AND
+  // delete the entry in surface_store.WITHHELD_STATISTICS. Both, or the chip
+  // renders against a 404.
+  rainfall: ['sum', 'wet_days', 'max'],
   // `sum` is the same object as the April accumulation, addressed as the
   // season total. Offering only `cumulative` would make the season total
   // reachable solely by scrubbing to the last step of a season.
@@ -174,6 +222,24 @@ function unitFor(variable, statistic) {
   return SURFACE_VARIABLES[variable]?.unit || '';
 }
 
+// Units whose values are whole numbers. Mirrors `surface_store.INTEGER_UNITS` —
+// the server decides which BAND is a count and sends the unit with the value, so
+// this rounds on the unit rather than on a list of statistic names and a band
+// added there needs no change here.
+const INTEGER_UNITS = new Set(['days', 'day of month', 'days since 1986-01-01', 'GDD']);
+
+// Decimals follow the UNIT THAT CAME BACK WITH THE VALUE, never the variable.
+// Two different bands make that necessary: `temp_min/frost_days` is a count of
+// days measured off a degree layer, and a projected rainfall field is a
+// percentage change where the measured layer is millimetres. Keying this on
+// `variable` prints '12.3 C' for twelve frost days.
+function formatProbeValue(value, unit) {
+  if (value == null) return '';
+  if (INTEGER_UNITS.has(unit)) return Math.round(value).toLocaleString('en-NZ');
+  if (unit === '%') return value.toFixed(0);
+  return value.toFixed(1);
+}
+
 // The archive's own span, for the anonymous prompt when the server has not
 // said otherwise. Only ever a fallback — `access.archive_first/last` is the
 // truth and moves when the archive is extended.
@@ -205,6 +271,13 @@ function SurfaceMap({ onSignInRequired }) {
   const [zoneLevel, setZoneLevel] = useState('region');
   const [selectedZone, setSelectedZone] = useState(null);
   const [showZones, setShowZones] = useState(true);
+  const [basemap, setBasemap] = useState(DEFAULT_BASEMAP);
+  const [opacity, setOpacity] = useState(DEFAULT_OPACITY);
+  // WHERE the visitor asked, and WHAT came back — two states, not one. The
+  // popup's position must not move while its value is reloading, and folding
+  // both into one object would re-run the positioning effect on every fetch.
+  const [probeAt, setProbeAt] = useState(null);
+  const [probe, setProbe] = useState(null);
 
   // --- projection mode ------------------------------------------------------
   const [mode, setMode] = useState('measured');
@@ -219,6 +292,24 @@ function SurfaceMap({ onSignInRequired }) {
 
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  // The basemap actually APPLIED to the map, which is not the same thing as the
+  // state: `mapReady` cycles false->true on every style swap to make the raster
+  // and zone effects rebuild, and without this the swap effect would re-enter on
+  // its own state change and setStyle forever.
+  const appliedBasemap = useRef(DEFAULT_BASEMAP);
+  // Opacity is read through a ref inside the raster effect rather than being a
+  // dependency of it. As a dependency, every tick of the slider would remove and
+  // re-add the source — a full tile refetch per pixel of drag. As a ref it is
+  // the initial paint value, and the effect below repaints the live layer.
+  const opacityRef = useRef(DEFAULT_OPACITY);
+  // The probe popup is a real `mapboxgl.Popup` — it tracks the map on pan and
+  // zoom natively, where a React-positioned div would have to re-render on every
+  // frame of a drag — with React rendering into its DOM node through a portal.
+  const popupRef = useRef(null);
+  const probeNode = useMemo(
+    () => (typeof document === 'undefined' ? null : document.createElement('div')),
+    [],
+  );
 
   const granularity = granularityFor(variable);
   const { available, loading, unavailable, months, error, access } =
@@ -438,7 +529,10 @@ function SurfaceMap({ onSignInRequired }) {
     try {
       map = new mapboxgl.Map({
         container: containerRef.current,
-        style: 'mapbox://styles/mapbox/light-v11',
+        // The CONSTANT, not the state. The picker drives `setStyle` below; this
+        // effect must not re-run on a basemap change or it would tear down and
+        // rebuild the whole map to change a background.
+        style: basemapUrl(DEFAULT_BASEMAP),
         bounds: NZ_BOUNDS,
         fitBoundsOptions: { padding: 24 },
         attributionControl: true,
@@ -460,6 +554,40 @@ function SurfaceMap({ onSignInRequired }) {
       setMapReady(false);
     };
   }, [hasToken]);
+
+  // --- basemap swap ---------------------------------------------------------
+  // `setStyle` REPLACES the style document, and everything this component added
+  // to it — the raster, the zone fill, line and labels, and their sources — goes
+  // with it. Mapbox has no "keep my layers" option, so the rebuild is ours.
+  //
+  // Rather than re-adding each layer here (a second copy of two effects, which
+  // would drift from the originals the first time either changed), this drops
+  // `mapReady` to false and raises it again on `style.load`. Both effects below
+  // are already keyed on `mapReady` and already tear down and rebuild from the
+  // current state, so they do exactly the right thing for free.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapAlive(map) || !mapReady) return;
+    if (appliedBasemap.current === basemap) return;
+    appliedBasemap.current = basemap;
+    setMapReady(false);
+    map.once('style.load', () => {
+      // The user can leave the Atlas mid-swap; `style.load` still fires on a map
+      // that React has torn down. See mapAlive.
+      if (mapAlive(mapRef.current)) setMapReady(true);
+    });
+    map.setStyle(basemapUrl(basemap));
+  }, [basemap, mapReady]);
+
+  // Repaint the live layer in place. `setPaintProperty` costs nothing and
+  // refetches nothing, which is what makes a drag of the slider smooth; the ref
+  // carries the same value into the next rebuild of the raster layer.
+  useEffect(() => {
+    opacityRef.current = opacity;
+    const map = mapRef.current;
+    if (!mapAlive(map) || !mapReady || !map.getLayer(SOURCE_ID)) return;
+    map.setPaintProperty(SOURCE_ID, 'raster-opacity', opacity);
+  }, [opacity, mapReady]);
 
   // Swap the raster source whenever the layer or the month changes. Mapbox has
   // no "change the tile URL" operation, so the source is removed and re-added.
@@ -522,7 +650,7 @@ function SurfaceMap({ onSignInRequired }) {
       id: SOURCE_ID,
       type: 'raster',
       source: SOURCE_ID,
-      paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 150 },
+      paint: { 'raster-opacity': opacityRef.current, 'raster-fade-duration': 150 },
     }, beneath);
   }, [mapReady, variable, statistic, current, granularity,
       projected, projLayer, scenario, period, season, projDomain,
@@ -704,6 +832,161 @@ function SurfaceMap({ onSignInRequired }) {
     };
   }, [mapReady, zones, zoneLevel, showZones]);
 
+  // --- probe: click a cell, read its value ----------------------------------
+  // WHY A SERVER ROUND TRIP AND NOT THE PIXEL UNDER THE CURSOR. Inverting the
+  // colour ramp off the rendered canvas looks free and is wrong: `raster-opacity`
+  // blends the tile over whichever basemap is showing — and that opacity is now
+  // a slider — while `raster-fade-duration` cross-fades two months mid-scrub. It
+  // would return plausible numbers with no way to tell they were wrong.
+  //
+  // CLICK, NOT HOVER. Every probe is a range read against a COG on S3, and this
+  // API is not behind CloudFront. A hover readout would issue one per mousemove.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapAlive(map) || !mapReady) return undefined;
+
+    // Returning `prev` unchanged makes React bail out of the update, which
+    // matters because some touch browsers fire a synthesised `click` after
+    // `touchend` — without this the same cell would be fetched twice.
+    const pick = (lngLat) => setProbeAt((prev) => (
+      prev
+      && Math.abs(prev.lng - lngLat.lng) < 1e-6
+      && Math.abs(prev.lat - lngLat.lat) < 1e-6
+        ? prev
+        : { lng: lngLat.lng, lat: lngLat.lat }));
+
+    const onClick = (e) => pick(e.lngLat);
+
+    // The same tap bridge the zone layer uses, and for the same reason: a
+    // `click` handler alone is dead on touch here, so a probe wired only to
+    // `click` would silently not work on a phone. The 8 px guard is what stops a
+    // drag of the map from registering as a tap on wherever it ended.
+    let touchStart = null;
+    const onTouchStart = (e) => {
+      touchStart = e.point ? { x: e.point.x, y: e.point.y } : null;
+    };
+    const onTouchEnd = (e) => {
+      if (!touchStart || !e.point) return;
+      const moved = Math.hypot(e.point.x - touchStart.x, e.point.y - touchStart.y);
+      touchStart = null;
+      if (moved > 8) return;
+      pick(e.lngLat);
+    };
+
+    map.on('click', onClick);
+    map.on('touchstart', onTouchStart);
+    map.on('touchend', onTouchEnd);
+    return () => {
+      if (!mapAlive(map)) return;
+      map.off('click', onClick);
+      map.off('touchstart', onTouchStart);
+      map.off('touchend', onTouchEnd);
+    };
+  }, [mapReady]);
+
+  // Fetch, and REFETCH when the step or the layer under the popup changes — an
+  // open popup follows the scrubber rather than going stale beside a map that
+  // has moved on. The address is built the same way the raster layer builds its
+  // tile URL, from the same state, so the number quoted is a number off the
+  // raster on screen.
+  useEffect(() => {
+    if (!probeAt) { setProbe(null); return undefined; }
+    let live = true;
+
+    let request = null;
+    if (projected) {
+      if (projLayer && scenario && period && season) {
+        request = getProjectionProbe({
+          lon: probeAt.lng, lat: probeAt.lat,
+          variable: projLayer.variable, statistic: projLayer.statistic,
+          scenario: showingBaseline
+            ? (baselineKey?.scenario || PROJECTION_BASELINE) : scenario,
+          period: showingBaseline
+            ? (baselineKey?.period || PROJECTION_BASELINE) : period,
+          season,
+        });
+      }
+    } else if (current) {
+      request = getProbe({
+        lon: probeAt.lng, lat: probeAt.lat,
+        variable, granularity, valid_at: current, statistic,
+      });
+    }
+    if (!request) { setProbe(null); return undefined; }
+
+    setProbe({ loading: true });
+    request
+      .then((data) => { if (live) setProbe({ loading: false, data }); })
+      .catch((err) => {
+        if (!live) return;
+        // 401 and 402 are the gate, not a failure, and they arrive carrying the
+        // offer sentence the catalogue would have made. Show it verbatim rather
+        // than inventing a second wording for the same wall.
+        setProbe({
+          loading: false,
+          status: err?.response?.status,
+          error: err?.response?.data?.detail || 'Could not read this cell.',
+        });
+      });
+    return () => { live = false; };
+  }, [probeAt, projected, projLayer, scenario, period, season, showingBaseline,
+      baselineKey, current, variable, statistic, granularity]);
+
+  // Playback would refetch the cell every 420 ms and flicker a number nobody can
+  // read at that rate. Close it instead of throttling it.
+  useEffect(() => { if (playing) setProbeAt(null); }, [playing]);
+
+  // Position and mount. Popups are DOM on the map container rather than style
+  // layers, so this one deliberately SURVIVES a basemap swap — the value you
+  // just read stays put while the ground under it changes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapAlive(map) || !mapReady || !probeNode) return undefined;
+    if (!probeAt) {
+      if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+      return undefined;
+    }
+    if (!popupRef.current) {
+      popupRef.current = new mapboxgl.Popup({
+        closeButton: true,
+        // A probe is a pin, not a tooltip: clicking elsewhere moves it to the
+        // new cell rather than dismissing it, so `closeOnClick` would fight the
+        // click handler above.
+        closeOnClick: false,
+        maxWidth: '250px',
+        offset: 8,
+        className: 'surface-map__probe-popup',
+      }).setDOMContent(probeNode);
+      popupRef.current.on('close', () => setProbeAt(null));
+    }
+    popupRef.current.setLngLat([probeAt.lng, probeAt.lat]).addTo(map);
+    return undefined;
+  }, [probeAt, mapReady, probeNode]);
+
+  useEffect(() => () => {
+    if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+  }, []);
+
+  // WHAT THE NUMBER IS, in the words the controls are already using. A probe of
+  // a monthly MEAN read as a maximum is the failure this line exists to prevent,
+  // so the statistic is always named even where it reads as redundant.
+  const probeCaption = useMemo(() => {
+    if (projected) {
+      if (!projLayer) return '';
+      const when = showingBaseline
+        ? (projBaseline || '1986-2005')
+        : (periods.find((o) => o.value === period)?.label || period);
+      return [projLayer.label, when, season].filter(Boolean).join(' · ');
+    }
+    return [
+      SURFACE_VARIABLES[variable]?.label || variable,
+      statLabel(statistic, variable),
+      monthLabel(current),
+      currentSeason != null ? `${currentSeason} season` : null,
+    ].filter(Boolean).join(' · ');
+  }, [projected, projLayer, showingBaseline, projBaseline, periods, period,
+      season, variable, statistic, current, currentSeason]);
+
   // --- playback -------------------------------------------------------------
   // A projection has no series, so nothing may be playing through one.
   useEffect(() => { if (projected) setPlaying(false); }, [projected]);
@@ -783,6 +1066,47 @@ function SurfaceMap({ onSignInRequired }) {
           </div>
         )}
 
+        {/* BASEMAP AND OPACITY — bottom-right, the one free corner: the legend
+            owns bottom-left, the flip top-left and Mapbox's own navigation
+            top-right. Both controls answer the same question ("where am I on
+            this?") so they are one panel rather than two, and neither is in the
+            rail: they change what the CANVAS looks like, and you have to be
+            looking at the canvas to judge them. */}
+        {hasToken && !mapFailed && (
+          <div className="surface-map__basemap">
+            <div className="surface-map__basemap-row" role="group" aria-label="Basemap">
+              <Layers size={13} aria-hidden="true" />
+              {BASEMAPS.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={`surface-map__basemap-btn${b.id === basemap ? ' is-active' : ''}`}
+                  onClick={() => setBasemap(b.id)}
+                  aria-pressed={b.id === basemap}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+            <label className="surface-map__opacity">
+              <span className="sr-only">Surface opacity</span>
+              <input
+                type="range"
+                min={MIN_OPACITY}
+                max={1}
+                step={0.05}
+                value={opacity}
+                onChange={(e) => setOpacity(Number(e.target.value))}
+                aria-label="Surface opacity"
+                aria-valuetext={`${Math.round(opacity * 100)} percent`}
+              />
+              <span className="surface-map__opacity-value">
+                {Math.round(opacity * 100)}%
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* THE FLIP, and it belongs ON the map.
             Same layer, same season, same colour domain — press it and the
             country recolours. Putting it in the rail would mean looking away
@@ -811,6 +1135,65 @@ function SurfaceMap({ onSignInRequired }) {
               {periods.find((o) => o.value === period)?.label || 'Projected'}
             </button>
           </div>
+        )}
+
+        {/* The probe card, rendered THROUGH the Mapbox popup rather than
+            positioned beside it. A click on a wine region still opens the zone
+            card as well: they answer different questions — "what is the whole
+            region doing" and "what is it exactly here" — and suppressing one for
+            the other would make the map modal for no gain. */}
+        {probeNode && probeAt && createPortal(
+          <div className="surface-map__probe">
+            {probe?.loading && (
+              <p className="surface-map__probe-loading">Reading the surface…</p>
+            )}
+
+            {probe?.error && (
+              <>
+                <p className="surface-map__probe-msg">{probe.error}</p>
+                {(probe.status === 401 || probe.status === 402) && onSignInRequired && (
+                  <button
+                    type="button"
+                    className="surface-map__probe-cta"
+                    onClick={onSignInRequired}
+                  >
+                    {probe.status === 401 ? 'Sign in free' : 'See Insights Pro'}
+                  </button>
+                )}
+              </>
+            )}
+
+            {probe?.data && (
+              <>
+                <p className="surface-map__probe-value">
+                  {probe.data.value == null ? (
+                    // NEVER 0. Off the land mask is an absence, and the server
+                    // says which absence it is.
+                    <span className="surface-map__probe-none">No value here</span>
+                  ) : (
+                    <>
+                      {formatProbeValue(probe.data.value, probe.data.unit)}
+                      <span className="surface-map__probe-unit">
+                        {' '}
+                        {probe.data.unit}
+                      </span>
+                    </>
+                  )}
+                </p>
+                <p className="surface-map__probe-what">{probeCaption}</p>
+                <p className="surface-map__probe-where">
+                  {probe.data.value == null && probe.data.reason
+                    ? `${probe.data.reason} · `
+                    : ''}
+                  {probeAt.lat.toFixed(4)}, {probeAt.lng.toFixed(4)}
+                  {probe.data.resolution_m
+                    ? ` · ${probe.data.resolution_m} m cell`
+                    : ''}
+                </p>
+              </>
+            )}
+          </div>,
+          probeNode,
         )}
 
         {selectedZone && (

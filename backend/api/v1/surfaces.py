@@ -164,6 +164,32 @@ class PointResponse(BaseModel):
     meta: dict
 
 
+class ProbeResponse(BaseModel):
+    """One cell, one step, one number — what the map is showing right here.
+
+    DELIBERATELY NOT `PointResponse`, and the difference is the product line.
+    `/point` answers "what is it at MY site" over a span of time, with the
+    confidence band, the distance to the nearest contributing station and as
+    many variables as you ask for; that is the Pro action and it stays Pro.
+    This answers "what is that colour", for the single step already rendered on
+    the caller's screen, and so carries NO `Confidence` block at all.
+
+    `value` is null — never 0 — off the land mask, with `reason` saying so. A
+    null-rainfall-written-as-zero bug (B4.1) has already bitten this platform.
+    """
+    lon: float
+    lat: float
+    variable: str
+    granularity: str
+    statistic: Optional[str] = None
+    valid_at: Optional[datetime] = None
+    value: Optional[float] = None
+    unit: str
+    resolution_m: Optional[int] = None
+    reason: Optional[str] = Field(None, description="Why value is null, when it is")
+    meta: dict = Field(default_factory=dict)
+
+
 class RegionPoint(BaseModel):
     valid_at: datetime
     mean: Optional[float] = None
@@ -757,6 +783,60 @@ def available(variable: str = Query("temp_mean"), granularity: str = Query("dail
                       "is deliberate — see contract §6."})
 
 
+@router.get("/probe", response_model=ProbeResponse)
+def probe(
+    response: Response,
+    lon: float = Query(..., ge=-180, le=180),
+    lat: float = Query(..., ge=-90, le=90),
+    variable: str = Query("temp_mean"),
+    granularity: str = Query("monthly"),
+    valid_at: Optional[str] = Query(
+        None, description="YYYY-MM for monthly and season, YYYY-MM-DD for "
+                          "daily, omitted for records. Defaults to the newest "
+                          "step this caller may see."),
+    statistic: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: Optional[PublicUser] = Depends(get_optional_public_user),
+):
+    """The value of ONE cell of the surface already on screen.
+
+    FREE AT THE CADENCE YOU CAN ALREADY SEE (Pete's call, 2026-08-27). The gate
+    is `_gate_steps` — the same one `/available` runs — so a probe can never
+    answer for a step the caller's own scrubber is not allowed to offer:
+    anonymous gets the newest step, a free account gets the 1986 archive, and
+    the daily cadence stays Pro.
+
+    The reasoning for making it free rather than Pro: the tile is already
+    rendered, `/tiles` is not gated, and the number is legible off the legend to
+    within a ramp step by eye. What a probe adds over squinting is PRECISION, not
+    access. What stays behind Pro is `/point` — the series, the confidence band
+    and the distance to the nearest contributing station — which is the part
+    that is actually the product.
+
+    401 when signing in would open it, 402 when only Pro would. 404 means the
+    date genuinely has no surface, and the two are told apart against the
+    UNGATED step list so a withheld month is never reported as a missing one.
+    """
+    if _use_stub():
+        # No stub path on purpose. Every other stub handler exists because WS3
+        # had to build against something before the pipeline was finished; this
+        # endpoint was written against the real index and a synthetic probe
+        # would be a plausible number with nothing marking it as invented, one
+        # click from a user's mouth. See the module docstring.
+        raise HTTPException(501, "probe is not implemented by the surface stub")
+    out = _real_probe(db, lon, lat, variable, granularity, valid_at, statistic,
+                      registered=is_registered(user), pro=is_pro(user))
+    # `private`, because the answer depends on the caller's tier — a shared
+    # cache would hand one visitor's entitlement to the next. Daily surfaces are
+    # revised for ~3 days (D+2 plus the weekly refit) so they get a short life;
+    # the archive is immutable and a repeat click on the same cell should cost
+    # nothing.
+    response.headers["Cache-Control"] = (
+        "private, max-age=300" if granularity in PRO_GRANULARITIES
+        else "private, max-age=86400")
+    return out
+
+
 RAMPS = {
     "viridis": [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]],
     "magma": [[0, 0, 4], [81, 18, 124], [183, 55, 121], [252, 137, 97], [252, 253, 191]],
@@ -1260,6 +1340,114 @@ def _real_available(db: Session, variable: str, granularity: str,
               "stub": False})
 
 
+def _normalise_stamp(granularity: str, valid_at: str) -> str:
+    """The caller's `valid_at` in the form `availability` publishes steps in.
+
+    Monthly and season steps are addressed as YYYY-MM (a season surface is
+    stamped at month END in the index, which is not the caller's problem);
+    daily and hourly as an ISO date. A client holding a full date for a monthly
+    layer — which the Atlas does, because it scrubs a date — must land on the
+    month that contains it rather than on a 404.
+    """
+    try:
+        if granularity in ("monthly", "season"):
+            parts = valid_at.split("-")
+            if len(parts) < 2:
+                raise ValueError("expected YYYY-MM")
+            return f"{int(parts[0]):04d}-{int(parts[1]):02d}"
+        return date.fromisoformat(valid_at).isoformat()
+    except ValueError as exc:
+        raise HTTPException(
+            422, f"unparseable valid_at {valid_at!r} for granularity "
+                 f"{granularity!r}") from exc
+
+
+def _entitlement_error(gated: dict, registered: bool) -> HTTPException:
+    """The refusal that names what would lift it.
+
+    Mirrors `require_pro`: 401 when the caller is signed out, because signing in
+    is the next step; 402 when they are signed in and the tier is the wall.
+    Contract §5.5 reserves 402 for "entitlement required" so the frontend can
+    show an upgrade path rather than an error. The sentence comes from the SAME
+    `access.unlock` the catalogue already sends, so the probe and the scrubber
+    cannot end up making two different offers for one gate.
+    """
+    access = gated.get("access") or {}
+    detail = access.get("unlock") or "This step needs a higher tier."
+    return HTTPException(401 if not registered else 402, detail)
+
+
+def _real_probe(db: Session, lon: float, lat: float, variable: str,
+                granularity: str, valid_at: Optional[str],
+                statistic: Optional[str],
+                registered: bool, pro: bool) -> ProbeResponse:
+    if variable not in UNITS:
+        raise HTTPException(422, f"unknown variable {variable!r}")
+    stat = _default_statistic(granularity, statistic)
+
+    # THE CATALOGUE'S GATE, not a second copy of it. `_gate_steps` returns a new
+    # dict, so `info` keeps the ungated truth — which is what tells a withheld
+    # step apart from an absent one below. Re-deriving the tier rules here is
+    # how the two would drift the first time either moved.
+    info = store.availability(db, variable, granularity, stat)
+    gated = _gate_steps(info, granularity, registered, pro)
+    steps = gated.get("steps") or []
+
+    if granularity == "records":
+        # Exactly one records surface per (variable, statistic), addressed
+        # without a date. Nothing to match — the cadence gate is the whole gate.
+        if not steps:
+            raise _entitlement_error(gated, registered)
+        stamp = None
+    elif not valid_at:
+        # No date is not an error: it means "whatever the map opens on", which
+        # is the newest step this caller may see.
+        if not steps:
+            raise _entitlement_error(gated, registered)
+        stamp = steps[-1]["valid_at"]
+    else:
+        stamp = _normalise_stamp(granularity, valid_at)
+        if not any(s["valid_at"] == stamp for s in steps):
+            # Two very different answers wear the same shape here: a step that
+            # exists but is behind a tier, and one that does not exist at all.
+            # Reporting a withheld month as missing would tell a visitor the
+            # archive has a hole in it.
+            if any(s["valid_at"] == stamp for s in (info.get("steps") or [])):
+                raise _entitlement_error(gated, registered)
+            raise HTTPException(404, f"no {variable} surface for {valid_at}")
+
+    try:
+        row = store.resolve(db, variable, granularity, stat, stamp)
+    except (store.SurfaceNotFound, ValueError) as exc:
+        raise HTTPException(
+            404, f"no {variable} surface for {valid_at or 'the newest step'}"
+        ) from exc
+
+    try:
+        sampled = store.sample(row["s3_key"], [(lon, lat)])[0]
+    except Exception as exc:                                       # noqa: BLE001
+        logger.exception("probe sample failed for %s", row["s3_key"])
+        raise HTTPException(
+            503, f"surface is indexed but unreadable: {exc}") from exc
+
+    return ProbeResponse(
+        lon=lon, lat=lat, variable=variable, granularity=granularity,
+        statistic=stat, valid_at=row["valid_at"],
+        # `store.sample` already maps nodata and NaN to None. Off the land mask
+        # is NULL, never 0.
+        value=None if sampled is None else round(float(sampled), 3),
+        # THE BAND'S UNIT. `temp_min/frost_days` is a count of days, not degrees,
+        # and `rainfall/wet_days` is a count of days, not millimetres — reading
+        # the unit off the variable is what put 'C' beside a frost count.
+        unit=store.unit_for(variable, stat),
+        resolution_m=row["resolution_m"],
+        reason=None if sampled is not None else "outside the land mask",
+        meta={"contract_version": CONTRACT_VERSION,
+              "model_version": row["model_version"],
+              "tier": (gated.get("access") or {}).get("tier"),
+              "stub": False})
+
+
 def _real_tile(db: Session, variable: str, granularity: str, valid_at: str,
                z: int, x: int, y: int, ramp: Optional[str],
                vmin: Optional[float], vmax: Optional[float],
@@ -1329,13 +1517,18 @@ def _real_point(db: Session, lon: float, lat: float, variables: str,
         stamps = _months_between(start, end)
     elif granularity == "records":
         stamps = [None]
+    elif granularity == "daily":
+        # Daily surfaces DO exist now — the live engine publishes them at D+2
+        # with a weekly refit — so this walks days the same way the branch above
+        # walks months. It used to 422 saying the archive was monthly and
+        # seasonal, which was true when it was written and stale from the day
+        # `run_live.py` first published. A date with no surface still comes back
+        # as a null point with a reason, not as an error.
+        stamps = [d.isoformat() for d in _parse_dates(start, end, "daily")]
     else:
-        # No daily surfaces exist in the published archive. Say so once, rather
-        # than returning several hundred nulls that look like an outage.
         raise HTTPException(
-            422, "the published archive is monthly and seasonal; request "
-                 "granularity=monthly, season or records. See /available for "
-                 "what exists.")
+            422, f"unsupported granularity {granularity!r}; request daily, "
+                 "monthly, season or records. See /available for what exists.")
 
     # Distance band, from the CLIFLO network that actually produced this
     # archive. Contract §3.4 — a single national cv_rmse is wrong at both ends,
@@ -1394,7 +1587,8 @@ def _real_point(db: Session, lon: float, lat: float, variables: str,
                     t_rmse=None, n_test=row.get("n_stations_test"))))
             n_real += 1
 
-        series.append(Series(variable=variable, unit=UNITS[variable],
+        series.append(Series(variable=variable,
+                             unit=store.unit_for(variable, stat),
                              points=points))
 
     return PointResponse(
@@ -1570,6 +1764,75 @@ def projections_available(
               "baseline_key": {"scenario": projections.BASELINE_SENTINEL,
                                "period": projections.BASELINE_SENTINEL}},
     )
+
+
+@router.get("/projections/probe", response_model=ProbeResponse)
+def projection_probe(
+    response: Response,
+    lon: float = Query(..., ge=-180, le=180),
+    lat: float = Query(..., ge=-90, le=90),
+    variable: str = Query(...),
+    statistic: str = Query(...),
+    scenario: str = Query(..., description="or the 'baseline' sentinel"),
+    period: str = Query(..., description="or the 'baseline' sentinel"),
+    season: str = Query(...),
+    db: Session = Depends(get_db),
+    user: Optional[PublicUser] = Depends(get_optional_public_user),
+):
+    """One cell of a projection or baseline surface. The Projected mode's probe.
+
+    A SEPARATE ROUTE from `/probe`, for the same reason the tiles are two
+    routes: a measurement is addressed by a date and a scenario is addressed by
+    (scenario, period, season), and no URL should be one query parameter away
+    from turning one into the other.
+
+    THE UNIT COMES OFF THE ROW, not from `UNITS`. A projected rainfall change
+    field is a PERCENTAGE while the measured layer is millimetres, and reading
+    the variable's own unit here would label a 12% change as 12 mm.
+
+    Withholding is `projection_store.resolve`'s job — it raises
+    ProjectionNotFound for a WITHHELD layer with the same message as an absent
+    one, so this route inherits the frost exclusion without restating it.
+    """
+    if PROJECTIONS_REQUIRE == "pro" and not is_pro(user):
+        raise HTTPException(
+            401 if not is_registered(user) else 402,
+            "Climate projections are part of Insights Pro.")
+    if PROJECTIONS_REQUIRE == "registration" and not is_registered(user):
+        raise HTTPException(401, "Sign in free to open the climate projections.")
+
+    try:
+        row = projections.resolve(db, variable, statistic, scenario, period, season)
+    except projections.ProjectionNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    try:
+        sampled = store.sample(row["s3_key"], [(lon, lat)])[0]
+    except Exception as exc:                                       # noqa: BLE001
+        logger.exception("projection probe failed for %s", row["s3_key"])
+        raise HTTPException(
+            503, f"projection is indexed but unreadable: {exc}") from exc
+
+    # A projection never changes once published — unlike a daily surface there is
+    # no D+2 revision — so it caches for as long as the entitlement check allows,
+    # which is `private` and a day.
+    response.headers["Cache-Control"] = "private, max-age=86400"
+    return ProbeResponse(
+        lon=lon, lat=lat, variable=variable, granularity="projection",
+        statistic=statistic, valid_at=None,
+        value=None if sampled is None else round(float(sampled), 3),
+        unit=row["unit"],
+        resolution_m=row["resolution_m"],
+        reason=None if sampled is not None else "outside the land mask",
+        meta={"contract_version": CONTRACT_VERSION,
+              "model_version": row["model_version"],
+              # 'projection' or 'baseline' — the TABLE's vocabulary, not the
+              # UI's, which calls the mode Projected. The popup has to say which
+              # side of the flip it quoted or the two numbers are unattributable.
+              "kind": row["kind"],
+              "scenario": scenario, "period": period, "season": season,
+              "rule": row.get("rule"),
+              "stub": False})
 
 
 @router.get("/projections/tiles/{variable}/{statistic}/{scenario}/{period}"

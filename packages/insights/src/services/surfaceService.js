@@ -236,8 +236,79 @@ export function tileUrlTemplate({
   if (min != null) params.set('min', String(min));
   if (max != null) params.set('max', String(max));
   const query = params.toString();
-  const stamp = monthStamp(valid_at) || valid_at;
+  const stamp = stampFor(valid_at, granularity);
   return `${apiBase}${BASE}/tiles/${variable}/${granularity}/${stamp}/{z}/{x}/{y}.png${query ? `?${query}` : ''}`;
+}
+
+/**
+ * How a step is ADDRESSED at a granularity: 'YYYY-MM' for monthly and season,
+ * the full ISO date for daily and hourly.
+ *
+ * Shared by the tile URL and the probe on purpose. They must resolve to the same
+ * surface or the popup quotes a number off a raster the map is not showing, and
+ * two copies of one truncation rule is exactly how that would happen. This used
+ * to be `monthStamp(valid_at) || valid_at` inline, which was right only because
+ * no daily layer had reached the Atlas yet.
+ */
+export function stampFor(valid_at, granularity = DEFAULT_GRANULARITY) {
+  if (!valid_at) return valid_at;
+  if (granularity === 'monthly' || granularity === 'season') {
+    return monthStamp(valid_at) || valid_at;
+  }
+  return typeof valid_at === 'string' ? valid_at.slice(0, 10) : valid_at;
+}
+
+/**
+ * ONE cell, ONE step — the value of the surface already on screen at a point.
+ *
+ * Free at whatever cadence the caller can already see: the server runs the same
+ * gate as `/available`, so anonymous gets the newest step, an account gets the
+ * 1986 archive and daily stays Pro. It carries NO confidence block; that, and
+ * the series, is what `getPoint` sells.
+ *
+ * Rejections are meaningful and must not be swallowed as "unavailable":
+ * **401** means signing in opens it, **402** means Pro does, and both arrive
+ * with the offer sentence in `detail`. `isSurfacesUnavailable` deliberately does
+ * not match either.
+ *
+ * Goes through `publicApi`, never a bare fetch — a bare fetch drops the token
+ * and every gated step would come back 401 for a signed-in Pro user.
+ */
+export async function getProbe({
+  lon, lat,
+  variable = 'temp_mean',
+  granularity = DEFAULT_GRANULARITY,
+  valid_at,
+  statistic,
+}) {
+  const { data } = await publicApi.get(`${BASE}/probe`, {
+    params: {
+      lon, lat, variable, granularity, statistic,
+      valid_at: stampFor(valid_at, granularity),
+    },
+  });
+  return data;
+}
+
+/**
+ * The same probe against a projection or the 1986-2005 baseline.
+ *
+ * A separate call rather than a flag, mirroring the two tile builders: a
+ * measurement is addressed by a date and a scenario by (scenario, period,
+ * season), and one function taking either set is how a 2090 scenario ends up
+ * labelled as measured weather.
+ *
+ * THE UNIT COMES BACK ON THE RESPONSE. A projected rainfall change field is a
+ * percentage while the measured layer is millimetres — do not label this with
+ * the variable's own unit.
+ */
+export async function getProjectionProbe({
+  lon, lat, variable, statistic, scenario, period, season,
+}) {
+  const { data } = await publicApi.get(`${BASE}/projections/probe`, {
+    params: { lon, lat, variable, statistic, scenario, period, season },
+  });
+  return data;
 }
 
 /** 'YYYY-MM' from a Date or any ISO date string. Monthly surfaces key on this. */
@@ -427,6 +498,9 @@ export function findProjectionStep(steps = [], { scenario, period, season }) {
 
 export default {
   getPoint,
+  getProbe,
+  getProjectionProbe,
+  stampFor,
   getProjectionCatalogue,
   projectionTileUrlTemplate,
   PROJECTION_BASELINE,

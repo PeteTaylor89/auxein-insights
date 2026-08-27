@@ -88,6 +88,167 @@
   opacity: 0.8;
 }
 
+/* --- basemap and surface opacity ------------------------------------------
+   Bottom-right: the legend has bottom-left, the flip top-left, and Mapbox's own
+   navigation control top-right. Same glass treatment as the legend so the two
+   read as furniture on the map rather than as part of the page. */
+
+.surface-map__basemap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.surface-map__basemap-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #6b7360;
+}
+
+.surface-map__basemap-btn {
+  min-height: 26px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #6b7360;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.surface-map__basemap-btn:hover {
+  background: rgba(31, 41, 51, 0.08);
+}
+
+.surface-map__basemap-btn.is-active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.surface-map__opacity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 1px;
+}
+
+/* Deliberately short. It is a nudge between "read the value" and "find the
+   place", not a precision instrument, and a full-width slider in the corner of
+   a map invites a drag that pans instead. */
+.surface-map__opacity input {
+  width: 104px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.surface-map__opacity-value {
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: #6b7360;
+  min-width: 30px;
+  text-align: right;
+}
+
+/* On a phone the legend is nearly the full width of the canvas, so the two
+   would overlap in the same corner. Stack this above it instead of shrinking
+   both to fit. */
+@media (max-width: 640px) {
+  .surface-map__basemap {
+    right: auto;
+    left: 12px;
+    bottom: 84px;
+  }
+}
+
+/* --- the probe popup ------------------------------------------------------
+   Rendered inside a real mapboxgl.Popup, so these rules sit under Mapbox's own
+   `.mapboxgl-popup-content` and have to override its default padding. */
+
+.surface-map__probe-popup .mapboxgl-popup-content {
+  padding: 9px 11px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
+}
+
+.surface-map__probe-popup .mapboxgl-popup-close-button {
+  width: 26px;
+  height: 26px;
+  font-size: 1rem;
+  color: #6b7360;
+}
+
+.surface-map__probe-value {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: #1f2933;
+  /* The close button lives in the top-right corner of the popup and the value
+     is the tallest thing in it. Without this they collide at three digits. */
+  padding-right: 18px;
+}
+
+.surface-map__probe-unit {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7360;
+}
+
+.surface-map__probe-none {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #6b7360;
+}
+
+.surface-map__probe-what {
+  margin: 3px 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #3d4632;
+}
+
+.surface-map__probe-where {
+  margin: 1px 0 0;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: #6b7360;
+}
+
+.surface-map__probe-loading,
+.surface-map__probe-msg {
+  margin: 0;
+  padding-right: 18px;
+  font-size: 0.78rem;
+  color: #3d4632;
+}
+
+.surface-map__probe-cta {
+  margin-top: 7px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* --- the Baseline / Projected flip ----------------------------------------
    Top-left of the canvas, opposite Mapbox's own navigation control at
    top-right, and over the map rather than in the rail: the two images have to
