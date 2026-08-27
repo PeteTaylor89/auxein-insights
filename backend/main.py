@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types, public_taxonomy, public_map
+from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, admin_qc, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types, public_taxonomy, public_map
 from core.config import settings
 import logging
 import traceback
@@ -399,6 +399,12 @@ app.include_router(
     admin_data.router,
     prefix="/api/v1/admin",
     tags=["Admin - Data Quality"]
+)
+
+app.include_router(
+    admin_qc.router,
+    prefix="/api/v1/admin",
+    tags=["Admin - QC"]
 )
 
 app.include_router(

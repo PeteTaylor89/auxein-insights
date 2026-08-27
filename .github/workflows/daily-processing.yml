@@ -2,10 +2,19 @@ name: Daily Climate Processing
 
 on:
   schedule:
-    # 6pm NZ = 5:00 or 6:00 UTC depending on DST
-    - cron: '0 5 * * *'   # NZDT (summer)
-    - cron: '0 6 * * *'   # NZST (winter)
-  
+    # GitHub cron is UTC only and NZ observes daylight saving, so 18:00 NZ needs
+    # two entries. Exactly one of each pair lands on the intended NZ hour; the
+    # other is dropped by the DST guard in "Resolve schedule" below.
+    #
+    # WITHOUT THAT GUARD BOTH FIRE, ALL YEAR. The whole pipeline — aggregation,
+    # QC, hourly, zone rollup, phenology, disease — ran twice a day, every day,
+    # and one of the two was always an hour off the intended 18:00. Nothing
+    # corrupted, because every stage is an idempotent upsert, which is exactly
+    # why it went unnoticed: the only symptoms were doubled work and a run log
+    # that could not be read against a schedule.
+    - cron: '0 5 * * *'   # 18:00 NZDT (UTC+13, summer)
+    - cron: '0 6 * * *'   # 18:00 NZST (UTC+12, winter)
+
   workflow_dispatch:
     inputs:
       date:
@@ -16,17 +25,42 @@ jobs:
   daily-processing:
     runs-on: ubuntu-latest
     steps:
+      # Runs BEFORE checkout and the dependency install, so the discarded half
+      # of each cron pair costs seconds rather than a full environment build.
+      - name: Resolve schedule
+        id: sched
+        run: |
+          set -euo pipefail
+          # NZ time, never UTC. The pair exists precisely because the UTC hour
+          # that means 18:00 NZ moves with daylight saving.
+          NZ_HOUR=$(TZ=Pacific/Auckland date +%H)
+          SCHED="${{ github.event.schedule }}"
+
+          # An empty schedule means workflow_dispatch — a person asked for it, at
+          # whatever hour they asked, and it must never be skipped.
+          if [ -n "$SCHED" ] && [ "$NZ_HOUR" != "18" ]; then
+            echo "::notice::skipping - cron '$SCHED' fired at ${NZ_HOUR}:00 NZ, "\
+                 "which is its daylight-saving twin, not the intended 18:00"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.sched.outputs.skip != 'true'
       - uses: actions/setup-python@v5
+        if: steps.sched.outputs.skip != 'true'
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
+        if: steps.sched.outputs.skip != 'true'
         run: |
           pip install boto3 pydantic pydantic-settings
           cd backend && pip install -r requirements.txt
-      
+
       - name: Run daily processing
+        if: steps.sched.outputs.skip != 'true'
         env:
           ENV: staging
           AWS_REGION: ap-southeast-2

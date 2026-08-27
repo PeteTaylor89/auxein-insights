@@ -70,19 +70,80 @@ def calculate_dew_point(temp_c: float, humidity_pct: float) -> Optional[float]:
         return None
 
 
+# --- wind as a DRYING term -------------------------------------------------
+# Wind speeds are m/s. Verified across all twelve sources that report wind —
+# every one declares m/s, means 1.9-5.9 and p95 4.8-15.1 — so no conversion is
+# involved here and none should be introduced.
+#
+# Wind accelerates evaporation from an already-wet surface. Multiplies the
+# post-rain decay, alongside the existing x1.5 (above 25 degC) and x1.3 (below
+# 70% RH), and deliberately of the same order as those.
+WIND_DECAY_STEPS = ((6.0, 2.0), (4.0, 1.6), (2.0, 1.25))
+
+# Dew forms on calm nights. Wind mixes the surface boundary layer and stops the
+# leaf radiating below the dew point, so the dew term is tapered out rather than
+# switched off: full weight in calm air, nothing above the ceiling.
+WIND_DEW_CALM = 1.5      # m/s — at or below this, dew is unaffected
+WIND_DEW_CEILING = 5.0   # m/s — at or above this, dew formation is suppressed
+
+
+def wind_decay_multiplier(wind_ms: Optional[float]) -> float:
+    """How much faster a wet leaf dries at this wind speed. 1.0 when unknown."""
+    if wind_ms is None:
+        return 1.0
+    for threshold, mult in WIND_DECAY_STEPS:
+        if wind_ms >= threshold:
+            return mult
+    return 1.0
+
+
+def wind_dew_factor(wind_ms: Optional[float]) -> float:
+    """Fraction of the dew term that survives this wind. 1.0 when unknown."""
+    if wind_ms is None or wind_ms <= WIND_DEW_CALM:
+        return 1.0
+    if wind_ms >= WIND_DEW_CEILING:
+        return 0.0
+    span = WIND_DEW_CEILING - WIND_DEW_CALM
+    return max(0.0, 1.0 - (wind_ms - WIND_DEW_CALM) / span)
+
+
 def estimate_leaf_wetness(
     temp_c: float,
     humidity_pct: float,
     rainfall_mm: float,
-    hours_since_rain: Optional[int] = None
+    hours_since_rain: Optional[int] = None,
+    wind_ms: Optional[float] = None
 ) -> Tuple[bool, float, Optional[str]]:
     """
     Estimate leaf wetness from meteorological variables.
-    
+
     Returns: (is_wet, probability, source)
+
+    ## Wind is a DRYING term, never a wetting one
+
+    The four probabilities below are combined with `max()`, so a fifth
+    `p_wind` term inside that max could only ever RAISE modelled wetness —
+    exactly backwards. Wind instead acts on the two terms it physically
+    governs: it accelerates post-rain evaporation, and it suppresses dew by
+    mixing the boundary layer so the leaf cannot radiate below the dew point.
+
+    It does NOT touch the RH ladder. Near-saturated air keeps a leaf wet
+    whether or not it is moving, and inventing a third effect would go beyond
+    what was decided.
+
+    ## `wind_ms=None` must reproduce the previous behaviour EXACTLY
+
+    Wind coverage is narrower than temperature (157 stations against 242), and
+    six zones have no anemometer at all. Both helpers return the identity
+    (1.0) for None so those zones are scored exactly as before rather than
+    silently moving.
+
+    **A missing wind reading is not calm.** Zero wind MAXIMISES dew, so
+    defaulting a null to 0.0 would over-predict wetness precisely where there
+    is least evidence. Keep it None.
     """
     p_precip = 1.0 if rainfall_mm and rainfall_mm > 0 else 0.0
-    
+
     p_post_rain = 0.0
     if hours_since_rain is not None and hours_since_rain <= 6:
         base_decay = 0.3
@@ -90,8 +151,9 @@ def estimate_leaf_wetness(
             base_decay *= 1.5
         if humidity_pct and humidity_pct < 70:
             base_decay *= 1.3
+        base_decay *= wind_decay_multiplier(wind_ms)
         p_post_rain = max(0, 1.0 - (hours_since_rain * base_decay))
-    
+
     p_rh = 0.0
     if humidity_pct is not None:
         if humidity_pct >= 95:
@@ -102,7 +164,7 @@ def estimate_leaf_wetness(
             p_rh = 0.5
         elif humidity_pct >= 80:
             p_rh = 0.2
-    
+
     p_dew = 0.0
     if temp_c is not None and humidity_pct is not None:
         dew_point = calculate_dew_point(temp_c, humidity_pct)
@@ -114,7 +176,8 @@ def estimate_leaf_wetness(
                 p_dew = 0.7
             elif depression <= 3.0:
                 p_dew = 0.4
-    
+            p_dew *= wind_dew_factor(wind_ms)
+
     max_p = max(p_precip, p_post_rain, p_rh, p_dew)
     
     if p_precip > 0:
@@ -319,6 +382,9 @@ def get_hourly_station_data(
             MAX(CASE WHEN variable IN ('humidity', 'relative_humidity', 'rh') THEN value END) as humidity_max,
             -- Rainfall (sum for the hour, not average)
             SUM(CASE WHEN variable IN ('rainfall', 'precipitation', 'precip', 'rain') THEN value ELSE 0 END) as rainfall_mm,
+            -- Wind, m/s at every source. AVG not MAX: the drying term is about
+            -- the hour's ventilation, and a gust is already its own variable.
+            AVG(CASE WHEN variable IN ('wind_speed', 'windspeed', 'wind') THEN value END) as wind_mean,
             -- Record counts per variable type
             COUNT(DISTINCT CASE WHEN variable IN ('temperature', 'temp', 'air_temperature') THEN timestamp END) as temp_count,
             COUNT(DISTINCT CASE WHEN variable IN ('humidity', 'relative_humidity', 'rh') THEN timestamp END) as humidity_count
@@ -326,7 +392,26 @@ def get_hourly_station_data(
         WHERE station_id = ANY(:station_ids)
           AND timestamp >= :start_dt
           AND timestamp < :end_dt
-          AND quality = 'GOOD'
+          -- EXCLUDE what QC rejected, rather than admitting only 'GOOD'.
+          --
+          -- This matches `daily_aggregation`, and the two must agree: they read
+          -- the same table and QC quarantines by SETTING quality to
+          -- 'QUARANTINED', so an exclusion filter is exactly "everything QC has
+          -- blessed". An inclusion filter is a second, invisible quality policy
+          -- that nothing maintains.
+          --
+          -- `quality = 'GOOD'` silently discarded three whole sources and cost
+          -- NINE climate zones their hourly rollup and therefore all of their
+          -- disease pressure:
+          --   * SYNOP_GTS writes 'PROVISIONAL' -- 48 official met stations,
+          --     carrying temp, rh, dewpoint AND rainfall, i.e. everything the
+          --     disease models need. Six zones had no other station at all.
+          --   * WRC (Waikato/KiWIS) also writes 'PROVISIONAL'.
+          --   * ECAN writes lowercase 'good', and the comparison is
+          --     case-sensitive.
+          -- Measured over 7 days: 71 stations / 10 zones under the old filter
+          -- against 92 / 19 under this one.
+          AND coalesce(quality, '') <> 'QUARANTINED'
         GROUP BY date_trunc('hour', timestamp), station_id
         ORDER BY hour_utc, station_id
     """), {
@@ -350,8 +435,10 @@ def get_hourly_station_data(
             'humidity_min': float(row[6]) if row[6] is not None else None,
             'humidity_max': float(row[7]) if row[7] is not None else None,
             'rainfall_mm': float(row[8]) if row[8] is not None else 0,
-            'temp_count': row[9] or 0,
-            'humidity_count': row[10] or 0,
+            # None, not 0.0 — a station with no anemometer must not read as calm.
+            'wind_mean': float(row[9]) if row[9] is not None else None,
+            'temp_count': row[10] or 0,
+            'humidity_count': row[11] or 0,
         })
     
     return hourly_data
@@ -394,8 +481,15 @@ def aggregate_to_zone(station_readings: List[dict]) -> Optional[dict]:
     stations_with_temp = sum(1 for r in station_readings if r['temp_mean'] is not None)
     stations_with_humidity = sum(1 for r in station_readings if r['humidity_mean'] is not None)
     stations_with_rain = sum(1 for r in station_readings if r['rainfall_mm'] and r['rainfall_mm'] > 0)
-    
+    stations_with_wind = sum(1 for r in station_readings if r.get('wind_mean') is not None)
+
     return {
+        # None when no station in the zone has an anemometer, which is six zones
+        # today. `safe_mean` already returns None for an all-None list, so this
+        # falls out rather than needing a guard — but it must stay None all the
+        # way to the estimator.
+        'wind_mean': safe_mean([r.get('wind_mean') for r in station_readings]),
+        'stations_with_wind': stations_with_wind,
         'temp_mean': safe_mean([r['temp_mean'] for r in station_readings]),
         'temp_min': safe_min([r['temp_min'] for r in station_readings]),
         'temp_max': safe_max([r['temp_max'] for r in station_readings]),
@@ -643,7 +737,18 @@ def process_time_range(
             if not zone_data:
                 continue
             
-            # Skip if no temperature data at all
+            # Skip if no temperature data at all.
+            #
+            # Deliberate, and it is a STATION ASSIGNMENT signal rather than a
+            # bug: all three disease models are driven by temperature, and dew
+            # point and leaf wetness are both undefined without it, so a row
+            # carrying only rainfall would be a zone that looks covered while
+            # answering none of the questions the table exists for.
+            #
+            # This is why "Upper Wairau and Southern Valleys" has no hourly data
+            # despite two active MDC stations: both are rain gauges. Widening the
+            # quality filter does not help it and never will — the zone needs a
+            # thermometer assigned. See the zone assignment worksheet.
             if zone_data['temp_mean'] is None:
                 continue
             
@@ -668,7 +773,8 @@ def process_time_range(
                 zone_data['temp_mean'],
                 zone_data['humidity_mean'],
                 zone_data['rainfall_mm'],
-                hours_since_rain if hours_since_rain < 999 else None
+                hours_since_rain if hours_since_rain < 999 else None,
+                zone_data.get('wind_mean')
             )
             
             # Confidence
@@ -697,14 +803,16 @@ def process_time_range(
                         rh_mean, rh_min, rh_max,
                         dewpoint, precipitation,
                         is_wet_hour, wetness_probability, wetness_source,
-                        hours_since_rain, station_count, confidence
+                        hours_since_rain, station_count, confidence,
+                        wind_mean, wind_station_count
                     ) VALUES (
                         :zone_id, :timestamp_utc, :timestamp_local, :vintage_year,
                         :temp_mean, :temp_min, :temp_max,
                         :rh_mean, :rh_min, :rh_max,
                         :dewpoint, :precipitation,
                         :is_wet_hour, :wetness_probability, :wetness_source,
-                        :hours_since_rain, :station_count, :confidence
+                        :hours_since_rain, :station_count, :confidence,
+                        :wind_mean, :wind_station_count
                     )
                     ON CONFLICT (zone_id, timestamp_utc) DO UPDATE SET
                         timestamp_local = EXCLUDED.timestamp_local,
@@ -721,7 +829,9 @@ def process_time_range(
                         wetness_source = EXCLUDED.wetness_source,
                         hours_since_rain = EXCLUDED.hours_since_rain,
                         station_count = EXCLUDED.station_count,
-                        confidence = EXCLUDED.confidence
+                        confidence = EXCLUDED.confidence,
+                        wind_mean = EXCLUDED.wind_mean,
+                        wind_station_count = EXCLUDED.wind_station_count
                 """), {
                     'zone_id': zone_id,
                     'timestamp_utc': hour_utc.replace(tzinfo=None),
@@ -735,6 +845,8 @@ def process_time_range(
                     'rh_max': zone_data['humidity_max'],
                     'dewpoint': dew_point,
                     'precipitation': zone_data['rainfall_mm'],
+                    'wind_mean': zone_data.get('wind_mean'),
+                    'wind_station_count': zone_data.get('stations_with_wind'),
                     'is_wet_hour': is_wet,
                     'wetness_probability': wetness_prob,
                     'wetness_source': wetness_source,

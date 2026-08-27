@@ -59,6 +59,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import text as sa_text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -181,6 +182,125 @@ RH_SATURATED_MIN_DAYS = 30
 # indefensible — a flatline off saturation, a -100 sentinel, a reading above
 # 105 — are caught by tests that need no neighbour context at all.
 RH_NEIGHBOUR_FLAG = 30.0
+
+
+# Every check this build can emit. Recorded on the run row so a check that fired
+# ZERO times stays visible: without the list, a check silently dropped in a
+# refactor and a check that is simply passing look identical, forever. Keep it
+# in step with `check_day` and `check_saturation` — the run summary counts these
+# names and a finding under a name absent here is reported as unregistered
+# rather than quietly folded into the totals.
+CHECKS = (
+    "order_violation",
+    "mean_outside_range",
+    "out_of_range",
+    "extreme_dtr",
+    "flatline",
+    "neighbour_outlier",
+    "rh_order_violation",
+    "rh_out_of_range",
+    "rh_overshoot",
+    "rh_mean_outside_range",
+    "rh_flatline",
+    "rh_neighbour_outlier",
+    "rh_saturated",
+)
+
+
+class QcRun:
+    """One row in `weather_qc_run`, opened before the work and closed after.
+
+    The findings table answers "what was wrong". It cannot answer "did the
+    checks run", because a clean pass writes nothing — and this stage runs four
+    times a day on a scheduler where silence is the normal case. Eight run ids
+    existed in `weather_daily_qc` across three days of six-hourly execution;
+    every other pass was invisible.
+
+    **The row is inserted and committed BEFORE the first day is fetched.** A
+    pass killed halfway therefore leaves `status='running'`, which is itself the
+    evidence it did not finish. The alternative — writing the record at the end
+    — records only the runs that did not need recording.
+    """
+
+    def __init__(self, run_id: str, lo: date, hi: date, max_reject_rate: float):
+        self.run_id = run_id
+        self.lo = lo
+        self.hi = hi
+        self.max_reject_rate = max_reject_rate
+
+    def open(self, db) -> None:
+        db.execute(sa_text("""
+            INSERT INTO weather_qc_run
+                (run_id, window_start, window_end, status, max_reject_rate,
+                 checks)
+            VALUES (:run_id, :lo, :hi, 'running', :mrr, :checks)
+            ON CONFLICT (run_id) DO UPDATE SET
+                status = 'running', started_at = now(), finished_at = NULL,
+                window_start = EXCLUDED.window_start,
+                window_end = EXCLUDED.window_end, error = NULL
+        """), {"run_id": self.run_id, "lo": self.lo, "hi": self.hi,
+               "mrr": self.max_reject_rate,
+               "checks": json.dumps({c: None for c in CHECKS})})
+        # Committed on its own so the row survives whatever happens next. Held
+        # inside the main transaction it would be rolled back by the very
+        # failure it exists to record.
+        db.commit()
+
+    def close(self, db, status: str, *, findings: list = None,
+              n_station_days: int = 0, n_quarantined: int = None,
+              n_cleared: int = None, n_late: int = None,
+              reaggregated: bool = None, error: str = None) -> None:
+        findings = findings or []
+        counts = {c: 0 for c in CHECKS}
+        unregistered = {}
+        for f in findings:
+            name = f["check_name"]
+            if name in counts:
+                counts[name] += 1
+            else:
+                unregistered[name] = unregistered.get(name, 0) + 1
+        if unregistered:
+            # Not fatal — the finding is already recorded and acted on. But a
+            # name the registry has never heard of means CHECKS has drifted from
+            # the code, and the zero-counts above are then no longer trustworthy.
+            logger.warning("check(s) not in CHECKS: %s — update the registry",
+                           ", ".join(sorted(unregistered)))
+            counts.update(unregistered)
+
+        n_reject = sum(1 for f in findings if f["severity"] == "reject")
+        rate = (n_reject / n_station_days) if n_station_days else None
+
+        db.execute(sa_text("""
+            UPDATE weather_qc_run SET
+                status = :status, finished_at = now(),
+                n_station_days = :nsd, n_findings = :nf,
+                n_reject = :nrj, n_flag = :nfl,
+                n_quarantined_rows = :nq, n_cleared_rows = :nc,
+                n_late_enforced = :nl, reject_rate = :rate,
+                reaggregated = :reagg, checks = :checks, error = :error
+            WHERE run_id = :run_id
+        """), {"run_id": self.run_id, "status": status,
+               "nsd": n_station_days, "nf": len(findings), "nrj": n_reject,
+               "nfl": len(findings) - n_reject, "nq": n_quarantined,
+               "nc": n_cleared, "nl": n_late, "rate": rate,
+               "reagg": reaggregated, "checks": json.dumps(counts),
+               "error": error})
+        db.commit()
+
+    def fail(self, db, exc: BaseException, **kw) -> None:
+        """Close as `failed`, from an except block, without masking the error.
+
+        The session is very likely poisoned by the exception that got us here,
+        so roll it back before touching the row — otherwise the attempt to
+        record the failure fails too, and the run is left at `running`, which
+        reads as "killed" rather than "raised".
+        """
+        try:
+            db.rollback()
+            self.close(db, "failed",
+                       error=f"{type(exc).__name__}: {exc}"[:2000], **kw)
+        except Exception:                                       # noqa: BLE001
+            logger.exception("could not record the QC run failure")
 
 
 def enforce_standing(db, lo: date, hi: date) -> int:
@@ -601,7 +721,21 @@ def main() -> int:
                 run_id, "" if args.apply else "  [DRY RUN]")
 
     db = SessionLocal()
+    # A dry run writes nothing and changes nothing, so there is no event whose
+    # silence needs explaining. `--apply` is the scheduled path and the only one
+    # that gets a record.
+    run = QcRun(run_id, lo, hi, args.max_reject_rate) if args.apply else None
+    # Bound before the try so the failure path can report how far the pass got
+    # rather than raising a NameError while recording someone else's error.
+    findings: list[dict] = []
+    n_station_days = 0
+    n_late = 0
     try:
+        # Opened BEFORE the first day is fetched, so a pass that dies halfway
+        # leaves `status='running'` rather than no trace at all.
+        if run:
+            run.open(db)
+
         # BEFORE any check: re-apply standing quarantine windows to data that
         # arrived since they were set. Without this the whole stage can report
         # a clean window while previously-rejected values sit in the daily
@@ -618,8 +752,6 @@ def main() -> int:
             else:
                 logger.info("standing windows: nothing late to re-apply")
 
-        findings: list[dict] = []
-        n_station_days = 0
         for day in days:
             df = _fetch_day(db, day)
             n_station_days += len(df)
@@ -659,6 +791,14 @@ def main() -> int:
             logger.error("reject rate %.1f%% exceeds --max-reject-rate %.1f%% "
                          "— refusing to act. Review the findings first.",
                          100 * rate, 100 * args.max_reject_rate)
+            # The findings are deliberately still NOT written — the guard's
+            # whole point is that this pass does not act. But the run row is,
+            # because "a check ran, saw N rejects at X%, and refused" was
+            # previously indistinguishable from the pass never having happened.
+            if run:
+                run.close(db, "aborted", findings=findings,
+                          n_station_days=n_station_days, n_late=n_late,
+                          n_quarantined=0, n_cleared=0, reaggregated=False)
             return 1
 
         if not args.apply:
@@ -675,12 +815,29 @@ def main() -> int:
         logger.info("quarantined %d raw row(s), cleared %d daily row(s), "
                     "recorded %d finding(s)", q, c, n)
 
-        if q and not args.no_reaggregate:
+        reaggregated = bool(q) and not args.no_reaggregate
+        if reaggregated:
             # Rebuild any cleared day that still has surviving GOOD rows.
             from scripts.daily_aggregation import run_daily_aggregation
             logger.info("re-aggregating %s .. %s", lo, hi)
             run_daily_aggregation(start_date=lo.isoformat(),
                                   end_date=hi.isoformat())
+
+        # Closed only here, after the re-aggregation. A pass that quarantined
+        # rows and then died before rebuilding the days it emptied has left the
+        # daily table with holes, and that must not read as `complete`.
+        if run:
+            run.close(db, "complete", findings=findings,
+                      n_station_days=n_station_days, n_quarantined=q,
+                      n_cleared=c, n_late=n_late, reaggregated=reaggregated)
+    except BaseException as exc:                                # noqa: BLE001
+        # BaseException so a KeyboardInterrupt is recorded too — an operator
+        # stopping a pass mid-quarantine is exactly the state worth knowing
+        # about later. Re-raised untouched.
+        if run:
+            run.fail(db, exc, findings=findings,
+                     n_station_days=n_station_days, n_late=n_late)
+        raise
     finally:
         db.close()
     return 0

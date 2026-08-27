@@ -241,6 +241,43 @@ export const adminBannerService = {
 };
 
 // ============================================
+// DAILY QC
+// ============================================
+
+export const adminQcService = {
+  /**
+   * Run health, coverage, check counts and repeat offenders in one call.
+   * The health block comes from `weather_qc_run` — a pass that finds nothing
+   * writes no finding, so the findings alone can never say whether QC ran.
+   */
+  getSummary: async (days = 14) => {
+    const response = await publicApi.get(`${ADMIN_BASE}/qc/summary`, {
+      params: { days },
+    });
+    return response.data;
+  },
+
+  /**
+   * The run log — one row per invocation.
+   */
+  getRuns: async (limit = 50) => {
+    const response = await publicApi.get(`${ADMIN_BASE}/qc/runs`, {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  /**
+   * Findings, filterable. Passing `run_id` overrides the date window, because
+   * a run's own window may sit outside the range the page is showing.
+   */
+  getFindings: async (params = {}) => {
+    const response = await publicApi.get(`${ADMIN_BASE}/qc/findings`, { params });
+    return response.data;
+  },
+};
+
+// ============================================
 // COMBINED ADMIN SERVICE
 // ============================================
 
@@ -249,6 +286,7 @@ const adminService = {
   weather: adminWeatherService,
   data: adminDataService,
   banners: adminBannerService,
+  qc: adminQcService,
 };
 
 export default adminService;

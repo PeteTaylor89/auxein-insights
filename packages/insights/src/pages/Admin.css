@@ -1446,3 +1446,48 @@
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
 .justify-center { justify-content: center; }
+/* ============================================
+   DAILY QC — coverage strip
+   One cell per day in the window. The distinction it draws is the whole point
+   of the panel: a day nobody checked and a day that came back clean are
+   indistinguishable in the findings table, and only the run windows separate
+   them. Colour is not the only channel — an unexamined cell is also hatched,
+   so the strip still reads without it.
+   ============================================ */
+.qc-coverage-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.qc-coverage-day {
+  flex: 0 0 auto;
+  min-width: 34px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.qc-coverage-day.examined {
+  background: var(--success-light, #dcfce7);
+  border-color: var(--success, #16a34a);
+}
+
+.qc-coverage-day.missing {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--warning-light, #fef9c3),
+    var(--warning-light, #fef9c3) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  border-color: var(--warning, #ca8a04);
+}
+
+.qc-coverage-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary, #475569);
+}

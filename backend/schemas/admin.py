@@ -1,7 +1,7 @@
 # schemas/admin.py - Admin Dashboard Pydantic Schemas
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
@@ -459,6 +459,136 @@ class DataOverviewResponse(BaseModel):
     climate: ClimateDataOverview
     recent_gaps: List[DataGap]
     recent_issues: List[DataQualityIssue]
+
+
+# =============================================================================
+# DAILY QC
+# =============================================================================
+
+class QcRunItem(BaseModel):
+    """One invocation of the daily QC stage.
+
+    `n_station_days` is NULL on the eight passes reconstructed by
+    `backfill_qc_runs.py` — the denominator depended on what the rollup held at
+    the time and is not recoverable. A null there means the row was rebuilt from
+    its findings, not that the pass examined nothing.
+    """
+    run_id: str
+    status: str                      # running | complete | aborted | failed
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    window_start: date
+    window_end: date
+    n_station_days: Optional[int] = None
+    n_findings: Optional[int] = None
+    n_reject: Optional[int] = None
+    n_flag: Optional[int] = None
+    n_quarantined_rows: Optional[int] = None
+    n_cleared_rows: Optional[int] = None
+    n_late_enforced: Optional[int] = None
+    reject_rate: Optional[float] = None
+    max_reject_rate: Optional[float] = None
+    reaggregated: Optional[bool] = None
+    error: Optional[str] = None
+
+
+class QcRunsResponse(BaseModel):
+    runs: List[QcRunItem]
+    total: int
+
+
+class QcHealth(BaseModel):
+    """Is the stage running at all — the question findings cannot answer."""
+    status: str                      # healthy | stale | attention | unknown
+    hours_since_last_run: Optional[float] = None
+    expected_interval_hours: int
+    n_runs: int
+    n_complete: int
+    n_aborted: int
+    n_failed: int
+    n_running: int
+    # Opened but never closed, and old enough that it cannot still be going.
+    # This is the signature of a killed pass.
+    n_stuck: int
+    last_run: Optional[QcRunItem] = None
+
+
+class QcCoverageDay(BaseModel):
+    """Whether a given day was ever inside a run's window."""
+    date: date
+    n_runs: int
+    examined: bool
+
+
+class QcCheckCount(BaseModel):
+    check_name: str
+    severity: str
+    n: int
+    n_stations: int
+
+
+class QcOffender(BaseModel):
+    """A station ranked by how OFTEN it trips, not by how many findings it has.
+
+    One neighbour rejection is a thunderstorm; the same station on most of the
+    days it was examined is a broken sensor, and that is a source problem the
+    fit-time screen cannot fix.
+    """
+    station_id: int
+    station_name: Optional[str] = None
+    station_code: Optional[str] = None
+    data_source: Optional[str] = None
+    n_findings: int
+    n_reject: int
+    n_days: int
+    n_days_examined: int
+    trip_rate: float
+    persistent: bool
+    first_seen: date
+    last_seen: date
+    checks: List[str] = []
+
+
+class QcSummaryResponse(BaseModel):
+    window_start: date
+    window_end: date
+    days: int
+    health: QcHealth
+    coverage: List[QcCoverageDay]
+    checks: List[QcCheckCount]
+    # Registered checks that fired zero times in the window. Listed explicitly
+    # so a check removed in a refactor cannot look like one that is passing.
+    silent_checks: List[str] = []
+    offenders: List[QcOffender]
+    n_findings: int
+    n_reject: int
+    n_flag: int
+    n_stations: int
+
+
+class QcFindingItem(BaseModel):
+    id: int
+    station_id: int
+    station_name: Optional[str] = None
+    station_code: Optional[str] = None
+    data_source: Optional[str] = None
+    date: date
+    variable: str
+    check_name: str
+    severity: str
+    value: Optional[float] = None
+    expected: Optional[float] = None
+    detail: Optional[Dict[str, Any]] = None
+    action: str
+    run_id: Optional[str] = None
+    created_at: datetime
+
+
+class QcFindingsResponse(BaseModel):
+    findings: List[QcFindingItem]
+    total: int
+    limit: int
+    offset: int
 
 
 # =============================================================================

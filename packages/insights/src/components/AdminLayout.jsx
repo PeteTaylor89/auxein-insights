@@ -10,7 +10,8 @@ import {
   FileText,
   BookOpen,
   Mail,
-  Map
+  Map,
+  ShieldCheck
 } from 'lucide-react';
 import '../pages/admin.css';
 
@@ -24,6 +25,7 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
     { path: '/admin/research', icon: BookOpen, label: 'Research' },
     { path: '/admin/weather', icon: Cloud, label: 'Weather' },
     { path: '/admin/weather/map', icon: Map, label: 'Station Map' },
+    { path: '/admin/qc', icon: ShieldCheck, label: 'QC' },
     { path: '/admin/banners', icon: Megaphone, label: 'Banners' },
     { path: '/admin/email', icon: Mail, label: 'Email' },
   ];

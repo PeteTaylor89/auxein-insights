@@ -41,6 +41,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import UserDetail from './pages/UserDetail';
 import WeatherStatus from './pages/WeatherStatus';
+import QcDashboard from './pages/QcDashboard';
 import StationDetail from './pages/StationDetail';
 
 import BannerManagement from './pages/BannerManagement';
@@ -97,6 +98,7 @@ function AppRoutes() {
           <Route path="/admin/research/new" element={<AdminRoute><AdminResearchEditor /></AdminRoute>} />
           <Route path="/admin/research/:id/edit" element={<AdminRoute><AdminResearchEditor /></AdminRoute>} />
           <Route path="/admin/weather" element={<AdminRoute><WeatherStatus /></AdminRoute>} />
+          <Route path="/admin/qc" element={<AdminRoute><QcDashboard /></AdminRoute>} />
           {/* Before the :id route — a literal segment must not be swallowed by it. */}
           <Route path="/admin/weather/map" element={<AdminRoute><Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: 'var(--primary)' }}>Loading map…</div>}><StationMap /></Suspense></AdminRoute>} />
           <Route path="/admin/weather/:id" element={<AdminRoute><StationDetail /></AdminRoute>} />
