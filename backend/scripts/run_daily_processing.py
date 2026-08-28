@@ -174,11 +174,47 @@ def main():
         results['daily_qc'] = True
 
     # =========================================================================
+    # Every stage below aggregates a WINDOW, not a single day
+    # =========================================================================
+    # Steps 2-5 used to take a bare `--date <target>` while only steps 1 and 1b
+    # honoured the lookback. That made the zone branch the one part of the
+    # pipeline that could not repair itself: `weather_data_daily` was healed by
+    # the 6-hourly aggregation job, but climate_zone_hourly, climate_zone_daily,
+    # phenology and disease advanced exactly one day per 18:00 run and left a
+    # PERMANENT hole for any run that was skipped, failed or dropped. That is
+    # how all four froze at 2026-08-25 for three days while the daily table
+    # stayed current and the workflow reported success.
+    #
+    # There is a second, independent reason beyond hole-repair. `daily_aggregation`
+    # runs every 6 h with a 3-day lookback, so `weather_data_daily` keeps being
+    # REVISED for about three days. A consumer that reads it once, on the day,
+    # never sees those revisions — it would disagree with the database
+    # permanently and nothing downstream could detect the disagreement. The
+    # default lookback of 3 matches that revision window deliberately.
+    #
+    # Safe to replay: every stage is an idempotent upsert, and all four iterate
+    # the range ASCENDING (`start + timedelta(days=i)`), which is what cumulative
+    # phenology requires.
+    #
+    # FLAG NAMES DIFFER AND THE SCRIPTS SILENTLY IGNORE THE WRONG ONE.
+    # hourly_aggregation takes --start-date/--end-date; the other three take
+    # --start/--end. Each also gives a bare `--date` PRECEDENCE over the range,
+    # so the window must be passed INSTEAD OF --date, never alongside it.
+    def window_args(start_flag='--start', end_flag='--end'):
+        if args.lookback_days <= 0:
+            return ['--date', target_date]
+        return [start_flag, start_date, end_flag, target_date]
+
+    if args.lookback_days > 0:
+        logger.info(f"\n      stages 2-5 window: {start_date} -> {target_date} "
+                    f"(lookback {args.lookback_days}d, self-healing)")
+
+    # =========================================================================
     # Step 2: Hourly Aggregation (weather_data → climate_zone_hourly)
     # =========================================================================
     if not args.skip_hourly:
         logger.info("\n[2/6] HOURLY AGGREGATION (weather_data → climate_zone_hourly)")
-        hourly_args = ['--date', target_date]
+        hourly_args = window_args('--start-date', '--end-date')
         if args.dry_run:
             hourly_args.append('--dry-run')
         if args.zone_id:
@@ -193,7 +229,7 @@ def main():
     # =========================================================================
     if not args.skip_zone:
         logger.info("\n[3/6] ZONE AGGREGATION (weather_data_daily → climate_zone_daily)")
-        zone_args = ['--date', target_date]
+        zone_args = window_args()
         if args.dry_run:
             zone_args.append('--dry-run')
         if args.zone_id:
@@ -208,7 +244,7 @@ def main():
     # =========================================================================
     if not args.skip_phenology:
         logger.info("\n[4/6] PHENOLOGY ESTIMATION")
-        pheno_args = ['--date', target_date]
+        pheno_args = window_args()
         if args.dry_run:
             pheno_args.append('--dry-run')
         if args.zone_id:
@@ -223,7 +259,7 @@ def main():
     # =========================================================================
     if not args.skip_disease:
         logger.info("\n[5/6] DISEASE PRESSURE (v2 - hourly data)")
-        disease_args = ['--date', target_date]
+        disease_args = window_args()
         if args.dry_run:
             disease_args.append('--dry-run')
         if args.zone_id:

@@ -439,19 +439,39 @@ def get_48h_conditions(db: Session, zone_id: int, target_date: date) -> dict:
     }
 
 
-def get_previous_state(db: Session, zone_id: int, vintage_year: int) -> dict:
-    """Get previous disease state for cumulative calculations."""
+def get_previous_state(db: Session, zone_id: int, vintage_year: int,
+                       target_date: date) -> dict:
+    """Get the state of the day BEFORE `target_date`, for the cumulative models.
+
+    `AND date < :target_date` IS LOAD-BEARING. Without it this took the latest
+    row for the zone outright, which is only ever correct when the job runs
+    forward one day at a time and the newest row happens to be yesterday.
+
+    On ANY recomputation it read the FUTURE instead, and recomputing the newest
+    day fed that day's own cumulative straight back into itself. Because both
+    models are of the form `cumulative = prev * decay + today * weight`, a
+    self-referential prev turns a decay into a ratchet: replaying 2026-08-24..27
+    walked botrytis_cumulative for zone 1 up 22.2 -> 26.2 -> 29.6 -> 32.4 on
+    successive runs, converging on the min(100, ...) cap rather than the truth.
+    `botrytis_severity` stayed put throughout — only the accumulator moved,
+    which is what made it invisible.
+
+    This matters because `--start/--end`, `--backfill` and the daily pipeline's
+    lookback window all recompute days that already have rows.
+    """
     result = db.execute(text("""
-        SELECT 
+        SELECT
             pm_cumulative_index,
             botrytis_cumulative,
             dm_goidanich_index
         FROM disease_pressure
         WHERE zone_id = :zone_id
           AND vintage_year = :vintage_year
+          AND date < :target_date
         ORDER BY date DESC
         LIMIT 1
-    """), {'zone_id': zone_id, 'vintage_year': vintage_year}).fetchone()
+    """), {'zone_id': zone_id, 'vintage_year': vintage_year,
+           'target_date': target_date}).fetchone()
     
     if result:
         return {
@@ -551,7 +571,7 @@ def run_disease_service(
                 
                 conditions_48h = get_48h_conditions(db, zone_id, target)
                 vintage_year = get_vintage_year(target)
-                prev = get_previous_state(db, zone_id, vintage_year)
+                prev = get_previous_state(db, zone_id, vintage_year, target)
                 stage = get_growth_stage(db, zone_id, target)
                 
                 temps = [h['temp'] for h in hourly]

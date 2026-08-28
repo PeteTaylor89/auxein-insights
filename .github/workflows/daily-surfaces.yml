@@ -93,21 +93,36 @@ jobs:
           # Everything below is in NZ time, deliberately. `date.today()` in UTC
           # is YESTERDAY for the whole NZ morning — the surface would silently
           # be labelled with the wrong day on every single run.
-          NZ_HOUR=$(TZ=Pacific/Auckland date +%H)
-          NZ_DOW=$(TZ=Pacific/Auckland date +%u)     # 7 = Sunday
           SCHED="${{ github.event.schedule }}"
+
+          # For a manual run the wall clock IS the right answer — a person
+          # triggered it just now. A scheduled run overrides this below, because
+          # for it the wall clock means nothing.
+          NZ_HOUR=$(TZ=Pacific/Auckland date +%H)
 
           MODE=daily
           SKIP=false
           if [ -n "$SCHED" ]; then
+            # THE HOUR THAT DECIDES IS THE ONE THE CRON WAS SCHEDULED FOR, NEVER
+            # THE ONE THE RUNNER HAPPENED TO START IN. See the same guard in
+            # daily-processing.yml for the incident: a '0 15' cron was observed
+            # starting at 00:00 UTC, nine hours late, and reported itself as
+            # "12:00 NZ" — so both halves of the pair skipped and the workflow
+            # went green having done nothing.
+            #
+            # This mapping is date-independent apart from daylight saving, so an
+            # arbitrarily delayed start still resolves to the right answer.
+            CRON_UTC_HOUR=$(echo "$SCHED" | awk '{print $2}')
+            NZ_HOUR=$(TZ=Pacific/Auckland \
+                      date -d "$(date -u +%F) ${CRON_UTC_HOUR}:00 UTC" +%H)
+
             case "$SCHED" in
-              # The weekly pair. Only proceed on the firing that actually lands
-              # at 04:00 NZ on a Sunday; its twin is the wrong side of DST.
+              # The weekly pair, both scheduled on a Saturday UTC. Adding 12 or
+              # 13 hours lands on Sunday NZ either way, so the day of week is
+              # not in question and only the hour distinguishes the twins.
               '0 15 * * 6'|'0 16 * * 6')
                 MODE=refit
-                if [ "$NZ_HOUR" != "04" ] || [ "$NZ_DOW" != "7" ]; then
-                  SKIP=true
-                fi
+                if [ "$NZ_HOUR" != "04" ]; then SKIP=true; fi
                 ;;
               *)
                 MODE=daily
@@ -119,11 +134,16 @@ jobs:
           fi
 
           if [ "$SKIP" = "true" ]; then
-            echo "::notice::skipping - cron '$SCHED' fired at ${NZ_HOUR}:00 NZ "\
-                 "(dow $NZ_DOW), which is its daylight-saving twin"
+            echo "::notice::SKIPPED - $MODE cron '$SCHED' is ${NZ_HOUR}:00 NZ "\
+                 "today, which is its daylight-saving twin"
+            echo "**SKIPPED** - $MODE cron \`$SCHED\` is ${NZ_HOUR}:00 NZ today." \
+              >> "$GITHUB_STEP_SUMMARY"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "::notice::RUNNING - mode=$MODE"
+          echo "**RAN** - mode \`$MODE\`, cron \`${SCHED:-manual}\`." \
+            >> "$GITHUB_STEP_SUMMARY"
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
           if [ -n "${{ github.event.inputs.start }}" ]; then

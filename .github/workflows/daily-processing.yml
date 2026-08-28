@@ -31,18 +31,46 @@ jobs:
         id: sched
         run: |
           set -euo pipefail
-          # NZ time, never UTC. The pair exists precisely because the UTC hour
-          # that means 18:00 NZ moves with daylight saving.
-          NZ_HOUR=$(TZ=Pacific/Auckland date +%H)
           SCHED="${{ github.event.schedule }}"
 
           # An empty schedule means workflow_dispatch — a person asked for it, at
           # whatever hour they asked, and it must never be skipped.
-          if [ -n "$SCHED" ] && [ "$NZ_HOUR" != "18" ]; then
-            echo "::notice::skipping - cron '$SCHED' fired at ${NZ_HOUR}:00 NZ, "\
-                 "which is its daylight-saving twin, not the intended 18:00"
+          if [ -z "$SCHED" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "manual run, no schedule to resolve" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # THE HOUR THAT DECIDES IS THE ONE THE CRON WAS SCHEDULED FOR, NEVER
+          # THE ONE THE RUNNER HAPPENED TO START IN.
+          #
+          # The first version of this guard read `date +%H` at execution. That
+          # assumes GitHub starts a scheduled job in the hour it was asked for,
+          # and it does not: lateness of 24-106 minutes is routine (measured, see
+          # synop-live.yml) and on 2026-08-28 a '0 15' cron was observed starting
+          # at 00:00 UTC — NINE HOURS late. Past the hour boundary BOTH halves of
+          # the pair skip, the pipeline goes dark, and the notice it prints is
+          # word-for-word the one a correct daylight-saving skip prints. That is
+          # how zone rollup, disease and phenology silently stopped for three
+          # days from 2026-08-25.
+          #
+          # Deriving the NZ hour from the cron's own UTC hour is immune to all of
+          # it, because the mapping only moves with daylight saving and not with
+          # when the runner woke up.
+          CRON_UTC_HOUR=$(echo "$SCHED" | awk '{print $2}')
+          NZ_HOUR=$(TZ=Pacific/Auckland \
+                    date -d "$(date -u +%F) ${CRON_UTC_HOUR}:00 UTC" +%H)
+
+          if [ "$NZ_HOUR" != "18" ]; then
+            echo "::notice::SKIPPED - cron '$SCHED' is ${NZ_HOUR}:00 NZ today, "\
+                 "not the intended 18:00. This is its daylight-saving twin."
+            echo "**SKIPPED** - cron \`$SCHED\` is ${NZ_HOUR}:00 NZ today, not 18:00." \
+              >> "$GITHUB_STEP_SUMMARY"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
+            echo "::notice::RUNNING - cron '$SCHED' is 18:00 NZ today"
+            echo "**RAN** - cron \`$SCHED\` is 18:00 NZ today." \
+              >> "$GITHUB_STEP_SUMMARY"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
