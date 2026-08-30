@@ -20,17 +20,31 @@ name: Daily Live Surfaces
 # in the surfaces bucket and are fetched here. A missing LENZ raster fails
 # MINUTES into the run, after the 4.6 GB rainfall basis is already built.
 
-on:
-  schedule:
-    # GitHub cron is UTC only and NZ observes DST, so each NZ wall-clock time
-    # needs two entries. Exactly one of each pair lands on the intended NZ hour;
-    # the other is dropped by the DST guard in "Resolve target window" rather
-    # than being allowed to run the job twice a day for the whole year.
-    - cron: '0 14 * * *'   # daily  D-2, 03:00 NZDT (UTC+13)
-    - cron: '0 15 * * *'   # daily  D-2, 03:00 NZST (UTC+12)
-    - cron: '0 15 * * 6'   # weekly refit, Sun 04:00 NZDT
-    - cron: '0 16 * * 6'   # weekly refit, Sun 04:00 NZST
+# THE SCHEDULE MOVED TO AWS ON 2026-08-30. Do not restore the crons below
+# without first disabling the EventBridge schedules — two live schedulers race
+# for the same S3 keys and the same `uq_surface_run_timestep` row.
+#
+#     EventBridge Scheduler   auxein-surfaces-daily   cron(0 3 * * ? *)
+#                             auxein-surfaces-refit   cron(0 4 ? * SUN *)
+#     both ScheduleExpressionTimezone: Pacific/Auckland
+#     -> ECS Fargate, cluster auxein-jobs, task auxein-surfaces
+#
+# What that buys, and it is the whole reason: Scheduler resolves the timezone
+# itself, so 03:00 NZ is 03:00 NZ all year — 15:00 UTC in NZST, 14:00 UTC in
+# NZDT — from ONE entry with no guard. The four crons that used to live here
+# were two daylight-saving PAIRS, each needing an in-job guard to discard the
+# twin that fired on the wrong side of the change. That machinery is what took
+# the zone pipeline dark for three days: a run started nine hours late, the
+# guard read the clock at execution, and BOTH halves skipped while the workflow
+# reported success.
+#
+# This file is kept, and kept working, deliberately. `workflow_dispatch` still
+# runs the whole job by hand, so re-enabling GitHub is one cron block away if
+# Fargate has to be rolled back. The DST guard below is now dead code for
+# scheduled runs — there are none — but it returns skip=false on a manual run,
+# so it costs nothing and stays for that rollback.
 
+on:
   workflow_dispatch:
     inputs:
       date:
