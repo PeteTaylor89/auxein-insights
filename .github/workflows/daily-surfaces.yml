@@ -46,6 +46,10 @@ on:
         description: 'Re-fit the D-9..D-3 catch-up window'
         type: boolean
         default: false
+      qc_full_window:
+        description: 'Apply QC across the full 120-day stage window, not just the recent tail. DELIBERATE ACTION — see the QC step.'
+        type: boolean
+        default: false
 
 concurrency:
   # Two overlapping runs would fit the same day and race on the same S3 keys and
@@ -80,11 +84,33 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # INSTALL THE APPLICATION REQUIREMENTS, NOT A HAND-PICKED LIST.
+          #
+          # This job failed on every real run from 2026-08-25 to 2026-08-30 —
+          # four attempts, all dying in under a minute at "QC the daily table"
+          # — because the curated list below named only what the *interpolation*
+          # code imports. Three of the steps here (QC, Stage, Index) reach the
+          # DB through `db.session` -> `core.config`, which imports
+          # `pydantic_settings`, and nothing in that list pulls pydantic. The
+          # symptom was a bare ModuleNotFoundError seconds in, which reads
+          # nothing like a dependency-list problem.
+          #
+          # `daily-processing.yml` runs the same `daily_qc.py` (through
+          # `run_daily_processing.py`) and has never had this, because it
+          # installs requirements.txt. Curating per workflow means every new
+          # transitive import is a fresh outage, so don't reintroduce one.
+          #
           # rasterio brings its own GDAL wheels; no apt packages needed, and no
           # system PROJ to collide with (`raster._configure_proj` handles the
-          # workstation's PostGIS install, which does not exist here).
-          pip install 'rasterio>=1.3' scipy numpy pandas boto3 \
-                      sqlalchemy psycopg2-binary python-dotenv pytz
+          # workstation's PostGIS install, which does not exist here). pyproj,
+          # needed by the LENZ climatology path in `precip.py`, arrives via
+          # geopandas.
+          pip install -r backend/requirements.txt
+          # scipy is the one real gap: the spline needs it and no API dependency
+          # pulls it, so it is not in requirements.txt and must stay explicit.
+          # sklearn is deliberately NOT installed — the only import of it is in
+          # `tps._select_smoothing_cv`, which has no caller anywhere in the tree.
+          pip install scipy
 
       - name: Resolve target window
         id: window
@@ -171,6 +197,25 @@ jobs:
           # staged window, so staging only the target day would drop EVERY
           # station. Stage a wide window and fit a narrow one.
           echo "stage_start=$(TZ=Pacific/Auckland date -d "$START -120 days" +%F)" >> "$GITHUB_OUTPUT"
+          # QC APPLIES OVER THE RECENT TAIL, NOT THE WHOLE STAGE WINDOW.
+          # `--apply` quarantines observations and re-aggregates the affected
+          # days, and it is the ONLY job that runs a wide window — so while it
+          # was broken (2026-08-25..08-30) a backlog of historical findings
+          # accumulated unapplied. Pointing it at `stage_start` on the first
+          # green run would silently quarantine 21 station-days back to April
+          # and re-aggregate them, WITHOUT recomputing the zone rollups, disease
+          # or phenology built on those days. That is a deliberate decision, not
+          # a side effect of fixing a dependency list.
+          #
+          # 14 days covers `daily_aggregation`'s 3-day revision tail with wide
+          # margin, which is all the fit actually needs. Measured 2026-08-30:
+          # the 120-day window holds 21 rejects, the 14-day tail holds 0.
+          # Use the `qc_full_window` dispatch input to run the sweep on purpose.
+          if [ "${{ github.event.inputs.qc_full_window }}" = "true" ]; then
+            echo "qc_start=$(TZ=Pacific/Auckland date -d "$START -120 days" +%F)" >> "$GITHUB_OUTPUT"
+          else
+            echo "qc_start=$(TZ=Pacific/Auckland date -d "$START -14 days" +%F)" >> "$GITHUB_OUTPUT"
+          fi
           echo "days=$(( ( $(date -d "$END" +%s) - $(date -d "$START" +%s) ) / 86400 + 1 ))" >> "$GITHUB_OUTPUT"
 
       - name: Fetch grid, climatology and era-offset fields
@@ -209,7 +254,10 @@ jobs:
         # a station that was quarantined this morning is back in the surface by
         # tonight.
         run: |
-          python backend/scripts/daily_qc.py             --start "${{ steps.window.outputs.stage_start }}"             --end "${{ steps.window.outputs.end }}"             --apply
+          python backend/scripts/daily_qc.py \
+            --start "${{ steps.window.outputs.qc_start }}" \
+            --end "${{ steps.window.outputs.end }}" \
+            --apply
 
       - name: Stage station inputs
         if: steps.window.outputs.skip != 'true'
