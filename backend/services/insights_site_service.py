@@ -46,6 +46,12 @@ from db.models.insights_site import (
 )
 from services import surface_store as store
 
+# Both imported rather than restated, so a site can never disagree with its own
+# region about where a season starts or what base 10 means. The whole value of a
+# Pro site is the comparison against its zone.
+from scripts.aggregate_zone_monthly import GDD_BASE
+from scripts.zone_aggregation import get_vintage_year
+
 log = logging.getLogger(__name__)
 
 # Reference variable used to resolve a point to a cell and to test whether it is
@@ -564,11 +570,58 @@ DAILY_VARIABLES = {
 #
 # So the era is chosen, not raced for. Overridable because the version string
 # will change when the estimator does, and that should not need a code deploy.
-LIVE_MODEL_VERSION = os.getenv("SURFACE_LIVE_MODEL_VERSION", "tps-2.0.0-ridge-db")
+# THE PIN IS PER VARIABLE, BECAUSE THE LIVE ERA IS NOT ONE VERSION STRING.
+#
+# `run_live` publishes the three temperatures era-corrected as
+# `tps-2.0.0-ridge-db-adj` and rainfall UNCORRECTED as `tps-2.0.0-ridge-db` —
+# deliberately, because the DB carries ~838 gauges against CLIFLO's ~343, so
+# correcting rainfall would correct toward the worse network.
+#
+# A single pin cannot express that. Until 2026-08-30 this was one string
+# defaulting to `tps-2.0.0-ridge-db`, applied to all four variables, so
+# `daily_surfaces()` matched rainfall and silently returned ZERO rows for
+# temp_mean, temp_min and temp_max. Measured against live data for
+# 2026-08-01..08-29: rainfall 29 rows, each temperature 0. Nothing raised —
+# a pinned era that matches nothing is indistinguishable from a day not yet
+# fitted, which is the whole reason it survived this long.
+#
+# Overridable per family because the version string changes when the estimator
+# does, and that should not need a code deploy.
+LIVE_MODEL_VERSIONS = {
+    "temp_min":  os.getenv("SURFACE_LIVE_MODEL_VERSION_TEMP",
+                           "tps-2.0.0-ridge-db-adj"),
+    "temp_max":  os.getenv("SURFACE_LIVE_MODEL_VERSION_TEMP",
+                           "tps-2.0.0-ridge-db-adj"),
+    "temp_mean": os.getenv("SURFACE_LIVE_MODEL_VERSION_TEMP",
+                           "tps-2.0.0-ridge-db-adj"),
+    "rainfall":  os.getenv("SURFACE_LIVE_MODEL_VERSION_RAIN",
+                           "tps-2.0.0-ridge-db"),
+}
+
+# Sentinel so `model_version=None` can keep meaning "lift the pin entirely"
+# while the default still means "use the per-variable map above".
+_PIN_DEFAULT = object()
+
+
+def _resolve_pin(model_version):
+    """Normalise a pin argument to {variable: model_version} or None.
+
+    Accepts the default sentinel (the per-variable map), None (no pin, most
+    recent object per variable-day — diagnostics only), a plain string (one era
+    across all four variables, which is what the archive backfills want), or an
+    explicit mapping.
+    """
+    if model_version is _PIN_DEFAULT:
+        return dict(LIVE_MODEL_VERSIONS)
+    if model_version is None:
+        return None
+    if isinstance(model_version, str):
+        return {v: model_version for v in DAILY_VARIABLES}
+    return dict(model_version)
 
 
 def daily_surfaces(db: Session, start: _date, end: _date,
-                   model_version: Optional[str] = LIVE_MODEL_VERSION) -> list[dict]:
+                   model_version=_PIN_DEFAULT) -> list[dict]:
     """The daily surface objects covering [start, end], from ONE era.
 
     `statistic IS NULL` is the daily/hourly signature — see
@@ -576,11 +629,17 @@ def daily_surfaces(db: Session, start: _date, end: _date,
     value itself and have none. Filtering on the four variables alone would also
     sweep up every monthly statistic band for the same dates.
 
-    `model_version` pins the era; passing None lifts the pin and takes the most
-    recently created object per (variable, day), which is for diagnostics rather
-    than for anything a subscriber sees. The DISTINCT ON stays either way, so
-    the query is deterministic whichever it is asked.
+    `model_version` pins the era PER VARIABLE; passing None lifts the pin and
+    takes the most recently created object per (variable, day), which is for
+    diagnostics rather than for anything a subscriber sees. The DISTINCT ON
+    stays either way, so the query is deterministic whichever it is asked.
+
+    The pin is matched as (variable, model_version) PAIRS rather than one
+    equality, because temperature and rainfall are published under different
+    era strings. Matching on model_version alone drops three of the four
+    variables and reports it as "no surfaces", silently.
     """
+    pin = _resolve_pin(model_version)
     return [dict(r) for r in db.execute(text("""
         SELECT DISTINCT ON (variable, valid_at)
                variable, valid_at, s3_key, model_version
@@ -590,15 +649,21 @@ def daily_surfaces(db: Session, start: _date, end: _date,
            AND status <> 'failed'
            AND variable = ANY(:vars)
            AND valid_at >= :start AND valid_at <= :end
-           AND (:mv IS NULL OR model_version = :mv)
+           AND (NOT :pinned OR EXISTS (
+                 SELECT 1
+                   FROM unnest(CAST(:pin_vars AS text[]),
+                               CAST(:pin_mvs  AS text[])) AS p(pv, pm)
+                  WHERE p.pv = variable AND p.pm = model_version))
          ORDER BY variable, valid_at, created_at DESC
     """), {"vars": list(DAILY_VARIABLES), "start": start, "end": end,
-           "mv": model_version}).mappings().all()]
+           "pinned": pin is not None,
+           "pin_vars": list(pin) if pin else [],
+           "pin_mvs": list(pin.values()) if pin else []}).mappings().all()]
 
 
 def extract_daily(db: Session, site: InsightsSite,
                   start: _date, end: _date,
-                  model_version: Optional[str] = LIVE_MODEL_VERSION) -> list[dict]:
+                  model_version=_PIN_DEFAULT) -> list[dict]:
     """This site's cell across every daily surface in [start, end].
 
     One windowed 1x1 read per object, run concurrently for the same reason the
@@ -642,13 +707,39 @@ def extract_daily(db: Session, site: InsightsSite,
     for day in sorted(by_day):
         entry = by_day[day]
         versions = entry.pop("versions")
-        # With the era pinned this is always one value. It is still assembled
-        # as a set and joined, because the pin can be lifted for diagnostics and
-        # a mixed day must then SAY it is mixed rather than name one era and
-        # look consistent.
+        # A COMPLETE DAY NAMES TWO ERAS, and that is correct rather than mixed.
+        # Temperatures publish era-corrected (`-db-adj`), rainfall uncorrected
+        # (`-db`), so a fully populated row legitimately draws on both. This
+        # comment used to say "with the era pinned this is always one value",
+        # which was only ever true because the single pin was silently dropping
+        # the three temperature variables.
+        #
+        # The set-and-join was already the right shape for that, and it also
+        # still does the job it was written for: with the pin LIFTED for
+        # diagnostics, a day that mixes the live and archive eras says so rather
+        # than naming one and looking consistent. Nothing filters this column —
+        # it is provenance a human reads.
         entry["model_version"] = ",".join(sorted(versions)) or None
         for column in DAILY_VARIABLES.values():
             entry.setdefault(column, None)
+
+        # GDD at a point is EXACT, not an approximation, and that is the one
+        # place a site is genuinely simpler than its zone.
+        #
+        # The zone value must subtract the base at every planted cell and weight
+        # afterwards, because GDD is convex and the mean of per-cell GDD is not
+        # the GDD of the mean cell. A site IS one cell: there is no spatial
+        # aggregation left to commute with, so this is the estimator rather than
+        # a stand-in for one.
+        #
+        # Both bases, for the same reason the zone table carries both — base 0
+        # is what phenology is calibrated against, base 10 is what a grower
+        # reads. Cumulatives are NOT set here; they are derived across the
+        # season by `accumulate_daily` once the window is written.
+        tmean = entry.get("temp_mean")
+        entry["gdd_daily"] = None if tmean is None else max(0.0, tmean)
+        entry["gdd10_daily"] = (None if tmean is None
+                                else max(0.0, tmean - GDD_BASE))
         out.append(entry)
     return out
 
@@ -666,24 +757,81 @@ def upsert_daily(db: Session, rows: list[dict]) -> int:
     db.execute(text("""
         INSERT INTO insights_site_daily
             (site_id, date, temp_min, temp_max, temp_mean, rainfall_mm,
-             model_version, extracted_at)
+             gdd_daily, gdd10_daily, model_version, extracted_at)
         VALUES
             (:site_id, :date, :temp_min, :temp_max, :temp_mean, :rainfall_mm,
-             :model_version, now())
+             :gdd_daily, :gdd10_daily, :model_version, now())
         ON CONFLICT (site_id, date) DO UPDATE SET
             temp_min = EXCLUDED.temp_min,
             temp_max = EXCLUDED.temp_max,
             temp_mean = EXCLUDED.temp_mean,
             rainfall_mm = EXCLUDED.rainfall_mm,
+            gdd_daily = EXCLUDED.gdd_daily,
+            gdd10_daily = EXCLUDED.gdd10_daily,
             model_version = EXCLUDED.model_version,
             extracted_at = EXCLUDED.extracted_at
     """), rows)
     return len(rows)
 
 
+def accumulate_daily(db: Session, site_id: int, seasons: set[int]) -> int:
+    """Re-derive both GDD cumulatives for a site, across whole seasons.
+
+    Season, not vintage. `vintage_year` rolls on 1 July but a vine's season opens
+    **1 September**, so both sums start there and read 0 before it — the same
+    rule `aggregate_zone_daily_surface` applies, so a site and its region agree
+    on which days count.
+
+    Derived end to end from the daily values rather than carried forward, and
+    never reading its own previous output. A re-fit changes days that are
+    already stored, so an accumulator that added to what it found would compound
+    every revision instead of replacing it.
+
+    The season is derived from the DATE here rather than read from a column,
+    because `insights_site_daily` has no vintage column and adding one would be
+    a second place for the same rule to live.
+    """
+    if not seasons:
+        return 0
+    result = db.execute(text("""
+        WITH scoped AS (
+            SELECT site_id, date,
+                   CASE WHEN EXTRACT(MONTH FROM date) >= 7
+                        THEN EXTRACT(YEAR FROM date) + 1
+                        ELSE EXTRACT(YEAR FROM date) END::int AS vintage
+              FROM insights_site_daily
+             WHERE site_id = :site_id
+        ), gated AS (
+            SELECT site_id, date, vintage,
+                   CASE WHEN date >= make_date(vintage - 1, 9, 1)
+                        THEN coalesce(d.gdd_daily, 0) ELSE 0 END   AS g0,
+                   CASE WHEN date >= make_date(vintage - 1, 9, 1)
+                        THEN coalesce(d.gdd10_daily, 0) ELSE 0 END AS g10
+              FROM scoped
+              JOIN insights_site_daily d USING (site_id, date)
+             WHERE vintage = ANY(CAST(:seasons AS int[]))
+        ), running AS (
+            SELECT site_id, date,
+                   sum(g0)  OVER w AS cum,
+                   sum(g10) OVER w AS cum10
+              FROM gated
+            WINDOW w AS (PARTITION BY site_id, vintage ORDER BY date
+                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+        )
+        UPDATE insights_site_daily d
+           SET gdd_cumulative   = running.cum,
+               gdd10_cumulative = running.cum10
+          FROM running
+         WHERE d.site_id = running.site_id AND d.date = running.date
+           AND (d.gdd_cumulative   IS DISTINCT FROM running.cum
+             OR d.gdd10_cumulative IS DISTINCT FROM running.cum10)
+    """), {"site_id": site_id, "seasons": sorted(seasons)})
+    return result.rowcount
+
+
 def populate_daily(db: Session, site: InsightsSite,
                    start: _date, end: _date,
-                   model_version: Optional[str] = LIVE_MODEL_VERSION) -> dict:
+                   model_version=_PIN_DEFAULT) -> dict:
     """Extract and store one site's daily record over a window.
 
     Returns a summary rather than raising on an empty result: before the daily
@@ -696,6 +844,11 @@ def populate_daily(db: Session, site: InsightsSite,
 
     rows = extract_daily(db, site, start, end, model_version)
     written = upsert_daily(db, rows)
+    # Every season the window touched, re-derived whole. A window that straddles
+    # 1 July spans two, and re-deriving only one would leave the other holding a
+    # cumulative built from daily values this write just replaced.
+    accumulate_daily(db, site.id,
+                     {get_vintage_year(r["date"]) for r in rows})
     db.commit()
 
     with_value = sum(1 for r in rows

@@ -11,8 +11,22 @@
 #
 # Build with CodeBuild (see buildspec.yml) rather than locally; the workstation
 # has no Docker.
-
-FROM python:3.11-slim-bookworm
+#
+# PYTHON 3.13, AND IT HAS TO BE.
+#
+# This said `python:3.11-slim-bookworm` until 2026-08-30, which meant the image
+# could never build at all: `requirements.txt` pins rasterio 1.5.0, and rasterio
+# dropped below 3.12 — pip resolves nothing and the build dies at
+# `No matching distribution found for rasterio==1.5.0`.
+#
+# The irony is that 3.11 is the Elastic Beanstalk ceiling this container exists
+# to escape, reimposed by the base image two lines under a comment explaining
+# why we were escaping it. The pins are not negotiable — the 1986-2026 archive
+# was produced on Python 3.13.3 with rasterio 1.5.0, scipy 1.18.0, numpy 2.2.5 —
+# so the interpreter moves to meet them, not the other way round. Downgrading
+# rasterio to 1.4.4 to fit 3.11 would change the LERC encoding the whole archive
+# is written in.
+FROM python:3.13-slim-bookworm
 
 # rasterio ships manylinux wheels with GDAL bundled, so no system GDAL is
 # needed — and deliberately so. A system GDAL here would reintroduce exactly the
@@ -24,8 +38,27 @@ FROM python:3.11-slim-bookworm
 # link against that slim does not carry.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-        ca-certificates curl libexpat1 libgomp1 \
+        ca-certificates curl unzip libexpat1 libgomp1 \
  && rm -rf /var/lib/apt/lists/*
+
+# THE AWS CLI IS NOT OPTIONAL HERE — the entrypoint is built around it.
+#
+# `entrypoint.sh` fetches the grid, the LENZ raster and the era-offset fields
+# with `aws s3 cp`/`sync`, and publishes with `aws s3 sync`. Without it the task
+# dies at the first fetch with `aws: command not found` and exit 127, which
+# reads as a broken script rather than a missing package. That is exactly how
+# the first Fargate run failed.
+#
+# v2 rather than `pip install awscli`: the publish step depends on `s3 sync`
+# skipping unchanged objects, the bucket holds 29k+ of them, and v1 is in
+# maintenance. `unzip` is purged afterwards — it exists only to unpack this.
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+        -o /tmp/awscliv2.zip \
+ && unzip -q /tmp/awscliv2.zip -d /tmp \
+ && /tmp/aws/install \
+ && rm -rf /tmp/aws /tmp/awscliv2.zip \
+ && apt-get purge -y unzip && apt-get autoremove -y \
+ && aws --version
 
 WORKDIR /app
 

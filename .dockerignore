@@ -1,0 +1,55 @@
+# Build context exclusions.
+#
+# `deploy/surfaces/Dockerfile` does `COPY backend /app/backend` and the build
+# context is the repository root, so without this file the image would carry
+# ~950 MB of backend alone — including `backend/venv`, which is a WINDOWS
+# virtualenv and would be both useless and shadowing inside a Linux image.
+#
+# Nothing excluded here is needed by the surfaces job: the 500 m grid, the LENZ
+# raster and the era-offset fields are all fetched from S3 at runtime by
+# `entrypoint.sh`, deliberately, because they are gitignored or untracked and
+# have never been in a checkout.
+
+# Virtualenvs — the big one, and the wrong platform
+venv/
+*/venv/
+backend/venv/
+.venv/
+
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Large runtime data the job fetches from S3 instead
+backend/data/
+backend/models/
+backend/uploads/
+backend/images/
+
+# Elastic Beanstalk's local history of deployment bundles — ~270 MB of old
+# zips, and by far the largest thing left in `backend/` once the venv is gone.
+.elasticbeanstalk/
+backend/.elasticbeanstalk/
+
+# Front ends and their dependencies — no part of this image
+packages/
+node_modules/
+
+# Repo bulk with no role in the build
+.git/
+.github/
+docs/
+alembic/
+scratchpad/
+*.pdf
+*.tif
+*.zip
+*.jar
+
+# Local environment
+.env
+.env.*
+!.env.example

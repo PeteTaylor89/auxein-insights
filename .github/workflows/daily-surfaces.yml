@@ -298,6 +298,35 @@ jobs:
           python backend/scripts/index_daily.py \
             --manifest scratchpad/live_surfaces/daily_live/manifest.json
 
+      - name: Populate Pro site daily records
+        if: steps.window.outputs.skip != 'true'
+        # AFTER Index, because it reads `surface_run` rather than the manifest —
+        # an unindexed surface is invisible to it.
+        #
+        # Runs here rather than on its own cron for two reasons. It depends on
+        # this job's output, so a separate schedule would race it; and every
+        # UTC-only cron for an NZ wall-clock time needs the two-entry DST pair
+        # plus a guard, which is the exact machinery that took the surfaces
+        # dark for five days.
+        #
+        # THE WINDOW IS PASSED EXPLICITLY, not derived. `populate_site_daily`
+        # computes its own window from `date.today()`, which on a UTC runner is
+        # the previous NZ day — it happens to line up with D-2 today, but only
+        # by coincidence of the offset, and it would not survive a schedule
+        # change. `--from/--to` covers exactly the days just fitted, and it
+        # tracks the daily and refit modes for free because `start`/`end`
+        # already encode the mode.
+        #
+        # `--require-surfaces` turns "found nothing" into a non-zero exit. The
+        # designed-in failure mode of this pipeline is a silent no-op reporting
+        # success, so a scheduled run must assert on a row count, not on an
+        # exit code.
+        run: |
+          python backend/scripts/populate_site_daily.py \
+            --from "${{ steps.window.outputs.start }}" \
+            --to "${{ steps.window.outputs.end }}" \
+            --require-surfaces
+
       - name: Report screened stations
         # Never fails the run: a rejected station is the screen doing its job.
         # It is surfaced because a PERSISTENT offender is a source problem that

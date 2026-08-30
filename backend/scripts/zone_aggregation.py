@@ -237,8 +237,23 @@ def aggregate_zone_day(db, zone: dict, target_date: date) -> Optional[dict]:
     else:
         rainfall_mm = 0.0
     
-    # GDD from mean temp
-    gdd_daily = max(Decimal('0'), Decimal(str(temp_mean))) if temp_mean else None
+    # GDD from mean temp, BASE ZERO — and that is deliberate, not a bug.
+    #
+    # `gdd_daily` and `gdd_cumulative` in this table are PHENOLOGY's input, and
+    # phenology is calibrated against base 0. Several modules document the
+    # column as base 0 and depend on it: `phenology_service`, the region and
+    # site dashboards, and `realtime_climate.adjust_gdd_to_sep1`. It was briefly
+    # changed to base 10 on 2026-08-30 and changed straight back — a base-10
+    # value here silently moves every crossing date.
+    #
+    # The base-10 presentation metric lives beside it in `gdd10_daily` /
+    # `gdd10_cumulative`, written by `aggregate_zone_daily_surface.py` from the
+    # surface PER CELL. Both are wanted; they answer different questions.
+    #
+    # Note `is not None` rather than a truth test: a zone averaging exactly
+    # 0.0 degC scored NULL rather than zero under the old form.
+    gdd_daily = (max(Decimal('0'), Decimal(str(temp_mean)))
+                 if temp_mean is not None else None)
     
     # Count stations with each variable
     station_count = len(stations)

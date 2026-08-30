@@ -31,7 +31,31 @@ DAYS=$(( ( $(date -d "$END" +%s) - $(date -d "$START" +%s) ) / 86400 + 1 ))
 # consolidate_db drops any station with fewer than 30 days in the staged
 # window, so staging only the target day would drop EVERY station.
 STAGE_START="$(date -d "$START -120 days" +%F)"
-echo "[surfaces] mode=$MODE window=$START..$END ($DAYS day/s), staging from $STAGE_START"
+
+# QC APPLIES OVER THE RECENT TAIL, NOT THE WHOLE STAGE WINDOW.
+#
+# `daily_qc --apply` quarantines observations and re-aggregates the affected
+# days, and this is the only job that runs a wide window. While the equivalent
+# GitHub workflow was broken (2026-08-25..30) a backlog of historical findings
+# built up unapplied: measured on 2026-08-30, the 120-day window holds 21
+# rejects against ZERO in the recent 14 days, almost all `extreme_dtr` in April
+# and May.
+#
+# Pointing QC at $STAGE_START would apply all of them on the first Fargate run
+# and re-aggregate those days WITHOUT recomputing the zone rollups, disease or
+# phenology built on them. That is a deliberate decision, not a side effect of
+# moving a scheduler.
+#
+# 14 days covers `daily_aggregation`'s 3-day revision tail with wide margin,
+# which is all the fit needs. Set QC_FULL_WINDOW=true to run the sweep on
+# purpose — the same escape hatch the workflow exposes as a dispatch input.
+if [[ "${QC_FULL_WINDOW:-false}" == "true" ]]; then
+  QC_START="$STAGE_START"
+else
+  QC_START="$(date -d "$START -14 days" +%F)"
+fi
+
+echo "[surfaces] mode=$MODE window=$START..$END ($DAYS day/s), staging from $STAGE_START, QC from $QC_START"
 
 echo "[surfaces] fetching grid, climatology and era-offset fields"
 mkdir -p "backend/models/example data" \
@@ -62,7 +86,7 @@ done
 # keeps the bad value out of climate_zone_daily, disease and phenology, and
 # re-applies standing quarantine windows to late-arriving observations.
 echo "[surfaces] QC"
-python backend/scripts/daily_qc.py --start "$STAGE_START" --end "$END" --apply
+python backend/scripts/daily_qc.py --start "$QC_START" --end "$END" --apply
 
 echo "[surfaces] staging station inputs"
 python backend/scripts/interpolation/consolidate_db.py \
@@ -90,6 +114,27 @@ aws s3 sync scratchpad/live_surfaces/daily_live/ "s3://$BUCKET/" \
 echo "[surfaces] indexing"
 python backend/scripts/index_daily.py \
   --manifest scratchpad/live_surfaces/daily_live/manifest.json
+
+# AFTER indexing, because this reads `surface_run` rather than the manifest —
+# an unindexed surface is invisible to it.
+#
+# It runs inside this job rather than on its own schedule for two reasons: it
+# depends on this job's output, so a separate schedule would race it; and every
+# separate schedule is another thing that can silently not fire.
+#
+# THE WINDOW IS PASSED EXPLICITLY. `populate_site_daily` computes its own from
+# `date.today()`, which in a UTC container is the previous NZ day — it happens
+# to line up with D-2 today, but only by coincidence of the offset, and it would
+# not survive a change to this schedule. `--from/--to` covers exactly the days
+# just fitted and tracks the daily and refit modes for free.
+#
+# `--require-surfaces` turns "found nothing" into a non-zero exit. The
+# designed-in failure mode of this pipeline is a silent no-op reporting success,
+# so a scheduled run asserts on a row count rather than an exit code.
+echo "[surfaces] populating Pro site dailies"
+python backend/scripts/populate_site_daily.py \
+  --from "$START" --to "$END" \
+  --require-surfaces
 
 python - <<'PY'
 import json, pathlib

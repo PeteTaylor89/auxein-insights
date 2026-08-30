@@ -370,3 +370,97 @@
   .station-modal-controls { flex-direction: column; align-items: stretch; }
   .station-modal-range { justify-content: flex-start; }
 }
+
+/* --- zone assignment ------------------------------------------------------
+   Sits between the chart and the footer. Deliberately quiet: it is an
+   administrative edit on a page whose main job is reading, and the one thing
+   that has to stand out is whether the station can actually be scored. */
+.station-modal-zone {
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--border, #e5e7eb);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.station-zone-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.station-zone-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.station-zone-contributes {
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.station-zone-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted, #6b7280);
+  max-width: 62ch;
+}
+
+.station-zone-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.station-zone-form select {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+
+.station-zone-save {
+  /* Explicit padding: a global button rule in this app clips a short label. */
+  padding: 0.42rem 0.95rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--primary, #2563eb);
+  color: #fff;
+  cursor: pointer;
+}
+
+.station-zone-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.station-zone-result,
+.station-zone-error {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  padding: 0.45rem 0.6rem;
+  border-radius: 4px;
+  max-width: 70ch;
+}
+
+.station-zone-result.is-ok { background: #ecfdf5; color: #065f46; }
+.station-zone-result.is-warn { background: #fffbeb; color: #92400e; }
+.station-zone-error { background: #fef2f2; color: #991b1b; }
+
+@media (prefers-color-scheme: dark) {
+  .station-zone-result.is-ok { background: #052e23; color: #6ee7b7; }
+  .station-zone-result.is-warn { background: #2e2410; color: #fcd34d; }
+  .station-zone-error { background: #2d1214; color: #fca5a5; }
+}

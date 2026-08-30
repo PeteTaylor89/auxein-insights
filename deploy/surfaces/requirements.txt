@@ -16,3 +16,24 @@ psycopg2-binary==2.9.10
 python-dotenv==1.1.0
 boto3>=1.34,<2
 pytz>=2024.1
+
+# --- NOT used for computation. Pulled by the code that reaches the database. --
+#
+# THE IMAGE WOULD NOT HAVE STARTED WITHOUT THESE, and it would have failed the
+# same way the GitHub workflow did for five days: every script here that touches
+# the database goes `db.session` -> `core.config` -> `pydantic_settings`, and
+# the list above names only what the interpolation MATHS imports. That is the
+# whole bug class — a hand-curated dependency list that covers the algorithm and
+# not the plumbing. Checked on 2026-08-30 by importing every script the
+# entrypoint runs and diffing the result against this file.
+#
+# GeoAlchemy2 and shapely arrive through the ORM models, which carry Geometry
+# columns this job never reads but does import.
+#
+# Loose-ish pins deliberately: unlike rasterio and numpy above, none of these
+# touches a published value, so there is no archive to keep reproducible. They
+# only have to be present and compatible.
+pydantic==2.11.3
+pydantic-settings==2.9.1
+GeoAlchemy2==0.17.1
+shapely==2.1.0

@@ -238,7 +238,47 @@ def main():
     else:
         logger.info("\n[3/6] ZONE AGGREGATION - SKIPPED")
         results['zone_aggregation'] = True
-    
+
+    # =========================================================================
+    # Step 3b: Zone Aggregation from the SURFACE (daily surfaces →
+    #          climate_zone_daily), overwriting step 3's four climate columns
+    # =========================================================================
+    # RUNS SECOND, AND THAT ORDER IS THE WHOLE DESIGN.
+    #
+    # Step 3 assigns stations to zones and needs MIN_STATIONS_FOR_ZONE = 2
+    # REPORTING TEMPERATURE that day. On 2026-08-29 that produced no row at all
+    # for 8 of 23 zones — Waiheke has zero stations and can never satisfy it.
+    # The surface covers every zone: all 23 have mask cells.
+    #
+    # So step 3 still runs, for one reason: `humidity_mean` and
+    # `solar_radiation` exist in this table and the surface cannot produce
+    # them. Step 3b's upsert deliberately does not name those two columns, so
+    # the station rollup remains their only writer and 3b never blanks them.
+    # Everything else — temp_min/max/mean, rainfall, GDD — is overwritten from
+    # the surface for all 23 zones.
+    #
+    # A DAY WITH NO SURFACE YET IS SKIPPED, NOT FAILED. Surfaces are fitted at
+    # D+2 by `daily-surfaces.yml` at 03:00 NZ, while this pipeline runs at 18:00
+    # NZ over a D-3..D-1 window. So on any given evening the newest day or two
+    # have no surface and keep step 3's station values; the next runs overwrite
+    # them once the surface lands. That is the same 3-day revision window
+    # `daily_aggregation` already imposes on everything downstream, and
+    # `processing_method` records which source produced each row.
+    if not args.skip_zone:
+        logger.info("\n[3b/6] ZONE AGGREGATION FROM SURFACE "
+                    "(daily surfaces → climate_zone_daily)")
+        surf_args = window_args()
+        if not args.dry_run:
+            surf_args.append('--apply')
+        if args.zone_id:
+            surf_args.extend(['--zone-id', str(args.zone_id)])
+        results['zone_surface'] = run_script(
+            'aggregate_zone_daily_surface.py', surf_args)
+    else:
+        logger.info("\n[3b/6] ZONE AGGREGATION FROM SURFACE - SKIPPED")
+        results['zone_surface'] = True
+
+
     # =========================================================================
     # Step 4: Phenology Estimation
     # =========================================================================

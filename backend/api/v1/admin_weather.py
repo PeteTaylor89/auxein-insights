@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from db.session import get_db
 from db.models.weather import WeatherStation, WeatherData, IngestionLog
+from db.models.climate import ClimateZone
 from db.models.public_user import PublicUser
 from core.admin_security import require_admin
 from schemas.admin import (
@@ -28,9 +29,20 @@ from schemas.admin import (
     StationMapResponse,
     SeriesPoint,
     StationSeriesResponse,
+    ZoneOption,
+    StationZoneAssignRequest,
+    StationZoneAssignResponse,
 )
 
 router = APIRouter(prefix="/weather", tags=["Admin - Weather"])
+
+# MUST match the temperature list in `hourly_aggregation.get_hourly_station_data`
+# and `daily_qc.TEMP_VARS`. Restated rather than imported because both of those
+# pull numpy and pandas, which have no business being loaded to serve an admin
+# page. If a fourth spelling ever appears in the raw feed it has to be added in
+# all three places or a station will look disease-usable here and be skipped by
+# the rollup.
+TEMP_VARIABLE_NAMES = ('temp', 'temperature', 'air_temperature')
 
 
 # =============================================================================
@@ -683,7 +695,18 @@ def get_station_map(
         WeatherStation.latitude,
         WeatherStation.longitude,
         WeatherStation.elevation,
+        WeatherStation.zone_id,
     ).filter(WeatherStation.is_active == True).all()
+
+    # id and name ONLY. `db.query(ClimateZone)` would deserialise two
+    # MULTIPOLYGON columns per zone — tens of megabytes of boundary to populate
+    # a dropdown. Every active zone is listed, including ones with no station:
+    # the whole point of the filter is finding what a zone is missing, and a
+    # vocabulary built from the result set can never name an empty zone.
+    zone_rows = db.query(ClimateZone.id, ClimateZone.name).filter(
+        ClimateZone.is_active == True
+    ).order_by(ClimateZone.name).all()
+    zone_names = {z.id: z.name for z in zone_rows}
 
     placed = [r for r in rows if r.latitude is not None and r.longitude is not None]
 
@@ -720,6 +743,8 @@ def get_station_map(
             completeness_24h_pct=health.completeness_24h_pct,
             derived_interval_minutes=health.derived_interval_minutes,
             variables=entry.variables,
+            zone_id=row.zone_id,
+            zone_name=zone_names.get(row.zone_id),
         ))
 
     return StationMapResponse(
@@ -730,6 +755,77 @@ def get_station_map(
         sources=sorted(sources),
         regions=sorted(regions),
         counts_by_status=counts_by_status,
+        zones=[ZoneOption(id=z.id, name=z.name) for z in zone_rows],
+        # Counted over PLACED stations, matching what the map can actually show.
+        unassigned_count=sum(1 for r in placed if r.zone_id is None),
+    )
+
+
+@router.put("/stations/{station_id}/zone", response_model=StationZoneAssignResponse)
+def assign_station_zone(
+    station_id: int,
+    body: StationZoneAssignRequest,
+    db: Session = Depends(get_db),
+    admin: PublicUser = Depends(require_admin)
+):
+    """Assign a station to a climate zone, or clear the assignment with null.
+
+    ## This is the switch that turns disease pressure on for a station
+
+    `hourly_aggregation` resolves a zone's members through
+    `weather_stations.zone_id`, walking the zone subtree — there is no spatial
+    containment test anywhere in that path. So a station sitting inside a zone's
+    boundary, reporting good humidity every hour, contributes NOTHING to that
+    zone's disease pressure until this field is set. It is not a label; it is the
+    membership itself.
+
+    ## Assigning does not backfill
+
+    `climate_zone_hourly` rows already written keep the value they were computed
+    from. The next run of the 18:00 pipeline picks the station up for the days
+    inside its lookback window; anything older needs
+    `hourly_aggregation.py --start-date/--end-date` over the range that matters.
+    Told to the caller rather than assumed, because a zone that has been dark
+    for a month will otherwise look unchanged after an assignment that worked.
+    """
+    station = db.query(WeatherStation).filter(
+        WeatherStation.station_id == station_id
+    ).first()
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    previous = station.zone_id
+    zone_name = None
+    if body.zone_id is not None:
+        zone = db.query(ClimateZone.id, ClimateZone.name).filter(
+            ClimateZone.id == body.zone_id
+        ).first()
+        if not zone:
+            raise HTTPException(status_code=404,
+                                detail=f"Climate zone {body.zone_id} not found")
+        zone_name = zone.name
+
+    station.zone_id = body.zone_id
+    db.commit()
+
+    telemetry, _ = load_network_telemetry(db, include_variables=True)
+    variables = list(telemetry.get(station_id, StationTelemetry()).variables)
+
+    # A zone hour with no temperature is SKIPPED outright: all three models are
+    # driven by it, and dew point and leaf wetness are undefined without it. So a
+    # rain-only or humidity-only station can be correctly assigned and still add
+    # no usable hour on its own. Saying so at the moment of assignment is the
+    # difference between "done" and "done, and it changed nothing".
+    has_temp = any(v in TEMP_VARIABLE_NAMES for v in variables)
+
+    return StationZoneAssignResponse(
+        station_id=station.station_id,
+        station_code=station.station_code,
+        zone_id=station.zone_id,
+        zone_name=zone_name,
+        previous_zone_id=previous,
+        variables=variables,
+        disease_usable=bool(body.zone_id is not None and has_temp),
     )
 
 

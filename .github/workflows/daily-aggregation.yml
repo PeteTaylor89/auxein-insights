@@ -78,3 +78,46 @@ jobs:
         run: |
           cd backend
           python scripts/check_daily_climate.py --since "$(date -u -d '14 days ago' +%Y-%m-%d)"
+
+      - name: Disease pressure at every Pro site
+        # HERE RATHER THAN IN THE 18:00 JOB, and it is not arbitrary.
+        #
+        # This path reads `weather_data` hourly, not `weather_data_daily`, so it
+        # depends on nothing this workflow's rollup produces and everything on
+        # the hourly ingest. Six-hourly is the cadence that matches its input;
+        # the 18:00 pipeline would make a grower wait a day for a wetness event.
+        #
+        # LAST, so that a failure here cannot skip the rollup's own sanity
+        # check. That check is `continue-on-error` and never fails the build, but
+        # a step ordered after a hard failure does not run at all — putting the
+        # disease step earlier would have traded the rollup's only alarm for it.
+        #
+        # It also needs no daylight-saving guard, which the 18:00 and 03:00 jobs
+        # both do: `35 */6 * * *` is a CADENCE rather than a wall-clock time, so
+        # there is no NZ hour to hit and no twin to discard.
+        #
+        # WHY THE WINDOW ENDS YESTERDAY, on a job that runs four times a day.
+        # The models score whole LOCAL days. A partial today would be scored as
+        # if it were complete, and since every model is driven through a count of
+        # wet hours, a day that is only half over reads as a dry one — the same
+        # defect that a UTC-aligned window produced at the first day of a
+        # backfill. Freshness within the day is not worth a systematic
+        # under-call. The three-day window is the ingest's own revision tail, and
+        # the upsert is idempotent, so the overlap repairs any missed run.
+        env:
+          ENV: staging
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+          RDS_PORT: 5432
+          RDS_DATABASE: auxein_db
+        run: |
+          cd backend
+          python scripts/populate_site_disease.py \
+            --days 3 \
+            --apply \
+            --require-rows

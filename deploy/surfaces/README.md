@@ -46,15 +46,38 @@ away by a guard inside the job.
 2. **`daily_qc.py --apply`** — before the fit, so a rejected value never reaches
    the spline *or* `climate_zone_daily`, disease and phenology. Also re-applies
    standing quarantine windows to late-arriving observations.
+   **Over the last 14 days, not the whole 120-day stage window.** `--apply`
+   quarantines observations and re-aggregates the days they belong to, and this
+   is the only job that runs a wide window — so a backlog accumulates while it
+   is not running. Measured 2026-08-30: 21 rejects across 120 days, **zero**
+   across the recent 14. Applying the backlog re-aggregates April and May
+   without recomputing the zone rollups, disease or phenology built on them, so
+   it is a deliberate act: `QC_FULL_WINDOW=true`.
 3. **`consolidate_db.py`** — stage 120 days (stations need ≥30 to qualify), fit
-   the target window.
+   the target window. This one *does* use the full window: it is station
+   selection, not value correction.
 4. **`run_live.py`** — fit, era-correct, write COGs. Asserts on a day count.
 5. **`aws s3 sync`** — publish. Never `--delete`.
 6. **`index_daily.py`** — index into `surface_run`.
+7. **`populate_site_daily.py --require-surfaces`** — extract each Pro site's own
+   cell for the days just fitted. After the index, because it reads
+   `surface_run` rather than the manifest, and inside this job because it
+   depends on this job's output. The window is passed explicitly rather than
+   derived: the script computes its own from `date.today()`, which in a UTC
+   container is the previous NZ day.
 
 `MODE=daily` fits D-2. `MODE=refit` re-fits D-9…D-3 weekly, because
 `daily_aggregation` keeps revising `weather_data_daily` for about three days
 and a once-only fit would disagree with the DB permanently.
+
+### Environment switches
+
+| Variable | Default | Effect |
+|---|---|---|
+| `MODE` | `daily` | `daily` fits D-2; `refit` fits D-9…D-3. |
+| `START` / `END` | — | Explicit window; overrides `MODE`. |
+| `QC_FULL_WINDOW` | `false` | Apply QC across the full 120-day stage window instead of the recent 14 days. **Deliberate act — see step 2.** |
+| `SURFACE_BUCKET` | `auxein-climate-surfaces` | |
 
 ---
 

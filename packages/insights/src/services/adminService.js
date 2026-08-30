@@ -113,6 +113,26 @@ export const adminWeatherService = {
   },
 
   /**
+   * Assign a station to a climate zone, or clear it by passing null.
+   *
+   * This is the switch that turns disease pressure on for a station: the hourly
+   * rollup resolves a zone's members through `weather_stations.zone_id` and does
+   * no spatial test at all, so a station inside a zone's boundary contributes
+   * nothing to it until this is set.
+   *
+   * The response says whether the assignment is actually usable — a station with
+   * no thermometer adds no scoreable hour however it is assigned, because an
+   * hour with no temperature is skipped outright.
+   */
+  assignStationZone: async (stationId, zoneId) => {
+    const response = await publicApi.put(
+      `${ADMIN_BASE}/weather/stations/${stationId}/zone`,
+      { zone_id: zoneId ?? null }
+    );
+    return response.data;
+  },
+
+  /**
    * Recent history for one station and one variable, for the map chart modal.
    */
   getStationSeries: async (stationId, variable, days = 10) => {

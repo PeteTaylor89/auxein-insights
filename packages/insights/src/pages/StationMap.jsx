@@ -22,6 +22,10 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 const NZ_BOUNDS = [[166.0, -47.5], [179.0, -34.0]];
 
+// Sentinel for the zone filter. A distinct string rather than null so the
+// <select> can hold it as a value, and one that cannot collide with a zone id.
+const UNASSIGNED = 'unassigned';
+
 const STATUS_COLORS = {
   healthy: '#10b981',
   stale: '#f59e0b',
@@ -68,8 +72,19 @@ const formatInterval = (minutes) => {
 // Chart modal
 // ---------------------------------------------------------------------------
 
-function StationChartModal({ station, onClose }) {
+// Which raw variable names count as a thermometer. MUST match
+// TEMP_VARIABLE_NAMES in admin_weather.py and the temperature list in
+// hourly_aggregation — an hour with no temperature is skipped by the rollup
+// outright, so this is what decides whether an assignment does anything.
+const TEMP_VARIABLES = ['temp', 'temperature', 'air_temperature'];
+const RH_VARIABLES = ['rh', 'humidity', 'relative_humidity'];
+
+function StationChartModal({ station, zones = [], onClose, onAssigned }) {
   const [variable, setVariable] = useState(station.variables[0] || null);
+  const [zoneId, setZoneId] = useState(station.zone_id ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState(null);
+  const [saveError, setSaveError] = useState(null);
   const [days, setDays] = useState(10);
   const [series, setSeries] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -103,6 +118,32 @@ function StationChartModal({ station, onClose }) {
       document.body.style.overflow = previous;
     };
   }, [onClose]);
+
+  // What this station can actually contribute once assigned. Temperature is the
+  // gate: an hour without it is skipped by the rollup, and dew point and leaf
+  // wetness are undefined, so all three models go with it.
+  const hasTemp = station.variables.some((v) => TEMP_VARIABLES.includes(v));
+  const hasRh = station.variables.some((v) => RH_VARIABLES.includes(v));
+  const hasRain = station.variables.includes('rainfall');
+
+  const saveZone = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    setSaveResult(null);
+    try {
+      const result = await adminService.assignStationZone(
+        station.station_id, zoneId === '' ? null : zoneId);
+      setSaveResult(result);
+      // Tell the map, so the marker and the filter counts move without a full
+      // reload — the payload is ~900 rows and refetching it to change one field
+      // would blank the map mid-edit.
+      onAssigned?.(station.station_id, result.zone_id, result.zone_name);
+    } catch (err) {
+      setSaveError(err?.response?.data?.detail || 'Could not save the zone.');
+    } finally {
+      setSaving(false);
+    }
+  }, [station.station_id, zoneId, onAssigned]);
 
   const chart = useMemo(() => {
     if (!series || !series.points.length) return null;
@@ -262,6 +303,71 @@ function StationChartModal({ station, onClose }) {
           )}
         </div>
 
+        <div className="station-modal-zone">
+          <div className="station-zone-head">
+            <h3>Climate zone</h3>
+            <span className="station-zone-contributes">
+              {hasTemp
+                ? `contributes ${[
+                    hasTemp && 'temperature',
+                    hasRh && 'humidity',
+                    hasRain && 'rainfall',
+                  ].filter(Boolean).join(', ')}`
+                : 'no thermometer — cannot be scored'}
+            </span>
+          </div>
+
+          <p className="station-zone-note">
+            {/* Membership is this field, not geography. The hourly rollup walks
+                weather_stations.zone_id and never tests containment, so a
+                station sitting inside a boundary counts for nothing until it
+                is assigned here. */}
+            Disease pressure reads a zone's stations from this field. A station
+            inside a zone's boundary contributes nothing until it is set.
+          </p>
+
+          <div className="station-zone-form">
+            <select
+              value={zoneId}
+              onChange={(e) => setZoneId(e.target.value === '' ? '' : Number(e.target.value))}
+              aria-label="Climate zone"
+              disabled={saving}
+            >
+              <option value="">— unassigned —</option>
+              {zones.map((z) => (
+                <option key={z.id} value={z.id}>{z.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="station-zone-save"
+              disabled={saving || zoneId === (station.zone_id ?? '')}
+              onClick={saveZone}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+
+          {saveError && <p className="station-zone-error">{saveError}</p>}
+          {saveResult && (
+            <p className={`station-zone-result ${saveResult.disease_usable ? 'is-ok' : 'is-warn'}`}>
+              {saveResult.zone_id
+                ? `Assigned to ${saveResult.zone_name}.`
+                : 'Assignment cleared.'}
+              {saveResult.zone_id && !saveResult.disease_usable && (
+                ' This station reports no temperature, so it adds no scoreable'
+                + ' hour on its own — every model is driven by temperature, and'
+                + ' an hour without it is skipped.'
+              )}
+              {saveResult.zone_id && saveResult.disease_usable && (
+                ' It will be picked up by the next 18:00 rollup, for the days'
+                + ' inside its lookback. Earlier days need hourly_aggregation'
+                + ' re-run over that range — assigning does not backfill.'
+              )}
+            </p>
+          )}
+        </div>
+
         <footer className="station-modal-footer">
           <span className="station-modal-code">{station.station_code}</span>
           <Link to={`/admin/weather/${station.station_id}`} className="station-modal-link">
@@ -291,6 +397,8 @@ export default function StationMap() {
   const [variable, setVariable] = useState('');
   const [source, setSource] = useState('');
   const [region, setRegion] = useState('');
+  // '' = every station, UNASSIGNED = the ones no zone can see, or a zone id.
+  const [zone, setZone] = useState('');
   const [search, setSearch] = useState('');
   const [statuses, setStatuses] = useState(() => new Set(STATUS_ORDER));
 
@@ -316,13 +424,18 @@ export default function StationMap() {
       if (variable && !s.variables.includes(variable)) return false;
       if (source && s.data_source !== source) return false;
       if (region && s.region !== region) return false;
+      // UNASSIGNED is the point of this filter, not an afterthought: a station
+      // with no zone_id is invisible to every zone rollup and therefore to all
+      // three disease models, however good its data is.
+      if (zone === UNASSIGNED && s.zone_id != null) return false;
+      if (zone && zone !== UNASSIGNED && s.zone_id !== Number(zone)) return false;
       if (term) {
         const haystack = `${s.station_code} ${s.station_name || ''}`.toLowerCase();
         if (!haystack.includes(term)) return false;
       }
       return true;
     });
-  }, [payload, statuses, variable, source, region, search]);
+  }, [payload, statuses, variable, source, region, zone, search]);
 
   // Keep the ref in step so the map's click handler — bound once — always sees
   // the current result set without being torn down and rebound on every filter.
@@ -422,6 +535,7 @@ export default function StationMap() {
     setVariable('');
     setSource('');
     setRegion('');
+    setZone('');
     setSearch('');
     setStatuses(new Set(STATUS_ORDER));
   };
@@ -432,7 +546,28 @@ export default function StationMap() {
     return counts;
   }, [filtered]);
 
-  const hasFilters = Boolean(variable || source || region || search) || statuses.size !== STATUS_ORDER.length;
+  const hasFilters = Boolean(variable || source || region || zone || search)
+    || statuses.size !== STATUS_ORDER.length;
+
+  // Patch the one station in place rather than refetching. The payload is ~900
+  // rows behind a 60s server-side cache, so a reload after every assignment
+  // would either blank the map mid-edit or hand back the pre-edit value.
+  const applyAssignment = useCallback((stationId, zoneId, zoneName) => {
+    setPayload((prev) => {
+      if (!prev) return prev;
+      const stations = prev.stations.map((s) => (
+        s.station_id === stationId ? { ...s, zone_id: zoneId, zone_name: zoneName } : s
+      ));
+      const unassigned_count = stations.filter(
+        (s) => s.zone_id == null).length;
+      return { ...prev, stations, unassigned_count };
+    });
+    setSelected((prev) => (
+      prev && prev.station_id === stationId
+        ? { ...prev, zone_id: zoneId, zone_name: zoneName }
+        : prev
+    ));
+  }, []);
 
   return (
     <AdminLayout title="Station Map" backLink="/admin/weather">
@@ -465,6 +600,17 @@ export default function StationMap() {
             <select value={region} onChange={(e) => setRegion(e.target.value)} aria-label="Region">
               <option value="">All regions</option>
               {payload?.regions.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            {/* Climate zone is NOT the same thing as `region` above. `region` is
+                free text off the source feed; this is the wine climate zone the
+                disease models actually resolve their stations through. */}
+            <select value={zone} onChange={(e) => setZone(e.target.value)} aria-label="Climate zone">
+              <option value="">All zones</option>
+              <option value={UNASSIGNED}>
+                — unassigned{payload ? ` (${payload.unassigned_count.toLocaleString()})` : ''} —
+              </option>
+              {payload?.zones?.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
             </select>
 
             <div className="station-map-statuses">
@@ -534,7 +680,12 @@ export default function StationMap() {
       </div>
 
       {selected && (
-        <StationChartModal station={selected} onClose={() => setSelected(null)} />
+        <StationChartModal
+          station={selected}
+          zones={payload?.zones || []}
+          onAssigned={applyAssignment}
+          onClose={() => setSelected(null)}
+        />
       )}
     </AdminLayout>
   );

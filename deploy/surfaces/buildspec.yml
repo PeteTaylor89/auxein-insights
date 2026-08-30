@@ -27,7 +27,19 @@ phases:
       # Tagged with the commit as well as `latest`, so a surface can always be
       # traced back to the code that produced it. `model_version` records the
       # estimator family only — it cannot distinguish two builds of it.
+      #
+      # CODEBUILD_RESOLVED_SOURCE_VERSION IS EMPTY FOR AN S3 SOURCE, and an
+      # empty tag is not "untagged" — it is `repo:`, which docker rejects as an
+      # invalid reference and which fails the whole build. That is how the first
+      # build of this image failed, and it will happen to anyone who builds from
+      # a source zip rather than from git.
+      #
+      # Falling back to the build number keeps the traceability the tag exists
+      # for: a CodeBuild run records exactly which source object it consumed, so
+      # `build-N` identifies the input as precisely as a commit does.
       - SHA=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:12}
+      - if [ -z "$SHA" ]; then SHA="build-${CODEBUILD_BUILD_NUMBER}"; fi
+      - echo "tagging $ECR_REPO with latest and $SHA"
       - docker build -f deploy/surfaces/Dockerfile
         -t "$REGISTRY/$ECR_REPO:$IMAGE_TAG" -t "$REGISTRY/$ECR_REPO:$SHA" .
   post_build:

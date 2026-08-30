@@ -283,6 +283,31 @@ class StationMapItem(BaseModel):
 
     variables: List[str]
 
+    # ZONE ASSIGNMENT IS WHAT DECIDES DISEASE PRESSURE, and it is manual.
+    #
+    # `hourly_aggregation` resolves a zone's stations through
+    # `weather_stations.zone_id` down the zone subtree — nothing spatial, no
+    # containment test. A station that reports perfectly good humidity but has no
+    # zone_id is invisible to every zone rollup and therefore to all three
+    # disease models. 130 hygrometers are in exactly that state.
+    #
+    # `region` is a different thing entirely: a free-text label off the source
+    # feed, not a wine climate zone, and filtering on it tells you nothing about
+    # what the models can see.
+    zone_id: Optional[int] = None
+    zone_name: Optional[str] = None
+
+
+class ZoneOption(BaseModel):
+    """A zone, for a filter list or an assignment field. Id and name only.
+
+    Deliberately not the ClimateZone model: it carries two MULTIPOLYGON columns
+    and selecting them for a dropdown pulls tens of megabytes of boundary the
+    caller never draws.
+    """
+    id: int
+    name: str
+
 
 class StationMapResponse(BaseModel):
     """Stations plus the filter vocabularies actually present in the result."""
@@ -293,6 +318,29 @@ class StationMapResponse(BaseModel):
     sources: List[str]
     regions: List[str]
     counts_by_status: Dict[str, int]
+    # Every active zone, not only those already used — the point of the filter is
+    # to find what is MISSING from a zone, and a vocabulary built from the result
+    # set cannot name an empty one.
+    zones: List[ZoneOption] = []
+    unassigned_count: int = 0
+
+
+class StationZoneAssignRequest(BaseModel):
+    """Assign a station to a climate zone, or clear it with null."""
+    zone_id: Optional[int] = None
+
+
+class StationZoneAssignResponse(BaseModel):
+    station_id: int
+    station_code: str
+    zone_id: Optional[int]
+    zone_name: Optional[str]
+    previous_zone_id: Optional[int]
+    # What the assignment actually buys the models, which is the only reason to
+    # make one. A station with no thermometer contributes no disease-usable hour
+    # however it is assigned.
+    variables: List[str] = []
+    disease_usable: bool = False
 
 
 class SeriesPoint(BaseModel):
