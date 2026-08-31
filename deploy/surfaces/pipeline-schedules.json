@@ -1,15 +1,19 @@
 {
-  "_comment": "The two jobs that came off GitHub Actions on 2026-08-31, on EventBridge Scheduler beside auxein-surfaces-daily. Both target the auxein-pipeline task definition and select their work with JOB, which entrypoint.sh dispatches on. Apply with `aws scheduler create-schedule --cli-input-json`, substituting the security group as schedules.json describes.",
+  "_comment": "AS DEPLOYED 2026-08-31. The two jobs that came off GitHub Actions, on EventBridge Scheduler beside auxein-surfaces-daily and auxein-surfaces-refit. Task definitions are task-definition-pipeline.json and task-definition-aggregate.json.",
 
-  "_why_scheduler": "ScheduleExpressionTimezone. EventBridge Scheduler resolves NZDT/NZST itself, so 18:00 NZ means 18:00 NZ all year from ONE entry. GitHub's cron is UTC only, so the same job needed two crons plus an in-job guard to discard whichever twin was wrong — and on 2026-08-25 both halves discarded themselves, the workflow went green, and the zone rollups, phenology and disease stopped for three days with nothing raised. Deleting that machinery is the whole point of the move; the cost saving is incidental.",
+  "_why_scheduler": "ScheduleExpressionTimezone. EventBridge Scheduler resolves NZDT/NZST itself, so 18:00 NZ means 18:00 NZ all year from ONE entry. GitHub cron is UTC only, so the same job needed two crons plus an in-job guard to discard whichever twin was wrong — and on 2026-08-25 both halves discarded themselves, the workflow went green, and the zone rollups, phenology and disease stopped for three days with nothing raised. Deleting that machinery is the point of the move; the cost saving is incidental.",
 
-  "_why_not_the_ingest_box": "The 1 GB t3.micro already runs hourly ingestion, and the zone-surface stage reads COGs. Fargate is ~$2/month for both of these at 1 vCPU / 4 GB and shares the image the surfaces job already validated.",
+  "_why_two_task_definitions": "ONE FAMILY WITH A JOB OVERRIDE IN Target.Input WAS THE FIRST DESIGN, AND IT IS UNSAFE HERE. entrypoint.sh reads `${JOB:-surfaces}`, so if a schedule ever failed to deliver its override the 18:00 pipeline would silently run the SURFACES job instead — a second fit racing auxein-surfaces-daily on the same S3 keys and the uq_surface_run_timestep constraint. Baking JOB into each task definition removes the failure mode instead of documenting it, and it matches the proven surfaces schedule, which selects MODE the same way and passes no Input at all.",
+
+  "_why_not_the_ingest_box": "The 1 GB t3.micro already runs hourly ingestion, and the zone-surface stage reads COGs. At 1 vCPU / 4 GB these two cost roughly $2/month between them and share the image the surfaces job already validated.",
+
+  "_verified": "Both hand-run on 2026-08-31 before the schedules were created. aggregate exit 0 in 2m30s, stages 2-5 correctly SKIPPED. pipeline exit 0 in 3m, all six stages run, and it closed the 2026-08-30 hole in zone_hourly, zone_daily, phenology and disease_pressure. cleanup_blacklist ran in both, which is what proves python-jose is in the image — the import audit found it missing before any schedule was touched.",
 
   "schedules": [
     {
       "Name": "auxein-pipeline-daily",
       "GroupName": "default",
-      "Description": "18:00 NZ daily chain: aggregation, QC, hourly rollup, zone rollup, zone surface, phenology, disease, blacklist cleanup. Was daily-processing.yml.",
+      "Description": "18:00 NZ pipeline: aggregation, QC, hourly and zone rollups, zone surface, phenology, disease. Was daily-processing.yml.",
       "ScheduleExpression": "cron(0 18 * * ? *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
       "FlexibleTimeWindow": { "Mode": "OFF" },
@@ -18,18 +22,17 @@
         "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
         "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
         "EcsParameters": {
-          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline",
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline-daily",
           "LaunchType": "FARGATE",
           "TaskCount": 1,
           "NetworkConfiguration": {
             "awsvpcConfiguration": {
               "Subnets": ["subnet-0317587a16a8b5e59"],
-              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "SecurityGroups": ["sg-0d19d5d32bde42638"],
               "AssignPublicIp": "ENABLED"
             }
           }
         },
-        "Input": "{\"containerOverrides\":[{\"name\":\"pipeline\",\"environment\":[{\"name\":\"JOB\",\"value\":\"pipeline\"}]}]}",
         "RetryPolicy": { "MaximumRetryAttempts": 1 }
       }
     },
@@ -37,7 +40,7 @@
       "_comment_timing": "01:20 / 07:20 / 13:20 / 19:20 NZ. Six-hourly like the :35 cron it replaces, but placed to clear both neighbours: 100 minutes before the 03:00 surfaces fit, which stages from weather_data_daily and must read a settled rollup, and 80 minutes after the 18:00 pipeline rather than 35, so a slow pipeline cannot be overtaken by the rollup that feeds it. On GitHub this job's four runs on 2026-08-30 started at 05:43, 12:10, 16:56 and 21:27 UTC against a :35 cron — up to 55 minutes of drift on the job whose entire purpose is a settled six-hour window.",
       "Name": "auxein-pipeline-aggregate",
       "GroupName": "default",
-      "Description": "Six-hourly rollup, its sanity check, and disease pressure at every Pro site. Was daily-aggregation.yml.",
+      "Description": "Six-hourly rollup, sanity check, and disease pressure at every Pro site. Was daily-aggregation.yml.",
       "ScheduleExpression": "cron(20 1,7,13,19 * * ? *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
       "FlexibleTimeWindow": { "Mode": "OFF" },
@@ -46,18 +49,17 @@
         "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
         "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
         "EcsParameters": {
-          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline",
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline-aggregate",
           "LaunchType": "FARGATE",
           "TaskCount": 1,
           "NetworkConfiguration": {
             "awsvpcConfiguration": {
               "Subnets": ["subnet-0317587a16a8b5e59"],
-              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "SecurityGroups": ["sg-0d19d5d32bde42638"],
               "AssignPublicIp": "ENABLED"
             }
           }
         },
-        "Input": "{\"containerOverrides\":[{\"name\":\"pipeline\",\"environment\":[{\"name\":\"JOB\",\"value\":\"aggregate\"}]}]}",
         "RetryPolicy": { "MaximumRetryAttempts": 1 }
       }
     }
