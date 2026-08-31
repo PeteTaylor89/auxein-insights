@@ -58,6 +58,9 @@ import {
   PROJECTION_BASELINE,
   fetchZoneLayer,
   granularityFor,
+  cadenceFor,
+  statisticFor,
+  DAILY_CAPABLE,
   vintageFor,
   SURFACE_VARIABLES,
   DEFAULT_STATISTIC,
@@ -217,6 +220,26 @@ function monthLabel(stamp) {
     : d.toLocaleDateString('en-NZ', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
+// A daily stamp is a full date and must READ as one. `monthLabel` splits on the
+// dash and takes only the year and month, so it renders every day of August as
+// "August 2026" — the scrubber would move, the map would change, and the label
+// would sit still, which reads as a broken control rather than as a coarse one.
+function dayLabel(stamp) {
+  if (!stamp) return '';
+  const [y, m, d] = String(stamp).split('-');
+  const dt = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+  return Number.isNaN(dt.getTime())
+    ? stamp
+    : dt.toLocaleDateString('en-NZ', {
+      weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
+      timeZone: 'UTC',
+    });
+}
+
+function stepLabel(stamp, granularity) {
+  return granularity === 'daily' ? dayLabel(stamp) : monthLabel(stamp);
+}
+
 function unitFor(variable, statistic) {
   if (COUNT_STATISTICS.has(statistic)) return 'days';
   return SURFACE_VARIABLES[variable]?.unit || '';
@@ -281,6 +304,11 @@ function SurfaceMap({ onSignInRequired }) {
 
   // --- projection mode ------------------------------------------------------
   const [mode, setMode] = useState('measured');
+  // 'archive' walks the 1986-2023 monthly record; 'daily' walks the live
+  // engine's day-by-day series. A CHOICE, not a property of the variable —
+  // which is why `cadenceFor` exists rather than a second lookup table. The
+  // GDD layers have no daily form, so it falls back for them automatically.
+  const [cadence, setCadence] = useState('archive');
   const [projLayer, setProjLayer] = useState(null);
   const [scenario, setScenario] = useState(null);
   const [period, setPeriod] = useState(null);
@@ -311,9 +339,16 @@ function SurfaceMap({ onSignInRequired }) {
     [],
   );
 
-  const granularity = granularityFor(variable);
+  const granularity = cadenceFor(variable, cadence);
+  const dailyOffered = DAILY_CAPABLE.has(variable);
+  const isDaily = granularity === 'daily';
+  // A daily surface HAS no statistic — it is the value, not an aggregate over a
+  // period, and `surface_run` stores `statistic IS NULL` to say so. Sending
+  // `mean` with a daily request matches zero rows and reports itself as "no
+  // surface for this date", which looks exactly like a missing day.
+  const wireStatistic = statisticFor(granularity, statistic);
   const { available, loading, unavailable, months, error, access } =
-    useSurfaceAvailability(variable, granularity, statistic);
+    useSurfaceAvailability(variable, granularity, wireStatistic);
 
   // --- the projection catalogue --------------------------------------------
   // Fetched with no layer first, so the mode switch knows whether projections
@@ -424,12 +459,34 @@ function SurfaceMap({ onSignInRequired }) {
   // the most recent.
   useEffect(() => { setIndex(null); }, [granularity]);
 
-  // Land on the most recent month whenever the layer changes, and keep the
-  // index in range — statistics do not all cover the same span.
+  // A statistic is meaningless on a daily surface and the archive's statistic
+  // must survive a round trip through the daily cadence, so it is left alone in
+  // state and simply not sent (`wireStatistic`). What DOES need resetting is a
+  // variable with no daily form: switching to gdd10 while daily is selected
+  // would leave the control showing 'Daily' over a seasonal layer.
+  useEffect(() => {
+    if (cadence === 'daily' && !DAILY_CAPABLE.has(variable)) setCadence('archive');
+  }, [cadence, variable]);
+
+  // Land on the most recent step whenever the layer changes, and keep the index
+  // in range — statistics do not all cover the same span.
+  //
+  // EXCEPT ON THE DAILY CADENCE, which opens A WEEK BACK. The newest daily
+  // surface is D-2 by design and is the one most likely to still be revised:
+  // `daily_aggregation` keeps correcting `weather_data_daily` for about three
+  // days, and the engine re-fits D-9..D-3 weekly because of it. Opening on the
+  // freshest day would put the least settled number in the country on screen
+  // first. A week back is inside the record and past the revision tail, and
+  // every day either side stays on the scrubber.
+  const DAILY_OPEN_BACK = 7;
   useEffect(() => {
     if (!months.length) { setIndex(null); return; }
-    setIndex((prev) => (prev == null || prev > months.length - 1 ? months.length - 1 : prev));
-  }, [months]);
+    setIndex((prev) => {
+      if (prev != null) return Math.min(prev, months.length - 1);
+      const last = months.length - 1;
+      return isDaily ? Math.max(0, last - DAILY_OPEN_BACK) : last;
+    });
+  }, [months, isDaily]);
 
   const current = index != null && months[index] ? months[index] : null;
   const currentStep = useMemo(
@@ -477,6 +534,18 @@ function SurfaceMap({ onSignInRequired }) {
   const jumpYear = useCallback((delta) => {
     if (!months.length || !current) return;
     setPlaying(false);
+
+    if (granularity === 'daily') {
+      // A YEAR is not a useful jump on a record that is two months long. The
+      // outer buttons move a week, which is the span a grower actually reasons
+      // in — "what did last week look like" — and it keeps both buttons doing
+      // something on every day of the series.
+      setIndex((prev) => {
+        const from = prev ?? months.length - 1;
+        return Math.min(months.length - 1, Math.max(0, from + delta * 7));
+      });
+      return;
+    }
 
     if (granularity === 'season') {
       // Hold the position WITHIN the season, so Octobers compare with Octobers
@@ -617,7 +686,9 @@ function SurfaceMap({ onSignInRequired }) {
         });
       }
     } else if (current) {
-      url = tileUrlTemplate({ variable, valid_at: current, granularity, statistic });
+      url = tileUrlTemplate({
+        variable, valid_at: current, granularity, statistic: wireStatistic,
+      });
     }
 
     // Nothing addressable yet — a layer still resolving, or a season with no
@@ -652,7 +723,7 @@ function SurfaceMap({ onSignInRequired }) {
       source: SOURCE_ID,
       paint: { 'raster-opacity': opacityRef.current, 'raster-fade-duration': 150 },
     }, beneath);
-  }, [mapReady, variable, statistic, current, granularity,
+  }, [mapReady, variable, wireStatistic, current, granularity,
       projected, projLayer, scenario, period, season, projDomain,
       showingBaseline, baselineKey]);
 
@@ -909,7 +980,7 @@ function SurfaceMap({ onSignInRequired }) {
     } else if (current) {
       request = getProbe({
         lon: probeAt.lng, lat: probeAt.lat,
-        variable, granularity, valid_at: current, statistic,
+        variable, granularity, valid_at: current, statistic: wireStatistic,
       });
     }
     if (!request) { setProbe(null); return undefined; }
@@ -930,7 +1001,7 @@ function SurfaceMap({ onSignInRequired }) {
       });
     return () => { live = false; };
   }, [probeAt, projected, projLayer, scenario, period, season, showingBaseline,
-      baselineKey, current, variable, statistic, granularity]);
+      baselineKey, current, variable, wireStatistic, granularity]);
 
   // Playback would refetch the cell every 420 ms and flicker a number nobody can
   // read at that rate. Close it instead of throttling it.
@@ -980,12 +1051,14 @@ function SurfaceMap({ onSignInRequired }) {
     }
     return [
       SURFACE_VARIABLES[variable]?.label || variable,
-      statLabel(statistic, variable),
-      monthLabel(current),
+      // The statistic is part of the caption for an aggregate and a lie for a
+      // daily value: there is no "mean" of one day's surface.
+      granularity === 'daily' ? 'daily' : statLabel(statistic, variable),
+      stepLabel(current, granularity),
       currentSeason != null ? `${currentSeason} season` : null,
     ].filter(Boolean).join(' · ');
   }, [projected, projLayer, showingBaseline, projBaseline, periods, period,
-      season, variable, statistic, current, currentSeason]);
+      season, variable, statistic, current, currentSeason, granularity]);
 
   // --- playback -------------------------------------------------------------
   // A projection has no series, so nothing may be playing through one.
@@ -1281,6 +1354,33 @@ function SurfaceMap({ onSignInRequired }) {
             ))}
           </div>
 
+          {/* CADENCE. Only where a daily series exists — the GDD layers are
+              seasonal accumulations with no daily form, and offering the
+              control for them would 404 the tiles. The statistic row hides on
+              the daily cadence because a daily surface has none. */}
+          {dailyOffered && mode === 'measured' && (
+            <div className="surface-map__group" role="group" aria-label="Cadence">
+              {[
+                { key: 'archive', label: 'Monthly archive' },
+                { key: 'daily', label: 'Daily' },
+              ].map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className={`surface-map__chip${c.key === cadence ? ' is-active' : ''}`}
+                  onClick={() => setCadence(c.key)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Conditionally RENDERED, not `hidden`. `.surface-map__group` sets
+              `display: flex`, which wins against the hidden attribute, so the
+              row would have stayed on screen offering statistics that a daily
+              surface does not have. */}
+          {!isDaily && (
           <div className="surface-map__group" role="group" aria-label="Statistic">
             {statisticOptions.map((s) => (
               <button
@@ -1293,6 +1393,7 @@ function SurfaceMap({ onSignInRequired }) {
               </button>
             ))}
           </div>
+          )}
 
           <div className="surface-map__group" role="group" aria-label="Overlays">
             <button
@@ -1346,8 +1447,8 @@ function SurfaceMap({ onSignInRequired }) {
               className="surface-map__play surface-map__play--nav"
               onClick={() => jumpYear(-1)}
               disabled={navDisabled}
-              aria-label={granularity === 'season' ? 'Previous season' : 'Same month, previous year'}
-              title={granularity === 'season' ? 'Previous season' : 'Same month, previous year'}
+              aria-label={granularity === 'daily' ? 'Back a week' : granularity === 'season' ? 'Previous season' : 'Same month, previous year'}
+              title={granularity === 'daily' ? 'Back a week' : granularity === 'season' ? 'Previous season' : 'Same month, previous year'}
             >
               <ChevronsLeft size={18} />
             </button>
@@ -1356,8 +1457,8 @@ function SurfaceMap({ onSignInRequired }) {
               className="surface-map__play surface-map__play--nav"
               onClick={() => stepBy(-1)}
               disabled={navDisabled || (index ?? 0) <= 0}
-              aria-label={granularity === 'season' ? 'Previous step' : 'Previous month'}
-              title={granularity === 'season' ? 'Previous step' : 'Previous month'}
+              aria-label={granularity === 'daily' ? 'Previous day' : granularity === 'season' ? 'Previous step' : 'Previous month'}
+              title={granularity === 'daily' ? 'Previous day' : granularity === 'season' ? 'Previous step' : 'Previous month'}
             >
               <ChevronLeft size={18} />
             </button>
@@ -1370,7 +1471,7 @@ function SurfaceMap({ onSignInRequired }) {
             value={index ?? 0}
             onChange={(e) => { setPlaying(false); setIndex(Number(e.target.value)); }}
             disabled={!months.length || locked}
-            aria-label="Month"
+            aria-label={isDaily ? 'Day' : 'Month'}
             className="surface-map__range"
           />
 
@@ -1380,8 +1481,8 @@ function SurfaceMap({ onSignInRequired }) {
               className="surface-map__play surface-map__play--nav"
               onClick={() => stepBy(1)}
               disabled={navDisabled || (index ?? 0) >= months.length - 1}
-              aria-label={granularity === 'season' ? 'Next step' : 'Next month'}
-              title={granularity === 'season' ? 'Next step' : 'Next month'}
+              aria-label={granularity === 'daily' ? 'Next day' : granularity === 'season' ? 'Next step' : 'Next month'}
+              title={granularity === 'daily' ? 'Next day' : granularity === 'season' ? 'Next step' : 'Next month'}
             >
               <ChevronRight size={18} />
             </button>
@@ -1390,8 +1491,8 @@ function SurfaceMap({ onSignInRequired }) {
               className="surface-map__play surface-map__play--nav"
               onClick={() => jumpYear(1)}
               disabled={navDisabled}
-              aria-label={granularity === 'season' ? 'Next season' : 'Same month, next year'}
-              title={granularity === 'season' ? 'Next season' : 'Same month, next year'}
+              aria-label={granularity === 'daily' ? 'Forward a week' : granularity === 'season' ? 'Next season' : 'Same month, next year'}
+              title={granularity === 'daily' ? 'Forward a week' : granularity === 'season' ? 'Next season' : 'Same month, next year'}
             >
               <ChevronsRight size={18} />
             </button>
@@ -1399,7 +1500,7 @@ function SurfaceMap({ onSignInRequired }) {
 
           <div className="surface-map__readout">
             <strong>
-              {loading ? 'Loading…' : monthLabel(current)}
+              {loading ? 'Loading…' : stepLabel(current, granularity)}
               {/* The accumulation month alone is ambiguous: October 2019 is a
                   step of the 2020 season, and a grower thinks in vintages. */}
               {currentSeason != null && (

@@ -16,7 +16,9 @@
 // Everything both panels draw arrives in the dashboard payload, already
 // resolved: coverage per model, and — critically — which phenology dates are fit
 // to show. See `insights_dashboard._phenology_varieties`.
+import { useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
+import { getSitePhenology } from '../../services/proSiteService';
 import PhenologyPanel from './PhenologyPanel';
 import DiseasePanel from './DiseasePanel';
 import './RegionalModelsPanel.css';
@@ -37,7 +39,32 @@ function Block({ title, note, available, reason, children }) {
   );
 }
 
-function RegionalModelsPanel({ models }) {
+function RegionalModelsPanel({ models, siteId }) {
+  // PHENOLOGY IS NOW COMPUTED AT THE POINT, and this fetches it.
+  //
+  // `models.phenology` is the ZONE's estimates, read through `site.zone_id`.
+  // The panel rendered them under a site heading, so a subscriber's own point
+  // showed their region's flowering and harvest dates while looking
+  // site-specific. `insights_site_phenology` runs the same model on the site's
+  // own accumulation against its own 1986-2005 baseline.
+  //
+  // The regional payload is kept as the FALLBACK rather than deleted: a site
+  // with no daily record yet — placed today, or before 1 September — has no
+  // point estimate, and a region's dates clearly labelled as a region's are
+  // better than an empty block. Which one is showing is stated in the note.
+  const [sitePhen, setSitePhen] = useState(null);
+
+  useEffect(() => {
+    if (!siteId) return undefined;
+    let live = true;
+    getSitePhenology(siteId)
+      .then((d) => { if (live) setSitePhen(d?.available ? d : null); })
+      // A failure here falls back to the regional block rather than blanking
+      // it. This is a comparison, not the page's reason for existing.
+      .catch(() => { if (live) setSitePhen(null); });
+    return () => { live = false; };
+  }, [siteId]);
+
   if (!models) return null;
 
   const { phenology = {}, disease = {} } = models;
@@ -72,12 +99,16 @@ function RegionalModelsPanel({ models }) {
       </header>
 
       <Block
-        title="Phenology"
-        note={vintageNote}
-        available={phenology.available}
+        title={sitePhen ? 'Phenology at this site' : 'Phenology'}
+        note={sitePhen
+          ? ['Modelled at this site, against its own 1986-2005 baseline. '
+             + 'The smaller date under each is the surrounding region.',
+             vintageNote].filter(Boolean).join(' ')
+          : vintageNote}
+        available={sitePhen ? true : phenology.available}
         reason={phenology.reason}
       >
-        <PhenologyPanel phenology={phenology} />
+        <PhenologyPanel phenology={sitePhen || phenology} />
       </Block>
 
       <Block

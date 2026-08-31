@@ -8,8 +8,9 @@
 //   season_previous  the season just finished, at the REGION, from stations —
 //                    a finished season is only fully recorded at station scale.
 //   tiles            what this cell usually does, 1986-2023 surface archive.
-//   projections      a placeholder. Region-only today; site-level needs
-//                    projection surfaces to sample.
+//   projections      this cell under each emissions scenario, against its own
+//                    1986-2005 baseline. Sampled from the projection surfaces
+//                    since 2026-08-31; it was a placeholder before those existed.
 //
 // No number is ever computed across those boundaries — the server does not
 // merge them and neither does this. Everything numeric arrives ready: normals,
@@ -307,11 +308,20 @@ function SiteDashboard({ siteId, baseline }) {
       {/* Regional models, below the site's own record because that is the order
           of confidence: everything above is this cell, these two are the region
           around it. */}
-      <RegionalModelsPanel models={data.models} />
+      {/* siteId so the phenology block can fetch the POINT model; the
+          regional payload stays as its fallback. */}
+      <RegionalModelsPanel models={data.models} siteId={siteId} />
 
       {/* Last, because it is the only block that answers a question about the
-          future rather than the record. It is a placeholder today. */}
-      <ProjectionsPanel projections={data.projections} />
+          future rather than the record.
+
+          It fetches its own data rather than reading it off this payload. The
+          grid is ~112 rows per season and the season is a control the reader
+          changes, so folding it in here would make every site open pay for a
+          panel most visits scroll past, and changing season would refetch the
+          whole dashboard. `projections` is still passed for the regional link
+          and its vocabulary, which do come from this payload. */}
+      <ProjectionsPanel siteId={siteId} projections={data.projections} />
     </div>
   );
 }

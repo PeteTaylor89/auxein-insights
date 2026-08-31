@@ -14,10 +14,17 @@ import publicApi from './publicApi';
 const BASE = '/surfaces';
 
 // The published archive is MONTHLY (1986-01..2023-12, 500 m) plus a per-variable
-// `records` set. No daily surfaces exist: the backfill streams month-by-month
-// into accumulators and never materialises a daily raster. Asking for `daily`
-// now gets a 422 rather than an invented field, so `monthly` is the default
-// everywhere on the client.
+// `records` set, and — since the live engine started on 2026-07-01 — a DAILY
+// series for the four measured variables.
+//
+// `monthly` stays the default for everyone, because the archive is what the
+// free tier is built on and the daily series is the Pro cadence. Daily is
+// opt-in through `cadenceFor`, not something a variable falls into.
+//
+// The comment that used to sit here said no daily surfaces existed and that
+// asking for `daily` returned a 422. That was true of the backfill, which
+// streams month-by-month into accumulators and never materialises a daily
+// raster, and it stopped being true when the forward engine shipped.
 export const DEFAULT_GRANULARITY = 'monthly';
 
 // Monthly and records surfaces are keyed by statistic as well as by date, so a
@@ -51,6 +58,36 @@ export const VARIABLE_GRANULARITY = {
 
 export function granularityFor(variable) {
   return VARIABLE_GRANULARITY[variable] || DEFAULT_GRANULARITY;
+}
+
+// Variables the live daily engine publishes. NOT the same list as
+// `VARIABLE_GRANULARITY`: the GDD layers are seasonal accumulations and have no
+// daily form at all, so offering a daily cadence for them would 404.
+//
+// Granularity used to be purely a property of the variable, which is why
+// `granularityFor` takes no second argument. It is now a property of the
+// variable AND a reader's choice, and `cadenceFor` is where the two meet — a
+// caller that asks for a daily cadence on a variable that has none gets the
+// variable's own granularity back rather than a 404.
+export const DAILY_CAPABLE = new Set([
+  'temp_mean', 'temp_min', 'temp_max', 'rainfall',
+]);
+
+export function cadenceFor(variable, cadence) {
+  if (cadence === 'daily' && DAILY_CAPABLE.has(variable)) return 'daily';
+  return granularityFor(variable);
+}
+
+/**
+ * The statistic to send for a granularity.
+ *
+ * A daily surface HAS no statistic — it is the value, not an aggregate over a
+ * period, and `surface_run` stores `statistic IS NULL` for exactly that reason.
+ * Sending `mean` with a daily request matches zero rows and reports itself as
+ * "no surface for this date", which is indistinguishable from a missing day.
+ */
+export function statisticFor(granularity, statistic) {
+  return granularity === 'daily' ? undefined : statistic;
 }
 
 /**
@@ -515,6 +552,9 @@ export default {
   monthsAvailable,
   stepsAvailable,
   granularityFor,
+  cadenceFor,
+  statisticFor,
+  DAILY_CAPABLE,
   vintageFor,
   monthStamp,
   isSurfacesUnavailable,

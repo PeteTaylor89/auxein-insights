@@ -86,6 +86,8 @@ def main():
     parser.add_argument('--skip-hourly', action='store_true', help='Skip hourly aggregation')
     parser.add_argument('--skip-zone', action='store_true', help='Skip zone aggregation')
     parser.add_argument('--skip-phenology', action='store_true', help='Skip phenology')
+    parser.add_argument('--skip-site-phenology', action='store_true',
+                        help='Skip per-site phenology (stage 4b)')
     parser.add_argument('--skip-disease', action='store_true', help='Skip disease pressure')
     parser.add_argument('--zone-id', type=int, help='Process only this zone (passed to all sub-scripts)')
     parser.add_argument(
@@ -294,6 +296,36 @@ def main():
         logger.info("\n[4/6] PHENOLOGY - SKIPPED")
         results['phenology'] = True
     
+    # =========================================================================
+    # Step 4b: Phenology at each Pro / account SITE
+    # =========================================================================
+    #
+    # AFTER stage 4, and that is a data dependency rather than tidiness. Each
+    # site row stores the REGION's dates beside its own so the two can be
+    # compared honestly; running this before the zone stage would put today's
+    # site estimate next to yesterday's region.
+    #
+    # It also has to run after the 03:00 surfaces job, which is what writes
+    # `insights_site_daily` and therefore the site's GDD. This pipeline is the
+    # 18:00 NZ one, so that holds by the clock — but it is the reason this stage
+    # belongs here and not in the six-hourly rollup.
+    #
+    # NON-FATAL, deliberately, and unlike the stages around it. The zone
+    # phenology is the product the region pages are built on; this is the
+    # point-level refinement of it, and a failure to refine must not take down a
+    # pipeline whose other five stages succeeded. It is reported in the summary
+    # like everything else.
+    if not args.skip_site_phenology:
+        logger.info("\n[4b/6] SITE PHENOLOGY (per Pro / account site)")
+        site_args = window_args('--from', '--to')
+        if args.dry_run:
+            site_args.append('--dry-run')
+        results['site_phenology'] = run_script('populate_site_phenology.py',
+                                               site_args)
+    else:
+        logger.info("\n[4b/6] SITE PHENOLOGY - SKIPPED")
+        results['site_phenology'] = True
+
     # =========================================================================
     # Step 5: Disease Pressure (v2 - uses hourly data)
     # =========================================================================

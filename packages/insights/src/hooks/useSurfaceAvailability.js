@@ -70,7 +70,15 @@ export default function useSurfaceAvailability(
   // calendar walk would invent four steps per season. Empty for anything else.
   const months = useMemo(() => {
     if (granularity === 'monthly') return monthsAvailable(available);
-    if (granularity === 'season') return stepsAvailable(available);
+    // The server's own step list, verbatim, for both. `monthsAvailable`
+    // RECONSTRUCTS a series by walking the calendar between `first` and `last`,
+    // which is right for a monthly archive published without holes and wrong
+    // for a daily one: the daily record starts when the engine started
+    // (2026-07-01) and a fit can be skipped, so a reconstructed calendar would
+    // offer days that were never published and 404 the tiles.
+    if (granularity === 'season' || granularity === 'daily') {
+      return stepsAvailable(available);
+    }
     return [];
   }, [available, granularity]);
 

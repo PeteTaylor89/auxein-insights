@@ -602,12 +602,25 @@ PROJECTION_PERIODS = [
 
 
 def _projections(db: Session, site) -> dict:
-    """PLACEHOLDER. The 3x3 shell, and an honest account of why it is empty.
+    """The regional link and the axis vocabulary. NOT the numbers any more.
 
-    `climate_projections` is populated and real — 23 zones x 3 scenarios x 3
-    periods x 12 months — but it was produced per REGION, off the engine. There
-    is no projection surface to sample, so there is no way to give this cell its
-    own projected numbers.
+    This was the placeholder for the whole projections panel until 2026-08-31,
+    on the stated grounds that "there is no projection surface to sample". That
+    ceased to be true when the 612 projection rasters were published on
+    2026-08-25, and `insights_site_projection` now holds this site's own cell
+    sampled from them — 576 rows, delta against the same cell's 1986-2005
+    baseline.
+
+    What survives here is the part that still belongs on the dashboard payload:
+    the link out to the region, and whether that region has anything to link to.
+    The grid itself is fetched by the panel from
+    `GET /insights/sites/{id}/projections`, because it is ~112 rows per season
+    and the season is a control the reader changes.
+
+    The shortcut this docstring used to refuse is still refused, and is now moot:
+    applying the zone's monthly deltas to the site's own normal would have put a
+    regional number on screen wearing the site's baseline. The surfaces made
+    that unnecessary rather than merely unwise.
 
     The available shortcut would be to apply the zone's monthly deltas to the
     site's own monthly normal. That is a standard method and it is deliberately
@@ -643,9 +656,10 @@ def _projections(db: Session, site) -> dict:
         "periods": [{"key": k, "label": lab, "years": y}
                     for k, lab, y in PROJECTION_PERIODS],
         "baseline": "1986-2005",
-        "reason": ("Projections are modelled per region today. Site-level "
-                   "projections need projection surfaces to sample, and those "
-                   "are being built."),
+        # Kept for callers that still read it; the panel no longer displays
+        # it, because the thing it apologised for has shipped.
+        "reason": ("Site-level projections are sampled from the projection "
+                   "surfaces at this site's own cell."),
         "regional_available": regional_rows > 0,
         "zone_name": zone["name"] if zone else None,
         "zone_slug": zone["slug"] if zone else None,

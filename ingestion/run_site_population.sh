@@ -72,21 +72,29 @@ cn = psycopg2.connect(
     user=os.environ["RDS_USER"], password=os.environ["RDS_PASSWORD"],
     dbname=os.environ["RDS_DATABASE"], connect_timeout=20)
 cur = cn.cursor()
+# Copied from the workflow this replaces, NOT paraphrased. The first draft of
+# this file said `insights_sites` (the table is `insights_site`, singular),
+# `updated_at` (it is `requested_at`) and `status IN ('queued','populating')`
+# (there is no `queued`), so the alert raised on every run while the populator
+# beside it worked — an alerting path that is itself broken is worse than none,
+# because the log fills with a traceback that has nothing to do with any site.
+#
 # 30 minutes is well past the ~90 second job and past any plausible queue delay,
-# so anything still waiting is genuinely stuck rather than merely queued.
+# so anything still populating is genuinely stuck rather than merely slow.
 cur.execute("""
-    SELECT id, status, updated_at
-      FROM insights_sites
+    SELECT id, public_user_id, status, status_detail,
+           date_trunc('second', now() - requested_at) AS waiting
+      FROM insights_site
      WHERE status = 'failed'
-        OR (status IN ('queued', 'populating')
-            AND updated_at < now() - interval '30 minutes')
-     ORDER BY updated_at
+        OR (status = 'populating'
+            AND requested_at < now() - interval '30 minutes')
+     ORDER BY requested_at
 """)
 rows = cur.fetchall()
-for sid, status, at in rows:
-    print(f"SITE-ALERT site={sid} status={status} since={at}")
-print(f"site population check: {len(rows)} stuck or failed site(s)")
 cn.close()
+for sid, uid, status, detail, waiting in rows:
+    print(f"SITE-ALERT site={sid} user={uid} {status} for {waiting}: {detail or '-'}")
+print(f"site population check: {len(rows)} stuck or failed site(s)")
 PY
 
 echo "$(date -Is) populate_insights_sites exit=$rc" >> "$LOG/site_population.log"

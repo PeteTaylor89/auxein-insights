@@ -38,11 +38,11 @@ import os
 from datetime import date as _date, datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from db.models.insights_site import (
-    InsightsSite, MOVES_PER_WINDOW, MOVE_WINDOW_DAYS,
+    InsightsSite, InsightsSiteProjection, MOVES_PER_WINDOW, MOVE_WINDOW_DAYS,
 )
 from services import surface_store as store
 
@@ -860,4 +860,150 @@ def populate_daily(db: Session, site: InsightsSite,
         # needs a different fix from an empty window.
         "days_with_value": with_value,
         "reason": None if rows else "no daily surfaces cover this window",
+    }
+
+
+# --- the projected record ------------------------------------------------------
+#
+# The point-level twin of `aggregate_zone_projection.py`. A zone answers "what
+# does Martinborough look like under ssp245 by 2050"; the paid tier is sold on
+# answering that at the customer's own point, and until now it could not.
+#
+# THE BASELINE IS SAMPLED, NOT JOINED. `surface_projection_run` has carried the
+# 36 rasters of our own 1986-2005 normal since 2026-08-25, keyed with the
+# `baseline` sentinel in `scenario`, `period` and `kind`. Reading those at the
+# site's own cell gives a baseline with the same provenance and the same grid as
+# the projection it is subtracted from, and at a point it is exact rather than
+# an area mean.
+#
+# `surface_projection_run.baseline_median` is NOT used. It is a NATIONAL median,
+# and a national median is the wrong baseline for Central Otago. The zone job
+# refuses it for the same reason.
+
+
+def projection_surfaces(db: Session) -> tuple[list[dict], list[dict]]:
+    """Every published projection raster, and every baseline raster, as rows.
+
+    Returned as two lists rather than one, because they are used differently:
+    the baselines are indexed by (variable, statistic, season) and subtracted
+    from every scenario, while the projections are iterated.
+
+    `kind` is what separates them, and filtering on it is NOT optional. Since
+    2026-08-25 the same table holds both, and a query that forgets the filter
+    aggregates a present-day normal in as though it were a scenario — a row
+    that no constraint catches, because every column in it is individually
+    valid. That is the trap `aggregate_zone_projection` calls out by name.
+    """
+    rows = [dict(r) for r in db.execute(text("""
+        SELECT kind, variable, statistic, scenario, period, season,
+               unit, model_version, rule, s3_key
+          FROM surface_projection_run
+         WHERE status = 'ok'
+         ORDER BY variable, statistic, scenario, period, season
+    """)).mappings().all()]
+    projections = [r for r in rows if r["kind"] == "projection"]
+    baselines = [r for r in rows if r["kind"] == "baseline"]
+    return projections, baselines
+
+
+def extract_projections(db: Session, site: InsightsSite) -> list[dict]:
+    """This site's cell across every projection and baseline raster.
+
+    One windowed 1x1 read per object, concurrent for the same reason the
+    monthly and daily extractions are: the cost is round trips, not work. At
+    612 objects this is the same order as one day of the monthly extraction.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    projections, baselines = projection_surfaces(db)
+    if not projections:
+        return []
+
+    row, col = site.grid_row, site.grid_col
+
+    # Baselines first and separately: every projection row needs its matching
+    # baseline to compute a delta, so they cannot be read lazily inside the
+    # projection loop without re-reading the same 36 objects 16 times.
+    with ThreadPoolExecutor(max_workers=EXTRACT_WORKERS) as pool:
+        base_vals = list(pool.map(lambda r: _read_cell(r, row, col), baselines))
+    base_at = {(r["variable"], r["statistic"], r["season"]): v
+               for r, v in zip(baselines, base_vals)}
+
+    with ThreadPoolExecutor(max_workers=EXTRACT_WORKERS) as pool:
+        proj_vals = list(pool.map(lambda r: _read_cell(r, row, col), projections))
+
+    out = []
+    for rec, projected in zip(projections, proj_vals):
+        base = base_at.get((rec["variable"], rec["statistic"], rec["season"]))
+        out.append({
+            "site_id": site.id,
+            "scenario": rec["scenario"], "period": rec["period"],
+            "season": rec["season"], "variable": rec["variable"],
+            "statistic": rec["statistic"],
+            "baseline_value": base,
+            "projected_value": projected,
+            # NULL when either side is NULL. A delta taken against a missing
+            # baseline is the projected absolute wearing a change's label,
+            # which is the one way this table could mislead badly.
+            "delta": (None if base is None or projected is None
+                      else projected - base),
+            "unit": rec["unit"], "model_version": rec["model_version"],
+            "rule": rec["rule"], "grid_key": site.grid_key,
+        })
+    return out
+
+
+def upsert_projections(db: Session, rows: list[dict]) -> int:
+    """Write projected values, correcting any row already there.
+
+    UPSERT rather than delete-and-insert: the surfaces are re-composed
+    occasionally, and a delete-then-insert leaves the site with NO projections
+    for the length of the transaction. That window is short and the page that
+    reads it is a customer's, so it is worth avoiding entirely.
+    """
+    if not rows:
+        return 0
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    stmt = pg_insert(InsightsSiteProjection).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_site_projection_cell",
+        set_={
+            "baseline_value": stmt.excluded.baseline_value,
+            "projected_value": stmt.excluded.projected_value,
+            "delta": stmt.excluded.delta,
+            "unit": stmt.excluded.unit,
+            "model_version": stmt.excluded.model_version,
+            "rule": stmt.excluded.rule,
+            "grid_key": stmt.excluded.grid_key,
+            "extracted_at": func.now(),
+        })
+    db.execute(stmt)
+    return len(rows)
+
+
+def populate_projections(db: Session, site: InsightsSite) -> dict:
+    """Extract and store one site's projected record. Returns a summary.
+
+    Like `populate_daily`, this reports rather than raises on an empty result:
+    a site whose cell is off the projection mask is a placement problem, not a
+    failure of the run, and the caller decides which of those is fatal.
+    """
+    if site.grid_row is None or site.grid_col is None:
+        return {"site_id": site.id, "rows": 0, "written": 0,
+                "with_delta": 0, "reason": "the site has no resolved cell"}
+
+    rows = extract_projections(db, site)
+    written = upsert_projections(db, rows)
+    db.commit()
+
+    with_delta = sum(1 for r in rows if r["delta"] is not None)
+    return {
+        "site_id": site.id, "rows": len(rows), "written": written,
+        # Rows present but every delta NULL means the projection rasters exist
+        # and this cell is not on them — a land-mask problem at this site, not
+        # a missing-surface problem, and it needs saying separately or it hides
+        # inside a healthy-looking total.
+        "with_delta": with_delta,
+        "reason": None if rows else "no projection surfaces are published",
     }

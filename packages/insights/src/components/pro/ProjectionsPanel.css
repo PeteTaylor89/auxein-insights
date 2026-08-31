@@ -1,10 +1,10 @@
-/* A placeholder that reserves its shape. Deliberately quieter than the panels
-   holding real numbers — it should read as "this is coming", never as a section
-   that failed to load. */
+/* Holds real numbers since 2026-08-31. The dashed border and hatched cells
+   that used to be here were the placeholder saying "this is coming" — leaving
+   them would now say "this failed to load", which is the opposite. */
 .projections {
   margin: 0 0 22px;
   padding: 18px 20px;
-  border: 1px dashed rgb(var(--primary-rgb) / 0.3);
+  border: 1px solid rgb(var(--primary-rgb) / 0.22);
   border-radius: 10px;
   background: rgb(var(--primary-rgb) / 0.02);
 }
@@ -71,8 +71,52 @@
 }
 
 .projections__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   min-height: 46px;
+  padding: 4px;
+  border: 1px solid transparent;
   border-radius: 6px;
+  background: rgba(138, 154, 91, 0.06);
+  cursor: default;
+}
+
+.projections__cell b {
+  font-size: 0.98rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #3d4632;
+}
+
+/* The region's figure, deliberately subordinate. It is context for the site's
+   number, not a second reading competing with it. */
+.projections__cell small {
+  font-size: 0.62rem;
+  color: #8a9276;
+  font-variant-numeric: tabular-nums;
+}
+
+/* DIRECTION ONLY, never magnitude. One scale across every band would have to
+   span 3 degC and 300 mm, and a colour meaning "a lot" for temperature would
+   mean "nothing" for rainfall. Nothing here implies good or bad either: more
+   rain is a problem in Marlborough and a relief in Central Otago. */
+.projections__cell--up {
+  background: rgba(198, 118, 76, 0.12);
+  border-color: rgba(198, 118, 76, 0.3);
+}
+
+.projections__cell--down {
+  background: rgba(86, 130, 168, 0.12);
+  border-color: rgba(86, 130, 168, 0.3);
+}
+
+/* Not published for this scenario — wl3 exists for ssp3-7.0 alone. Hatched so
+   it cannot be mistaken for a value of zero, which is what an empty flat cell
+   would imply. */
+.projections__cell--none {
   background: repeating-linear-gradient(
     -45deg,
     rgba(138, 154, 91, 0.07),
@@ -80,6 +124,96 @@
     transparent 5px,
     transparent 10px
   );
+}
+
+.projections__cell--none b {
+  color: #a8b096;
+  font-weight: 500;
+}
+
+.projections__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.projections__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.projections__chip {
+  padding: 4px 10px;
+  border: 1px solid rgb(var(--primary-rgb) / 0.24);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #5c6650;
+  cursor: pointer;
+}
+
+.projections__chip:hover {
+  background: rgb(var(--primary-rgb) / 0.08);
+}
+
+.projections__chip.is-active {
+  background: rgb(var(--primary-rgb) / 0.16);
+  border-color: rgb(var(--primary-rgb) / 0.42);
+  color: #3d4632;
+}
+
+.projections__selects {
+  display: flex;
+  gap: 6px;
+}
+
+.projections__selects select {
+  padding: 4px 8px;
+  border: 1px solid rgb(var(--primary-rgb) / 0.24);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.74rem;
+  color: #3d4632;
+}
+
+.projections__sronly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.projections__stale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(202, 138, 4, 0.12);
+  font-size: 0.74rem;
+  color: #8a6d1f;
+}
+
+.projections__loading,
+.projections__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 0 0;
+  font-size: 0.8rem;
+  color: #6b7360;
+}
+
+.projections__error {
+  color: #b91c1c;
 }
 
 .projections__reason {

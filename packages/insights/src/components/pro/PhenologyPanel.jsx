@@ -49,14 +49,35 @@ function shortDate(iso) {
 // Five outcomes, not two. `beyond_season` is the one that matters: a variety
 // whose 220 g/L date falls past the end of the season is not missing a date, it
 // is not expected to get there — which is the more useful statement.
-function Cell({ stage }) {
+function Cell({ stage, compare, compareLabel = 'region' }) {
   if (!stage) return <td className="phenology__cell">—</td>;
 
   if (stage.date) {
+    // The comparison sits UNDER the date, not beside it. A grower's question
+    // here is "am I ahead of the district", and a second date on the same line
+    // reads as an alternative estimate rather than as context.
+    //
+    // `compare` is only ever rendered when the site's own date is shown. Both
+    // sides pass the same basis test at the server, so a blank site cell beside
+    // a confident region figure cannot happen — but rendering the region alone
+    // would still invite "my site has no date and the region does", which is a
+    // statement about filtering, not about the vineyard.
+    const spread = stage.spread;
     return (
       <td className={`phenology__cell${stage.is_actual ? ' is-actual' : ''}`}>
         {shortDate(stage.date)}
         {stage.is_actual && <span className="phenology__actual" title="Observed">•</span>}
+        {compare && (
+          <small className="phenology__compare">
+            {compareLabel} {shortDate(compare)}
+          </small>
+        )}
+        {spread && (
+          <small className="phenology__compare"
+                 title={`Across ${spread.n_sites} sites in this region`}>
+            {shortDate(spread.earliest)}–{shortDate(spread.latest)}
+          </small>
+        )}
       </td>
     );
   }
@@ -72,6 +93,10 @@ function PhenologyPanel({ phenology }) {
   if (!varieties.length) return null;
 
   const targets = phenology.harvest_targets || [];
+  // Site payloads carry a `zone` block per variety; the regional payload does
+  // not. Deciding from the DATA rather than from a prop means the panel cannot
+  // be told it is showing a site comparison when it has none to show.
+  const atSite = phenology.scope === 'site';
 
   return (
     <div className="phenology">
@@ -105,11 +130,15 @@ function PhenologyPanel({ phenology }) {
               <td className="phenology__num">
                 {v.gdd == null ? '—' : Math.round(v.gdd).toLocaleString()}
               </td>
-              <Cell stage={v.stages?.flowering} />
-              <Cell stage={v.stages?.veraison} />
+              <Cell stage={v.stages?.flowering}
+                    compare={atSite ? v.zone?.flowering : null} />
+              <Cell stage={v.stages?.veraison}
+                    compare={atSite ? v.zone?.veraison : null} />
               {targets.map((t) => (
                 <Cell key={t.sugar_g_l}
-                      stage={v.stages?.[`harvest_${t.sugar_g_l}`]} />
+                      stage={v.stages?.[`harvest_${t.sugar_g_l}`]}
+                      compare={atSite && t.sugar_g_l === 210
+                        ? v.zone?.harvest_210 : null} />
               ))}
             </tr>
           ))}

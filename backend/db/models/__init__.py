@@ -54,8 +54,13 @@ from db.models.public_user import PublicUser
 from db.models.climate import ClimateZone, ClimateHistoryMonthly, ClimateBaselineMonthly, ClimateProjection
 from db.models.realtime_climate import WeatherDataDaily, ClimateZoneDaily, ClimateZoneDailyBaseline, PhenologyThreshold, PhenologyEstimate, DiseasePressure, ClimateZoneHourly
 from db.models.surface import SurfaceRun, SurfaceValidationStats
+from db.models.insights_account import (
+    InsightsAccount, InsightsAccountMember,
+)
 from db.models.insights_site import (
-    InsightsSite, InsightsSiteDaily, InsightsSiteMonthly, InsightsSiteSeason,
+    InsightsSite, InsightsSiteDaily, InsightsSiteMonthly,
+    InsightsSitePhenology, InsightsSiteProjection, InsightsSiteSeason,
+    InsightsSiteYield,
 )
 from db.models.site_banner import SiteBanner
 from db.models.article import Article

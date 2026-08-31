@@ -121,6 +121,54 @@ export async function getSiteDashboard(id, { baseline } = {}) {
   return data;
 }
 
+/**
+ * This site's projected climate, scenario by scenario, against its own baseline.
+ *
+ * `delta` is the number to read: projected minus this cell's own 1986-2005
+ * normal, both sampled from the same raster family, so the change is the change
+ * MfE published rather than an artefact of two different baselines.
+ *
+ * `zone_delta` comes back beside it. A projected change means nothing without
+ * something to size it against, and the site's own region is the honest
+ * comparison — at Fancrest the two agree to 0.03 degC across all sixteen
+ * scenario-periods, which is worth showing rather than asserting.
+ *
+ * FETCHED SEPARATELY from the dashboard, not folded into it. The grid is ~112
+ * rows per season and the season is a control the reader changes, so putting it
+ * in the dashboard payload would make every site open pay for a panel most
+ * visits scroll past, and a season change would refetch the whole dashboard.
+ *
+ * Season defaults to ANN because SEPAPR is published only for gdd10 — see
+ * `seasons` in the response, which is built from what this site actually holds.
+ */
+export async function getSiteProjections(id, { season } = {}) {
+  const { data } = await publicApi.get(`${BASE}/${id}/projections`, {
+    params: season ? { season } : {},
+  });
+  return data;
+}
+
+/**
+ * Site-level phenology, with the region beside it.
+ *
+ * The panel previously rendered `dashboard.phenology`, which is the ZONE's
+ * estimates read through `site.zone_id` — so a subscriber's own point showed
+ * their region's flowering and harvest dates while looking site-specific. This
+ * reads the point-level model.
+ *
+ * The variety row shape is deliberately identical to the zone payload's, so the
+ * table renders unchanged; what is added is `zone` per variety and `spread` per
+ * stage. `spread` is populated only where an ACCOUNT has three or more sites in
+ * the same zone — a lone subscriber has no siblings, and filling it from other
+ * subscribers' points would leak their placements.
+ */
+export async function getSitePhenology(id, { vintage } = {}) {
+  const { data } = await publicApi.get(`${BASE}/${id}/phenology`, {
+    params: vintage ? { vintage } : {},
+  });
+  return data;
+}
+
 // Metrics worth charting on the Pro page, in the order a grower reads them.
 // `r99p` is absent because the API omits it per site and says so in
 // `meta.omitted` — showing it computed a different way from the regional figure

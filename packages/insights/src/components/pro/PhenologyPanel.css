@@ -120,3 +120,17 @@
   flex: 0 0 auto;
   margin-top: 2px;
 }
+
+/* The region's date, and the spread across an account's sites in that region.
+   Deliberately subordinate to the site's own figure: this is context for the
+   number above it, not a second reading competing with it. A grower reads down
+   the column for their own dates and only glances at these when one looks
+   surprising. */
+.phenology__compare {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.62rem;
+  line-height: 1.25;
+  color: #8a9276;
+  font-variant-numeric: tabular-nums;
+}

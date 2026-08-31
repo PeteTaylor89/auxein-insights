@@ -120,6 +120,32 @@ def populate(db, site: InsightsSite) -> int:
               [int(v) for _s, v, m, _val, _u, _b in season],
               [str(m) for _s, v, m, _val, _u, _b in season]))
 
+    # Projections, in the same pass. They belong HERE rather than on a schedule
+    # because the 612 rasters never change: a site's projected record has
+    # exactly two triggers, placement and a move, and both land in this
+    # function. A nightly job would re-read 612 objects to write the same
+    # numbers back, and — worse — a site placed at 09:00 would have no
+    # projections until that job next ran, on the one page the paid tier is
+    # sold on.
+    #
+    # NOT fatal on failure. The monthly and season record above is the site's
+    # substance; refusing to mark a site ready because a projection raster was
+    # briefly unreadable would leave a paying customer looking at a spinner for
+    # the sake of a secondary panel. It is logged loudly and repaired by
+    # `populate_site_projection.py --site <id>`.
+    try:
+        proj = svc.populate_projections(db, site)
+        log.info("site %s projections: %d rows, %d with a delta",
+                 site.id, proj["written"], proj["with_delta"])
+        if proj["written"] and not proj["with_delta"]:
+            log.warning("site %s: every projection delta is NULL — this "
+                        "cell is off the projection mask", site.id)
+    except Exception:                                            # noqa: BLE001
+        log.exception("site %s: projections failed; the site is still ready. "
+                      "Repair with populate_site_projection.py --site %s",
+                      site.id, site.id)
+        db.rollback()
+
     site.status = "ready"
     site.status_detail = None
     site.populated_at = datetime.now(timezone.utc)
