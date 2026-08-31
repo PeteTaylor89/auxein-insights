@@ -1,0 +1,226 @@
+/* The portfolio table. Dense on purpose: the job is to scan 67 rows for the
+   one that needs attention, and generous row spacing turns that into scrolling.
+   Every cell that can be absent renders a dash, never a zero. */
+.portfolio {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+.portfolio__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.portfolio__head h1 {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+  color: #3d4632;
+}
+
+.portfolio__scope {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #6b7360;
+}
+
+.portfolio__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portfolio__actions select,
+.portfolio__filters select,
+.portfolio__search {
+  padding: 6px 10px;
+  border: 1px solid rgb(var(--primary-rgb) / 0.24);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.8rem;
+  color: #3d4632;
+}
+
+.portfolio__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.portfolio__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.portfolio__search input {
+  border: 0;
+  outline: 0;
+  padding: 7px 0;
+  font-size: 0.8rem;
+  min-width: 190px;
+  background: transparent;
+  color: inherit;
+}
+
+.portfolio__count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: #8a9276;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The table scrolls INSIDE this, so the page itself never scrolls sideways and
+   the filters stay put while the columns move. */
+.portfolio__scroll {
+  overflow-x: auto;
+  border: 1px solid rgb(var(--primary-rgb) / 0.18);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.portfolio__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.portfolio__table th,
+.portfolio__table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgb(var(--primary-rgb) / 0.1);
+  white-space: nowrap;
+}
+
+.portfolio__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f6f7f2;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #5c6650;
+}
+
+.portfolio__table thead th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.portfolio__table thead th.is-sorted { color: #3d4632; }
+.portfolio__table thead th.is-sorted button svg { opacity: 1; }
+.portfolio__table thead th button svg { opacity: 0.4; }
+
+/* The site name stays visible while the reader scrolls right — otherwise the
+   columns they came to compare arrive with no way to tell which row is which. */
+.portfolio__table .is-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  font-weight: 600;
+}
+
+.portfolio__table thead th.is-sticky { z-index: 3; background: #f6f7f2; }
+
+.portfolio__table .is-sticky a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.portfolio__table .is-sticky a:hover { text-decoration: underline; }
+
+.portfolio__table tbody tr:hover td,
+.portfolio__table tbody tr:hover th { background: rgb(var(--primary-rgb) / 0.05); }
+
+.portfolio__table .is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Risk is the one place colour carries meaning here, and it is ordinal rather
+   than good/bad — a grower reads "high" and acts, they do not need it painted
+   as a failure. Low is deliberately uncoloured so the eye lands on the rest. */
+.portfolio__table .risk-moderate,
+.portfolio__table .risk-medium { background: rgba(202, 138, 4, 0.14); }
+.portfolio__table .risk-high { background: rgba(198, 118, 76, 0.2); }
+.portfolio__table .risk-extreme {
+  background: rgba(185, 28, 28, 0.2);
+  font-weight: 600;
+}
+
+/* Ahead of / behind its own average. Direction only — neither is good news on
+   its own, and which one costs money depends entirely on the site. */
+.portfolio__table .tone-up { color: #8a5a2b; }
+.portfolio__table .tone-down { color: #3f6b8a; }
+
+.portfolio__nohum {
+  margin-left: 2px;
+  color: #8a6d1f;
+  text-decoration: none;
+  cursor: help;
+  font-weight: 700;
+}
+
+.portfolio__foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.portfolio__loading,
+.portfolio__error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0;
+  font-size: 0.85rem;
+  color: #6b7360;
+}
+
+.portfolio__error { color: #b91c1c; }
+
+.portfolio__empty {
+  max-width: 560px;
+  margin: 60px auto;
+  text-align: center;
+}
+
+.portfolio__empty h1 { margin: 0 0 10px; font-size: 1.4rem; color: #3d4632; }
+.portfolio__empty p { color: #6b7360; line-height: 1.6; }
+
+@media (max-width: 720px) {
+  .portfolio__head { flex-direction: column; }
+  .portfolio__count { margin-left: 0; }
+}
+
+/* The site name is a button, not a link: it opens the chart in place. Styled as
+   a link because that is what it behaves like to a reader. */
+.portfolio__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--primary);
+  cursor: pointer;
+  text-align: left;
+}
+.portfolio__open:hover { text-decoration: underline; }

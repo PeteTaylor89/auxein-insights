@@ -97,6 +97,50 @@ SITE_TYPE = {
 # reported as a move.
 COORD_EPSILON = 1e-5
 
+# The client's variety names, mapped to `phenology_thresholds.variety_code`.
+#
+# PINOT GRIS IS DELIBERATELY ABSENT and resolves to None. Four BSI sites are
+# monitored for it and the thresholds table does not carry it, so those sites
+# store the variety and get no phenology until it does. Mapping it onto a
+# neighbouring variety would put dates on screen for a grape nobody asked about.
+VARIETY_CODES = {
+    "cabernet franc": "CF",
+    "cabernet sauvignon": "CS",
+    "chardonnay": "CH",
+    "grenache": "GR",
+    "merlot": "ME",
+    "pinot noir": "PN",
+    "riesling": "RI",
+    "sauvignon blanc": "SB",
+    "syrah": "SY",
+}
+
+# The sheet's variable columns, mapped to the codes stored in
+# `insights_site.requested_metrics`. A tick is 'Y'; anything else ('*', blank)
+# is not requested.
+#
+# THESE CANNOT BE DERIVED FROM `site_type`, which is why they are read and
+# stored rather than inferred. On the BSI list Nelson AWS is Regional and does
+# NOT want ET (Appleby supplies it), while Appleby is Regional and wants ET and
+# nothing else.
+METRIC_COLUMNS = {
+    "Temperature": "temperature",
+    "GDD": "gdd",
+    "Rain": "rain",
+    "ET": "et",
+    "LTA GDD": "lta_gdd",
+    "Water Balance": "water_balance",
+    "Variety": "variety",
+    "Budburst": "budburst",
+    "Flowering": "flowering",
+    "8 Brix": "brix_8",
+    "Weekly maturity": "weekly_maturity",
+    "21.5 Brix": "brix_21_5",
+    "Yield": "yield",
+    "Bacchus Model": "bacchus",
+    "Gubler Model": "gubler",
+}
+
 
 def read_rows(path: Path) -> list[dict]:
     """Every data row of the first sheet, keyed by header name."""
@@ -169,9 +213,24 @@ def parse(rec: dict, seen: dict) -> dict:
     # Positional within (type, location) — see the module docstring for why this
     # is the best key available and what it costs.
     n = seen[(site_type, location)] = seen.get((site_type, location), 0) + 1
+    variety = (rec.get("Variety") or "").strip()
+    if variety in ("*", "-"):
+        variety = ""
+    # KEYED ON THE VARIETY, not on a sheet-order ordinal. The variety is what
+    # actually distinguishes the repeated locations — Patutahi is Chardonnay and
+    # Sauvignon blanc, Bridge Pa is Merlot and Sauvignon blanc — so this is both
+    # meaningful and stable when the sheet is re-sorted. The ordinal falls back
+    # in only for met-station rows, which carry no variety and do not repeat
+    # within a type.
+    discriminator = variety or str(n)
     return {
-        "external_ref": f"{site_type}|{location}|{n}",
+        "variety": variety or None,
+        "variety_code": VARIETY_CODES.get(variety.lower()) if variety else None,
+        "external_ref": f"{site_type}|{location}|{discriminator}",
         "label": location[:80],
+        "requested_metrics": sorted(
+            code for header, code in METRIC_COLUMNS.items()
+            if (rec.get(header) or "").strip().upper() == "Y"),
         "latitude": float(rec["Latitude"]),
         "longitude": float(rec["Longitude"]),
         "site_type": SITE_TYPE.get(kind),
@@ -251,7 +310,15 @@ def main() -> int:
                 continue
             moved = (abs(site.latitude - r["latitude"]) > COORD_EPSILON
                      or abs(site.longitude - r["longitude"]) > COORD_EPSILON)
-            meta = (site.site_type != r["site_type"] or site.label != r["label"])
+            # NOT `(site.requested_metrics or [])`. NULL means nobody said and
+            # [] means asked for nothing, and one site on the BSI list — the
+            # Sub-regional Cromwell row — genuinely ticks nothing at all. The
+            # coalescing version treats those as equal and never writes the
+            # empty array, leaving that site indistinguishable from a Pro
+            # subscriber's own point.
+            meta = (site.site_type != r["site_type"] or site.label != r["label"]
+                    or site.requested_metrics != r["requested_metrics"]
+                    or site.variety != r["variety"])
             if moved:
                 moves.append((site, r))
             elif meta:
@@ -283,7 +350,9 @@ def main() -> int:
                 account_id=account.id, public_user_id=None, source="account",
                 external_ref=r["external_ref"], label=r["label"],
                 latitude=r["latitude"], longitude=r["longitude"],
-                site_type=r["site_type"], status="populating")
+                site_type=r["site_type"], status="populating",
+                requested_metrics=r["requested_metrics"],
+                variety=r["variety"], variety_code=r["variety_code"])
             try:
                 cell, snapped = place(db, r["latitude"], r["longitude"],
                                       r["external_ref"])
@@ -307,6 +376,9 @@ def main() -> int:
         for site, r in updated:
             site.site_type = r["site_type"]
             site.label = r["label"]
+            site.requested_metrics = r["requested_metrics"]
+            site.variety = r["variety"]
+            site.variety_code = r["variety_code"]
 
         if args.apply_moves:
             for site, r in moves:

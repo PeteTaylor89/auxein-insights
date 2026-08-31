@@ -169,6 +169,102 @@ export async function getSitePhenology(id, { vintage } = {}) {
   return data;
 }
 
+// --- enterprise accounts ------------------------------------------------------
+
+/**
+ * Accounts this subscriber is a named member of.
+ *
+ * Empty for almost everyone, and that is the normal case rather than an error:
+ * an account is an enterprise arrangement, not a tier. A caller uses the length
+ * of this to decide whether the portfolio entry point exists at all.
+ */
+export async function listAccounts() {
+  const { data } = await publicApi.get('/insights/accounts');
+  return data.accounts || [];
+}
+
+/**
+ * Every site on one account, one row each, with each model's headline.
+ *
+ * THE WHOLE SET COMES BACK AT ONCE and the table sorts and filters it locally.
+ * 67 rows is a payload a browser sorts instantly and a server round-trips
+ * slowly, so a re-sort costs nothing — and it means the CSV export and the
+ * table can never disagree about what the current view is.
+ */
+export async function getAccountPortfolio(slug, { vintage, variety } = {}) {
+  const { data } = await publicApi.get(
+    `/insights/accounts/${encodeURIComponent(slug)}/portfolio`,
+    { params: { vintage, variety } },
+  );
+  return data;
+}
+
+/**
+ * The same rows as CSV, from the SAME server-side builder.
+ *
+ * Fetched as a blob through `publicApi` rather than pointed at with a plain
+ * link, because every route here is behind `require_pro` and a bare <a href>
+ * sends no Authorization header — the download would 401 and the browser would
+ * save the error page. This is the `publicApi` rule the free-tier work already
+ * ran into: a bare fetch drops the token.
+ */
+export async function downloadAccountPortfolioCsv(slug, { vintage, variety } = {}) {
+  const res = await publicApi.get(
+    `/insights/accounts/${encodeURIComponent(slug)}/portfolio.csv`,
+    { params: { vintage, variety }, responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `portfolio_${slug}_${vintage || 'current'}_${variety || 'SB'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoked on the next tick rather than immediately: Safari has not finished
+  // reading the blob when click() returns and saves a zero-byte file.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** One site's daily record: what the portfolio popup charts. */
+export async function getSiteTimeseries(id, { start, end, vintage } = {}) {
+  const { data } = await publicApi.get(`${BASE}/${id}/timeseries`, {
+    params: { start, end, vintage },
+  });
+  return data;
+}
+
+/**
+ * Download a CSV through `publicApi` and hand it to the browser.
+ *
+ * Shared by all three exports. A plain <a href> cannot be used for any of them:
+ * every route is behind `require_pro` and a bare link sends no Authorization
+ * header, so the download 401s and the browser saves the error page.
+ */
+async function downloadCsv(url, params, filename) {
+  const res = await publicApi.get(url, { params, responseType: 'blob' });
+  const href = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoked on the next tick, not immediately: Safari has not finished reading
+  // the blob when click() returns and saves a zero-byte file.
+  setTimeout(() => URL.revokeObjectURL(href), 0);
+}
+
+export function downloadSiteTimeseriesCsv(id, label, opts = {}) {
+  const slug = String(label || `site${id}`).toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_').slice(0, 40);
+  return downloadCsv(`${BASE}/${id}/timeseries.csv`, opts, `${slug}_daily.csv`);
+}
+
+export function downloadAccountTimeseriesCsv(slug, opts = {}) {
+  return downloadCsv(`/insights/accounts/${encodeURIComponent(slug)}/timeseries.csv`,
+                     opts, `${slug}_daily.csv`);
+}
+
 // Metrics worth charting on the Pro page, in the order a grower reads them.
 // `r99p` is absent because the API omits it per site and says so in
 // `meta.omitted` — showing it computed a different way from the regional figure

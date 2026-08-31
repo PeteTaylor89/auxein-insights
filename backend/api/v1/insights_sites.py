@@ -33,6 +33,7 @@ why that period and not the WMO one.
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -51,6 +52,7 @@ from services import insights_dashboard as dashboard
 from services import insights_site_baseline as site_baseline
 from services import phenology_basis as basis
 from services.insights_dashboard import PHENOLOGY_HARVEST_TARGETS
+from services import site_water as water
 from services import workflow_dispatch
 
 log = logging.getLogger(__name__)
@@ -137,13 +139,55 @@ def _serialise(db: Session, site: InsightsSite) -> SiteResponse:
     )
 
 
+def _is_member(db: Session, account_id: int, user_id: int) -> Optional[str]:
+    """This user's role on that account, or None. Suspended accounts read None.
+
+    A suspended account KEEPS its sites and its extracted history — suspension
+    is not deletion — so the check has to be on the account's status here rather
+    than on the rows existing.
+    """
+    return db.execute(text("""
+        SELECT m.role
+          FROM insights_account_member m
+          JOIN insights_account a ON a.id = m.account_id
+         WHERE m.account_id = :acc AND m.public_user_id = :uid
+           AND a.status = 'active'
+    """), {"acc": account_id, "uid": user_id}).scalar()
+
+
 def _owned(db: Session, site_id: int, user: PublicUser) -> InsightsSite:
+    """A site this caller may read: their own slot, or their account's.
+
+    ACCOUNT SITES CARRY NO `public_user_id`. Before enterprise accounts existed
+    this compared `site.public_user_id != user.id` and nothing else, which meant
+    every account-owned site — all 67 of the first client's — 404'd for every
+    caller including its own members. Every route in this file goes through
+    here, so this one function is what makes them reachable.
+    """
     site = db.query(InsightsSite).filter(InsightsSite.id == site_id).first()
     # 404 rather than 403 for someone else's site: confirming that an id exists
     # tells an outsider how many sites the platform has and who holds them.
-    if not site or site.public_user_id != user.id:
+    if not site:
         raise HTTPException(404, "No such site.")
-    return site
+    if site.public_user_id and site.public_user_id == user.id:
+        return site
+    if site.account_id and _is_member(db, site.account_id, user.id):
+        return site
+    raise HTTPException(404, "No such site.")
+
+
+def _account(db: Session, slug: str, user: PublicUser) -> dict:
+    """An account this caller belongs to, or 404. Never 403 — same reason."""
+    row = db.execute(text("""
+        SELECT a.id, a.slug, a.name, a.status, m.role
+          FROM insights_account a
+          JOIN insights_account_member m ON m.account_id = a.id
+         WHERE a.slug = :slug AND m.public_user_id = :uid
+           AND a.status = 'active'
+    """), {"slug": slug, "uid": user.id}).mappings().first()
+    if not row:
+        raise HTTPException(404, "No such account.")
+    return dict(row)
 
 
 @router.get("/sites")
@@ -703,3 +747,563 @@ def site_phenology(site_id: int,
         "predictions_reason": None if any_shown else basis.no_basis_reason(),
         "varieties": varieties,
     }
+
+
+# --- enterprise accounts: the portfolio view ---------------------------------
+#
+# One client, 67 monitored sites. A per-site page answers "how is this block
+# doing"; this answers the question a portfolio actually generates, which is
+# "which of my sites needs looking at today". So it is one row per site with
+# the headline of each model, sortable, rather than 67 dashboards.
+#
+# ONE QUERY, NOT 67. Every block below is a CTE over a small table keyed on
+# site_id, joined once. The obvious implementation — loop the sites and reuse
+# the single-site builders — is 67 round trips per page load, and it degrades
+# with exactly the thing the client is paying for.
+
+# Season-to-date and the long-term average both need the vintage. Sep-Apr,
+# labelled by the harvest year, matching `insights_site_season.vintage_year`.
+PORTFOLIO_BASELINE = (1986, 2005)
+
+_PORTFOLIO_SQL = """
+WITH season AS (
+    -- Season to date at each site, from the daily record. The gate is the
+    -- SAME 1 September the accumulators use, so a portfolio total and a site
+    -- page cannot disagree about which days counted.
+    SELECT d.site_id,
+           max(d.date)                                    AS through,
+           sum(d.rainfall_mm)                             AS rain_mm,
+           avg(d.temp_mean)                               AS temp_mean,
+           min(d.temp_min)                                AS temp_min,
+           max(d.temp_max)                                AS temp_max,
+           max(d.gdd10_cumulative)                        AS gdd10,
+           count(*)                                       AS days
+      FROM insights_site_daily d
+      JOIN insights_site s ON s.id = d.site_id
+     WHERE s.account_id = :acc
+       AND d.date >= make_date(:vintage - 1, 9, 1)
+       AND d.date <= make_date(:vintage, 4, 30)
+     GROUP BY d.site_id
+), lta AS (
+    -- The LONG-TERM AVERAGE at each site: the mean of its own completed
+    -- seasons over the baseline period. Not the zone's — the whole point of a
+    -- per-site product is that Fancrest averages 1,040.9 GDD10 where its zone
+    -- averages 1,147.8, and a portfolio measured against the zone would show
+    -- every cool site as permanently behind.
+    SELECT y.site_id,
+           avg(y.value) FILTER (WHERE y.metric = 'gdd10') AS gdd10,
+           avg(y.value) FILTER (WHERE y.metric = 'rain')  AS rain_mm,
+           avg(y.value) FILTER (WHERE y.metric = 'tmean') AS temp_mean
+      FROM insights_site_season y
+      JOIN insights_site s ON s.id = y.site_id
+     WHERE s.account_id = :acc
+       AND y.vintage_year BETWEEN :lo AND :hi
+     GROUP BY y.site_id
+), phen AS (
+    -- One variety per site, chosen by the caller. A portfolio row can carry one
+    -- variety's dates and no more; the site page is where the other eight live.
+    SELECT DISTINCT ON (p.site_id)
+           p.site_id, p.variety_code, p.current_stage, p.gdd_accumulated,
+           p.avg_daily_gdd, p.days_vs_baseline,
+           p.flowering_date, p.veraison_date, p.harvest_210_date
+      FROM insights_site_phenology p
+      JOIN insights_site s ON s.id = p.site_id
+     WHERE s.account_id = :acc AND p.vintage_year = :vintage
+       -- THE SITE'S OWN VARIETY, falling back to the caller's choice only
+       -- where the client named none. A portfolio that showed every row
+       -- Sauvignon blanc would be telling a Pinot noir grower about someone
+       -- else's grape, and the whole point of the variety column on their list
+       -- is that they monitor different blocks for different things.
+       -- NOT `COALESCE(s.variety_code, :variety)`. That substitutes the
+       -- caller's default whenever the site's code is NULL, and NULL has two
+       -- causes: a met station with no variety at all, and a site whose variety
+       -- we cannot model. The four BSI Pinot gris sites are the second, and
+       -- coalescing showed them Sauvignon blanc dates under a Pinot gris
+       -- heading. A site that named a grape gets that grape or nothing.
+       AND p.variety_code = CASE WHEN s.variety IS NULL THEN :variety
+                                 ELSE s.variety_code END
+     ORDER BY p.site_id, p.estimate_date DESC
+), dis AS (
+    -- The newest scored day per site. `humidity_available` travels with it:
+    -- a botrytis score computed without humidity is a different claim from one
+    -- computed with it, and the row must not present them identically.
+    SELECT DISTINCT ON (x.site_id)
+           x.site_id, x.date AS disease_date,
+           x.powdery_mildew_risk, x.downy_mildew_risk, x.botrytis_risk,
+           x.pm_cumulative_index, x.botrytis_cumulative, x.humidity_available
+      FROM insights_site_disease x
+      JOIN insights_site s ON s.id = x.site_id
+     WHERE s.account_id = :acc
+     ORDER BY x.site_id, x.date DESC
+)
+SELECT s.id, s.label, s.external_ref, s.site_type, s.status,
+       -- ALIASED. `phen` also selects `variety_code`, and a mappings row keeps
+       -- the last column of a duplicated name — so the site's NULL was being
+       -- read as the CTE's matched code and every Pinot gris site reported
+       -- itself as modelled.
+       s.variety, s.variety_code AS site_variety_code,
+       s.latitude, s.longitude, s.zone_id, z.name AS zone_name, z.slug AS zone_slug,
+       season.through, season.days, season.rain_mm, season.temp_mean,
+       season.temp_min, season.temp_max, season.gdd10,
+       lta.gdd10 AS lta_gdd10, lta.rain_mm AS lta_rain_mm,
+       lta.temp_mean AS lta_temp_mean,
+       phen.variety_code, phen.current_stage, phen.gdd_accumulated,
+       phen.avg_daily_gdd, phen.days_vs_baseline,
+       phen.flowering_date, phen.veraison_date, phen.harvest_210_date,
+       dis.disease_date, dis.powdery_mildew_risk, dis.downy_mildew_risk,
+       dis.botrytis_risk, dis.pm_cumulative_index, dis.botrytis_cumulative,
+       dis.humidity_available,
+       y.value AS yield_value, y.unit AS yield_unit
+  FROM insights_site s
+  LEFT JOIN climate_zones z ON z.id = s.zone_id
+  LEFT JOIN season ON season.site_id = s.id
+  LEFT JOIN lta    ON lta.site_id    = s.id
+  LEFT JOIN phen   ON phen.site_id   = s.id
+  LEFT JOIN dis    ON dis.site_id    = s.id
+  -- Client-entered, so it is joined rather than computed and may simply be
+  -- absent. Nothing here models yield.
+  LEFT JOIN insights_site_yield y
+         ON y.site_id = s.id AND y.vintage_year = :vintage
+        AND y.variety_code = 'ALL'
+ WHERE s.account_id = :acc
+ ORDER BY z.name NULLS LAST, s.label
+"""
+
+
+def _portfolio_rows(db: Session, account_id: int, vintage: int,
+                    variety: str) -> list[dict]:
+    lo, hi = PORTFOLIO_BASELINE
+    return [dict(r) for r in db.execute(text(_PORTFOLIO_SQL), {
+        "acc": account_id, "vintage": vintage, "variety": variety,
+        "lo": lo, "hi": hi}).mappings().all()]
+
+
+def _iso(value):
+    return value.isoformat() if value is not None else None
+
+
+def _num(value, digits=1):
+    """Rounded, or None. NEVER 0 for absent — that distinction is the product."""
+    return None if value is None else round(float(value), digits)
+
+
+def _shape(r: dict, vintage: int) -> dict:
+    season_gdd = _num(r["gdd10"], 0)
+    lta_gdd = _num(r["lta_gdd10"], 0)
+    return {
+        "site_id": r["id"],
+        "label": r["label"],
+        "external_ref": r["external_ref"],
+        "site_type": r["site_type"],
+        "status": r["status"],
+        "variety": r["variety"],
+        # `variety` set with no phenology is the Pinot gris case: the client
+        # asked for a grape `phenology_thresholds` does not carry.
+        "variety_modelled": r["site_variety_code"] is not None,
+        "latitude": r["latitude"], "longitude": r["longitude"],
+        "zone_name": r["zone_name"], "zone_slug": r["zone_slug"],
+        "season": {
+            "through": _iso(r["through"]),
+            "days": r["days"],
+            "gdd10": season_gdd,
+            "rain_mm": _num(r["rain_mm"], 0),
+            "temp_mean": _num(r["temp_mean"]),
+            "temp_min": _num(r["temp_min"]),
+            "temp_max": _num(r["temp_max"]),
+        },
+        "lta": {
+            "gdd10": lta_gdd,
+            "rain_mm": _num(r["lta_rain_mm"], 0),
+            "temp_mean": _num(r["lta_temp_mean"]),
+            "period": f"{PORTFOLIO_BASELINE[0]}-{PORTFOLIO_BASELINE[1]}",
+        },
+        # The comparison a grower actually reads: am I ahead of my own normal.
+        # Absent rather than zero when either side is missing — a site with no
+        # long-term average is not a site running exactly to average.
+        "vs_lta": {
+            "gdd10": (None if season_gdd is None or lta_gdd is None
+                      else round(season_gdd - lta_gdd)),
+            "days": r["days_vs_baseline"],
+        },
+        "phenology": {
+            "variety": r["variety_code"],
+            "stage": r["current_stage"],
+            "gdd": _num(r["gdd_accumulated"], 0),
+            "rate": _num(r["avg_daily_gdd"], 2),
+            "flowering": _iso(r["flowering_date"]),
+            "veraison": _iso(r["veraison_date"]),
+            "harvest_210": _iso(r["harvest_210_date"]),
+        },
+        "disease": {
+            "date": _iso(r["disease_date"]),
+            # Gubler-Thomas powdery mildew and the botrytis model, which is what
+            # the client's list calls the Gubler and Bacchus models.
+            "powdery": r["powdery_mildew_risk"],
+            "powdery_index": _num(r["pm_cumulative_index"], 1),
+            "botrytis": r["botrytis_risk"],
+            "botrytis_index": _num(r["botrytis_cumulative"], 1),
+            "downy": r["downy_mildew_risk"],
+            # A score computed without humidity is a WEAKER claim, not the same
+            # claim. The row says so rather than letting a colour imply parity.
+            "humidity_available": r["humidity_available"],
+        },
+        "yield": {"value": _num(r["yield_value"], 2), "unit": r["yield_unit"]},
+        "vintage_year": vintage,
+    }
+
+
+@router.get("/accounts")
+def list_accounts(db: Session = Depends(get_db),
+                  user: PublicUser = Depends(require_pro)):
+    """Accounts this caller is a named member of.
+
+    Empty for most subscribers, and that is the normal case rather than an
+    error — an account is an enterprise arrangement, not a tier.
+    """
+    rows = db.execute(text("""
+        SELECT a.slug, a.name, m.role,
+               (SELECT count(*) FROM insights_site s
+                 WHERE s.account_id = a.id) AS site_count
+          FROM insights_account a
+          JOIN insights_account_member m ON m.account_id = a.id
+         WHERE m.public_user_id = :uid AND a.status = 'active'
+         ORDER BY a.name
+    """), {"uid": user.id}).mappings().all()
+    return {"accounts": [dict(r) for r in rows]}
+
+
+@router.get("/accounts/{slug}/portfolio")
+def account_portfolio(slug: str,
+                      vintage: Optional[int] = Query(None),
+                      variety: str = Query("SB"),
+                      db: Session = Depends(get_db),
+                      user: PublicUser = Depends(require_pro)):
+    """Every site on one account, one row each, with each model's headline.
+
+    ## Sorting and filtering are the CLIENT's job, not this endpoint's
+
+    67 rows is a payload a browser sorts instantly and a server round-trips
+    slowly. Sending the whole set once and letting the table sort means a
+    re-sort costs nothing and works offline; it also means the CSV export and
+    the table can never disagree about what "the current view" is.
+
+    ## `variety` picks ONE variety's phenology
+
+    A portfolio row has space for one set of dates. Sauvignon blanc is the
+    default because it is the majority of New Zealand's planted area, not
+    because it is right for every site — the selector is in the payload's
+    `varieties` so the client offers what actually exists.
+    """
+    account = _account(db, slug, user)
+    if vintage is None:
+        vintage = dashboard.current_vintage(datetime.now(timezone.utc).date())
+
+    rows = _portfolio_rows(db, account["id"], vintage, variety)
+    varieties = [r[0] for r in db.execute(text(
+        "SELECT DISTINCT variety_code FROM phenology_thresholds "
+        "WHERE is_active = true ORDER BY variety_code")).all()]
+
+    sites = [_shape(r, vintage) for r in rows]
+    return {
+        "account": {"slug": account["slug"], "name": account["name"],
+                    "role": account["role"]},
+        "vintage_year": vintage,
+        "variety": variety,
+        "varieties": varieties,
+        "baseline_period": f"{PORTFOLIO_BASELINE[0]}-{PORTFOLIO_BASELINE[1]}",
+        # Counted from the rows rather than queried again, so the summary and
+        # the table can never disagree.
+        "summary": {
+            "sites": len(sites),
+            "ready": sum(1 for s in sites if s["status"] == "ready"),
+            "with_season": sum(1 for s in sites if s["season"]["days"]),
+            "with_phenology": sum(1 for s in sites if s["phenology"]["stage"]),
+            "with_disease": sum(1 for s in sites if s["disease"]["date"]),
+        },
+        "sites": sites,
+    }
+
+
+# Column order is the reading order of the dashboard, deliberately: a CSV whose
+# columns are in a different order from the table it came from is a CSV somebody
+# has to re-learn.
+_CSV_COLUMNS = [
+    ("site_id", lambda s: s["site_id"]),
+    ("label", lambda s: s["label"]),
+    ("external_ref", lambda s: s["external_ref"]),
+    ("site_type", lambda s: s["site_type"]),
+    ("region", lambda s: s["zone_name"]),
+    ("latitude", lambda s: s["latitude"]),
+    ("longitude", lambda s: s["longitude"]),
+    ("season_through", lambda s: s["season"]["through"]),
+    ("season_days", lambda s: s["season"]["days"]),
+    ("gdd10", lambda s: s["season"]["gdd10"]),
+    ("lta_gdd10", lambda s: s["lta"]["gdd10"]),
+    ("gdd10_vs_lta", lambda s: s["vs_lta"]["gdd10"]),
+    ("rain_mm", lambda s: s["season"]["rain_mm"]),
+    ("lta_rain_mm", lambda s: s["lta"]["rain_mm"]),
+    ("temp_mean", lambda s: s["season"]["temp_mean"]),
+    ("temp_min", lambda s: s["season"]["temp_min"]),
+    ("temp_max", lambda s: s["season"]["temp_max"]),
+    ("variety", lambda s: s["phenology"]["variety"]),
+    ("stage", lambda s: s["phenology"]["stage"]),
+    ("gdd_base0", lambda s: s["phenology"]["gdd"]),
+    ("flowering", lambda s: s["phenology"]["flowering"]),
+    ("veraison", lambda s: s["phenology"]["veraison"]),
+    ("harvest_210", lambda s: s["phenology"]["harvest_210"]),
+    ("disease_date", lambda s: s["disease"]["date"]),
+    ("powdery_risk", lambda s: s["disease"]["powdery"]),
+    ("powdery_index", lambda s: s["disease"]["powdery_index"]),
+    ("botrytis_risk", lambda s: s["disease"]["botrytis"]),
+    ("botrytis_index", lambda s: s["disease"]["botrytis_index"]),
+    ("downy_risk", lambda s: s["disease"]["downy"]),
+    ("humidity_available", lambda s: s["disease"]["humidity_available"]),
+    ("yield", lambda s: s["yield"]["value"]),
+    ("yield_unit", lambda s: s["yield"]["unit"]),
+]
+
+
+@router.get("/accounts/{slug}/portfolio.csv")
+def account_portfolio_csv(slug: str,
+                          vintage: Optional[int] = Query(None),
+                          variety: str = Query("SB"),
+                          db: Session = Depends(get_db),
+                          user: PublicUser = Depends(require_pro)):
+    """The portfolio as CSV, built from the SAME rows the dashboard renders.
+
+    Shares `_portfolio_rows` and `_shape` with the JSON endpoint rather than
+    running its own query. A second query would drift from the first, and the
+    drift would show up as a customer's spreadsheet disagreeing with the screen
+    they exported it from — which is the one thing an export must never do.
+
+    An ABSENT value is an empty cell, never 0. A spreadsheet is where a zero
+    does the most damage: it averages, it charts, and it looks deliberate.
+    """
+    import csv
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    account = _account(db, slug, user)
+    if vintage is None:
+        vintage = dashboard.current_vintage(datetime.now(timezone.utc).date())
+    sites = [_shape(r, vintage)
+             for r in _portfolio_rows(db, account["id"], vintage, variety)]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([name for name, _ in _CSV_COLUMNS])
+    for s in sites:
+        writer.writerow(["" if (v := get(s)) is None else v
+                         for _, get in _CSV_COLUMNS])
+    buf.seek(0)
+
+    stamp = f"{account['slug']}_{vintage}_{variety}"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition":
+                 f'attachment; filename="portfolio_{stamp}.csv"'})
+
+
+# --- time series: one site for the popup, every site for the export ----------
+#
+# The same builder serves the chart, the single-site CSV and the all-sites CSV.
+# Three code paths producing three slightly different answers to "what did this
+# site do" is how an export ends up disagreeing with the screen it came from.
+
+_TIMESERIES_SQL = """
+SELECT s.id AS site_id, s.label, s.external_ref, s.site_type, s.variety,
+       z.name AS zone_name,
+       d.date,
+       d.temp_min, d.temp_max, d.temp_mean, d.rainfall_mm,
+       d.gdd_daily, d.gdd_cumulative, d.gdd10_daily, d.gdd10_cumulative,
+       d.eto_mm, d.etc_mm, d.water_balance_mm, d.eto_method,
+       x.powdery_mildew_risk, x.botrytis_risk, x.downy_mildew_risk,
+       x.pm_cumulative_index, x.botrytis_cumulative, x.humidity_available
+  FROM insights_site s
+  LEFT JOIN climate_zones z ON z.id = s.zone_id
+  JOIN insights_site_daily d ON d.site_id = s.id
+  -- LEFT, and it matters: disease needs humidity in range and 23 of the 67
+  -- sites have no score. An inner join would drop those sites from the export
+  -- entirely rather than showing their temperature and rainfall with an empty
+  -- disease column.
+  LEFT JOIN insights_site_disease x ON x.site_id = s.id AND x.date = d.date
+ WHERE {scope}
+   AND d.date >= :start AND d.date <= :end
+ ORDER BY s.label, d.date
+"""
+
+
+def _timeseries(db: Session, scope_sql: str, params: dict) -> list[dict]:
+    return [dict(r) for r in db.execute(
+        text(_TIMESERIES_SQL.format(scope=scope_sql)), params).mappings().all()]
+
+
+def _ts_window(start: Optional[str], end: Optional[str],
+               vintage: Optional[int]) -> tuple[date, date]:
+    """The window to read, from either explicit dates or a whole season.
+
+    Defaults to the CURRENT SEASON rather than to everything. The daily record
+    is short today but will not stay short, and a default of "all of it" is a
+    default that gets slower every day without anyone choosing it.
+    """
+    if start and end:
+        lo, hi = date.fromisoformat(start), date.fromisoformat(end)
+        if hi < lo:
+            raise HTTPException(422, "end is before start")
+        return lo, hi
+    v = vintage or dashboard.current_vintage(datetime.now(timezone.utc).date())
+    return water.season_bounds(v)
+
+
+@router.get("/sites/{site_id}/timeseries")
+def site_timeseries(site_id: int,
+                    start: Optional[str] = Query(None),
+                    end: Optional[str] = Query(None),
+                    vintage: Optional[int] = Query(None),
+                    db: Session = Depends(get_db),
+                    user: PublicUser = Depends(require_pro)):
+    """Daily temperature, rainfall, GDD, ET and disease at one site.
+
+    What the portfolio's popup chart draws. Returned as parallel arrays rather
+    than a list of objects: a chart wants columns, and 240 days x 15 fields as
+    objects is several times the payload for the same numbers.
+
+    NULL IS PRESERVED as null, never coerced to 0. A gap in the disease series
+    is a day the model could not run, and a chart that plots it as zero draws a
+    reassuring trough where there is no information at all.
+    """
+    site = _owned(db, site_id, user)
+    lo, hi = _ts_window(start, end, vintage)
+    rows = _timeseries(db, "s.id = :sid",
+                       {"sid": site.id, "start": lo, "end": hi})
+
+    def col(name):
+        return [None if r[name] is None else float(r[name]) for r in rows]
+
+    return {
+        "site": _serialise(db, site),
+        "variety": site.variety,
+        "start": lo.isoformat(), "end": hi.isoformat(),
+        "days": len(rows),
+        "dates": [r["date"].isoformat() for r in rows],
+        "temp_min": col("temp_min"),
+        "temp_max": col("temp_max"),
+        "temp_mean": col("temp_mean"),
+        "rain_mm": col("rainfall_mm"),
+        "gdd10_cumulative": col("gdd10_cumulative"),
+        "eto_mm": col("eto_mm"),
+        "etc_mm": col("etc_mm"),
+        "water_balance_mm": col("water_balance_mm"),
+        # Risk bands are words, not numbers, and stay words. The cumulative
+        # indices are the plottable pair.
+        "powdery_risk": [r["powdery_mildew_risk"] for r in rows],
+        "botrytis_risk": [r["botrytis_risk"] for r in rows],
+        "powdery_index": col("pm_cumulative_index"),
+        "botrytis_index": col("botrytis_cumulative"),
+        # ET is only computed where the client asked for it, so a site with an
+        # entirely empty ET series has not failed — it was not requested.
+        "has_et": any(v is not None for v in col("eto_mm")),
+        "eto_method": next((r["eto_method"] for r in rows
+                            if r["eto_method"]), None),
+    }
+
+
+# One row per site per date. WIDE, because that is what opens readably in a
+# spreadsheet and it is what was asked for. Adding a variable changes this
+# header, which is the trade a wide format makes.
+_TS_COLUMNS = [
+    ("site_id", "site_id"), ("site", "label"), ("external_ref", "external_ref"),
+    ("site_type", "site_type"), ("region", "zone_name"), ("variety", "variety"),
+    ("date", "date"),
+    ("temp_min", "temp_min"), ("temp_max", "temp_max"),
+    ("temp_mean", "temp_mean"), ("rain_mm", "rainfall_mm"),
+    ("gdd10_daily", "gdd10_daily"), ("gdd10_cumulative", "gdd10_cumulative"),
+    ("gdd_base0_cumulative", "gdd_cumulative"),
+    ("eto_mm", "eto_mm"), ("etc_mm", "etc_mm"),
+    ("water_balance_mm", "water_balance_mm"), ("eto_method", "eto_method"),
+    ("powdery_risk", "powdery_mildew_risk"),
+    ("powdery_index", "pm_cumulative_index"),
+    ("botrytis_risk", "botrytis_risk"),
+    ("botrytis_index", "botrytis_cumulative"),
+    ("downy_risk", "downy_mildew_risk"),
+    ("humidity_available", "humidity_available"),
+]
+
+
+def _ts_csv(rows: list[dict], filename: str):
+    """Rows to a CSV response. Absent stays EMPTY, never 0.
+
+    A spreadsheet is where a zero does the most damage: it averages, it charts,
+    and it looks deliberate. An empty ET column on a site that was never asked
+    for ET must not read as a site that used no water.
+    """
+    import csv
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\n")
+    w.writerow([name for name, _ in _TS_COLUMNS])
+    for r in rows:
+        out = []
+        for _, key in _TS_COLUMNS:
+            v = r[key]
+            if v is None:
+                out.append("")
+            elif isinstance(v, date):
+                out.append(v.isoformat())
+            elif isinstance(v, bool):
+                out.append("true" if v else "false")
+            else:
+                out.append(v)
+        w.writerow(out)
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/sites/{site_id}/timeseries.csv")
+def site_timeseries_csv(site_id: int,
+                        start: Optional[str] = Query(None),
+                        end: Optional[str] = Query(None),
+                        vintage: Optional[int] = Query(None),
+                        db: Session = Depends(get_db),
+                        user: PublicUser = Depends(require_pro)):
+    """One site's daily record, same columns as the all-sites export.
+
+    Deliberately the SAME column set: somebody who exports one site to look at
+    it and then exports the whole account should not have to reconcile two
+    layouts, and a per-site format that drops the site columns cannot be
+    concatenated with anything.
+    """
+    site = _owned(db, site_id, user)
+    lo, hi = _ts_window(start, end, vintage)
+    rows = _timeseries(db, "s.id = :sid",
+                       {"sid": site.id, "start": lo, "end": hi})
+    slug = (site.label or f"site{site.id}").lower()
+    slug = "".join(c if c.isalnum() else "_" for c in slug)[:40]
+    return _ts_csv(rows, f"{slug}_{lo:%Y%m%d}_{hi:%Y%m%d}.csv")
+
+
+@router.get("/accounts/{slug}/timeseries.csv")
+def account_timeseries_csv(slug: str,
+                           start: Optional[str] = Query(None),
+                           end: Optional[str] = Query(None),
+                           vintage: Optional[int] = Query(None),
+                           db: Session = Depends(get_db),
+                           user: PublicUser = Depends(require_pro)):
+    """Every site on the account, one row per site per date.
+
+    A whole season across 67 sites is roughly 16,000 rows — small enough to
+    stream in one response and to open in a spreadsheet, which is why the window
+    defaults to a season rather than to the whole record.
+    """
+    account = _account(db, slug, user)
+    lo, hi = _ts_window(start, end, vintage)
+    rows = _timeseries(db, "s.account_id = :acc",
+                       {"acc": account["id"], "start": lo, "end": hi})
+    return _ts_csv(rows, f"{account['slug']}_daily_{lo:%Y%m%d}_{hi:%Y%m%d}.csv")

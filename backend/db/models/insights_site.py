@@ -19,6 +19,7 @@ from sqlalchemy import (
     Column, BigInteger, Boolean, Date, Integer, Numeric, SmallInteger, String,
     Text, Float, DateTime, ForeignKey, UniqueConstraint, func
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from db.base_class import Base
 
@@ -72,6 +73,20 @@ class InsightsSite(Base):
     # for what a site is called; matching on our label would break the first
     # time somebody tidies a name.
     external_ref = Column(Text, nullable=True)
+    # What the client asked for AT THIS SITE, from their own tick columns. NOT
+    # derivable from `site_type`: on the BSI list, Nelson AWS is Regional and
+    # does not want ET, while Appleby is Regional and wants ET and nothing
+    # else. NULL means nobody said — a Pro subscriber's own site.
+    requested_metrics = Column(ARRAY(Text), nullable=True)
+    # The variety this site is monitored for, in the client's own words.
+    # Phenology is a per-variety model, so two rows at one coordinate with
+    # different varieties are two answers, not a duplicate.
+    variety = Column(Text, nullable=True)
+    # Resolved to `phenology_thresholds.variety_code`, or NULL where we hold no
+    # thresholds for it. `variety` set with `variety_code` NULL is the signal
+    # that a client asked for something the model cannot yet produce — four BSI
+    # sites want Pinot gris, which is not in the table.
+    variety_code = Column(String(10), nullable=True)
     # Which of the subscriber's entitled slots this occupies. A second point
     # subscription adds a slot rather than replacing the first point. Meaningless
     # for an account site, which is why every account row carries the default.

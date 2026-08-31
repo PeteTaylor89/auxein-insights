@@ -30,6 +30,11 @@ const MapExplorer = lazy(() => import('./pages/MapExplorer'));
 // and only Pro subscribers ever open it. Loading either into the main bundle
 // would slow the free product down for the people who never see this page.
 const MySite = lazy(() => import('./pages/MySite'));
+// Enterprise portfolio, lazy for the same reason MySite is: almost no
+// visitor reaches it, and the table and its filters should not be in the
+// bundle the free product pays for.
+const Portfolio = lazy(() => import('./pages/Portfolio'));
+const AccountSite = lazy(() => import('./pages/AccountSite'));
 // ADMIN ONLY, and it was eagerly imported. `StationMap` pulls in mapbox-gl,
 // which is 1.6 MB on its own, so every anonymous visitor to the landing page
 // was downloading and parsing the whole GL renderer to reach a page behind
@@ -81,6 +86,8 @@ function AppRoutes() {
           <Route path="/regions/:slug" element={<LegacyRegionDetailRedirect />} />
           <Route path="/about" element={<About />} />
           <Route path="/pro" element={<Pro />} />
+          <Route path="/pro/portfolio" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: 'var(--primary)' }}>Loading…</div>}><Portfolio /></Suspense>} />
+          <Route path="/pro/sites/:id" element={<Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', color: 'var(--primary)' }}>Loading…</div>}><AccountSite /></Suspense>} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/legal" element={<LegalPage />} />
           <Route path="/articles" element={<ArticlesPage />} />
