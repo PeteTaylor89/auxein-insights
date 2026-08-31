@@ -51,3 +51,20 @@ shapely==2.1.0
 # five other stages succeeded, which is the shape of thing this platform has
 # repeatedly not noticed.
 python-jose==3.4.0
+
+# `interpolation/tps.py` -> `_pick_smoothing_cv()` -> `sklearn.model_selection.KFold`.
+#
+# ADDED 2026-09-01. Found by a static transitive import walk of the 16 scripts
+# the three jobs run, not by anything failing: the import is FUNCTION-LOCAL and
+# sits on the k-fold CV smoothing path, which the ridge+GCV default never takes.
+# That is why the image has run for days without it and why the import audit
+# inside the container did not catch it either — nothing imports this module
+# until something selects that path, and then it fails immediately.
+#
+# Pinned like the maths above rather than loosely like the plumbing, because it
+# CHOOSES A SMOOTHING FACTOR. Anything that selects a published value belongs to
+# the reproducible set even while it is dormant — the day this path is used is
+# the day an unpinned estimator puts a step in the middle of the record. 1.9.0
+# is the version in the workstation venv that carries the same numpy, scipy and
+# rasterio pins as this file.
+scikit-learn==1.9.0
