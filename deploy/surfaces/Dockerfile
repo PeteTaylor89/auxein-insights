@@ -70,8 +70,12 @@ COPY deploy/surfaces/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend /app/backend
+# All three job scripts. `entrypoint.sh` dispatches on JOB and execs the other
+# two, so they must sit BESIDE it — it resolves them with `dirname "$0"`.
 COPY deploy/surfaces/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+COPY deploy/surfaces/pipeline.sh /app/pipeline.sh
+COPY deploy/surfaces/aggregate.sh /app/aggregate.sh
+RUN chmod +x /app/entrypoint.sh /app/pipeline.sh /app/aggregate.sh
 
 # `run_live.py` resolves paths relative to the repo root (parents[3] from the
 # script), so the layout under /app must mirror the repository.

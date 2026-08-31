@@ -8,6 +8,10 @@ import {
   Activity,
   TrendingUp,
   RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  HelpCircle,
 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import adminService from '../services/adminService';
@@ -29,6 +33,94 @@ const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'blue' }) => (
   </div>
 );
 
+// --- scheduled job health -------------------------------------------------
+//
+// Every row here is the AGE OF WHAT A JOB PRODUCED, never whether it reported
+// success. That is deliberate and hard-won: the surfaces workflow reported
+// success on every run for five days while publishing nothing, and the 18:00
+// pipeline went dark for three days the same way. Both were green throughout.
+
+const JOB_STATUS = {
+  ok:      { label: 'ok',      icon: CheckCircle2,  color: '#10b981' },
+  late:    { label: 'late',    icon: AlertTriangle, color: '#f59e0b' },
+  stale:   { label: 'STALE',   icon: XCircle,       color: '#ef4444' },
+  never:   { label: 'NEVER',   icon: XCircle,       color: '#ef4444' },
+  unknown: { label: 'unknown', icon: HelpCircle,    color: '#6b7280' },
+};
+
+const formatAge = (h) => {
+  if (h === null || h === undefined) return '—';
+  if (h < 1) return `${Math.round(h * 60)}m`;
+  if (h < 48) return `${h.toFixed(1)}h`;
+  return `${(h / 24).toFixed(1)}d`;
+};
+
+const JobHealthPanel = ({ data, error }) => {
+  if (error) {
+    return (
+      <section className="mb-6">
+        <h2 className="section-title"><Activity size={20} /> Scheduled jobs</h2>
+        <div className="job-health-error">{error}</div>
+      </section>
+    );
+  }
+  if (!data) return null;
+
+  const overall = JOB_STATUS[data.overall] || JOB_STATUS.unknown;
+  const OverallIcon = overall.icon;
+
+  return (
+    <section className="mb-6">
+      <div className="section-header">
+        <h2 className="section-title"><Activity size={20} /> Scheduled jobs</h2>
+        <div className="flex gap-2 items-center">
+          {/* The banner reports the WORST job, not an average. Nine healthy jobs
+              and one dark pipeline is an outage, not 90% health. */}
+          <span className="job-health-overall" style={{ color: overall.color }}>
+            <OverallIcon size={16} /> {overall.label}
+          </span>
+          {/* This panel can only see the newest row, so it cannot see a hole
+              behind one. That is what /admin/jobs is for. */}
+          <Link to="/admin/jobs" className="section-link">Day by day →</Link>
+        </div>
+      </div>
+
+      <div className="job-health-grid">
+        {data.jobs.map((j) => {
+          const s = JOB_STATUS[j.status] || JOB_STATUS.unknown;
+          const Icon = s.icon;
+          return (
+            <div key={j.key} className={`job-row job-row--${j.status}`}>
+              <span className="job-dot" style={{ color: s.color }}><Icon size={15} /></span>
+              <div className="job-name">
+                <b>{j.name}</b>
+                <span>{j.runs_on} · {j.cadence}</span>
+              </div>
+              <div className="job-age">
+                <b style={{ color: s.color }}>{formatAge(j.age_hours)}</b>
+                <span>of {formatAge(j.max_age_hours)}</span>
+              </div>
+              <div className="job-detail">
+                {j.error
+                  ? <span className="job-detail-err">{j.error}</span>
+                  : j.detail_value !== null && j.detail_value !== undefined
+                    ? <span>{j.detail_value.toLocaleString()} {j.detail_label}</span>
+                    : <span className="job-detail-muted">{j.produces}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="job-health-foot">
+        Age is of the newest row each job produced, not of its last run — a job
+        that ran and wrote nothing reads as stale, which is the point.
+        Late after one missed interval, stale after two.
+      </p>
+    </section>
+  );
+};
+
 // How many events the activity feed asks for. This is now the substance of the
 // page rather than a footnote under the weather cards, so it is worth more than
 // the ten it used to show.
@@ -38,6 +130,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userStats, setUserStats] = useState(null);
+  const [jobs, setJobs] = useState(null);
+  const [jobsError, setJobsError] = useState(null);
   const [recentActivity, setRecentActivity] = useState(null);
 
   const fetchDashboardData = async () => {
@@ -60,9 +154,26 @@ const AdminDashboard = () => {
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
       setError('Failed to load dashboard data. Please try again.');
-    } finally {
-      setLoading(false);
     }
+
+    // Job health is fetched SEPARATELY on purpose. It must neither take the
+    // page down nor disappear when something else does — the moment you most
+    // need to see whether the pipeline is running is the moment another call
+    // is failing.
+    //
+    // It sat INSIDE the catch above until 2026-08-31, which inverted exactly
+    // that: on a normal load it never ran at all, so `jobs` stayed null and the
+    // panel rendered nothing; on a failing load it ran, but `setError` had
+    // already switched the component to the error screen, so the panel was
+    // never mounted. The monitoring panel was invisible in both branches.
+    try {
+      setJobs(await adminService.jobs.getStatus());
+      setJobsError(null);
+    } catch (err) {
+      setJobsError(err?.response?.data?.detail || 'Could not load job status.');
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -103,6 +214,8 @@ const AdminDashboard = () => {
           Refresh
         </button>
       </div>
+
+      <JobHealthPanel data={jobs} error={jobsError} />
 
       {/* User Stats Section */}
       <section className="mb-6">
@@ -161,24 +274,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Region Breakdown */}
-        {userStats?.by_region && userStats.by_region.length > 0 && (
-          <div className="card mt-4">
-            <div className="card-body">
-              <h3 className="text-sm font-medium text-gray mb-3">Users by Region of Interest</h3>
-              <div className="breakdown-grid">
-                {userStats.by_region.map((region) => (
-                  <div key={region.region_of_interest || 'none'} className="breakdown-item">
-                    <p className="breakdown-value">{region.count}</p>
-                    <p className="breakdown-label">
-                      {region.region_of_interest?.replace(/_/g, ' ') || 'Not specified'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+
       </section>
 
       {/* Recent Activity */}

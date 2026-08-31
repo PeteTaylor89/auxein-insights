@@ -13,15 +13,24 @@ name: Insights Pro Site Population
 # merged BEFORE it** — otherwise the first customer to place a point is the one
 # who discovers the gap.
 
-on:
-  schedule:
-    # Every five minutes, which is GitHub's finest granularity. Be honest about
-    # what that buys: scheduled runs are best-effort and are routinely delayed
-    # under load, occasionally by more than ten minutes, and can be dropped
-    # entirely. Extraction itself takes ~90 seconds. So the wait a customer sees
-    # is dominated by queue latency we do not control, not by the work.
-    - cron: '*/5 * * * *'
+# MANUAL ONLY SINCE 2026-08-31. The five-minute poll moved to a cron on the
+# auxein-ingest box: `ingestion/run_site_population.sh`, set up by
+# `ingestion/deploy_site_population.sh`.
+#
+# DO NOT RESTORE THE `schedule:` BLOCK until that cron is gone. Two pollers on
+# one queue would double-extract without either of them failing.
+#
+# What was here: `*/5 * * * *`, GitHub's finest granularity. The comment that
+# went with it was already honest about what that bought — scheduled runs are
+# best-effort, routinely delayed under load, occasionally by more than ten
+# minutes, and can be dropped entirely, while extraction itself takes ~90
+# seconds. A paying customer's wait was dominated by queue latency nobody here
+# controlled. Every job on the box starts at :05:07 to the second.
+#
+# `workflow_dispatch` stays: `--site` and `--force` are still the fastest way to
+# rescue one stuck customer site.
 
+on:
   workflow_dispatch:
     inputs:
       site:

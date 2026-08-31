@@ -1,12 +1,21 @@
 name: Weather Data Ingestion
 
-on:
-  schedule:
-    # Hourly at :05. Every source runs as its own parallel job (matrix below),
-    # so wall-clock is the slowest single source, not the sum, and one hung
-    # council can't take the others down.
-    - cron: '5 * * * *'
+# MANUAL ONLY. Ingestion moved to `ingestion/run_all.sh` on the auxein-ingest
+# box in July 2026; this workflow has been disabled in the Actions UI since,
+# and last ran 2026-07-28.
+#
+# THE `schedule:` BLOCK WAS REMOVED 2026-08-31 because "disabled in the UI" is
+# not the same as "will not run". Re-enabling a workflow is one click and gives
+# no warning about what it is about to start; with the cron still in the file,
+# that click would have put a second hourly ingest against the box's :05:07 run.
+# Both write idempotent upserts, so nothing would break and nothing would fail —
+# it would simply double every council fetch until somebody noticed the bill.
+#
+# `workflow_dispatch` stays as the fallback path: if the box is down, dispatching
+# `source: all` here still ingests. That is what it is for, and the reason this
+# file is kept rather than deleted.
 
+on:
   workflow_dispatch:
     inputs:
       source:

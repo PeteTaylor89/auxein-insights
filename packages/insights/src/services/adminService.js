@@ -298,6 +298,46 @@ export const adminQcService = {
 };
 
 // ============================================
+// SCHEDULED JOBS
+// ============================================
+
+export const adminJobsService = {
+  /**
+   * Health of every scheduled job, judged by the AGE OF WHAT IT PRODUCED
+   * rather than by whether it reported success.
+   *
+   * That distinction is the whole point. The surfaces workflow reported success
+   * on every run for five days while publishing nothing, and the 18:00 pipeline
+   * went dark for three days the same way — both were green the entire time.
+   * A job that ran and wrote nothing looks identical to one that never ran,
+   * unless you look at the output.
+   */
+  getStatus: async () => {
+    const response = await publicApi.get(`${ADMIN_BASE}/jobs/status`);
+    return response.data;
+  },
+
+  /**
+   * What each job produced on each of the last `days` days.
+   *
+   * `getStatus` says whether a job is healthy NOW; this says whether it has
+   * BEEN healthy, and the two are not the same. When the pipeline restarted
+   * after the three-day August outage it repaired the newest day, so the
+   * freshness check went green while the hole behind it stayed — and nothing
+   * on the platform could see that hole. Only counting days finds it.
+   *
+   * Days that produced nothing are OMITTED from each job's list. The caller
+   * fills the calendar, so an absent day reads as a hole rather than as a zero.
+   */
+  getHistory: async (days = 21) => {
+    const response = await publicApi.get(`${ADMIN_BASE}/jobs/history`, {
+      params: { days },
+    });
+    return response.data;
+  },
+};
+
+// ============================================
 // COMBINED ADMIN SERVICE
 // ============================================
 
@@ -307,6 +347,7 @@ const adminService = {
   data: adminDataService,
   banners: adminBannerService,
   qc: adminQcService,
+  jobs: adminJobsService,
 };
 
 export default adminService;

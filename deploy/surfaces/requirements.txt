@@ -37,3 +37,17 @@ pydantic==2.11.3
 pydantic-settings==2.9.1
 GeoAlchemy2==0.17.1
 shapely==2.1.0
+
+# Step 6 of the 18:00 pipeline. `cleanup_blacklist.py` imports
+# `core.security.auth`, which decodes JWTs, so the daily job that expires
+# revoked tokens needs the JWT library even though nothing here signs one.
+#
+# ADDED 2026-08-31, and only because the import audit was run inside the image
+# before the schedule moved. This is the eleventh script in the chain and the
+# ONLY one that failed; every other dependency the whole pipeline needs was
+# already pinned above. It is precisely the failure this file's header warns
+# about — a curated list that covers the maths and misses the plumbing — and it
+# would have surfaced as one stage of six failing every night, on a job whose
+# five other stages succeeded, which is the shape of thing this platform has
+# repeatedly not noticed.
+python-jose==3.4.0

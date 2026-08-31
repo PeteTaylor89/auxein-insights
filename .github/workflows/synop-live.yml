@@ -27,6 +27,12 @@ on:
   # single-station probe, a dry run and the NOAA reconcile pass are run — and
   # it is what to use right now if the feed is behind.
   #
+  # The commented block is kept as a record of what the cadence WAS, not as
+  # something to uncomment. SYNOP is ingested hourly by `run_all.sh` on the box;
+  # restoring this would double-pull 48 stations against an idempotent upsert,
+  # which corrupts nothing and is therefore the kind of thing that runs for
+  # months unnoticed.
+  #
   # schedule:
   #   - cron: '10 */3 * * *'
 

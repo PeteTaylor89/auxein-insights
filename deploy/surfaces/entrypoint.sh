@@ -1,10 +1,29 @@
 #!/usr/bin/env bash
 # Daily surface engine — the whole job, in the order that matters.
 #
+# JOB=surfaces  this file (the default)
+# JOB=pipeline  the 18:00 NZ chain      -> pipeline.sh
+# JOB=aggregate the six-hourly rollup   -> aggregate.sh
+#
 # MODE=daily  fits D-2 (see below)
 # MODE=refit  re-fits D-9 .. D-3
 # START/END   explicit window, overrides MODE
 set -euo pipefail
+
+# One image, three schedules. The other two jobs moved off GitHub Actions on
+# 2026-08-31 and every dependency they need was already pinned here, so they
+# dispatch from this entrypoint rather than getting an image of their own —
+# a second image is a second thing to rebuild and a second place for the
+# interpreter and the library set to drift apart.
+#
+# `exec`, not a call: the child replaces this shell, so its exit code is the
+# task's exit code with nothing in between to swallow it.
+case "${JOB:-surfaces}" in
+  pipeline)  exec "$(dirname "$0")/pipeline.sh" ;;
+  aggregate) exec "$(dirname "$0")/aggregate.sh" ;;
+  surfaces)  ;;
+  *) echo "[entrypoint] FATAL: unknown JOB=${JOB}" >&2; exit 2 ;;
+esac
 
 BUCKET="${SURFACE_BUCKET:-auxein-climate-surfaces}"
 MODE="${MODE:-daily}"

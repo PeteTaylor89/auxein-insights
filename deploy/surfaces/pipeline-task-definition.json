@@ -1,0 +1,70 @@
+{
+  "family": "auxein-pipeline",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-execution",
+  "taskRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-task",
+  "containerDefinitions": [
+    {
+      "name": "pipeline",
+      "image": "992914515416.dkr.ecr.ap-southeast-2.amazonaws.com/auxein-surfaces:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "AWS_REGION",
+          "value": "ap-southeast-2"
+        },
+        {
+          "name": "ENV",
+          "value": "production"
+        },
+        {
+          "name": "SURFACE_BUCKET",
+          "value": "auxein-climate-surfaces"
+        },
+        {
+          "name": "RDS_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "RDS_DATABASE",
+          "value": "auxein_db"
+        },
+        {
+          "name": "PYTHONUNBUFFERED",
+          "value": "1"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "RDS_ENDPOINT",
+          "valueFrom": "/auxein/prod/RDS_ENDPOINT"
+        },
+        {
+          "name": "RDS_USER",
+          "valueFrom": "/auxein/prod/RDS_USER"
+        },
+        {
+          "name": "RDS_PASSWORD",
+          "valueFrom": "/auxein/prod/RDS_PASSWORD"
+        },
+        {
+          "name": "SECRET_KEY",
+          "valueFrom": "/auxein/prod/SECRET_KEY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/auxein/surfaces",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "pipeline"
+        }
+      }
+    }
+  ]
+}

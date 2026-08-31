@@ -1,0 +1,65 @@
+{
+  "_comment": "The two jobs that came off GitHub Actions on 2026-08-31, on EventBridge Scheduler beside auxein-surfaces-daily. Both target the auxein-pipeline task definition and select their work with JOB, which entrypoint.sh dispatches on. Apply with `aws scheduler create-schedule --cli-input-json`, substituting the security group as schedules.json describes.",
+
+  "_why_scheduler": "ScheduleExpressionTimezone. EventBridge Scheduler resolves NZDT/NZST itself, so 18:00 NZ means 18:00 NZ all year from ONE entry. GitHub's cron is UTC only, so the same job needed two crons plus an in-job guard to discard whichever twin was wrong — and on 2026-08-25 both halves discarded themselves, the workflow went green, and the zone rollups, phenology and disease stopped for three days with nothing raised. Deleting that machinery is the whole point of the move; the cost saving is incidental.",
+
+  "_why_not_the_ingest_box": "The 1 GB t3.micro already runs hourly ingestion, and the zone-surface stage reads COGs. Fargate is ~$2/month for both of these at 1 vCPU / 4 GB and shares the image the surfaces job already validated.",
+
+  "schedules": [
+    {
+      "Name": "auxein-pipeline-daily",
+      "GroupName": "default",
+      "Description": "18:00 NZ daily chain: aggregation, QC, hourly rollup, zone rollup, zone surface, phenology, disease, blacklist cleanup. Was daily-processing.yml.",
+      "ScheduleExpression": "cron(0 18 * * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": ["subnet-0317587a16a8b5e59"],
+              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "Input": "{\"containerOverrides\":[{\"name\":\"pipeline\",\"environment\":[{\"name\":\"JOB\",\"value\":\"pipeline\"}]}]}",
+        "RetryPolicy": { "MaximumRetryAttempts": 1 }
+      }
+    },
+    {
+      "_comment_timing": "01:20 / 07:20 / 13:20 / 19:20 NZ. Six-hourly like the :35 cron it replaces, but placed to clear both neighbours: 100 minutes before the 03:00 surfaces fit, which stages from weather_data_daily and must read a settled rollup, and 80 minutes after the 18:00 pipeline rather than 35, so a slow pipeline cannot be overtaken by the rollup that feeds it. On GitHub this job's four runs on 2026-08-30 started at 05:43, 12:10, 16:56 and 21:27 UTC against a :35 cron — up to 55 minutes of drift on the job whose entire purpose is a settled six-hour window.",
+      "Name": "auxein-pipeline-aggregate",
+      "GroupName": "default",
+      "Description": "Six-hourly rollup, its sanity check, and disease pressure at every Pro site. Was daily-aggregation.yml.",
+      "ScheduleExpression": "cron(20 1,7,13,19 * * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": ["subnet-0317587a16a8b5e59"],
+              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "Input": "{\"containerOverrides\":[{\"name\":\"pipeline\",\"environment\":[{\"name\":\"JOB\",\"value\":\"aggregate\"}]}]}",
+        "RetryPolicy": { "MaximumRetryAttempts": 1 }
+      }
+    }
+  ]
+}

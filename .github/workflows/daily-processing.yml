@@ -1,20 +1,26 @@
 name: Daily Climate Processing
 
-on:
-  schedule:
-    # GitHub cron is UTC only and NZ observes daylight saving, so 18:00 NZ needs
-    # two entries. Exactly one of each pair lands on the intended NZ hour; the
-    # other is dropped by the DST guard in "Resolve schedule" below.
-    #
-    # WITHOUT THAT GUARD BOTH FIRE, ALL YEAR. The whole pipeline — aggregation,
-    # QC, hourly, zone rollup, phenology, disease — ran twice a day, every day,
-    # and one of the two was always an hour off the intended 18:00. Nothing
-    # corrupted, because every stage is an idempotent upsert, which is exactly
-    # why it went unnoticed: the only symptoms were doubled work and a run log
-    # that could not be read against a schedule.
-    - cron: '0 5 * * *'   # 18:00 NZDT (UTC+13, summer)
-    - cron: '0 6 * * *'   # 18:00 NZST (UTC+12, winter)
+# MANUAL ONLY SINCE 2026-08-31. The 18:00 NZ schedule now lives in EventBridge
+# Scheduler as `auxein-pipeline-daily`, running JOB=pipeline on the
+# `auxein-pipeline` Fargate task definition. See deploy/surfaces/pipeline.sh.
+#
+# DO NOT RESTORE THE `schedule:` BLOCK without first deleting that schedule.
+# Two schedulers on this pipeline would not corrupt anything — every stage is an
+# idempotent upsert — which is exactly why it would run doubled for weeks before
+# anyone noticed, the same way the DST twins did.
+#
+# What was here, and why it is gone: GitHub's cron is UTC only and NZ observes
+# daylight saving, so 18:00 NZ needed a pair of crons plus the "Resolve
+# schedule" guard below to discard whichever twin was wrong. On 2026-08-25 both
+# halves discarded themselves — the guard read the wall clock at execution and
+# GitHub had started the job hours late — so the workflow went green while the
+# zone rollups, phenology and disease stopped for three days. EventBridge
+# resolves `Pacific/Auckland` natively from one entry and has no twin to guard.
+#
+# `workflow_dispatch` stays: a hand re-run of a specific date is still the
+# fastest way to repair a day, and the dispatch path never used the guard.
 
+on:
   workflow_dispatch:
     inputs:
       date:

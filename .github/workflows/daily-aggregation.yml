@@ -15,12 +15,23 @@ name: Daily Aggregation (rollup only)
 # weather_data_daily close to the raw record without dragging the heavy downstream
 # steps along, and the overlapping windows mean a missed run heals itself.
 
-on:
-  schedule:
-    # Every 6 hours at :35, deliberately offset from the hourly ingestion at :05
-    # so the rollup reads a settled window rather than racing the writers.
-    - cron: '35 */6 * * *'
+# MANUAL ONLY SINCE 2026-08-31. The six-hourly schedule now lives in EventBridge
+# Scheduler as `auxein-pipeline-aggregate`, running JOB=aggregate on the
+# `auxein-pipeline` Fargate task definition. See deploy/surfaces/aggregate.sh.
+#
+# DO NOT RESTORE THE `schedule:` BLOCK without first deleting that schedule.
+# Every stage here is an idempotent upsert, so two schedulers would produce no
+# visible corruption and no failed run — only doubled work nobody would spot.
+#
+# This one never needed the daylight-saving twin the 18:00 and 03:00 jobs did:
+# `35 */6 * * *` is a cadence, not a wall-clock time. It moved for the other
+# reason. Its four runs on 2026-08-30 started at 05:43, 12:10, 16:56 and 21:27
+# UTC against a `:35` cron — up to 55 minutes of drift, on the job whose entire
+# purpose is to read a SETTLED six-hour window rather than race the writers.
+# The EventBridge replacement fires at 01:20 / 07:20 / 13:20 / 19:20 NZ, placed
+# to clear the 03:00 surfaces fit and the 18:00 pipeline on both sides.
 
+on:
   workflow_dispatch:
     inputs:
       lookback_days:

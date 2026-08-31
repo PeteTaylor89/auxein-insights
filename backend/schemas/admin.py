@@ -298,6 +298,77 @@ class StationMapItem(BaseModel):
     zone_name: Optional[str] = None
 
 
+class JobStatusItem(BaseModel):
+    """One scheduled job, judged by the age of what it last produced.
+
+    `last_at` is the newest row the job is responsible for, NOT the last time it
+    ran. A job that ran and wrote nothing is the failure mode this exists to
+    catch — see `api/v1/admin_jobs.py`.
+    """
+    key: str
+    name: str
+    runs_on: str
+    cadence: str
+    produces: str
+
+    last_at: Optional[datetime]
+    age_hours: Optional[float]
+    # Cadence plus the job's designed-in data lag. Surfaces target D-2
+    # deliberately, so a healthy fit is two days old.
+    max_age_hours: float
+    # ok | late | stale | never | unknown
+    status: str
+
+    # The one number that says whether the output is any good — zones covered,
+    # variables published — rather than merely present.
+    detail_value: Optional[int] = None
+    detail_label: Optional[str] = None
+    error: Optional[str] = None
+
+
+class JobStatusResponse(BaseModel):
+    jobs: List[JobStatusItem]
+    checked_at: datetime
+    counts_by_status: Dict[str, int]
+    # The WORST job, not an average: nine healthy jobs and one dark pipeline is
+    # an outage, not 90% health.
+    overall: str
+
+
+class JobHistoryDay(BaseModel):
+    """What one job produced on one day. Absent days are holes, not zeroes.
+
+    The API returns only days that produced something. The caller fills the
+    calendar, because a day with no row and a day with a zero count are the
+    same finding and collapsing them in the response would hide which days the
+    window even covers.
+    """
+    day: date
+    count: int
+
+
+class JobHistoryItem(BaseModel):
+    key: str
+    name: str
+    # Which day a row is filed under. "data" means the day the row DESCRIBES —
+    # a gap is missing data. "run" means the day the job executed — a gap is a
+    # missed run. They fail differently and must not be read the same way.
+    axis: str
+    # The count a complete day reaches: 23 zones, 4 variables. None where the
+    # count has no fixed target, in which case only presence can be judged.
+    expected: Optional[int] = None
+    unit: Optional[str] = None
+    days: List[JobHistoryDay] = []
+    error: Optional[str] = None
+
+
+class JobHistoryResponse(BaseModel):
+    jobs: List[JobHistoryItem]
+    start: date
+    end: date
+    checked_at: datetime
+
+
 class ZoneOption(BaseModel):
     """A zone, for a filter list or an assignment field. Id and name only.
 
