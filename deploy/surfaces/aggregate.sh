@@ -36,10 +36,22 @@ echo "[aggregate] lookback=${LOOKBACK}d (NZ now $(nz +'%F %T'))"
 
 # Rollup only. The hourly, zone, phenology and disease stages belong to the
 # 18:00 job and would race it from here.
+#
+# THE SITE STAGES NEED THEIR OWN FLAGS. `--skip-phenology` gates stage 4 only;
+# 4b and 4c carry `--skip-site-phenology` and `--skip-site-water`, so naming the
+# four above does NOT skip them and this job would have run both four times a
+# day. 4b is the worse of the two: it stores the REGION's dates beside the
+# site's, and stage 4 is skipped here, so it would have sat today's site next to
+# yesterday's region — the exact comparison its own placement comment in
+# `run_daily_processing.py` exists to prevent.
+#
+# Any future stage added to that script runs here by default. The skip list is
+# opt-out, so a new stage belongs to both jobs until someone says otherwise.
 echo "[aggregate] daily aggregation"
 python scripts/run_daily_processing.py \
   --lookback-days "$LOOKBACK" \
-  --skip-hourly --skip-zone --skip-phenology --skip-disease
+  --skip-hourly --skip-zone --skip-phenology --skip-disease \
+  --skip-site-phenology --skip-site-water
 
 # Non-fatal, exactly as `continue-on-error: true` made it on GitHub. This is a
 # WARNING channel: a degenerate source should be shouted about, not used to
