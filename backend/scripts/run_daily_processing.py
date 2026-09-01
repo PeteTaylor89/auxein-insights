@@ -88,6 +88,8 @@ def main():
     parser.add_argument('--skip-phenology', action='store_true', help='Skip phenology')
     parser.add_argument('--skip-site-phenology', action='store_true',
                         help='Skip per-site phenology (stage 4b)')
+    parser.add_argument('--skip-site-water', action='store_true',
+                        help='Skip per-site ET and water balance (stage 4c)')
     parser.add_argument('--skip-disease', action='store_true', help='Skip disease pressure')
     parser.add_argument('--zone-id', type=int, help='Process only this zone (passed to all sub-scripts)')
     parser.add_argument(
@@ -325,6 +327,45 @@ def main():
     else:
         logger.info("\n[4b/6] SITE PHENOLOGY - SKIPPED")
         results['site_phenology'] = True
+
+    # =========================================================================
+    # Step 4c: Reference ET and the running water balance at each site
+    # =========================================================================
+    #
+    # NO WINDOW IS PASSED, and that is the script's contract rather than an
+    # omission here. The balance is a running total from 1 September, so it can
+    # only be rebuilt from the start of a season; `populate_site_water.py`
+    # accepts `--season` and deliberately offers no `--from/--to`, because a
+    # windowed call would produce a cumulative that begins wherever the caller's
+    # window happened to open. Every other stage in this pipeline is windowed
+    # and this one is not, on purpose.
+    #
+    # The season is left to the script, which derives it on the same 1 July
+    # vintage roll `zone_aggregation.get_vintage_year` uses. It reads the UTC
+    # date, which is the previous NZ day for the whole NZ morning — harmless at
+    # a season's resolution and at this stage's 18:00 NZ slot (06:00 UTC, same
+    # date), but it is why nothing here should be moved to a morning schedule
+    # without passing `--season` explicitly.
+    #
+    # Same placement argument as 4b: it reads `insights_site_daily`, which the
+    # 03:00 surfaces job writes, so it belongs in the 18:00 pipeline and not in
+    # the six-hourly rollup. It also needs stage 1's `weather_data_daily` for
+    # the solar, wind and humidity that decide Penman-Monteith over Hargreaves.
+    #
+    # `--require-rows` is deliberately NOT set. ET is computed only where a
+    # client asked for it, so a run that writes nothing is a legitimate state
+    # rather than a failure, and asserting on rows would turn "no site wants
+    # ET" into a red pipeline.
+    #
+    # SKIPPED rather than passed a flag on a dry run: this script has no
+    # `--dry-run`, and passing one would abort it in argparse.
+    if args.skip_site_water or args.dry_run:
+        why = 'dry run' if args.dry_run and not args.skip_site_water else 'flag'
+        logger.info(f"\n[4c/6] SITE WATER BALANCE - SKIPPED ({why})")
+        results['site_water'] = True
+    else:
+        logger.info("\n[4c/6] SITE WATER BALANCE (ET and running balance)")
+        results['site_water'] = run_script('populate_site_water.py', [])
 
     # =========================================================================
     # Step 5: Disease Pressure (v2 - uses hourly data)

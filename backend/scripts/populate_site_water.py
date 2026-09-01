@@ -70,6 +70,23 @@ def fill_elevation(db, sites) -> int:
     if not missing:
         return 0
 
+    # THE GRID IS NOT IN EVERY CONTAINER THIS RUNS IN. `VCDN_500m.csv` is 73 MB
+    # and gitignored, so it is not in the image; `entrypoint.sh` fetches it from
+    # S3 only on the SURFACES path, after the case that execs `pipeline.sh`. So
+    # the 18:00 pipeline, where stage 4c calls this, has no grid at all.
+    #
+    # Every site had an elevation when 4c was wired in, so this costs nothing
+    # today — but the first site added afterwards would have brought the whole
+    # pipeline down on a FileNotFoundError, from a stage that exists to refine
+    # a number. `compute()` already treats a missing elevation as sea level and
+    # says so, so the degradation is defined: warn, and leave it to a run that
+    # has the grid.
+    if not GRID.exists():
+        print(f"WARNING {len(missing)} site(s) have no elevation and the 500 m "
+              f"grid is not in this container ({GRID}); they will be modelled "
+              f"at sea level until a run that has it fills them")
+        return 0
+
     import numpy as np
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from scripts.interpolation.raster import RasterTemplate, grid_from_csv
