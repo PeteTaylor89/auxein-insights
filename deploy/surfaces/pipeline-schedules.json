@@ -11,9 +11,37 @@
 
   "schedules": [
     {
+      "_comment_morning": "THE 06:50 RUN IS WHAT PUTS D-1 ON THE BOARD BY 08:00. Chain: 06:20 rollup -> 06:30 surfaces fit (D-1) -> 06:50 this, target D-1, done ~06:54. It must run AFTER the surfaces job, not merely after the rollup, for two separate reasons. Stage 3b reads the daily surface and SKIPS any day that has none, which is exactly what left 2026-08-31 on 15 zones of station fallback. And stage 4b reads insights_site_daily, which the SURFACES job writes, not this one — that ordering is why site phenology used to trail regional phenology by a full day even though both ran green. Twenty minutes covers the 4.3-5.6 min fit with room to spare.",
+      "Name": "auxein-pipeline-morning",
+      "GroupName": "default",
+      "Description": "06:50 NZ pipeline: the D-1 pass that meets the 08:00 deadline. Same task definition as auxein-pipeline-daily.",
+      "ScheduleExpression": "cron(50 6 * * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-pipeline-daily",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": ["subnet-0317587a16a8b5e59"],
+              "SecurityGroups": ["sg-0d19d5d32bde42638"],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "RetryPolicy": { "MaximumRetryAttempts": 1 }
+      }
+    },
+    {
+      "_comment_evening": "NO LONGER THE JOB THAT FIRST PRODUCES A DAY — it is now the corrective pass. Its D-4..D-1 window re-reads whatever the 15:00 re-fit published, so the morning's provisional values are replaced with the WRC-complete ones by ~18:04 on the SAME day. Left at 18:00 and otherwise unchanged.",
       "Name": "auxein-pipeline-daily",
       "GroupName": "default",
-      "Description": "18:00 NZ pipeline: aggregation, QC, hourly and zone rollups, zone surface, phenology, disease. Was daily-processing.yml.",
+      "Description": "18:00 NZ pipeline: propagates the 15:00 re-fit over its D-4..D-1 window. Was daily-processing.yml.",
       "ScheduleExpression": "cron(0 18 * * ? *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
       "FlexibleTimeWindow": { "Mode": "OFF" },
@@ -37,11 +65,11 @@
       }
     },
     {
-      "_comment_timing": "01:20 / 07:20 / 13:20 / 19:20 NZ. Six-hourly like the :35 cron it replaces, but placed to clear both neighbours: 100 minutes before the 03:00 surfaces fit, which stages from weather_data_daily and must read a settled rollup, and 80 minutes after the 18:00 pipeline rather than 35, so a slow pipeline cannot be overtaken by the rollup that feeds it. On GitHub this job's four runs on 2026-08-30 started at 05:43, 12:10, 16:56 and 21:27 UTC against a :35 cron — up to 55 minutes of drift on the job whose entire purpose is a settled six-hour window.",
+      "_comment_timing": "01:20 / 06:20 / 13:20 / 19:20 NZ. Six-hourly in spirit; the 07:20 slot moved to 06:20 on 2026-09-02 because it is now THE GATE for the whole morning chain. The 06:30 surfaces fit stages from weather_data_daily, so D-1 must be rolled up first, and the last incremental source lands at ~06:10. Ten minutes is the margin. The other three slots keep clear of both pipelines. On GitHub this job's four runs on 2026-08-30 started at 05:43, 12:10, 16:56 and 21:27 UTC against a :35 cron — up to 55 minutes of drift on the job whose entire purpose is a settled six-hour window.",
       "Name": "auxein-pipeline-aggregate",
       "GroupName": "default",
-      "Description": "Six-hourly rollup, sanity check, and disease pressure at every Pro site. Was daily-aggregation.yml.",
-      "ScheduleExpression": "cron(20 1,7,13,19 * * ? *)",
+      "Description": "Six-hourly rollup, sanity check, and disease pressure at every Pro site. The 06:20 run gates the morning chain. Was daily-aggregation.yml.",
+      "ScheduleExpression": "cron(20 1,6,13,19 * * ? *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
       "FlexibleTimeWindow": { "Mode": "OFF" },
       "State": "ENABLED",

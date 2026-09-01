@@ -41,9 +41,37 @@ elif [[ "$MODE" == "refit" ]]; then
   # pass the surface and the DB disagree permanently, and invisibly.
   START="$(nz -d '9 days ago' +%F)"; END="$(nz -d '3 days ago' +%F)"
 else
-  # D+2, not D+1: ECAN_AIR lands ~24.8 h behind wall clock and is 10
-  # thermometers in the largest temperature deficit region in the country.
-  START="$(nz -d '2 days ago' +%F)"; END="$START"
+  # D-1, AND THIS JOB RUNS TWICE A DAY ON IT.
+  #
+  # This branch used to fit D-2, on the strength of one claim: "ECAN_AIR lands
+  # ~24.8 h behind". Measured 2026-09-02 over six consecutive days, as hours
+  # after an NZ day ends until its closing 21:00-23:59 block is written:
+  #
+  #   GW / HORIZONS / TDC / WCRC / GDC / MDC   1.1
+  #   HBRC 1.1-4.1     BOPRC 3.2-4.2     TRC 3.2-8.1
+  #   ECAN_AIR 5.1-6.1                   HARVEST 5.1-6.1
+  #
+  # ECAN_AIR lands at 5.1 h, not 24.8, and that single stale figure was buying
+  # a whole extra day of latency. Everything except WRC is in by ~06:10.
+  #
+  # SOUTHLAND, SYNOP_GTS and WRC cannot be measured this way — they rewrite
+  # their whole recent window on every ingest, so created_at is last-rewrite
+  # time. Their tell is a lag sequence falling by exactly 24 h per day
+  # (128, 104, 80, 56, 32, 8). Judge those three on content freshness instead:
+  # SOUTHLAND 0.7 h behind, SYNOP_GTS 1.7 h, WRC 9.7 h.
+  #
+  # WRC IS THE ONE THAT DOES NOT FIT IN THE MORNING. It publishes day X at
+  # roughly 08:07 on X+1, so the 06:30 run fits without it and the 15:00 run —
+  # same MODE, same D-1 window, so it simply fits the same day again once WRC
+  # has landed — corrects it. Cost of the provisional morning pass, measured
+  # over 5 days of national cross-validation: temp_max +4.8% (+0.065 degC),
+  # temp_min +2.3%, temp_mean +1.5%, rainfall nil.
+  #
+  # That two-pass shape is only safe because `aggregate_zone_daily_surface.py`
+  # re-derives gdd_cumulative across the whole vintage rather than carrying it
+  # forward, so the afternoon correction repairs every later day instead of
+  # leaving a step in the accumulator.
+  START="$(nz -d "${DAILY_LAG_DAYS:-1} days ago" +%F)"; END="$START"
 fi
 
 DAYS=$(( ( $(date -d "$END" +%s) - $(date -d "$START" +%s) ) / 86400 + 1 ))
@@ -107,10 +135,28 @@ done
 echo "[surfaces] QC"
 python backend/scripts/daily_qc.py --start "$QC_START" --end "$END" --apply
 
+# STATION 1019 IS EXCLUDED, and it has to be named here because `--exclude` has
+# no default. `consolidate_db.py` documents 1019 (WRC_THAMES_HIGH_SCHOOL) as
+# dropped from "the production temperature basis" — its bias is SEASONAL
+# (Jan -3.89, winter +1.0), which a stationary offset field cannot absorb, and
+# it sits isolated on the Coromandel with no neighbour to dilute it; by that
+# note it alone halved the effectiveness of the national era correction.
+# This job never passed the flag, so every daily surface published up to
+# 2026-09-02 was fitted WITH it.
+#
+# Measured 2026-09-02, 5 days, national cv_rmse: temp_max -1.55% (-0.022 degC),
+# temp_mean -1.28%, temp_min -0.18%, rainfall unchanged. The exclusion covers
+# all four variables because that is the configuration that was measured —
+# dropping one gauge out of 780 costs rainfall nothing.
+#
+# The surfaces already in the archive include 1019, so the record takes a small
+# step at the date this ships. Only a re-fit of the archive removes it, and at
+# 0.02 degC that is not on its own worth one.
 echo "[surfaces] staging station inputs"
 python backend/scripts/interpolation/consolidate_db.py \
   --variables temp_mean,temp_min,temp_max,rainfall \
   --start "$STAGE_START" --end "$END" \
+  --exclude "${EXCLUDE_STATIONS:-1019}" \
   --out scratchpad/live_surfaces/inputs_daily
 
 echo "[surfaces] fitting"
