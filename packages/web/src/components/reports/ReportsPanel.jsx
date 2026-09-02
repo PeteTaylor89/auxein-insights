@@ -15,7 +15,7 @@
 // date range ends up silently ignored. Each entry declares what it uses and the
 // filter bar disables the rest with a reason.
 import { useState, useEffect, useMemo } from 'react';
-import { propertyService } from '@vineyard/shared';
+import { propertyService, useAuth } from '@vineyard/shared';
 import HelpTip from '../HelpTip';
 import TaskReport from './TaskReport';
 import ObservationReport from './ObservationReport';
@@ -27,6 +27,8 @@ import OutstandingReport from './OutstandingReport';
 import HealthSafetyReport from './HealthSafetyReport';
 import SiteAccessReport from './SiteAccessReport';
 import VineyardCensusReport from './VineyardCensusReport';
+import CostReport from './CostReport';
+import CountsReport from './CountsReport';
 import '../../pages/Reports.css';
 
 const GROUPS = [
@@ -38,7 +40,21 @@ const GROUPS = [
       { key: 'outstanding', label: 'Outstanding & overdue', dates: false, property: true,
         noDatesReason: 'Shows all open work, whatever its age' },
       { key: 'tasks', label: 'Tasks', dates: true, property: true },
-      { key: 'observations', label: 'Observations', dates: true, property: true },
+      // Behind `costs`, not `reports` — a company_manager holds reports:read and
+      // must not see pay-rate-derived figures. `permission` filters the tab out;
+      // the endpoint 403s anyway if someone gets to it another way.
+      { key: 'costs', label: 'Costs', dates: true, property: true, permission: ['costs', 'read'] },
+    ],
+  },
+  {
+    // Its own group rather than two entries under Operations: what was counted
+    // is a different question from what got done, and the counts report is the
+    // one that grows — bunch, flower and shoot counts all land here.
+    key: 'observations',
+    label: 'Observations',
+    reports: [
+      { key: 'counts', label: 'Counts', dates: true, property: true },
+      { key: 'observations', label: 'Runs & coverage', dates: true, property: true },
     ],
   },
   {
@@ -64,11 +80,48 @@ const GROUPS = [
   },
 ];
 
-const ALL_REPORTS = GROUPS.flatMap((g) => g.reports.map((r) => ({ ...r, group: g.key })));
+export default function ReportsPanel({ companyName, initialReport, initialMetric }) {
+  // The CONTEXT's hasPermission, bound to the 5-tier userTypeRole. The
+  // standalone helper in shared/utils takes that same role, and passing
+  // `user.user_type` — the ROUTING key — returns false for everyone, which is
+  // how the Reports pill itself once failed to render at all.
+  const { hasPermission } = useAuth();
 
-export default function ReportsPanel({ companyName }) {
-  const [group, setGroup] = useState('operations');
-  const [report, setReport] = useState('work-by-block');
+  // Reports the caller may actually open. A report whose permission they lack
+  // is not a disabled tab: an empty Costs tab still tells a manager the report
+  // exists and that they are being kept out of it.
+  const groups = useMemo(
+    () => GROUPS
+      .map((g) => ({
+        ...g,
+        reports: g.reports.filter((r) => !r.permission || hasPermission(...r.permission)),
+      }))
+      .filter((g) => g.reports.length > 0),
+    [hasPermission],
+  );
+  const allReports = useMemo(
+    () => groups.flatMap((g) => g.reports.map((r) => ({ ...r, group: g.key }))),
+    [groups],
+  );
+
+  // A deep link names a report, not a group — the caller should not have to know
+  // which tab row it lives under. The group is resolved from it, and an unknown
+  // or forbidden report falls back to the default rather than showing an empty
+  // panel.
+  const landing = useMemo(() => {
+    const match = allReports.find((r) => r.key === initialReport);
+    return match || null;
+  }, [initialReport, allReports]);
+
+  const [group, setGroup] = useState(landing?.group || 'operations');
+  const [report, setReport] = useState(landing?.key || 'work-by-block');
+
+  // A second link arriving while the panel is already open must still move it.
+  useEffect(() => {
+    if (!landing) return;
+    setGroup(landing.group);
+    setReport(landing.key);
+  }, [landing]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [propertyId, setPropertyId] = useState('');
@@ -81,16 +134,16 @@ export default function ReportsPanel({ companyName }) {
   }, []);
 
   const active = useMemo(
-    () => ALL_REPORTS.find((r) => r.key === report) || ALL_REPORTS[0],
-    [report],
+    () => allReports.find((r) => r.key === report) || allReports[0],
+    [report, allReports],
   );
-  const activeGroup = GROUPS.find((g) => g.key === group) || GROUPS[0];
+  const activeGroup = groups.find((g) => g.key === group) || groups[0];
 
   // Switching group lands on that group's first report rather than leaving the
   // tab row highlighting nothing.
   const pickGroup = (key) => {
     setGroup(key);
-    const first = GROUPS.find((g) => g.key === key)?.reports[0];
+    const first = groups.find((g) => g.key === key)?.reports[0];
     if (first) setReport(first.key);
   };
 
@@ -152,7 +205,7 @@ export default function ReportsPanel({ companyName }) {
       )}
 
       <div className="reports-groups">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <button
             key={g.key}
             className={`reports-group ${group === g.key ? 'active' : ''}`}
@@ -179,6 +232,8 @@ export default function ReportsPanel({ companyName }) {
         {report === 'work-by-block' && <WorkByBlockReport startDate={startDate} endDate={endDate} {...common} />}
         {report === 'outstanding' && <OutstandingReport {...common} />}
         {report === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} {...common} />}
+        {report === 'costs' && <CostReport startDate={startDate} endDate={endDate} {...common} />}
+        {report === 'counts' && <CountsReport startDate={startDate} endDate={endDate} initialMetric={initialMetric} {...common} />}
         {report === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} {...common} />}
 
         {report === 'health-safety' && <HealthSafetyReport startDate={startDate} endDate={endDate} {...common} />}

@@ -352,6 +352,14 @@
 /* ── Notes ────────────────────────────────────────────────────────────── */
 /* Used where the DATA is the finding — "0 hours because nothing is logged
    against tasks" is a different message from "0 hours worked". */
+/* An in-table aside — why a figure is missing, sitting beside the gap it
+   explains. Quieter than the surrounding numbers on purpose: it is a caveat,
+   not a value. */
+.report-muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .report-note {
   margin: var(--space-sm) 0 var(--space-base);
   padding: var(--space-sm) var(--space-base);

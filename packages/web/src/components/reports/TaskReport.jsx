@@ -19,6 +19,10 @@ function TaskReport({ startDate, endDate, propertyId, propertyName, companyName 
   if (loading) return <div className="report-loading">Loading task report...</div>;
   if (!data) return <div className="report-empty">Unable to load task report</div>;
 
+  // Present only for a holder of `costs:read`; covers the COMPLETED tasks in
+  // range, since an open task has nothing to cost. A dash is not a zero.
+  const costs = data.costs;
+  const money = (n) => (n === null || n === undefined) ? '—' : `$${Number(n).toFixed(2)}`;
 
   const pdf = () => buildReportPdf({
     title: 'Task summary',
@@ -29,6 +33,7 @@ function TaskReport({ startDate, endDate, propertyId, propertyName, companyName 
       { label: 'Completion rate', value: `${data.completion_rate}%` },
       { label: 'Hours', value: data.total_hours },
       { label: 'Overdue', value: data.overdue_count, alert: true },
+      ...(costs ? [{ label: 'Cost of completed work', value: money(costs.total) }] : []),
     ],
     sections: [
       countSection('By status', data.by_status, 'status'),
@@ -66,7 +71,15 @@ function TaskReport({ startDate, endDate, propertyId, propertyName, companyName 
           <div className="report-stat-value report-stat-value--danger">{data.overdue_count}</div>
           <div className="report-stat-label">Overdue</div>
         </div>
+        {costs && (
+          <div className="report-stat">
+            <div className="report-stat-value">{money(costs.total)}</div>
+            <div className="report-stat-label">Cost of Completed Work</div>
+          </div>
+        )}
       </div>
+
+      {costs?.warning && <div className="report-note">{costs.warning}</div>}
 
       {data.by_status.length > 0 && (
         <div className="report-breakdown">

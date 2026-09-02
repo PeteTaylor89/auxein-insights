@@ -27,6 +27,19 @@ export default function WorkByBlockReport({ startDate, endDate, propertyId, prop
   if (loading) return <LoadingBlock label="work by block" />;
   if (failed || !data) return <ErrorBlock label="work by block" onRetry={load} />;
 
+  // Costs are absent from the payload entirely for anyone without `costs:read`,
+  // so their presence IS the permission check — there is nothing to hide here,
+  // only columns that do or do not exist. A null `total` inside a present
+  // `costs` object is a different thing: that task was never costed.
+  const showCosts = !!data.costs;
+  const currency = data.costs?.currency === 'NZD' ? '$' : '';
+  const money = (n) => (n === null || n === undefined) ? '—' : `${currency}${Number(n).toFixed(2)}`;
+  const moneyText = (n) => (n === null || n === undefined) ? '' : Number(n).toFixed(2);
+  const labour = (c) => {
+    const known = [c?.labour_staff, c?.labour_contractor].filter((v) => v !== null && v !== undefined);
+    return known.length ? known.reduce((a, b) => a + Number(b), 0) : null;
+  };
+
   // `text` is what the PDF prints; `render` is what the screen shows. Both hang
   // off the same column so the printed table cannot drift from the rendered one.
   const columns = [
@@ -59,6 +72,36 @@ export default function WorkByBlockReport({ startDate, endDate, propertyId, prop
       render: (r) => (r.hours_per_hectare === null ? '—' : fmtNum(r.hours_per_hectare)),
       text: (r) => (r.hours_per_hectare === null ? '' : fmtNum(r.hours_per_hectare)),
     },
+    ...(showCosts ? [
+      {
+        key: 'labour_cost',
+        label: 'Labour',
+        align: 'right',
+        render: (r) => money(labour(r.costs)),
+        text: (r) => moneyText(labour(r.costs)),
+      },
+      {
+        key: 'materials_cost',
+        label: 'Materials',
+        align: 'right',
+        render: (r) => money(r.costs?.consumables),
+        text: (r) => moneyText(r.costs?.consumables),
+      },
+      {
+        key: 'total_cost',
+        label: 'Total cost',
+        align: 'right',
+        render: (r) => money(r.costs?.total),
+        text: (r) => moneyText(r.costs?.total),
+      },
+      {
+        key: 'cost_per_hectare',
+        label: 'Cost / ha',
+        align: 'right',
+        render: (r) => money(r.cost_per_hectare),
+        text: (r) => moneyText(r.cost_per_hectare),
+      },
+    ] : []),
   ];
 
   const pdf = () => buildReportPdf({
@@ -69,14 +112,19 @@ export default function WorkByBlockReport({ startDate, endDate, propertyId, prop
       { label: 'Tasks completed', value: data.total_tasks },
       { label: 'Hours', value: fmtNum(data.total_hours) },
       { label: 'Area worked (ha)', value: fmtNum(data.total_area_worked, 2) },
-      { label: 'Blocks worked', value: data.blocks.length },
+      ...(showCosts
+        ? [{ label: 'Total cost', value: money(data.costs.total) }]
+        : [{ label: 'Blocks worked', value: data.blocks.length }]),
     ],
     sections: [{
       columns,
       rows: data.blocks,
-      note: data.total_hours === 0 && data.total_tasks > 0
-        ? 'No hours are recorded against these tasks. Labour comes from timesheet entries and contractor assignments linked to a task; until time is logged that way the hours columns stay at zero.'
-        : undefined,
+      note: [
+        data.total_hours === 0 && data.total_tasks > 0
+          ? 'No hours are recorded against these tasks. Labour comes from timesheet entries and contractor assignments linked to a task; until time is logged that way the hours columns stay at zero.'
+          : null,
+        showCosts ? data.costs.warning : null,
+      ].filter(Boolean).join(' ') || undefined,
     }],
     filename: 'work-by-block.pdf',
   });
@@ -95,8 +143,14 @@ export default function WorkByBlockReport({ startDate, endDate, propertyId, prop
         <Stat value={data.total_tasks} label="Tasks completed" />
         <Stat value={fmtNum(data.total_hours)} label="Hours" suffix="h" />
         <Stat value={fmtNum(data.total_area_worked, 2)} label="Area worked" suffix=" ha" />
-        <Stat value={data.blocks.length} label="Blocks worked" />
+        {showCosts
+          ? <Stat value={money(data.costs.total)} label="Total cost" />
+          : <Stat value={data.blocks.length} label="Blocks worked" />}
       </StatGrid>
+
+      {/* The cost total covers unallocated tasks too, so it can exceed the sum
+          of the rows below — same as the hours. */}
+      {showCosts && data.costs.warning && <ReportNote>{data.costs.warning}</ReportNote>}
 
       {data.total_hours === 0 && data.total_tasks > 0 && (
         <ReportNote>

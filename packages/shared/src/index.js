@@ -26,6 +26,20 @@ export {
   BLOCK_STATUS_ACTIVE,
   BLOCK_STATUS_PRODUCTIVE,
 } from './utils/blockStatus.js';
+export {
+  TIMESHEET_STATUS_META,
+  TIMESHEET_STATUS_VALUES,
+  TIMESHEET_DAY_EDITABLE,
+  isDayEditable,
+  canSubmitDay,
+  dayLockReason,
+  rejectionReason,
+} from './utils/timesheetStatus.js';
+export {
+  isStickyField,
+  nextSpotValues,
+  carriedFieldNames,
+} from './utils/observationSticky.js';
 
 // Hooks
 export { default as usePullToRefresh } from './hooks/usePullToRefresh.js';

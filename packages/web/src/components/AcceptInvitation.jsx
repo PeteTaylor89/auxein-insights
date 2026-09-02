@@ -3,9 +3,10 @@ import AppStoreBadges from './AppStoreBadges';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-// Roles that map to the mobile-only company_user account type. After setup
-// these users sign in through the app, not the web client.
-const MOBILE_ONLY_ROLES = ['user', 'viewer'];
+// Roles that map to a mobile-only account type (company_user, general_user).
+// After setup these users sign in through the app, not the web client — the
+// backend refuses them on /auth/login and on the temp-credential path.
+const MOBILE_ONLY_ROLES = ['user', 'general'];
 
 function AcceptInvitation() {
   // Get token from URL params
@@ -169,7 +170,7 @@ function AcceptInvitation() {
 
   // Success state
   if (success) {
-    // Mobile-only users (role "user"/"viewer") sign in through the app — make
+    // Mobile-only users (role "user"/"general") sign in through the app — make
     // that the explicit next step instead of sending them to the web login.
     if (isMobileOnlyRole) {
       return (

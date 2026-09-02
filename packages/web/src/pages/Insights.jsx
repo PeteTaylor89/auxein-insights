@@ -9,7 +9,7 @@ import PhenologyPanel from '../components/phenology/PhenologyPanel';
 import SprayProgramPanel from '../components/spray/SprayProgramPanel';
 import HelpTip from '../components/HelpTip';
 import ReportsPanel from '../components/reports/ReportsPanel';
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { Grape, ChartArea, User, Sprout, Bug, Lightbulb, ShieldCheck, Users, LibraryBig, CloudSunRain, ChartSpline, MapPinned, Droplets, FileText} from "lucide-react"
 import './Insights.css';
 
@@ -50,6 +50,29 @@ function Insights() {
       .then(data => setProperties(Array.isArray(data) ? data : []))
       .catch(() => setProperties([]));
   }, []);
+
+  // Deep links from elsewhere in Grow. The observation management page sends
+  // a run here with `?insight=reports&report=counts&metric=bud_count`; before
+  // this the page read NOTHING off the URL and every such link landed on the
+  // bare pill grid, which is indistinguishable from a broken link.
+  //
+  // Only opens a card the user can actually see, so a link forwarded to someone
+  // without the permission degrades to the normal page instead of an empty
+  // panel or a 403.
+  const [searchParams] = useSearchParams();
+  const requestedInsight = searchParams.get('insight');
+  const requestedReport = searchParams.get('report');
+  const requestedMetric = searchParams.get('metric');
+
+  useEffect(() => {
+    if (!requestedInsight) return;
+    const allowed = INSIGHT_CARDS.find(
+      (c) => c.key === requestedInsight
+        && (!c.permission || hasPermission(c.permission[0], c.permission[1])),
+    );
+    if (allowed) setActiveInsight(requestedInsight);
+    // hasPermission is stable via useCallback in the auth context.
+  }, [requestedInsight, hasPermission]);
 
   const selectedProperty = properties.find(p => String(p.id) === selectedPropertyId) || null;
 
@@ -117,7 +140,11 @@ function Insights() {
                 ×
               </button>
             </div>
-            <ReportsPanel companyName={company?.name} />
+            <ReportsPanel
+              companyName={company?.name}
+              initialReport={requestedReport}
+              initialMetric={requestedMetric}
+            />
           </div>
         );
       case 'climate':

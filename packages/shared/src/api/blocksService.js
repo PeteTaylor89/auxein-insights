@@ -92,6 +92,26 @@ const blocksService = {
     const response = await api.get('/blocks/company');
     return response.data;
   },
+
+  // ---- Spreadsheet round-trip ----
+  //
+  // A separate endpoint from getCompanyBlocks on purpose: that response omits
+  // `notes`, and a writable column missing from an export comes back as a blank
+  // cell, which CLEARS the field. /blocks/export is defined alongside the
+  // import allowlist so the two cannot drift.
+  //
+  // Returns { blocks, unnamed_count }. Blocks with no name are excluded — the
+  // file is keyed on block_name and a nameless block has nothing to match on.
+  exportBlocks: async () => {
+    const response = await api.get('/blocks/export');
+    return response.data;
+  },
+
+  // Update-only. A CSV cannot draw a boundary, so it never creates a block.
+  importBlocks: async (payload) => {
+    const response = await api.post('/blocks/import', payload);
+    return response.data;
+  },
   
   // Delete a block (if you have this endpoint)
   deleteBlock: async (blockId) => {

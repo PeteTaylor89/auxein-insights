@@ -16,17 +16,31 @@ import {
   Settings,
   TrendingUp,
   Sliders,
-  Upload,
+  Table2,
 } from 'lucide-react';
-import { assetService, authService } from '@vineyard/shared';
+import { assetService, authService, propertyService, costsService, useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import HelpTip from '../components/HelpTip';
 import QuickStockAdjustment from '../components/QuickStockAdjustment';
-import AssetImportModal from '../components/assets/AssetImportModal';
+import CsvSyncModal from '../components/csv/CsvSyncModal';
+import { EQUIPMENT_CSV_SPEC, CONSUMABLE_CSV_SPEC } from '../components/csv/assetCsvSpecs';
 import CalibrationsTab from './Calibrations';
 import './AssetsDashboard.css';
 
 const VALID_TABS = new Set(['equipment', 'consumables', 'maintenance', 'calibrations']);
+
+// The tabs page their tables at 100 rows. The spreadsheet export has to be the
+// WHOLE register or a re-upload diffs against a partial list, so it fetches
+// separately with a ceiling well above any real asset count.
+const CSV_FETCH_LIMIT = 5000;
+
+// The spreadsheet shows a property NAME, never a property_id. Resolving the
+// name against the caller's own visible list is what makes naming another
+// company's property unexpressable rather than merely rejected — there is no
+// id to type in the first place.
+const fetchCsvContext = async () => ({
+  properties: await propertyService.listProperties().catch(() => []),
+});
 
 export default function AssetsDashboard() {
   const navigate = useNavigate();
@@ -182,6 +196,13 @@ function StatCard({ label, value, color, icon }) {
 
 function EquipmentTab({ StatusBadge }) {
   const navigate = useNavigate();
+  // Operating rates are cost data and do NOT ride on the asset payload: every
+  // field user can read an asset, and an hourly run cost combined with task
+  // hours says what a job cost. So the register asks the costs endpoint for
+  // them separately, and only when the viewer is allowed to have them.
+  const { hasPermission } = useAuth();
+  const canSeeCosts = hasPermission('costs', 'read');
+  const [rates, setRates] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [equipment, setEquipment] = useState([]);
@@ -212,6 +233,20 @@ function EquipmentTab({ StatusBadge }) {
     return () => { mounted = false; };
   }, [reloadKey]);
 
+  // Rates load separately and never block the register. A 403 here is a normal
+  // answer for anyone below admin, and equipment must still list without them.
+  useEffect(() => {
+    if (!canSeeCosts) { setRates({}); return; }
+    let mounted = true;
+    costsService.getEquipmentRates()
+      .then(rows => {
+        if (!mounted) return;
+        setRates(Object.fromEntries((rows || []).map(r => [r.asset_id, r.hourly_operating_rate])));
+      })
+      .catch(() => { if (mounted) setRates({}); });
+    return () => { mounted = false; };
+  }, [canSeeCosts, reloadKey]);
+
   const filtered = equipment.filter(item => {
     if (searchQuery && !item.name?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (categoryFilter && item.category !== categoryFilter) return false;
@@ -228,7 +263,7 @@ function EquipmentTab({ StatusBadge }) {
         <span className="help-tip-head"><h2>Equipment & Vehicles ({filtered.length})</h2><HelpTip topic="assets.equipment" /></span>
         <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
           <button className="ad-btn-accent" onClick={() => setImportOpen(true)}>
-            <Upload size={14} /> Import CSV
+            <Table2 size={14} /> Spreadsheet
           </button>
           <button className="ad-btn-primary" onClick={() => navigate('/assets/equipment/new')}>
             <Plus size={14} /> Register Equipment
@@ -236,11 +271,17 @@ function EquipmentTab({ StatusBadge }) {
         </div>
       </div>
 
-      <AssetImportModal
-        mode="equipment"
+      <CsvSyncModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={() => setReloadKey(k => k + 1)}
+        spec={EQUIPMENT_CSV_SPEC}
+        // fetchRecords deliberately re-queries rather than reusing the `equipment`
+        // state above: that list is capped at 100 for the table, and diffing an
+        // upload against a truncated list reports real assets as "not in this list".
+        fetchRecords={() => assetService.listAssets({ asset_type: 'physical', limit: CSV_FETCH_LIMIT })}
+        fetchContext={fetchCsvContext}
+        submit={(payload) => assetService.importAssets(payload)}
+        onApplied={() => setReloadKey(k => k + 1)}
       />
 
       <div className="ad-filters">
@@ -269,6 +310,8 @@ function EquipmentTab({ StatusBadge }) {
                 <th>Name</th>
                 <th>Category</th>
                 <th>Make/Model</th>
+                {canSeeCosts && <th className="right">Run cost /h</th>}
+                {canSeeCosts && <th className="right">Hours</th>}
                 <th className="center">Status</th>
                 <th className="center">Location</th>
                 <th className="right">Actions</th>
@@ -283,6 +326,21 @@ function EquipmentTab({ StatusBadge }) {
                   <td className="muted">
                     {item.make && item.model ? `${item.make} ${item.model}` : item.make || item.model || '—'}
                   </td>
+                  {canSeeCosts && (
+                    <td className="right">
+                      {/* "Not set" rather than a dash or 0.00: an unrated machine
+                          is UNCOSTED, and a zero would say the tractor runs for
+                          free and enter a task total as a fact. */}
+                      {rates[item.id] == null
+                        ? <span className="muted">Not set</span>
+                        : `$${Number(rates[item.id]).toFixed(2)}`}
+                    </td>
+                  )}
+                  {canSeeCosts && (
+                    <td className="right">
+                      {item.current_hours == null ? '—' : Number(item.current_hours).toFixed(1)}
+                    </td>
+                  )}
                   <td className="center"><StatusBadge status={item.status} /></td>
                   <td className="center">{item.location_label || '—'}</td>
                   <td className="right">
@@ -369,7 +427,7 @@ function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
         <span className="help-tip-head"><h2>Consumables ({filtered.length})</h2><HelpTip topic="assets.consumables" /></span>
         <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
           <button className="ad-btn-accent" onClick={() => setImportOpen(true)}>
-            <Upload size={14} /> Import CSV
+            <Table2 size={14} /> Spreadsheet
           </button>
           <button className="ad-btn-primary" onClick={() => navigate('/assets/consumables/new')}>
             <Plus size={14} /> Register Consumable
@@ -377,11 +435,14 @@ function ConsumablesTab({ StatusBadge, onQuickAdjust }) {
         </div>
       </div>
 
-      <AssetImportModal
-        mode="consumable"
+      <CsvSyncModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={() => setReloadKey(k => k + 1)}
+        spec={CONSUMABLE_CSV_SPEC}
+        fetchRecords={() => assetService.listAssets({ asset_type: 'consumable', limit: CSV_FETCH_LIMIT })}
+        fetchContext={fetchCsvContext}
+        submit={(payload) => assetService.importAssets(payload)}
+        onApplied={() => setReloadKey(k => k + 1)}
       />
 
       <div className="ad-filters">

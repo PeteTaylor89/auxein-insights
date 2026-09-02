@@ -109,8 +109,13 @@ function InvitationForm({ onInvitationSent, companyStats }) {
               <option value="user">User</option>
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
-              <option value="viewer">Viewer</option>
+              <option value="general">General (H&amp;S)</option>
             </select>
+            {formData.role === 'general' && (
+              <p className="form-hint">
+                Site sign-on, incidents and visitors. Mobile app only.
+              </p>
+            )}
           </div>
         </div>
 

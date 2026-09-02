@@ -897,6 +897,75 @@
   color: var(--color-text);
 }
 
+/* A run's own figures, expanded under its row. Same numbers as the Counts
+   report, so it is styled as a quiet inset rather than a second table
+   competing with the one above it. */
+.od-run-summary-row td {
+  padding: 0;
+  background: var(--color-surface-warm);
+}
+
+.od-run-summary {
+  padding: var(--space-md) var(--space-base);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.od-run-summary-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
+
+.od-run-figure { min-width: 84px; }
+
+.od-run-figure-value {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.od-run-figure-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.od-run-summary-note {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* Delete confirmation — narrower than the preview modal, because it is three
+   sentences and two buttons, not a form. */
+.od-modal--confirm { width: min(460px, 95vw); }
+
+.od-confirm-body {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.od-confirm-warn {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.od-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-base);
+}
+
 /* Search input standalone */
 .od-search {
   display: flex;

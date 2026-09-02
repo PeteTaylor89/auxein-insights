@@ -124,6 +124,25 @@ const tasksService = {
     return res.data;
   },
 
+  // Everything attached to a task — equipment AND consumables — in one call.
+  // The equipment-check and consumables endpoints each serve one modal; this is
+  // the read surface for the task page, and the only one that shows what was
+  // ACTUALLY used once a task is done.
+  //
+  // Cost fields appear only for a caller holding `costs:read`; `shows_costs`
+  // on the response says whether they did.
+  getTaskAssets: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/assets`);
+    return res.data;
+  },
+
+  // Refused with 409 once a quantity has been used — the stock movement
+  // recording it would be left pointing at a task that no longer claims it.
+  removeTaskAsset: async (taskId, taskAssetId) => {
+    const res = await api.delete(`/tasks/tasks/${taskId}/assets/${taskAssetId}`);
+    return res.data;
+  },
+
   addTaskAsset: async (taskId, payload) => {
     const res = await api.post(`/tasks/tasks/${taskId}/assets`, payload);
     return res.data;

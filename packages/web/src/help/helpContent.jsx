@@ -519,6 +519,24 @@ export const HELP_CONTENT = {
       />
     ),
   },
+  'manage.costs': {
+    title: 'Costs',
+    body: (
+      <Help
+        intro="What labour costs, and what to assume where a figure is missing. Company admins only — a task cost plus its hours reveals an hourly rate."
+        items={[
+          'Record a pay rate from a date, so past work keeps the rate that applied then',
+          'Set the on-cost multiplier for holiday pay, ACC and KiwiSaver',
+          'Set the standard day, used to cost contractors on a daily rate',
+          'Set a default rate for anyone without one on file',
+        ]}
+        tip={[
+          'Record a NEW rate for a pay change rather than editing the old one — editing rewrites what someone was paid instead of recording that it changed.',
+          'A missing rate shows as Not set, never as $0.00. A task with unrated staff reports as incompletely costed rather than costed too low.',
+        ]}
+      />
+    ),
+  },
   'manage.relationships': {
     title: 'Relationships',
     body: (

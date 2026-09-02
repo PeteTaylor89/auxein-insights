@@ -40,6 +40,20 @@ const observationService = {
     return res.data;
   },
 
+  // HARD delete — the run AND every spot captured in it, cascaded in the
+  // database and unrecoverable. Cancel is the soft one; use that for a run that
+  // simply will not happen.
+  //
+  // Without `force` the server refuses a run that holds spots, answering 409
+  // with the count. That is deliberate: the caller has to have SEEN the number
+  // before it can delete the data behind it.
+  deleteRun: async (runId, { force = false } = {}) => {
+    const res = await api.delete(`/observations/api/observation-runs/${runId}`, {
+      params: force ? { force: true } : undefined,
+    });
+    return res.data;
+  },
+
   // Templates
   getTemplate: async (id) => (await api.get(`/observations/api/observation-templates/${id}`)).data,
 

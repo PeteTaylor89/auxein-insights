@@ -6,6 +6,7 @@ import RiskHazardChips from '../components/risks/RiskHazardChips';
 import { tasksService, taskRowService, byNatural } from '@vineyard/shared';
 import { useAuth } from '@vineyard/shared';
 import RowProgressPanel from '../components/tasks/RowProgressPanel';
+import TaskAssetsPanel from '../components/tasks/TaskAssetsPanel';
 import SubTaskPanel from '../components/tasks/SubTaskPanel';
 import { TaskStatusBadge } from '../components/TaskManagement';
 import '../pages/vineyard-pages.css';
@@ -89,6 +90,16 @@ function TaskDetail() {
   const [consumables, setConsumables] = useState([]);
   const [consumableActuals, setConsumableActuals] = useState({});
   const [completionNotes, setCompletionNotes] = useState('');
+  // Labour hours at completion. Web has never had this box — only mobile did —
+  // so a task finished from a desk logged no time at all: no timesheet entry,
+  // and no hours for the machine that ran, which is most of why costing reads
+  // empty for office-completed work.
+  const [hoursWorked, setHoursWorked] = useState('');
+  // The task's machines, and the hours typed against each, keyed by
+  // task_asset_id. EMPTY is not zero: a blank primary row inherits the labour
+  // hours server-side, a blank secondary row records nothing.
+  const [equipmentItems, setEquipmentItems] = useState([]);
+  const [equipmentActuals, setEquipmentActuals] = useState({});
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
 
@@ -264,13 +275,36 @@ function TaskDetail() {
       }
       setConsumableActuals(actuals);
       setCompletionNotes('');
+      setHoursWorked('');
+      setEquipmentActuals({});
+      await loadCompletionEquipment();
       setShowComplete(true);
     } catch {
       // No consumables endpoint — just show basic completion
       setConsumables([]);
       setConsumableActuals({});
       setCompletionNotes('');
+      setHoursWorked('');
+      setEquipmentActuals({});
+      await loadCompletionEquipment();
       setShowComplete(true);
+    }
+  };
+
+  // Machines attached to the task. Fetched when the dialog opens rather than
+  // with the page: TaskAssetsPanel loads its own copy for display, and pulling
+  // a second one on every render of a task nobody is completing is waste.
+  // Failure is non-fatal — completion must not be blocked by a missing list.
+  const loadCompletionEquipment = async () => {
+    try {
+      const data = await tasksService.getTaskAssets(taskId);
+      const all = Array.isArray(data?.assets) ? data.assets : [];
+      setEquipmentItems(
+        all.filter(a => !a.is_consumable)
+          .sort((a, b) => (a.role === 'primary' ? -1 : 0) - (b.role === 'primary' ? -1 : 0)),
+      );
+    } catch {
+      setEquipmentItems([]);
     }
   };
 
@@ -289,6 +323,24 @@ function TaskDetail() {
           batch_number: consumableActuals[c.task_asset_id]?.batch_number || null,
         }));
       }
+
+      const hrs = parseFloat(hoursWorked);
+      if (!isNaN(hrs) && hrs > 0) {
+        // Quarter-hour increments, matching mobile and the timesheet's own rule.
+        // Rounding here beats a 422 the person has to decode.
+        payload.hours_worked = Math.round(hrs * 4) / 4;
+      }
+
+      // Only rows actually typed into. A blank row is omitted on purpose so the
+      // server's rule still applies: primary inherits the labour hours,
+      // secondary records nothing.
+      const machineHours = equipmentItems
+        .map(a => ({ task_asset_id: a.task_asset_id, raw: equipmentActuals[a.task_asset_id] }))
+        .filter(e => String(e.raw ?? '').trim() !== '')
+        .map(e => ({ task_asset_id: e.task_asset_id, actual_hours: parseFloat(e.raw) }))
+        .filter(e => !isNaN(e.actual_hours) && e.actual_hours >= 0 && e.actual_hours <= 24);
+      if (machineHours.length > 0) payload.equipment_actuals = machineHours;
+
       await tasksService.completeTask(taskId, payload);
       setShowComplete(false);
       await loadTask();
@@ -516,6 +568,12 @@ function TaskDetail() {
           <RowProgressPanel taskId={parseInt(taskId)} canEdit={canEdit} task={task} />
         )}
 
+        {/* What this task uses. Before this, equipment was visible only in the
+            pre-start check and consumables only in the completion dialog, so
+            mid-task there was nothing to look at and after completion the
+            recorded quantities were never rendered anywhere. */}
+        <TaskAssetsPanel taskId={parseInt(taskId)} taskStatus={task.status} canEdit={canEdit} />
+
         {/* Rolled-up issues, shown in the same rows idiom. Self-hides on a task
             that has no children, so ordinary tasks are unaffected. */}
         <SubTaskPanel task={task} canEdit={canEdit} />
@@ -707,6 +765,80 @@ function TaskDetail() {
                             />
                           </label>
                         </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="td-hours-section">
+                <label className="td-hours-label">Hours worked</label>
+                <div className="td-hours-row">
+                  <input
+                    type="number"
+                    step="0.25"
+                    min="0"
+                    max="24"
+                    className="td-input td-hours-input"
+                    value={hoursWorked}
+                    onChange={(e) => setHoursWorked(e.target.value)}
+                    placeholder="0.00"
+                  />
+                  <div className="td-hours-chips">
+                    {['0.5', '1', '2', '4', '8'].map(h => (
+                      <button
+                        key={h}
+                        type="button"
+                        className="td-hours-chip"
+                        onClick={() => setHoursWorked(h)}
+                      >
+                        {h}h
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="td-hours-hint">
+                  Quarter-hour increments. Adds an entry to your timesheet for today.
+                </div>
+              </div>
+
+              {/* Machine hours. The API has always accepted these and no client
+                  ever sent them, so an implement could never be costed and its
+                  hour meter never moved. A blank box keeps the server's rule:
+                  primary inherits the hours above, secondary records none. */}
+              {equipmentItems.length > 0 && (
+                <div className="td-hours-section">
+                  <label className="td-hours-label">Machine hours</label>
+                  {equipmentItems.map(a => {
+                    const primary = a.role === 'primary';
+                    const h = parseFloat(hoursWorked);
+                    const inherited = !isNaN(h) && h > 0 ? (Math.round(h * 4) / 4).toFixed(2) : null;
+                    return (
+                      <div key={a.task_asset_id} className="td-machine-row">
+                        <div className="td-machine-name">
+                          {a.asset_name}
+                          <span className="td-consumable-meta">
+                            {primary
+                              ? (inherited
+                                ? `Primary — ${inherited} h unless you change it`
+                                : 'Primary — matches hours worked')
+                              : 'Secondary — no hours unless entered'}
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          max="24"
+                          className="td-input td-machine-input"
+                          value={equipmentActuals[a.task_asset_id] ?? ''}
+                          onChange={(e) => setEquipmentActuals(prev => ({
+                            ...prev,
+                            [a.task_asset_id]: e.target.value,
+                          }))}
+                          placeholder={primary ? (inherited || '0.00') : '0.00'}
+                          aria-label={`Machine hours for ${a.asset_name}`}
+                        />
                       </div>
                     );
                   })}

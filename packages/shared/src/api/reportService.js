@@ -67,6 +67,39 @@ const reportService = {
   exportTasks: (startDate, endDate, propertyId) =>
     download('tasks/export', dateParams(startDate, endDate, propertyId), 'tasks_report.csv'),
 
+  // Costs sit behind their own permission (`costs`, admin only), not `reports`.
+  // A 403 here is the expected answer for a company_manager, so callers must
+  // treat it as "not for you" rather than a failure to load.
+  getCostSummary: (startDate, endDate, propertyId) =>
+    get('costs/summary', dateParams(startDate, endDate, propertyId)),
+  // Two tables in one report, so the export names the one it wants.
+  exportCosts: (startDate, endDate, propertyId, section = 'operations') =>
+    download(
+      'costs/export',
+      { ...dateParams(startDate, endDate, propertyId), section },
+      `costs_by_${section}.csv`,
+    ),
+
+  // Bud / bunch / flower / shoot counts, aggregated per block and per run.
+  // `reports:read` like the rest of the module — a count is not cost data.
+  // `runId` narrows to a single run and is how the observation management page
+  // shows a run its own figures. With a runId and no metric the server infers
+  // the metric from the run's template, so a caller holding a run does not have
+  // to know what it measures.
+  getCountSummary: (metric, startDate, endDate, propertyId, runId) =>
+    get('counts/summary', {
+      ...(metric ? { metric } : {}),
+      ...(runId ? { run_id: runId } : {}),
+      ...dateParams(startDate, endDate, propertyId),
+    }),
+  // Two tables in one report, so the export names the one it wants.
+  exportCounts: (metric, startDate, endDate, propertyId, section = 'blocks') =>
+    download(
+      'counts/export',
+      { metric, section, ...dateParams(startDate, endDate, propertyId) },
+      `${metric}_by_${section}.csv`,
+    ),
+
   getObservationSummary: (startDate, endDate, propertyId) =>
     get('observations/summary', dateParams(startDate, endDate, propertyId)),
   exportObservations: (startDate, endDate, propertyId) =>

@@ -402,6 +402,55 @@
 .ts-totals-info { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .ts-uncoded-hours { font-size: var(--font-size-xs); color: var(--color-warning); font-weight: 500; }
 
+/* The day total is derived (coded + uncoded), so it is read-only by design.
+   Styled as a figure rather than a field so nobody tries to type in it. */
+.ts-totals-derived {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Uncoded-time entry — the only hours figure a person types. */
+.ts-uncoded-field { display: flex; flex-direction: column; gap: 2px; }
+
+.ts-uncoded-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.ts-day-hours-input--bad { border-color: var(--color-danger-text); }
+
+.ts-uncoded-problem {
+  font-size: 10px;
+  color: var(--color-danger-text);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Why a day is locked, or why it came back. Sits above the day's controls so
+   the explanation arrives before the disabled inputs, not after. */
+.ts-day-notice {
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: left;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-warm);
+  color: var(--color-text-muted);
+}
+
+.ts-day-notice--rejected {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  font-weight: 500;
+}
+
 /* Status badge */
 .ts-badge {
   display: inline-block;

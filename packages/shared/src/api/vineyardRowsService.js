@@ -45,6 +45,23 @@ const vineyardRowsService = {
   },
   
   // Get all rows for a specific block
+  // ---- Spreadsheet round-trip ----
+  //
+  // Not getAllRows: that one caps at limit=1000 and Greystone alone holds 1281
+  // rows. An export truncated at 1000 would diff the missing 281 as "not in
+  // this list", and ticking "skip invalid" would then quietly drop them.
+  exportRows: async (params = {}) => {
+    const response = await api.get('/vineyard_rows/export', { params });
+    return response.data;
+  },
+
+  // Creates as well as updates — a row needs no geometry, so a spreadsheet can
+  // legitimately bring a block's whole row set into existence.
+  importRows: async (payload) => {
+    const response = await api.post('/vineyard_rows/import', payload);
+    return response.data;
+  },
+
   getRowsByBlock: async (blockId) => {
     const response = await api.get(`/vineyard_rows/by-block/${blockId}`);
     return response.data;

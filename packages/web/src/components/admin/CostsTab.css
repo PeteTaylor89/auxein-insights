@@ -1,0 +1,176 @@
+/* components/admin/CostsTab.css — pay rates and cost settings. */
+
+.ct-alert {
+  margin-bottom: var(--space-md);
+  align-items: flex-start;
+  font-size: var(--font-size-sm);
+}
+
+.ct-gaps ul {
+  margin: var(--space-xs) 0 0;
+  padding-left: var(--space-base);
+}
+.ct-gaps li { margin-bottom: 2px; }
+
+/* ---- section headings ---- */
+.ct-subhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0 var(--space-xs);
+  flex-wrap: wrap;
+}
+.ct-subhead h3 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+/* ---- assumptions form ---- */
+.ct-settings {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  background: var(--color-surface-warm);
+}
+.ct-settings .ct-subhead { margin-top: 0; }
+
+.ct-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.ct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ct-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ct-help {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+/* ---- rate cells ---- */
+.ct-rate {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Not set" must never look like a number. Missing is not zero. */
+.ct-unset {
+  font-size: var(--font-size-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.ct-source {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.ct-current {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+.ct-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+/* ---- modals ---- */
+.ct-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 950;
+  padding: var(--space-lg);
+}
+
+.ct-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-lg);
+  width: min(480px, 100%);
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family);
+}
+.ct-modal--wide { width: min(680px, 100%); }
+
+.ct-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+.ct-modal-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+/* padding:0 — the global button rule would clip the icon otherwise. */
+.ct-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.ct-close:hover { background: var(--color-surface-warm); color: var(--color-text); }
+
+.ct-modal-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.ct-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.ct-spin { animation: ct-spin 1s linear infinite; }
+@keyframes ct-spin { to { transform: rotate(360deg); } }

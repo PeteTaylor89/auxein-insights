@@ -25,7 +25,24 @@ const timesheetsService = {
 
   updateDay: async (id, data) => {
     // data: { day_hours?, notes? } (PATCH)
+    //
+    // `day_hours` here is the LEGACY path. It goes through the model's
+    // set_day_hours, which expresses a typed total as "uncoded = total minus
+    // whatever is already coded" — a number that disagrees with reality the
+    // moment the next task completion lands. Send notes through this; send
+    // hours through setUncodedHours below.
     const response = await api.patch(`/timesheets/days/${id}`, data);
+    return response.data;
+  },
+
+  // The only hours figure a user enters. The day total is
+  // entry_hours + uncoded_hours and is computed server-side, so there is
+  // nothing to roll up and nothing to keep in agreement.
+  //
+  // This mirrors mobile's timesheets.setUncodedHours. Web had no method for it
+  // at all, which is why it was still writing the legacy day_hours field.
+  setUncodedHours: async (id, hours) => {
+    const response = await api.patch(`/timesheets/days/${id}/uncoded`, { hours });
     return response.data;
   },
 

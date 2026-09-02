@@ -1,0 +1,318 @@
+/* components/csv/CsvSyncModal.css — shared by the asset, block and row
+   spreadsheet round-trip. Adapted from the asset-only importer it replaces. */
+
+.csvm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 950;
+  padding: var(--space-lg);
+}
+
+.csvm-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-lg);
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family);
+}
+
+.csvm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.csvm-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+/* padding:0 — the global button rule would clip the icon otherwise. */
+.csvm-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.csvm-close:hover { background: var(--color-surface-warm); color: var(--color-text); }
+
+.csvm-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ---- numbered steps ---- */
+.csvm-step {
+  display: flex;
+  gap: var(--space-md);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.csvm-step:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.csvm-step-n {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.csvm-step-body { flex: 1; min-width: 0; }
+
+.csvm-step-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.csvm-hint {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+.csvm-hint code {
+  background: var(--color-surface-warm);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.csvm-btn-row {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.csvm-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-warm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  text-align: center;
+}
+.csvm-drop:hover { border-color: var(--color-primary); color: var(--color-text); }
+.csvm-drop input { display: none; }
+
+.csvm-alert {
+  margin-bottom: var(--space-md);
+  align-items: flex-start;
+  font-size: var(--font-size-sm);
+}
+
+/* ---- change preview ---- */
+.csvm-totals {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+
+.csvm-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-warm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+.csvm-pill--add {
+  background: var(--color-success-bg);
+  border-color: var(--color-success-text);
+  color: var(--color-success-text);
+}
+.csvm-pill--edit {
+  background: var(--color-info-bg, var(--color-surface-warm));
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.csvm-pill--bad {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-text);
+  color: var(--color-danger-text);
+}
+
+.csvm-changes {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.csvm-change {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.csvm-change:last-child { border-bottom: none; }
+
+.csvm-change-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: 4px;
+}
+
+.csvm-tag {
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.csvm-tag--create { background: var(--color-success-bg); color: var(--color-success-text); }
+.csvm-tag--update { background: var(--color-surface-warm); color: var(--color-primary); }
+
+.csvm-change-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csvm-change-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+}
+.csvm-change-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  color: var(--color-text-muted);
+  flex-wrap: wrap;
+}
+.csvm-field { font-weight: 600; color: var(--color-text); min-width: 110px; }
+.csvm-from { text-decoration: line-through; opacity: 0.7; }
+.csvm-to { font-weight: 600; color: var(--color-text); }
+.csvm-muted { opacity: 0.75; font-style: italic; }
+
+.csvm-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.csvm-more {
+  padding: 6px 10px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* ---- errors ---- */
+.csvm-errors {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-danger-text);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-bg);
+}
+.csvm-errors-title {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-xs);
+  color: var(--color-danger-text);
+}
+.csvm-errors ul {
+  margin: 0;
+  padding-left: var(--space-base);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+}
+.csvm-errors li { margin-bottom: 2px; }
+
+.csvm-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+/* ---- actions ---- */
+.csvm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.csvm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.csvm-btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+.csvm-btn--accent {
+  background: var(--color-surface-warm);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.csvm-btn--ghost { background: transparent; color: var(--color-text-muted); }
+.csvm-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.csvm-spin { animation: csvm-spin 1s linear infinite; }
+@keyframes csvm-spin { to { transform: rotate(360deg); } }
+
+.csvm-notice { margin-top: var(--space-sm); margin-bottom: 0; }

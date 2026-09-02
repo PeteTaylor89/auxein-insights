@@ -515,6 +515,61 @@
 .td-form { display: grid; gap: var(--space-md); }
 .td-form-row { display: grid; gap: var(--space-md); grid-template-columns: 1fr 1fr; }
 
+/* Hours worked + machine hours, in the completion dialog */
+.td-hours-section { margin-bottom: var(--space-md); }
+
+.td-hours-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.td-hours-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.td-hours-input { width: 100px; text-align: right; }
+
+.td-hours-chips { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+
+/* Padding is set explicitly: the global button rule pads every button and
+   would otherwise stretch these into full-size controls. */
+.td-hours-chip {
+  padding: 2px var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-warm);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.td-hours-chip:hover { border-color: var(--color-primary); }
+
+.td-hours-hint {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.td-machine-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0;
+}
+
+.td-machine-name { font-weight: 500; }
+
+.td-machine-input { width: 100px; text-align: right; }
+
 /* Completion notes */
 .td-notes-section { margin-bottom: var(--space-md); }
 

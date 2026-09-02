@@ -1,0 +1,336 @@
+/* components/tasks/TaskAssetsPanel.css */
+
+.tap-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+  font-family: var(--font-family);
+}
+
+.tap-loading {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* padding is explicit — the global button rule would otherwise pad this
+   full-width header row unevenly. */
+.tap-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text);
+  font-family: var(--font-family);
+}
+.tap-head h3 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+.tap-count {
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.tap-body {
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+
+.tap-alert {
+  margin-bottom: var(--space-md);
+  align-items: flex-start;
+  font-size: var(--font-size-sm);
+}
+
+.tap-empty {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* ---- sections ---- */
+.tap-section { margin-bottom: var(--space-md); }
+
+.tap-section-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-xs);
+}
+
+/* ---- rows ---- */
+.tap-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.tap-row--warn {
+  border-color: var(--color-warning-text, var(--color-warning));
+  background: var(--color-warning-bg);
+}
+
+.tap-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  flex: 1 1 180px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.tap-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.tap-sub {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.tap-tag {
+  padding: 1px 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+/* ---- figures ---- */
+.tap-figures {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  font-size: var(--font-size-xs);
+}
+
+.tap-fig {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tap-fig-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+/* "not yet recorded" and "not costed" must never read like a number. */
+.tap-pending {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.tap-var {
+  padding: 1px 6px;
+  border-radius: var(--radius-pill, 999px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tap-var--over { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.tap-var--under { background: var(--color-surface-warm); color: var(--color-text-muted); }
+
+.tap-overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--color-danger-text);
+}
+.tap-ok { color: var(--color-text-muted); }
+
+/* padding:0 — the global button rule clips the icon otherwise. */
+.tap-remove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.tap-remove:hover { color: var(--color-danger-text); border-color: var(--color-danger-text); }
+
+/* ---- total ---- */
+.tap-total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+.tap-total strong { font-variant-numeric: tabular-nums; }
+.tap-total-warn {
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  color: var(--color-warning-text);
+}
+
+.tap-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.tap-add:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+/* ---- modal ---- */
+.tap-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 950;
+  padding: var(--space-lg);
+}
+
+.tap-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-lg);
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  display: flex;
+  flex-direction: column;
+}
+
+.tap-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+.tap-modal-head h3 { margin: 0; font-size: var(--font-size-base); font-weight: 700; }
+
+.tap-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tap-modal-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.tap-kind { display: flex; gap: var(--space-xs); }
+
+.tap-kind-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.tap-kind-btn.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-surface-warm);
+}
+
+.tap-field { display: flex; flex-direction: column; gap: 4px; }
+.tap-label { font-size: var(--font-size-sm); font-weight: 600; }
+.tap-help { font-size: var(--font-size-xs); color: var(--color-text-muted); line-height: 1.45; }
+
+.tap-input {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+.tap-input:focus { outline: none; border-color: var(--color-primary); }
+
+.tap-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.tap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.tap-btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.tap-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.tap-spin { animation: tap-spin 1s linear infinite; }
+@keyframes tap-spin { to { transform: rotate(360deg); } }

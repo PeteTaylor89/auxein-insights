@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@vineyard/shared';
-import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3, CreditCard, ShieldCheck } from 'lucide-react';
+import { Settings, Users, UserPlus, MapPinned, Clock, GraduationCap, Link2, Grape, CloudSun, Calendar, BarChart3, Copy, RefreshCw, Plus, Trash2, Check, X, Save, MapPin, Handshake, Grid3x3, Pencil, Rows3, CreditCard, ShieldCheck, Table2, DollarSign } from 'lucide-react';
 import { companyAdminService, propertyService, usersService, blocksService, vineyardRowsService, byNatural, BLOCK_STATUS_OPTIONS, BLOCK_STATUS_DEFAULT } from '@vineyard/shared';
 import CompanyUserManagement from '../components/admin/CompanyUserManagement';
 import InvitationForm from '../components/admin/InvitationForm';
@@ -14,6 +14,9 @@ import ForecastPointPicker from '../components/ForecastPointPicker';
 import BlockStatusBadge from '../components/BlockStatusBadge';
 import FeedbackModal from '../components/FeedbackModal';
 import HelpTip from '../components/HelpTip';
+import CostsTab from '../components/admin/CostsTab';
+import CsvSyncModal from '../components/csv/CsvSyncModal';
+import { BLOCK_CSV_SPEC, ROW_CSV_SPEC } from '../components/csv/growCsvSpecs';
 import './CompanyAdmin.css';
 
 const TABS = [
@@ -23,6 +26,7 @@ const TABS = [
   { key: 'blocks', label: 'Blocks', icon: Grid3x3 },
   { key: 'relationships', label: 'Relationships', icon: Handshake },
   { key: 'timesheets', label: 'Timesheets', icon: Clock },
+  { key: 'costs', label: 'Costs', icon: DollarSign },
   { key: 'training', label: 'Training', icon: GraduationCap },
   { key: 'aliases', label: 'Aliases', icon: Link2 },
   { key: 'grapelink', label: 'GrapeLink', icon: Grape },
@@ -104,6 +108,7 @@ function CompanyAdmin() {
           {activeTab === 'blocks' && <BlocksTab />}
           {activeTab === 'relationships' && <RelationshipsTab />}
           {activeTab === 'timesheets' && <TimesheetsTab />}
+          {activeTab === 'costs' && <CostsTab />}
           {activeTab === 'training' && <TrainingTab />}
           {activeTab === 'aliases' && <AliasesTab />}
           {activeTab === 'grapelink' && <GrapeLinkTab />}
@@ -634,6 +639,7 @@ function BlocksTab() {
   const [propertyFilter, setPropertyFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [editingBlockId, setEditingBlockId] = useState(null);
+  const [csvOpen, setCsvOpen] = useState(null);   // 'blocks' | 'rows' | null
 
   const canManage = userTypeRole === 'company_admin' || userTypeRole === 'auxein_admin';
 
@@ -682,6 +688,16 @@ function BlocksTab() {
     <div className="ca-section">
       <div className="ca-section-header">
         <h2 className="ca-section-title help-tip-head">Blocks<HelpTip topic="manage.blocks" /></h2>
+        {canManage && (
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+            <button className="ca-chip-btn" onClick={() => setCsvOpen('blocks')}>
+              <Table2 size={12} /> Blocks spreadsheet
+            </button>
+            <button className="ca-chip-btn" onClick={() => setCsvOpen('rows')}>
+              <Table2 size={12} /> Rows spreadsheet
+            </button>
+          </div>
+        )}
       </div>
       <p className="ca-section-desc">
         Edit block details and manage rows. Block geometry is edited via the map.
@@ -765,8 +781,55 @@ function BlocksTab() {
           onSaved={() => { load(); }}
         />
       )}
+
+      <CsvSyncModal
+        open={csvOpen === 'blocks'}
+        onClose={() => setCsvOpen(null)}
+        spec={BLOCK_CSV_SPEC}
+        fetchRecords={fetchBlockRecords}
+        fetchContext={fetchBlockCsvContext}
+        submit={(payload) => blocksService.importBlocks(payload)}
+        onApplied={() => load()}
+      />
+
+      <CsvSyncModal
+        open={csvOpen === 'rows'}
+        onClose={() => setCsvOpen(null)}
+        spec={ROW_CSV_SPEC}
+        fetchRecords={() => vineyardRowsService.exportRows()}
+        fetchContext={fetchRowCsvContext}
+        submit={(payload) => vineyardRowsService.importRows(payload)}
+        onApplied={() => load()}
+      />
     </div>
   );
+}
+
+// The blocks export excludes anything with no name — block_name is the key, and
+// a nameless block has nothing to match on. Reported rather than dropped
+// silently, or "22 blocks, 1 exported" reads as a bug rather than as work to do.
+async function fetchBlockRecords() {
+  const data = await blocksService.exportBlocks();
+  const unnamed = data?.unnamed_count || 0;
+  return {
+    records: data?.blocks || [],
+    notice: unnamed
+      ? `${unnamed} block${unnamed === 1 ? ' has' : 's have'} no name, so ${unnamed === 1 ? 'it is' : 'they are'} not in this file — the name is how a line finds its block. Name ${unnamed === 1 ? 'it' : 'them'} with Edit above and ${unnamed === 1 ? 'it' : 'they'} will appear in the next export.`
+      : '',
+  };
+}
+
+// Both name columns resolve against the caller's OWN visible sets, which is what
+// makes another company's property or block unnameable rather than merely
+// rejected — there is no id to type.
+async function fetchBlockCsvContext() {
+  return { properties: await propertyService.listProperties().catch(() => []) };
+}
+
+async function fetchRowCsvContext() {
+  const raw = await blocksService.getCompanyBlocks().catch(() => ({ blocks: [] }));
+  const blocks = raw?.blocks || (Array.isArray(raw) ? raw : []);
+  return { blocks };
 }
 
 

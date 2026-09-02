@@ -3,13 +3,13 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles, CheckSquare, Square, Users, Layers, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
-import { observationService, usersService, authService, tasksService, contractorManagementService } from '@vineyard/shared';
+import { observationService, usersService, authService, tasksService, contractorManagementService, reportService, useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import HelpTip from '../components/HelpTip';
 import { useToast } from '../components/ToastProvider';
 import './ObservationDashboard.css';
 import { TaskTemplateCard, TaskTemplatePreviewModal, TaskStatusBadge } from '@/components/TaskManagement';
-import { getInsightKind } from '../utils/observationInsight';
+import { getInsightTarget, insightSearchParams } from '../utils/observationInsight';
 import { usePersistentState, usePersistentSet, usePruneToOptions } from '../hooks/usePersistentState';
 
 
@@ -222,6 +222,17 @@ function ManagementTab({ StatusBadge }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  // The run awaiting a delete confirmation, or null.
+  const [deleting, setDeleting] = useState(null);
+  // The run whose figures are expanded, or null. One at a time — the row is
+  // wide and two open summaries push the table off the screen.
+  const [expandedRun, setExpandedRun] = useState(null);
+  const toast = useToast();
+  // The counts endpoint is `reports:read`, which stops at manager. Everyone
+  // else still sees the run list; they just get no Figures button, rather than
+  // one that always 403s.
+  const { hasPermission } = useAuth();
+  const canSeeReports = hasPermission('reports', 'read');
 
   // Filters (beta: "Observation Management — a few filters here would go a long
   // way"). Client-side over the already-loaded run list, matching how TasksTab
@@ -262,6 +273,31 @@ function ManagementTab({ StatusBadge }) {
       console.error('Failed to start observation:', e);
       const detail = e?.response?.data?.detail || e?.message || 'Failed to start observation';
       alert(`Could not start observation:\n${Array.isArray(detail) ? detail[0]?.msg || detail : detail}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Deleting a run takes every spot recorded in it, cascaded in the database
+  // and unrecoverable. So the confirm names the count rather than asking "are
+  // you sure?" about a number nobody has seen. `spots_count` already comes back
+  // on the run list, so the dialog costs no extra request.
+  //
+  // `force` is sent because the dialog IS the confirmation the server is
+  // demanding — without it the API refuses any run holding spots. Never call
+  // this straight off a button.
+  const confirmDelete = async () => {
+    const run = deleting;
+    if (!run) return;
+    try {
+      setBusyId(run.id);
+      await observationService.deleteRun(run.id, { force: true });
+      setDeleting(null);
+      toast.success(`Deleted "${run.template_name || `Run ${run.id}`}"`);
+      await reload();
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Could not delete that observation run');
     } finally {
       setBusyId(null);
     }
@@ -431,20 +467,14 @@ function ManagementTab({ StatusBadge }) {
             <tbody>
               {filteredRuns.map(r => {
                 const status = r.status; // computed by backend: scheduled | in progress | complete
-                const insightKind = getInsightKind(r.template_type);
-                const insightsParams = insightKind
-                  ? (() => {
-                      const p = new URLSearchParams({
-                        kind: insightKind,
-                        runId: String(r.id),
-                        templateType: r.template_type || '',
-                      });
-                      if (r.block_id) p.set('blockId', String(r.block_id));
-                      return p.toString();
-                    })()
-                  : null;
+                const insightTarget = getInsightTarget(r);
+                const insightsParams = insightSearchParams(insightTarget);
+                // Only a run that recorded something has figures to show.
+                const canSummarise = !!r.count_metric && r.spots_count > 0 && canSeeReports;
+                const isOpen = expandedRun === r.id;
                 return (
-                  <tr key={r.id}>
+                  <Fragment key={r.id}>
+                  <tr>
                     <td className="bold">{r.template_name || `Template #${r.template_id}`}</td>
                     <td>{r.block_name || '—'}</td>
                     <td>
@@ -489,18 +519,48 @@ function ManagementTab({ StatusBadge }) {
                             <Eye size={14} /> View
                           </button>
                         )}
+                        {canSummarise && (
+                          <button
+                            className="od-btn od-btn--ghost"
+                            onClick={() => setExpandedRun(isOpen ? null : r.id)}
+                            title={isOpen ? 'Hide the figures' : 'Show what this run found'}
+                          >
+                            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            Figures
+                          </button>
+                        )}
                         {insightsParams && status !== 'scheduled' && (
                           <button
                             className="od-btn od-btn--ghost"
                             onClick={() => navigate(`/Insights?${insightsParams}`)}
-                            title="Open Insights"
+                            title={`Open ${insightTarget.label} in Insights`}
                           >
-                            <Sparkles size={14} /> Insights
+                            <Sparkles size={14} /> {insightTarget.label}
                           </button>
                         )}
+                        {/* Delete is admin-only server-side; the button is
+                            shown to everyone who can see the row and the API
+                            answers 403 otherwise, rather than the page
+                            pretending the action does not exist. */}
+                        <button
+                          className="od-btn od-btn--danger"
+                          onClick={() => setDeleting(r)}
+                          disabled={busyId === r.id}
+                          title="Delete this run and everything recorded in it"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
+                  {isOpen && (
+                    <tr className="od-run-summary-row">
+                      <td colSpan={8}>
+                        <RunCountSummary runId={r.id} metric={r.count_metric} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -525,6 +585,135 @@ function ManagementTab({ StatusBadge }) {
           )}
         </div>
       )}
+
+      {/* Named, counted and irreversible — in that order. A confirm that says
+          "are you sure?" gets clicked through; one that says "30 recorded spots
+          will be deleted" does not. */}
+      {deleting && createPortal(
+        <div className="od-modal-overlay" onClick={() => setDeleting(null)}>
+          <div className="od-modal od-modal--confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="od-modal-header">
+              <h3>Delete this observation run?</h3>
+              <button className="od-btn od-btn--ghost" onClick={() => setDeleting(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <p className="od-confirm-body">
+              <strong>{deleting.template_name || `Run ${deleting.id}`}</strong>
+              {deleting.block_name ? <> on <strong>{deleting.block_name}</strong></> : null}
+              {deleting.scheduled_date
+                ? <>, scheduled {dayjs(deleting.scheduled_date).format('D MMM YYYY')}</>
+                : null}.
+            </p>
+            {deleting.spots_count > 0 ? (
+              <p className="od-confirm-warn">
+                This run holds <strong>{deleting.spots_count} recorded spot
+                {deleting.spots_count === 1 ? '' : 's'}</strong>. They will be deleted with it and
+                cannot be recovered.
+              </p>
+            ) : (
+              <p className="od-confirm-body">Nothing has been recorded in it yet.</p>
+            )}
+            <p className="od-confirm-body">
+              To keep the record but stop the work, cancel the run instead.
+            </p>
+            <div className="od-confirm-actions">
+              <button className="od-btn od-btn--ghost" onClick={() => setDeleting(null)}>
+                Keep it
+              </button>
+              <button
+                className="od-btn od-btn--danger"
+                onClick={confirmDelete}
+                disabled={busyId === deleting.id}
+              >
+                <Trash2 size={14} />
+                {busyId === deleting.id ? 'Deleting...' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * What one run found — the SAME figures as the Counts report, from the same
+ * endpoint with `run_id` set.
+ *
+ * Deliberately not a second calculation. A run summary that disagreed with the
+ * report it links to would be worse than not having one, and the two would
+ * drift the first time the weighting or the suppression rule changed.
+ */
+function RunCountSummary({ runId, metric }) {
+  const [data, setData] = useState(null);
+  const [state, setState] = useState('loading');
+
+  useEffect(() => {
+    let mounted = true;
+    setState('loading');
+    reportService.getCountSummary(metric, undefined, undefined, undefined, runId)
+      .then((res) => { if (mounted) { setData(res); setState('ready'); } })
+      .catch(() => { if (mounted) setState('failed'); });
+    return () => { mounted = false; };
+  }, [runId, metric]);
+
+  if (state === 'loading') return <div className="od-run-summary">Loading figures...</div>;
+  if (state === 'failed' || !data) {
+    return <div className="od-run-summary">Could not load the figures for this run.</div>;
+  }
+
+  const o = data.overall;
+  const num = (n, dp = 2) => (n === null || n === undefined ? '—' : Number(n).toFixed(dp));
+
+  return (
+    <div className="od-run-summary">
+      <div className="od-run-summary-figures">
+        <div className="od-run-figure">
+          <div className="od-run-figure-value">{o.spots}</div>
+          <div className="od-run-figure-label">Spots</div>
+        </div>
+        <div className="od-run-figure">
+          <div className="od-run-figure-value">{num(o.vines_sampled, 0)}</div>
+          <div className="od-run-figure-label">Vines sampled</div>
+        </div>
+        <div className="od-run-figure">
+          <div className="od-run-figure-value">{num(o.mean)}</div>
+          <div className="od-run-figure-label">Mean{data.unit ? ` ${data.unit}` : ''}</div>
+        </div>
+        <div className="od-run-figure">
+          {/* A dash is the report working. `sd_note` below says why. */}
+          <div className="od-run-figure-value">{num(o.sd)}</div>
+          <div className="od-run-figure-label">
+            Spread{o.sd_basis ? ` (${o.sd_basis})` : ''}
+          </div>
+        </div>
+        <div className="od-run-figure">
+          <div className="od-run-figure-value">
+            {o.cv_percent === null || o.cv_percent === undefined ? '—' : `${o.cv_percent}%`}
+          </div>
+          <div className="od-run-figure-label">CV</div>
+        </div>
+        <div className="od-run-figure">
+          <div className="od-run-figure-value">
+            {o.percent_of_target === null || o.percent_of_target === undefined
+              ? '—'
+              : `${o.percent_of_target}%`}
+          </div>
+          <div className="od-run-figure-label">
+            Of target{o.target ? ` (${num(o.target)})` : ''}
+          </div>
+        </div>
+        <div className="od-run-figure">
+          <div className="od-run-figure-value">
+            {num(o.min, 0)} – {num(o.max, 0)}
+          </div>
+          <div className="od-run-figure-label">Range</div>
+        </div>
+      </div>
+      {o.sd_note && <div className="od-run-summary-note">{o.sd_note}</div>}
     </div>
   );
 }

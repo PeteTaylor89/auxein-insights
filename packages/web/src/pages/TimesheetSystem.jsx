@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { Clock, CheckCircle2, AlertTriangle, Plus, Trash2, Download, ChevronRight, Save, ChevronLeft } from 'lucide-react';
-import { useAuth, timesheetsService, tasksService } from '@vineyard/shared';
+import { useAuth, timesheetsService, tasksService, isDayEditable, canSubmitDay, dayLockReason, rejectionReason } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import './Timesheets.css';
 
@@ -25,6 +25,94 @@ const downloadCsv = (filename, rows) => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
+// Backend enforces quarter-hour increments and a 24h ceiling on the day total.
+const HOUR_STEP = 0.25;
+const MAX_DAY_HOURS = 24;
+
+const quarter = (n) => Math.round(n * HOUR_STEP ** -1) / (HOUR_STEP ** -1);
+const fmtHours = (n) => {
+  const s = (Math.round(Number(n || 0) * 100) / 100).toFixed(2);
+  return s.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+};
+
+/**
+ * The day's UNCODED time — the only hours figure a person types.
+ *
+ * The day total is `coded + uncoded` and is derived server-side, so there is
+ * nothing to roll up. This box used to be a "Day total" writing the legacy
+ * `day_hours` field, which was wrong twice over: the backend turned a typed
+ * total into "uncoded = total - coded", a number that disagreed with reality
+ * the moment the next task completion landed; and a total below the coded
+ * hours silently destroyed the uncoded figure.
+ *
+ * It also posted on EVERY KEYSTROKE, with a full reload per character. Typing
+ * "7.5" sent 7 and then 7.5, and any intermediate value that was not a quarter
+ * of an hour came back 422 into the error banner. So: local state while typing,
+ * validate before sending, commit on blur, and send nothing when unchanged.
+ */
+const UncodedHoursInput = ({ dayData, disabled, onSave }) => {
+  const serverValue = Number(dayData.uncoded_hours || 0);
+  const coded = Number(dayData.entry_hours || 0);
+
+  const [draft, setDraft] = useState(fmtHours(serverValue));
+  const [focused, setFocused] = useState(false);
+
+  // Re-seed from the server, but never while the user is mid-edit — the old
+  // input was controlled off server state that reloaded during typing.
+  useEffect(() => {
+    if (!focused) setDraft(fmtHours(serverValue));
+  }, [serverValue, focused]);
+
+  const trimmed = String(draft).trim();
+  const parsed = trimmed === '' ? 0 : Number(trimmed.replace(',', '.'));
+
+  // The cap is on the DERIVED total, which the server does not check — it caps
+  // uncoded alone at 24, so 8h coded plus 20h uncoded is a 28-hour day it would
+  // accept. Being stricter here is right, but it must never trap someone whose
+  // day is already over: reducing the figure is always allowed, or a day that
+  // got there some other way could not be corrected from this box.
+  const overCap = coded + parsed > MAX_DAY_HOURS && parsed > serverValue;
+  const valid =
+    Number.isFinite(parsed) &&
+    parsed >= 0 &&
+    Math.abs(parsed - quarter(parsed)) < 1e-9 &&
+    !overCap;
+
+  let problem = null;
+  if (!Number.isFinite(parsed)) problem = 'Enter a number';
+  else if (parsed < 0) problem = 'Cannot be negative';
+  else if (Math.abs(parsed - quarter(parsed)) >= 1e-9) problem = 'Use 0.25h steps';
+  else if (overCap) problem = `Day would exceed ${MAX_DAY_HOURS}h`;
+
+  const commit = () => {
+    setFocused(false);
+    if (!valid) { setDraft(fmtHours(serverValue)); return; }   // revert, don't send
+    if (Math.abs(parsed - serverValue) < 1e-9) return;          // unchanged, don't send
+    onSave(parsed);
+  };
+
+  return (
+    <div className="ts-uncoded-field">
+      <label className="ts-uncoded-label">Other time (not on a task)</label>
+      <input
+        className={`ts-day-hours-input ${focused && !valid ? 'ts-day-hours-input--bad' : ''}`}
+        type="number"
+        step={HOUR_STEP}
+        min="0"
+        max={MAX_DAY_HOURS}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        placeholder="0"
+        disabled={disabled}
+      />
+      {focused && problem && <div className="ts-uncoded-problem">{problem}</div>}
+    </div>
+  );
+};
+
 const TimesheetSystem = () => {
   const { user, isAuthenticated } = useAuth();
   const [view, setView] = useState('my-timesheet');
@@ -34,7 +122,10 @@ const TimesheetSystem = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
-  const isRejected = (dayData) => dayData?.status === 'rejected';
+  // Editability is `isDayEditable` and nothing else. This page used to ask
+  // `!isRejected`, the exact inverse of the real rule (F6): every control was
+  // live on an APPROVED day and 409'd, while a REJECTED day was frozen with no
+  // Submit button, so a manager's rejection stranded it permanently (F3).
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => selectedWeek.add(i, 'day')), [selectedWeek]);
   const canViewTeamDashboard = user && ['manager', 'admin'].includes(user.role);
@@ -64,21 +155,31 @@ const TimesheetSystem = () => {
     return timesheetDays.find(d => d.work_date === dateStr) || { work_date: dateStr, entries: [], day_hours: null, entry_hours: 0, uncoded_hours: 0, effective_total_hours: 0, status: 'draft' };
   };
 
-  const updateDayHours = async (date, hours) => {
-    if (isRejected(getDayData(date))) return;
-    try { await timesheetsService.createDay({ work_date: date.format('YYYY-MM-DD'), day_hours: hours === '' ? null : parseFloat(hours) }); await loadData(); showNotification('Day hours updated'); }
-    catch (err) { setError(err?.response?.data?.detail || err.message || 'Failed to save day hours'); }
+  // Writes the day's uncoded time. `PATCH /days/{id}/uncoded` needs a day row,
+  // so a date that has none is created first — the same two-step addTimeEntry
+  // already does.
+  const updateUncodedHours = async (date, hours) => {
+    const dateStr = date.format('YYYY-MM-DD');
+    if (!isDayEditable(getDayData(date))) return;
+    try {
+      let d = getDayData(date);
+      let dayId = d.id;
+      if (!dayId) { const created = await timesheetsService.createDay({ work_date: dateStr }); dayId = created.id; }
+      await timesheetsService.setUncodedHours(dayId, hours);
+      await loadData();
+      showNotification('Other time saved');
+    } catch (err) { setError(err?.response?.data?.detail || err.message || 'Failed to save other time'); }
   };
 
   const updateDayNotes = async (date, notes) => {
-    if (isRejected(getDayData(date))) return;
+    if (!isDayEditable(getDayData(date))) return;
     const dateStr = date.format('YYYY-MM-DD');
     try { const d = getDayData(date); if (d?.id) await timesheetsService.updateDay(d.id, { notes }); else await timesheetsService.createDay({ work_date: dateStr, notes }); await loadData(); showNotification('Notes saved'); }
     catch (err) { setError(err?.response?.data?.detail || err.message || 'Failed to save notes'); }
   };
 
   const addTimeEntry = async (date, taskId, hours) => {
-    if (isRejected(getDayData(date))) return;
+    if (!isDayEditable(getDayData(date))) return;
     const dateStr = date.format('YYYY-MM-DD');
     try {
       let d = getDayData(date); let dayId = d.id;
@@ -184,7 +285,7 @@ const TimesheetSystem = () => {
         )}
 
         {view === 'my-timesheet' ? (
-          <MyTimesheetView weekDays={weekDays} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} getDayData={getDayData} availableTasks={availableTasks} updateDayHours={updateDayHours} updateDayNotes={updateDayNotes} addTimeEntry={addTimeEntry} deleteTimeEntry={deleteTimeEntry} submitDay={submitDay} loading={loading} isRejected={isRejected} />
+          <MyTimesheetView weekDays={weekDays} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} getDayData={getDayData} availableTasks={availableTasks} updateUncodedHours={updateUncodedHours} updateDayNotes={updateDayNotes} addTimeEntry={addTimeEntry} deleteTimeEntry={deleteTimeEntry} submitDay={submitDay} loading={loading} />
         ) : (
           <TeamDashboardView timesheetDays={timesheetDays} approveDay={approveDay} rejectDay={rejectDay} releaseDay={releaseDay} loading={loading} weekDays={weekDays} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} />
         )}
@@ -194,7 +295,7 @@ const TimesheetSystem = () => {
   );
 };
 
-const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, availableTasks, updateDayHours, updateDayNotes, addTimeEntry, deleteTimeEntry, submitDay, loading, isRejected }) => {
+const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, availableTasks, updateUncodedHours, updateDayNotes, addTimeEntry, deleteTimeEntry, submitDay, loading }) => {
   const [newEntries, setNewEntries] = useState({});
   const [showAllTasks, setShowAllTasks] = useState(false);
   const weekTotal = weekDays.reduce((total, day) => total + parseFloat(getDayData(day).effective_total_hours || 0), 0);
@@ -283,7 +384,7 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
                         {taskEntries.map(entry => (
                           <div key={entry.id} className="ts-entry-row">
                             <span className="ts-entry-hours">{entry.hours}h</span>
-                            <button className="ts-delete-btn" onClick={() => !isRejected(dayData) && deleteTimeEntry(entry.id)} disabled={isRejected(dayData)}>
+                            <button className="ts-delete-btn" onClick={() => isDayEditable(dayData) && deleteTimeEntry(entry.id)} disabled={!isDayEditable(dayData)}>
                               <Trash2 style={{ width: '0.75rem', height: '0.75rem' }} />
                             </button>
                           </div>
@@ -318,17 +419,17 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
             {weekDays.map(day => {
               const dateStr = day.format('YYYY-MM-DD');
               const entry = newEntries[dateStr] || { taskId: '', hours: '' };
-              const rejected = isRejected(getDayData(day));
+              const editable = isDayEditable(getDayData(day));
               return (
                 <div key={dateStr} className="ts-add-entry-cell">
                   <div className="ts-add-entry-container">
-                    <select className="ts-select" value={entry.taskId} onChange={(e) => !rejected && setNewEntries(prev => ({ ...prev, [dateStr]: { ...entry, taskId: e.target.value } }))} disabled={rejected}>
+                    <select className="ts-select" value={entry.taskId} onChange={(e) => editable && setNewEntries(prev => ({ ...prev, [dateStr]: { ...entry, taskId: e.target.value } }))} disabled={!editable}>
                       <option value="">Select task</option>
                       {selectableTasks.map(task => <option key={task.id} value={task.id}>{taskLabel(task)}</option>)}
                     </select>
                     <div className="ts-entry-input-row">
-                      <input className="ts-entry-input" type="number" step="0.25" min="0.25" max="24" placeholder="Hours" value={entry.hours} onChange={(e) => !rejected && setNewEntries(prev => ({ ...prev, [dateStr]: { ...entry, hours: e.target.value } }))} disabled={rejected} />
-                      <button className="ts-add-btn" onClick={() => addNewEntry(day)} disabled={rejected || !entry.hours || !entry.taskId}>
+                      <input className="ts-entry-input" type="number" step="0.25" min="0.25" max="24" placeholder="Hours" value={entry.hours} onChange={(e) => editable && setNewEntries(prev => ({ ...prev, [dateStr]: { ...entry, hours: e.target.value } }))} disabled={!editable} />
+                      <button className="ts-add-btn" onClick={() => addNewEntry(day)} disabled={!editable || !entry.hours || !entry.taskId}>
                         <Plus style={{ width: '0.75rem', height: '0.75rem' }} />
                       </button>
                     </div>
@@ -343,19 +444,42 @@ const MyTimesheetView = ({ weekDays, selectedWeek, setSelectedWeek, getDayData, 
           <div className="ts-totals-label">Daily Totals</div>
           {weekDays.map(day => {
             const dayData = getDayData(day);
-            const canSubmit = dayData.id && dayData.status === 'draft' && dayData.effective_total_hours > 0;
+            const editable = isDayEditable(dayData);
+            const lockReason = dayLockReason(dayData);
+            const rejectedFor = dayData.status === 'rejected' ? rejectionReason(dayData.notes) : null;
             return (
               <div key={day.format('YYYY-MM-DD')} className="ts-totals-cell">
                 <div className="ts-totals-container">
-                  <input className="ts-day-hours-input" type="number" step="0.25" min="0" max="24" value={dayData.day_hours || ''} onChange={(e) => updateDayHours(day, e.target.value)} placeholder="Day total" disabled={isRejected(dayData)} />
-                  <textarea className="ts-notes-textarea" rows={2} placeholder="Notes" defaultValue={dayData?.notes || ''} onBlur={(e) => !isRejected(dayData) && updateDayNotes(day, e.target.value)} disabled={isRejected(dayData)} />
-                  {isRejected(dayData) && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginTop: 4 }}>Editing disabled — day is rejected.</div>}
+                  {/* A rejected day is EDITABLE — that is what rejection is for.
+                      The reason the manager gave is appended to notes as
+                      `[Rejected: ...]`; it was written from day one and never
+                      shown, so the worker was told the day came back without
+                      being told why. */}
+                  {dayData.status === 'rejected' && (
+                    <div className="ts-day-notice ts-day-notice--rejected">
+                      {rejectedFor ? `Sent back: ${rejectedFor}` : 'Sent back by your manager. Fix it and submit again.'}
+                    </div>
+                  )}
+                  {lockReason && <div className="ts-day-notice">{lockReason}</div>}
+                  <UncodedHoursInput
+                    dayData={dayData}
+                    disabled={!editable}
+                    onSave={(hours) => updateUncodedHours(day, hours)}
+                  />
+                  <textarea className="ts-notes-textarea" rows={2} placeholder="Notes" defaultValue={dayData?.notes || ''} onBlur={(e) => editable && updateDayNotes(day, e.target.value)} disabled={!editable} />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                    <div className="ts-totals-info">Coded: {dayData.entry_hours}h</div>
-                    {dayData.uncoded_hours > 0 && <div className="ts-uncoded-hours">Uncoded: {dayData.uncoded_hours}h</div>}
+                    <div className="ts-totals-info">Coded to tasks: {fmtHours(dayData.entry_hours)}h</div>
+                    {/* The total is derived, so it is shown and never typed. */}
+                    <div className="ts-totals-derived">Day total: {fmtHours(dayData.effective_total_hours)}h</div>
                   </div>
                   <div><span className={`ts-badge ts-badge--${dayData.status || 'draft'}`}>{dayData.status || 'draft'}</span></div>
-                  {canSubmit && <button className="ts-submit-btn" onClick={() => submitDay(dayData.id)}>Submit</button>}
+                  {/* Draft OR rejected — `submit_timesheet_day` accepts both,
+                      and without the second the workflow could not close. */}
+                  {canSubmitDay(dayData) && (
+                    <button className="ts-submit-btn" onClick={() => submitDay(dayData.id)}>
+                      {dayData.status === 'rejected' ? 'Resubmit' : 'Submit'}
+                    </button>
+                  )}
                 </div>
               </div>
             );

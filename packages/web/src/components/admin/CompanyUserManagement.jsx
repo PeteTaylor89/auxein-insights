@@ -132,11 +132,10 @@ function CompanyUserManagement({ companyId }) {
 
   const getRoleBadge = (role) => {
     const roleConfig = {
-      owner: { text: 'Owner', class: 'owner' },
       admin: { text: 'Admin', class: 'admin' },
       manager: { text: 'Manager', class: 'manager' },
       user: { text: 'User', class: 'user' },
-      viewer: { text: 'Viewer', class: 'viewer' }
+      general: { text: 'General', class: 'general' }
     };
     return roleConfig[role] || { text: role, class: 'unknown' };
   };
@@ -171,11 +170,10 @@ function CompanyUserManagement({ companyId }) {
             onChange={(e) => handleFilterChange('role', e.target.value)}
           >
             <option value="">All Roles</option>
-            <option value="owner">Owner</option>
             <option value="admin">Admin</option>
             <option value="manager">Manager</option>
             <option value="user">User</option>
-            <option value="viewer">Viewer</option>
+            <option value="general">General (H&amp;S)</option>
           </select>
         </div>
 
@@ -415,11 +413,6 @@ function CompanyUserManagement({ companyId }) {
           font-weight: 600;
         }
 
-        .role-badge.owner {
-          background: #f3e8ff;
-          color: #6b21a8;
-        }
-
         .role-badge.admin {
           background: #ddd6fe;
           color: #5b21b6;
@@ -435,7 +428,7 @@ function CompanyUserManagement({ companyId }) {
           color: var(--color-info-text);
         }
 
-        .role-badge.viewer {
+        .role-badge.general {
           background: var(--color-surface-warm);
           color: var(--color-text);
         }
@@ -551,11 +544,10 @@ function CompanyUserEditModal({ user, onUpdateRole, onClose }) {
   const [loading, setLoading] = useState(false);
 
   const roles = [
-    { value: 'viewer', label: 'Viewer' },
     { value: 'user', label: 'User' },
     { value: 'manager', label: 'Manager' },
     { value: 'admin', label: 'Admin' },
-    { value: 'owner', label: 'Owner' }
+    { value: 'general', label: 'General (H&S)' }
   ];
 
   const handleSubmit = async (e) => {
