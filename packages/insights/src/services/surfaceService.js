@@ -257,6 +257,7 @@ export function tileUrlTemplate({
   ramp,
   min,
   max,
+  domain,
 }) {
   const apiBase = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
   const params = new URLSearchParams();
@@ -272,6 +273,21 @@ export function tileUrlTemplate({
   // one range and tiles rendered with another must not be mixed in a session.
   if (min != null) params.set('min', String(min));
   if (max != null) params.set('max', String(max));
+  // A TILE IS CACHED `immutable` FOR A YEAR, AND THE DOMAIN IS NOT IN ITS KEY.
+  //
+  // That pairing is safe for the DATA — a re-fit publishes a new model_version
+  // rather than mutating a key — but the display domain is a rendering input
+  // that lives outside the URL entirely. When the daily rainfall ceiling was
+  // corrected from 40 mm to 156 on 2026-09-01, every browser that had already
+  // drawn those tiles would have kept the clipped render for a year, and the
+  // person most likely to be holding a warm cache is whoever asked for the fix.
+  //
+  // So the domain the server published is stamped into the URL. It is not a
+  // version anyone has to remember to bump: it is derived from
+  // `available.meta.domain`, so any future change to a ceiling, a floor or a
+  // ramp changes the key by construction. Unknown query parameters are ignored
+  // by the tiler, so this costs a few bytes and nothing else.
+  if (domain) params.set('d', `${domain.min}_${domain.max}_${domain.ramp}`);
   const query = params.toString();
   const stamp = stampFor(valid_at, granularity);
   return `${apiBase}${BASE}/tiles/${variable}/${granularity}/${stamp}/{z}/{x}/{y}.png${query ? `?${query}` : ''}`;

@@ -248,6 +248,30 @@ def main() -> int:
         rain_lo, rain_hi, _ = S.store.domain_for("rainfall", "max")
         check("the wettest-day ceiling clears the measured p99.9",
               rain_lo == 0.0 and rain_hi >= 308.8, (rain_lo, rain_hi))
+
+        # A DAILY SURFACE IS NOT A MONTHLY STATISTIC. Daily granularity carries
+        # no statistic, so before 2026-09-01 `domain_for` fell through to its
+        # `mean` default and rendered the daily rainfall layer on the domain
+        # built for a month's mean day — a 40 mm ceiling that saturated 2.33% of
+        # station-days, worse than the 150 mm ceiling this file already
+        # condemned. Assert the properties, not the numbers.
+        drain_lo, drain_hi, _ = S.store.domain_for("rainfall", None, "daily")
+        check("the daily rainfall ceiling clears the measured p99.9",
+              drain_lo == 0.0 and drain_hi >= 155.7, (drain_lo, drain_hi))
+        check("daily rainfall does not inherit the monthly-mean domain",
+              S.store.domain_for("rainfall", None, "daily")
+              != S.store.domain_for("rainfall", "mean"))
+
+        # Same shared-scale honesty the monthly layers are held to. The daily
+        # ceiling also has to clear temp_max p99.5 (30.79) or a hot afternoon
+        # renders as a mild one.
+        daily_temps = {v: S.store.domain_for(v, None, "daily")
+                       for v in ("temp_mean", "temp_min", "temp_max")}
+        check("all three DAILY temperature layers share one scale",
+              len(set(daily_temps.values())) == 1, daily_temps)
+        dt_lo, dt_hi, _ = S.store.domain_for("temp_max", None, "daily")
+        check("the daily temperature domain covers a hot day and a cold night",
+              dt_hi >= 30.79 and dt_lo <= -4.96, (dt_lo, dt_hi))
         check("tiles are cached hard (immutable archive)",
               "immutable" in tile.headers["Cache-Control"])
 

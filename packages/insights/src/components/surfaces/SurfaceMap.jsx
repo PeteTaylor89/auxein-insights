@@ -688,6 +688,7 @@ function SurfaceMap({ onSignInRequired }) {
     } else if (current) {
       url = tileUrlTemplate({
         variable, valid_at: current, granularity, statistic: wireStatistic,
+        domain,
       });
     }
 
@@ -724,7 +725,7 @@ function SurfaceMap({ onSignInRequired }) {
       paint: { 'raster-opacity': opacityRef.current, 'raster-fade-duration': 150 },
     }, beneath);
   }, [mapReady, variable, wireStatistic, current, granularity,
-      projected, projLayer, scenario, period, season, projDomain,
+      projected, projLayer, scenario, period, season, projDomain, domain,
       showingBaseline, baselineKey]);
 
   // --- wine zone overlay ----------------------------------------------------

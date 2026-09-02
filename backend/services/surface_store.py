@@ -302,8 +302,82 @@ STATISTIC_DOMAINS: dict[str, tuple[float, float, str]] = {
 }
 
 
-def domain_for(variable: str, statistic: Optional[str]) -> tuple[float, float, str]:
+# A DAILY SURFACE IS NOT A MONTHLY STATISTIC, and until 2026-09-01 it was
+# rendered as though it were. Daily granularity carries no statistic, so
+# `domain_for` fell through to its `statistic or "mean"` default and handed the
+# daily rainfall layer the domain built for a month's MEAN DAY — ceiling 40 mm.
+#
+# Measured against `weather_data_daily`, all station-days over three years:
+#
+#     p50 0.0   p90 12.8   p99 62.9   p99.9 155.7   p99.99 290.9   max 802.8
+#
+# **40 mm saturated 2.33% of station-days.** The 150 mm ceiling this file
+# already removed from `rainfall/max` was condemned for saturating 1.82%, so
+# the daily layer was clipping harder than the defect that rework existed to
+# fix — and clipping it in the mountains and on the West Coast, where the
+# heaviest falls are the whole point of looking.
+#
+# 156 is the p99.9 rounded UP to the next multiple of four, the same rule the
+# monthly ceilings follow: 0.1% saturates and the legend's quarter ticks are
+# whole millimetres (39 / 78 / 117 / 156).
+#
+# Station gauges are POINT values and the surface is smoothed, so a rendered
+# cell reaches lower than a gauge does — but do not scale this down to
+# compensate. The LENZ conditioning compresses the extreme tail ~20% while
+# moving the p99.9 that sets ceilings only ~3%, which is exactly why the
+# percentile and not the maximum is the statistic to read.
+#
+# TEMPERATURE HAD THE SAME DEFECT AND IT BIT HARDER. `TEMP_TYPICAL` covers
+# "temp_min p0.5 .. temp_max p99.5" measured on the MONTHLY archive, where
+# averaging over a month pulls both tails in. Applied to a single day it clipped
+# **5.33% of station-days** on temp_max — a hot Central Otago afternoon rendered
+# the same colour as a mild one, all summer.
+#
+# Same rule, daily data, three years of `weather_data_daily`:
+#
+#     temp_min   p0.5  -4.96    p99.5 19.42
+#     temp_mean  p0.5   0.03    p99.5 23.00
+#     temp_max   p0.5   3.85    p99.5 30.79
+#
+# `TEMP_DAILY` keeps the property that matters about the shared scale: the three
+# variables stay visually distinct on it. Their medians land at 0.41 / 0.51 /
+# 0.63 of the range — better separated than on TEMP_TYPICAL (0.46 / 0.59 / 0.73)
+# — and only 0.23% of temp_max days now exceed the ceiling. Quarter ticks are
+# whole degrees: -8 / 2 / 12 / 22 / 32.
+#
+# All three move together, deliberately. A shared ramp with per-variable domains
+# is the failure this file's header describes — every map looks plausible while
+# red means one thing on the minimum layer and another on the maximum.
+#
+# CAVEAT ON THE BASIS, and it is not the same basis the monthly ceilings used.
+# These percentiles come from STATION OBSERVATIONS; the monthly domains were
+# measured over GRID CELLS. The station network has almost nothing on the
+# alpine spine, so it understates both the cold and the wet where the surface
+# does not. That is why the floor is -8 rather than the -5 the rule alone would
+# give: the headroom stands in for stations that do not exist.
+#
+# **Do not re-measure these on the daily COG archive yet.** It holds 61 days per
+# variable and every one of them is WINTER (2026-07-01..08-30). A temp_max
+# ceiling read off a July raster would be lower than the one being replaced, and
+# a rainfall ceiling read off two winter months carries the West Coast fronts
+# and none of the summer convection. Seasonal coverage, not depth, is what these
+# percentiles need — the station basis has three full years of it. Revisit after
+# the daily archive spans a complete annual cycle.
+TEMP_DAILY = (-8.0, 32.0)
+
+DAILY_DOMAINS: dict[str, tuple[float, float, str]] = {
+    "rainfall": (0.0, 156.0, "rain_depth"),
+    "temp_mean": (*TEMP_DAILY, "temperature"),
+    "temp_min": (*TEMP_DAILY, "temperature"),
+    "temp_max": (*TEMP_DAILY, "temperature"),
+}
+
+
+def domain_for(variable: str, statistic: Optional[str],
+               granularity: Optional[str] = None) -> tuple[float, float, str]:
     """Fixed display domain and default ramp. Never derived from the data in view."""
+    if granularity == "daily" and variable in DAILY_DOMAINS:
+        return DAILY_DOMAINS[variable]
     stat = statistic or "mean"
     if (variable, stat) in DOMAINS:
         return DOMAINS[(variable, stat)]

@@ -1311,7 +1311,7 @@ def _real_available(db: Session, variable: str, granularity: str,
     # The display domain is published here so a legend can be drawn truthfully.
     # Without it the client has to invent a scale, and any scale it invents will
     # disagree with the one the tiles were actually rendered against.
-    lo, hi, ramp = store.domain_for(variable, stat)
+    lo, hi, ramp = store.domain_for(variable, stat, granularity)
     return AvailableResponse(
         variable=variable, granularity=granularity,
         first=info["first"], last=info["last"],
@@ -1471,7 +1471,8 @@ def _real_tile(db: Session, variable: str, granularity: str, valid_at: str,
     # The domain is a property of the variable and statistic, never of the data
     # in this tile — otherwise neighbouring tiles disagree on what a colour
     # means and the map reads as patchwork. Explicit min/max override it.
-    lo_default, hi_default, ramp_default = store.domain_for(variable, stat)
+    lo_default, hi_default, ramp_default = store.domain_for(variable, stat,
+                                                            granularity)
     lo = float(vmin) if vmin is not None else lo_default
     hi = float(vmax) if vmax is not None else hi_default
     chosen = ramp or ramp_default
