@@ -12,6 +12,13 @@ from schemas.invitation import InvitationCreate, Invitation as InvitationSchema,
 from api.deps import get_db, get_current_user
 from services.email_service import UnifiedEmailService
 from core.email_utils import send_invitation_email
+# Role -> user_type and the web-client refusal set both come from
+# core/permissions.py. They used to be local copies duplicated across the
+# accept path and the temp-login path, which is exactly the shape a drift
+# takes: the accept path decides what an account IS and the temp-login path
+# decides whether it may reach the web client, so the two disagreeing means an
+# account is created with one set of rights and admitted with another.
+from core.permissions import MOBILE_ONLY_USER_TYPES, user_type_for_role
 import logging
 logger = logging.getLogger(__name__)
 
@@ -225,14 +232,6 @@ def accept_invitation(
     # Create user
     from core.security.password import get_password_hash
 
-    # Map invitation role to 5-tier user_type
-    role_to_user_type = {
-        "admin": "company_admin",
-        "manager": "company_manager",
-        "user": "company_user",
-        "viewer": "company_user",
-    }
-
     new_user = User(
         email=invitation.email,
         username=acceptance_data.username,
@@ -240,7 +239,7 @@ def accept_invitation(
         first_name=acceptance_data.first_name or invitation.first_name,
         last_name=acceptance_data.last_name or invitation.last_name,
         role=invitation.role,
-        user_type=role_to_user_type.get(invitation.role, "company_user"),
+        user_type=user_type_for_role(invitation.role),
         company_id=invitation.company_id,
         timezone=acceptance_data.timezone,
         is_verified=True,  # Pre-verified through invitation
@@ -299,16 +298,11 @@ def login_with_temp_credentials(
         )
 
     # Mirror the /auth/login client-type gate so this path isn't a bypass: the
-    # web app is for managers/admins; standard users (company_user) are
-    # mobile-only. Same structured MOBILE_ONLY 403 the web login screen handles.
-    role_to_user_type = {
-        "admin": "company_admin",
-        "manager": "company_manager",
-        "user": "company_user",
-        "viewer": "company_user",
-    }
-    effective_user_type = role_to_user_type.get(invitation.role, "company_user")
-    if client_type == "web" and effective_user_type == "company_user":
+    # web app is for managers/admins; standard users (company_user) and the H&S
+    # general_user are mobile-only. Same structured MOBILE_ONLY 403 the web
+    # login screen handles.
+    effective_user_type = user_type_for_role(invitation.role)
+    if client_type == "web" and effective_user_type in MOBILE_ONLY_USER_TYPES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
@@ -359,7 +353,7 @@ def login_with_temp_credentials(
             first_name=invitation.first_name or invitation.email.split('@')[0],
             last_name=invitation.last_name or "",
             role=invitation.role,
-            user_type=role_to_user_type.get(invitation.role, "company_user"),
+            user_type=user_type_for_role(invitation.role),
             company_id=invitation.company_id,
             timezone="UTC",
             is_verified=True,

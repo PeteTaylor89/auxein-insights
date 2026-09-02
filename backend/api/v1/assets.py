@@ -53,6 +53,30 @@ def build_asset_scope_filter(db: Session, user):
         )
     return Asset.property_id.is_(None)
 
+# Fields a CSV line may write. An allowlist rather than "whatever the schema
+# carries", so adding a field to AssetImportRow is a deliberate act — the
+# spatial, calibration and certification columns must never become writable
+# from a spreadsheet cell by accident.
+IMPORTABLE_ASSET_FIELDS = (
+    "asset_number", "name", "description", "category", "subcategory", "asset_type",
+    "make", "model", "serial_number", "year_manufactured",
+    "unit_of_measure", "current_stock", "minimum_stock", "cost_per_unit",
+    "status", "property_id", "location_label",
+)
+
+
+def _number_key(asset_number):
+    """Normalise an asset number for matching: trimmed and case-folded.
+
+    A grower who types "tr-001" means the asset they registered as "TR-001";
+    matching exactly would silently create a second one beside it.
+    """
+    if asset_number is None:
+        return None
+    key = str(asset_number).strip().lower()
+    return key or None
+
+
 @router.post("/import", response_model=AssetImportResult)
 def import_assets(
     payload: AssetImportRequest,
@@ -60,107 +84,186 @@ def import_assets(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Bulk-create assets from a parsed CSV (Greystone beta: "a CSV import option
-    would make it much quicker to load in all our equipment at once").
+    Bulk create AND update assets from a parsed CSV.
 
-    The CSV is parsed in the browser and arrives here as rows, so this endpoint
-    never deals with file encodings, delimiters or BOMs — it validates and
-    writes. Row numbers are echoed back so the UI can point at the offending
-    line in the user's own file.
+    This is a round-trip, not a one-way import: the web app exports the register,
+    the user edits it in Excel, and uploads it back. Lines are matched on
+    `asset_number` — the key the user already owns, already unique per company,
+    and the only one that means anything when you read the file. Database ids
+    are deliberately absent: a primary key in a spreadsheet is unreadable, and
+    one stray edit would repoint a line at a different asset silently.
 
-    All-or-nothing by default: a single bad row aborts the whole import, because
-    a half-loaded asset register is worse than a rejected file. Set
-    `skip_invalid` to import what parses and report the rest.
+    The trade, stated so nobody rediscovers it: renumbering an asset in the
+    sheet CREATES a second one rather than renaming the first. The client shows
+    that as an addition in its change preview before anything is written, and
+    renaming is a job for the on-screen editor.
+
+    Three-state fields carry the edit semantics (see AssetImportRow): a field
+    absent from the payload means the column was not in the user's sheet and is
+    left alone; a field present as null means the cell was blank and the value
+    is CLEARED. `model_fields_set` is the only thing that separates those two,
+    so this endpoint reads it rather than the attribute.
+
+    NOTHING IS EVER DELETED HERE. An asset missing from the file is untouched —
+    a spreadsheet row deleted by accident must not take a record with it.
+    Retirement goes through `status`.
+
+    The CSV is parsed in the browser, so this endpoint never deals with file
+    encodings, delimiters or BOMs. Row numbers are echoed back so the UI can
+    point at the offending line in the user's own file.
+
+    All-or-nothing by default: a single bad row aborts the whole write, because
+    a half-applied register is worse than a rejected file. Set `skip_invalid` to
+    apply what parses and report the rest.
 
     Declared before /{asset_id} routes so "import" is never parsed as an id.
     """
-    if not current_user.has_permission("assets", "create"):
+    if not payload.rows:
+        raise HTTPException(status_code=400, detail="No rows to import")
+
+    # One query for the whole company rather than one per row. Matching is
+    # case-insensitive on the trimmed number, so "tr-001" finds "TR-001" rather
+    # than quietly creating a second asset next to it.
+    company_assets = db.query(Asset).filter(
+        Asset.company_id == current_user.company_id
+    ).all()
+
+    by_number = {}
+    ambiguous_numbers = set()
+    for a in company_assets:
+        key = _number_key(a.asset_number)
+        if key is None:
+            continue
+        if key in by_number:
+            ambiguous_numbers.add(key)
+        else:
+            by_number[key] = a
+
+    # Permission depends on what the file actually does, so it is decided from
+    # the matched rows rather than from a flag the client could get wrong.
+    # Rows with no number at all are excluded — they fail validation below, and
+    # letting one demand `assets:create` would 403 a file that only edits.
+    row_keys = [k for k in (_number_key(r.asset_number) for r in payload.rows) if k is not None]
+    will_create = any(k not in by_number for k in row_keys)
+    will_update = any(k in by_number for k in row_keys)
+
+    if will_create and not current_user.has_permission("assets", "create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to create assets"
         )
+    if will_update and not current_user.has_permission("assets", "update"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to update assets"
+        )
 
-    if not payload.rows:
-        raise HTTPException(status_code=400, detail="No rows to import")
-
-    # Existing asset numbers for this company — asset_number is unique per
-    # company, so pre-loading avoids a query per row.
-    existing_numbers = {
-        n for (n,) in db.query(Asset.asset_number).filter(
-            Asset.company_id == current_user.company_id
-        ).all()
-    }
     visible_properties = get_visible_property_ids(db, current_user)
+    is_admin = current_user.user_type == "auxein_admin"
 
     errors: List[AssetImportError] = []
-    to_create = []
-    seen_in_file = set()
+    creates = []            # (row, fields)
+    updates = []            # (row, asset, fields)
+    seen_numbers = {}       # normalised asset_number -> line_number, within this file
 
     for row in payload.rows:
-        # row_number is the line in the user's spreadsheet, not the array index.
         problems = []
-
-        if not row.name or not row.name.strip():
-            problems.append("name is required")
-        if not row.asset_number or not row.asset_number.strip():
-            problems.append("asset_number is required")
+        # Only the columns the user actually had in their sheet.
+        provided = row.model_fields_set
+        fields = {
+            f: getattr(row, f)
+            for f in IMPORTABLE_ASSET_FIELDS
+            if f in provided
+        }
 
         number = (row.asset_number or "").strip()
-        if number and number in existing_numbers:
-            problems.append(f"asset_number '{number}' already exists")
-        if number and number in seen_in_file:
-            problems.append(f"asset_number '{number}' appears more than once in this file")
+        key = _number_key(number)
 
-        if row.property_id is not None and row.property_id not in visible_properties:
+        if not number:
+            problems.append("asset_number is required — it is how this line finds its asset")
+        if "name" in provided and not (row.name or "").strip():
+            problems.append("name is required")
+
+        target = None
+        if key is not None:
+            if key in ambiguous_numbers:
+                problems.append(
+                    f"more than one asset is already numbered '{number}' — fix that first"
+                )
+            target = by_number.get(key)
+
+            if target is not None and (
+                target.property_id is not None
+                and not is_admin
+                and target.property_id not in visible_properties
+            ):
+                problems.append(
+                    f"asset '{number}' belongs to a property you cannot access"
+                )
+
+            if key in seen_numbers:
+                problems.append(
+                    f"asset_number '{number}' also appears on line {seen_numbers[key]} of this file"
+                )
+
+        # property_id is three-state too: absent leaves it, null makes the asset
+        # company-wide, a value must name a property this user can actually see.
+        if (
+            "property_id" in provided
+            and row.property_id is not None
+            and not is_admin
+            and row.property_id not in visible_properties
+        ):
             problems.append(f"property_id {row.property_id} is not accessible")
 
         if problems:
-            errors.append(AssetImportError(row_number=row.row_number, errors=problems))
+            errors.append(AssetImportError(line_number=row.line_number, errors=problems))
             continue
 
-        seen_in_file.add(number)
-        to_create.append(row)
+        if key is not None:
+            seen_numbers[key] = row.line_number
+
+        if target is not None:
+            updates.append((row, target, fields))
+        else:
+            creates.append((row, fields))
 
     if errors and not payload.skip_invalid:
         # Nothing is written — the caller fixes the file and retries.
         return AssetImportResult(
-            imported=0,
+            created=0,
+            updated=0,
             failed=len(errors),
             errors=errors,
             committed=False,
         )
 
-    for row in to_create:
+    def _clean(key, value):
+        if key in ("asset_number", "name") and isinstance(value, str):
+            return value.strip()
+        return value
+
+    for row, fields in creates:
         asset = Asset(
             company_id=current_user.company_id,
             created_by=current_user.id,
-            asset_number=row.asset_number.strip(),
-            name=row.name.strip(),
-            description=row.description,
-            category=row.category,
-            subcategory=row.subcategory,
-            asset_type=row.asset_type,
-            make=row.make,
-            model=row.model,
-            serial_number=row.serial_number,
-            year_manufactured=row.year_manufactured,
-            unit_of_measure=row.unit_of_measure,
-            current_stock=row.current_stock,
-            minimum_stock=row.minimum_stock,
-            cost_per_unit=row.cost_per_unit,
-            property_id=row.property_id,
-            location_label=row.location_label,
+            **{k: _clean(k, v) for k, v in fields.items()},
         )
         db.add(asset)
+
+    for row, asset, fields in updates:
+        for key, value in fields.items():
+            setattr(asset, key, _clean(key, value))
 
     db.commit()
 
     logger.info(
-        f"Imported {len(to_create)} asset(s) for company {current_user.company_id} "
-        f"by user {current_user.id} ({len(errors)} skipped)"
+        f"Asset CSV sync for company {current_user.company_id} by user {current_user.id}: "
+        f"{len(creates)} created, {len(updates)} updated, {len(errors)} skipped"
     )
     return AssetImportResult(
-        imported=len(to_create),
+        created=len(creates),
+        updated=len(updates),
         failed=len(errors),
         errors=errors,
         committed=True,

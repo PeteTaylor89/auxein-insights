@@ -203,17 +203,27 @@ class User(Base):
         return self.has_permission("users", "create")
 
     def can_invite_role(self, target_role: str) -> bool:
-        """Check if user can invite someone with the target role"""
+        """Check if user can invite someone with the target role.
+
+        NOTE: nothing calls this today — POST /invitations has no explicit role
+        gate, it relies on the web client being closed to admins and managers.
+        It accepts both vocabularies (legacy `role` and `user_type`) because
+        callers have used both. Kept in step with ALLOWED_INVITATION_ROLES so
+        wiring it up later does not silently refuse the H&S account.
+        """
         if not self.can_invite_users():
             return False
 
         # Auxein admin and company admin can invite any role
         if self.user_type in ("auxein_admin", "company_admin"):
-            return target_role in ["admin", "manager", "user", "company_admin", "company_manager", "company_user"]
+            return target_role in [
+                "admin", "manager", "user", "general",
+                "company_admin", "company_manager", "company_user", "general_user",
+            ]
 
-        # Company manager can only invite company_user
+        # Company manager invites field and H&S accounts only
         if self.user_type == "company_manager":
-            return target_role in ("user", "company_user")
+            return target_role in ("user", "company_user", "general", "general_user")
 
         return False
     

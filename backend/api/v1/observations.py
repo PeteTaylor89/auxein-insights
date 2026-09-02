@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func, cast, Integer
 
 # --- deps & utils (adapt imports to your project layout) ---
+import logging
+
 from api.deps import get_db, get_current_user
+from services.count_metrics import metric_for_template
 from db.models.block import VineyardBlock
 from services.property_service import get_visible_property_ids, verify_block_access
 
@@ -38,6 +41,8 @@ from services.notification_service import NotificationService
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["observations"])
 
@@ -497,6 +502,8 @@ def list_runs(
         r.block_name = r.block.block_name if r.block else None
         r.assigned_to_user_name = _user_display_name(r.assigned_to_user) if r.assigned_to_user_id else None
         r.spots_count = spot_counts.get(r.id, 0)
+        # Templates are already eager-loaded for the name, so this costs nothing.
+        r.count_metric = metric_for_template(r.template)
     return rows
 
 @router.get("/observation-runs/{run_id}", response_model=ObservationRunOut)
@@ -609,12 +616,74 @@ def cancel_run(run_id: int, db: Session = Depends(get_db), user=Depends(get_curr
     
     run.observed_at_end = datetime.utcnow()
     run.tags = (run.tags or []) + ["cancelled"]
-    
+
     db.add(run)
     db.commit()
     db.refresh(run)
     return run
-    
+
+
+@router.delete("/observation-runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_run(
+    run_id: int,
+    force: bool = Query(False, description="Required to delete a run that has spots"),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Delete a run, and with it every spot captured in it.
+
+    This is a HARD delete, unlike `cancel`, which stamps the run as ended and
+    keeps the record. Cancel is for a run that will not happen; this is for one
+    that should never have existed — a mis-scheduled run, a duplicate, a test.
+
+    **The spots go too.** `observation_spots.run_id` and
+    `observation_task_links.observation_run_id` are both `ON DELETE CASCADE`, so
+    the counted data disappears with the run and cannot be recovered. That is
+    why deleting a run that has spots requires `force=true`: without it the
+    request is refused with a 409 naming the count, so a stray call cannot wipe
+    a morning's counting and a client is made to ask before it does.
+
+    `observations:delete` is admin-only, tighter than the `update` that cancel
+    uses. Losing a season of counts is not the same class of action as ending a
+    run early.
+    """
+    run = db.get(ObservationRun, run_id)
+    if not run:
+        # Idempotent, like the other deletes in this module: a second call from
+        # a retry or a double click must not raise.
+        return
+
+    if run.company_id != user.company_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not user.has_permission("observations", "delete"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only an admin can delete an observation run",
+        )
+    check_run_access(db, user, run)
+
+    spot_count = db.execute(
+        select(func.count(ObservationSpot.id)).where(ObservationSpot.run_id == run_id)
+    ).scalar() or 0
+
+    if spot_count and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This run holds {spot_count} recorded spot"
+                f"{'s' if spot_count != 1 else ''}, which will be deleted with it "
+                f"and cannot be recovered. Confirm to continue."
+            ),
+        )
+
+    logger.info(
+        f"Observation run {run_id} ('{run.name}') deleted by user {user.id} "
+        f"with {spot_count} spot(s)"
+    )
+    db.delete(run)
+    db.commit()
+    return
+
 
 
 # -----------------------------

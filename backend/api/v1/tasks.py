@@ -28,8 +28,11 @@ from db.models.risk_action import RiskAction
 from services.gps_processing import process_gps_track
 from services.spray_coverage import compute_spray_coverage, detect_spray_blocks, assess_spray_readiness
 from services.property_service import get_visible_property_ids, verify_block_access
+from services.pay_rates import get_cost_settings
+from services.stock_costing import unit_cost_for
+from services.task_costing import cost_task_safely, compute_task_cost, write_snapshot, get_live_cost
 from db.models.timesheet import TimesheetDay, TimeEntry, TimesheetStatus
-from services.timesheet_rules import create_entry as ts_create_entry
+from services.timesheet_rules import create_entry as ts_create_entry, day_is_editable
 
 from schemas.task_template import (
     TaskTemplateCreate, TaskTemplateUpdate, TaskTemplateResponse,
@@ -263,6 +266,130 @@ def can_modify_task(task: Task, user: User) -> bool:
 # TASK TEMPLATES
 # ============================================================================
 
+def apply_template_assets(db: Session, task: Task, template: TaskTemplate) -> int:
+    """Copy a template's equipment and consumables onto a new task.
+
+    THIS WAS THE MISSING LINK. `TaskTemplate` has stored `required_equipment_ids`,
+    `optional_equipment_ids` and `required_consumables` since it was written, the
+    template card and preview modal both DISPLAY them, and nothing ever turned
+    them into TaskAsset rows. `to_task_defaults()` returns scalars only. So a
+    task created from a spray template arrived with no chemical attached, its
+    completion screen had nothing to record, and its consumable cost was
+    structurally zero.
+
+    Consumables carry a rate per hectare, not a quantity, so the planned
+    quantity is derived: rate x the task's area. When the area is not known yet
+    — a block assigned later, or a task that covers no block — the rate is
+    stored and the quantity left NULL. The product still appears on the task,
+    which is the thing that matters; the quantity is a starting figure the
+    person completing it can type over anyway.
+
+    Assets that no longer exist, or belong to another company, are skipped
+    rather than raising: a template outlives the equipment it names, and a
+    retired tractor must not make every task built from that template fail.
+
+    Idempotent per (task, asset) — an asset already attached is left alone, so
+    a caller that attaches its own selection afterwards wins rather than
+    doubling up.
+
+    Returns the number of rows created.
+    """
+    equipment_required = list(template.required_equipment_ids or [])
+    equipment_optional = list(template.optional_equipment_ids or [])
+    consumables = list(template.required_consumables or [])
+
+    if not (equipment_required or equipment_optional or consumables):
+        return 0
+
+    wanted_ids = set(equipment_required) | set(equipment_optional)
+    for c in consumables:
+        if isinstance(c, dict) and isinstance(c.get("asset_id"), int):
+            wanted_ids.add(c["asset_id"])
+    if not wanted_ids:
+        return 0
+
+    # One query, and scoped to the task's company: a template should never be
+    # able to pull another company's asset onto a task.
+    assets = {
+        a.id: a for a in db.query(Asset).filter(
+            Asset.id.in_(wanted_ids),
+            Asset.company_id == task.company_id,
+        ).all()
+    }
+
+    existing = {
+        ta.asset_id for ta in db.query(TaskAsset.asset_id).filter(
+            TaskAsset.task_id == task.id
+        ).all()
+    }
+
+    # Quick-create takes a block but no area, and it is the path most likely to
+    # be used for a routine spray. Falling back to the block's own area is what
+    # makes a template's rate-per-hectare usable there at all; without it every
+    # field-created spray task would carry the product with no quantity.
+    area = task.area_total_hectares
+    if not area and task.block_id:
+        block_area = (
+            db.query(VineyardBlock.area).filter(VineyardBlock.id == task.block_id).scalar()
+        )
+        if block_area:
+            area = block_area
+
+    created = 0
+    missing = []
+
+    def attach(asset_id, role, is_required, planned_quantity=None, planned_rate=None):
+        nonlocal created
+        if asset_id in existing:
+            return
+        asset = assets.get(asset_id)
+        if asset is None:
+            missing.append(asset_id)
+            return
+        db.add(TaskAsset(
+            task_id=task.id,
+            asset_id=asset_id,
+            role=role,
+            is_required=is_required,
+            planned_quantity=planned_quantity,
+            planned_rate=planned_rate,
+            requires_calibration=bool(asset.requires_calibration),
+        ))
+        existing.add(asset_id)
+        created += 1
+
+    for asset_id in equipment_required:
+        attach(asset_id, "primary", True)
+    for asset_id in equipment_optional:
+        attach(asset_id, "secondary", False)
+
+    for c in consumables:
+        if not isinstance(c, dict):
+            continue
+        asset_id = c.get("asset_id")
+        if not isinstance(asset_id, int):
+            continue
+        rate = c.get("rate_per_hectare")
+        planned_rate = Decimal(str(rate)) if rate is not None else None
+        planned_qty = (planned_rate * Decimal(str(area))) if (planned_rate is not None and area) else None
+        attach(asset_id, "consumable", True,
+               planned_quantity=planned_qty, planned_rate=planned_rate)
+
+    if missing:
+        # Not an error — but not silent either. A template quietly losing an
+        # asset is exactly the kind of thing nobody notices until a spray record
+        # is short.
+        logger.warning(
+            f"Template {template.id} references asset(s) {sorted(missing)} that no longer "
+            f"exist in company {task.company_id}; skipped on task {task.id}"
+        )
+
+    if created:
+        db.flush()
+        logger.info(f"Task {task.id}: attached {created} asset(s) from template {template.id}")
+    return created
+
+
 @router.post("/task-templates", response_model=TaskTemplateResponse, status_code=status.HTTP_201_CREATED)
 def create_task_template(
     template_data: TaskTemplateCreate,
@@ -468,6 +595,12 @@ def create_task(
 
     db.add(task)
     db.flush()  # Get task ID for assignments
+
+    # Pull the template's equipment and consumables through. Without this a
+    # task built from a spray template arrived with no chemical on it, so
+    # there was nothing to record at completion and nothing to cost.
+    if task_data.template_id:
+        apply_template_assets(db, task, template)
 
     # Inline assignment — one TaskAssignment per user (first is primary) so the
     # task appears in each assignee's feed. De-duped to avoid double rows.
@@ -679,7 +812,11 @@ def quick_create_task(
     
     db.add(task)
     db.flush()  # Get task ID for assignments
-    
+
+    # Same as the full create path. Quick-create is the one MOST likely to
+    # be used for a routine spray, and it was dropping the chemical too.
+    apply_template_assets(db, task, template)
+
     # Create assignments if provided
     if task_data.assigned_user_ids:
         for idx, user_id in enumerate(task_data.assigned_user_ids):
@@ -889,6 +1026,22 @@ def list_tasks(
     """List tasks with comprehensive filtering. Eagerly loads block + assignees so the
     web Task Management table can render block name and assignee names without a follow-up call.
     """
+    # This endpoint scoped by PROPERTY and never by permission, so a user type
+    # with no task rights at all still received the company's task list —
+    # narrowed to their properties, but a list they should not see one row of.
+    # Found when `general_user` was added (2026-09-01): it holds neither
+    # `tasks:read` nor `tasks:read_assigned` and got a 200.
+    #
+    # Phrased as "holds either" rather than require_company_user_permission so
+    # nobody who works today stops working: `read` covers admin/manager/user and
+    # contractor, `read_assigned` covers the field roles.
+    if not (current_user.has_permission("tasks", "read")
+            or current_user.has_permission("tasks", "read_assigned")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: tasks.read not allowed for {current_user.user_type}",
+        )
+
     query = db.query(Task).options(
         joinedload(Task.block),
         joinedload(Task.spatial_area),
@@ -974,6 +1127,309 @@ def list_tasks(
         t.assigned_contractor_ids = [c.id for c in t_contractors]
 
     return tasks
+
+
+# ---------------------------------------------------------------------------
+# Task cost
+# ---------------------------------------------------------------------------
+
+def _cost_out(snapshot, task):
+    """Serialise a snapshot for a client.
+
+    `is_complete` and `warnings` travel WITH the figures on purpose. A total
+    that omits unrated labour or unpriced materials is real as far as it goes
+    and lower than the truth, and a client that receives only the number has no
+    way to know which it is holding.
+    """
+    if snapshot is None:
+        return None
+    sources = snapshot.rate_sources or {}
+    return {
+        "task_id": snapshot.task_id,
+        "task_number": task.task_number if task else None,
+        "labour_cost_staff": str(snapshot.labour_cost_staff) if snapshot.labour_cost_staff is not None else None,
+        "labour_cost_contractor": str(snapshot.labour_cost_contractor) if snapshot.labour_cost_contractor is not None else None,
+        "consumable_cost": str(snapshot.consumable_cost) if snapshot.consumable_cost is not None else None,
+        "asset_cost": str(snapshot.asset_cost) if snapshot.asset_cost is not None else None,
+        "total_cost": str(snapshot.total_cost) if snapshot.total_cost is not None else None,
+        "currency": snapshot.currency,
+        "staff_hours": str(snapshot.staff_hours) if snapshot.staff_hours is not None else None,
+        "contractor_hours": str(snapshot.contractor_hours) if snapshot.contractor_hours is not None else None,
+        "asset_hours": str(snapshot.asset_hours) if snapshot.asset_hours is not None else None,
+        "unrated_staff_hours": str(snapshot.unrated_staff_hours or 0),
+        "on_cost_multiplier_applied": str(snapshot.on_cost_multiplier_applied) if snapshot.on_cost_multiplier_applied is not None else None,
+        "computed_at": snapshot.computed_at.isoformat() if snapshot.computed_at else None,
+        "is_complete": snapshot.is_complete,
+        "rate_sources": sources,
+    }
+
+
+@router.get("/tasks/{task_id}/assets")
+def list_task_assets(
+    task_id: int,
+    db: Session = Depends(get_db),
+    actor=Depends(get_current_user_or_contractor),
+):
+    """Everything attached to a task — equipment AND consumables — in one call.
+
+    The two existing endpoints each serve one modal: `/equipment-check` is
+    shaped for the pre-start dialog and `/consumables` for the completion
+    dialog. Between them there was no way to simply SEE what a task uses, which
+    meant a crew mid-spray could not check what they were meant to be applying,
+    and nothing anywhere rendered what was actually used once a task was done.
+    Those two stay as they are; this is the read surface for the task page.
+
+    Cost is included ONLY for a caller holding `costs:read`. A unit price and a
+    quantity is a supplier agreement, and a line cost divided by hours is a
+    wage — the same reason the costs module exists at all. A contractor never
+    sees money here regardless.
+
+    `actual_quantity` is what makes this worth having after completion: the
+    figure has always been recorded and has never been shown.
+    """
+    task = check_task_access_for_actor(db, task_id, actor)
+
+    is_user = isinstance(actor, User)
+    show_costs = is_user and actor.has_permission("costs", "read")
+
+    # Usage movements carry the price that was snapshot at completion. Read
+    # from them rather than re-deriving from the asset's current price, or a
+    # supplier update today would silently restate what last month's spray cost.
+    movement_by_asset = {}
+    if show_costs:
+        for m in db.query(StockMovement).filter(
+            StockMovement.task_id == task_id,
+            StockMovement.movement_type == "usage",
+        ).all():
+            movement_by_asset[m.asset_id] = m
+
+    items = []
+    for ta in task.task_assets:
+        asset = ta.asset
+        if not asset:
+            continue
+
+        is_consumable = asset.asset_type == "consumable"
+        item = {
+            "task_asset_id": ta.id,
+            "asset_id": asset.id,
+            "asset_name": asset.name,
+            "asset_number": asset.asset_number,
+            "category": asset.category,
+            "is_consumable": is_consumable,
+            "role": ta.role,
+            "is_required": ta.is_required,
+            "unit": asset.unit_of_measure,
+            "planned_quantity": float(ta.planned_quantity) if ta.planned_quantity is not None else None,
+            "actual_quantity": float(ta.actual_quantity) if ta.actual_quantity is not None else None,
+            "planned_hours": float(ta.planned_hours) if ta.planned_hours is not None else None,
+            "actual_hours": float(ta.actual_hours) if ta.actual_hours is not None else None,
+            "batch_number": ta.batch_number,
+            "current_stock": float(asset.current_stock) if asset.current_stock is not None else None,
+            "requires_calibration": bool(ta.requires_calibration or asset.requires_calibration),
+            "calibration_overdue": False,
+            "last_calibration_date": None,
+            "notes": ta.notes,
+        }
+
+        if item["requires_calibration"]:
+            last_cal = (
+                db.query(AssetCalibration)
+                .filter(AssetCalibration.asset_id == asset.id)
+                .order_by(AssetCalibration.calibration_date.desc())
+                .first()
+            )
+            if last_cal:
+                item["last_calibration_date"] = str(last_cal.calibration_date)
+                # local_today, not the server's date — on UTC this reads a day
+                # behind for the whole NZ morning.
+                if last_cal.due_date and last_cal.due_date < local_today():
+                    item["calibration_overdue"] = True
+            else:
+                item["calibration_overdue"] = True
+
+        if show_costs:
+            if is_consumable:
+                # The movement is the ledger row and carries the unit cost
+                # snapshot taken at the moment of use, so it survives the
+                # product's price changing afterwards.
+                mv = movement_by_asset.get(asset.id)
+                item["unit_cost"] = str(mv.unit_cost) if mv is not None and mv.unit_cost is not None else None
+                item["actual_cost"] = str(ta.actual_cost) if ta.actual_cost is not None else None
+            else:
+                # Equipment has no per-use ledger row to hang a price on, so its
+                # line cost is derived here from hours x the asset's current
+                # rate. That means it MOVES when a rate is changed, unlike a
+                # consumable — the same asymmetry the costing service documents.
+                # TaskAsset.actual_cost is never written for equipment.
+                rate = asset.hourly_operating_rate
+                item["unit_cost"] = str(rate) if rate is not None else None
+                item["actual_cost"] = (
+                    str((Decimal(str(ta.actual_hours)) * Decimal(str(rate))).quantize(Decimal("0.01")))
+                    if ta.actual_hours is not None and rate is not None else None
+                )
+            # None means not costed, never zero. An unpriced product or an
+            # unrated machine is not a free one, and the panel renders that.
+            item["cost_known"] = item["actual_cost"] is not None
+
+        items.append(item)
+
+    # Equipment first, then consumables, each alphabetical — the order someone
+    # checks a rig before they check the chemical.
+    items.sort(key=lambda i: (i["is_consumable"], (i["asset_name"] or "").lower()))
+
+    out = {
+        "task_id": task_id,
+        "assets": items,
+        "can_edit": is_user and actor.has_permission("tasks", "update"),
+        "shows_costs": show_costs,
+    }
+
+    if show_costs:
+        total = sum(
+            Decimal(i["actual_cost"]) for i in items
+            if i.get("actual_cost") is not None
+        )
+        uncosted = sum(1 for i in items if i["is_consumable"] and i.get("actual_cost") is None
+                       and i.get("actual_quantity"))
+        out["consumable_cost_total"] = str(total) if any(
+            i.get("actual_cost") is not None for i in items) else None
+        # The panel must be able to say "this total is short", not just show it.
+        out["uncosted_consumables"] = uncosted
+
+    return out
+
+
+@router.delete("/tasks/{task_id}/assets/{task_asset_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_task_asset(
+    task_id: int,
+    task_asset_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detach an asset from a task.
+
+    Refused once a quantity has actually been used. The StockMovement that
+    recorded the usage carries `task_id` and would be left pointing at a task
+    that no longer claims the product — the stock is gone from the shed either
+    way, and the audit trail should keep saying where it went. Correct the
+    figure instead, or leave it.
+    """
+    task = check_task_access(db, task_id, current_user)
+
+    if not can_modify_task(task, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to change this task",
+        )
+
+    ta = (
+        db.query(TaskAsset)
+        .filter(TaskAsset.id == task_asset_id, TaskAsset.task_id == task_id)
+        .first()
+    )
+    if ta is None:
+        raise HTTPException(status_code=404, detail="Not attached to this task")
+
+    if ta.actual_quantity is not None and ta.actual_quantity > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This has already been used on the task, so it cannot be removed — "
+                "the stock movement recording it would be orphaned. Change the quantity "
+                "used instead."
+            ),
+        )
+
+    db.delete(ta)
+    db.commit()
+    logger.info(f"TaskAsset {task_asset_id} detached from task {task_id} by user {current_user.id}")
+
+
+@router.get("/tasks/{task_id}/cost")
+def get_task_cost(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The live cost snapshot for a task, or null if it has none.
+
+    Behind `costs:read`, which is admin-only. A task cost divided by its hours
+    is an hourly rate, so this is exactly as sensitive as the rate table and
+    sits behind the same door.
+
+    Returns 200 with a null cost rather than 404 when a task has never been
+    costed: "not costed" is a state the caller needs to render, not an error.
+    """
+    if not current_user.has_permission("costs", "read"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to view task costs",
+        )
+
+    task = check_task_access(db, task_id, current_user)
+    snapshot = get_live_cost(db, task_id)
+    return {"task_id": task_id, "cost": _cost_out(snapshot, task)}
+
+
+@router.post("/tasks/{task_id}/cost/recompute")
+def recompute_task_cost(
+    task_id: int,
+    preview: bool = Query(False, description="Compute and return without writing"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Recost a task from the rates and prices that apply to its own dates.
+
+    This exists because the snapshot is deliberately frozen. Backdating a pay
+    rate, pricing a consumable that had none, or setting the on-cost multiplier
+    for the first time all change what a past task SHOULD have cost, and none of
+    them reach back on their own — by design, or a rise would silently repice
+    everything that person ever touched.
+
+    The previous snapshot is superseded, never overwritten, so the figure it
+    replaced stays answerable.
+
+    `preview=true` computes without writing, so an admin can see what a
+    recompute would do before doing it.
+
+    Declared before /tasks/{task_id} routes so "cost" is never parsed as an id.
+    """
+    if not current_user.has_permission("costs", "update"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to recompute task costs",
+        )
+
+    task = check_task_access(db, task_id, current_user)
+    result = compute_task_cost(db, task)
+
+    if preview:
+        return {
+            "task_id": task_id,
+            "preview": True,
+            "total_cost": str(result.total_cost) if result.total_cost is not None else None,
+            "labour_cost_staff": str(result.labour_cost_staff) if result.labour_cost_staff is not None else None,
+            "labour_cost_contractor": str(result.labour_cost_contractor) if result.labour_cost_contractor is not None else None,
+            "consumable_cost": str(result.consumable_cost) if result.consumable_cost is not None else None,
+            "currency": result.currency,
+            "staff_hours": str(result.staff_hours),
+            "unrated_staff_hours": str(result.unrated_staff_hours),
+            "is_complete": result.is_complete,
+            "warnings": result.warnings,
+        }
+
+    previous = get_live_cost(db, task_id)
+    previous_total = str(previous.total_cost) if previous and previous.total_cost is not None else None
+
+    snapshot = write_snapshot(db, task, result, computed_by=current_user.id)
+    db.commit()
+    db.refresh(snapshot)
+
+    out = _cost_out(snapshot, task)
+    out["warnings"] = result.warnings
+    out["previous_total_cost"] = previous_total
+    return {"task_id": task_id, "preview": False, "cost": out}
 
 
 @router.get("/tasks/{task_id}", response_model=TaskWithRelations)
@@ -1425,6 +1881,10 @@ def complete_task(
     task.gps_tracking_active = False
 
     # P0: Process consumable actuals → create StockMovements
+    #
+    # Loaded once outside the loop: the costing method is a company setting, and
+    # a query per consumable would be a query per line of a spray programme.
+    cost_settings = get_cost_settings(db, task.company_id)
     if complete_request.consumable_actuals:
         for ca in complete_request.consumable_actuals:
             ta = db.query(TaskAsset).filter(
@@ -1444,6 +1904,23 @@ def complete_task(
             if ta.planned_quantity and task.area_total_hectares:
                 ta.actual_rate = actual_qty / task.area_total_hectares
 
+            # Cost the usage by the company's chosen method — weighted
+            # average over priced purchases, falling back to the product's
+            # standing price when there are no deliveries recorded.
+            #
+            # The unit cost is SNAPSHOT onto the movement, not looked up later.
+            # cost_per_unit is a single mutable field, so valuing on read would
+            # reprice every historical usage of that product: last season's
+            # spray programme would change value because someone updated a
+            # supplier price today.
+            #
+            # None, not 0.00, when there is no price anywhere. An uncosted
+            # application is not a free one, and a report can say "not costed"
+            # while it cannot say "cost nothing".
+            unit_cost, _cost_source = unit_cost_for(db, asset, cost_settings)
+            line_cost = (abs(actual_qty) * unit_cost) if unit_cost is not None else None
+            ta.actual_cost = line_cost
+
             # Create StockMovement (negative = usage)
             stock_before = asset.current_stock or Decimal("0")
             stock_after = stock_before - actual_qty
@@ -1454,6 +1931,8 @@ def complete_task(
                 movement_type="usage",
                 movement_date=datetime.now(),
                 quantity=-actual_qty,
+                unit_cost=unit_cost,
+                total_cost=line_cost,
                 task_id=task.id,
                 block_id=task.block_id,
                 batch_number=ca.batch_number,
@@ -1470,6 +1949,60 @@ def complete_task(
             asset.current_stock = stock_after
             if stock_after <= 0:
                 asset.status = "out_of_stock"
+
+    # ---- equipment hours -------------------------------------------------
+    #
+    # `TaskAsset.actual_hours` was a dead column: nothing had ever written it,
+    # so machinery could not be costed AND `Asset.current_hours` never moved —
+    # which left maintenance_interval_hours, due_hours and next_due_hours inert
+    # too. Capturing here fixes both at once.
+    #
+    # A tractor runs for as long as the person driving it works, so PRIMARY
+    # equipment inherits the task's labour hours unless the client says
+    # otherwise. Secondary equipment does not: an implement swapped in for part
+    # of a job is exactly the case where assuming would be wrong, so it stays
+    # uncaptured rather than being credited hours it may not have run.
+    supplied_hours = {
+        e.task_asset_id: Decimal(str(e.actual_hours))
+        for e in (complete_request.equipment_actuals or [])
+    }
+    labour_hours = (
+        Decimal(str(complete_request.hours_worked))
+        if complete_request.hours_worked and complete_request.hours_worked > 0
+        else None
+    )
+
+    for ta in task.task_assets:
+        asset = ta.asset
+        if not asset or asset.asset_type == "consumable":
+            continue
+
+        hours = supplied_hours.get(ta.id)
+        if hours is None and ta.role == "primary" and labour_hours is not None:
+            hours = labour_hours
+        if hours is None:
+            continue
+
+        # Only credit hours once. This endpoint can be hit twice, and a second
+        # pass must not advance the machine's meter again — an inflated hour
+        # meter brings a service forward and is not obviously wrong afterwards.
+        already = Decimal(str(ta.actual_hours)) if ta.actual_hours is not None else None
+        if already == hours:
+            continue
+
+        delta = hours - (already or Decimal("0"))
+        ta.actual_hours = hours
+
+        # The usage window, from the task's own timestamps. A fallback rather
+        # than a measurement — nothing tracks when a machine was switched on —
+        # so it is only filled when it is not already set.
+        if ta.usage_started_at is None:
+            ta.usage_started_at = task.actual_start_time or task.completed_at
+        if ta.usage_ended_at is None:
+            ta.usage_ended_at = task.completed_at
+
+        if delta > 0:
+            asset.current_hours = (asset.current_hours or Decimal("0")) + delta
 
     # Update all assignments to completed
     for assignment in task.assignments:
@@ -1501,6 +2034,22 @@ def complete_task(
                     # actual_hours_worked untouched.
                     if ca_row.actual_hours_worked is None:
                         ca_row.actual_hours_worked = complete_request.hours_worked
+
+                # Cost the assignment. calculate_payment_amount() has existed on
+                # the model since it was written and was called from nowhere, so
+                # actual_cost was never populated by any endpoint — the rate was
+                # captured and never multiplied out.
+                #
+                # No day_hours is passed because no company cost settings exist
+                # yet, so a daily-rate assignment returns None and stays visibly
+                # uncosted rather than being divided by a guessed 8-hour day.
+                # Only fill a cost that is not already there: this endpoint can
+                # be hit twice, and re-costing a completed assignment would
+                # overwrite a figure a person may have corrected by hand.
+                if ca_row.actual_cost is None:
+                    computed = ca_row.calculate_payment_amount()
+                    if computed is not None:
+                        ca_row.actual_cost = computed
             else:
                 was_already_completed = True
 
@@ -1519,8 +2068,27 @@ def complete_task(
                 if contractor_row:
                     contractor_row.total_jobs_completed = (contractor_row.total_jobs_completed or 0) + 1
 
-    # Log hours to today's timesheet (User actor only — contractors aren't on the timesheet)
-    hours_entry_created = False
+    # Record the hours on the task itself, unconditionally, BEFORE any timesheet
+    # write is attempted.
+    #
+    # This is the recovery path that was missing. `hours_worked` used to exist
+    # only as a TimeEntry row, so any time that write was skipped — an approved
+    # day, a cap breach, a database error — the number was gone with nothing to
+    # recover it from and the endpoint still returned 200. `Task.actual_hours`
+    # is documented on the model as "Calculated from TimeEntry" but nothing has
+    # ever written it, which is also why it reads 0.00 in every report.
+    #
+    # NOT a second source of truth for reporting. `reports._task_hours()` sums
+    # TimeEntry.hours + ContractorAssignment.actual_hours_worked and must keep
+    # doing so; adding this field to that total would double-count. It is the
+    # audit record of what the worker entered at completion.
+    if complete_request.hours_worked and complete_request.hours_worked > 0:
+        task.actual_hours = complete_request.hours_worked
+
+    # Log hours to the worker's timesheet (User actor only — a contractor has no
+    # timesheet; their hours went to ContractorAssignment above).
+    timesheet_result = "not_applicable"
+    timesheet_message = None
     if (
         not is_contractor
         and complete_request.hours_worked
@@ -1546,13 +2114,61 @@ def complete_task(
             )
             db.add(day)
             db.flush()
-        # Only append entry if day is still editable
-        if day.status in (TimesheetStatus.draft, TimesheetStatus.submitted, TimesheetStatus.rejected):
+        # Only append entry if day is still editable. The rule is
+        # `day_is_editable` and nothing else — this used to carry its own copy
+        # that allowed `submitted`, so hours could still land on a day the
+        # manager had already been asked to approve (F4). Both call sites now
+        # read the same function.
+        if day_is_editable(day):
             try:
                 ts_create_entry(db, day.id, task.id, complete_request.hours_worked)
-                hours_entry_created = True
-            except Exception as e:
-                logger.warning(f"Timesheet entry failed for task {task_id}: {e}")
+                timesheet_result = "logged"
+            except ValueError as e:
+                # ValueError is the timesheet's own refusal — the daily cap, the
+                # 0.25h step. Deliberately NOT `except Exception`: swallowing
+                # everything is what made this class of fault invisible, and a
+                # database error here must propagate rather than be logged at
+                # warning level behind a 200.
+                logger.warning(
+                    f"Timesheet refused {complete_request.hours_worked}h for task {task_id} "
+                    f"on day {day.id}: {e}"
+                )
+                timesheet_result = "rejected"
+                timesheet_message = str(e)
+        else:
+            # The day is locked — approved, or (since F4) already submitted.
+            # There is an open product decision on what SHOULD happen here:
+            # refuse the completion, roll the hours to the next open day,
+            # auto-release/un-submit the day, or queue it for a manager. Until
+            # that is answered the completion stands and the hours survive on
+            # task.actual_hours above; what changes is that the worker is now
+            # told, instead of the request falling through this branch silently
+            # and returning 200.
+            #
+            # Submitted is the case that will be hit in practice — a worker who
+            # sends their day in at 3pm and then finishes a task at 4pm. Their
+            # recourse is cheap (ask for it back, it is one tap for the
+            # manager) and it is the same recourse mobile has always given
+            # them, since its UI never allowed an edit after submission either.
+            logger.info(
+                f"Task {task_id}: {complete_request.hours_worked}h not added to timesheet "
+                f"day {day.id} ({day.work_date}) — day is {day.status.value}. "
+                f"Hours recorded on the task."
+            )
+            timesheet_result = "day_locked"
+            if day.status == TimesheetStatus.submitted:
+                timesheet_message = (
+                    f"Your timesheet for {day.work_date} has already been submitted for "
+                    f"approval, so these {complete_request.hours_worked}h were not added to "
+                    f"it. They are recorded against the task — ask your manager to send the "
+                    f"day back if they need to be paid."
+                )
+            else:
+                timesheet_message = (
+                    f"Your timesheet for {day.work_date} has already been approved, so these "
+                    f"{complete_request.hours_worked}h were not added to it. They are recorded "
+                    f"against the task — ask a manager to release the day if they need to be paid."
+                )
 
     db.commit()
     db.refresh(task)
@@ -1573,7 +2189,7 @@ def complete_task(
 
     # Notify the user themselves if hours were logged (so the timesheet update is visible).
     # Contractor actors have no timesheet, so this branch only fires for User actors.
-    if hours_entry_created and not is_contractor:
+    if timesheet_result == "logged" and not is_contractor:
         notification_service = NotificationService(db)
         notification_service.notify_user(
             user=actor,
@@ -1581,6 +2197,26 @@ def complete_task(
             title=f"{complete_request.hours_worked}h added to today's timesheet",
             body=f"From task {task.task_number}: {task.title}",
             data={"task_id": task.id, "task_number": task.task_number, "hours": str(complete_request.hours_worked)},
+        )
+        db.commit()
+
+    # The mirror image: hours that did NOT reach the timesheet. Silence here is
+    # what let the loss go unnoticed — the worker saw a successful completion
+    # and had no reason to check. An offline replay can land here too, hours
+    # after the fact, so the notification is the only signal they will get.
+    if timesheet_result in ("day_locked", "rejected") and not is_contractor:
+        notification_service = NotificationService(db)
+        notification_service.notify_user(
+            user=actor,
+            notification_type=NotificationType.timesheet,
+            title=f"{complete_request.hours_worked}h NOT added to your timesheet",
+            body=timesheet_message or f"From task {task.task_number}: {task.title}",
+            data={
+                "task_id": task.id,
+                "task_number": task.task_number,
+                "hours": str(complete_request.hours_worked),
+                "timesheet_result": timesheet_result,
+            },
         )
         db.commit()
 
@@ -1599,7 +2235,23 @@ def complete_task(
         except Exception as e:
             logger.warning(f"Spray coverage processing failed for task {task_id}: {e}")
 
+    # Cost the task now that hours, consumables and contractor rows are all
+    # written and committed. Deliberately AFTER the commit: costing reads what
+    # completion produced, and a snapshot taken mid-transaction would be costing
+    # a state that might still roll back.
+    #
+    # This can never fail the completion — see cost_task_safely. A task cost is
+    # bookkeeping that follows the work, not a condition of recording it.
+    cost_snapshot = cost_task_safely(db, task, computed_by=completer_user_id)
+    if cost_snapshot is not None:
+        db.commit()
+
     logger.info(f"Task {task_id} completed by actor {type(actor).__name__}:{actor.id}")
+
+    # Set after every commit and refresh — db.refresh() would expire it.
+    # These are instance attributes read by TaskResponse, not columns.
+    task.timesheet_result = timesheet_result
+    task.timesheet_message = timesheet_message
 
     return task
 

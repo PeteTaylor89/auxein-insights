@@ -1,9 +1,18 @@
-# app/schemas/invitation.py - Invitation Pydantic Schemas (Updated for 3 roles)
+# app/schemas/invitation.py - Invitation Pydantic Schemas
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, validator
 from .user import UserSummary
 from .company import Company
+
+# The roles an invitation may carry, from the single source of truth. These
+# validators previously held their own copy of the list, which is how the
+# invite form came to offer a "viewer" every one of them rejected with a 422.
+#
+# `general` is the health-and-safety account: it resolves to user_type
+# `general_user`, which signs on and off a property, raises incidents and signs
+# visitors in, and can do nothing else. Mobile only.
+from core.permissions import ASSIGNABLE_ROLES as ALLOWED_INVITATION_ROLES
 
 class InvitationBase(BaseModel):
     email: EmailStr
@@ -18,9 +27,8 @@ class InvitationCreate(InvitationBase):
     
     @validator("role")
     def validate_role(cls, v):
-        allowed_roles = ["admin", "manager", "user"]  # Simplified roles
-        if v not in allowed_roles:
-            raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
+        if v not in ALLOWED_INVITATION_ROLES:
+            raise ValueError(f"Role must be one of: {', '.join(ALLOWED_INVITATION_ROLES)}")
         return v
     
     @validator("message")
@@ -37,9 +45,8 @@ class InvitationUpdate(BaseModel):
     @validator("role")
     def validate_role(cls, v):
         if v is not None:
-            allowed_roles = ["admin", "manager", "user"]  # Simplified roles
-            if v not in allowed_roles:
-                raise ValueError(f"Role must be one of: {', '.join(allowed_roles)}")
+            if v not in ALLOWED_INVITATION_ROLES:
+                raise ValueError(f"Role must be one of: {', '.join(ALLOWED_INVITATION_ROLES)}")
         return v
     
     @validator("status")
@@ -165,16 +172,21 @@ class BulkInvitation(BaseModel):
 # Simplified role permission mappings for invitations
 INVITATION_ROLE_PERMISSIONS = {
     "admin": {
-        "can_invite": ["admin", "manager", "user"],
+        "can_invite": ["admin", "manager", "user", "general"],
         "can_manage_invitations": True,
         "can_cancel_invitations": True
     },
     "manager": {
-        "can_invite": ["user"],  # Managers can only invite users
+        "can_invite": ["user", "general"],  # Managers invite field and H&S accounts
         "can_manage_invitations": False,
         "can_cancel_invitations": False
     },
     "user": {
+        "can_invite": [],
+        "can_manage_invitations": False,
+        "can_cancel_invitations": False
+    },
+    "general": {
         "can_invite": [],
         "can_manage_invitations": False,
         "can_cancel_invitations": False

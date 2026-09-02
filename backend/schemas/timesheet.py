@@ -113,6 +113,13 @@ class TimesheetDayOut(BaseModel):
     entries: List[TimeEntryOut] = []
     user: Optional[UserBasic] = None  # Add this line
 
+    # Non-fatal message about the write that just happened — currently only
+    # "your day total was below the hours already coded, so it was not
+    # applied". Set on the instance by the endpoint, never a database column.
+    # A request that changes less than the caller asked for has to say so;
+    # returning a clean 200 is how the old set_day_hours hid a data loss.
+    warning: Optional[str] = None
+
     class Config:
         orm_mode = True
 

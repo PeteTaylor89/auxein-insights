@@ -181,6 +181,17 @@ class TaskResponse(TaskBase):
     # Metadata
     created_at: datetime
     updated_at: datetime
+
+    # What happened to `hours_worked` on this request. Set by /complete only;
+    # None everywhere else. The client MUST be able to tell "your hours are on
+    # the timesheet" from "they are not" — a completion that returned a clean
+    # 200 while discarding the hours is exactly the fault this reports.
+    #   logged          entry created on the worker's timesheet day
+    #   day_locked      the day is approved; hours are on the task, not the day
+    #   rejected        the timesheet refused them (daily cap, step); see message
+    #   not_applicable  no hours were sent, or the actor is a contractor
+    timesheet_result: Optional[str] = None
+    timesheet_message: Optional[str] = None
     created_by: Optional[int] = None
     
     # Computed properties
@@ -324,12 +335,30 @@ class ConsumableActual(BaseModel):
     batch_number: Optional[str] = None
 
 
+class EquipmentActual(BaseModel):
+    """Machine hours for an equipment TaskAsset at completion.
+
+    The equipment counterpart of ConsumableActual, and the reason
+    `TaskAsset.actual_hours` stopped being a dead column: nothing had ever
+    written it, so equipment could not be costed and `Asset.current_hours`
+    never moved — which in turn left maintenance_interval_hours, due_hours and
+    next_due_hours inert.
+    """
+    task_asset_id: int
+    actual_hours: float = Field(..., ge=0, le=24)
+
+
 class TaskCompleteRequest(TaskActionRequest):
     """Schema for completing a task"""
     completion_notes: Optional[str] = None
     completion_photo_ids: Optional[List[str]] = Field(default_factory=list)
     weather_conditions: Optional[Dict[str, Any]] = None
     consumable_actuals: Optional[List[ConsumableActual]] = None  # P0: stock deduction
+    # Machine hours per piece of equipment. When omitted, primary equipment
+    # inherits the labour hours for the task — the usual case, since a tractor
+    # runs for as long as the person driving it works. Send this only to say
+    # otherwise.
+    equipment_actuals: Optional[List[EquipmentActual]] = None
     hours_worked: Optional[Decimal] = Field(None, ge=0, le=24, description="Hours to add to the day's timesheet (0.25h increments)")
     # The DEVICE's date, not the server's.
     #

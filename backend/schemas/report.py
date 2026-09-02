@@ -13,6 +13,40 @@ class CategoryCount(BaseModel):
     count: int
 
 
+# ── Costs ─────────────────────────────────────────────────────────────
+class CostBreakdown(BaseModel):
+    """What a set of tasks cost, and how much of that figure to trust.
+
+    **A null container means "you may not see costs"; a null FIELD means "not
+    known".** The two are different answers and the shape keeps them apart. Any
+    row carrying costs at all has this object; a viewer without `costs:read`
+    gets no object anywhere in the payload, so a client cannot mistake a
+    withheld figure for an uncosted one.
+
+    Nothing here is ever 0.00 to mean unknown. An unresolvable pay rate, an
+    unpriced consumable or an unrated machine leaves its field None and says so
+    in `warning` — 0.00 would assert the work was free, which is a claim nobody
+    made.
+    """
+    currency: str = "NZD"
+    labour_staff: Optional[float] = None
+    labour_contractor: Optional[float] = None
+    consumables: Optional[float] = None
+    equipment: Optional[float] = None
+    total: Optional[float] = None
+
+    # Coverage. `uncosted_tasks` is the one that matters most: a task completed
+    # before costing shipped has no snapshot and contributes nothing, so a total
+    # over a historical period is an understatement by construction.
+    costed_tasks: int = 0
+    uncosted_tasks: int = 0
+    incomplete_tasks: int = 0
+
+    #: False when the total is knowably lower than the truth.
+    is_complete: bool = True
+    warning: Optional[str] = None
+
+
 class TaskReportSummary(BaseModel):
     total: int = 0
     by_status: List[StatusCount] = []
@@ -21,6 +55,9 @@ class TaskReportSummary(BaseModel):
     total_hours: float = 0
     completion_rate: float = 0  # percentage
     overdue_count: int = 0
+    #: Absent without `costs:read`. Covers the COMPLETED tasks in range only —
+    #: an unfinished task has no snapshot and no cost to report.
+    costs: Optional[CostBreakdown] = None
 
 
 class ObservationReportSummary(BaseModel):
@@ -81,6 +118,9 @@ class BlockWorkRow(BaseModel):
     rows_completed: int = 0
     area_worked_hectares: float = 0
     hours_per_hectare: Optional[float] = None
+    # Absent entirely without `costs:read` — see CostBreakdown.
+    costs: Optional[CostBreakdown] = None
+    cost_per_hectare: Optional[float] = None
 
 
 class WorkByBlockSummary(BaseModel):
@@ -92,6 +132,8 @@ class WorkByBlockSummary(BaseModel):
     # spread across blocks, because attributing them would be a guess.
     unallocated_hours: float = 0
     unallocated_tasks: int = 0
+    #: Company-wide totals, including the unallocated tasks. Absent without `costs:read`.
+    costs: Optional[CostBreakdown] = None
 
 
 # ── Outstanding & overdue ─────────────────────────────────────────────
@@ -177,7 +219,9 @@ class HealthSafetySummary(BaseModel):
 # ── Site access ───────────────────────────────────────────────────────
 class VisitRow(BaseModel):
     id: int
-    kind: str  # "visitor" | "contractor"
+    # "staff" rows come from SiteAttendance and carry no induction, purpose or
+    # equipment fields — a person who works here is not signed in as a guest.
+    kind: str  # "visitor" | "contractor" | "staff"
     name: str
     organisation: Optional[str] = None
     visit_date: Optional[str] = None
@@ -195,6 +239,9 @@ class SiteAccessSummary(BaseModel):
     total_visits: int = 0
     visitor_visits: int = 0
     contractor_visits: int = 0
+    # Staff sign-ons (SiteAttendance), added 2026-09-02. Before this the report
+    # answered "who was on site" with only the people who do not work here.
+    staff_attendances: int = 0
     unique_people: int = 0
     # Compliance holes, which is what an auditor opens this report to find.
     not_inducted: int = 0
@@ -233,6 +280,96 @@ class AreaByKey(BaseModel):
     key: str
     blocks: int = 0
     area_hectares: float = 0
+
+
+# ── Counts (bud / bunch / flower) ─────────────────────────────────────
+class CountStat(BaseModel):
+    """Observation counts for one block, run or the whole company.
+
+    **A statistic that the data cannot support is None, never 0.** A standard
+    deviation from one spot does not exist, and from two it is just the gap
+    between them divided by root two — a number that looks like a measure of
+    spread and is not one. `sd_note` says which case applies, so a blank cell
+    is explainable rather than looking like a bug.
+    """
+    key: str
+    label: str
+    block_id: Optional[int] = None
+    property_name: Optional[str] = None
+    variety: Optional[str] = None
+    #: Run rows only. A run's own `name` is frequently "Run — template 4", which
+    #: identifies nothing: what tells one run from another is WHERE and WHEN.
+    template_name: Optional[str] = None
+    observed_on: Optional[str] = None
+
+    spots: int = 0
+    #: Vines behind the figure — the sum of `vines_sampled`, not the spot count.
+    vines_sampled: float = 0
+    #: Weighted by vines sampled: a spot covering 5 vines outweighs one covering 1.
+    mean: Optional[float] = None
+    #: Sample SD ACROSS SPOTS (n-1). See `sd_basis`.
+    sd: Optional[float] = None
+    sd_basis: Optional[str] = None
+    sd_note: Optional[str] = None
+    #: SD as a percentage of the mean — the comparable measure of evenness.
+    cv_percent: Optional[float] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
+
+    target: Optional[float] = None
+    percent_of_target: Optional[float] = None
+
+
+class CountReportSummary(BaseModel):
+    metric: str
+    metric_label: str
+    unit: Optional[str] = None
+    overall: CountStat
+    blocks: List[CountStat] = []
+    runs: List[CountStat] = []
+    #: Templates this metric could not read, and anything else worth saying
+    #: before someone reads a number off the table.
+    warnings: List[str] = []
+
+
+# ── Cost report ───────────────────────────────────────────────────────
+class OperationCostRow(BaseModel):
+    """One operation type — pruning, spraying, mowing — across the period.
+
+    The question this answers is "what does a pass of X cost us", which is the
+    one a grower actually asks. Category is the closest thing the schema has to
+    an operation type.
+    """
+    key: str
+    tasks: int = 0
+    hours: float = 0
+    estimated_hours: Optional[float] = None
+    #: Actual minus estimated. None when nothing in the group carried an estimate.
+    hours_variance: Optional[float] = None
+    area_worked_hectares: float = 0
+    costs: CostBreakdown = CostBreakdown()
+    cost_per_hour: Optional[float] = None
+    cost_per_hectare: Optional[float] = None
+
+
+class CostMixRow(BaseModel):
+    """Labour vs materials vs machinery, as money and as a share of the total."""
+    key: str
+    amount: Optional[float] = None
+    share_percent: Optional[float] = None
+
+
+class CostReportSummary(BaseModel):
+    currency: str = "NZD"
+    costs: CostBreakdown = CostBreakdown()
+    by_operation: List[OperationCostRow] = []
+    by_variety: List[OperationCostRow] = []
+    mix: List[CostMixRow] = []
+    #: Tasks completed in range that have no live cost snapshot at all.
+    uncosted_tasks: int = 0
+    #: Whether the company has enough configured for a cost to mean anything.
+    rates_configured: bool = False
+    setup_warnings: List[str] = []
 
 
 class VineyardCensusSummary(BaseModel):

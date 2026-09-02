@@ -234,9 +234,13 @@ class RiskBusinessLogic:
         if not user.is_active:
             return False, "User account is not active"
         
-        if user.role == "viewer":
-            return False, "Viewers cannot be assigned actions"
-        
+        # Was `user.role == "viewer"` — a role no account ever held, because the
+        # invitation validator never accepted it. The real case is the H&S
+        # account: it can raise a risk but has no risks:update, so an action
+        # assigned to one could never be worked.
+        if user.user_type == "general_user":
+            return False, "General (H&S) accounts cannot be assigned actions"
+
         return True, "Assignment is valid"
     
     def _calculate_effectiveness_rating(

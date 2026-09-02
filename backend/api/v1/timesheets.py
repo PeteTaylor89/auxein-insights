@@ -22,11 +22,13 @@ from schemas.timesheet import (
 # Service helpers — try project-native path first, then fallback to app.services.* if needed
 try:
     from services.timesheet_rules import (
-        recalc_day, set_day_hours, set_uncoded_hours, create_entry, update_entry, delete_entry
+        recalc_day, set_day_hours, set_uncoded_hours, create_entry, update_entry, delete_entry,
+        day_is_editable, day_lock_reason, DAY_EDITABLE_STATUSES
     )
 except Exception:
     from app.services.timesheet_rules import (  # type: ignore
-        recalc_day, set_day_hours, set_uncoded_hours, create_entry, update_entry, delete_entry
+        recalc_day, set_day_hours, set_uncoded_hours, create_entry, update_entry, delete_entry,
+        day_is_editable, day_lock_reason, DAY_EDITABLE_STATUSES
     )
 
 from services.notification_service import NotificationService
@@ -55,12 +57,44 @@ def _ensure_owner_or_admin(current_user: User, user_id: int, company_id: int) ->
 
 
 def _ensure_editable(day: TimesheetDay, current_user: User) -> None:
-    # Owners (or admins) can edit while in draft or submitted.
-    if day.status == TimesheetStatus.approved:
-        raise HTTPException(status_code=409, detail="Day is approved, not editable (ask a manager/admin to release)")
-    if not current_user.has_permission("timesheets", "update") and day.user_id != current_user.id:
-        # Only allow owner edits in MVP
+    """The write gate for a timesheet day. `day_is_editable` owns the rule.
+
+    Two changes from the original, both from
+    docs/Bugs/Current/TIMESHEET_WORKFLOW_2026-08-28.md:
+
+    **F4 — `submitted` is now refused for the owner.** It used to be allowed,
+    so a worker could submit 5.25h, add another 0.75h, and have the manager
+    approve 6.25h from a queue that showed 5.25h. `submitted_at` never moved,
+    so nothing recorded that the number had changed underneath them. Mobile had
+    always blocked this in its own UI; the API permitted it from any client,
+    including a replayed offline queue.
+
+    **The manager allowance is now explicit.** A holder of `timesheets:update`
+    may still edit SOMEONE ELSE'S submitted day — a manager fixing an obvious
+    slip rather than bouncing the whole day back is a real workflow. That used
+    to fall out of the condition ordering by accident. Two limits on it:
+
+    - It does not extend to an approved day. Approved is locked for everyone,
+      including admins: `release` exists for that and leaves a trace.
+    - It does not extend to their OWN day. On their own timesheet a manager is
+      a worker, and editing their own submission before approving it is F11
+      (self-approval) with an extra step. The recourse is the same as anyone
+      else's: reject it back to draft, which they are allowed to do.
+
+    Ownership is checked FIRST, so someone else's day answers 403 whatever its
+    status, rather than leaking that status through the choice of error.
+    """
+    is_manager = current_user.has_permission("timesheets", "update")
+    is_own_day = day.user_id == current_user.id
+
+    if not is_manager and not is_own_day:
         raise HTTPException(status_code=403, detail="Only the owner can edit their day")
+
+    if day.status == TimesheetStatus.approved:
+        raise HTTPException(status_code=409, detail=day_lock_reason(day))
+
+    if not day_is_editable(day) and (is_own_day or not is_manager):
+        raise HTTPException(status_code=409, detail=day_lock_reason(day))
 
 
 def _get_day_or_404(db: Session, day_id: int) -> TimesheetDay:
@@ -100,11 +134,18 @@ def create_timesheet_day(
         .first()
     )
     if existing:
-        _ensure_editable(existing, current_user)
+        # Only gate the WRITE. Both clients use this endpoint as get-or-create
+        # before setting uncoded hours or adding an entry, and a bare
+        # `{work_date}` with nothing to change is a read of the caller's own
+        # day. Refusing that (F6) meant a locked day could not even be fetched
+        # by the path that needs its id, which turned one refusal into two.
+        if payload.day_hours is not None or payload.notes is not None:
+            _ensure_editable(existing, current_user)
         # Update day_hours/notes if provided
+        warning = None
         if payload.day_hours is not None:
             try:
-                set_day_hours(db, existing.id, Decimal(str(payload.day_hours)))
+                _, warning = set_day_hours(db, existing.id, Decimal(str(payload.day_hours)))
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
         if payload.notes is not None:
@@ -112,7 +153,7 @@ def create_timesheet_day(
         db.add(existing)
         db.commit()
         db.refresh(existing)
-        return existing
+        return _with_warning(existing, warning)
 
     # Create new draft day
     day = TimesheetDay(
@@ -126,15 +167,32 @@ def create_timesheet_day(
     db.flush()
 
     # Optionally set day_hours
+    warning = None
     if payload.day_hours is not None:
         try:
-            set_day_hours(db, day.id, Decimal(str(payload.day_hours)))
+            _, warning = set_day_hours(db, day.id, Decimal(str(payload.day_hours)))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     db.commit()
     db.refresh(day)
+    return _with_warning(day, warning)
+
+def _with_warning(day, warning):
+    """Attach a non-fatal message to the day being returned.
+
+    Set on the ORM instance rather than in a wrapper model so every existing
+    client keeps the shape it already parses. Always called AFTER db.refresh(),
+    which would otherwise expire it.
+
+    Assigned unconditionally, including None. Setting it only on the truthy
+    path leaves a previous call's warning sitting on the instance in the
+    identity map, so a later request that succeeded cleanly would report the
+    earlier failure — a warning about a write that did happen.
+    """
+    day.warning = warning
     return day
+
 
 @router.post("/days/{day_id}/release", response_model=TimesheetDayOut)
 def release_timesheet_day(
@@ -182,10 +240,17 @@ def list_timesheet_days(
     # Always scope to user's company
     q = q.filter(TimesheetDay.company_id == current_user.company_id)
 
-    if user_id is not None:
-        if user_id != current_user.id:
-            if not current_user.has_permission("timesheets", "read"):
-                raise HTTPException(status_code=403, detail="Not allowed to view other users' timesheets")
+    # Default restrictive. The check used to be NESTED inside `if user_id is not
+    # None`, so omitting the parameter skipped it entirely and any caller —
+    # including a company_user, who holds only `read_own` — got every timesheet
+    # day in the company. The web Team Dashboard is gated client-side, which is
+    # not a control. Structure it so the permission decides the scope, not the
+    # presence of an optional query parameter.
+    if not current_user.has_permission("timesheets", "read"):
+        if user_id is not None and user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not allowed to view other users' timesheets")
+        q = q.filter(TimesheetDay.user_id == current_user.id)
+    elif user_id is not None:
         q = q.filter(TimesheetDay.user_id == user_id)
 
     if date_from:
@@ -228,9 +293,10 @@ def update_timesheet_day(
     _ensure_company_scope(current_user, day.company_id)
     _ensure_editable(day, current_user)
 
+    warning = None
     if payload.day_hours is not None:
         try:
-            set_day_hours(db, day.id, Decimal(str(payload.day_hours)))
+            _, warning = set_day_hours(db, day.id, Decimal(str(payload.day_hours)))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -240,7 +306,7 @@ def update_timesheet_day(
     db.add(day)
     db.commit()
     db.refresh(day)
-    return day
+    return _with_warning(day, warning)
 
 
 @router.patch("/days/{day_id}/uncoded", response_model=TimesheetDayOut)
@@ -318,8 +384,8 @@ def submit_timesheet_day(
     # re-submit it made rejection a dead end: the person could fix what the
     # manager objected to and then had no way to send it back. Approved and
     # already-submitted days are still refused.
-    if day.status not in (TimesheetStatus.draft, TimesheetStatus.rejected):
-        raise HTTPException(status_code=409, detail=f"Cannot submit a {day.status} day")
+    if day.status not in DAY_EDITABLE_STATUSES:
+        raise HTTPException(status_code=409, detail=f"Cannot submit a {day.status.value} day")
 
     # simple sanity check (optional): prevent zero-hour submission
     if Decimal(str(day.effective_total_hours or 0)) <= 0:

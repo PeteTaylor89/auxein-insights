@@ -84,6 +84,18 @@ class Asset(Base):
     # Effective application width in metres. Paired with calibrated output rate (L/s)
     # and task GPS speed (m/s) to compute application rate per m² for coverage maps.
     swath_width_m = Column(Numeric(6, 2), nullable=True)
+
+    # What an hour of this machine costs to run. NULL means UNCOSTED, not free:
+    # costing emits NULL for an unrated asset rather than 0.00, because a zero
+    # would read as "the tractor cost nothing" and become part of a total.
+    #
+    # Set through the Costs screen (admin only), not the asset form — an
+    # operating rate is cost data and lives behind the same door as pay rates.
+    hourly_operating_rate = Column(Numeric(10, 2), nullable=True)
+    # 'manual' today. Reserved for 'derived', once a rate can be computed from
+    # depreciation, fuel and maintenance history — at which point a figure that
+    # moves on its own must be tellable from one a person typed.
+    rate_basis = Column(String(20), nullable=True)
     
     # Maintenance scheduling (for equipment)
     requires_maintenance = Column(Boolean, default=False)

@@ -126,6 +126,13 @@ class ObservationRunOut(ObservationRunBase):
     # Spot count for display
     spots_count: Optional[int] = None
 
+    # Which count metric this run records, resolved server-side from the
+    # template — bud_count, shoot_count, flower_set, bunch_count, or None for a
+    # run that counts nothing. Resolved HERE rather than mapped in each client:
+    # a company's own template carries `type='other'` and is matched by field
+    # name, which a client cannot do without the field list.
+    count_metric: Optional[str] = None
+
     # Computed status field. Scheduled = neither timestamp set; In progress =
     # started not ended; Complete = both set. UI palette keys off this exact
     # set so don't rename without updating the StatusBadge map.

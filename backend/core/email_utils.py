@@ -650,6 +650,16 @@ def send_invitation_email(
 
     invitation_link = f"{brand.frontend_url}/accept-invitation?token={invitation_token}"
     login_link = f"{brand.frontend_url}/login"
+
+    # Whether this account can use the web app at all. A `user` or `general`
+    # invite becomes a mobile-only user_type and is refused at /auth/login on
+    # web, so telling them to "log in" after setup sends them to a 403. They
+    # still have to open the LINK in a browser to set a password — that is the
+    # only step that happens on the website — and everything after that is the
+    # app. Resolved from the same map the accept path uses, so the email cannot
+    # promise access the API will refuse.
+    from core.permissions import MOBILE_ONLY_USER_TYPES, user_type_for_role
+    mobile_only = user_type_for_role(role) in MOBILE_ONLY_USER_TYPES
     
     # Hosted logo on the marketing CDN — email clients fetch images over HTTPS,
     # so this must be an absolute URL (a relative path renders as a broken image).
@@ -809,7 +819,7 @@ def send_invitation_email(
                 </div>
                 <div class="content">
                     <h2>Welcome to the team!</h2>
-                    <p><strong class="brand-primary">{inviter_name}</strong> has invited you to join <strong class="brand-primary">{company_name}</strong> as a <strong class="brand-accent">{role.title()}</strong> on the {brand.display_name} vineyard management platform.</p>
+                    <p><strong class="brand-primary">{inviter_name}</strong> has invited you to join <strong class="brand-primary">{company_name}</strong> on the {brand.display_name} vineyard management platform.</p>
                     
                     {f'<div class="message-box"><strong>Personal message from {inviter_name}:</strong><br><em>"{message}"</em></div>' if message else ''}
                     
@@ -832,9 +842,8 @@ def send_invitation_email(
                     <div class="highlight-box">
                         <h4>Next Steps:</h4>
                         <ol style="margin: 15px 0; padding-left: 20px;">
-                            <li><strong>Complete Setup:</strong> Click "Complete Account Setup" to customize your profile</li>
-                            {f'<li><strong>Or Login:</strong> Use the temporary credentials above to login directly</li>' if temporary_password else ''}
-                            <li><strong>Explore:</strong> Access vineyard data, observations, and team tools</li>
+                            <li><strong>Verify your account:</strong> Open the link above in your web browser and set your password</li>
+                            {'<li><strong>Then use the app:</strong> Your account works on the ' + brand.display_name + ' mobile app. The website is for managers and administrators, so sign in from your phone.</li>' if mobile_only else '<li><strong>Sign in:</strong> Use the website or the mobile app, whichever suits the job</li>'}
                             <li><strong>Get Help:</strong> Contact {brand.support_email} if you need assistance</li>
                         </ol>
                     </div>
@@ -866,7 +875,7 @@ def send_invitation_email(
     
     Hi there!
     
-    {inviter_name} has invited you to join {company_name} as a {role.title()}.
+    {inviter_name} has invited you to join {company_name} on {brand.display_name}.
     
     {f'Personal message: {message}' if message else ''}
     
@@ -876,6 +885,10 @@ def send_invitation_email(
     {f'- Temporary Password: {temporary_password}' if temporary_password else ''}
     
     Complete Account Setup: {invitation_link}
+
+    Next steps:
+    1. Open the link above in your web browser and set your password.
+    {'2. Then sign in on the ' + brand.display_name + ' mobile app. The website is for managers and administrators.' if mobile_only else '2. Sign in on the website or the mobile app, whichever suits the job.'}
     
     {f'SECURITY: Please change your password after first login.' if temporary_password else ''}
     {get_app_badges_text(brand)}

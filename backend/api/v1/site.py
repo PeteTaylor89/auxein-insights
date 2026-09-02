@@ -1,9 +1,13 @@
 # api/v1/site.py — Unified "who's on site" endpoint.
 #
-# Returns one normalised list combining active visitor visits and active
-# contractor movements for the current user's company. Lets the mobile UI
-# show a single number/list across both storage tables without forcing
-# them to merge schemas.
+# Returns one normalised list combining active visitor visits, active
+# contractor movements, and open staff attendance for the current user's
+# company. Lets the mobile UI show a single number/list across three storage
+# tables without forcing them to merge schemas.
+#
+# Staff were added 2026-09-02. Until then this answered "who is on site" with
+# only the people who do NOT work here, which is the wrong half in the one
+# situation the number is read carefully — an evacuation.
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -15,6 +19,7 @@ from db.models.visitor import Visitor, VisitorVisit
 from db.models.contractor import Contractor
 from db.models.contractor_movement import ContractorMovement
 from db.models.property import Property
+from db.models.site_attendance import SiteAttendance
 
 
 router = APIRouter()
@@ -117,11 +122,50 @@ def list_on_site(
             'property_name': prop.name if prop else None,
         })
 
+    # --- Staff: open site attendance (signed on, not signed off) ---
+    #
+    # Company-scoped like the two above, deliberately NOT property-scoped. This
+    # is the evacuation list: a manager whose UserPropertyScope covers one block
+    # still needs to know the whole company's headcount, and a name missing from
+    # it is the failure mode that matters. `/site-attendance/on-site` is the
+    # property-scoped view for day-to-day use.
+    attendance_rows = (
+        db.query(SiteAttendance, User, Property)
+        .join(User, User.id == SiteAttendance.user_id)
+        .outerjoin(Property, Property.id == SiteAttendance.property_id)
+        .filter(
+            SiteAttendance.company_id == company_id,
+            SiteAttendance.signed_out_at.is_(None),
+        )
+        .all()
+    )
+
+    for attendance, person, prop in attendance_rows:
+        full_name = f"{person.first_name or ''} {person.last_name or ''}".strip()
+        items.append({
+            'type': 'user',
+            'id': attendance.id,
+            'user_id': person.id,
+            'name': full_name or person.username or person.email,
+            'sub_label': person.job_title or 'Staff',
+            'purpose': None,
+            'signed_in_at': (
+                attendance.signed_in_at.isoformat() if attendance.signed_in_at else None
+            ),
+            'duration_mins': _duration_mins(attendance.signed_in_at),
+            'phone': person.phone,
+            'vehicle_registration': None,
+            'property_id': attendance.property_id,
+            'property_name': prop.name if prop else None,
+            'notes': attendance.notes,
+        })
+
     items.sort(key=lambda x: x.get('signed_in_at') or '', reverse=True)
 
     return {
         'total': len(items),
         'visitors_count': sum(1 for i in items if i['type'] == 'visitor'),
         'contractors_count': sum(1 for i in items if i['type'] == 'contractor'),
+        'users_count': sum(1 for i in items if i['type'] == 'user'),
         'items': items,
     }

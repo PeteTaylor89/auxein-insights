@@ -12,6 +12,8 @@ from db.models.asset import Asset, StockMovement
 from db.models.user import User
 from db.models.contractor import Contractor
 from api.deps import get_current_user, get_current_contractor, get_current_user_or_contractor
+from services.pay_rates import get_cost_settings
+from services.stock_costing import unit_cost_for
 from schemas import asset as schemas
 
 logger = logging.getLogger(__name__)
@@ -49,13 +51,28 @@ def create_stock_movement(
     # Record stock before movement
     stock_before = asset.current_stock or Decimal('0.0')
     
-    # Calculate total cost if unit cost provided
-    total_cost = None
-    if movement_in.unit_cost:
-        total_cost = abs(movement_in.quantity) * movement_in.unit_cost
-    
-    # Create stock movement
+    # Cost the movement, falling back to the product's own price.
+    #
+    # This used to compute total_cost ONLY when the caller supplied a unit_cost,
+    # with no fallback, so anyone recording usage from the stock screen — which
+    # has no price field — created a movement worth nothing. The asset is
+    # already loaded above and carries cost_per_unit.
+    #
+    # An explicit unit_cost still wins, and that matters most for a purchase: a
+    # purchase states what was actually paid rather than what the product is
+    # nominally worth. It is also what would make a weighted-average costing
+    # method derivable later, since purchase rows carry their own true price.
+    if movement_in.unit_cost is not None:
+        unit_cost = movement_in.unit_cost
+    else:
+        unit_cost, _ = unit_cost_for(db, asset, get_cost_settings(db, current_user.company_id))
+    total_cost = (abs(movement_in.quantity) * unit_cost) if unit_cost is not None else None
+
+    # Create stock movement. unit_cost is overridden inside the dict rather than
+    # passed alongside it — StockMovement(**movement_data, unit_cost=...) would
+    # raise on the duplicate keyword.
     movement_data = movement_in.dict()
+    movement_data["unit_cost"] = unit_cost
     movement = StockMovement(
         **movement_data,
         company_id=current_user.company_id,
@@ -63,7 +80,7 @@ def create_stock_movement(
         total_cost=total_cost,
         created_by=current_user.id
     )
-    
+
     # Update asset stock level
     new_stock = stock_before + movement_in.quantity
     

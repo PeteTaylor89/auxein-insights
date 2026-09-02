@@ -12,7 +12,11 @@ from db.models.contractor_relationship import ContractorRelationship
 from db.models.property import Property
 from db.models.block import VineyardBlock
 from db.models.vineyard_row import VineyardRow
-from schemas.block import Block, BlockCreate, BlockUpdate
+from schemas.block import (
+    Block, BlockCreate, BlockUpdate,
+    BlockImportRequest, BlockExportItem, BlockExportResponse,
+    ImportResult, ImportRowError,
+)
 from services.property_service import get_visible_property_ids, verify_block_access
 import logging
 from datetime import datetime
@@ -218,6 +222,234 @@ def get_company_blocks(
         block_list.append(block_dict)
     
     return {"blocks": block_list, "count": len(block_list)}
+
+# ---------------------------------------------------------------------------
+# Spreadsheet round-trip
+# ---------------------------------------------------------------------------
+
+# Fields a CSV line may write. An allowlist rather than "whatever the schema
+# carries": geometry, centroids and company_id must never become writable from
+# a spreadsheet cell, and adding one here has to be a deliberate act.
+#
+# BlockExportItem carries exactly these plus the read-only extras. Keep the two
+# in step — a writable field missing from the export comes back as a blank cell,
+# and a blank cell CLEARS. That is silent data loss, and it is what would have
+# happened had the export reused /blocks/company, which omits `notes`.
+IMPORTABLE_BLOCK_FIELDS = (
+    "variety", "clone", "rootstock", "training_system", "status",
+    "planted_date", "removed_date", "row_spacing", "vine_spacing",
+    "row_start", "row_end", "area", "region", "gi", "winery", "elevation",
+    "swnz", "organic", "biodynamic", "regenerative", "notes", "property_id",
+)
+
+BLOCK_STATUS_VALUES = (
+    "developing", "pre_production", "producing", "redeveloping",
+    "replanting", "mothballed", "retired",
+)
+
+
+def _block_name_key(name):
+    """Normalise a block name for matching: trimmed and case-folded.
+
+    Returns None for a blank name — a block with no name has nothing to match
+    on and is deliberately unreachable from a name-keyed file.
+    """
+    if name is None:
+        return None
+    key = str(name).strip().lower()
+    return key or None
+
+
+def _visible_blocks(db: Session, current_user: User):
+    """Every block this user may edit, on the same rule as verify_block_access.
+
+    The NULL-property branch matters: a company that owns no properties holds
+    all its blocks with property_id NULL, and dropping that branch would show
+    such a company an empty register.
+    """
+    if current_user.user_type == "auxein_admin":
+        return db.query(VineyardBlock).all()
+
+    visible_ids = get_visible_property_ids(db, current_user)
+    conditions = [
+        and_(
+            VineyardBlock.property_id.is_(None),
+            VineyardBlock.company_id == current_user.company_id,
+        )
+    ]
+    if visible_ids:
+        conditions.append(VineyardBlock.property_id.in_(visible_ids))
+    return db.query(VineyardBlock).filter(or_(*conditions)).all()
+
+
+@router.get("/export", response_model=BlockExportResponse)
+def export_blocks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every block this user can edit, in the shape the spreadsheet uses.
+
+    A separate endpoint rather than reusing /blocks/company, for one specific
+    reason: that response omits `notes`, and an export missing a writable
+    column comes back as a blank cell that CLEARS it. Defining the export
+    alongside IMPORTABLE_BLOCK_FIELDS keeps the two from drifting apart.
+
+    Unnamed blocks are excluded and counted. `block_name` is the key, so a
+    nameless block cannot appear in the file — reporting the count lets the UI
+    say "22 blocks, 1 exported" instead of looking broken.
+
+    Declared before /{block_id} so "export" is never parsed as an id.
+    """
+    blocks = _visible_blocks(db, current_user)
+
+    named = [b for b in blocks if _block_name_key(b.block_name) is not None]
+    unnamed = len(blocks) - len(named)
+
+    # One aggregate rather than a count per block.
+    row_counts = {}
+    if named:
+        counts = db.query(
+            VineyardRow.block_id, func.count(VineyardRow.id)
+        ).filter(VineyardRow.block_id.in_([b.id for b in named])).group_by(VineyardRow.block_id).all()
+        row_counts = {bid: c for bid, c in counts}
+
+    items = [
+        BlockExportItem(
+            block_name=b.block_name,
+            row_count=row_counts.get(b.id, 0),
+            **{f: getattr(b, f) for f in IMPORTABLE_BLOCK_FIELDS},
+        )
+        for b in named
+    ]
+    items.sort(key=lambda i: (i.block_name or "").lower())
+
+    return BlockExportResponse(blocks=items, unnamed_count=unnamed)
+
+
+@router.post("/import", response_model=ImportResult)
+def import_blocks(
+    payload: BlockImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update blocks from a parsed CSV. UPDATE ONLY — this never creates one.
+
+    A block without geometry is not a block anyone can work with: it does not
+    appear on the map, it cannot be split, and nothing spatial resolves against
+    it. A CSV cannot supply geometry, so allowing creation here would build a
+    register of shapeless entries that look real in a list and are absent
+    everywhere else. Blocks are drawn on the map; the spreadsheet edits their
+    attributes.
+
+    Lines are matched on `block_name`, case-insensitively and trimmed. Two
+    consequences are enforced rather than smoothed over:
+
+      - A block with no name cannot be reached. It has nothing to match on.
+        Name it on screen and it joins the next export.
+      - Two blocks sharing a name are ambiguous, and the line is refused rather
+        than applied to whichever came back first.
+
+    NOTHING IS EVER DELETED HERE. A block missing from the file is untouched.
+
+    Declared before /{block_id} routes so "import" is never parsed as an id.
+    """
+    if not payload.rows:
+        raise HTTPException(status_code=400, detail="No rows to import")
+
+    if not current_user.has_permission("blocks", "update"):
+        raise HTTPException(
+            status_code=403,
+            detail="Not enough permissions to update blocks",
+        )
+
+    blocks = _visible_blocks(db, current_user)
+    by_name = {}
+    ambiguous = set()
+    for b in blocks:
+        key = _block_name_key(b.block_name)
+        if key is None:
+            continue
+        if key in by_name:
+            ambiguous.add(key)
+        else:
+            by_name[key] = b
+
+    visible_properties = get_visible_property_ids(db, current_user)
+    is_admin = current_user.user_type == "auxein_admin"
+
+    errors = []
+    updates = []
+    seen = {}
+
+    for row in payload.rows:
+        problems = []
+        provided = row.model_fields_set
+        fields = {f: getattr(row, f) for f in IMPORTABLE_BLOCK_FIELDS if f in provided}
+
+        name = (row.block_name or "").strip()
+        key = _block_name_key(name)
+        target = None
+
+        if key is None:
+            problems.append("block_name is required — it is how this line finds its block")
+        else:
+            if key in seen:
+                problems.append(
+                    f"block_name '{name}' also appears on line {seen[key]} of this file"
+                )
+            if key in ambiguous:
+                problems.append(
+                    f"more than one of your blocks is called '{name}' — rename one on the "
+                    "Blocks screen before editing either from a spreadsheet"
+                )
+            else:
+                target = by_name.get(key)
+                if target is None:
+                    problems.append(
+                        f"no block called '{name}' — a spreadsheet can edit blocks but not "
+                        "create them, because it cannot draw the boundary. Check the spelling, "
+                        "or add the block on the map first"
+                    )
+
+        if "status" in provided and row.status is not None and row.status not in BLOCK_STATUS_VALUES:
+            problems.append(
+                f"status '{row.status}' must be one of: {', '.join(BLOCK_STATUS_VALUES)}"
+            )
+
+        # property_id is three-state: absent leaves it, null makes the block
+        # unassigned, a value must name a property this user can actually see.
+        if (
+            "property_id" in provided
+            and row.property_id is not None
+            and not is_admin
+            and row.property_id not in visible_properties
+        ):
+            problems.append(f"property_id {row.property_id} is not accessible")
+
+        if problems:
+            errors.append(ImportRowError(line_number=row.line_number, errors=problems))
+            continue
+
+        seen[key] = row.line_number
+        updates.append((row, target, fields))
+
+    if errors and not payload.skip_invalid:
+        return ImportResult(created=0, updated=0, failed=len(errors), errors=errors, committed=False)
+
+    for row, block, fields in updates:
+        for field, value in fields.items():
+            setattr(block, field, value)
+
+    db.commit()
+
+    logger.info(
+        f"Block CSV sync for company {current_user.company_id} by user {current_user.id}: "
+        f"{len(updates)} updated, {len(errors)} skipped"
+    )
+    return ImportResult(
+        created=0, updated=len(updates), failed=len(errors), errors=errors, committed=True
+    )
+
 
 @router.get("/{block_id}")
 def get_block_by_id(

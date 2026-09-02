@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, validator
 
 from api.deps import get_db, get_current_user
+from core.permissions import ASSIGNABLE_ROLES, user_type_for_role
 from core.security.password import get_password_hash, generate_random_password
 from db.models.user import User
 from db.models.company import Company
@@ -577,11 +578,10 @@ def update_user_role_admin(
             detail="Role is required"
         )
     
-    allowed_roles = ["admin", "manager", "user"]
-    if new_role not in allowed_roles:
+    if new_role not in ASSIGNABLE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid role. Must be one of: {', '.join(allowed_roles)}"
+            detail=f"Invalid role. Must be one of: {', '.join(ASSIGNABLE_ROLES)}"
         )
     
     # Prevent changing the role of the current user to avoid locking themselves out
@@ -591,14 +591,11 @@ def update_user_role_admin(
             detail="Cannot change your own role"
         )
     
-    # Sync both role (legacy) and user_type (5-tier permissions)
-    role_to_user_type = {
-        "admin": "company_admin",
-        "manager": "company_manager",
-        "user": "company_user",
-    }
+    # Sync both role (legacy) and user_type (the tier the permission matrix
+    # actually reads). One map, in core/permissions.py — this endpoint used to
+    # carry its own copy that had no entry for the H&S account.
     user.role = new_role
-    user.user_type = role_to_user_type.get(new_role, "company_user")
+    user.user_type = user_type_for_role(new_role)
     db.add(user)
     db.commit()
 

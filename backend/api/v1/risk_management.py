@@ -108,14 +108,23 @@ def _check_property_scope(db, user, entity):
 
 
 def _validate_property_id(db, user, property_id):
-    """Validate a property_id assignment. Non-admin must have property in scope."""
+    """Validate a property_id assignment. Non-admin must have property in scope.
+
+    The messages matter here. A missing property_id is the single most common
+    way this refuses a request — a mobile form that never made the picker
+    required sends None and the caller sees a flat 403 — so it says what to do
+    rather than describing a rule the reporter cannot act on.
+    """
     if property_id is None:
         if user.user_type not in ("auxein_admin", "company_admin"):
-            raise HTTPException(status_code=403, detail="Only admins can create company-wide items")
+            raise HTTPException(
+                status_code=403,
+                detail="Select a property. Only admins can create a company-wide entry.",
+            )
         return
     visible = get_visible_property_ids(db, user)
     if property_id not in visible:
-        raise HTTPException(status_code=403, detail="Property not accessible")
+        raise HTTPException(status_code=403, detail="That property is not in your scope")
 
 
 def _validate_block_id(db, user, block_id):

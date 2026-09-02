@@ -15,9 +15,9 @@ def get_invitation_email_template(
     
     role_descriptions = {
         "admin": "Administrator - Full access to manage the company and users",
-        "manager": "Manager - Can manage vineyard data and team tasks", 
+        "manager": "Manager - Can manage vineyard data and team tasks",
         "user": "User - Can create observations and manage assigned tasks",
-        "viewer": "Viewer - Read-only access to company data"
+        "general": "General - Sign on and off site, report incidents and sign visitors in. Mobile app only",
     }
     
     role_description = role_descriptions.get(role, "Team Member")

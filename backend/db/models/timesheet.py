@@ -166,18 +166,31 @@ class TimesheetDay(Base):  # type: ignore[misc]
         self.uncoded_hours = _q(value)
         self.recalc_hours()
 
-    def set_day_hours(self, hours: Optional[Decimal]) -> None:
+    def set_day_hours(self, hours: Optional[Decimal]) -> Optional[str]:
         """Set the day TOTAL, kept for the existing endpoint and older clients.
 
         Expressed in terms of the new model: the caller is really saying "the
         day came to N hours", so the uncoded remainder is N minus whatever is
-        already coded to tasks. A total below the coded hours is not an error
-        any more — it just means there is no uncoded time — because refusing it
-        would resurrect the failure this change removed.
+        already coded to tasks.
+
+        Returns a warning string when the request could not be honoured in full,
+        or None. It does NOT raise for a below-coded total: refusing outright
+        would resurrect the failure this method was written to remove.
+
+        A total below the coded hours USED TO DESTROY DATA. The old line was
+
+            self.set_uncoded_hours(max(_q(value - coded), Decimal("0.00")))
+
+        so a total under the coded figure silently overwrote `uncoded_hours`
+        with zero and returned success — a mistyped digit in the web day-total
+        box wiped uncoded time the user never named, with no recovery path.
+        Clamping the ARITHMETIC is fine; clamping by discarding a stored value
+        is not. Now the uncoded figure is left exactly as it was and the caller
+        is handed something to show the user.
         """
         if hours is None:
             self.set_uncoded_hours(Decimal("0.00"))
-            return
+            return None
         value = Decimal(str(hours))
         if value < 0:
             raise ValueError("Day total cannot be negative")
@@ -187,7 +200,14 @@ class TimesheetDay(Base):  # type: ignore[misc]
             raise ValueError(f"Day total cannot exceed {MAX_DAY_HOURS}h")
 
         coded = _q(sum((Decimal(str(e.hours or 0)) for e in self.entries), Decimal("0.00")))
-        self.set_uncoded_hours(max(_q(value - coded), Decimal("0.00")))
+        if value < coded:
+            return (
+                f"Day total of {value}h is below the {coded}h already coded to tasks, "
+                f"so it was not applied. Uncoded time is unchanged at "
+                f"{_q(self.uncoded_hours or Decimal('0.00'))}h."
+            )
+        self.set_uncoded_hours(_q(value - coded))
+        return None
 
 
 class TimeEntry(Base):  # type: ignore[misc]

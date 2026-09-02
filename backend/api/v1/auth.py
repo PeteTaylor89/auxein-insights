@@ -389,12 +389,18 @@ def login_access_token(
     # so they are blocked from the web client. The structured detail lets the web
     # login screen show a "use the app" notice (with store badges) instead of a
     # generic error — distinct from the suspended/inactive 403s below.
+    #
+    # `general_user` is the H&S-only account and is mobile-only by definition:
+    # everything it can do — sign on to a property, raise an incident, sign a
+    # visitor in — is something you do standing on the site, and it has access
+    # to nothing the web app is for.
     if client_type == "web":
         is_standard_user = (
             user_type == "company_user"
             and getattr(authenticated_user, "user_type", None) == "company_user"
         )
-        if user_type == "contractor" or is_standard_user:
+        is_general_user = getattr(authenticated_user, "user_type", None) == "general_user"
+        if user_type == "contractor" or is_standard_user or is_general_user:
             raise HTTPException(
                 status_code=403,
                 detail={

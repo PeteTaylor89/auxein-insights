@@ -3,7 +3,16 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, admin_qc, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types, public_taxonomy, public_map
+from api.v1 import site_attendance, costs, auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_weather, admin_data, admin_qc, admin_jobs, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types, public_taxonomy, public_map
+from api.deps import deny_user_types
+from fastapi import Depends
+
+# The health-and-safety-only account. Denied at the ROUTER, not per
+# endpoint: a sweep found 26 GET routes answering 200 to it because they
+# scope by company and never check a permission module. Patching each one
+# leaves the next one open.
+deny_general_user = deny_user_types('general_user')
+
 from core.config import settings
 import logging
 import traceback
@@ -175,6 +184,7 @@ app.include_router(
 
 app.include_router(
     vineyard_rows.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/vineyard_rows", 
     tags=["vineyard_rows"]
 )
@@ -258,6 +268,7 @@ app.include_router(
 
 app.include_router(
     training.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/training",
     tags=["training"]
 )
@@ -268,8 +279,12 @@ app.include_router(
     tags=["climate"]
 )
 
+# NOT denied to general_user. The H&S account records its own hours like any
+# other worker — the per-endpoint `timesheets` permission checks already limit
+# it to read_own/submit, so a router-level deny here would only be a second,
+# blunter copy of a rule that is already enforced correctly one level down.
 app.include_router(
-    timesheets.router, 
+    timesheets.router,
     prefix="/api",
     tags=["timesheets"]
 )
@@ -282,48 +297,56 @@ app.include_router(
 
 app.include_router(
     assets.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/assets",
     tags=["assets"]
 )
 
 app.include_router(
     maintenance.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/maintenance",
     tags=["maintenance"]
 )
 
 app.include_router(
     calibrations.router,
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/calibrations",
     tags=["calibrations"]
 )
 
 app.include_router(
     calibration_schedules.router,
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/calibration-schedules",
     tags=["calibration-schedules"]
 )
 
 app.include_router(
     stock_movements.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/stock-movements",
     tags=["stock-movements "]
 )
 
 app.include_router(
     observations.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/observations",
     tags=["observations"]
 )
 
 app.include_router(
     observation_runs_complete.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/observation_runs_complete ",
     tags=["observation_runs_complete "]
 )
 
 app.include_router(
     tasks.router, 
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/tasks",
     tags=["tasks"]
 )
@@ -408,6 +431,12 @@ app.include_router(
 )
 
 app.include_router(
+    admin_jobs.router,
+    prefix="/api/v1/admin",
+    tags=["Admin - Jobs"]
+)
+
+app.include_router(
     realtime_climate.router,
     prefix="/api/v1/public/realtime",
     tags=["realtime-climate"]
@@ -475,20 +504,39 @@ app.include_router(
 
 app.include_router(
     contractor_management.router,
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/v1/contractor-management",
     tags=["contractor-management"]
 )
 
 app.include_router(
     calendar.router,
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/v1/calendar",
     tags=["calendar"]
 )
 
 app.include_router(
     reports.router,
+    dependencies=[Depends(deny_general_user)],
     prefix="/api/v1/reports",
     tags=["reports"]
+)
+# Pay rates and cost settings. Gated on the `costs` permission module
+# (auxein_admin + company_admin), NOT on timesheets.
+app.include_router(
+    costs.router,
+    dependencies=[Depends(deny_general_user)],
+    prefix="/api/v1/costs",
+    tags=["costs"]
+)
+
+# Signing on and off a property. Gated on the `site_attendance` module, which
+# the new general_user type holds — see core/permissions.py.
+app.include_router(
+    site_attendance.router,
+    prefix="/api/v1/site-attendance",
+    tags=["site attendance"]
 )
 
 app.include_router(
@@ -505,6 +553,7 @@ app.include_router(
 
 app.include_router(
     task_rows.router,
+    dependencies=[Depends(deny_general_user)],
     prefix="/api",
     tags=["task-rows"]
 )

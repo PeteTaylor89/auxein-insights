@@ -19,8 +19,14 @@ from schemas.vineyard_row import (
     BulkRowCreationResponse,
     RowRangeUpdateRequest,
     RowRangeUpdateResponse,
-    ClonalSection
+    ClonalSection,
+    RowImportRequest,
+    RowExportItem,
 )
+# The result shapes are shared with the blocks spreadsheet endpoints; one
+# definition rather than two that drift.
+from schemas.block import ImportResult, ImportRowError
+from services.property_service import get_visible_property_ids
 from utils.geometry_helpers import geojson_to_geometry
 import logging
 
@@ -343,6 +349,237 @@ def update_row_clonal_sections(
     return db_row
 
 # Enhanced get all rows with new filters
+# ---------------------------------------------------------------------------
+# Spreadsheet round-trip
+# ---------------------------------------------------------------------------
+
+# Fields a CSV line may write. `block_id` and `row_number` are the key and are
+# handled separately; geometry and clonal_sections are deliberately absent —
+# both are structured, neither survives a spreadsheet cell, and no row in the
+# database currently carries either.
+IMPORTABLE_ROW_FIELDS = (
+    "row_length", "vine_spacing", "variety", "clone", "rootstock",
+)
+
+
+def _row_key(row_number):
+    """Normalise a row label for matching: trimmed and case-folded.
+
+    Row labels are strings because they can be alphabetic (A..Z, AA..AZ) as
+    well as numeric. "a12" and "A12" are the same row to a grower, so matching
+    exactly would create a duplicate beside the one they meant to edit.
+    """
+    if row_number is None:
+        return None
+    key = str(row_number).strip().lower()
+    return key or None
+
+
+def _visible_block_ids(db: Session, current_user: User):
+    """Blocks this user may work with, on the same rule as verify_block_access.
+
+    The NULL-property branch is not optional: a company that owns no properties
+    holds every block with property_id NULL, and omitting it would tell them
+    they have no vineyard.
+    """
+    if current_user.user_type == "auxein_admin":
+        return None  # no narrowing
+
+    visible_ids = get_visible_property_ids(db, current_user)
+    conditions = [
+        and_(
+            VineyardBlock.property_id.is_(None),
+            VineyardBlock.company_id == current_user.company_id,
+        )
+    ]
+    if visible_ids:
+        conditions.append(VineyardBlock.property_id.in_(visible_ids))
+    return {b.id for b in db.query(VineyardBlock.id).filter(or_(*conditions)).all()}
+
+
+@router.get("/export", response_model=List[RowExportItem])
+def export_rows(
+    block_id: Optional[int] = Query(None, description="Limit to one block"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every row this user can edit, with its block NAMED rather than numbered.
+
+    A separate endpoint from `GET /` because that one caps at `limit=1000` and
+    a real register is already larger — Greystone holds 1281 rows. An export
+    that silently stopped at 1000 would diff the missing 281 as "not in this
+    list", and ticking "skip invalid" would then quietly drop them.
+
+    Rows whose block has no name are excluded: the file names the block, so a
+    row under a nameless block has nothing to sit beside. Name the block first.
+
+    Declared before /{row_id} so "export" is never parsed as an id.
+    """
+    q = (
+        db.query(VineyardRow, VineyardBlock)
+        .join(VineyardBlock, VineyardBlock.id == VineyardRow.block_id)
+    )
+
+    allowed = _visible_block_ids(db, current_user)
+    if allowed is not None:
+        if not allowed:
+            return []
+        q = q.filter(VineyardRow.block_id.in_(allowed))
+
+    if block_id is not None:
+        q = q.filter(VineyardRow.block_id == block_id)
+
+    items = []
+    for row, block in q.all():
+        if not (block.block_name or "").strip():
+            continue
+        items.append(RowExportItem(
+            block_id=block.id,
+            block_name=block.block_name,
+            row_number=row.row_number,
+            row_length=row.row_length,
+            vine_spacing=row.vine_spacing,
+            variety=row.variety,
+            clone=row.clone,
+            rootstock=row.rootstock,
+            vine_count=row.vine_count,
+        ))
+
+    # Block first, then natural row order — the order a person reads a vineyard,
+    # and the order the file should come back in.
+    items.sort(key=lambda i: ((i.block_name or "").lower(), _natural_row_sort(i.row_number)))
+    return items
+
+
+@router.post("/import", response_model=ImportResult)
+def import_rows(
+    payload: RowImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create and update vineyard rows from a parsed CSV.
+
+    The key is `block_id` + `row_number`. The user's file names the block; the
+    web client resolves that name against the blocks they can see and sends the
+    id. This endpoint re-checks that scope rather than trusting it — client-side
+    resolution is what makes an out-of-scope block unnameable, not what enforces
+    it.
+
+    Rows CREATE as well as update, unlike blocks. A row needs no geometry to be
+    useful (none in the database has any), so a spreadsheet can legitimately
+    bring a block's whole row set into existence — which is the point for a
+    property being onboarded.
+
+    NOTHING IS EVER DELETED HERE. A row missing from the file is untouched;
+    deleting rows goes through the row tools on the block screen, where the
+    consequences are visible.
+
+    Declared before /{row_id} routes so "import" is never parsed as an id.
+    """
+    if not payload.rows:
+        raise HTTPException(status_code=400, detail="No rows to import")
+
+    if not current_user.has_permission("blocks", "update"):
+        raise HTTPException(
+            status_code=403,
+            detail="Not enough permissions to edit vineyard rows",
+        )
+
+    allowed = _visible_block_ids(db, current_user)
+    requested_block_ids = {r.block_id for r in payload.rows}
+
+    blocks = db.query(VineyardBlock).filter(VineyardBlock.id.in_(requested_block_ids)).all()
+    blocks_by_id = {b.id: b for b in blocks}
+
+    # Every existing row in the blocks this file touches, in one query.
+    existing = (
+        db.query(VineyardRow)
+        .filter(VineyardRow.block_id.in_(requested_block_ids))
+        .all()
+    ) if requested_block_ids else []
+
+    by_key = {}
+    ambiguous = set()
+    for r in existing:
+        key = (r.block_id, _row_key(r.row_number))
+        if key[1] is None:
+            continue
+        if key in by_key:
+            ambiguous.add(key)
+        else:
+            by_key[key] = r
+
+    errors = []
+    creates = []
+    updates = []
+    seen = {}
+
+    for row in payload.rows:
+        problems = []
+        provided = row.model_fields_set
+        fields = {f: getattr(row, f) for f in IMPORTABLE_ROW_FIELDS if f in provided}
+
+        block = blocks_by_id.get(row.block_id)
+        if block is None:
+            problems.append(f"block {row.block_id} does not exist")
+        elif allowed is not None and row.block_id not in allowed:
+            problems.append("that block is not one you can edit")
+
+        label = (row.row_number or "").strip()
+        key_part = _row_key(label)
+        if key_part is None:
+            problems.append("row_number is required — it is how this line finds its row")
+
+        target = None
+        if not problems:
+            key = (row.block_id, key_part)
+            if key in seen:
+                problems.append(
+                    f"row '{label}' in this block also appears on line {seen[key]} of this file"
+                )
+            if key in ambiguous:
+                problems.append(
+                    f"more than one row in this block is already called '{label}' — fix that first"
+                )
+            else:
+                target = by_key.get(key)
+
+        if problems:
+            errors.append(ImportRowError(line_number=row.line_number, errors=problems))
+            continue
+
+        seen[(row.block_id, key_part)] = row.line_number
+        if target is not None:
+            updates.append((row, target, fields))
+        else:
+            creates.append((row, fields))
+
+    if errors and not payload.skip_invalid:
+        return ImportResult(created=0, updated=0, failed=len(errors), errors=errors, committed=False)
+
+    for row, fields in creates:
+        db.add(VineyardRow(
+            block_id=row.block_id,
+            row_number=(row.row_number or "").strip(),
+            **fields,
+        ))
+
+    for row, existing_row, fields in updates:
+        for field, value in fields.items():
+            setattr(existing_row, field, value)
+
+    db.commit()
+
+    logger.info(
+        f"Row CSV sync for company {current_user.company_id} by user {current_user.id}: "
+        f"{len(creates)} created, {len(updates)} updated, {len(errors)} skipped"
+    )
+    return ImportResult(
+        created=len(creates), updated=len(updates), failed=len(errors),
+        errors=errors, committed=True,
+    )
+
+
 @router.get("/", response_model=List[VineyardRowSchema])
 def get_all_rows(
     skip: int = Query(0, ge=0),

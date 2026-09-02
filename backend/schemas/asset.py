@@ -636,8 +636,24 @@ class AssetImportRow(BaseModel):
     Deliberately a narrow subset of AssetCreate — the spatial, calibration and
     compliance fields are not things anyone sensibly types into a spreadsheet,
     and accepting them here would mean validating geometry from a CSV cell.
+
+    `asset_number` carries the round-trip. It is the key the user already owns
+    and is already unique per company, so a line whose number matches an
+    existing asset UPDATES it and one with a new number creates it. Database ids
+    deliberately never appear in the file: a primary key is meaningless to read
+    in a spreadsheet, and one stray edit would repoint a line at a different
+    record with nothing to notice it. The trade is that renumbering in the sheet
+    reads as a new asset rather than a rename — renaming belongs on screen, and
+    the client's change preview shows the addition before anything is written.
+
+    Optional fields are three-state, and the distinction is load-bearing:
+      - absent from the payload  -> that column was not in the user's sheet, leave it
+      - present as null          -> the cell was blank, CLEAR the field
+      - present with a value     -> set it
+    `model_fields_set` is what separates the first two, so never read these with
+    a plain getattr default.
     """
-    row_number: int = Field(..., description="Line number in the user's file, for error reporting")
+    line_number: int = Field(..., description="Line number in the user's file, for error reporting")
     asset_number: str
     name: str
     category: AssetCategory
@@ -652,6 +668,7 @@ class AssetImportRow(BaseModel):
     current_stock: Optional[Decimal] = None
     minimum_stock: Optional[Decimal] = None
     cost_per_unit: Optional[Decimal] = None
+    status: Optional[AssetStatus] = None
     property_id: Optional[int] = None
     location_label: Optional[str] = None
 
@@ -664,12 +681,15 @@ class AssetImportRequest(BaseModel):
 
 
 class AssetImportError(BaseModel):
-    row_number: int
+    line_number: int
     errors: List[str]
 
 
 class AssetImportResult(BaseModel):
-    imported: int
+    # Created and updated are reported separately: on a re-upload of an edited
+    # export the user needs to see that nothing was duplicated.
+    created: int = 0
+    updated: int = 0
     failed: int
     errors: List[AssetImportError] = Field(default_factory=list)
     # False when validation rejected the file and nothing was written.

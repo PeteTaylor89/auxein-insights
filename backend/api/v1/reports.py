@@ -1,6 +1,6 @@
 # backend/api/v1/reports.py — reporting endpoints (summary + CSV export)
 # Revision 2: added property_id filter to all endpoints
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
@@ -14,7 +14,8 @@ from api.deps import get_current_user, require_company_user_permission
 from services.property_service import get_visible_property_ids
 from db.models.user import User
 from db.models.task import Task
-from db.models.observation_run import ObservationRun
+from db.models.observation_run import ObservationRun, ObservationSpot
+from db.models.observation_template import ObservationTemplate
 from db.models.timesheet import TimesheetDay, TimeEntry
 from db.models.asset import Asset
 from db.models.block import VineyardBlock
@@ -29,7 +30,13 @@ from db.models.incident import Incident
 from db.models.site_risk import SiteRisk
 from db.models.risk_action import RiskAction
 from db.models.visitor import Visitor, VisitorVisit
+from db.models.site_attendance import SiteAttendance
 from db.models.training_record import TrainingRecord
+from db.models.costing import TaskCost, UserPayRate, CompanyCostSettings
+from services.count_metrics import (
+    CountMetric, COUNT_METRICS, MIN_SPOTS_FOR_SD, metric_for_template,
+    first_field as _first_field,
+)
 from schemas.report import (
     TaskReportSummary, ObservationReportSummary,
     TimesheetReportSummary, AssetReportSummary,
@@ -40,6 +47,8 @@ from schemas.report import (
     HealthSafetySummary, IncidentRow, RiskRow,
     SiteAccessSummary, VisitRow,
     VineyardCensusSummary, CensusBlockRow, AreaByKey,
+    CostBreakdown, CostReportSummary, OperationCostRow, CostMixRow,
+    CountStat, CountReportSummary,
 )
 
 router = APIRouter()
@@ -129,7 +138,10 @@ def _property_filter_tasks(
 
 
 def _property_filter_nullable(query, model, db: Session, current_user: User, property_id: Optional[int]):
-    """Scope a model carrying its own nullable `property_id` (Incident, SiteRisk, ContractorMovement)."""
+    """Scope a model carrying its own nullable `property_id`.
+
+    Incident, SiteRisk, ContractorMovement, SiteAttendance.
+    """
     ids = _scoped_property_ids(db, current_user, property_id)
 
     if property_id is not None:
@@ -178,6 +190,19 @@ def task_report_summary(
     overdue = 0
     now = datetime.utcnow()
 
+    # Hours come from `_task_hours`, not `Task.actual_hours`. This report read
+    # the field for its whole life and therefore reported 0 for everyone, since
+    # nothing wrote it. It IS written now — at completion, as an audit record —
+    # which made the old code worse rather than better: newly completed tasks
+    # would have started showing hours while everything historical stayed at 0,
+    # and the figure would have disagreed with work-by-block on the same data.
+    task_hours = _task_hours(db, [t.id for t in tasks])
+
+    show_costs = _may_see_costs(current_user)
+    completed_ids = [t.id for t in tasks if t.status == TaskStatus.completed]
+    task_costs = _task_costs(db, completed_ids) if show_costs else {}
+    cost_acc = _CostAccumulator() if show_costs else None
+
     for t in tasks:
         s = t.status.value if t.status else "unknown"
         status_counts[s] = status_counts.get(s, 0) + 1
@@ -188,10 +213,13 @@ def task_report_summary(
         c = t.task_category or "general"
         category_counts[c] = category_counts.get(c, 0) + 1
 
-        if t.actual_hours:
-            total_hours += float(t.actual_hours)
+        total_hours += task_hours.get(t.id, 0.0)
         if s == "completed":
             completed += 1
+            # Only completed work has a cost. An open task has no snapshot, and
+            # counting it as uncosted would report every in-flight job as a gap.
+            if cost_acc is not None:
+                cost_acc.add(task_costs.get(t.id))
         if t.scheduled_end_date and t.scheduled_end_date < now.date() and s not in ("completed", "cancelled"):
             overdue += 1
 
@@ -203,6 +231,7 @@ def task_report_summary(
         total_hours=round(total_hours, 1),
         completion_rate=round((completed / total * 100) if total > 0 else 0, 1),
         overdue_count=overdue,
+        costs=cost_acc.breakdown() if cost_acc is not None else None,
     )
 
 
@@ -219,20 +248,50 @@ def task_report_export(
     q = _property_filter_tasks(q, db, current_user, property_id)
     tasks = q.order_by(Task.created_at.desc()).all()
 
-    headers = ["ID", "Title", "Status", "Priority", "Category", "Hours", "Scheduled Start", "Completed At", "Created"]
+    # Same correction as the summary: hours from TimeEntry + ContractorAssignment,
+    # never `Task.actual_hours`.
+    task_hours = _task_hours(db, [t.id for t in tasks])
+    show_costs = _may_see_costs(current_user)
+    task_costs = _task_costs(db, [t.id for t in tasks]) if show_costs else {}
+
+    headers = ["ID", "Title", "Status", "Priority", "Category", "Estimated Hours", "Hours",
+               "Scheduled Start", "Completed At", "Created"]
+    if show_costs:
+        headers += ["Labour", "Consumables", "Equipment", "Total Cost", "Currency", "Cost Complete"]
+
     rows = []
     for t in tasks:
-        rows.append([
+        hours = task_hours.get(t.id, 0.0)
+        row = [
             t.id,
             t.title,
             t.status.value if t.status else "",
             t.priority or "",
             t.task_category or "",
-            float(t.actual_hours) if t.actual_hours else "",
+            float(t.estimated_hours) if t.estimated_hours is not None else "",
+            round(hours, 2) if hours else "",
             str(t.scheduled_start_date) if t.scheduled_start_date else "",
             str(t.completed_at) if t.completed_at else "",
             str(t.created_at) if t.created_at else "",
-        ])
+        ]
+        if show_costs:
+            c = task_costs.get(t.id)
+            if c is None:
+                # Blank, not zero. This task was never costed.
+                row += ["", "", "", "", "", ""]
+            else:
+                row += [
+                    _csv_money(_sum_optional(
+                        float(c.labour_cost_staff) if c.labour_cost_staff is not None else None,
+                        float(c.labour_cost_contractor) if c.labour_cost_contractor is not None else None,
+                    )),
+                    _csv_money(float(c.consumable_cost) if c.consumable_cost is not None else None),
+                    _csv_money(float(c.asset_cost) if c.asset_cost is not None else None),
+                    _csv_money(float(c.total_cost) if c.total_cost is not None else None),
+                    c.currency or "",
+                    "yes" if c.is_complete else "no",
+                ]
+        rows.append(row)
     return _csv_response(rows, headers, "tasks_report.csv")
 
 
@@ -699,6 +758,156 @@ def _task_hours(db: Session, task_ids: List[int]) -> dict:
     return hours
 
 
+def _may_see_costs(current_user: User) -> bool:
+    """`costs:read` — admin only, and deliberately NOT `reports:read`.
+
+    A company_manager holds `reports:read`. A task cost divided by its hours is
+    an hourly rate, so every cost figure in this module is gated as tightly as
+    the pay rates themselves. When this is False the cost objects are never
+    built, so nothing to strip client-side and nothing to leak in a CSV.
+    """
+    return current_user.has_permission("costs", "read")
+
+
+def _task_costs(db: Session, task_ids: List[int]) -> dict:
+    """Live cost snapshots per task id.
+
+    The cost sibling of `_task_hours`, and it works the same way: give it the
+    task ids the report already has and it returns what is known, with tasks
+    that have no snapshot simply absent from the dict rather than zeroed.
+
+    **Live rows only.** A recompute supersedes rather than overwrites, so a task
+    can hold several `task_cost` rows and only one is current. The partial
+    unique index `uq_task_cost_live` is what guarantees there is at most one.
+    """
+    costs: dict = {}
+    if not task_ids:
+        return costs
+    rows = (
+        db.query(TaskCost)
+        .filter(TaskCost.task_id.in_(task_ids), TaskCost.is_superseded.is_(False))
+        .all()
+    )
+    for row in rows:
+        costs[row.task_id] = row
+    return costs
+
+
+class _CostAccumulator:
+    """Sums cost snapshots without ever inventing a zero.
+
+    Three rules, all of them the same rule:
+
+    * A component nobody priced stays **None**. Summing None as 0.00 turns "we
+      do not know what the spray cost" into "the spray was free".
+    * A task with no snapshot is counted in `uncosted`, never as 0.00. Every
+      task completed before costing shipped is in this bucket, so a total over
+      a historical period is an understatement by construction and has to say
+      so.
+    * `is_complete` travels WITH the figures. A client cannot end up holding a
+      number without also holding the reason it might be short.
+    """
+
+    # (breakdown field, TaskCost column)
+    COMPONENTS = (
+        ("labour_staff", "labour_cost_staff"),
+        ("labour_contractor", "labour_cost_contractor"),
+        ("consumables", "consumable_cost"),
+        ("equipment", "asset_cost"),
+        ("total", "total_cost"),
+    )
+
+    def __init__(self):
+        self.currency = "NZD"
+        self._sums = {name: None for name, _ in self.COMPONENTS}
+        self.costed = 0
+        self.uncosted = 0
+        self.incomplete = 0
+        self.unrated_hours = 0.0
+
+    def add(self, cost) -> None:
+        """Fold in one task's snapshot, or None for a task that has no cost."""
+        if cost is None:
+            self.uncosted += 1
+            return
+        self.costed += 1
+        if cost.currency:
+            self.currency = cost.currency
+        if not cost.is_complete:
+            self.incomplete += 1
+        self.unrated_hours += float(cost.unrated_staff_hours or 0)
+        for name, attr in self.COMPONENTS:
+            value = getattr(cost, attr, None)
+            if value is None:
+                continue
+            self._sums[name] = (self._sums[name] or 0.0) + float(value)
+
+    @property
+    def total(self) -> Optional[float]:
+        return self._sums["total"]
+
+    def breakdown(self) -> CostBreakdown:
+        notes = []
+        if self.uncosted:
+            notes.append(
+                f"{self.uncosted} task{'s' if self.uncosted != 1 else ''} in this period "
+                f"{'have' if self.uncosted != 1 else 'has'} no cost snapshot, so the totals are "
+                f"lower than the real spend. Costs are captured at completion; anything completed "
+                f"before costing was switched on has none."
+            )
+        if self.incomplete:
+            notes.append(
+                f"{self.incomplete} costed task{'s are' if self.incomplete != 1 else ' is'} short — "
+                f"{round(self.unrated_hours, 1)} h of labour with no resolvable pay rate, or "
+                f"machinery hours with no operating rate."
+            )
+        return CostBreakdown(
+            currency=self.currency,
+            labour_staff=_round_money(self._sums["labour_staff"]),
+            labour_contractor=_round_money(self._sums["labour_contractor"]),
+            consumables=_round_money(self._sums["consumables"]),
+            equipment=_round_money(self._sums["equipment"]),
+            total=_round_money(self._sums["total"]),
+            costed_tasks=self.costed,
+            uncosted_tasks=self.uncosted,
+            incomplete_tasks=self.incomplete,
+            is_complete=not self.uncosted and not self.incomplete,
+            warning=" ".join(notes) or None,
+        )
+
+
+def _round_money(value: Optional[float]) -> Optional[float]:
+    return None if value is None else round(value, 2)
+
+
+def _sum_optional(*values) -> Optional[float]:
+    """Sum the values that are known. None when none of them are.
+
+    Used for the labour column, which is staff plus contractor: a company with
+    no contractors must not have its staff wages turned into None, and a
+    contractor-only task must not report 0.00 for the staff half.
+    """
+    known = [v for v in values if v is not None]
+    return round(sum(known), 2) if known else None
+
+
+def _csv_money(value: Optional[float]):
+    """An empty cell for an unknown figure. A spreadsheet sums blanks as zero
+    and prints 0.00 as a fact, so the blank is the honest one."""
+    return "" if value is None else value
+
+
+def _per_unit(total: Optional[float], units: Optional[float]) -> Optional[float]:
+    """A rate, or None when either side of the division is unknown.
+
+    Zero units is not a rate of zero — it is no rate at all, and rendering it as
+    0.00 invents a denominator nobody supplied.
+    """
+    if total is None or not units:
+        return None
+    return round(total / float(units), 2)
+
+
 def _company_blocks(db: Session, current_user: User) -> dict:
     return {
         b.id: b for b in db.query(VineyardBlock).filter(
@@ -719,7 +928,15 @@ def work_by_block_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_company_user_permission("reports", "read")),
 ):
-    """Completed work rolled up by block: hours, rows, area and hours per hectare."""
+    """Completed work rolled up by block: hours, rows, area, and — for a holder
+    of `costs:read` — what it cost and what that is per hectare.
+
+    **Cost follows the same allocation as hours: whole, onto `Task.block_id`.**
+    A task that spanned three blocks lands entirely on the one it names. That is
+    not obviously right, but it is what the hours column has always done, and a
+    cost allocated differently from the hours beside it would make cost-per-hour
+    disagree with itself row by row. Change both together or neither.
+    """
     q = db.query(Task).filter(
         Task.company_id == current_user.company_id,
         Task.status == TaskStatus.completed,
@@ -733,6 +950,10 @@ def work_by_block_summary(
     props = _property_names(db)
     task_hours = _task_hours(db, [t.id for t in tasks])
 
+    show_costs = _may_see_costs(current_user)
+    task_costs = _task_costs(db, [t.id for t in tasks]) if show_costs else {}
+    company_costs = _CostAccumulator() if show_costs else None
+
     agg: dict = {}
     unallocated_hours = 0.0
     unallocated_tasks = 0
@@ -742,23 +963,33 @@ def work_by_block_summary(
         # Roll-up children carry their own hours but must not inflate the job count.
         counts_as_job = t.parent_task_id is None
 
+        # Every task feeds the company total, block or no block — the same
+        # treatment the hours get, where unallocated time is reported separately
+        # but still counted.
+        if company_costs is not None:
+            company_costs.add(task_costs.get(t.id))
+
         if t.block_id is None:
             unallocated_hours += hours
             if counts_as_job:
                 unallocated_tasks += 1
             continue
 
-        row = agg.setdefault(t.block_id, {"tasks": 0, "hours": 0.0, "rows": 0, "area": 0.0})
+        row = agg.setdefault(t.block_id, {"tasks": 0, "hours": 0.0, "rows": 0, "area": 0.0,
+                                          "costs": _CostAccumulator() if show_costs else None})
         row["hours"] += hours
         row["rows"] += int(t.rows_completed or 0)
         row["area"] += float(t.area_completed_hectares or 0)
         if counts_as_job:
             row["tasks"] += 1
+        if row["costs"] is not None:
+            row["costs"].add(task_costs.get(t.id))
 
     out: List[BlockWorkRow] = []
     for block_id, row in agg.items():
         b = blocks.get(block_id)
         area = round(float(b.area), 2) if b and b.area else None
+        acc = row["costs"]
         out.append(BlockWorkRow(
             block_id=block_id,
             block_name=_block_label(b),
@@ -772,6 +1003,9 @@ def work_by_block_summary(
             # Only meaningful against a known block area. None beats a per-hectare
             # figure invented from a missing denominator.
             hours_per_hectare=round(row["hours"] / area, 1) if area else None,
+            costs=acc.breakdown() if acc is not None else None,
+            # Same denominator as hours/ha, so the two columns are comparable.
+            cost_per_hectare=_per_unit(acc.total, area) if acc is not None else None,
         ))
     out.sort(key=lambda r: r.hours, reverse=True)
 
@@ -782,6 +1016,7 @@ def work_by_block_summary(
         total_area_worked=round(sum(r.area_worked_hectares for r in out), 2),
         unallocated_hours=round(unallocated_hours, 1),
         unallocated_tasks=unallocated_tasks,
+        costs=company_costs.breakdown() if company_costs is not None else None,
     )
 
 
@@ -794,18 +1029,626 @@ def work_by_block_export(
     current_user: User = Depends(require_company_user_permission("reports", "export")),
 ):
     summary = work_by_block_summary(start_date, end_date, property_id, db, current_user)
+    # The cost columns exist in the file only for someone allowed to see them.
+    # Emitting empty columns instead would tell a manager exactly how many cost
+    # fields they are missing, and invites a client to "fill them in later".
+    show_costs = summary.costs is not None
     headers = ["Block", "Property", "Variety", "Block Area (ha)", "Tasks Completed",
                "Hours", "Rows Completed", "Area Worked (ha)", "Hours / ha"]
-    rows = [[
-        r.block_name, r.property_name or "", r.variety or "",
-        r.area_hectares if r.area_hectares is not None else "",
-        r.tasks_completed, r.hours, r.rows_completed, r.area_worked_hectares,
-        r.hours_per_hectare if r.hours_per_hectare is not None else "",
-    ] for r in summary.blocks]
+    if show_costs:
+        headers += [f"Labour ({summary.costs.currency})", "Consumables", "Equipment",
+                    "Total Cost", "Cost / ha", "Costed Tasks", "Uncosted Tasks"]
+
+    rows = []
+    for r in summary.blocks:
+        row = [
+            r.block_name, r.property_name or "", r.variety or "",
+            r.area_hectares if r.area_hectares is not None else "",
+            r.tasks_completed, r.hours, r.rows_completed, r.area_worked_hectares,
+            r.hours_per_hectare if r.hours_per_hectare is not None else "",
+        ]
+        if show_costs:
+            c = r.costs
+            row += [
+                _csv_money(_sum_optional(c.labour_staff, c.labour_contractor)),
+                _csv_money(c.consumables), _csv_money(c.equipment), _csv_money(c.total),
+                _csv_money(r.cost_per_hectare), c.costed_tasks, c.uncosted_tasks,
+            ]
+        rows.append(row)
+
     if summary.unallocated_tasks or summary.unallocated_hours:
-        rows.append(["Unallocated (no block)", "", "", "", summary.unallocated_tasks,
-                     summary.unallocated_hours, "", "", ""])
+        tail = ["Unallocated (no block)", "", "", "", summary.unallocated_tasks,
+                summary.unallocated_hours, "", "", ""]
+        if show_costs:
+            tail += ["", "", "", "", "", "", ""]
+        rows.append(tail)
     return _csv_response(rows, headers, "work_by_block.csv")
+
+
+# ── Counts (bud / bunch / flower) ─────────────────────────────────────
+#
+# What a season's counting actually produced, aggregated to a mean and a spread
+# per block. Bud counts are the first measurement of the year and, at the time
+# this was written, 36 of the 48 observation spots in the entire database were
+# bud counts — so this is where the observation data actually is.
+
+class _CountAccumulator:
+    """Mean, spread and target attainment for one group of spots."""
+
+    def __init__(self, key: str, label: str):
+        self.key = key
+        self.label = label
+        self.values: List[float] = []     # one per spot
+        self.weights: List[float] = []    # vines behind each spot
+        self.targets: List[tuple] = []    # (target, weight)
+        self.assumed_weight = 0           # spots whose template has no weight field
+
+    def add(self, value: float, weight: Optional[float], target: Optional[float]) -> None:
+        w = weight if weight and weight > 0 else 1.0
+        if not weight or weight <= 0:
+            self.assumed_weight += 1
+        self.values.append(value)
+        self.weights.append(w)
+        if target is not None:
+            self.targets.append((target, w))
+
+    @property
+    def spots(self) -> int:
+        return len(self.values)
+
+    def stat(self, **extra) -> CountStat:
+        n = len(self.values)
+        if n == 0:
+            return CountStat(key=self.key, label=self.label, **extra)
+
+        total_weight = sum(self.weights)
+        # Weighted: a spot covering five vines is five vines' worth of evidence.
+        mean = sum(v * w for v, w in zip(self.values, self.weights)) / total_weight
+
+        sd = None
+        sd_note = None
+        sd_basis = None
+        if n < MIN_SPOTS_FOR_SD:
+            sd_note = (
+                f"{n} spot{'s' if n != 1 else ''} — a spread needs at least "
+                f"{MIN_SPOTS_FOR_SD}."
+            )
+        else:
+            # Unweighted sample SD of the SPOT values. Deliberately not a
+            # weighted SD: each spot value is already an average of the vines
+            # behind it, so this measures variation between sampling points.
+            plain_mean = sum(self.values) / n
+            variance = sum((v - plain_mean) ** 2 for v in self.values) / (n - 1)
+            sd = variance ** 0.5
+            if all(w == 1 for w in self.weights):
+                sd_basis = "between vines"
+            else:
+                sd_basis = "between spots"
+                sd_note = (
+                    "Spots cover more than one vine each, so this is the spread "
+                    "between sampling points, not between vines — the true "
+                    "vine-to-vine spread is wider."
+                )
+
+        target = None
+        percent = None
+        if self.targets:
+            tw = sum(w for _, w in self.targets)
+            target = sum(t * w for t, w in self.targets) / tw
+            if target:
+                percent = mean / target * 100
+
+        return CountStat(
+            key=self.key,
+            label=self.label,
+            spots=n,
+            vines_sampled=round(total_weight, 1),
+            mean=round(mean, 2),
+            sd=round(sd, 2) if sd is not None else None,
+            sd_basis=sd_basis,
+            sd_note=sd_note,
+            # Only where a spread exists AND there is a mean to divide by.
+            cv_percent=round(sd / mean * 100, 1) if sd is not None and mean else None,
+            min=round(min(self.values), 2),
+            max=round(max(self.values), 2),
+            target=round(target, 2) if target is not None else None,
+            percent_of_target=round(percent, 1) if percent is not None else None,
+            **extra,
+        )
+
+
+def _metric_template_ids(db: Session, current_user: User, metric: CountMetric) -> tuple:
+    """(template ids for this metric, ids whose template declares no weight field).
+
+    Scans `fields_json` in Python rather than querying inside the JSON: there
+    are tens of templates, and a field list is a plain array whose shape has
+    changed over time.
+    """
+    templates = db.query(ObservationTemplate).filter(
+        or_(
+            ObservationTemplate.company_id == current_user.company_id,
+            ObservationTemplate.company_id.is_(None),
+        )
+    ).all()
+
+    ids, weightless = [], set()
+    for t in templates:
+        names = {
+            f.get("name") for f in (t.fields_json or [])
+            if isinstance(f, dict)
+        }
+        matches_type = t.type in metric.template_types
+        matches_field = any(name in names for name in metric.value_fields)
+        if matches_type or matches_field:
+            ids.append(t.id)
+            if metric.weight_field and metric.weight_field not in names:
+                weightless.add(t.id)
+    return ids, weightless
+
+
+@router.get("/counts/summary", response_model=CountReportSummary)
+def count_report_summary(
+    metric: Optional[str] = Query(None, description="bud_count | shoot_count | flower_set | bunch_count"),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None, description="Filter by property"),
+    run_id: Optional[int] = Query(None, description="Narrow to a single observation run"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("reports", "read")),
+):
+    """What the counting found, per block: mean, spread and attainment vs target.
+
+    Reports the mean **weighted by vines sampled** — a spot covering five vines
+    is five vines' worth of evidence and must not count the same as one covering
+    a single vine.
+
+    The spread is reported only where the data supports one. See
+    `MIN_SPOTS_FOR_SD`: below three spots there is no spread to report, and the
+    row says so instead of leaving a blank that reads as zero.
+
+    `run_id` narrows everything to one run, which is how the observation
+    management page shows a run its own figures. **The same function, so the
+    two surfaces cannot drift** — a run summary that disagreed with the report
+    it links to would be worse than not having one. With `run_id` and no
+    `metric`, the metric is inferred from the run's own template, so a caller
+    holding a run does not have to know what it measures.
+    """
+    run = None
+    if run_id is not None:
+        run = db.get(ObservationRun, run_id)
+        if run is None or run.company_id != current_user.company_id:
+            raise HTTPException(status_code=404, detail="Observation run not found")
+        if metric is None:
+            metric = metric_for_template(db.get(ObservationTemplate, run.template_id))
+            if metric is None:
+                # A real answer, not an error: plenty of runs count nothing.
+                return CountReportSummary(
+                    metric="none", metric_label="Not a count",
+                    overall=CountStat(key="all", label="All blocks"),
+                    warnings=["This run does not record a countable measurement."],
+                )
+
+    spec = COUNT_METRICS.get(metric or "bud_count")
+    if spec is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown metric '{metric}'. Try one of: {', '.join(COUNT_METRICS)}",
+        )
+
+    template_ids, weightless = _metric_template_ids(db, current_user, spec)
+    warnings: List[str] = []
+    if not template_ids:
+        return CountReportSummary(
+            metric=spec.key, metric_label=spec.label, unit=spec.unit,
+            overall=CountStat(key="all", label="All blocks"),
+            warnings=[f"No observation template records {spec.label.lower()} yet."],
+        )
+
+    block_ids = _visible_block_ids(db, current_user, property_id)
+
+    q = (
+        db.query(ObservationSpot, ObservationRun)
+        .join(ObservationRun, ObservationRun.id == ObservationSpot.run_id)
+        .filter(
+            ObservationSpot.company_id == current_user.company_id,
+            ObservationRun.template_id.in_(template_ids),
+        )
+    )
+
+    # Property scoping via the block chain, under the NULL-property rule: a spot
+    # with no block is company-wide and is kept unless a property was named.
+    if property_id is not None:
+        if not block_ids:
+            q = q.filter(ObservationSpot.id == -1)
+        else:
+            q = q.filter(ObservationSpot.block_id.in_(block_ids))
+    elif not block_ids:
+        q = q.filter(ObservationSpot.block_id.is_(None))
+    else:
+        q = q.filter(
+            or_(ObservationSpot.block_id.in_(block_ids), ObservationSpot.block_id.is_(None))
+        )
+
+    if run_id is not None:
+        # Block scoping above still applies: narrowing to a run must not widen
+        # what the caller can see.
+        q = q.filter(ObservationSpot.run_id == run_id)
+
+    q = _date_filter(q, ObservationSpot, "observed_at", start_date, end_date)
+    pairs = q.all()
+
+    blocks = _company_blocks(db, current_user)
+    props = _property_names(db)
+
+    overall = _CountAccumulator("all", "All blocks")
+    by_block: dict = {}
+    by_run: dict = {}
+    run_meta: dict = {}
+    templates_by_id = {
+        t.id: t.name for t in db.query(ObservationTemplate).filter(
+            ObservationTemplate.id.in_(template_ids)
+        ).all()
+    }
+    unreadable = 0
+    weight_assumed_templates = set()
+
+    for spot, run in pairs:
+        data = spot.data_json or {}
+        value = _first_field(data, spec.value_fields)
+        if value is None:
+            # The spot exists but carries nothing for this metric — a run that
+            # was opened and never filled in, or a field renamed since.
+            unreadable += 1
+            continue
+
+        weight = _first_field(data, [spec.weight_field]) if spec.weight_field else None
+        target = _first_field(data, [spec.target_field]) if spec.target_field else None
+        if run.template_id in weightless:
+            weight_assumed_templates.add(run.template_id)
+
+        overall.add(value, weight, target)
+
+        block_key = spot.block_id if spot.block_id is not None else run.block_id
+        label = _block_label(blocks.get(block_key)) if block_key else "Unallocated"
+        by_block.setdefault(block_key, _CountAccumulator(str(block_key), label)).add(value, weight, target)
+
+        # A run is identified by WHERE and WHEN, not by its own name — those
+        # are auto-generated and read "Run - template 4", which distinguishes
+        # nothing when a block is counted three times in a season.
+        if run.id not in by_run:
+            by_run[run.id] = _CountAccumulator(str(run.id), label)
+            run_meta[run.id] = {
+                "block_id": block_key,
+                "template_name": templates_by_id.get(run.template_id),
+                "observed": spot.observed_at or run.observed_at_start or run.scheduled_date,
+            }
+        else:
+            # Earliest spot wins: a run spanning midnight should read as the day
+            # the counting started.
+            seen = run_meta[run.id]
+            when = spot.observed_at or run.observed_at_start
+            if when and (seen["observed"] is None or when < seen["observed"]):
+                seen["observed"] = when
+        by_run[run.id].add(value, weight, target)
+
+    block_rows = []
+    for block_key, acc in by_block.items():
+        b = blocks.get(block_key) if block_key else None
+        block_rows.append(acc.stat(
+            block_id=block_key,
+            property_name=props.get(b.property_id) if b else None,
+            variety=b.variety if b else None,
+        ))
+    block_rows.sort(key=lambda r: r.spots, reverse=True)
+
+    run_rows = []
+    for rid, acc in by_run.items():
+        meta = run_meta.get(rid, {})
+        b = blocks.get(meta.get("block_id")) if meta.get("block_id") else None
+        when = meta.get("observed")
+        run_rows.append(acc.stat(
+            block_id=meta.get("block_id"),
+            property_name=props.get(b.property_id) if b else None,
+            variety=b.variety if b else None,
+            template_name=meta.get("template_name"),
+            observed_on=(when.date().isoformat() if hasattr(when, "date") else
+                         (when.isoformat() if when else None)),
+        ))
+    # Newest first: what was counted this week matters more than last spring.
+    run_rows.sort(key=lambda r: (r.observed_on or "", r.spots), reverse=True)
+
+    if unreadable:
+        warnings.append(
+            f"{unreadable} spot{'s' if unreadable != 1 else ''} in range recorded no "
+            f"{spec.label.lower()} value and {'are' if unreadable != 1 else 'is'} not counted."
+        )
+    if weight_assumed_templates:
+        warnings.append(
+            f"{len(weight_assumed_templates)} template"
+            f"{'s do' if len(weight_assumed_templates) != 1 else ' does'} not record how many "
+            f"vines each spot covers, so those spots are weighted as one vine each."
+        )
+    thin = [r for r in block_rows if r.sd is None and r.spots]
+    if thin:
+        warnings.append(
+            f"{len(thin)} block{'s have' if len(thin) != 1 else ' has'} too few spots for a "
+            f"spread — a mean from one or two readings is not a block average."
+        )
+
+    return CountReportSummary(
+        metric=spec.key,
+        metric_label=spec.label,
+        unit=spec.unit,
+        overall=overall.stat(),
+        blocks=block_rows,
+        runs=run_rows,
+        warnings=warnings,
+    )
+
+
+@router.get("/counts/export")
+def count_report_export(
+    metric: Optional[str] = Query(None),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    run_id: Optional[int] = Query(None),
+    section: str = Query("blocks", pattern="^(blocks|runs)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("reports", "export")),
+):
+    summary = count_report_summary(
+        metric, start_date, end_date, property_id, run_id, db, current_user
+    )
+    rows_in = summary.runs if section == "runs" else summary.blocks
+    # Both sections are keyed on the block; a run row adds when and what.
+    label = "Block"
+
+    headers = [label, "Property", "Variety"]
+    if section == "runs":
+        headers += ["Date", "Template"]
+    headers += ["Spots", "Vines Sampled",
+                f"Mean ({summary.unit or ''})".strip(), "SD", "SD Basis", "CV %",
+                "Min", "Max", "Target", "% of Target"]
+    rows = []
+    for r in rows_in:
+        rows.append([
+            r.label, r.property_name or "", r.variety or "",
+            *([r.observed_on or "", r.template_name or ""] if section == "runs" else []),
+            r.spots, r.vines_sampled,
+            r.mean if r.mean is not None else "",
+            # Blank, never 0 — the spread does not exist for this row.
+            r.sd if r.sd is not None else "",
+            r.sd_basis or "",
+            r.cv_percent if r.cv_percent is not None else "",
+            r.min if r.min is not None else "",
+            r.max if r.max is not None else "",
+            r.target if r.target is not None else "",
+            r.percent_of_target if r.percent_of_target is not None else "",
+        ])
+    return _csv_response(rows, headers, f"{summary.metric}_by_{section}.csv")
+
+
+# ── Cost report ───────────────────────────────────────────────────────
+class _CostGroup:
+    """One row of the cost report while it is being built.
+
+    Estimated-vs-actual is the fiddly part. The variance is computed ONLY over
+    tasks that actually carry an estimate — comparing every task's real hours
+    against the handful that were estimated would report a group where one job
+    in twenty was estimated as massively over, which is a statement about the
+    estimating habit, not the work.
+    """
+
+    def __init__(self, key: str):
+        self.key = key
+        self.tasks = 0
+        self.hours = 0.0
+        self.area = 0.0
+        self.estimated_hours = 0.0
+        self.hours_of_estimated = 0.0
+        self.has_estimate = False
+        self.costs = _CostAccumulator()
+
+    def add(self, task, hours: float, cost) -> None:
+        # Roll-up children carry hours and cost but must not inflate the count,
+        # exactly as in work-by-block.
+        if task.parent_task_id is None:
+            self.tasks += 1
+        self.hours += hours
+        self.area += float(task.area_completed_hectares or 0)
+        if task.estimated_hours is not None:
+            self.has_estimate = True
+            self.estimated_hours += float(task.estimated_hours)
+            self.hours_of_estimated += hours
+        self.costs.add(cost)
+
+    def row(self) -> OperationCostRow:
+        breakdown = self.costs.breakdown()
+        return OperationCostRow(
+            key=self.key,
+            tasks=self.tasks,
+            hours=round(self.hours, 1),
+            estimated_hours=round(self.estimated_hours, 1) if self.has_estimate else None,
+            hours_variance=(
+                round(self.hours_of_estimated - self.estimated_hours, 1)
+                if self.has_estimate else None
+            ),
+            area_worked_hectares=round(self.area, 2),
+            costs=breakdown,
+            cost_per_hour=_per_unit(breakdown.total, self.hours),
+            # Area WORKED, not block area: an operation crosses blocks, and the
+            # hectares it actually covered are the only denominator that means
+            # anything at this grain.
+            cost_per_hectare=_per_unit(breakdown.total, self.area),
+        )
+
+
+def _cost_setup_warnings(db: Session, company_id: int) -> List[str]:
+    """What is missing before a cost figure can be believed.
+
+    Reported up front rather than left to be inferred from a page of blanks —
+    every one of these makes the totals below understate the real spend.
+    """
+    warnings: List[str] = []
+    settings = db.query(CompanyCostSettings).filter(
+        CompanyCostSettings.company_id == company_id
+    ).first()
+    rate_count = db.query(func.count(UserPayRate.id)).filter(
+        UserPayRate.company_id == company_id
+    ).scalar() or 0
+
+    if rate_count == 0 and not (settings and settings.default_hourly_rate):
+        warnings.append(
+            "No pay rates are set, so staff labour cannot be priced at all. "
+            "Manage → Costs is where they go."
+        )
+    if not settings or settings.on_cost_multiplier is None:
+        warnings.append(
+            "No on-cost multiplier is set, so wages count at the bare hourly rate. "
+            "True employment cost is roughly 15-20% higher."
+        )
+    # `asset_type` is 'physical' or 'consumable' — there is no 'equipment'
+    # value, and filtering on one silently counts nothing. Retired and disposed
+    # kit is excluded: an operating rate it will never use again is not a gap.
+    unrated_machines = db.query(func.count(Asset.id)).filter(
+        Asset.company_id == company_id,
+        Asset.asset_type == "physical",
+        Asset.is_active.is_(True),
+        Asset.status.in_(("active", "maintenance")),
+        Asset.hourly_operating_rate.is_(None),
+    ).scalar() or 0
+    if unrated_machines:
+        warnings.append(
+            f"{unrated_machines} piece{'s' if unrated_machines != 1 else ''} of equipment "
+            f"{'have' if unrated_machines != 1 else 'has'} no operating rate, so any task using "
+            f"{'them' if unrated_machines != 1 else 'it'} reports no machinery cost."
+        )
+    return warnings
+
+
+@router.get("/costs/summary", response_model=CostReportSummary)
+def cost_report_summary(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None, description="Filter by property"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("costs", "read")),
+):
+    """What the work cost, by operation and by variety.
+
+    Gated on `costs`, not `reports` — a company_manager holds `reports:read`,
+    and a cost divided by its hours is an hourly rate. This is the one report in
+    the module a manager cannot open at all, which is why it is its own report
+    rather than a section inside another.
+    """
+    q = db.query(Task).filter(
+        Task.company_id == current_user.company_id,
+        Task.status == TaskStatus.completed,
+    )
+    q = _exclude_clones(q)
+    q = _date_filter(q, Task, "completed_at", start_date, end_date)
+    q = _property_filter_tasks(q, db, current_user, property_id)
+    tasks = q.all()
+
+    task_ids = [t.id for t in tasks]
+    task_hours = _task_hours(db, task_ids)
+    task_costs = _task_costs(db, task_ids)
+    blocks = _company_blocks(db, current_user)
+
+    overall = _CostAccumulator()
+    by_operation: dict = {}
+    by_variety: dict = {}
+
+    for t in tasks:
+        hours = task_hours.get(t.id, 0.0)
+        cost = task_costs.get(t.id)
+        overall.add(cost)
+
+        op_key = t.task_category or "general"
+        by_operation.setdefault(op_key, _CostGroup(op_key)).add(t, hours, cost)
+
+        block = blocks.get(t.block_id) if t.block_id else None
+        var_key = (block.variety if block and block.variety else "Unspecified")
+        by_variety.setdefault(var_key, _CostGroup(var_key)).add(t, hours, cost)
+
+    breakdown = overall.breakdown()
+
+    # The mix only makes sense against a known total. With no total there is
+    # nothing to take a percentage OF, and a share of an unknown is not 0%.
+    mix_source = [
+        ("Labour", _sum_optional(breakdown.labour_staff, breakdown.labour_contractor)),
+        ("Consumables", breakdown.consumables),
+        ("Equipment", breakdown.equipment),
+    ]
+    mix = [
+        CostMixRow(
+            key=label,
+            amount=amount,
+            share_percent=(
+                round(amount / breakdown.total * 100, 1)
+                if amount is not None and breakdown.total else None
+            ),
+        )
+        for label, amount in mix_source
+    ]
+
+    operations = sorted(
+        (g.row() for g in by_operation.values()),
+        key=lambda r: (r.costs.total if r.costs.total is not None else -1, r.hours),
+        reverse=True,
+    )
+    varieties = sorted(
+        (g.row() for g in by_variety.values()),
+        key=lambda r: (r.costs.total if r.costs.total is not None else -1, r.hours),
+        reverse=True,
+    )
+    setup_warnings = _cost_setup_warnings(db, current_user.company_id)
+
+    return CostReportSummary(
+        currency=breakdown.currency,
+        costs=breakdown,
+        by_operation=operations,
+        by_variety=varieties,
+        mix=mix,
+        uncosted_tasks=breakdown.uncosted_tasks,
+        rates_configured=not setup_warnings,
+        setup_warnings=setup_warnings,
+    )
+
+
+@router.get("/costs/export")
+def cost_report_export(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    section: str = Query("operations", pattern="^(operations|varieties)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("costs", "export")),
+):
+    """Two tables in one report, so the export names the one it wants —
+    the same shape as the health & safety export."""
+    summary = cost_report_summary(start_date, end_date, property_id, db, current_user)
+    rows_in = summary.by_variety if section == "varieties" else summary.by_operation
+    label = "Variety" if section == "varieties" else "Operation"
+
+    headers = [label, "Tasks", "Hours", "Estimated Hours", "Hours Variance", "Area Worked (ha)",
+               f"Labour ({summary.currency})", "Consumables", "Equipment", "Total Cost",
+               "Cost / Hour", "Cost / ha", "Costed Tasks", "Uncosted Tasks", "Complete"]
+    rows = []
+    for r in rows_in:
+        c = r.costs
+        rows.append([
+            r.key, r.tasks, r.hours,
+            r.estimated_hours if r.estimated_hours is not None else "",
+            r.hours_variance if r.hours_variance is not None else "",
+            r.area_worked_hectares,
+            _csv_money(_sum_optional(c.labour_staff, c.labour_contractor)),
+            _csv_money(c.consumables), _csv_money(c.equipment), _csv_money(c.total),
+            _csv_money(r.cost_per_hour), _csv_money(r.cost_per_hectare),
+            c.costed_tasks, c.uncosted_tasks, "yes" if c.is_complete else "no",
+        ])
+    return _csv_response(rows, headers, f"costs_by_{section}.csv")
 
 
 @router.get("/outstanding/summary", response_model=OutstandingSummary)
@@ -1219,6 +2062,46 @@ def site_access_summary(
             status=None,
         ))
 
+    # --- Staff attendance -------------------------------------------------
+    #
+    # The third register. Visitors and contractors describe people who do not
+    # work here; SiteAttendance is the staff equivalent, and leaving it out made
+    # this report answer "who was on site" with the wrong half.
+    #
+    # A staff row carries no induction, purpose or equipment state, so it is
+    # counted in neither `not_inducted` nor `equipment_not_cleaned` — those are
+    # denominators over guests. It DOES count toward `never_signed_out`, which
+    # is the evacuation number and applies to everybody.
+    aq = db.query(SiteAttendance, User).join(
+        User, SiteAttendance.user_id == User.id
+    ).filter(SiteAttendance.company_id == current_user.company_id)
+    aq = _date_filter(aq, SiteAttendance, "signed_in_at", start_date, end_date)
+    aq = _property_filter_nullable(aq, SiteAttendance, db, current_user, property_id)
+    attendance_rows = aq.order_by(SiteAttendance.signed_in_at.desc()).all()
+
+    for a, person in attendance_rows:
+        people.add(("staff", person.id))
+        if a.property_id:
+            property_counts[a.property_id] = property_counts.get(a.property_id, 0) + 1
+        if a.signed_in_at and not a.signed_out_at:
+            never_signed_out += 1
+        visits.append(VisitRow(
+            id=a.id,
+            kind="staff",
+            name=(f"{person.first_name or ''} {person.last_name or ''}".strip()
+                  or person.username or person.email),
+            organisation=None,
+            visit_date=_iso(a.signed_in_at.date() if a.signed_in_at else None),
+            purpose=None,
+            property_name=props.get(a.property_id),
+            host=None,
+            signed_in=_iso(a.signed_in_at),
+            signed_out=_iso(a.signed_out_at),
+            inducted=None,
+            equipment_cleaned=None,
+            status=None,
+        ))
+
     visits.sort(key=lambda r: r.signed_in or r.visit_date or "", reverse=True)
 
     # Training currency for everyone who is not a staff user — the induction
@@ -1238,6 +2121,7 @@ def site_access_summary(
         total_visits=len(visits),
         visitor_visits=len(visitor_rows),
         contractor_visits=len(movement_rows),
+        staff_attendances=len(attendance_rows),
         unique_people=len(people),
         not_inducted=not_inducted,
         never_signed_out=never_signed_out,

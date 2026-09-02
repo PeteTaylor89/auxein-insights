@@ -1,13 +1,26 @@
 # db/models/invitation.py
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from db.base_class import Base
+from core.permissions import ASSIGNABLE_ROLES
 from datetime import datetime, timezone, timedelta
 import secrets
 
+# Declared here as well as in the migration. `chk_invitation_role` spent months
+# allowing two roles the app rejected ('owner', 'viewer') and refusing none it
+# used — because it lived only in the database, where nobody reading the model
+# would see it. Deriving it from ASSIGNABLE_ROLES means adding a role in
+# core/permissions.py and forgetting the DDL shows up as a failing migration
+# check rather than an IntegrityError on the first invite.
+_ROLE_CHECK = "role IN (" + ", ".join(f"'{r}'" for r in ASSIGNABLE_ROLES) + ")"
+
+
 class Invitation(Base):
     __tablename__ = "invitations"
+    __table_args__ = (
+        CheckConstraint(_ROLE_CHECK, name="chk_invitation_role"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(100), nullable=False, index=True)

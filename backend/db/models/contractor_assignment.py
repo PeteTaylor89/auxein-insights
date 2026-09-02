@@ -312,23 +312,50 @@ class ContractorAssignment(Base):
             "completed": list(completed_training & required_training)
         }
     
-    def calculate_payment_amount(self):
-        """Calculate payment amount based on rate type and actual work"""
+    def calculate_payment_amount(self, day_hours: float = None):
+        """What this assignment costs, or None when it cannot be known.
+
+        Returns None rather than a number whenever the inputs are not there.
+        The distinction matters: 0.0 reads as "this work was free", which is a
+        claim, while None reads as "not costed yet", which is the truth. A
+        report can show the second honestly and cannot show the first at all.
+
+        `day_hours` is the company's standard working day, needed only for a
+        daily rate. There is no company cost settings table yet, so callers
+        have nothing to pass and a daily-rate assignment stays uncosted. That
+        is deliberate: this method used to divide by a hardcoded 8, which
+        overstated the cost of a crew working a 10-hour summer day by 25% and
+        understated a 6-hour one. An unknown day length is a question for the
+        grower, not a constant to assume.
+
+        Fixed price does not divide. The assignment's agreed_rate IS the cost;
+        spreading one fixed price across several tasks needs an allocation rule
+        that does not exist, so an assignment has to stay attached to a single
+        task for this to mean anything.
+        """
         if not self.agreed_rate:
-            return 0.0
-        
+            return None
+
         rate = float(self.agreed_rate)
-        
-        if self.rate_type == "hourly" and self.actual_hours_worked:
-            return rate * float(self.actual_hours_worked)
-        elif self.rate_type == "daily" and self.actual_hours_worked:
-            days_worked = float(self.actual_hours_worked) / 8  # Assume 8-hour days
-            return rate * days_worked
-        elif self.rate_type == "fixed_price":
+
+        if self.rate_type == "fixed_price":
             return rate
-        else:
-            return 0.0
-    
+
+        if not self.actual_hours_worked:
+            return None
+
+        hours = float(self.actual_hours_worked)
+
+        if self.rate_type == "hourly":
+            return rate * hours
+
+        if self.rate_type == "daily":
+            if not day_hours or day_hours <= 0:
+                return None
+            return rate * (hours / float(day_hours))
+
+        return None
+
     def create_next_occurrence(self):
         """Create next occurrence for recurring assignments"""
         if not self.is_recurring or not self.recurrence_pattern:

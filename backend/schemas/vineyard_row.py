@@ -1,6 +1,6 @@
 # app/schemas/vineyard_row.py - Enhanced version
 from typing import Optional, Union, Dict, Any, List
-from pydantic import BaseModel, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 from .block import Block
 
 class ClonalSection(BaseModel):
@@ -140,3 +140,60 @@ class RowRangeUpdateResponse(BaseModel):
     # like a successful no-op.
     missing_row_numbers: List[str]
     message: str
+
+
+# ---------------------------------------------------------------------------
+# Spreadsheet round-trip
+# ---------------------------------------------------------------------------
+
+class RowImportRow(BaseModel):
+    """One line of the rows CSV.
+
+    The key is `block_id` + `row_number`. The user never sees or types a
+    block_id: their file names the BLOCK, and the web client resolves that name
+    against the blocks they can actually see before sending. Resolving against
+    the visible set is what makes another company's block unnameable rather
+    than merely rejected — there is no id to type — and this endpoint re-checks
+    scope regardless.
+
+    Note `line_number` vs `row_number`: the first is which line of the
+    spreadsheet, the second is the vineyard row's own label. They are different
+    things and sharing a name here would be a genuine collision.
+
+    Rows CREATE as well as update — an unrecognised row_number within a block is
+    a new row. Unlike a block, a row needs no geometry to be useful (no row in
+    the database has any), so a spreadsheet can legitimately bring a block's
+    whole row set into existence. That is the onboarding case.
+
+    Same three-state rule as elsewhere: absent leaves a field, null clears it.
+    """
+    line_number: int = Field(..., description="Line number in the user's file, for error reporting")
+    block_id: int
+    row_number: str
+    row_length: Optional[float] = None
+    vine_spacing: Optional[float] = None
+    variety: Optional[str] = None
+    clone: Optional[str] = None
+    rootstock: Optional[str] = None
+
+
+class RowImportRequest(BaseModel):
+    rows: List[RowImportRow]
+    skip_invalid: bool = False
+
+
+class RowExportItem(BaseModel):
+    """A row as the spreadsheet sees it — block named, not numbered.
+
+    `vine_count` is the model's derived property (row_length / vine_spacing),
+    read-only here. Useful in a register view and meaningless to write.
+    """
+    block_id: int
+    block_name: Optional[str] = None
+    row_number: Optional[str] = None
+    row_length: Optional[float] = None
+    vine_spacing: Optional[float] = None
+    variety: Optional[str] = None
+    clone: Optional[str] = None
+    rootstock: Optional[str] = None
+    vine_count: Optional[int] = None

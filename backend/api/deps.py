@@ -320,6 +320,45 @@ def require_permission(module: str, action: str):
     return _check
 
 
+def deny_user_types(*denied: str):
+    """Refuse whole routers to named user types.
+
+    Applied at `include_router` time rather than per endpoint, because the
+    alternative does not hold. `general_user` was added on 2026-09-01 and a
+    sweep of every parameterless GET route found 26 answering 200 to it —
+    asset stats, stock alerts, maintenance due, task templates, spray
+    coverages. None of those endpoints was wrong before: they scope by company
+    and property and simply never check a permission module, which was fine for
+    the five types that existed when they were written.
+
+    Patching them one by one leaves the NEXT endpoint in those routers open, and
+    nobody adding one will remember. A router-level deny closes the area and
+    stays closed.
+
+    It only ever refuses the types named, so no existing type can regress.
+
+    **Resolves through `get_current_user_or_contractor`, NOT `get_current_user`.**
+    The latter deliberately BLOCKS contractors, and six of the routers this is
+    applied to (tasks, assets, maintenance, calibrations, stock_movements,
+    contractor_management) serve them through the contractor-tolerant resolver.
+    Using the strict one here would have 403'd every contractor out of the whole
+    contractor app, which is the exact opposite of "no existing type regresses".
+    A Contractor object has no `user_type`, so getattr defaults it to a value
+    that is never in the denied list.
+    """
+    def _check(actor=Depends(get_current_user_or_contractor)):
+        if getattr(actor, "user_type", "contractor") in denied:
+            logger.warning(
+                f"Blocked {actor.user_type} from a router it has no access to"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not available for {actor.user_type} accounts",
+            )
+        return actor
+    return _check
+
+
 def require_company_user_permission(module: str, action: str):
     """
     Same as require_permission but only allows company users (not contractors).
