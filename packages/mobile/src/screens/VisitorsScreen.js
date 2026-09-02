@@ -13,14 +13,30 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
-import { siteService, visitorService, contractorService } from '../api/services';
+import {
+  siteService, visitorService, contractorService, siteAttendanceService,
+} from '../api/services';
 import { SkeletonCard, useToast } from '../components';
 
 const FILTERS = [
   { key: 'all',         label: 'All' },
   { key: 'visitor',     label: 'Visitors' },
   { key: 'contractor',  label: 'Contractors' },
+  // Staff sign-ons. The register was two thirds of an answer without them:
+  // an evacuation headcount that counts only the people who do not work here.
+  { key: 'user',        label: 'Staff' },
 ];
+
+const TYPE_LABELS = { visitor: 'Visitor', contractor: 'Contractor', user: 'Staff' };
+
+// Every render site reads this rather than testing `type === 'contractor'` and
+// calling everything else a visitor — which is what silently mislabelled staff
+// when they were added.
+const typeStyle = (type) => {
+  if (type === 'contractor') return { label: 'Contractor', icon: 'tool', color: colors.warning };
+  if (type === 'user') return { label: 'Staff', icon: 'users', color: colors.success };
+  return { label: 'Visitor', icon: 'user', color: colors.primary };
+};
 
 const formatDuration = (mins) => {
   if (mins == null) return '';
@@ -47,7 +63,7 @@ const initialsOf = (name) => {
 export default function VisitorsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const [data, setData] = useState({ total: 0, visitors_count: 0, contractors_count: 0, items: [] });
+  const [data, setData] = useState({ total: 0, items: [] });
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -57,12 +73,12 @@ export default function VisitorsScreen({ navigation }) {
     setLoading(true);
     try {
       const res = await siteService.listActive();
-      setData({
-        total: res?.total ?? 0,
-        visitors_count: res?.visitors_count ?? 0,
-        contractors_count: res?.contractors_count ?? 0,
-        items: Array.isArray(res?.items) ? res.items : [],
-      });
+      // Keep `items` and derive everything else. This used to copy the server's
+      // per-type counts field by field, so when staff were added as a third
+      // type the Staff pill read 0 while the list underneath showed people —
+      // a whitelist silently drops the field nobody remembered to add.
+      const items = Array.isArray(res?.items) ? res.items : [];
+      setData({ total: items.length, items });
     } catch (err) {
       console.log('On-site load failed:', err.message);
       toast.show('Could not load on-site list', 'error');
@@ -80,10 +96,13 @@ export default function VisitorsScreen({ navigation }) {
   const overdueCount = data.items.filter(i => i.is_overdue).length;
 
   const confirmSignOut = (item) => {
-    const verb = item.type === 'contractor' ? 'Check out' : 'Sign out';
+    const verb = item.type === 'contractor' ? 'Check out' : 'Sign off';
+    const noun = (TYPE_LABELS[item.type] || item.type).toLowerCase();
     Alert.alert(
-      `${verb} ${item.type}?`,
-      `${verb} ${item.name || `this ${item.type}`} now?`,
+      `${verb} ${noun}?`,
+      item.type === 'user'
+        ? `Sign off ${item.name || 'this person'}? Recorded as signed off by you, not by them.`
+        : `${verb} ${item.name || `this ${noun}`} now?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: verb, style: 'destructive', onPress: () => doSignOut(item) },
@@ -105,6 +124,11 @@ export default function VisitorsScreen({ navigation }) {
           equipment_cleaned: !!item.equipment_cleaned,
         });
         toast.show('Contractor checked out', 'success');
+      } else if (item.type === 'user') {
+        // Manager-only endpoint; stamps sign_out_reason='manager' so the
+        // register can tell this apart from someone signing themselves off.
+        await siteAttendanceService.signOutOther(item.id);
+        toast.show('Signed off', 'success');
       }
       setSelected(null);
       await loadActive();
@@ -166,8 +190,8 @@ export default function VisitorsScreen({ navigation }) {
         {FILTERS.map(f => {
           const active = filter === f.key;
           const count = f.key === 'all'
-            ? data.total
-            : f.key === 'visitor' ? data.visitors_count : data.contractors_count;
+            ? data.items.length
+            : data.items.filter(i => i.type === f.key).length;
           return (
             <TouchableOpacity
               key={f.key}
@@ -205,12 +229,16 @@ export default function VisitorsScreen({ navigation }) {
           <View style={styles.emptyCard}>
             <Feather name="user-x" size={28} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>
-              {filter === 'all' ? 'Nobody on site' : `No ${filter}s on site`}
+              {filter === 'all'
+                ? 'Nobody on site'
+                : `No ${TYPE_LABELS[filter].toLowerCase()} on site`}
             </Text>
             <Text style={styles.emptyText}>
               {filter === 'contractor'
                 ? 'Contractors appear here when they check in via the mobile app.'
-                : 'Use Log → Visitor on Home to sign someone in.'}
+                : filter === 'user'
+                  ? 'Staff appear here once they sign on to a property.'
+                  : 'Use Log → Visitor on Home to sign someone in.'}
             </Text>
           </View>
         ) : (
@@ -240,18 +268,18 @@ export default function VisitorsScreen({ navigation }) {
                   <Text style={styles.modalName}>{selected.name}</Text>
                   <View style={[
                     styles.typeChip,
-                    selected.type === 'contractor' && styles.typeChipContractor,
+                    { backgroundColor: typeStyle(selected.type).color + '20' },
                   ]}>
                     <Feather
-                      name={selected.type === 'contractor' ? 'tool' : 'user'}
+                      name={typeStyle(selected.type).icon}
                       size={11}
-                      color={selected.type === 'contractor' ? colors.warning : colors.primary}
+                      color={typeStyle(selected.type).color}
                     />
                     <Text style={[
                       styles.typeChipText,
-                      selected.type === 'contractor' && { color: colors.warning },
+                      { color: typeStyle(selected.type).color },
                     ]}>
-                      {selected.type === 'contractor' ? 'Contractor' : 'Visitor'}
+                      {typeStyle(selected.type).label}
                     </Text>
                   </View>
                 </View>
@@ -259,6 +287,7 @@ export default function VisitorsScreen({ navigation }) {
                   <Text style={styles.modalSub}>{selected.sub_label}</Text>
                 )}
 
+                <DetailRow icon="map-pin" label="Property" value={selected.property_name} />
                 <DetailRow icon="briefcase" label="Purpose" value={selected.purpose} />
                 {selected.type === 'visitor' && (
                   <DetailRow icon="user" label="Host" value={selected.host?.name} />
@@ -326,9 +355,9 @@ export default function VisitorsScreen({ navigation }) {
                 >
                   <Feather name="log-out" size={18} color={colors.white} />
                   <Text style={styles.signOutText}>
-                    {signingOut
-                      ? (selected.type === 'contractor' ? 'Checking out…' : 'Signing out…')
-                      : (selected.type === 'contractor' ? 'Check out' : 'Sign out')}
+                    {selected.type === 'contractor'
+                      ? (signingOut ? 'Checking out…' : 'Check out')
+                      : (signingOut ? 'Signing off…' : 'Sign off')}
                   </Text>
                 </TouchableOpacity>
 
@@ -343,18 +372,20 @@ export default function VisitorsScreen({ navigation }) {
 }
 
 function OnSiteRow({ item, onPress }) {
-  const isContractor = item.type === 'contractor';
-  const subtitle = [item.sub_label, item.purpose].filter(Boolean).join(' · ');
+  const kind = typeStyle(item.type);
+  const isDefaultKind = item.type === 'visitor';
+  const subtitle = [item.sub_label, item.property_name, item.purpose]
+    .filter(Boolean).join(' · ');
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.75}>
       <View style={[
         styles.avatar,
-        isContractor && { backgroundColor: colors.warning + '20' },
+        !isDefaultKind && { backgroundColor: kind.color + '20' },
         item.is_overdue && { backgroundColor: colors.dangerBg },
       ]}>
         <Text style={[
           styles.avatarText,
-          isContractor && { color: colors.warning },
+          !isDefaultKind && { color: kind.color },
           item.is_overdue && { color: colors.danger },
         ]}>
           {initialsOf(item.name)}
@@ -365,13 +396,13 @@ function OnSiteRow({ item, onPress }) {
           <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
           <View style={[
             styles.typeChipSmall,
-            isContractor && styles.typeChipContractor,
+            !isDefaultKind && { backgroundColor: kind.color + '20' },
           ]}>
             <Text style={[
               styles.typeChipSmallText,
-              isContractor && { color: colors.warning },
+              !isDefaultKind && { color: kind.color },
             ]}>
-              {isContractor ? 'Contractor' : 'Visitor'}
+              {kind.label}
             </Text>
           </View>
         </View>

@@ -18,6 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { timesheetService, tasksService } from '../api/services';
 import { KeyboardAvoider, useToast, DayTotalSheet } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
+import { isDayEditable, dayLockReason, rejectionReason } from '../utils/timesheetStatus';
 
 const STATUS_STYLE = {
   draft:     { bg: colors.borderLight, fg: colors.textMuted, label: 'Draft' },
@@ -68,7 +69,12 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const isEditable = day ? (day.status === 'draft' || day.status === 'rejected') : false;
+  // The rule now lives in one place, mirrored from
+  // packages/shared/src/utils/timesheetStatus.js. Mobile's version was the one
+  // the other two were wrong against — see F6.
+  const isEditable = isDayEditable(day);
+  const lockReason = dayLockReason(day);
+  const rejectedFor = day?.status === 'rejected' ? rejectionReason(day.notes) : null;
   const statusStyle = day ? (STATUS_STYLE[day.status] || STATUS_STYLE.draft) : STATUS_STYLE.draft;
 
   const entryHours = Number(day?.entry_hours || 0);
@@ -185,13 +191,22 @@ export default function TimesheetDayDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {!isEditable && (
+        {lockReason && (
           <View style={styles.lockedBanner}>
             <Feather name="lock" size={14} color={colors.info} />
-            <Text style={styles.lockedBannerText}>
-              {day.status === 'submitted' ? 'Submitted — waiting on manager approval.' :
-               day.status === 'approved' ? 'Approved — locked.' :
-               'This day is locked.'}
+            <Text style={styles.lockedBannerText}>{lockReason}</Text>
+          </View>
+        )}
+
+        {/* A rejected day is editable, so it gets no lock banner — but the
+            reason the manager typed is appended to notes as `[Rejected: ...]`
+            and was never displayed anywhere. Being sent back without being
+            told why is how a day gets resubmitted unchanged. */}
+        {day.status === 'rejected' && (
+          <View style={styles.rejectedBanner}>
+            <Feather name="corner-up-left" size={14} color={colors.danger} />
+            <Text style={styles.rejectedBannerText}>
+              {rejectedFor ? `Sent back: ${rejectedFor}` : 'Sent back by your manager. Fix it and submit again.'}
             </Text>
           </View>
         )}
@@ -341,6 +356,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md,
   },
   lockedBannerText: { fontSize: fontSize.xs, color: colors.text, flex: 1 },
+
+  rejectedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.danger + '14', borderColor: colors.danger + '55', borderWidth: 1,
+    borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md,
+  },
+  rejectedBannerText: { fontSize: fontSize.xs, color: colors.text, flex: 1 },
 
   card: {
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.base,

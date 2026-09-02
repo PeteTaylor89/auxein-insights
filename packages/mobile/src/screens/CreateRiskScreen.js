@@ -50,7 +50,7 @@ function riskLevel(score) {
 }
 
 export default function CreateRiskScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const toast = useToast();
 
   const [step, setStep] = useState(0);
@@ -62,6 +62,7 @@ export default function CreateRiskScreen({ navigation }) {
   const [likelihood, setLikelihood] = useState(0);
   const [severity, setSeverity] = useState(0);
   const [propertyId, setPropertyId] = useState(null);
+  const [propertiesError, setPropertiesError] = useState(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -75,14 +76,28 @@ export default function CreateRiskScreen({ navigation }) {
   const score = likelihood && severity ? likelihood * severity : 0;
   const level = score > 0 ? riskLevel(score) : null;
 
+  // A non-admin MUST supply a property_id, so failing to load the list is not a
+  // cosmetic problem — it is the difference between a picker and a 403 on
+  // submit with no explanation. This used to `.catch(() => {})`, which is
+  // exactly how a missing `properties:read` permission stayed invisible: the
+  // 403 was swallowed, the list stayed empty, no picker rendered, and the error
+  // surfaced two screens later as a failed save.
   useEffect(() => {
     propertyService.listProperties()
       .then(data => {
         const props = Array.isArray(data) ? data : [];
         setProperties(props);
+        setPropertiesError(props.length === 0 ? 'No properties available to you.' : null);
         if (props.length === 1) setPropertyId(props[0].id);
       })
-      .catch(() => {});
+      .catch(err => {
+        console.log('Property list failed:', err.response?.status, err.message);
+        setPropertiesError(
+          err.response?.status === 403
+            ? 'You do not have access to the property list. Ask an administrator.'
+            : 'Could not load properties. Check your connection and try again.',
+        );
+      });
   }, []);
 
   const captureLocation = async () => {
@@ -108,7 +123,11 @@ export default function CreateRiskScreen({ navigation }) {
   };
 
   const canAdvance = useMemo(() => {
-    if (step === 0) return !!category;
+    // A non-admin cannot create a company-wide entry — the API refuses
+    // property_id=None below company_admin. Catch it on the step that
+    // shows the picker, not with a 403 after the whole form is filled in.
+    const propertyOk = isAdmin || !!propertyId;
+    if (step === 0) return !!category && propertyOk;
     if (step === 1) {
       return title.trim().length > 0
         && description.trim().length > 0
@@ -116,7 +135,8 @@ export default function CreateRiskScreen({ navigation }) {
         && severity > 0;
     }
     return true;
-  }, [step, category, likelihood, severity, title, description]);
+  }, [step, category, likelihood, severity, title, description,
+      isAdmin, properties.length, propertyId]);
 
   const handleBack = () => {
     if (step === 0) navigation.goBack();
@@ -244,8 +264,15 @@ export default function CreateRiskScreen({ navigation }) {
                 </View>
               </SectionCard>
 
-              {properties.length > 1 && (
-                <SectionCard icon="map-pin" title="Property">
+              {(properties.length > 0 || propertiesError) && (
+                <SectionCard
+                  icon="map-pin"
+                  title="Property"
+                  subtitle={isAdmin ? 'Optional — leave clear for a company-wide entry' : 'Required'}
+                >
+                  {!!propertiesError && (
+                    <Text style={styles.propertyError}>{propertiesError}</Text>
+                  )}
                   <View style={styles.propertyList}>
                     {properties.map(p => {
                       const selected = propertyId === p.id;
@@ -480,6 +507,11 @@ const styles = StyleSheet.create({
   scoreSub: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 
   propertyList: { gap: spacing.xs },
+  propertyError: {
+    fontSize: fontSize.sm,
+    color: colors.danger,
+    marginBottom: spacing.sm,
+  },
   propertyRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingVertical: spacing.sm, paddingHorizontal: spacing.md,

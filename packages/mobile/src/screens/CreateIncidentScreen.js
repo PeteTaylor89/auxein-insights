@@ -45,7 +45,7 @@ const CATEGORIES = [
 ];
 
 export default function CreateIncidentScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const toast = useToast();
 
   const [step, setStep] = useState(0);
@@ -57,6 +57,7 @@ export default function CreateIncidentScreen({ navigation }) {
   const [severity, setSeverity] = useState('');
   const [category, setCategory] = useState('');
   const [propertyId, setPropertyId] = useState(null);
+  const [propertiesError, setPropertiesError] = useState(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -80,14 +81,28 @@ export default function CreateIncidentScreen({ navigation }) {
   const activeSteps = isInjury ? STEPS : STEPS_NO_INJURY;
   const totalSteps = activeSteps.length;
 
+  // A non-admin MUST supply a property_id, so failing to load the list is not a
+  // cosmetic problem — it is the difference between a picker and a 403 on
+  // submit with no explanation. This used to `.catch(() => {})`, which is
+  // exactly how a missing `properties:read` permission stayed invisible: the
+  // 403 was swallowed, the list stayed empty, no picker rendered, and the error
+  // surfaced two screens later as a failed save.
   useEffect(() => {
     propertyService.listProperties()
       .then(data => {
         const props = Array.isArray(data) ? data : [];
         setProperties(props);
+        setPropertiesError(props.length === 0 ? 'No properties available to you.' : null);
         if (props.length === 1) setPropertyId(props[0].id);
       })
-      .catch(() => {});
+      .catch(err => {
+        console.log('Property list failed:', err.response?.status, err.message);
+        setPropertiesError(
+          err.response?.status === 403
+            ? 'You do not have access to the property list. Ask an administrator.'
+            : 'Could not load properties. Check your connection and try again.',
+        );
+      });
   }, []);
 
   const captureLocation = async () => {
@@ -114,8 +129,12 @@ export default function CreateIncidentScreen({ navigation }) {
 
   // Step validation
   const canAdvance = useMemo(() => {
+    // A non-admin cannot create a company-wide entry — the API refuses
+    // property_id=None below company_admin. Catch it on the step that
+    // shows the picker, not with a 403 after the whole form is filled in.
+    const propertyOk = isAdmin || !!propertyId;
     if (step === 0) {
-      return !!incidentType && !!severity && !!category;
+      return !!incidentType && !!severity && !!category && propertyOk;
     }
     if (step === 1) {
       return title.trim().length > 0 && description.trim().length > 0 && locationDesc.trim().length > 0;
@@ -124,7 +143,8 @@ export default function CreateIncidentScreen({ navigation }) {
       return injuredName.trim().length > 0;
     }
     return true;
-  }, [step, incidentType, severity, category, title, description, locationDesc, injuredName, isInjury]);
+  }, [step, incidentType, severity, category, title, description, locationDesc, injuredName,
+      isInjury, isAdmin, properties.length, propertyId]);
 
   const handleNext = () => {
     if (!canAdvance) {
@@ -287,8 +307,15 @@ export default function CreateIncidentScreen({ navigation }) {
                 </View>
               </SectionCard>
 
-              {properties.length > 1 && (
-                <SectionCard icon="map-pin" title="Property">
+              {(properties.length > 0 || propertiesError) && (
+                <SectionCard
+                  icon="map-pin"
+                  title="Property"
+                  subtitle={isAdmin ? 'Optional — leave clear for a company-wide entry' : 'Required'}
+                >
+                  {!!propertiesError && (
+                    <Text style={styles.propertyError}>{propertiesError}</Text>
+                  )}
                   <View style={styles.propertyList}>
                     {properties.map(p => {
                       const selected = propertyId === p.id;
@@ -543,6 +570,11 @@ const styles = StyleSheet.create({
 
   // Property picker
   propertyList: { gap: spacing.xs },
+  propertyError: {
+    fontSize: fontSize.sm,
+    color: colors.danger,
+    marginBottom: spacing.sm,
+  },
   propertyRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingVertical: spacing.sm, paddingHorizontal: spacing.md,

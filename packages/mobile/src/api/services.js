@@ -180,6 +180,17 @@ export const tasksService = {
     const res = await api.get(`/tasks/tasks/${taskId}/equipment-check`);
     return res.data;
   },
+  // Everything attached to a task — equipment AND consumables — in one call.
+  // getConsumables below is shaped for the completion sheet and returns only
+  // the consumable half; this is what the detail screen shows, including what
+  // was ACTUALLY used once the task is done.
+  //
+  // No cost fields come back on mobile: `costs:read` is company_admin only and
+  // a field worker is never one.
+  getTaskAssets: async (taskId) => {
+    const res = await api.get(`/tasks/tasks/${taskId}/assets`);
+    return res.data;
+  },
   getConsumables: async (taskId) => {
     const res = await api.get(`/tasks/tasks/${taskId}/consumables`);
     return res.data;
@@ -260,6 +271,13 @@ export const observationService = {
   },
   updateSpot: async (spotId, payload) => {
     const res = await api.patch(`/observations/api/observation-spots/${spotId}`, payload, offline('Update observation spot'));
+    return res.data;
+  },
+  // Rows in a block, for attributing a spot below block level.
+  // `/vineyard_rows/by-block/{id}` is the whole-block list; the generic
+  // `GET /vineyard_rows/` caps at limit=1000 and Greystone hold 1,281 rows.
+  getRowsByBlock: async (blockId) => {
+    const res = await api.get(`/vineyard_rows/by-block/${blockId}`);
     return res.data;
   },
   // Reference data
@@ -414,10 +432,81 @@ export const visitorService = {
   },
 };
 
-// --- Site (prefix: /site) — unified who's on site (visitors + contractors) ---
+// --- Site (prefix: /site) — unified who's on site (visitors + contractors + staff) ---
 export const siteService = {
   listActive: async () => {
     const res = await api.get('/site/active');
+    return res.data;
+  },
+};
+
+// --- Site attendance: signing on and off a property ---
+//
+// Sign-on and sign-off ARE queued offline. A gateway with no signal is exactly
+// where this gets used, and a sign-on that fails because of coverage is a
+// sign-on that did not happen — which is the whole point of the register.
+//
+// Replaying one is safe: sign-on is idempotent at the same property server-side,
+// so a queued tap that lands twice returns the same attendance rather than
+// opening a second one. A partial unique index backs that up.
+export const siteAttendanceService = {
+  // Current attendance AND the property list in ONE request — the screen has to
+  // be usable on one bar of signal, and three round trips is three chances to
+  // fail.
+  getStatus: async () => {
+    const res = await api.get('/v1/site-attendance/status');
+    return res.data;
+  },
+
+  signIn: async ({ propertyId, latitude, longitude, notes, switchFrom = false } = {}) => {
+    const res = await api.post(
+      '/v1/site-attendance/sign-in',
+      {
+        property_id: propertyId,
+        latitude,
+        longitude,
+        notes,
+        switch: switchFrom,
+      },
+      offline('Sign on to site'),
+    );
+    return res.data;
+  },
+
+  signOut: async ({ latitude, longitude, notes } = {}) => {
+    const res = await api.post(
+      '/v1/site-attendance/sign-out',
+      { latitude, longitude, notes },
+      offline('Sign off site'),
+    );
+    return res.data;
+  },
+
+  // Close SOMEBODY ELSE's attendance. Manager+ (`site_attendance:update`).
+  // People drive home still signed on; without this they stay on the
+  // evacuation headcount until the row is closed for them.
+  //
+  // NOT queued offline: unlike your own sign-off, this is a judgement about
+  // another person made from a list that may already be stale by the time a
+  // queued write lands.
+  signOutOther: async (attendanceId, { notes } = {}) => {
+    const res = await api.post(
+      `/v1/site-attendance/${attendanceId}/sign-out`,
+      { notes },
+    );
+    return res.data;
+  },
+
+  // Manager+ only; a general_user gets a 403 and the screen does not offer it.
+  whoIsOnSite: async (propertyId) => {
+    const res = await api.get('/v1/site-attendance/on-site', {
+      params: propertyId ? { property_id: propertyId } : undefined,
+    });
+    return res.data;
+  },
+
+  myHistory: async (limit = 30) => {
+    const res = await api.get('/v1/site-attendance/me', { params: { limit } });
     return res.data;
   },
 };

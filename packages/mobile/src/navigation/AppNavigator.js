@@ -11,6 +11,7 @@ import ContractorHomeScreen from '../screens/ContractorHomeScreen';
 import ContractorProfileScreen from '../screens/ContractorProfileScreen';
 import ContractorTasksScreen from '../screens/ContractorTasksScreen';
 import CheckInScreen from '../screens/CheckInScreen';
+import SiteSignOnScreen from '../screens/SiteSignOnScreen';
 import CreateContractorAssignmentScreen from '../screens/CreateContractorAssignmentScreen';
 import ContractorCreateIncidentScreen from '../screens/ContractorCreateIncidentScreen';
 import ContractorCreateObservationScreen from '../screens/ContractorCreateObservationScreen';
@@ -46,6 +47,7 @@ const ObsStack = createNativeStackNavigator();
 const AssetStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 const ContractsStack = createNativeStackNavigator();
+const SignOnStack = createNativeStackNavigator();
 
 const TAB_ICONS = {
   Home: 'home',
@@ -54,6 +56,7 @@ const TAB_ICONS = {
   Observe: 'search',
   Assets: 'package',
   Relationships: 'briefcase',
+  SignOn: 'home',
   Profile: 'user',
 };
 
@@ -75,6 +78,18 @@ function HomeStackNavigator() {
       />
       <HomeStack.Screen name="CreateIncident" component={CreateIncidentScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="CreateRisk" component={CreateRiskScreen} options={{ headerShown: false }} />
+      {/* Signing on to a property is not a general_user feature — it is how
+          anybody says "I am here now", and the headcount is only right if
+          everyone is in it. Contractors keep their own CheckIn flow instead:
+          a ContractorMovement already records their arrival, and a second
+          SiteAttendance row would double-count them on the evacuation list. */}
+      {!isContractor && (
+        <HomeStack.Screen
+          name="SiteSignOn"
+          component={SiteSignOnScreen}
+          options={{ headerShown: false }}
+        />
+      )}
       <HomeStack.Screen name="CreateVisitor" component={CreateVisitorScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Visitors" component={VisitorsScreen} options={{ headerShown: false }} />
       {isContractor && (
@@ -98,6 +113,29 @@ function HomeStackNavigator() {
         </>
       )}
     </HomeStack.Navigator>
+  );
+}
+
+/**
+ * The general_user's whole app: sign on and off, and the three H&S things they
+ * can do. A SEPARATE stack rather than the normal one with most screens hidden
+ * — a nav bar full of things that are not there reads as a broken app, and a
+ * conditional inside every existing stack is how one gets missed.
+ */
+function SignOnStackNavigator() {
+  return (
+    <SignOnStack.Navigator screenOptions={stackScreenOptions}>
+      <SignOnStack.Screen
+        name="SignOnMain"
+        component={SiteSignOnScreen}
+        options={{ headerShown: false }}
+      />
+      <SignOnStack.Screen name="CreateIncident" component={CreateIncidentScreen} options={{ headerShown: false }} />
+      <SignOnStack.Screen name="CreateRisk" component={CreateRiskScreen} options={{ headerShown: false }} />
+      <SignOnStack.Screen name="CreateVisitor" component={CreateVisitorScreen} options={{ headerShown: false }} />
+      <SignOnStack.Screen name="Visitors" component={VisitorsScreen} options={{ headerShown: false }} />
+      <SignOnStack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+    </SignOnStack.Navigator>
   );
 }
 
@@ -201,7 +239,7 @@ export default function AppNavigator() {
   // Android 3-button nav / gesture bar lives in the bottom safe-area inset.
   // Bake it into the tab bar so the labels don't get covered by system chrome.
   const insets = useSafeAreaInsets();
-  const { isContractor } = useAuth();
+  const { isContractor, isGeneralUser } = useAuth();
   const tabContentHeight = 62;
   const tabContentPadBottom = 8;
 
@@ -231,20 +269,40 @@ export default function AppNavigator() {
         headerShadowVisible: false,
       })}
     >
-      <Tab.Screen name="Home" component={HomeStackNavigator} options={{ headerShown: false }} />
-      <Tab.Screen name="Tasks" component={TasksStackNavigator} options={{ headerShown: false }} />
-      <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
-      {!isContractor && (
-        <Tab.Screen name="Observe" component={ObservationsStackNavigator} options={{ headerShown: false }} />
-      )}
-      {isContractor ? (
-        <Tab.Screen
-          name="Relationships"
-          component={ContractsStackNavigator}
-          options={{ title: 'Contracts', headerShown: false }}
-        />
+      {/* THREE tabs for a general_user, not the normal set with things
+          removed: sign on, the map, and their profile. Everything else in this
+          app needs a permission they do not hold, and the API would refuse it
+          — a tab that always 403s is worse than no tab. */}
+      {isGeneralUser ? (
+        <>
+          <Tab.Screen
+            name="SignOn"
+            component={SignOnStackNavigator}
+            // Labelled Home, not "Sign on": it is this account's home screen and
+            // signing on is one of the things it does. The ROUTE keeps its name
+            // so it cannot collide with the other branch's Home tab.
+            options={{ title: 'Home', headerShown: false }}
+          />
+          <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
+        </>
       ) : (
-        <Tab.Screen name="Assets" component={AssetsStackNavigator} options={{ headerShown: false }} />
+        <>
+          <Tab.Screen name="Home" component={HomeStackNavigator} options={{ headerShown: false }} />
+          <Tab.Screen name="Tasks" component={TasksStackNavigator} options={{ headerShown: false }} />
+          <Tab.Screen name="Map" component={MapScreen} options={{ title: 'Map' }} />
+          {!isContractor && (
+            <Tab.Screen name="Observe" component={ObservationsStackNavigator} options={{ headerShown: false }} />
+          )}
+          {isContractor ? (
+            <Tab.Screen
+              name="Relationships"
+              component={ContractsStackNavigator}
+              options={{ title: 'Contracts', headerShown: false }}
+            />
+          ) : (
+            <Tab.Screen name="Assets" component={AssetsStackNavigator} options={{ headerShown: false }} />
+          )}
+        </>
       )}
       <Tab.Screen
         name="Profile"

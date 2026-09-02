@@ -15,12 +15,25 @@ import { initQueue } from './src/services/gpsQueue';
 import { initWriteQueue } from './src/services/writeQueue';
 import { initUploadQueue } from './src/services/uploadQueue';
 import { initSyncCoordinator, triggerSync } from './src/services/syncCoordinator';
+import { initCrashReporting, identifyForCrashReporting } from './src/services/crashReporting';
+
+// Started at module scope, before the first render — a crash while the tree is
+// mounting is exactly the crash worth catching, and a reporter started inside
+// an effect would miss it. No-ops when no DSN is configured.
+initCrashReporting();
 
 // Swap the shared api instance to use SecureStore auth
 initMobileApi();
 
 function RootNavigator() {
-  const { isAuthenticated, initialLoading } = useAuth();
+  const { isAuthenticated, initialLoading, user } = useAuth();
+
+  // Tag the session so a crash can be traced to a build and a tenant.
+  // ID only — no name, no email: a vineyard is a workplace and this app
+  // holds timesheets and incident records.
+  React.useEffect(() => {
+    identifyForCrashReporting(isAuthenticated ? user : null);
+  }, [isAuthenticated, user]);
 
   // Init offline queues + sync coordinator on auth, then drain anything pending.
   // Coordinator listens for reconnect transitions and auto-flushes thereafter.

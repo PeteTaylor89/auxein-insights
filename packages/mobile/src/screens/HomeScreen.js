@@ -313,6 +313,14 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.fabStack, { bottom: spacing.lg + insets.bottom }]} pointerEvents="box-none">
         {fabOpen && (
           <>
+            {/* First in the list because it is the first thing you do on
+                arriving, and it is what puts you on the evacuation headcount. */}
+            <FabOption
+              icon="log-in"
+              label="Sign on to site"
+              color={colors.primary}
+              onPress={() => { setFabOpen(false); navigation.navigate('SiteSignOn'); }}
+            />
             <FabOption
               icon="search"
               label="Observation"

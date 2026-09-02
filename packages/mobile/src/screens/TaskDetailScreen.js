@@ -71,6 +71,10 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [progress, setProgress] = useState(null);
   const [equipmentChecks, setEquipmentChecks] = useState(null);
   const [consumables, setConsumables] = useState(null);
+  // Everything attached to the task, for the detail card. Separate from
+  // `consumables` above, which is loaded on demand for the completion sheet
+  // and holds only the consumable half.
+  const [taskAssets, setTaskAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -92,6 +96,11 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [completionNotes, setCompletionNotes] = useState('');
   const [consumableActuals, setConsumableActuals] = useState([]);
   const [hoursWorked, setHoursWorked] = useState('');
+  // Machine hours, keyed by task_asset_id, as typed. Left EMPTY means "say
+  // nothing", which is not the same as zero: a blank primary row inherits the
+  // labour hours server-side, and a blank secondary row records no hours at
+  // all. Sending 0 for either would assert the machine did not run.
+  const [equipmentActuals, setEquipmentActuals] = useState({});
 
   // Equipment check modal state
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -151,18 +160,32 @@ export default function TaskDetailScreen({ route, navigation }) {
     }
   }, [taskId, sortRows]);
 
+  // Loaded with the task rather than on demand: the point of the card is that
+  // a crew can see what they are meant to be using WHILE they work, which a
+  // fetch triggered by opening a dialog cannot do.
+  const loadTaskAssets = useCallback(async () => {
+    try {
+      const data = await tasksService.getTaskAssets(taskId);
+      setTaskAssets(Array.isArray(data?.assets) ? data.assets : []);
+    } catch (err) {
+      // Non-fatal. The task itself still renders; the card just stays hidden.
+      console.warn('Could not load task assets', err?.message);
+      setTaskAssets([]);
+    }
+  }, [taskId]);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadTask(), loadRows()]);
+    await Promise.all([loadTask(), loadRows(), loadTaskAssets()]);
     setLoading(false);
-  }, [loadTask, loadRows]);
+  }, [loadTask, loadRows, loadTaskAssets]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setChildRefreshKey(k => k + 1);
-    await Promise.all([loadTask(), loadRows()]);
+    await Promise.all([loadTask(), loadRows(), loadTaskAssets()]);
     setRefreshing(false);
-  }, [loadTask, loadRows]);
+  }, [loadTask, loadRows, loadTaskAssets]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -201,6 +224,17 @@ export default function TaskDetailScreen({ route, navigation }) {
   const fieldNotesText = useMemo(
     () => fieldNotes.map(e => `${e.label}: ${e.text}`).join('\n'),
     [fieldNotes],
+  );
+
+  // The machines attached to this task, for the completion sheet. Already
+  // loaded for the Materials & equipment card, so opening the sheet costs no
+  // extra fetch. Primary first: it is the one that inherits the labour hours,
+  // so it reads better above the implements that do not.
+  const equipmentItems = useMemo(
+    () => taskAssets
+      .filter(a => !a.is_consumable)
+      .sort((a, b) => (a.role === 'primary' ? -1 : 0) - (b.role === 'primary' ? -1 : 0)),
+    [taskAssets],
   );
 
   // Seed the completion notes with what the crew already wrote row by row,
@@ -405,11 +439,13 @@ export default function TaskDetailScreen({ route, navigation }) {
           batch_number: '',
         }))
       );
+      setEquipmentActuals({});
       setShowCompleteModal(true);
     } catch (err) {
       // No consumables — open modal anyway
       setConsumables([]);
       setConsumableActuals([]);
+      setEquipmentActuals({});
       setShowCompleteModal(true);
     }
   };
@@ -430,9 +466,21 @@ export default function TaskDetailScreen({ route, navigation }) {
         const quantized = Math.round(hrs * 4) / 4;
         payload.hours_worked = quantized;
       }
+
+      // Only rows the person actually typed into. A blank row is deliberately
+      // omitted so the server's own rule still applies to it — primary
+      // equipment inherits the labour hours, secondary records nothing.
+      const machineHours = equipmentItems
+        .map(a => ({ task_asset_id: a.task_asset_id, raw: equipmentActuals[a.task_asset_id] }))
+        .filter(e => String(e.raw ?? '').trim() !== '')
+        .map(e => ({ task_asset_id: e.task_asset_id, actual_hours: parseFloat(e.raw) }))
+        .filter(e => !isNaN(e.actual_hours) && e.actual_hours >= 0 && e.actual_hours <= 24);
+      if (machineHours.length > 0) payload.equipment_actuals = machineHours;
+
       await tasksService.completeTask(taskId, payload);
       setShowCompleteModal(false);
       setHoursWorked('');
+      setEquipmentActuals({});
       await loadAll();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.detail || 'Failed to complete task');
@@ -497,6 +545,68 @@ export default function TaskDetailScreen({ route, navigation }) {
         {/* Field notes — what the crew logged row by row, in one place. Sits
             high on the screen because it's the thing someone picking the job
             back up actually needs to read. */}
+        {/* What this task uses. Equipment used to be visible only in the
+            pre-start check and consumables only in the completion sheet, so
+            mid-task there was nothing to look at, and after completion the
+            quantities that HAD been recorded were never shown anywhere. */}
+        {taskAssets.length > 0 && (
+          <SectionCard
+            icon="package"
+            title="Materials & equipment"
+            subtitle={`${taskAssets.filter(a => !a.is_consumable).length} equipment · ${taskAssets.filter(a => a.is_consumable).length} consumable${taskAssets.filter(a => a.is_consumable).length === 1 ? '' : 's'}`}
+          >
+            {taskAssets.map(a => {
+              const planned = a.planned_quantity;
+              const actual = a.actual_quantity;
+              const hasActual = actual !== null && actual !== undefined;
+              return (
+                <View key={a.task_asset_id} style={styles.assetRow}>
+                  <View style={styles.assetMain}>
+                    <Feather
+                      name={a.is_consumable ? 'droplet' : 'tool'}
+                      size={13}
+                      color={a.calibration_overdue ? colors.danger : colors.textMuted}
+                      style={styles.assetIcon}
+                    />
+                    <Text style={styles.assetName} numberOfLines={1}>{a.asset_name}</Text>
+                  </View>
+
+                  {a.is_consumable ? (
+                    <View style={styles.assetFigures}>
+                      {planned !== null && planned !== undefined && (
+                        <Text style={styles.assetPlanned}>
+                          plan {planned}{a.unit ? ` ${a.unit}` : ''}
+                        </Text>
+                      )}
+                      {/* Never a zero here: not recorded is not none used. */}
+                      {hasActual ? (
+                        <Text style={styles.assetActual}>
+                          used {actual}{a.unit ? ` ${a.unit}` : ''}
+                        </Text>
+                      ) : (
+                        <Text style={styles.assetPending}>not recorded</Text>
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.assetFigures}>
+                      {/* Not "0h" when absent: a machine with no hours recorded
+                          may well have run. */}
+                      {a.actual_hours !== null && a.actual_hours !== undefined ? (
+                        <Text style={styles.assetActual}>{a.actual_hours}h</Text>
+                      ) : (
+                        <Text style={styles.assetPending}>no hours</Text>
+                      )}
+                      {a.calibration_overdue ? (
+                        <Text style={styles.assetOverdue}>calibration overdue</Text>
+                      ) : null}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </SectionCard>
+        )}
+
         {fieldNotes.length > 0 && (
           <SectionCard
             icon="clipboard"
@@ -807,6 +917,52 @@ export default function TaskDetailScreen({ route, navigation }) {
                   Quarter-hour increments. Adds an entry to today&apos;s timesheet.
                 </Text>
 
+                {/* Machine hours. Until now nothing anywhere could enter these:
+                    the API accepted them and no client sent them, so an
+                    implement could never be costed and its hour meter never
+                    moved. Leaving a box empty keeps the server's own rule —
+                    primary inherits the hours above, secondary records none —
+                    so this only has to be touched when a machine ran for a
+                    different length of time than the person did. */}
+                {equipmentItems.length > 0 && (
+                  <View style={styles.equipmentSection}>
+                    <Text style={styles.consumablesTitle}>Machine hours</Text>
+                    {equipmentItems.map(a => {
+                      const primary = a.role === 'primary';
+                      const inherited = (() => {
+                        const h = parseFloat(hoursWorked);
+                        return !isNaN(h) && h > 0 ? (Math.round(h * 4) / 4).toFixed(2) : null;
+                      })();
+                      return (
+                        <View key={a.task_asset_id} style={styles.equipmentRow}>
+                          <View style={styles.equipmentNameWrap}>
+                            <Text style={styles.consumableName}>{a.asset_name}</Text>
+                            <Text style={styles.equipmentRoleHint}>
+                              {primary
+                                ? (inherited
+                                  ? `Primary — ${inherited} h unless you change it`
+                                  : 'Primary — matches hours worked')
+                                : 'Secondary — no hours unless entered'}
+                            </Text>
+                          </View>
+                          <TextInput
+                            style={styles.equipmentHoursInput}
+                            value={equipmentActuals[a.task_asset_id] ?? ''}
+                            onChangeText={(val) => setEquipmentActuals(prev => ({
+                              ...prev,
+                              [a.task_asset_id]: val,
+                            }))}
+                            keyboardType="decimal-pad"
+                            placeholder={primary ? (inherited || '0.00') : '0.00'}
+                            placeholderTextColor={colors.textMuted}
+                            accessibilityLabel={`Machine hours for ${a.asset_name}`}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
                 <View style={styles.notesLabelRow}>
                   <Text style={styles.inputLabel}>Completion Notes</Text>
                   {fieldNotes.length > 0 && (
@@ -1040,11 +1196,40 @@ const styles = StyleSheet.create({
   checkDate: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 
   // Consumables
+  assetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+  },
+  assetMain: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  assetIcon: { marginRight: spacing.xs },
+  assetName: { fontSize: fontSize.sm, color: colors.text, flexShrink: 1 },
+  assetFigures: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  assetPlanned: { fontSize: fontSize.xs, color: colors.textMuted },
+  assetActual: { fontSize: fontSize.xs, color: colors.text, fontWeight: '600' },
+  // Italic and muted so it can never be mistaken for a recorded quantity.
+  assetPending: { fontSize: fontSize.xs, color: colors.textMuted, fontStyle: 'italic' },
+  assetOverdue: { fontSize: fontSize.xs, color: colors.danger, fontWeight: '600' },
   consumablesSection: { marginBottom: spacing.md },
   consumablesTitle: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
   consumableRow: { marginBottom: spacing.sm },
   consumableName: { fontSize: fontSize.sm, color: colors.text, marginBottom: 4 },
   consumableInputs: { flexDirection: 'row', gap: spacing.sm },
+
+  equipmentSection: { marginTop: spacing.md, marginBottom: spacing.md },
+  equipmentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm,
+  },
+  equipmentNameWrap: { flex: 1 },
+  equipmentRoleHint: { fontSize: fontSize.xs, color: colors.textMuted },
+  equipmentHoursInput: {
+    width: 88, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
+    padding: spacing.sm, fontSize: fontSize.sm, color: colors.text,
+    backgroundColor: colors.white, textAlign: 'right',
+  },
+
   consumableQty: {
     flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
     padding: spacing.sm, fontSize: fontSize.sm, color: colors.text, backgroundColor: colors.white,

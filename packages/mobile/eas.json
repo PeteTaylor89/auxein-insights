@@ -8,32 +8,52 @@
       "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "ios": { "simulator": false },
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "APP_VARIANT": "development",
         "API_URL": "https://api.auxein.co.nz/api",
-        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
-      }
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q",
+        "SENTRY_DSN": "",
+        "SENTRY_ORG": "",
+        "SENTRY_PROJECT": ""
+      },
+      "channel": "development"
     },
     "preview": {
       "environment": "preview",
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "APP_VARIANT": "preview",
         "API_URL": "https://api.auxein.co.nz/api",
-        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
-      }
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q",
+        "SENTRY_DSN": "",
+        "SENTRY_ORG": "",
+        "SENTRY_PROJECT": ""
+      },
+      "channel": "preview"
     },
     "production": {
       "environment": "production",
-      "android": { "buildType": "app-bundle" },
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
         "APP_VARIANT": "production",
         "API_URL": "https://api.auxein.co.nz/api",
-        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
-      }
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q",
+        "SENTRY_DSN": "",
+        "SENTRY_ORG": "",
+        "SENTRY_PROJECT": ""
+      },
+      "channel": "production"
     }
   },
   "submit": {

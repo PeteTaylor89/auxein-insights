@@ -15,6 +15,7 @@ import { getTemplateCached, getSpotsCached, getCatalogCached } from '../services
 import useImageCapture from '../hooks/useImageCapture';
 import { idFor } from '../services/writeQueue';
 import { SectionCard, GpsSection, BottomActionBar, KeyboardAvoider, PhotoGrid } from '../components';
+import { nextSpotValues, carriedFieldNames } from '../utils/observationSticky';
 
 export default function SpotCaptureScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -32,6 +33,18 @@ export default function SpotCaptureScreen({ route, navigation }) {
   const [saving, setSaving] = useState(false);
   const [runId, setRunId] = useState(existingRunId || null);
   const [referenceData, setReferenceData] = useState({});
+  // Labels of the fields carried from the previous spot, so the observer is
+  // told rather than left to notice. A value that appears without being
+  // typed and without being announced is a value nobody checks.
+  const [carriedOver, setCarriedOver] = useState([]);
+  // Rows in this block, and the one this spot is on. `observation_spots.row_id`
+  // was populated on 0 of 48 spots in the entire database because capture
+  // never asked: nothing can be attributed below block level until it does,
+  // which blocks every per-unit yield estimate.
+  const [rows, setRows] = useState([]);
+  const [rowId, setRowId] = useState(null);
+  const [rowPickerOpen, setRowPickerOpen] = useState(false);
+  const [rowSearch, setRowSearch] = useState('');
 
   // Picker modal state (shared for options_source and date/time fields)
   const [pickerField, setPickerField] = useState(null);
@@ -117,6 +130,21 @@ export default function SpotCaptureScreen({ route, navigation }) {
   // Auto-grab GPS
   useEffect(() => { grabGps(); }, []);
 
+  // Rows for the block, loaded once. Non-fatal: a block with no rows recorded
+  // (most of them — only Greystone have materialised rows) simply gets no row
+  // control, rather than a broken form.
+  useEffect(() => {
+    if (!blockId) return;
+    let mounted = true;
+    observationService.getRowsByBlock(blockId)
+      .then(res => { if (mounted) setRows(Array.isArray(res) ? res : []); })
+      .catch(err => {
+        console.log('[SpotCapture] Rows unavailable:', err?.message);
+        if (mounted) setRows([]);
+      });
+    return () => { mounted = false; };
+  }, [blockId]);
+
   const grabGps = async () => {
     setGpsLoading(true);
     try {
@@ -161,6 +189,9 @@ export default function SpotCaptureScreen({ route, navigation }) {
       const spot = await observationService.createSpot(activeRunId, {
         company_id: companyId || template?.company_id || undefined,
         block_id: blockId || undefined,
+        // The API has always accepted this and no client ever sent it, which is
+        // why `row_id` was populated on 0 of 48 spots.
+        row_id: rowId || undefined,
         latitude: gps?.latitude || undefined,
         longitude: gps?.longitude || undefined,
         observed_at: new Date().toISOString(),
@@ -190,12 +221,17 @@ export default function SpotCaptureScreen({ route, navigation }) {
   };
 
   // Reset the form for the next spot in the same run.
+  //
+  // Run CONSTANTS carry over — vines sampled, target buds — because they are
+  // true of the run rather than of the vine in front of you, and re-typing them
+  // at every spot is most of what made a thirty-spot bud count tedious. The
+  // MEASUREMENT never carries: see the guard in utils/observationSticky, which
+  // exists because carrying it forward is how thirty spots end up recording the
+  // first vine's count thirty times.
   const resetSpotForm = () => {
-    const defaults = {};
-    fields.forEach(f => {
-      if (f.default !== undefined && f.default !== null) defaults[f.name] = f.default;
-    });
-    setValues(defaults);
+    const carried = carriedFieldNames(values, fields, template?.type);
+    setValues(nextSpotValues(values, fields, template?.type));
+    setCarriedOver(carried);
     setNotes('');
     imageCapture.reset();
     grabGps(); // refresh GPS for the next spot's location
@@ -795,6 +831,48 @@ export default function SpotCaptureScreen({ route, navigation }) {
                   </TouchableOpacity>
                 )}
 
+                {/* Which row this spot is on. Only offered where the block has
+                    rows recorded — most blocks have none, and an empty picker
+                    is worse than no picker. Optional on purpose: a spot with no
+                    row is still a spot, and making it mandatory would stop the
+                    capture that already works. */}
+                {rows.length > 0 && (
+                  <View style={styles.fieldWrap}>
+                    <Text style={styles.fieldLabel}>Row</Text>
+                    <TouchableOpacity
+                      style={styles.rowSelectBtn}
+                      onPress={() => { setRowPickerOpen(true); setRowSearch(''); }}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="git-commit" size={14} color={colors.textMuted} />
+                      <Text style={rowId ? styles.rowSelectText : styles.rowSelectPlaceholder}>
+                        {rowId
+                          ? `Row ${rows.find(r => r.id === rowId)?.row_number ?? rowId}`
+                          : 'Not recorded'}
+                      </Text>
+                      {rowId ? (
+                        <TouchableOpacity onPress={() => setRowId(null)} hitSlop={10}>
+                          <Feather name="x" size={14} color={colors.textMuted} />
+                        </TouchableOpacity>
+                      ) : (
+                        <Feather name="chevron-down" size={14} color={colors.textMuted} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* What was kept from the last spot. Announced rather than left
+                    to be noticed: a value that appears without being typed is a
+                    value nobody checks. */}
+                {carriedOver.length > 0 && (
+                  <View style={styles.carriedBanner}>
+                    <Feather name="corner-down-right" size={13} color={colors.info} />
+                    <Text style={styles.carriedText}>
+                      Kept from the last spot: {carriedOver.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
                 {/* Dynamic template fields */}
                 {fields.map(renderField)}
 
@@ -876,6 +954,63 @@ export default function SpotCaptureScreen({ route, navigation }) {
           disabled={saving}
         />
       </KeyboardAvoider>
+
+      {/* Row picker. A block can hold 100+ rows, so this is a searchable list
+          rather than a chip row — Greystone's largest block has more rows than
+          fit on a phone screen twice over. */}
+      {rowPickerOpen && (
+        <Modal visible transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { paddingBottom: spacing.lg + insets.bottom }]}>
+              <Text style={styles.modalTitle}>Which row?</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: spacing.sm }]}
+                value={rowSearch}
+                onChangeText={setRowSearch}
+                placeholder="Row number..."
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numbers-and-punctuation"
+                autoFocus
+              />
+              <FlatList
+                data={rows.filter(r => {
+                  const q = rowSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return String(r.row_number ?? '').toLowerCase().includes(q);
+                })}
+                keyExtractor={r => String(r.id)}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => {
+                  const selected = rowId === item.id;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.pickerItem, selected && styles.pickerItemActive]}
+                      onPress={() => { setRowId(selected ? null : item.id); setRowPickerOpen(false); }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.pickerItemLabel, selected && styles.pickerItemLabelActive]}>
+                          Row {item.row_number}
+                        </Text>
+                        {(item.variety || item.clone) && (
+                          <Text style={styles.pickerItemDesc} numberOfLines={1}>
+                            {[item.variety, item.clone].filter(Boolean).join(' · ')}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+              <TouchableOpacity
+                style={styles.rowPickerClose}
+                onPress={() => setRowPickerOpen(false)}
+              >
+                <Text style={styles.rowPickerCloseText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* Reference data picker modal */}
       {renderPickerModal()}
@@ -970,6 +1105,29 @@ const styles = StyleSheet.create({
 
   // Fields (kept from original)
   fieldWrap: { marginBottom: spacing.md },
+
+  rowSelectBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.white,
+  },
+  rowSelectText: { flex: 1, fontSize: fontSize.sm, color: colors.text },
+  rowSelectPlaceholder: { flex: 1, fontSize: fontSize.sm, color: colors.textMuted },
+  rowPickerClose: {
+    marginTop: spacing.sm, paddingVertical: spacing.md, alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: colors.borderLight,
+  },
+  rowPickerCloseText: { fontSize: fontSize.sm, fontWeight: '600', color: colors.textMuted },
+
+  carriedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.info + '14', borderRadius: radius.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  carriedText: { flex: 1, fontSize: fontSize.xs, color: colors.text },
+
   fieldHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
   fieldLabel: { fontSize: fontSize.sm, fontWeight: '500', color: colors.text },
   fieldUnit: { fontSize: fontSize.xs, color: colors.textMuted },

@@ -87,6 +87,12 @@ export const AuthProvider = ({ children }) => {
   // on permissions without duplicating role-string checks. The 5-tier hierarchy
   // is: auxein_admin > company_admin > company_manager > company_user > contractor.
   const isContractor = userTypeRole === 'contractor';
+  // The health-and-safety-only account. Everything it can do happens standing
+  // on the site: sign on, report a hazard, sign a visitor in, look at the map.
+  // It gets its OWN tab set — see AppNavigator — rather than the normal one
+  // with most of it hidden, because a nav bar full of things that are not there
+  // reads as a broken app.
+  const isGeneralUser = userTypeRole === 'general_user';
   const isManagerOrAbove = ['auxein_admin', 'company_admin', 'company_manager'].includes(userTypeRole);
   const isAdmin = ['auxein_admin', 'company_admin'].includes(userTypeRole);
 
@@ -98,6 +104,7 @@ export const AuthProvider = ({ children }) => {
     initialLoading,
     userTypeRole,
     isContractor,
+    isGeneralUser,
     isManagerOrAbove,
     isAdmin,
     login,

@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { timesheetService } from '../api/services';
 import { useToast, DayTotalSheet } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
+import { isDayEditable } from '../utils/timesheetStatus';
 
 const STATUS_STYLE = {
   draft:     { bg: colors.borderLight, fg: colors.textMuted, label: 'Draft' },
@@ -193,7 +194,7 @@ export default function TimesheetScreen({ navigation }) {
             // Editable days only. Unlike the old roll-up button this also shows
             // once a total exists, because adjusting it is the whole point —
             // uncoded time is often remembered after the tasks are ticked off.
-            const isEditable = d.status === 'draft' || d.status === 'rejected';
+            const isEditable = isDayEditable(d);
             const uncoded = Number(d.uncoded_hours || 0);
             return (
               <TouchableOpacity

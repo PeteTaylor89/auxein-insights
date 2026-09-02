@@ -112,7 +112,42 @@ module.exports = ({ config }) => {
   // app — it just 404s on anything the deployed build does not have.
   console.log(`[app.config] API_URL -> ${apiUrl}`);
   const mapboxPublicToken = process.env.MAPBOX_PUBLIC_TOKEN || '';
-  const mapboxDownloadToken = process.env.MAPBOX_DOWNLOAD_TOKEN || '';
+  // The Mapbox DOWNLOAD token is no longer read here — see the @rnmapbox/maps
+  // plugin entry below. It must be present in the build environment as
+  // RNMAPBOX_MAPS_DOWNLOAD_TOKEN, or the Android build cannot fetch the SDK.
+  const mapboxDownloadTokenPresent = Boolean(
+    process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN || process.env.MAPBOX_DOWNLOAD_TOKEN,
+  );
+  if (!mapboxDownloadTokenPresent) {
+    console.log('[app.config] No RNMAPBOX_MAPS_DOWNLOAD_TOKEN — fine for `eas update` '
+      + 'and local Metro; an Android BUILD needs it to fetch the Mapbox SDK.');
+  } else if (!process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN) {
+    console.log('[app.config] MAPBOX_DOWNLOAD_TOKEN is set but RNMAPBOX_MAPS_DOWNLOAD_TOKEN '
+      + 'is not — the plugin reads the latter. Rename it in EAS Secrets.');
+  }
+
+  // Crash reporting. The DSN is NOT in the repo — it comes from the build
+  // environment (eas.json `env`, or .env locally), so this ships inert until
+  // one exists and the value can be rotated without a code change.
+  //
+  // The native module is included either way, and that is the point: it is
+  // native, so if it misses build 10 it cannot arrive until build 11. Init is
+  // guarded on the DSN in App.js, so a build with no DSN simply reports
+  // nothing rather than crashing on startup — which would be a crash reporter
+  // causing the crash.
+  const sentryDsn = process.env.SENTRY_DSN || '';
+  // Source-map upload needs an auth token AND an org/project. Without them the
+  // plugin still builds; the traces are just minified bundle offsets, which are
+  // close to useless — so the build logs say so rather than looking fine.
+  const sentryOrg = process.env.SENTRY_ORG || '';
+  const sentryProject = process.env.SENTRY_PROJECT || '';
+  if (sentryDsn && !(sentryOrg && sentryProject)) {
+    console.log('[app.config] SENTRY_DSN set but SENTRY_ORG/SENTRY_PROJECT are not — '
+      + 'crashes will report with unreadable, minified stack traces.');
+  }
+  if (!sentryDsn) {
+    console.log('[app.config] No SENTRY_DSN — crash reporting is inert in this build.');
+  }
 
   return {
     ...config,
@@ -128,11 +163,40 @@ module.exports = ({ config }) => {
     },
     plugins: [
       ...(config.plugins || []),
+      // The download token is deliberately NOT passed as a plugin option.
+      //
+      // It is a BUILD-time credential for Mapbox's private maven repo and has
+      // no runtime effect, but as a plugin option it is written into
+      // gradle.properties — which makes it native config, which puts it inside
+      // the `fingerprint` runtimeVersion. It is an EAS Secret, so it is set on
+      // the build server and NOT on the machine that runs `eas update`, and the
+      // two therefore computed different runtimeVersions:
+      //
+      //     without the token   67aefe3a5166a935f03e4a3aebab911dda814f90
+      //     with the token      870cf724793f526853c109715d61cceacab52b6e
+      //
+      // Different runtimeVersion means the update simply never reaches the
+      // binary — no error, nothing in the dashboard to suggest a problem. That
+      // is the exact shape of "OTA declared working when it is not".
+      //
+      // The plugin reads RNMAPBOX_MAPS_DOWNLOAD_TOKEN from the environment
+      // instead (and now warns that the option is deprecated), which keeps the
+      // credential out of both the fingerprint and gradle.properties.
       [
         '@rnmapbox/maps',
         {
           RNMapboxMapsImpl: 'mapbox',
-          RNMapboxMapsDownloadToken: mapboxDownloadToken,
+        },
+      ],
+      // Added unconditionally: the plugin is what puts the native crash handler
+      // in the binary, and leaving it out when the DSN happens to be unset
+      // would make the presence of crash reporting depend on the environment of
+      // whoever ran the build.
+      [
+        '@sentry/react-native/expo',
+        {
+          organization: sentryOrg || undefined,
+          project: sentryProject || undefined,
         },
       ],
     ],
@@ -141,6 +205,7 @@ module.exports = ({ config }) => {
       apiUrl,
       mapboxPublicToken,
       appVariant: VARIANT,
+      sentryDsn,
     },
   };
 };
