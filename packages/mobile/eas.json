@@ -17,10 +17,7 @@
       "env": {
         "APP_VARIANT": "development",
         "API_URL": "https://api.auxein.co.nz/api",
-        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q",
-        "SENTRY_DSN": "",
-        "SENTRY_ORG": "",
-        "SENTRY_PROJECT": ""
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
       },
       "channel": "development"
     },
@@ -33,10 +30,7 @@
       "env": {
         "APP_VARIANT": "preview",
         "API_URL": "https://api.auxein.co.nz/api",
-        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q",
-        "SENTRY_DSN": "",
-        "SENTRY_ORG": "",
-        "SENTRY_PROJECT": ""
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
       },
       "channel": "preview"
     },
@@ -48,10 +42,7 @@
       "env": {
         "APP_VARIANT": "production",
         "API_URL": "https://api.auxein.co.nz/api",
-        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q",
-        "SENTRY_DSN": "",
-        "SENTRY_ORG": "",
-        "SENTRY_PROJECT": ""
+        "MAPBOX_PUBLIC_TOKEN": "pk.eyJ1IjoicGV0ZXRheWxvciIsImEiOiJjbTRtaHNxcHAwZDZ4MmxwbjZkeXNneTZnIn0.RJ9B3Q3-t_-gFrEkgshH9Q"
       },
       "channel": "production"
     }
