@@ -7,7 +7,9 @@
       "Description": "PROVISIONAL D-1 fit, 06:30 NZ. Everything except WRC is ingested by ~06:10 (ECAN_AIR measured at 5.1 h, not the 24.8 h that justified the old D-2 window). Corrected by auxein-surfaces-daily-final at 15:00 the same day.",
       "ScheduleExpression": "cron(30 6 * * ? *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
-      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "FlexibleTimeWindow": {
+        "Mode": "OFF"
+      },
       "State": "ENABLED",
       "Target": {
         "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
@@ -19,14 +21,18 @@
           "_comment_network": "RDS auxein-db is PubliclyAccessible in vpc-03a13bd8504825dd9, so a public-subnet task with a public IP reaches it without NAT. The task's security group must be added to the RDS security group's inbound rules.",
           "NetworkConfiguration": {
             "awsvpcConfiguration": {
-              "Subnets": ["subnet-0317587a16a8b5e59"],
-              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "Subnets": [
+                "subnet-0317587a16a8b5e59"
+              ],
+              "SecurityGroups": [
+                "REPLACE_WITH_auxein-surfaces-sg"
+              ],
               "AssignPublicIp": "ENABLED"
             }
           }
         },
         "RetryPolicy": {
-          "_comment": "One retry. The job is idempotent — S3 objects overwrite and the index upserts — but a second failure is a real fault and should be seen, not buried under retries.",
+          "_comment": "One retry. The job is idempotent \u00e2\u20ac\u201d S3 objects overwrite and the index upserts \u00e2\u20ac\u201d but a second failure is a real fault and should be seen, not buried under retries.",
           "MaximumRetryAttempts": 1,
           "MaximumEventAgeInSeconds": 3600
         },
@@ -34,13 +40,15 @@
       }
     },
     {
-      "_comment": "NOT A DUPLICATE OF auxein-surfaces-daily. Same MODE and therefore the same D-1 window: it re-fits the day the 06:30 run already fitted. The point is the station set, not the date. WRC publishes day X at ~08:07 on X+1, so the morning pass fits without its 12 thermometers and 36 gauges and this one has them. Measured cost of going without, 5 days of national cv_rmse: temp_max +4.8% (+0.065 degC), temp_min +2.3%, temp_mean +1.5%, rainfall nil. Publishing twice is safe by construction — S3 objects overwrite, index_daily upserts, and the weekly refit has re-published finished days since it was written.",
+      "_comment": "NOT A DUPLICATE OF auxein-surfaces-daily. Same MODE and therefore the same D-1 window: it re-fits the day the 06:30 run already fitted. The point is the station set, not the date. WRC publishes day X at ~08:07 on X+1, so the morning pass fits without its 12 thermometers and 36 gauges and this one has them. Measured cost of going without, 5 days of national cv_rmse: temp_max +4.8% (+0.065 degC), temp_min +2.3%, temp_mean +1.5%, rainfall nil. Publishing twice is safe by construction \u00e2\u20ac\u201d S3 objects overwrite, index_daily upserts, and the weekly refit has re-published finished days since it was written.",
       "Name": "auxein-surfaces-daily-final",
       "GroupName": "default",
       "Description": "CORRECTED D-1 fit, 15:00 NZ. Re-fits the same day as the 06:30 run, now that WRC has landed. The 18:00 pipeline propagates it.",
       "ScheduleExpression": "cron(0 15 * * ? *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
-      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "FlexibleTimeWindow": {
+        "Mode": "OFF"
+      },
       "State": "ENABLED",
       "Target": {
         "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
@@ -51,13 +59,20 @@
           "TaskCount": 1,
           "NetworkConfiguration": {
             "awsvpcConfiguration": {
-              "Subnets": ["subnet-0317587a16a8b5e59"],
-              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "Subnets": [
+                "subnet-0317587a16a8b5e59"
+              ],
+              "SecurityGroups": [
+                "REPLACE_WITH_auxein-surfaces-sg"
+              ],
               "AssignPublicIp": "ENABLED"
             }
           }
         },
-        "RetryPolicy": { "MaximumRetryAttempts": 1, "MaximumEventAgeInSeconds": 3600 },
+        "RetryPolicy": {
+          "MaximumRetryAttempts": 1,
+          "MaximumEventAgeInSeconds": 3600
+        },
         "Input": "{\"containerOverrides\":[{\"name\":\"surfaces\",\"environment\":[{\"name\":\"MODE\",\"value\":\"daily\"}]}]}"
       }
     },
@@ -67,7 +82,9 @@
       "Description": "Weekly re-fit of D-9..D-3. daily_aggregation revises weather_data_daily for ~3 days after the fact; without this the surface and the DB disagree permanently and invisibly.",
       "ScheduleExpression": "cron(0 4 ? * SUN *)",
       "ScheduleExpressionTimezone": "Pacific/Auckland",
-      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "FlexibleTimeWindow": {
+        "Mode": "OFF"
+      },
       "State": "ENABLED",
       "Target": {
         "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
@@ -78,15 +95,60 @@
           "TaskCount": 1,
           "NetworkConfiguration": {
             "awsvpcConfiguration": {
-              "Subnets": ["subnet-0317587a16a8b5e59"],
-              "SecurityGroups": ["REPLACE_WITH_auxein-surfaces-sg"],
+              "Subnets": [
+                "subnet-0317587a16a8b5e59"
+              ],
+              "SecurityGroups": [
+                "REPLACE_WITH_auxein-surfaces-sg"
+              ],
               "AssignPublicIp": "ENABLED"
             }
           }
         },
-        "RetryPolicy": { "MaximumRetryAttempts": 1, "MaximumEventAgeInSeconds": 3600 },
+        "RetryPolicy": {
+          "MaximumRetryAttempts": 1,
+          "MaximumEventAgeInSeconds": 3600
+        },
         "Input": "{\"containerOverrides\":[{\"name\":\"surfaces\",\"environment\":[{\"name\":\"MODE\",\"value\":\"refit\"}]}]}"
       }
+    },
+    {
+      "Name": "auxein-surfaces-monthly",
+      "GroupName": "default",
+      "Description": "Close the previous calendar month: reduce the published daily surfaces, merge into the live manifests, roll up to zones and extend the Pro site monthlies. 07:00 NZ on the 10th.",
+      "ScheduleExpression": "cron(0 7 10 * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": {
+        "Mode": "OFF"
+      },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-surfaces-monthly",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "_comment_network": "RDS auxein-db is PubliclyAccessible in vpc-03a13bd8504825dd9, so a public-subnet task with a public IP reaches it without NAT. The task's security group must be added to the RDS security group's inbound rules.",
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": [
+                "subnet-0317587a16a8b5e59"
+              ],
+              "SecurityGroups": [
+                "REPLACE_WITH_auxein-surfaces-sg"
+              ],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "RetryPolicy": {
+          "_comment": "One retry. The job is idempotent \u00e2\u20ac\u201d S3 objects overwrite and the index upserts \u00e2\u20ac\u201d but a second failure is a real fault and should be seen, not buried under retries.",
+          "MaximumRetryAttempts": 1,
+          "MaximumEventAgeInSeconds": 3600
+        }
+      },
+      "_comment": "THE 10th, NOT THE 2nd. The plan that scoped this said the 2nd; that would publish a month that then changes underneath the published surface. daily_aggregation revises weather_data_daily for ~3 days, and auxein-surfaces-refit re-fits D-9..D-3 every Sunday, so a day is not final until it is more than nine days old and a Sunday has passed. On the 10th every day of the previous month is at least D-10 and outside both windows. Nothing operational reads a monthly surface, so eight days of latency is worth never publishing a month twice. Set MONTH=YYYY-MM on a manual run to close a different month; the whole chain is idempotent and re-running is the repair."
     }
   ]
 }

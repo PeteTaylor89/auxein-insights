@@ -91,6 +91,81 @@ class PublicUser(Base):
         from core.entitlements import is_pro as _is_pro
         return _is_pro(self)
 
+    @property
+    def portfolio_accounts(self) -> list:
+        """Active enterprise accounts this user is a named member of.
+
+        A LIST, not a boolean, because the nav needs to know whether to show
+        Portfolio and the page needs to know which account to open, and two
+        answers derived separately are two chances to disagree.
+
+        Serialised onto `PublicUserResponse`, so the header can render the link
+        without a second request. Empty for almost every subscriber, and that is
+        the normal case — an account is an enterprise arrangement, not a tier.
+
+        Queried through `object_session` rather than a relationship so that a
+        detached user (a token decoded without a live session, a unit test)
+        answers `[]` instead of raising. Entitlement checks call this, and a
+        crash in an entitlement check is a locked-out paying customer.
+        """
+        from sqlalchemy import text
+        from sqlalchemy.orm import object_session
+
+        # Memoised per instance. `is_pro` reads this on every gated request and
+        # the serialiser reads it again on the way out, and `user_to_list_item`
+        # in admin_users.py calls `is_pro` once PER ROW of the admin user list.
+        # Without the cache that page issues one query per user and this
+        # property becomes an N+1 nobody went looking for.
+        cached = self.__dict__.get("_portfolio_accounts_cache")
+        if cached is not None:
+            return cached
+
+        db = object_session(self)
+        if db is None or self.id is None:
+            return []
+        rows = db.execute(text("""
+            SELECT a.slug, a.name, m.role
+              FROM insights_account_member m
+              JOIN insights_account a ON a.id = m.account_id
+             WHERE m.public_user_id = :uid AND a.status = 'active'
+             ORDER BY a.name
+        """), {"uid": self.id}).mappings().all()
+        result = [dict(r) for r in rows]
+        # Straight into __dict__: this is not a mapped column, so SQLAlchemy
+        # leaves it alone and it dies with the instance rather than outliving a
+        # membership change the way a process-level cache would.
+        self.__dict__["_portfolio_accounts_cache"] = result
+        return result
+
+    @property
+    def own_site_count(self) -> int:
+        """Pro-slot sites this user personally holds. Account sites are not theirs.
+
+        Only the `public_user_id` owner counts. An account's sites belong to the
+        account (`ck_insights_site_one_owner` allows exactly one owner), so a
+        member of a 67-site client still personally holds zero.
+        """
+        from sqlalchemy import text
+        from sqlalchemy.orm import object_session
+
+        cached = self.__dict__.get("_own_site_count_cache")
+        if cached is not None:
+            return cached
+        db = object_session(self)
+        if db is None or self.id is None:
+            return 0
+        n = db.execute(text("""
+            SELECT count(*) FROM insights_site WHERE public_user_id = :uid
+        """), {"uid": self.id}).scalar() or 0
+        self.__dict__["_own_site_count_cache"] = int(n)
+        return int(n)
+
+    @property
+    def has_site_access(self) -> bool:
+        """Whether 'My Site' means anything for this user. See core.entitlements."""
+        from core.entitlements import has_site_access as _has
+        return _has(self)
+
 
     @property
     def full_name(self):

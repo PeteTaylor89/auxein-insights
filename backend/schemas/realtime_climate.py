@@ -180,6 +180,16 @@ class PhenologyStage(BaseModel):
     # apart to word its empty state honestly.
     status: Optional[str] = None
 
+    # WHICH STAGE IS BEING SPOKEN TO. `status` says a date is not nonsense;
+    # these say whether the model can see that far yet. Only the next stage
+    # carries a date — everything past it is `awaiting` and names, in `after`,
+    # what has to happen first. `basis` is the word for the one date shown:
+    # `predicted` while it is ahead, `modelled` once it is behind, `observed`
+    # if somebody actually confirmed it.
+    role: Optional[str] = None
+    after: Optional[str] = None
+    basis: Optional[str] = None
+
 
 class VarietyPhenology(BaseModel):
     """Phenology data for a single variety."""

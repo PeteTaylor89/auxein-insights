@@ -226,6 +226,25 @@ export async function downloadAccountPortfolioCsv(slug, { vintage, variety } = {
 }
 
 /** One site's daily record: what the portfolio popup charts. */
+/**
+ * This season day by day at the site, with both comparisons.
+ *
+ * Returns one date axis and, per metric, three aligned arrays: the site, its
+ * own 1986-2005 baseline, and its region this season. `baseline` or `zone` come
+ * back NULL rather than empty when there is nothing to compare against — a site
+ * outside every wine zone has no regional curve, and an array of nulls would
+ * draw as a flat line at nothing rather than as no comparison at all.
+ *
+ * @param {number} id
+ * @param {{vintage?: number}} opts
+ */
+export async function getSiteSeasonSeries(id, { vintage } = {}) {
+  const { data } = await publicApi.get(`${BASE}/${id}/season-series`, {
+    params: { vintage },
+  });
+  return data;
+}
+
 export async function getSiteTimeseries(id, { start, end, vintage } = {}) {
   const { data } = await publicApi.get(`${BASE}/${id}/timeseries`, {
     params: { start, end, vintage },

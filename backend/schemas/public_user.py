@@ -156,6 +156,21 @@ class PublicUserResponse(BaseModel):
     # from subscription_tier: 'grow' also counts as Pro, and an expired 'pro'
     # does not, neither of which is visible from the tier string alone.
     is_pro: bool = False
+    # Active enterprise accounts this user is a named member of, as
+    # {slug, name, role}. Almost always empty — an account is an enterprise
+    # arrangement, not a tier.
+    #
+    # Carried on the auth payload rather than fetched by the header, because the
+    # header renders on EVERY page and a per-page request to decide whether to
+    # draw one nav link is a request per page view. It also means the nav and
+    # the entitlement cannot disagree: both read the same list.
+    portfolio_accounts: List[dict] = []
+    # Whether "My Site" is a thing this user HAS rather than one they could buy.
+    # Server-computed and never re-derived on the client: it is not visible from
+    # `is_pro`, which is true for a Grow user and an account member who both
+    # hold no point at all. Exposing `pro_site_quota` instead would invite the
+    # frontend to reimplement the rule and drift from it.
+    has_site_access: bool = False
     origin: str = "signup"  # 'grow' => projection row crossed over from Grow
     
     # Timestamps

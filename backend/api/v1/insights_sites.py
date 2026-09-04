@@ -33,7 +33,8 @@ why that period and not the WMO one.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -645,6 +646,7 @@ def site_phenology(site_id: int,
     """), {"sid": site.id, "v": vintage}).mappings().all()
 
     season_start, season_end = site_baseline.season_bounds(vintage)
+    today = datetime.now(timezone.utc).date()
 
     # Sibling sites: same account, same zone, same vintage, latest estimate per
     # site. Scoped to the account for the reason in the docstring.
@@ -705,6 +707,18 @@ def site_phenology(site_id: int,
                 "spread": spread_for(r["variety_code"], sib_col) if sib_col else None,
             }
 
+        # Only the next stage carries a live prediction; everything past it says
+        # what has to happen first. Applied HERE rather than in the panel so the
+        # site page, the region page and the portfolio table cannot disagree
+        # about how far the model can see.
+        progress = basis.stage_progress(shown, today)
+        for key, state in progress.items():
+            if key in shown:
+                shown[key].update(state)
+                if state["role"] == "awaiting":
+                    shown[key]["date"] = None
+                    shown[key]["spread"] = None
+
         varieties.append({
             "code": r["variety_code"],
             "name": r["variety_name"] or r["variety_code"],
@@ -733,6 +747,7 @@ def site_phenology(site_id: int,
                 if r["zone_harvest_210_date"] else None,
             },
             "stages": shown,
+            "next_stage": basis.next_stage(progress),
         })
 
     return {
@@ -746,6 +761,174 @@ def site_phenology(site_id: int,
         "predictions_available": any_shown,
         "predictions_reason": None if any_shown else basis.no_basis_reason(),
         "varieties": varieties,
+    }
+
+
+# --- the season in progress, as a curve --------------------------------------
+
+
+# The three a grower actually watches, and the shape each one has to be drawn
+# in. GDD and rainfall ACCUMULATE — the season's story is the running total
+# pulling ahead of or behind the curve, and a daily bar chart of either tells
+# nobody anything. Mean temperature does not accumulate: its daily value against
+# a smooth climatology is the comparison, and a running mean would flatten the
+# cold snap that is the whole reason to look.
+SEASON_SERIES_METRICS = [
+    ("gdd10", "Growing degree days", "GDD", True),
+    ("tmean", "Mean temperature", "°C", False),
+    ("rain", "Rainfall", "mm", True),
+]
+
+
+@router.get("/sites/{site_id}/season-series")
+def site_season_series(site_id: int,
+                       vintage: Optional[int] = Query(None),
+                       db: Session = Depends(get_db),
+                       user: PublicUser = Depends(require_pro)):
+    """This season day by day: the site, its own baseline, and its region.
+
+    The tiles above this on the page answer "how is the season going" with three
+    numbers. They cannot answer "when did it go wrong", which is the next
+    question every one of them provokes, and that needs the curve.
+
+    ## TWO COMPARISONS, AND THEY ARE NOT THE SAME KIND OF STATEMENT
+
+    * against **this site's own 1986-2005 baseline** — both sides are the same
+      500 m cell, so the difference is this season and nothing else.
+    * against **the region this season** — both sides are the same weather, so
+      the difference is the site's position within its district.
+
+    Mixing them on one chart would produce a gap that is part one and part the
+    other, which is why the client shows one at a time. They are returned
+    together because they cost one query each and switching between them is the
+    thing a reader does most.
+
+    ## Aligned on DATE, not on index
+
+    Three sources with three different reasons to be short: the site's surface
+    can have a hole, the zone rollup can miss a day, the baseline is missing 28
+    February. Zipping three lists by position would slide one against another
+    and draw a lag that does not exist. Every series is emitted against the same
+    date axis with `null` where that source has nothing — and null stays null,
+    because a zero on a rainfall chart is a dry day and on a GDD chart is a
+    frost.
+    """
+    site = _owned(db, site_id, user)
+    if site.status != "ready":
+        raise HTTPException(409, {"code": site.status,
+                                  "message": "This site is still populating."})
+
+    if vintage is None:
+        vintage = dashboard.current_vintage(datetime.now(timezone.utc).date())
+    season_start, season_end = site_baseline.season_bounds(vintage)
+
+    live = db.execute(text("""
+        SELECT date, temp_mean, rainfall_mm, gdd10_cumulative
+          FROM insights_site_daily
+         WHERE site_id = :sid AND date BETWEEN :lo AND :hi
+         ORDER BY date
+    """), {"sid": site.id, "lo": season_start, "hi": season_end}).mappings().all()
+
+    if not live:
+        return {"site": _serialise(db, site), "vintage_year": vintage,
+                "available": False,
+                "reason": ("No daily surface has been read for this site yet "
+                           "this season."),
+                "metrics": [], "dates": [], "series": {}}
+
+    # The axis ends where the SITE's record ends. Drawing the region three days
+    # further than the site would show a gap closing that is only one series
+    # being longer than the other.
+    through = max(r["date"] for r in live)
+
+    zone_rows = []
+    if site.zone_id:
+        zone_rows = db.execute(text("""
+            SELECT date, temp_mean, rainfall_mm, gdd10_cumulative
+              FROM climate_zone_daily
+             WHERE zone_id = :z AND date BETWEEN :lo AND :hi
+             ORDER BY date
+        """), {"z": site.zone_id, "lo": season_start,
+               "hi": through}).mappings().all()
+
+    curve = site_baseline.build(db, site, vintage)
+    base_by_date = ({d["date"]: d for d in curve["days"] if d.get("available")}
+                    if curve else {})
+
+    dates = [(season_start + timedelta(days=i)).isoformat()
+             for i in range((through - season_start).days + 1)]
+
+    def running(rows, field):
+        """A running sum keyed by date. An absent day does NOT reset it."""
+        out, total = {}, 0.0
+        for r in rows:
+            if r[field] is not None:
+                total += float(r[field])
+            out[r["date"].isoformat()] = total
+        return out
+
+    live_by = {r["date"].isoformat(): r for r in live}
+    zone_by = {r["date"].isoformat(): r for r in zone_rows}
+    live_rain = running(live, "rainfall_mm")
+    zone_rain = running(zone_rows, "rainfall_mm")
+
+    def pick(row, metric):
+        if row is None:
+            return None
+        v = row["gdd10_cumulative"] if metric == "gdd10" else row["temp_mean"]
+        return None if v is None else round(float(v), 2)
+
+    BASE_FIELD = {"gdd10": "gdd10_cumulative", "tmean": "tmean",
+                  "rain": "rain_cumulative"}
+
+    series = {}
+    for metric, label, unit, cumulative in SEASON_SERIES_METRICS:
+        if metric == "rain":
+            site_vals = [round(live_rain[d], 2) if d in live_rain else None
+                         for d in dates]
+            zone_vals = [round(zone_rain[d], 2) if d in zone_rain else None
+                         for d in dates]
+        else:
+            site_vals = [pick(live_by.get(d), metric) for d in dates]
+            zone_vals = [pick(zone_by.get(d), metric) for d in dates]
+
+        base_vals = []
+        for d in dates:
+            day = base_by_date.get(d)
+            v = None if day is None else day.get(BASE_FIELD[metric])
+            base_vals.append(None if v is None else round(float(v), 2))
+
+        series[metric] = {
+            "label": label, "unit": unit, "cumulative": cumulative,
+            "site": site_vals,
+            # Absent, not empty, when there is nothing to compare against: a
+            # zone with no daily climatology (South Coast) and a site outside
+            # every zone both land here, and an all-null array would render as a
+            # flat line at nothing rather than as no comparison at all.
+            "baseline": base_vals if base_by_date else None,
+            "zone": zone_vals if zone_rows else None,
+        }
+
+    zone = db.execute(text(
+        "SELECT id, name, slug FROM climate_zones WHERE id = :z"),
+        {"z": site.zone_id}).mappings().first() if zone_rows else None
+
+    return {
+        "site": _serialise(db, site),
+        "vintage_year": vintage,
+        "available": True,
+        "baseline": PRO_BASELINE,
+        "from": season_start.isoformat(),
+        "to": season_end.isoformat(),
+        "through": through.isoformat(),
+        "zone": dict(zone) if zone else None,
+        "metrics": [{"key": m, "label": l, "unit": u, "cumulative": c}
+                    for m, l, u, c in SEASON_SERIES_METRICS],
+        "dates": dates,
+        "series": series,
+        "note": ("Your own 500 m cell against its 1986-2005 record, or against "
+                 "the region this season. The two answer different questions "
+                 "and are never drawn together."),
     }
 
 
@@ -878,8 +1061,56 @@ def _portfolio_rows(db: Session, account_id: int, vintage: int,
         "lo": lo, "hi": hi}).mappings().all()]
 
 
+def _portfolio_sites(db: Session, account_id: int, vintage: int,
+                     variety: str) -> list[dict]:
+    """Shaped portfolio rows, baseline-to-date included.
+
+    Both the JSON endpoint and the CSV go through here. They already shared
+    `_portfolio_rows` and `_shape`; the to-date lookup is a third thing that
+    would have to be repeated identically in two places, and the export
+    disagreeing with the screen it came from is the failure this file has spent
+    the most effort avoiding.
+    """
+    rows = _portfolio_rows(db, account_id, vintage, variety)
+    lo, hi = PORTFOLIO_BASELINE
+    to_date = site_baseline.totals_to_date(
+        db, [(r["id"], r["zone_id"], r["through"]) for r in rows],
+        vintage, lo, hi)
+    return [_shape(r, vintage, to_date.get(r["id"])) for r in rows]
+
+
 def _iso(value):
     return value.isoformat() if value is not None else None
+
+
+# TWO DECIMAL PLACES, EVERYWHERE, AND IT IS A HONESTY RULE RATHER THAN A
+# FORMATTING ONE.
+#
+# Every number in these exports is modelled: a temperature interpolated to a
+# 500 m cell, a GDD integrated from a fitted mean and a spread, a disease index
+# from a decay model. `Numeric` columns and Python floats will happily print
+# `13.690000000000001` or `1.5178342`, and a spreadsheet full of seven-figure
+# precision reads as a measurement. It is not one — the national cross-validated
+# RMSE on temperature is on the order of 1 °C.
+#
+# So the export rounds to 2 dp and no further. Values the shaper has already
+# rounded harder (GDD to whole numbers, rainfall to the millimetre) keep that;
+# this is a ceiling on precision, not a floor.
+CSV_DECIMALS = 2
+
+
+def _csv_number(value):
+    """A float or Decimal at export precision. Anything else passes through."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int,)):
+        return value
+    if isinstance(value, (float, Decimal)):
+        rounded = round(float(value), CSV_DECIMALS)
+        # `-0.0` is a real float and prints as "-0", which reads as a measured
+        # negative in a spreadsheet column of positives.
+        return 0.0 if rounded == 0 else rounded
+    return value
 
 
 def _num(value, digits=1):
@@ -887,9 +1118,64 @@ def _num(value, digits=1):
     return None if value is None else round(float(value), digits)
 
 
-def _shape(r: dict, vintage: int) -> dict:
-    season_gdd = _num(r["gdd10"], 0)
-    lta_gdd = _num(r["lta_gdd10"], 0)
+def _next_phenology_stage(r: dict, vintage: int) -> Optional[dict]:
+    """The one stage this row should show, with the word for what it is.
+
+    Runs the SAME `phenology_basis` gate the site and region payloads run, off
+    the four dates the portfolio query already selected. A fifth copy of "which
+    date is trustworthy" living in a table renderer is how two screens start
+    disagreeing about one model.
+    """
+    gdd = float(r["gdd_accumulated"]) if r["gdd_accumulated"] is not None else None
+    season_start, season_end = site_baseline.season_bounds(vintage)
+    today = datetime.now(timezone.utc).date()
+
+    stages = {}
+    for key, column in (("flowering", "flowering_date"),
+                        ("veraison", "veraison_date"),
+                        ("harvest_210", "harvest_210_date")):
+        value = r[column]
+        stages[key] = {
+            "date": _iso(value),
+            "is_actual": False,
+            "status": basis.classify(value, False, gdd, season_start, season_end),
+        }
+
+    progress = basis.stage_progress(stages, today)
+    key = basis.next_stage(progress)
+    if key is None:
+        # Either nothing is projectable yet, or every modelled stage is behind
+        # us. Both are real states and neither is a date.
+        return None
+    return {"stage": key,
+            "label": basis.STAGE_NAMES[key],
+            "date": stages[key]["date"],
+            "basis": progress[key]["basis"]}
+
+
+def _shape(r: dict, vintage: int, to_date: Optional[dict] = None) -> dict:
+    """One portfolio row.
+
+    `to_date` is this site's BASELINE accumulated to the same day its live
+    season reaches — see `insights_site_baseline.totals_to_date`. It is optional
+    because a site with no zone baseline has none, and the row still renders.
+    """
+    # ONE DECIMAL PLACE across the whole GDD/rain group, because at the start of
+    # a season whole numbers destroy it: on 2 September the season is 2.96 GDD,
+    # the to-date average is 1.96 and the rain is 0.03 mm — rounded to units,
+    # "3", "2" and "0", the last of which reads as no rain at all.
+    #
+    # THE DIFFERENCE CARRIES THE SAME PLACES AS ITS OPERANDS. A row reading
+    # 3.0 against 1.6 with a whole-number "+1" beside it looks like arithmetic
+    # that does not add up, and a reader cannot tell a rounding convention from
+    # a bug. Late in the season these are all three-figure numbers and the tenth
+    # is noise, but it is harmless noise; the alternative is a column that is
+    # unreadable for the first two months of every vintage.
+    season_gdd = _num(r["gdd10"], 1)
+    lta_gdd = _num(r["lta_gdd10"], 1)
+    td = to_date or {}
+    lta_gdd_to_date = _num(td.get("gdd10"), 1)
+    next_stage = _next_phenology_stage(r, vintage)
     return {
         "site_id": r["id"],
         "label": r["label"],
@@ -906,25 +1192,58 @@ def _shape(r: dict, vintage: int) -> dict:
             "through": _iso(r["through"]),
             "days": r["days"],
             "gdd10": season_gdd,
-            "rain_mm": _num(r["rain_mm"], 0),
+            "rain_mm": _num(r["rain_mm"], 1),
             "temp_mean": _num(r["temp_mean"]),
             "temp_min": _num(r["temp_min"]),
             "temp_max": _num(r["temp_max"]),
         },
+        # WHOLE SEASON. What this site averages by 30 April, which is the
+        # number a grower plans against — kept, but it is NOT what a
+        # season-to-date figure should be subtracted from.
         "lta": {
             "gdd10": lta_gdd,
-            "rain_mm": _num(r["lta_rain_mm"], 0),
+            "rain_mm": _num(r["lta_rain_mm"], 1),
             "temp_mean": _num(r["lta_temp_mean"]),
+            "period": f"{PORTFOLIO_BASELINE[0]}-{PORTFOLIO_BASELINE[1]}",
+        },
+        # TO THE SAME DAY. The site's own 1986-2005 curve accumulated to the
+        # day its live season reaches, so "ahead or behind" is a like-for-like
+        # statement in September as well as in March.
+        "lta_to_date": {
+            "gdd10": lta_gdd_to_date,
+            "rain_mm": _num(td.get("rain"), 1),
+            "temp_mean": _num(td.get("tmean")),
+            "through": td.get("through"),
+            "day_of_season": td.get("day_of_season"),
             "period": f"{PORTFOLIO_BASELINE[0]}-{PORTFOLIO_BASELINE[1]}",
         },
         # The comparison a grower actually reads: am I ahead of my own normal.
         # Absent rather than zero when either side is missing — a site with no
         # long-term average is not a site running exactly to average.
+        #
+        # MEASURED AGAINST `lta_to_date`, NOT `lta`. Against the whole-season
+        # average this read -1,038 on 2 September at every site on the account,
+        # which is not a fact about any vineyard — it is the shape of the
+        # calendar. `gdd10_season` keeps the old comparison for the one place it
+        # is meaningful, a season that has actually finished.
         "vs_lta": {
-            "gdd10": (None if season_gdd is None or lta_gdd is None
-                      else round(season_gdd - lta_gdd)),
+            "gdd10": (None if season_gdd is None or lta_gdd_to_date is None
+                      else round(season_gdd - lta_gdd_to_date, 1)),
+            "gdd10_season": (None if season_gdd is None or lta_gdd is None
+                             else round(season_gdd - lta_gdd, 1)),
+            "rain_mm": (None if r["rain_mm"] is None or td.get("rain") is None
+                        else round(float(r["rain_mm"]) - td["rain"], 1)),
+            "basis": "to_date" if lta_gdd_to_date is not None else None,
             "days": r["days_vs_baseline"],
         },
+        # ONE DATE, THE NEXT ONE. The table used to carry flowering, véraison
+        # and 210 g/L side by side, which in early September means a picking
+        # date extrapolated eight months forward from two days of season sitting
+        # in the same row as a date three weeks out, indistinguishable.
+        #
+        # The individual dates stay in the payload — sorting and the CSV both
+        # want them, and withholding a value the site page will show is a
+        # different kind of inconsistency — but `next` is what the table renders.
         "phenology": {
             "variety": r["variety_code"],
             "stage": r["current_stage"],
@@ -933,6 +1252,7 @@ def _shape(r: dict, vintage: int) -> dict:
             "flowering": _iso(r["flowering_date"]),
             "veraison": _iso(r["veraison_date"]),
             "harvest_210": _iso(r["harvest_210_date"]),
+            "next": next_stage,
         },
         "disease": {
             "date": _iso(r["disease_date"]),
@@ -998,12 +1318,11 @@ def account_portfolio(slug: str,
     if vintage is None:
         vintage = dashboard.current_vintage(datetime.now(timezone.utc).date())
 
-    rows = _portfolio_rows(db, account["id"], vintage, variety)
+    sites = _portfolio_sites(db, account["id"], vintage, variety)
     varieties = [r[0] for r in db.execute(text(
         "SELECT DISTINCT variety_code FROM phenology_thresholds "
         "WHERE is_active = true ORDER BY variety_code")).all()]
 
-    sites = [_shape(r, vintage) for r in rows]
     return {
         "account": {"slug": account["slug"], "name": account["name"],
                     "role": account["role"]},
@@ -1038,15 +1357,23 @@ _CSV_COLUMNS = [
     ("season_through", lambda s: s["season"]["through"]),
     ("season_days", lambda s: s["season"]["days"]),
     ("gdd10", lambda s: s["season"]["gdd10"]),
-    ("lta_gdd10", lambda s: s["lta"]["gdd10"]),
+    # BOTH long-term averages, named so they cannot be confused. `lta_gdd10` is
+    # the whole season; `lta_gdd10_to_date` is the same curve accumulated to
+    # `season_through`, and it is the one `gdd10_vs_lta` is measured against.
+    ("lta_gdd10_to_date", lambda s: s["lta_to_date"]["gdd10"]),
+    ("lta_gdd10_season", lambda s: s["lta"]["gdd10"]),
     ("gdd10_vs_lta", lambda s: s["vs_lta"]["gdd10"]),
     ("rain_mm", lambda s: s["season"]["rain_mm"]),
-    ("lta_rain_mm", lambda s: s["lta"]["rain_mm"]),
+    ("lta_rain_mm_to_date", lambda s: s["lta_to_date"]["rain_mm"]),
+    ("lta_rain_mm_season", lambda s: s["lta"]["rain_mm"]),
     ("temp_mean", lambda s: s["season"]["temp_mean"]),
     ("temp_min", lambda s: s["season"]["temp_min"]),
     ("temp_max", lambda s: s["season"]["temp_max"]),
     ("variety", lambda s: s["phenology"]["variety"]),
     ("stage", lambda s: s["phenology"]["stage"]),
+    ("next_stage", lambda s: (s["phenology"]["next"] or {}).get("label")),
+    ("next_stage_date", lambda s: (s["phenology"]["next"] or {}).get("date")),
+    ("next_stage_basis", lambda s: (s["phenology"]["next"] or {}).get("basis")),
     ("gdd_base0", lambda s: s["phenology"]["gdd"]),
     ("flowering", lambda s: s["phenology"]["flowering"]),
     ("veraison", lambda s: s["phenology"]["veraison"]),
@@ -1087,14 +1414,13 @@ def account_portfolio_csv(slug: str,
     account = _account(db, slug, user)
     if vintage is None:
         vintage = dashboard.current_vintage(datetime.now(timezone.utc).date())
-    sites = [_shape(r, vintage)
-             for r in _portfolio_rows(db, account["id"], vintage, variety)]
+    sites = _portfolio_sites(db, account["id"], vintage, variety)
 
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow([name for name, _ in _CSV_COLUMNS])
     for s in sites:
-        writer.writerow(["" if (v := get(s)) is None else v
+        writer.writerow(["" if (v := get(s)) is None else _csv_number(v)
                          for _, get in _CSV_COLUMNS])
     buf.seek(0)
 
@@ -1182,8 +1508,34 @@ def site_timeseries(site_id: int,
     def col(name):
         return [None if r[name] is None else float(r[name]) for r in rows]
 
+    # The site's own long-term GDD curve, on the SAME dates as the live series.
+    #
+    # Only on this endpoint, never inside `_timeseries`. The account CSV runs
+    # that builder across 67 sites and would pay for 67 baseline curves to write
+    # a column nothing in a spreadsheet plots; here it is one site and it is the
+    # difference between "your season has 340 GDD" and "your season has 340 GDD
+    # and usually has 290 by now", which is the only version of that number a
+    # grower can act on.
+    gdd_baseline = None
+    v = vintage or dashboard.current_vintage(datetime.now(timezone.utc).date())
+    curve = site_baseline.build(db, site, v)
+    if curve:
+        by_date = {d["date"]: d for d in curve["days"] if d.get("available")}
+        gdd_baseline = []
+        for r in rows:
+            day = by_date.get(r["date"].isoformat())
+            gdd_baseline.append(None if day is None
+                                else round(day["gdd10_cumulative"], 2))
+        # A window that misses the curve entirely — an explicit start/end
+        # outside the season — has nothing to draw, and an array of nulls would
+        # render as a flat line at zero rather than as no baseline.
+        if not any(x is not None for x in gdd_baseline):
+            gdd_baseline = None
+
     return {
         "site": _serialise(db, site),
+        "gdd10_baseline": gdd_baseline,
+        "baseline_period": PRO_BASELINE,
         "variety": site.variety,
         "start": lo.isoformat(), "end": hi.isoformat(),
         "days": len(rows),
@@ -1258,7 +1610,7 @@ def _ts_csv(rows: list[dict], filename: str):
             elif isinstance(v, bool):
                 out.append("true" if v else "false")
             else:
-                out.append(v)
+                out.append(_csv_number(v))
         w.writerow(out)
     buf.seek(0)
     return StreamingResponse(

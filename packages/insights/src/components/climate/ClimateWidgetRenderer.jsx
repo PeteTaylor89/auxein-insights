@@ -1,6 +1,6 @@
 // src/components/climate/ClimateWidgetRenderer.jsx - Self-contained live climate widget
 // Renders chart OR table from real-time climate API data
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { RefreshCw, AlertCircle } from 'lucide-react';
@@ -8,6 +8,7 @@ import {
   getGddProgress,
   getCurrentSeason,
   getDiseasePressure,
+  fallbackVintages,
 } from '../../services/realtimeClimateService';
 import {
   compareSeasons,
@@ -20,6 +21,12 @@ import {
   getResponsiveLineChartOptions,
   getResponsiveBarChartOptions,
 } from '../../utils/responsiveChartOptions';
+import { surfaceMapProps } from '../surfaces/surfaceMapConfig';
+
+// Lazy, and separately from this module's own lazy load. mapbox-gl is ~800 kB
+// and only ONE of the eleven widget types needs it; bundled here directly it
+// would ride along with every article that embeds a bar chart.
+const ArticleSurfaceMap = lazy(() => import('../surfaces/ArticleSurfaceMap'));
 
 const WIDGET_TITLES = {
   gdd_progress: 'GDD Progress',
@@ -32,6 +39,7 @@ const WIDGET_TITLES = {
   region_trend_compare: 'Region Trend Comparison',
   region_trend_compare_interactive: 'Region Comparison (Interactive)',
   projection_outlook: 'Climate Projection',
+  surface_map: 'Climate Surface',
 };
 
 const TREND_COLORS = [
@@ -90,21 +98,6 @@ function toAsOfDate(value) {
   return d.toISOString().slice(0, 10);
 }
 
-/**
- * The vintage current at a date, on the JULY-JUNE cycle.
- *
- * This must match `realtime_climate.get_current_vintage_year`, which is what
- * `climate_zone_daily.vintage_year` is keyed on. It is NOT the Sep-Apr vintage
- * used by `insights_dashboard.current_vintage` on the Pro page — the two
- * conventions disagree in May and June, and using the wrong one here would ask
- * for a vintage the live table has no rows for.
- */
-function vintageAt(isoDate) {
-  if (!isoDate) return null;
-  const [year, month] = isoDate.split('-').map(Number);
-  return month >= 7 ? year + 1 : year;
-}
-
 function formatAsOf(isoDate) {
   const d = new Date(`${isoDate}T00:00:00`);
   return Number.isNaN(d.getTime())
@@ -128,6 +121,21 @@ function ClimateWidgetRenderer({
   scenario,
   period,
   asOf,
+  // --- surface_map only. See ClimateWidgetExtension for why these are flat.
+  variable,
+  cadence,
+  validAt,
+  statistic,
+  followLatest,
+  mapHeight,
+  mapCentre,
+  mapZoom,
+  basemap,
+  // The published page this widget lives in, for the embed grant. Only the
+  // reader's view sets it; the admin preview deliberately does not, because a
+  // draft grants nothing and pretending otherwise would show the author a map
+  // that behaves differently once published.
+  embed = null,
 }) {
   const [data, setData] = useState(snapshotData || null);
   const [loading, setLoading] = useState(!snapshotData);
@@ -205,16 +213,13 @@ function ClimateWidgetRenderer({
             break;
           }
           case 'season_comparison': {
-            let vintagesParam = vintages;
-            if (!vintagesParam) {
-              // The fallback pair, resolved at publication rather than at read
-              // time. An author who set `vintages` explicitly is untouched —
-              // that is already a pinned widget and article 14 relies on it.
-              const refYear = asOfDate
-                ? vintageAt(asOfDate)
-                : new Date().getFullYear();
-              vintagesParam = `${refYear},${refYear - 1}`;
-            }
+            // The fallback pair, resolved at publication rather than at read
+            // time. An author who set `vintages` explicitly is untouched —
+            // that is already a pinned widget and article 14 relies on it.
+            //
+            // `fallbackVintages` is SHARED with the editor's snapshot path on
+            // purpose; see its docstring for what a second copy cost.
+            const vintagesParam = vintages || fallbackVintages(asOfDate);
             setData(await compareSeasons({
               zone: zoneSlug,
               vintages: vintagesParam,
@@ -297,6 +302,46 @@ function ClimateWidgetRenderer({
         return null;
     }
   }, [data, widgetType, metric, displayMode, includeBaseline, zoneOptions, readerZones, readerMetric, readerIncludeBaseline, readerSeasonLimit, scenario, period, isInteractive]);
+
+  // A SURFACE MAP IS NOT A SERIES. It has no zone, no vintage, no chart-or-table
+  // mode and no snapshot — it owns its own catalogue, tiles and probe — so it
+  // short-circuits every zone-keyed branch above rather than being threaded
+  // through a fetch switch that has nothing to fetch for it.
+  //
+  // Placed HERE, after the last hook and before the loading guard, for two
+  // reasons: an early return above the hooks would change hook order between
+  // widget types and crash React, and `loading` never clears for this type
+  // (the fetch effect returns at `if (!zoneSlug)`), so a return below the
+  // guard would render a permanent "Loading climate data..." instead.
+  if (widgetType === 'surface_map') {
+    return (
+      <div style={S.container}>
+        {title && (
+          <div style={S.header}>
+            <h4 style={S.title}>{title}</h4>
+          </div>
+        )}
+        <Suspense fallback={(
+          <div style={S.loading}>
+            <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite' }} />
+            <span>Loading the climate surface...</span>
+          </div>
+        )}
+        >
+          {/* Through the SAME normaliser a research map section uses, so a
+              node written by an older build degrades to defaults rather than
+              handing `undefined` to Mapbox. */}
+          <ArticleSurfaceMap
+            {...surfaceMapProps({
+              variable, cadence, validAt, statistic, followLatest,
+              mapHeight, mapCentre, mapZoom, basemap,
+            })}
+            embed={embed}
+          />
+        </Suspense>
+      </div>
+    );
+  }
 
   // Interactive widget renders its own picker even while loading/empty
   if (loading && !isInteractive) {

@@ -1,5 +1,5 @@
 // src/pages/ResearchDetail.jsx - Public research report detail
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft, Calendar, Eye, Heart, MessageCircle, Users, FileText,
@@ -9,7 +9,13 @@ import { usePublicAuth } from '../contexts/PublicAuthContext';
 import researchService from '../services/researchService';
 import useArticleTracking from '../hooks/useArticleTracking';
 import useDocumentMeta from '../hooks/useDocumentMeta';
+import { surfaceMapProps } from '../components/surfaces/surfaceMapConfig';
 import './ResearchDetail.css';
+
+// Lazy: mapbox-gl is ~800 kB and most research reports have no map section.
+// `surfaceMapConfig` is deliberately NOT lazy — it is a few pure functions, and
+// keeping it eager is what lets this module describe a map without loading one.
+const ArticleSurfaceMap = lazy(() => import('../components/surfaces/ArticleSurfaceMap'));
 
 function ResearchDetail() {
   const { slug } = useParams();
@@ -128,6 +134,29 @@ function ResearchDetail() {
         return section.content?.url ? (
           <img src={section.content.url} alt={section.content.alt || section.title} className="section-image" />
         ) : null;
+      // A CLIMATE SURFACE, clickable for a value. `section_type` 'map' has been
+      // in the editor's dropdown and in the model's comment since the table was
+      // created, but had no case here — so every map section a author added fell
+      // through to `default` and printed its raw JSON config to the reader.
+      //
+      // The config is the SAME shape an article's Tiptap node carries, read
+      // through the same normaliser, so one map behaves identically in a
+      // research report and in an article. See `surfaceMapConfig`.
+      case 'map':
+        return (
+          <Suspense fallback={(
+            <div className="section-chart-placeholder">
+              <BookOpen size={32} />
+              <p>Loading the climate surface...</p>
+            </div>
+          )}
+          >
+            <ArticleSurfaceMap
+              {...surfaceMapProps(section.content)}
+              embed={report?.status === 'published' ? { research: slug } : null}
+            />
+          </Suspense>
+        );
       default:
         return <p>{JSON.stringify(section.content)}</p>;
     }

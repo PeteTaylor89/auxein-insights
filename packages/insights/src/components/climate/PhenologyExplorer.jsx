@@ -342,13 +342,28 @@ const PhenologyExplorer = ({ zone }) => {
                                 )}
                               </div>
                               <div className="timeline-date">
-                                {stage.predicted_date ? (
+                                {/* ONLY THE NEXT STAGE CARRIES A DATE. The rest
+                                    name what has to happen first. Before the
+                                    season is under way every one of these is a
+                                    forward extrapolation from almost no
+                                    measured season, and seven of them in a
+                                    column claims a reach the model has not got.
+                                    The server decides which is which — see
+                                    services/phenology_basis. */}
+                                {stage.role === 'awaiting' ? (
+                                  <span className="stage-awaiting">
+                                    prediction post {stage.after}
+                                  </span>
+                                ) : stage.predicted_date ? (
                                   <>
                                     <Calendar size={14} />
                                     <span>
                                       {formatDate(stage.predicted_date)}
                                       {stage.is_actual && <em> (actual)</em>}
                                     </span>
+                                    {stage.basis && !stage.is_actual && (
+                                      <sub className="stage-basis">{stage.basis}</sub>
+                                    )}
                                     {stage.days_from_now && stage.days_from_now > 0 && (
                                       <span className="days-from-now">
                                         ({stage.days_from_now} days away)
@@ -386,9 +401,11 @@ const PhenologyExplorer = ({ zone }) => {
                                 {stage.stage_name.replace('Harvest ', '')}
                               </span>
                               <span className="harvest-date">
-                                {formatShortDate(stage.predicted_date)}
+                                {stage.role === 'awaiting'
+                                  ? <em className="stage-awaiting">post {stage.after}</em>
+                                  : formatShortDate(stage.predicted_date)}
                               </span>
-                              {days !== null && days > 0 && (
+                              {stage.role !== 'awaiting' && days !== null && days > 0 && (
                                 <span className="harvest-days">{days}d</span>
                               )}
                             </div>

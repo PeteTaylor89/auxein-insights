@@ -17,6 +17,7 @@
 // Values, normals and anomalies all arrive ready, because the moment the browser
 // starts summing days it can disagree with the server about which days counted.
 import { Info, Loader, Sprout, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import SeasonProgressChart from './SeasonProgressChart';
 import './CurrentSeasonPanel.css';
 
 function format(value, unit) {
@@ -143,7 +144,7 @@ function Metric({ metric }) {
   );
 }
 
-function CurrentSeasonPanel({ season }) {
+function CurrentSeasonPanel({ season, siteId }) {
   if (!season) return null;
 
   if (!season.available) {
@@ -169,6 +170,15 @@ function CurrentSeasonPanel({ season }) {
       <div className="current-season__metrics">
         {season.metrics.map((m) => <Metric key={m.metric} metric={m} />)}
       </div>
+
+      {/* The tiles say how far ahead or behind the season is. This says when it
+          got that way, which is the question they always provoke. It fetches
+          its own series rather than riding on this payload: the dashboard is
+          loaded on every site open and a whole season of three metrics is not
+          something every visit should pay for. */}
+      {siteId && (
+        <SeasonProgressChart siteId={siteId} vintage={season.vintage} />
+      )}
 
       <p className="current-season__note">
         <Info size={14} aria-hidden="true" />

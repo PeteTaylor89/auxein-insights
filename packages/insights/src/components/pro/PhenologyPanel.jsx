@@ -49,8 +49,25 @@ function shortDate(iso) {
 // Five outcomes, not two. `beyond_season` is the one that matters: a variety
 // whose 220 g/L date falls past the end of the season is not missing a date, it
 // is not expected to get there — which is the more useful statement.
+//
+// SINCE 2026-09-03, A SIXTH: `awaiting`. Only the next stage carries a date.
+// Everything past it names what has to happen first, because a 220 g/L date
+// projected in early September is eight months of forward extrapolation from
+// two days of measured season, and printing it in the same row as a flowering
+// date three weeks out claims a reach the model does not have. The server
+// decides this — `phenology_basis.stage_progress` — so the region page and the
+// portfolio table gate identically.
 function Cell({ stage, compare, compareLabel = 'region' }) {
   if (!stage) return <td className="phenology__cell">—</td>;
+
+  if (stage.role === 'awaiting') {
+    return (
+      <td className="phenology__cell is-awaiting"
+          title="The model projects this, but not yet with enough of the season behind it to be worth showing">
+        prediction post {stage.after}
+      </td>
+    );
+  }
 
   if (stage.date) {
     // The comparison sits UNDER the date, not beside it. A grower's question
@@ -67,6 +84,13 @@ function Cell({ stage, compare, compareLabel = 'region' }) {
       <td className={`phenology__cell${stage.is_actual ? ' is-actual' : ''}`}>
         {shortDate(stage.date)}
         {stage.is_actual && <span className="phenology__actual" title="Observed">•</span>}
+        {/* `predicted` and `modelled` are different claims. A date still in
+            front of us is a prediction; the same date once it is behind us is
+            not a prediction any more, and nobody walked the block either — it
+            is what the model says happened. */}
+        {stage.basis && !stage.is_actual && (
+          <sub className="phenology__basis">{stage.basis}</sub>
+        )}
         {compare && (
           <small className="phenology__compare">
             {compareLabel} {shortDate(compare)}

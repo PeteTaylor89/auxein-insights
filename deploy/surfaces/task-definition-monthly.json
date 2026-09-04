@@ -1,0 +1,83 @@
+{
+  "family": "auxein-surfaces-monthly",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "_comment_cpu": "2 vCPU / 8 GB. The rainfall grid basis alone is 4.6 GB at float32 (789 stations x 1,429,944 cells x 4 B) and float64 has already been OOM-killed at 9.16 GB, so 8 GB is the working figure with headroom rather than a guess. The job is ~20 minutes, billed per second.",
+  "cpu": "2048",
+  "memory": "8192",
+  "executionRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-execution",
+  "taskRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-task",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "surfaces",
+      "image": "992914515416.dkr.ecr.ap-southeast-2.amazonaws.com/auxein-surfaces:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "AWS_REGION",
+          "value": "ap-southeast-2"
+        },
+        {
+          "name": "ENV",
+          "value": "production"
+        },
+        {
+          "name": "JOB",
+          "value": "monthly"
+        },
+        {
+          "name": "PYTHONUNBUFFERED",
+          "value": "1"
+        },
+        {
+          "name": "RDS_DATABASE",
+          "value": "auxein_db"
+        },
+        {
+          "name": "RDS_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "SURFACE_BUCKET",
+          "value": "auxein-climate-surfaces"
+        }
+      ],
+      "_comment_secrets": "SSM SecureString rather than plaintext env. The task role needs ssm:GetParameters and kms:Decrypt on the parameter's key.",
+      "secrets": [
+        {
+          "name": "RDS_ENDPOINT",
+          "valueFrom": "/auxein/prod/RDS_ENDPOINT"
+        },
+        {
+          "name": "RDS_USER",
+          "valueFrom": "/auxein/prod/RDS_USER"
+        },
+        {
+          "name": "RDS_PASSWORD",
+          "valueFrom": "/auxein/prod/RDS_PASSWORD"
+        },
+        {
+          "name": "SECRET_KEY",
+          "valueFrom": "/auxein/prod/SECRET_KEY"
+        }
+      ],
+      "_comment_logs": "The group /auxein/surfaces is pre-created with a 90-day retention, NOT created by the task. awslogs-create-group was set here and the first run died on it: AmazonECSTaskExecutionRolePolicy grants CreateLogStream and PutLogEvents but NOT CreateLogGroup, so the task never started and the failure reads as a logger error rather than a permissions one. Pre-creating is also what lets retention be set deliberately instead of defaulting to never expire.",
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/auxein/surfaces",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "monthly"
+        }
+      },
+      "_comment_stopTimeout": "The fit is not resumable mid-day; give it time to finish writing rather than leaving a half-published tree.",
+      "stopTimeout": 120
+    }
+  ]
+}

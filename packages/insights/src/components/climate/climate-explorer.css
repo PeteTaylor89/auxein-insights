@@ -648,3 +648,21 @@
   .tab-label-full { display: none; }
   .tab-label-short { display: inline; }
 }
+
+/* Only the next stage carries a date; the rest say what has to happen first.
+   Muted and italic because it is a statement about the model's reach, not a
+   value — it must not read as something a grower can plan against. */
+.stage-awaiting {
+  color: var(--color-text-muted, #6b7280);
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+/* `predicted` while the date is ahead of us, `modelled` once it is behind. */
+.stage-basis {
+  margin-left: 6px;
+  font-size: 0.7em;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted, #6b7280);
+  vertical-align: baseline;
+}

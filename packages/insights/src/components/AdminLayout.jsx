@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
+  Building2,
   Cloud,
   ChevronRight,
   ArrowLeft,
@@ -22,6 +23,7 @@ const AdminLayout = ({ children, title, subtitle, backLink, backText }) => {
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/users', icon: Users, label: 'Users' },
+    { path: '/admin/accounts', icon: Building2, label: 'Accounts' },
     { path: '/admin/articles', icon: FileText, label: 'Articles' },
     { path: '/admin/research', icon: BookOpen, label: 'Research' },
     { path: '/admin/weather', icon: Cloud, label: 'Weather' },

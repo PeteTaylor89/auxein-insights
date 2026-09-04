@@ -33,7 +33,8 @@ monthly version of this operation — the two are meant to agree.
 
 `gdd_daily` / `gdd_cumulative` are **base 0** and stay that way. Phenology is
 calibrated against them, and `phenology_service`, the region and site dashboards
-and `realtime_climate.adjust_gdd_to_sep1` all document and depend on it. Writing
+and the season adjustment in `realtime_climate` all document and depend on it.
+Writing
 base 10 into those columns moves every crossing date, silently. It was done on
 2026-08-30 and reverted the same day.
 

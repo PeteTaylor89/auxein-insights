@@ -51,6 +51,7 @@ import JobsDashboard from './pages/JobsDashboard';
 import StationDetail from './pages/StationDetail';
 
 import BannerManagement from './pages/BannerManagement';
+import AdminAccounts from './pages/admin/AdminAccounts';
 import AdminArticleList from './pages/admin/AdminArticleList';
 import AdminArticleEditor from './pages/admin/AdminArticleEditor';
 import AdminResearchList from './pages/admin/AdminResearchList';
@@ -99,6 +100,7 @@ function AppRoutes() {
           <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
           <Route path="/admin/users/:id" element={<AdminRoute><UserDetail /></AdminRoute>} />
+          <Route path="/admin/accounts" element={<AdminRoute><AdminAccounts /></AdminRoute>} />
           <Route path="/admin/articles" element={<AdminRoute><AdminArticleList /></AdminRoute>} />
           <Route path="/admin/articles/new" element={<AdminRoute><AdminArticleEditor /></AdminRoute>} />
           <Route path="/admin/articles/:id/edit" element={<AdminRoute><AdminArticleEditor /></AdminRoute>} />

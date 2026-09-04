@@ -59,8 +59,13 @@ const shortDate = (iso) => {
 
 // Signed, and absent stays absent. A site with no season and a site running
 // exactly to its average are different facts and must not share a cell.
-const signed = (v) => (v === null || v === undefined
-  ? '—' : `${v > 0 ? '+' : ''}${Math.round(v).toLocaleString()}`);
+//
+// `dp` matches whatever the two operands are shown to. A "+1" sitting between a
+// 3.0 and a 1.6 reads as arithmetic that does not add up.
+const signed = (v, dp = 0) => (v === null || v === undefined
+  ? '—' : `${v > 0 ? '+' : ''}${Number(v).toLocaleString(undefined, {
+    minimumFractionDigits: dp, maximumFractionDigits: dp,
+  })}`);
 
 // Every column declares how to READ it and how to SORT it separately. A date
 // sorts as a string, a risk sorts by severity rather than alphabetically —
@@ -75,22 +80,48 @@ const COLUMNS = [
     get: (s) => SITE_TYPE_LABEL[s.site_type] || s.site_type || '—',
     sort: (s) => s.site_type || '' },
   { key: 'gdd', label: 'GDD', numeric: true, title: 'Growing degree days, base 10, season to date',
-    get: (s) => num(s.season.gdd10), sort: (s) => s.season.gdd10 },
-  { key: 'lta', label: 'LTA GDD', numeric: true, title: 'This site’s own long-term average',
-    get: (s) => num(s.lta.gdd10), sort: (s) => s.lta.gdd10 },
+    get: (s) => num(s.season.gdd10, 1), sort: (s) => s.season.gdd10 },
+  // TWO long-term averages, and the order matters: the one the comparison is
+  // made against sits next to the comparison. `vs LTA` used to subtract a
+  // WHOLE-SEASON average from a season-to-date total, which on 2 September read
+  // −1,183 at every site on the account — a fact about the calendar, not about
+  // any vineyard. It is measured to the same day now.
+  { key: 'lta_td', label: 'LTA to date', numeric: true,
+    title: 'This site’s own 1986-2005 average accumulated to the same day',
+    get: (s) => num(s.lta_to_date?.gdd10, 1), sort: (s) => s.lta_to_date?.gdd10 },
   { key: 'vs', label: 'vs LTA', numeric: true, tone: true,
-    title: 'Season to date against this site’s own average',
-    get: (s) => signed(s.vs_lta.gdd10), sort: (s) => s.vs_lta.gdd10 },
+    title: 'Season to date against this site’s own average to the same day',
+    get: (s) => signed(s.vs_lta.gdd10, 1), sort: (s) => s.vs_lta.gdd10 },
+  { key: 'lta', label: 'LTA season', numeric: true,
+    title: 'What this site averages over a whole season, 1986-2005',
+    get: (s) => num(s.lta.gdd10, 1), sort: (s) => s.lta.gdd10 },
   { key: 'rain', label: 'Rain', numeric: true, title: 'Season to date, mm',
-    get: (s) => num(s.season.rain_mm), sort: (s) => s.season.rain_mm },
+    get: (s) => num(s.season.rain_mm, 1), sort: (s) => s.season.rain_mm },
   { key: 'stage', label: 'Stage',
     get: (s) => s.phenology.stage || '—', sort: (s) => s.phenology.stage || '' },
-  { key: 'flowering', label: 'Flowering',
-    get: (s) => shortDate(s.phenology.flowering),
-    sort: (s) => s.phenology.flowering || '' },
-  { key: 'harvest', label: 'Harvest 210',
-    get: (s) => shortDate(s.phenology.harvest_210),
-    sort: (s) => s.phenology.harvest_210 || '' },
+  // ONE stage, not three. Flowering, véraison and 210 g/L used to sit side by
+  // side in identical type; in early September that put a picking date
+  // extrapolated eight months forward beside one three weeks out, with nothing
+  // to tell them apart. The server picks which stage is next
+  // (`phenology_basis.stage_progress`) so this table, the site page and the
+  // region page cannot disagree about how far the model can see.
+  { key: 'next_stage', label: 'Next stage',
+    title: 'The next phenological stage the model projects, and whether it is still ahead',
+    get: (s) => {
+      const n = s.phenology.next;
+      if (!n || !n.date) return '—';
+      return (
+        <span className="portfolio__stagecell">
+          <span className="portfolio__stagename">{n.label}</span>
+          <span className="portfolio__stagedate">{shortDate(n.date)}</span>
+          {/* `predicted` while it is ahead of us, `modelled` once it is behind:
+              a date in the past is not a prediction any more, and nobody walked
+              the block either. */}
+          <sub className="portfolio__stagebasis">{n.basis}</sub>
+        </span>
+      );
+    },
+    sort: (s) => s.phenology.next?.date || '' },
   { key: 'powdery', label: 'Powdery', risk: (s) => s.disease.powdery,
     get: (s) => s.disease.powdery || '—',
     sort: (s) => RISK_ORDER[s.disease.powdery] ?? -1 },

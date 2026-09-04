@@ -248,6 +248,55 @@ export const VARIETY_NAMES = {
   SY: 'Syrah',
 };
 
+// =============================================================================
+// VINTAGE
+// =============================================================================
+
+/**
+ * The vintage current at a date, on the JULY-JUNE cycle.
+ *
+ * The one mirror of `realtime_climate.get_current_vintage_year`, which is what
+ * `climate_zone_daily.vintage_year` is keyed on. Every caller that needs to
+ * name a vintage for a REALTIME endpoint must come through here.
+ *
+ * It is NOT the Sep-Apr vintage used by `insights_dashboard.current_vintage` on
+ * the Pro page, and it is NOT `surfaceService.vintageFor`, which is Sep-Apr for
+ * seasonal SURFACES. The three disagree by a year for part of the year, and
+ * this one existing in two hand-copied versions is exactly how an article
+ * widget and its own snapshot ended up drawing different seasons.
+ *
+ * @param {string|Date|null} value 'YYYY-MM-DD', a Date, or null for today
+ * @returns {number}
+ */
+export const vintageAt = (value = null) => {
+  const d = value == null
+    ? new Date()
+    : (value instanceof Date ? value : new Date(String(value).slice(0, 10)));
+  if (Number.isNaN(d.getTime())) return new Date().getFullYear();
+  // Date-only strings parse as UTC, so read them back as UTC or a NZ-morning
+  // 1 July reads as 30 June and loses the whole vintage.
+  const [year, month] = value instanceof Date || value == null
+    ? [d.getFullYear(), d.getMonth() + 1]
+    : [d.getUTCFullYear(), d.getUTCMonth() + 1];
+  return month >= 7 ? year + 1 : year;
+};
+
+/**
+ * The fallback vintage PAIR for a season comparison with no explicit vintages.
+ *
+ * Shared so the live widget and the snapshot taken of it cannot name different
+ * seasons — they did, until 2026-09-04: the renderer resolved July-June while
+ * the editor's snapshot used the calendar year, so freezing a widget in any
+ * September through December silently shifted it back a season.
+ *
+ * @param {string|Date|null} asOfDate
+ * @returns {string} 'YYYY,YYYY', newest first
+ */
+export const fallbackVintages = (asOfDate = null) => {
+  const ref = vintageAt(asOfDate);
+  return `${ref},${ref - 1}`;
+};
+
 /**
  * Format GDD value
  * @param {number} value 
@@ -356,6 +405,8 @@ export default {
   getPhenology,
   getDiseasePressure,
   getRegionalOverview,
+  vintageAt,
+  fallbackVintages,
   PHENOLOGY_STAGES,
   RISK_LEVELS,
   DISEASE_NAMES,

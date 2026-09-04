@@ -55,11 +55,27 @@ function SiteHeader({ onSignInClick }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const isAdmin = isAuthenticated && user?.is_admin;
-  // `is_pro` is a server-computed property on the response. Never test
-  // `subscription_tier === 'pro'` here: Grow users carry tier 'grow' and are
-  // fully entitled, so that comparison silently hides the nav from paying
-  // customers — the exact failure `core/entitlements.py` exists to prevent.
-  const isProUser = isAuthenticated && user?.is_pro;
+  // Both flags below are SERVER-COMPUTED and must never be re-derived here.
+  // `subscription_tier === 'pro'` is wrong twice over: a Grow user carries
+  // 'grow' and is fully entitled, and an account member carries 'free' and is
+  // too — the exact failure `core/entitlements.py` exists to prevent.
+  //
+  // Enterprise account membership, served on the auth payload rather than
+  // fetched here. `/pro/portfolio` had NO nav entry at all and the only inbound
+  // link in the app was from a page you reach from the portfolio, so a client's
+  // 67 monitored sites were behind a URL you had to already know.
+  //
+  // Gated on the membership list, not on `is_pro`: membership is what the page
+  // needs, and most Pro subscribers correctly have no account and would get the
+  // "No portfolio yet" empty state from a nav link that promised otherwise.
+  const hasPortfolio = isAuthenticated
+    && (user?.portfolio_accounts?.length || 0) > 0;
+  // "My Site" is gated on HOLDING a point, not on being Pro. Pro and a saved
+  // site are separate purchases, and three routes to Pro carry no point: a
+  // Grow user, an enterprise account member, and a subscriber who has not
+  // bought one. `is_pro` sent all of them to a placement map with a disabled
+  // button. Server-computed — see core/entitlements.has_site_access.
+  const hasOwnSite = isAuthenticated && user?.has_site_access;
 
   // Where "Explore" points. The header renders on scoped and unscoped pages
   // alike, so this resolves in three steps: the scope of the page we are on,
@@ -149,7 +165,8 @@ function SiteHeader({ onSignInClick }) {
             {/* Pro only. The page is reachable by anyone and explains itself,
                 but putting it in the nav for people who cannot use it turns
                 primary navigation into an advertisement. */}
-            {isProUser && <Link to="/my-site">My Site</Link>}
+            {hasOwnSite && <Link to="/my-site">My Site</Link>}
+            {hasPortfolio && <Link to="/pro/portfolio">Portfolio</Link>}
 
             {/* Renders nothing at all while only one country has data, so this
                 is invisible today and appears on its own the moment a second
@@ -229,8 +246,11 @@ function SiteHeader({ onSignInClick }) {
             <CountrySwitcher className="mobile-nav__country" />
             <Link to="/articles" onClick={closeMobileMenu}>Articles</Link>
             <Link to="/research" onClick={closeMobileMenu}>Research</Link>
-            {isProUser && (
+            {hasOwnSite && (
               <Link to="/my-site" onClick={closeMobileMenu}>My Site</Link>
+            )}
+            {hasPortfolio && (
+              <Link to="/pro/portfolio" onClick={closeMobileMenu}>Portfolio</Link>
             )}
             <Link to="/about" onClick={closeMobileMenu}>About</Link>
 

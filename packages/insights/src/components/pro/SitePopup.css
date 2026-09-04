@@ -96,3 +96,20 @@
   .sitepop { max-height: 100vh; border-radius: 0; }
   .sitepop__chart { height: 190px; }
 }
+
+/* Rainfall is a few tall spikes in a flat field — it does not need the height
+   the other three do, and giving it the same makes the modal a scroll. */
+.sitepop__chart--short { height: 150px; }
+
+@media (max-width: 640px) {
+  .sitepop__chart--short { height: 130px; }
+}
+
+/* What a panel could not show, and why. Sits under the chart it qualifies
+   rather than in the footer, where a reader has already stopped looking. */
+.sitepop__panel-note {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7280);
+}

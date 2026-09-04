@@ -1,6 +1,6 @@
 // src/components/editor/ClimateWidgetNodeView.jsx - Editor preview for climate widget
 import { NodeViewWrapper } from '@tiptap/react';
-import { BarChart3, Table2, X, Lock } from 'lucide-react';
+import { BarChart3, Table2, X, Lock, Map as MapIcon } from 'lucide-react';
 
 const WIDGET_LABELS = {
   gdd_progress: 'GDD Progress',
@@ -13,13 +13,24 @@ const WIDGET_LABELS = {
   region_trend_compare: 'Region Trend Comparison',
   region_trend_compare_interactive: 'Region Comparison (Interactive)',
   projection_outlook: 'Climate Projection',
+  surface_map: 'Climate Surface Map',
 };
 
 function ClimateWidgetNodeView({ node, deleteNode }) {
-  const { widgetType, zoneName, zoneNames, title, metric, displayMode, isStatic, snapshotData } = node.attrs;
-  const zoneLabel = zoneNames || zoneName || 'No zone selected';
-  const isTable = displayMode === 'table';
-  const Icon = isTable ? Table2 : BarChart3;
+  const {
+    widgetType, zoneName, zoneNames, title, metric, displayMode, isStatic, snapshotData,
+    variable, cadence, validAt, followLatest,
+  } = node.attrs;
+  // A surface map has no zone and no chart/table mode — it is a layer and a
+  // step. Labelling it "No zone selected" in the editor reads as a widget the
+  // author forgot to finish.
+  const isSurface = widgetType === 'surface_map';
+  const zoneLabel = isSurface
+    ? [variable, cadence, followLatest ? 'latest step' : (validAt || 'latest step')]
+      .filter(Boolean).join(' · ')
+    : (zoneNames || zoneName || 'No zone selected');
+  const isTable = !isSurface && displayMode === 'table';
+  const Icon = isSurface ? MapIcon : (isTable ? Table2 : BarChart3);
 
   return (
     <NodeViewWrapper>
@@ -42,11 +53,11 @@ function ClimateWidgetNodeView({ node, deleteNode }) {
           <div style={{ fontWeight: 600, fontSize: '0.875rem', color: isTable ? '#1e40af' : '#166534' }}>
             {title || WIDGET_LABELS[widgetType] || 'Climate Widget'}
             <span style={{ fontWeight: 400, fontSize: '0.75rem', marginLeft: '6px', opacity: 0.7 }}>
-              ({isTable ? 'table' : 'chart'})
+              ({isSurface ? 'map' : isTable ? 'table' : 'chart'})
             </span>
           </div>
           <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-            {zoneLabel}{metric ? ` — ${metric}` : ''}
+            {zoneLabel}{!isSurface && metric ? ` — ${metric}` : ''}
             {isStatic && (
               <span style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#92400e', fontWeight: 500 }}>
                 <Lock size={10} /> {snapshotData ? 'snapshot taken' : 'will snapshot on save'}

@@ -333,11 +333,19 @@ export async function getProbe({
   granularity = DEFAULT_GRANULARITY,
   valid_at,
   statistic,
+  // WHERE THIS MAP IS EMBEDDED, as a published slug. Sending it opens the
+  // DAILY cadence for the one address the page actually embeds — the server
+  // loads that page and checks, so this is a reference to be verified and not
+  // a claim to be believed. Omitted by the Atlas, which is why the Atlas is
+  // still gated. See `surfaces._embed_grants`.
+  article,
+  research,
 }) {
   const { data } = await publicApi.get(`${BASE}/probe`, {
     params: {
       lon, lat, variable, granularity, statistic,
       valid_at: stampFor(valid_at, granularity),
+      article, research,
     },
   });
   return data;

@@ -338,6 +338,70 @@ export const adminJobsService = {
 };
 
 // ============================================
+// INSIGHTS ENTERPRISE ACCOUNTS
+// ============================================
+
+/**
+ * Enterprise accounts and their membership.
+ *
+ * Membership is an ENTITLEMENT, not a label: adding someone makes them Pro for
+ * as long as the membership and the account both last, and removing them takes
+ * it away again if the account was the only thing granting it. `addMember`
+ * returns `entitled_by_account_only` so the UI can say which of those it just
+ * did rather than leaving an admin to infer it.
+ */
+export const adminAccountService = {
+  /** Every account, suspended ones included — unlike the subscriber-facing list. */
+  listAccounts: async () => {
+    const response = await publicApi.get(`${ADMIN_BASE}/insights/accounts`);
+    return response.data;
+  },
+
+  getAccount: async (slug) => {
+    const response = await publicApi.get(
+      `${ADMIN_BASE}/insights/accounts/${encodeURIComponent(slug)}`);
+    return response.data;
+  },
+
+  createAccount: async (data) => {
+    const response = await publicApi.post(`${ADMIN_BASE}/insights/accounts`, data);
+    return response.data;
+  },
+
+  updateAccount: async (slug, data) => {
+    const response = await publicApi.patch(
+      `${ADMIN_BASE}/insights/accounts/${encodeURIComponent(slug)}`, data);
+    return response.data;
+  },
+
+  listMembers: async (slug) => {
+    const response = await publicApi.get(
+      `${ADMIN_BASE}/insights/accounts/${encodeURIComponent(slug)}/members`);
+    return response.data;
+  },
+
+  /** Existing Insights users only. A 404 here means "tell them to sign up". */
+  addMember: async (slug, { email, role = 'member' }) => {
+    const response = await publicApi.post(
+      `${ADMIN_BASE}/insights/accounts/${encodeURIComponent(slug)}/members`,
+      { email, role });
+    return response.data;
+  },
+
+  updateMember: async (slug, userId, role) => {
+    const response = await publicApi.patch(
+      `${ADMIN_BASE}/insights/accounts/${encodeURIComponent(slug)}/members/${userId}`,
+      { role });
+    return response.data;
+  },
+
+  removeMember: async (slug, userId) => {
+    await publicApi.delete(
+      `${ADMIN_BASE}/insights/accounts/${encodeURIComponent(slug)}/members/${userId}`);
+  },
+};
+
+// ============================================
 // COMBINED ADMIN SERVICE
 // ============================================
 
@@ -348,6 +412,7 @@ const adminService = {
   banners: adminBannerService,
   qc: adminQcService,
   jobs: adminJobsService,
+  accounts: adminAccountService,
 };
 
 export default adminService;

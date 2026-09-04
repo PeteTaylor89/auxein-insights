@@ -242,7 +242,8 @@ def aggregate_zone_day(db, zone: dict, target_date: date) -> Optional[dict]:
     # `gdd_daily` and `gdd_cumulative` in this table are PHENOLOGY's input, and
     # phenology is calibrated against base 0. Several modules document the
     # column as base 0 and depend on it: `phenology_service`, the region and
-    # site dashboards, and `realtime_climate.adjust_gdd_to_sep1`. It was briefly
+    # site dashboards, and the season adjustment in `realtime_climate`. It was
+    # briefly
     # changed to base 10 on 2026-08-30 and changed straight back — a base-10
     # value here silently moves every crossing date.
     #

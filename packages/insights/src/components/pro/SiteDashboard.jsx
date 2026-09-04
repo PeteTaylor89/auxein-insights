@@ -287,7 +287,7 @@ function SiteDashboard({ siteId, baseline }) {
           are different SHAPES on purpose — the current season is this cell
           against its own record, the previous one is the region from stations,
           because a finished season is only fully recorded at station scale. */}
-      <CurrentSeasonPanel season={data.season_current} />
+      <CurrentSeasonPanel season={data.season_current} siteId={siteId} />
 
       <SeasonStrip strip={data.season_previous} />
 

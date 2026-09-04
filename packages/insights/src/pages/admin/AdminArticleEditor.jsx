@@ -10,6 +10,7 @@ import {
   getGddProgress,
   getCurrentSeason,
   getDiseasePressure,
+  fallbackVintages,
 } from '../../services/realtimeClimateService';
 import {
   compareSeasons,
@@ -86,6 +87,16 @@ function ArticlePreviewBody({ body, asOf }) {
               scenario={node.attrs?.scenario || ''}
               period={node.attrs?.period || ''}
               asOf={asOf || null}
+              // surface_map only. Ignored by every other widget type.
+              variable={node.attrs?.variable || 'temp_mean'}
+              cadence={node.attrs?.cadence || 'monthly'}
+              validAt={node.attrs?.validAt || ''}
+              statistic={node.attrs?.statistic || ''}
+              followLatest={node.attrs?.followLatest === true}
+              mapHeight={node.attrs?.mapHeight || 420}
+              mapCentre={node.attrs?.mapCentre || ''}
+              mapZoom={node.attrs?.mapZoom ?? null}
+              basemap={node.attrs?.basemap || 'light'}
             />
           </Suspense>
         );
@@ -233,14 +244,17 @@ function AdminArticleEditor() {
       case 'disease_pressure':
         return getDiseasePressure(attrs.zoneSlug);
       case 'season_comparison': {
-        let vintages = attrs.vintages;
-        if (!vintages) {
-          const yr = new Date().getFullYear();
-          vintages = `${yr},${yr - 1}`;
-        }
+        // The SAME fallback the live renderer uses. It used to be a local copy
+        // on the calendar year while the renderer resolved July-June, so
+        // freezing a widget between July and December snapshotted the season
+        // BEFORE the one an unfrozen copy of it drew.
+        //
+        // `asOf` is deliberately not passed: a snapshot is a freeze taken NOW,
+        // and taking one against a future publication date would embed a
+        // season that has not happened.
         return compareSeasons({
           zone: attrs.zoneSlug,
-          vintages,
+          vintages: attrs.vintages || fallbackVintages(),
           include_baseline: attrs.includeBaseline !== false,
         });
       }

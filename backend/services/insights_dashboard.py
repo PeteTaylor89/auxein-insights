@@ -747,6 +747,15 @@ def _phenology_varieties(db: Session, zone_id: int, vintage: int) -> tuple[list,
             if basis.is_shown(status):
                 any_projected = True
 
+        # Same gate as the Pro site page, from the same module. A region page
+        # showing a 220 g/L date the site page withholds would be the two
+        # surfaces disagreeing about what the model can see.
+        progress = basis.stage_progress(shown, date.today())
+        for key, state in progress.items():
+            shown[key].update(state)
+            if state["role"] == "awaiting":
+                shown[key]["date"] = None
+
         out.append({
             "code": r["variety_code"],
             "name": r["variety_name"] or r["variety_code"],
@@ -756,6 +765,7 @@ def _phenology_varieties(db: Session, zone_id: int, vintage: int) -> tuple[list,
             "gdd_veraison": float(r["gdd_veraison"]) if r["gdd_veraison"] else None,
             "days_vs_baseline": r["days_vs_baseline"],
             "stages": shown,
+            "next_stage": basis.next_stage(progress),
         })
 
     reason = None if any_projected else basis.no_basis_reason()

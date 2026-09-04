@@ -232,3 +232,21 @@
   .my-site__field { flex: 1 1 auto; max-width: 320px; }
   .my-site__coords { flex: 1 1 auto; }
 }
+
+/* Pro, but holding no point: a Grow user, an enterprise account member, or a
+   subscriber who has not bought one. Not a refusal and not an empty slot —
+   there is nothing here for them to do, so it reads as a statement rather than
+   a form they cannot submit. */
+.my-site__none {
+  max-width: 46rem;
+  padding: 1.5rem 0;
+}
+.my-site__none h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.15rem;
+}
+.my-site__none p {
+  margin: 0 0 1.1rem;
+  color: var(--text-muted, #6b7280);
+  line-height: 1.55;
+}

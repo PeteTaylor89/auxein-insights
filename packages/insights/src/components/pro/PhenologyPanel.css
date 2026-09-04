@@ -134,3 +134,25 @@
   color: #8a9276;
   font-variant-numeric: tabular-nums;
 }
+
+/* Only the next stage carries a date; the rest name what has to happen first.
+   Muted and lower-case on purpose — it is a statement about the model's reach,
+   not a value, and it must not read as a date somebody could act on. */
+.phenology__cell.is-awaiting {
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.82em;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* `predicted` / `modelled`, under the date it qualifies. A subscript rather
+   than a badge: it qualifies one number and should not compete with it. */
+.phenology__basis {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.68em;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted, #6b7280);
+  vertical-align: baseline;
+}

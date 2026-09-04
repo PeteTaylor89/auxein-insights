@@ -23,6 +23,17 @@ usually just leaves rather than complaining.
 Note `insights_profile.py` writes tier='grow' with the comment "distinct
 segment; not a feature gate". That comment predates this decision and is no
 longer true.
+
+**Membership of an active enterprise account is a THIRD route to Pro**, and
+carries no tier of its own. A BSI staff member signs up on the free tier like
+anybody else; what entitles them is the account their employer pays for. Without
+this, adding a colleague to an account would make them a member who gets a 402
+on every route the membership was supposed to open — the same silent lockout
+this module was written to prevent, arriving by a different door.
+
+It does NOT grant a point: `site_quota` still reads `pro_site_quota`, which is
+0 for a member who has not bought one. The account gives them the client's
+sites; a subscription would give them their own.
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -58,6 +69,17 @@ def is_pro(user: Optional[PublicUser]) -> bool:
     An expired 'pro' subscription is not Pro. A 'grow' user has no Insights
     expiry to check.
     """
+    if user is None:
+        return False
+
+    # Checked BEFORE the tier, because it is the one route to Pro that does not
+    # go through `subscription_tier` at all. A free-tier user who is a named
+    # member of a paying account is entitled, and has no expiry of their own to
+    # test — the account's `status` is the expiry, and `portfolio_accounts`
+    # already filters on it.
+    if user.portfolio_accounts:
+        return True
+
     tier = tier_of(user)
     if tier not in PRO_TIERS:
         return False
@@ -104,6 +126,32 @@ def site_quota(user: Optional[PublicUser]) -> int:
 
 def can_place_site(user: Optional[PublicUser], sites_held: int) -> bool:
     return sites_held < site_quota(user)
+
+
+def has_site_access(user: Optional[PublicUser]) -> bool:
+    """Whether "My Site" is a thing this user has, rather than a thing they could buy.
+
+    Pro entitlement and a saved point are SEPARATE purchases, and three of the
+    routes to Pro carry no point at all:
+
+        'grow'          Pro by the Grow relationship. 5 such users hold quota 0.
+        account member  Pro by their employer's account. Quota 0 by design.
+        'pro', quota 0  a subscriber who has not bought a point.
+
+    Gating the nav on `is_pro` put all of them in front of a placement map with
+    a permanently disabled button and the line "your subscription covers 0
+    sites" — an offer withdrawn in the same breath it was made. The page is a
+    dead end for them, so it should not be in their navigation.
+
+    The second test is the one that is easy to leave out: a subscriber whose
+    quota is later reduced to 0 still HOLDS the site they placed, and must not
+    lose the only link to it. Quota governs placing, not keeping.
+    """
+    if not is_pro(user):
+        return False
+    if site_quota(user) > 0:
+        return True
+    return bool(getattr(user, "own_site_count", 0))
 
 
 async def require_pro(

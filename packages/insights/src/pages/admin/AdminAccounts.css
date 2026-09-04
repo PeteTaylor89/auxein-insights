@@ -1,0 +1,155 @@
+/* Enterprise account membership admin.
+   Theme tokens only — no hardcoded status colours. */
+
+.acct-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.acct-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.acct-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #1f2937);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.acct-tab.is-active {
+  border-color: var(--primary, #5B6830);
+  color: var(--primary, #5B6830);
+  font-weight: 600;
+}
+.acct-tab__count {
+  background: var(--surface-alt, #f1f5f9);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  font-size: 0.75rem;
+}
+
+.acct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #1f2937);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.acct-btn:disabled { opacity: 0.55; cursor: default; }
+.acct-btn--primary {
+  background: var(--primary, #5B6830);
+  border-color: var(--primary, #5B6830);
+  color: #fff;
+}
+.acct-btn--danger { border-color: var(--danger, #dc2626); color: var(--danger, #dc2626); }
+.acct-btn--quiet { border-color: transparent; background: transparent; }
+
+.acct-panel {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  padding: 1.25rem;
+}
+.acct-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.acct-panel__head h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+.acct-panel__meta { margin: 0; font-size: 0.85rem; color: var(--text-muted, #6b7280); }
+.acct-panel__meta code { font-size: 0.8rem; }
+
+.acct-create,
+.acct-add { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.acct-create input,
+.acct-add input,
+.acct-add select,
+.acct-table select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #1f2937);
+  font-size: 0.9rem;
+}
+.acct-add input { flex: 1 1 22rem; }
+
+.acct-hint {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.acct-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  border: 1px solid;
+}
+.acct-alert--warn  { border-color: var(--warning, #f59e0b); color: var(--warning-text, #92400e); background: var(--warning-bg, #fffbeb); }
+.acct-alert--error { border-color: var(--danger, #dc2626);  color: var(--danger-text, #991b1b);  background: var(--danger-bg, #fef2f2); }
+.acct-alert--ok    { border-color: var(--primary, #5B6830); color: var(--text, #1f2937);         background: var(--surface-alt, #f8fafc); }
+.acct-alert svg { flex: 0 0 auto; margin-top: 1px; }
+
+.acct-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.acct-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #6b7280);
+}
+.acct-table td {
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--border-subtle, #f1f5f9);
+  vertical-align: middle;
+}
+.acct-table tr.is-busy { opacity: 0.5; }
+
+.acct-member__name { font-weight: 600; }
+.acct-member__email { font-size: 0.8rem; color: var(--text-muted, #6b7280); }
+
+.acct-tag {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border, #e2e8f0);
+  margin-right: 0.3rem;
+}
+/* "via account" is the one worth noticing: it means removal revokes Pro. */
+.acct-tag--account { border-color: var(--warning, #f59e0b); color: var(--warning-text, #92400e); }
+.acct-tag--own     { border-color: var(--primary, #5B6830); color: var(--primary, #5B6830); }
+.acct-tag--quota   { color: var(--text-muted, #6b7280); }
+
+.acct-actions { text-align: right; white-space: nowrap; }
+.acct-empty { color: var(--text-muted, #6b7280); font-size: 0.9rem; }
+
+.spin { animation: acct-spin 1s linear infinite; }
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  .acct-alert--warn  { background: transparent; color: var(--warning, #f59e0b); }
+  .acct-alert--error { background: transparent; color: var(--danger, #ef4444); }
+}

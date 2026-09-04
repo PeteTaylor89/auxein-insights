@@ -4,6 +4,7 @@
 # JOB=surfaces  this file (the default)
 # JOB=pipeline  the 18:00 NZ chain      -> pipeline.sh
 # JOB=aggregate the six-hourly rollup   -> aggregate.sh
+# JOB=monthly   the 10th of the month   -> monthly.sh
 #
 # MODE=daily  fits D-2 (see below)
 # MODE=refit  re-fits D-9 .. D-3
@@ -21,6 +22,7 @@ set -euo pipefail
 case "${JOB:-surfaces}" in
   pipeline)  exec "$(dirname "$0")/pipeline.sh" ;;
   aggregate) exec "$(dirname "$0")/aggregate.sh" ;;
+  monthly)   exec "$(dirname "$0")/monthly.sh" ;;
   surfaces)  ;;
   *) echo "[entrypoint] FATAL: unknown JOB=${JOB}" >&2; exit 2 ;;
 esac

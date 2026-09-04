@@ -66,6 +66,10 @@ from services import projection_store as projections
 from core.entitlements import require_pro, is_registered, is_pro
 from core.public_security import get_optional_public_user
 from db.models.public_user import PublicUser
+# Read-only, and only ever to answer "does this published page actually embed
+# the map being probed" — see `_embed_configs`.
+from db.models.article import Article
+from db.models.research import ResearchReport
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -795,16 +799,22 @@ def probe(
                           "daily, omitted for records. Defaults to the newest "
                           "step this caller may see."),
     statistic: Optional[str] = Query(None),
+    article: Optional[str] = Query(
+        None, description="Slug of the published article this map is embedded "
+                          "in. Verified server-side; see `_embed_grants`."),
+    research: Optional[str] = Query(
+        None, description="Slug of the published research report this map is "
+                          "embedded in. Verified server-side."),
     db: Session = Depends(get_db),
     user: Optional[PublicUser] = Depends(get_optional_public_user),
 ):
     """The value of ONE cell of the surface already on screen.
 
-    FREE AT THE CADENCE YOU CAN ALREADY SEE (Pete's call, 2026-08-27). The gate
-    is `_gate_steps` — the same one `/available` runs — so a probe can never
-    answer for a step the caller's own scrubber is not allowed to offer:
-    anonymous gets the newest step, a free account gets the 1986 archive, and
-    the daily cadence stays Pro.
+    FREE AT ANY CADENCE YOU CAN ALREADY SEE (Pete's call, 2026-08-27, extended
+    2026-09-04). The gate is `_gate_steps` with `enforce_date=False`: the same
+    CADENCE rule `/available` runs, and NOT its date rule. So the whole monthly
+    archive is probeable by anyone — signed out included — and the daily cadence
+    stays Pro.
 
     The reasoning for making it free rather than Pro: the tile is already
     rendered, `/tiles` is not gated, and the number is legible off the legend to
@@ -813,9 +823,22 @@ def probe(
     and the distance to the nearest contributing station — which is the part
     that is actually the product.
 
+    Dropping the date rule here specifically unblocks the EMBEDDED ARTICLE MAP,
+    which is public and pinned to a past month: under the date rule it painted
+    for every reader and refused every reader's first click. `/available` still
+    enforces the date rule, so the anonymous Atlas scrubber is still one step
+    long and an account still buys the record.
+
+    **`article` / `research` lift the CADENCE rule as well, for one address.**
+    Pass the slug of the published page the map sits in and the daily surface
+    becomes readable there by anyone. It is VERIFIED, not believed: the server
+    loads that page and checks it really does embed a surface map at exactly
+    this layer, statistic and step. A draft, a different step, or a slug with no
+    such widget grants nothing. See `_embed_grants` for what stays closed.
+
     401 when signing in would open it, 402 when only Pro would. 404 means the
-    date genuinely has no surface, and the two are told apart against the
-    UNGATED step list so a withheld month is never reported as a missing one.
+    date genuinely has no surface — and at a free cadence that is now the only
+    thing a missing step can mean.
     """
     if _use_stub():
         # No stub path on purpose. Every other stub handler exists because WS3
@@ -825,12 +848,17 @@ def probe(
         # click from a user's mouth. See the module docstring.
         raise HTTPException(501, "probe is not implemented by the surface stub")
     out = _real_probe(db, lon, lat, variable, granularity, valid_at, statistic,
-                      registered=is_registered(user), pro=is_pro(user))
+                      registered=is_registered(user), pro=is_pro(user),
+                      article_slug=article, research_slug=research)
     # `private`, because the answer depends on the caller's tier — a shared
     # cache would hand one visitor's entitlement to the next. Daily surfaces are
     # revised for ~3 days (D+2 plus the weekly refit) so they get a short life;
     # the archive is immutable and a repeat click on the same cell should cost
     # nothing.
+    # `private` in both cases. The monthly answer no longer varies by tier, but
+    # the DAILY one still does — the same cell is a value inside an article and
+    # a 402 outside it — so a shared cache could hand an embed-granted response
+    # to a caller who never named the article.
     response.headers["Cache-Control"] = (
         "private, max-age=300" if granularity in PRO_GRANULARITIES
         else "private, max-age=86400")
@@ -1177,13 +1205,40 @@ PRO_GRANULARITIES = frozenset({"daily", "hourly"})
 
 
 def _gate_steps(info: dict, granularity: str, registered: bool,
-                pro: bool) -> dict:
+                pro: bool, enforce_date: bool = True) -> dict:
     """Withhold the DAILY cadence from anyone who is not Pro, and the ARCHIVE
     from anyone who is not signed in.
 
     Enforced here rather than in the client because the scrubber renders
     whatever steps it is given — leave the full list in the payload and the gate
     is a suggestion.
+
+    **`enforce_date=False` drops the second rule and keeps the first.** It is
+    passed by `/probe` and by nothing else (Pete's call, 2026-09-04). The
+    reasoning, which is the same one that made the probe free at a visible
+    cadence on 2026-08-27, carried one step further:
+
+      A probe adds PRECISION to a tile that is already rendered, not ACCESS to
+      it. `/tiles` is ungated, so a signed-out reader can already see the
+      February 1998 surface and read its value off the legend to within a ramp
+      step. Refusing to name the number they are looking at is not a wall, it
+      is a nuisance — and it lands hardest on an embedded article map, which is
+      public by definition and almost always pinned to a PAST month. Under the
+      date rule that map painted for everyone and answered for nobody, which
+      reads as broken rather than as an offer.
+
+    What this does NOT open, and must not:
+
+      - `/available` still enforces the date rule. The anonymous SCRUBBER is
+        still one step long, so the archive is still something an account buys:
+        a visitor can read a month someone else chose for them, not roam 38
+        years of it. That asymmetry is the whole design — the article is the
+        shop window, the Atlas is the shop.
+      - The CADENCE rule is untouched at both endpoints. The daily surface is
+        the paid product and stays 402 for anyone who is not Pro.
+      - `/point` — the series, the confidence band, the distance to the nearest
+        contributing station — is still Pro. That is the part that is actually
+        the product.
 
     **`/tiles` is deliberately NOT gated.** A tile request is issued by a Mapbox
     raster source, which sends no Authorization header, so a per-user check
@@ -1212,12 +1267,17 @@ def _gate_steps(info: dict, granularity: str, registered: bool,
                                    "cadence": granularity}}
 
     # 2. DATE. A free cadence, but the archive behind the newest step needs an
-    #    account.
-    if not registered:
+    #    account — unless the caller is the probe, which enforces the cadence
+    #    rule only. See the docstring.
+    if enforce_date and not registered:
         return _withhold_archive(info, granularity)
 
     return {**info, "access": {
-        "tier": "pro" if pro else "registered",
+        # Derived from BOTH flags, not from `pro` alone. With `enforce_date`
+        # off an anonymous caller reaches this line, and the old expression
+        # labelled them "registered" — a tier claim the client would then draw
+        # its gate from.
+        "tier": "pro" if pro else ("registered" if registered else "anonymous"),
         "scope": "full",
         "cadence": granularity,
     }}
@@ -1377,10 +1437,138 @@ def _entitlement_error(gated: dict, registered: bool) -> HTTPException:
     return HTTPException(401 if not registered else 402, detail)
 
 
+# --- embedded maps ---------------------------------------------------------
+#
+# THE DAILY CADENCE IS FREE INSIDE A PUBLISHED ARTICLE OR RESEARCH REPORT, AND
+# NOWHERE ELSE (Pete's call, 2026-09-04).
+#
+# The point of the widget is a reader clicking the map in a piece of writing and
+# getting the number. Refusing that on a daily map made the map look broken, and
+# the article is the shop window — a visitor who cannot read the one number the
+# paragraph is about does not become a subscriber, they leave.
+#
+# **This is enforced, not asserted.** The obvious version of this feature is a
+# `context=article` flag that the server believes, which is a claim anyone can
+# make by hand — it would not open daily surfaces inside articles, it would open
+# them everywhere, and quietly. So the caller names the article, and the server
+# checks that the PUBLISHED article really does embed a surface map at exactly
+# the address being probed. A reader can therefore probe what an editor chose to
+# publish, and nothing else:
+#
+#   - a draft grants nothing (`status == 'published'` only)
+#   - a different layer, statistic or step in the same article grants nothing
+#   - deleting the widget from the article revokes it on the next request
+#
+# What this does NOT open: the Atlas, `/available` at any tier, `/point`, or a
+# daily probe with no article behind it. Those are the product.
+
+
+def _tiptap_surface_maps(node) -> list[dict]:
+    """Every `surface_map` widget in a Tiptap document, at any depth."""
+    found: list[dict] = []
+    if isinstance(node, list):
+        for child in node:
+            found.extend(_tiptap_surface_maps(child))
+        return found
+    if not isinstance(node, dict):
+        return found
+    attrs = node.get("attrs") or {}
+    if node.get("type") == "climateWidget" and attrs.get("widgetType") == "surface_map":
+        found.append(attrs)
+    found.extend(_tiptap_surface_maps(node.get("content")))
+    return found
+
+
+def _embed_configs(db: Session, article_slug: Optional[str],
+                   research_slug: Optional[str]) -> list[dict]:
+    """The surface-map configs a published page embeds. Empty for anything else.
+
+    Both hosts store the SAME config shape — the frontend's
+    `surfaceMapConfig` — one as Tiptap node attributes and one as a JSONB
+    column, so one comparison below serves both.
+    """
+    configs: list[dict] = []
+
+    if article_slug:
+        article = (db.query(Article)
+                   .filter(Article.slug == article_slug,
+                           Article.status == "published")
+                   .first())
+        if article and isinstance(article.body, dict):
+            configs.extend(_tiptap_surface_maps(article.body.get("content")))
+
+    if research_slug:
+        report = (db.query(ResearchReport)
+                  .filter(ResearchReport.slug == research_slug,
+                          ResearchReport.status == "published")
+                  .first())
+        if report:
+            configs.extend(
+                sec.content for sec in report.sections
+                if sec.section_type == "map" and isinstance(sec.content, dict))
+
+    return configs
+
+
+def _embed_grants(db: Session, info: dict, article_slug: Optional[str],
+                  research_slug: Optional[str], variable: str,
+                  granularity: str, statistic: Optional[str],
+                  stamp: Optional[str]) -> bool:
+    """Does a published page embed a map at EXACTLY this address?
+
+    `stamp` must already be normalised, and must not be None: an embedded map
+    always resolves its own step before it probes (`ArticleSurfaceMap` passes
+    `valid_at` on every request), so a probe with no date is by definition not
+    coming from one and gets the ordinary gate.
+
+    `info` is the UNGATED availability the caller already loaded, which is where
+    a `followLatest` map's step comes from — no second query.
+    """
+    if not stamp or not (article_slug or research_slug):
+        return False
+
+    configs = _embed_configs(db, article_slug, research_slug)
+    if not configs:
+        return False
+
+    steps = info.get("steps") or []
+    newest = steps[-1]["valid_at"] if steps else None
+
+    for cfg in configs:
+        if not isinstance(cfg, dict):
+            continue
+        if cfg.get("variable") != variable:
+            continue
+
+        # CADENCE INTENT, matched both ways. A stored 'daily' may only unlock a
+        # daily probe, and a stored monthly may not unlock one — otherwise an
+        # article embedding one harmless monthly map would open the daily
+        # surface for that layer, which is the whole thing being sold.
+        wants_daily = cfg.get("cadence") == "daily"
+        if wants_daily != (granularity in PRO_GRANULARITIES):
+            continue
+
+        # The statistic the widget actually renders with, defaulted the same way
+        # the request was. A daily surface has none.
+        if _default_statistic(granularity, cfg.get("statistic") or None) != statistic:
+            continue
+
+        # THE STEP. A pinned map grants its pin and nothing either side of it; a
+        # `followLatest` map grants whatever is newest at this moment, which is
+        # the only step it can be drawing.
+        granted = newest if cfg.get("followLatest") is True else cfg.get("validAt")
+        if granted and _normalise_stamp(granularity, str(granted)) == stamp:
+            return True
+
+    return False
+
+
 def _real_probe(db: Session, lon: float, lat: float, variable: str,
                 granularity: str, valid_at: Optional[str],
                 statistic: Optional[str],
-                registered: bool, pro: bool) -> ProbeResponse:
+                registered: bool, pro: bool,
+                article_slug: Optional[str] = None,
+                research_slug: Optional[str] = None) -> ProbeResponse:
     if variable not in UNITS:
         raise HTTPException(422, f"unknown variable {variable!r}")
     stat = _default_statistic(granularity, statistic)
@@ -1390,7 +1578,47 @@ def _real_probe(db: Session, lon: float, lat: float, variable: str,
     # step apart from an absent one below. Re-deriving the tier rules here is
     # how the two would drift the first time either moved.
     info = store.availability(db, variable, granularity, stat)
-    gated = _gate_steps(info, granularity, registered, pro)
+
+    # AN EMBEDDED MAP LIFTS THE CADENCE GATE TOO, for the one address it draws.
+    # Checked against the published page rather than taken on the caller's word
+    # — see `_embed_grants`. Everything else falls through to the ordinary rule.
+    #
+    # The grant needs the stamp the caller asked for, which is why it is
+    # resolved here rather than below: an embedded map always sends `valid_at`,
+    # so a request without one is not from one and needs no grant.
+    embedded = False
+    if valid_at and (article_slug or research_slug):
+        try:
+            embedded = _embed_grants(
+                db, info, article_slug, research_slug, variable, granularity,
+                stat, _normalise_stamp(granularity, valid_at))
+        except HTTPException:
+            raise
+        except Exception:                                          # noqa: BLE001
+            # A malformed body or a slug that does not resolve must never take
+            # the endpoint down — it just means no grant, and the ordinary gate
+            # answers. Logged because a grant silently never matching would
+            # look like the feature was never built.
+            logger.exception("embed grant check failed for %s/%s",
+                             article_slug, research_slug)
+            embedded = False
+
+    if embedded:
+        # The UNGATED list, plus an access block that says WHY it was opened.
+        # `scope: 'embed'` is deliberately not 'full': this caller may read one
+        # address, not the cadence, and a client that treated it as full would
+        # draw a scrubber it cannot use.
+        gated = {**info, "access": {
+            "tier": "pro" if pro else ("registered" if registered else "anonymous"),
+            "scope": "embed",
+            "cadence": granularity,
+            "granted_by": "article" if article_slug else "research",
+        }}
+    else:
+        # THE CADENCE RULE ONLY. `enforce_date=False` is what makes the whole
+        # monthly archive probeable by anyone who can already see the tile; the
+        # daily cadence is still refused here exactly as it is in the catalogue.
+        gated = _gate_steps(info, granularity, registered, pro, enforce_date=False)
     steps = gated.get("steps") or []
 
     if granularity == "records":
@@ -1410,8 +1638,13 @@ def _real_probe(db: Session, lon: float, lat: float, variable: str,
         if not any(s["valid_at"] == stamp for s in steps):
             # Two very different answers wear the same shape here: a step that
             # exists but is behind a tier, and one that does not exist at all.
-            # Reporting a withheld month as missing would tell a visitor the
+            # Reporting a withheld step as missing would tell a visitor the
             # archive has a hole in it.
+            #
+            # Since 2026-09-04 the only tier that can withhold a step HERE is
+            # the daily cadence — `steps` is the full archive at every free
+            # cadence — so at a free cadence this branch means genuinely
+            # missing, and 404 is the right answer.
             if any(s["valid_at"] == stamp for s in (info.get("steps") or [])):
                 raise _entitlement_error(gated, registered)
             raise HTTPException(404, f"no {variable} surface for {valid_at}")

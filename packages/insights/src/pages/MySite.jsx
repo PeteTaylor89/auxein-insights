@@ -3,6 +3,9 @@
 // Four states, and the honesty of the middle two is most of the work:
 //
 //   not entitled   show what it is and what it costs. No teasing chart.
+//   entitled, no    Pro but holding no point: a Grow user, an enterprise
+//   point           account member, or a subscriber who has not bought one.
+//                   They are NOT sent to the placement map — see below.
 //   empty slot     place a point, with the quota stated BEFORE it is spent.
 //   populating     say what is happening and roughly how long. Never a bare
 //                  spinner — the extraction takes minutes and a spinner that
@@ -51,6 +54,9 @@ function MySite() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = usePublicAuth();
   const pro = isPro(user);
+  // Someone entitled through an enterprise account gets a different sentence
+  // below: their sites exist, they are just not theirs personally.
+  const hasPortfolio = (user?.portfolio_accounts?.length || 0) > 0;
 
   const [authOpen, setAuthOpen] = useState(false);
   const [picked, setPicked] = useState(null);
@@ -158,6 +164,39 @@ function MySite() {
         >
           {loading ? (
             <p className="my-site__loading"><Loader size={16} className="spin" /> Loading…</p>
+          ) : !site && quota && quota.entitled === 0 ? (
+            // Pro, but holding no point and unable to place one. Gating the nav
+            // on `is_pro` used to land these people HERE, on a placement map
+            // above a permanently disabled button and the line "your
+            // subscription covers 0 sites" — an offer withdrawn in the same
+            // breath it was made, and the exact bait-and-switch the quota line
+            // was written to avoid. Five Grow users were already in this state
+            // before account members existed.
+            //
+            // The nav no longer links here for them, but the URL is shareable
+            // and bookmarkable, so arriving directly has to say something true.
+            <section className="my-site__none">
+              <h2>A saved site is a separate subscription</h2>
+              {hasPortfolio ? (
+                <p>
+                  Your access comes through{' '}
+                  <strong>{user.portfolio_accounts[0].name}</strong>, which
+                  covers that organisation’s monitored sites rather than a point
+                  of your own. Open the{' '}
+                  <Link to="/pro/portfolio">portfolio</Link> to see them.
+                </p>
+              ) : (
+                <p>
+                  Your Insights access does not include a point of your own. A
+                  saved site is priced separately and each one carries a single
+                  point.
+                </p>
+              )}
+              <button type="button" className="my-site__cta"
+                      onClick={() => navigate('/pro')}>
+                What a saved site adds
+              </button>
+            </section>
           ) : !site ? (
             <section className="my-site__place">
               {quota && (

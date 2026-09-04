@@ -54,7 +54,7 @@ from __future__ import annotations
 import math
 from calendar import monthrange
 from datetime import date, timedelta
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -295,8 +295,42 @@ def build(db: Session, site, vintage: int,
     site_level = site_month_normal(db, site.id, lo, hi)
     adjustments = month_adjustments(zone_level, site_level)
 
+    days, totals, meta = project_days(curve, adjustments, vintage)
+    return {
+        "vintage": vintage,
+        "baseline": f"{lo}-{hi}",
+        "zone_id": site.zone_id,
+        "days": days,
+        "season_totals": totals,
+        "meta": {
+            "method": ("zone daily shape, site monthly level; GDD re-integrated "
+                       "from the shifted mean and the zone's day-of-vintage sd"),
+            "shape_source": "climate_zone_daily_baseline (1986-2005, per zone)",
+            "level_source": "insights_site_monthly (1986-2005, this cell)",
+            "interpolated_days": meta["interpolated_days"],
+            # A month with no site normal is left at the zone's own level. Say
+            # so rather than presenting a partly-regional curve as site-level.
+            "unadjusted_months": meta["unadjusted_months"],
+            "adjustments": {str(m): a for m, a in sorted(adjustments.items())},
+        },
+    }
+
+
+def project_days(curve: dict[int, dict], adjustments: dict[int, dict],
+                 vintage: int) -> tuple[list[dict], dict, dict]:
+    """The zone curve, rescaled to one site's level, across one Sep-Apr season.
+
+    Split out of `build` so the portfolio can run it for sixty-eight sites
+    without sixty-eight round trips. It is pure arithmetic over data the caller
+    has already fetched — no session, no I/O — which is the whole reason the
+    bulk path can afford to run it per site.
+    """
     days = []
     cum = {"gdd10": 0.0, "rain": 0.0, "frost_nights": 0.0, "hot_days": 0.0}
+    # Running mean temperature, kept as a sum and a count rather than a mean:
+    # the season-to-date comparison averages over the days ELAPSED, and a mean
+    # of means over unequal spans is not that number.
+    tmean_sum, tmean_n = 0.0, 0
     interpolated_days = 0
     unadjusted_months: set[int] = set()
 
@@ -329,6 +363,8 @@ def build(db: Session, site, vintage: int,
 
         cum["gdd10"] += gdd10
         cum["rain"] += rain
+        tmean_sum += tmean
+        tmean_n += 1
         cum["frost_nights"] += frost_p
         cum["hot_days"] += hot_p
 
@@ -343,31 +379,18 @@ def build(db: Session, site, vintage: int,
             "frost_probability": frost_p, "hot_day_probability": hot_p,
             "gdd10_cumulative": cum["gdd10"],
             "rain_cumulative": cum["rain"],
+            "tmean_to_date": tmean_sum / tmean_n,
             "frost_nights_cumulative": cum["frost_nights"],
             "hot_days_cumulative": cum["hot_days"],
             "interpolated": bool(row.get("interpolated")),
         })
 
-    return {
-        "vintage": vintage,
-        "baseline": f"{lo}-{hi}",
-        "zone_id": site.zone_id,
-        "days": days,
-        "season_totals": {
-            "gdd10": cum["gdd10"], "rain": cum["rain"],
-            "frost_nights": cum["frost_nights"], "hot_days": cum["hot_days"],
-        },
-        "meta": {
-            "method": ("zone daily shape, site monthly level; GDD re-integrated "
-                       "from the shifted mean and the zone's day-of-vintage sd"),
-            "shape_source": "climate_zone_daily_baseline (1986-2005, per zone)",
-            "level_source": "insights_site_monthly (1986-2005, this cell)",
-            "interpolated_days": interpolated_days,
-            # A month with no site normal is left at the zone's own level. Say
-            # so rather than presenting a partly-regional curve as site-level.
-            "unadjusted_months": sorted(unadjusted_months),
-            "adjustments": {str(m): a for m, a in sorted(adjustments.items())},
-        },
+    return days, {
+        "gdd10": cum["gdd10"], "rain": cum["rain"],
+        "frost_nights": cum["frost_nights"], "hot_days": cum["hot_days"],
+    }, {
+        "interpolated_days": interpolated_days,
+        "unadjusted_months": sorted(unadjusted_months),
     }
 
 
@@ -388,12 +411,134 @@ def totals_to(baseline: dict, through: date) -> dict:
         last = day
     if last is None:
         return {"gdd10": None, "rain": None, "frost_nights": None,
-                "hot_days": None, "through": None, "day_of_season": 0}
+                "hot_days": None, "tmean": None,
+                "through": None, "day_of_season": 0}
     return {
         "gdd10": last["gdd10_cumulative"],
         "rain": last["rain_cumulative"],
         "frost_nights": last["frost_nights_cumulative"],
         "hot_days": last["hot_days_cumulative"],
+        # A MEAN, not an accumulation, and therefore the one field here that is
+        # not a running total. Averaged over the days elapsed so it compares
+        # against a season-to-date mean rather than a season-long one.
+        "tmean": last.get("tmean_to_date"),
         "through": last["date"],
         "day_of_season": last["day_of_season"],
     }
+
+
+# --- the same curve, for a whole account at once -----------------------------
+#
+# WHY THIS EXISTS AT ALL: the portfolio compared a season-to-date GDD against a
+# WHOLE-SEASON long-term average. On 2 September that reads "2.7 GDD against a
+# normal of 1,041" — a site 1,038 GDD behind, every season, until about March.
+# The column was unreadable for two thirds of the year, which is most of the
+# year anyone is watching it.
+#
+# The fix needs the baseline's accumulation to the SAME DAY, and that is what
+# `totals_to` already returns for one site. Doing it the obvious way — call
+# `build` in a loop — is two queries per site, so 136 round trips on a page that
+# currently runs one. Hence a bulk path: two queries total, and the per-site
+# arithmetic (242 days of pure Python) runs from what they returned.
+
+
+def zone_curves(db: Session, zone_ids: Sequence[int]) -> dict[int, dict]:
+    """Several zones' daily climatologies, in one query.
+
+    A zone with no baseline is simply absent from the result, exactly as
+    `zone_curve` returns {} for it. Zone 21, South Coast, is the one such zone.
+    """
+    ids = sorted({int(z) for z in zone_ids if z is not None})
+    if not ids:
+        return {}
+    rows = db.execute(text(f"""
+        SELECT zone_id, day_of_vintage, {', '.join(_ZONE_FIELDS)}
+          FROM climate_zone_daily_baseline
+         WHERE zone_id = ANY(:zids)
+         ORDER BY zone_id, day_of_vintage
+    """), {"zids": ids}).mappings().all()
+
+    out: dict[int, dict] = {}
+    for r in rows:
+        out.setdefault(r["zone_id"], {})[r["day_of_vintage"]] = {
+            f: (float(r[f]) if r[f] is not None else None) for f in _ZONE_FIELDS}
+    for curve in out.values():
+        _fill_missing_day(curve)
+    return out
+
+
+def site_month_normals(db: Session, site_ids: Sequence[int],
+                       lo: int = BASELINE_LO,
+                       hi: int = BASELINE_HI) -> dict[int, dict[int, dict]]:
+    """Several sites' own monthly normals, in one query. Shape as per site."""
+    ids = sorted({int(s) for s in site_ids})
+    if not ids:
+        return {}
+    rows = db.execute(text("""
+        SELECT site_id, variable, statistic, month,
+               avg(value) AS avg, count(*) AS n
+          FROM insights_site_monthly
+         WHERE site_id = ANY(:sids) AND year BETWEEN :lo AND :hi
+           AND value IS NOT NULL
+         GROUP BY site_id, variable, statistic, month
+    """), {"sids": ids, "lo": lo, "hi": hi}).mappings().all()
+
+    indexed: dict[int, dict] = {}
+    for r in rows:
+        indexed.setdefault(r["site_id"], {})[
+            (r["variable"], r["statistic"], r["month"])] = (float(r["avg"]), r["n"])
+
+    out: dict[int, dict[int, dict]] = {}
+    for site_id, hits in indexed.items():
+        months: dict[int, dict] = {}
+        for month in range(1, 13):
+            entry = {}
+            for key, (variable, statistic) in _SITE_BANDS.items():
+                hit = hits.get((variable, statistic, month))
+                if hit:
+                    entry[key], entry[f"{key}_n"] = hit
+            if entry:
+                months[month] = entry
+        out[site_id] = months
+    return out
+
+
+def totals_to_date(db: Session, sites: Sequence[tuple], vintage: int,
+                   lo: int = BASELINE_LO,
+                   hi: int = BASELINE_HI) -> dict[int, dict]:
+    """{site_id: baseline totals to that site's own `through` date}.
+
+    `sites` is (site_id, zone_id, through) per site. **`through` is per site on
+    purpose**: two sites whose daily record ends on different days must be
+    measured against different points on the curve, or the one with the shorter
+    record looks behind when it is only newer.
+
+    A site with no zone, no zone baseline or no `through` is absent from the
+    result. The caller renders no comparison rather than a regional stand-in —
+    the same rule `build` follows.
+    """
+    wanted = [(int(sid), zid, through) for sid, zid, through in sites
+              if zid is not None and through is not None]
+    if not wanted:
+        return {}
+
+    curves = zone_curves(db, [z for _s, z, _t in wanted])
+    levels = site_month_normals(db, [s for s, _z, _t in wanted], lo, hi)
+
+    # One projection per (zone, site) pair, cached on the zone because
+    # `zone_month_level` integrates 242 days and several sites share a zone.
+    zone_levels = {zid: zone_month_level(c) for zid, c in curves.items()}
+
+    out: dict[int, dict] = {}
+    for site_id, zone_id, through in wanted:
+        curve = curves.get(zone_id)
+        if not curve:
+            continue
+        adjustments = month_adjustments(zone_levels[zone_id],
+                                        levels.get(site_id, {}))
+        days, season_totals, _meta = project_days(curve, adjustments, vintage)
+        totals = totals_to({"days": days}, through)
+        totals["season_totals"] = season_totals
+        totals["baseline"] = f"{lo}-{hi}"
+        out[site_id] = totals
+    return out

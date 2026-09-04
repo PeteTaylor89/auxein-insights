@@ -315,7 +315,9 @@ def _read_cell(rec: dict, row: int, col: int) -> Optional[float]:
     return v
 
 
-def extract_monthly(db: Session, site: InsightsSite) -> list[tuple]:
+def extract_monthly(db: Session, site: InsightsSite,
+                    year: Optional[int] = None,
+                    month: Optional[int] = None) -> list[tuple]:
     """Every (variable, statistic, year, month, value) at this site's cell.
 
     One windowed 1x1 read per surface object, ~7,700 of them, run concurrently
@@ -328,17 +330,31 @@ def extract_monthly(db: Session, site: InsightsSite) -> list[tuple]:
     whereas failing the whole extraction over it hands a paying customer
     nothing. A cell that is unreadable EVERYWHERE is caught by the caller,
     which checks that anything at all came back with a value.
+
+    ## `year` / `month` narrow it to ONE month
+
+    Placement needs the whole record and pays ~7,700 reads once. The monthly
+    extension needs the ten values that have just been published and would
+    otherwise pay the same 7,700 to write them — every month, for every site,
+    forever. Passing a month makes that ten reads. The default is unchanged, so
+    nothing that already calls this had to change.
     """
     from concurrent.futures import ThreadPoolExecutor
 
     wanted = _bands()
-    rows = [r for r in db.execute(text("""
+    window = ""
+    params: dict = {"vars": list(wanted)}
+    if year is not None:
+        window = (" AND EXTRACT(YEAR FROM valid_at) = :y"
+                  " AND EXTRACT(MONTH FROM valid_at) = :m")
+        params |= {"y": year, "m": month}
+    rows = [r for r in db.execute(text(f"""
         SELECT variable, statistic, valid_at, s3_key
           FROM surface_run
          WHERE granularity = 'monthly' AND status <> 'failed'
-           AND variable = ANY(:vars)
+           AND variable = ANY(:vars){window}
          ORDER BY variable, statistic, valid_at
-    """), {"vars": list(wanted)}).mappings().all()
+    """), params).mappings().all()
         if r["statistic"] in wanted.get(r["variable"], ())]
 
     row_i, col_i = site.grid_row, site.grid_col

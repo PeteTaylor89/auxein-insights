@@ -1,0 +1,92 @@
+/* components/pro/SeasonProgressChart.css
+   The season curve, under the season's tiles. It shares the panel it sits in,
+   so it carries no border or background of its own — a second card inside a
+   card reads as two separate answers to one question. */
+
+.season-chart {
+  margin-top: var(--space-4, 16px);
+  padding-top: var(--space-4, 16px);
+  border-top: 1px solid var(--color-border, #e5e2dc);
+}
+
+.season-chart__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3, 12px) var(--space-4, 16px);
+  margin-bottom: var(--space-3, 12px);
+}
+
+.season-chart__pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The two groups do different jobs — one picks WHAT is plotted, the other picks
+   what it is read AGAINST — so the second is labelled rather than left to look
+   like more of the first. */
+.season-chart__pills--compare { margin-left: auto; }
+
+.season-chart__pills-label {
+  margin-right: 2px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.season-chart__pill {
+  padding: 4px 11px;
+  border: 1px solid var(--color-border, #e5e2dc);
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #2c2a26);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.season-chart__pill:hover { border-color: var(--color-accent, #3f6f4a); }
+
+.season-chart__pill.is-active {
+  background: var(--color-accent, #3f6f4a);
+  border-color: var(--color-accent, #3f6f4a);
+  color: #fff;
+}
+
+/* A fixed height, because the chart is `maintainAspectRatio: false`. Without
+   one Chart.js grows to fill its parent and the parent grows to fit the chart. */
+.season-chart__plot {
+  position: relative;
+  height: 280px;
+}
+
+.season-chart__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: var(--space-3, 12px) 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.season-chart__note svg { flex: 0 0 auto; margin-top: 2px; }
+
+.season-chart__state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--space-4, 16px) 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+@media (max-width: 640px) {
+  .season-chart__plot { height: 230px; }
+  /* Stacked, and the comparison group loses its right-alignment — pushed to
+     the far edge of a narrow screen it separates from the label that explains
+     what it does. */
+  .season-chart__pills--compare { margin-left: 0; }
+}

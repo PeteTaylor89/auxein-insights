@@ -8,12 +8,30 @@
 // error. `unavailable` is separated from `error` so a panel can hide itself
 // quietly in that case instead of showing an outage to a user.
 //
-// **The response depends on who is asking.** The free rule is a CADENCE
-// (2026-08-25): the whole monthly archive is open to everyone, and the daily
-// surface is Pro. That makes identity a dependency of this fetch — without it,
-// upgrading leaves a daily layer locked until the page is reloaded, which reads
-// as the purchase not having worked. Hence the auth context is consumed here
-// rather than being pushed in by every caller.
+// **The response depends on who is asking.** TWO rules, both enforced by
+// `surfaces._gate_steps` and neither of them re-derivable here:
+//
+//   CADENCE  the daily surface is Pro. A non-Pro caller gets an EMPTY step
+//            list and null first/last, with the real span moved into
+//            `meta.access` as an offer.
+//   DATE     at a free cadence, a SIGNED-OUT caller gets the newest step
+//            only. The 1986 archive behind it needs an account.
+//
+// The DATE rule is THIS endpoint's alone. `/probe` runs the same gate with
+// `enforce_date=False` (2026-09-04), so a value can be read off any published
+// monthly step by anyone — what an account buys is the ability to CHOOSE the
+// step, which is what this catalogue answers. A component must not infer one
+// endpoint's gate from the other's step list.
+//
+// (This block used to say the whole monthly archive was open to everyone. That
+// was true of the 2026-08-25 cadence rule and stopped being true when the date
+// rule landed beside it; anything reasoning about what a reader may probe must
+// read the step list, not this comment's history.)
+//
+// That makes identity a dependency of this fetch — without it, upgrading
+// leaves a daily layer locked until the page is reloaded, which reads as the
+// purchase not having worked. Hence the auth context is consumed here rather
+// than being pushed in by every caller.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   getAvailable,

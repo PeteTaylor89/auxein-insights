@@ -3,6 +3,13 @@ import { useState, useEffect } from 'react';
 import { X, BarChart3 } from 'lucide-react';
 import { getAllZones } from '../../services/realtimeClimateService';
 import { getZoneSeasons } from '../../services/publicClimateService';
+import { cadenceFor, statisticFor, DEFAULT_STATISTIC } from '../../services/surfaceService';
+import SurfaceMapFields from '../surfaces/SurfaceMapFields';
+import {
+  DEFAULT_SURFACE_CONFIG,
+  normaliseConfig,
+  isConfigComplete,
+} from '../surfaces/surfaceMapConfig';
 
 const WIDGET_TYPES = [
   { value: 'gdd_progress', label: 'GDD Progress', metrics: [], modes: ['chart', 'table'] },
@@ -15,7 +22,11 @@ const WIDGET_TYPES = [
   { value: 'region_trend_compare', label: 'Region Trend Comparison (fixed)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
   { value: 'region_trend_compare_interactive', label: 'Region Trend Comparison (reader picks)', metrics: ['gdd', 'rain', 'tmean', 'tmax'], modes: ['chart'] },
   { value: 'projection_outlook', label: 'Climate Projection (stat block)', metrics: [], modes: ['chart'] },
+  // `modes: ['chart']` is a placeholder, not a claim: the Display picker only
+  // renders when a type offers MORE than one mode, and a surface has none.
+  { value: 'surface_map', label: 'Climate Surface Map (click for values)', metrics: [], modes: ['chart'] },
 ];
+
 
 const METRIC_LABELS = {
   gdd: 'Growing Degree Days',
@@ -64,6 +75,13 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const [scenario, setScenario] = useState('SSP245');
   const [period, setPeriod] = useState('2041_2060');
 
+  // --- surface_map ---------------------------------------------------------
+  // ONE object, not nine useStates, because this exact shape is what gets
+  // stored — as Tiptap attrs here and as a JSONB column in a research section.
+  // Keeping the editing shape identical to the storage shape is what stops the
+  // two authoring systems from drifting. See `surfaceMapConfig`.
+  const [surfaceCfg, setSurfaceCfg] = useState(DEFAULT_SURFACE_CONFIG);
+
   useEffect(() => {
     getAllZones().then((data) => {
       const list = data?.zones || data || [];
@@ -85,11 +103,24 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const isMultiZoneInteractive = widgetType === 'region_trend_compare_interactive';
   const isMultiZone = isMultiZoneFixed || isMultiZoneInteractive;
   const isProjection = widgetType === 'projection_outlook';
-  const showSeasonLimit = isHistoricalTrend || isMultiZone;
-  const showBaselineToggle = isHistoricalTrend || isMultiZone;
-  const showStaticToggle = !isMultiZoneInteractive; // interactive can't be static
-  const showSingleZonePicker = !isMultiZone;
+  const isSurface = widgetType === 'surface_map';
+  const showSeasonLimit = (isHistoricalTrend || isMultiZone) && !isSurface;
+  const showBaselineToggle = (isHistoricalTrend || isMultiZone) && !isSurface;
+  // A surface has no series to freeze — its value is fetched per CLICK, so
+  // there is nothing a snapshot could embed.
+  const showStaticToggle = !isMultiZoneInteractive && !isSurface;
+  const showSingleZonePicker = !isMultiZone && !isSurface;
   const showMultiZonePicker = isMultiZone;
+
+  // The catalogue, the cadence/statistic/step rules and the author warning all
+  // live in `SurfaceMapFields` now, because the research editor needs exactly
+  // the same ones. What is still needed HERE is only what `handleInsert` writes
+  // into the node.
+  const surfGranularity = cadenceFor(surfaceCfg.variable, surfaceCfg.cadence);
+  const surfWireStatistic = statisticFor(
+    surfGranularity,
+    surfaceCfg.statistic || DEFAULT_STATISTIC[surfaceCfg.variable] || 'mean',
+  );
 
   // Load available seasons when zone or widget type changes (only if season_comparison)
   useEffect(() => {
@@ -146,6 +177,9 @@ function ClimateWidgetInserter({ editor, onClose }) {
 
   const canInsert = (() => {
     if (!editor) return false;
+    // A surface needs a step to draw, unless it is deliberately following the
+    // newest one. No zone is involved, so none of the zone rules below apply.
+    if (isSurface) return isConfigComplete(surfaceCfg);
     if (isMultiZoneFixed) return selectedZones.length >= 2;
     if (isMultiZoneInteractive) return true; // 0-2 defaults allowed
     if (!zoneSlug) return false;
@@ -156,14 +190,35 @@ function ClimateWidgetInserter({ editor, onClose }) {
   const handleInsert = () => {
     if (!canInsert) return;
     const sortedVintages = [...selectedVintages].sort((a, b) => b - a);
+    // Normalised, plus two resolutions that belong to the moment of insertion
+    // rather than to the form: the cadence the VARIABLE actually publishes, and
+    // an empty `validAt` when following the newest step — a stale date sitting
+    // beside `followLatest: true` is a contradiction in the saved document that
+    // the next author to open it has to guess about.
+    const surfaceNodeAttrs = {
+      ...normaliseConfig(surfaceCfg),
+      // `cadence` stores the author's REQUEST ('monthly' | 'daily'), not the
+      // resolved granularity. It used to store the resolved one, which wrote
+      // 'season' for a GDD layer — a value `normaliseConfig` does not accept
+      // and silently rewrote to 'monthly' on the way back out. Resolution is
+      // the renderer's job (`cadenceFor`), and the server's embed grant reads
+      // this field to decide whether a daily probe was authorised, so it has to
+      // mean exactly what the author picked.
+      validAt: surfaceCfg.followLatest ? '' : normaliseConfig(surfaceCfg).validAt,
+      statistic: surfWireStatistic || '',
+    };
     const multiSlugs = selectedZones.map((z) => z.slug).join(',');
     const multiNames = selectedZones.map((z) => z.name).join(', ');
     editor.chain().focus().insertContent({
       type: 'climateWidget',
       attrs: {
         widgetType,
-        zoneSlug: isMultiZone ? '' : zoneSlug,
-        zoneName: isMultiZone ? '' : zoneName,
+        // A surface is national and has no zone. Writing the zone picker's
+        // leftover selection into the node would leave a slug in the document
+        // that nothing reads and that reads, to anyone inspecting it later, as
+        // a zone the map is supposed to be showing.
+        zoneSlug: isMultiZone || isSurface ? '' : zoneSlug,
+        zoneName: isMultiZone || isSurface ? '' : zoneName,
         zoneSlugs: isMultiZone ? multiSlugs : '',
         zoneNames: isMultiZone ? multiNames : '',
         metric: metric || (availableMetrics[0] || ''),
@@ -175,6 +230,10 @@ function ClimateWidgetInserter({ editor, onClose }) {
         seasonLimit: showSeasonLimit ? seasonLimit : 10,
         scenario: isProjection ? scenario : '',
         period: isProjection ? period : '',
+        // surface_map. Written even when unused so the node always carries a
+        // complete attribute set; the renderer keys on `widgetType`, never on
+        // whether an attribute happens to be empty.
+        ...(isSurface ? surfaceNodeAttrs : DEFAULT_SURFACE_CONFIG),
       },
     }).run();
     onClose();
@@ -272,6 +331,15 @@ function ClimateWidgetInserter({ editor, onClose }) {
                 {selectedZones.length} selected
               </div>
             </div>
+          )}
+
+          {isSurface && (
+            <SurfaceMapFields
+              value={surfaceCfg}
+              onChange={setSurfaceCfg}
+              fieldStyle={fieldStyle}
+              labelStyle={labelStyle}
+            />
           )}
 
           {showSeasonLimit && (

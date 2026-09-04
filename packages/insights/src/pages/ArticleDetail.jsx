@@ -206,6 +206,20 @@ function ArticleDetail() {
               // has no published_at, so it renders live — which is what an
               // unpublished article should do.
               asOf={article?.published_at || null}
+              // surface_map only. Ignored by every other widget type.
+              variable={node.attrs?.variable || 'temp_mean'}
+              cadence={node.attrs?.cadence || 'monthly'}
+              validAt={node.attrs?.validAt || ''}
+              statistic={node.attrs?.statistic || ''}
+              followLatest={node.attrs?.followLatest === true}
+              mapHeight={node.attrs?.mapHeight || 420}
+              mapCentre={node.attrs?.mapCentre || ''}
+              mapZoom={node.attrs?.mapZoom ?? null}
+              basemap={node.attrs?.basemap || 'light'}
+              // Only for a PUBLISHED article — the server refuses to grant off
+              // a draft anyway, and sending the slug regardless would make a
+              // draft preview look like it works and then change on publish.
+              embed={article?.status === 'published' ? { article: slug } : null}
             />
           </Suspense>
         );

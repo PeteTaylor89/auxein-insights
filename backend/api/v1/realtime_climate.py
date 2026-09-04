@@ -245,34 +245,17 @@ def get_baseline_gdd_for_day(db: Session, zone_id: int, day_of_vintage: int) -> 
     return Decimal(str(baseline.gdd_base0_cumulative_avg))
 
 
-def get_aug31_gdd_offset(db: Session, zone_id: int) -> Decimal:
-    """
-    Get the GDD accumulated from July 1 to August 31 for a zone.
-
-    This offset is subtracted from current season gdd_cumulative (which starts July 1)
-    to get GDD from September 1 for season comparisons.
-    """
-    aug31_baseline = db.query(ClimateZoneDailyBaseline).filter(
-        ClimateZoneDailyBaseline.zone_id == zone_id,
-        ClimateZoneDailyBaseline.day_of_vintage == 62  # August 31
-    ).first()
-
-    if aug31_baseline and aug31_baseline.gdd_base0_cumulative_avg:
-        return Decimal(str(aug31_baseline.gdd_base0_cumulative_avg))
-    return Decimal('0')
-
-
-def adjust_gdd_to_sep1(gdd_from_july1: Decimal, aug31_offset: Decimal, day_of_vintage: int) -> Decimal:
-    """
-    Adjust GDD cumulative from July 1 start to September 1 start.
-
-    Returns 0 if before September 1 (day 63).
-    """
-    if gdd_from_july1 is None:
-        return None
-    if day_of_vintage < 63:
-        return Decimal('0')
-    return max(Decimal('0'), Decimal(str(gdd_from_july1)) - aug31_offset)
+# `get_aug31_gdd_offset` and `adjust_gdd_to_sep1` were DELETED on 2026-08-30.
+#
+# They existed to convert `climate_zone_daily.gdd_cumulative` from a 1 July
+# start to a 1 September one, and they had no callers — the live adjustment is
+# done inline below, and does it better. Their docstrings asserted
+# "gdd_cumulative (which starts July 1)", which stopped being true when the
+# season gate moved into `aggregate_zone_daily_surface`, so anything reviving
+# them would have subtracted an offset that had already been applied.
+#
+# Dead code that documents a false invariant is worse than no code: it reads as
+# permission.
 
 
 # =============================================================================
@@ -896,6 +879,29 @@ def get_phenology_estimates(
 
             stages.append(staged(label, gdd_threshold, harvest_date,
                                  is_harvest_actual))
+
+        # ONLY THE NEXT STAGE CARRIES A DATE.
+        #
+        # This list is flowering followed by six sugar levels, and before the
+        # season is under way every one of them is a forward extrapolation from
+        # almost no measured season — printed identically, in one column, as if
+        # 220 g/L were as knowable as flowering. The same gate the Pro pages use
+        # runs here, off the same module, so a grower reading the region page
+        # and their own site page is told the same thing about the same model.
+        order = tuple(st.stage_name for st in stages)
+        progress = phenology_basis.stage_progress(
+            {st.stage_name: {"date": st.predicted_date,
+                             "is_actual": st.is_actual,
+                             "status": st.status} for st in stages},
+            today, order=order,
+            names={st.stage_name: st.stage_name for st in stages})
+        for st in stages:
+            state = progress[st.stage_name]
+            st.role, st.after, st.basis = (
+                state["role"], state["after"], state["basis"])
+            if state["role"] == "awaiting":
+                st.predicted_date = None
+                st.days_from_now = None
         
         # Calculate progress percentage (toward typical harvest ~200g/L)
         progress = None
@@ -1115,6 +1121,23 @@ def get_regional_overview(
             ClimateZoneDaily.date <= date(vintage_year - 1, 8, 31)
         ).order_by(ClimateZoneDaily.date.desc()).first()
 
+        # THIS SUBTRACTION IS NOW A NO-OP, AND IT STAYS ANYWAY.
+        #
+        # It reads the ACTUAL 31 August cumulative for this zone and vintage, not
+        # the baseline's — which is what makes it survive the change of
+        # provenance underneath it. Checked against both vintages on 2026-08-30:
+        #
+        #   vintage 2026  first row is 2025-09-01, so there IS no 31 August row
+        #                 and the lookup returns nothing -> offset 0
+        #   vintage 2027  July and August rows exist but their cumulative is 0,
+        #                 because `aggregate_zone_daily_surface` now starts the
+        #                 season on 1 September -> offset 0
+        #
+        # So it corrects nothing today. Removing it would be the wrong call: a
+        # vintage written by the old rollup, or any backfill that reintroduces a
+        # 1 July start, would silently show a winter's accumulation as season
+        # growth. Subtracting a value that is zero costs one query and is right
+        # in both eras, which a hardcoded assumption about the start date is not.
         actual_aug31_offset = Decimal(str(aug31_actual.gdd_cumulative)) if aug31_actual and aug31_actual.gdd_cumulative else Decimal('0')
 
         # Adjust actual GDD to September 1 start

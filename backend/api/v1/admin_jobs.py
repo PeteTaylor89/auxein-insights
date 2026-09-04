@@ -31,12 +31,33 @@ being lateness.
 
 ## Why some jobs are allowed to look old
 
-`max_age_hours` is the job's cadence plus its designed-in data lag, and for the
-surfaces that lag is deliberate and large. The daily fit targets D-2 because one
-Canterbury source lands ~24.8 h behind wall clock and carries ten thermometers
-in the largest temperature-deficit region in the country. So a *healthy*
-surfaces job produces a valid_at that is two days old, and comparing it against
-now() without that allowance would show permanent failure.
+`max_age_hours` is the job's cadence plus its designed-in data lag, and that lag
+is real: a job that scores whole days cannot produce a row stamped now().
+
+**These numbers were re-derived on 2026-09-03, when the chain moved from a D-2
+fit to a two-pass D-1 fit.** They were sized for the old cadence and had become
+far too loose — `surfaces` and `site_daily` sat at 78 h against a worst healthy
+age of 42.5 h, so the panel would have stayed green through more than two
+entirely missed mornings.
+
+The arithmetic for every job in the D-1 chain, and it is worth keeping because
+it is not obvious:
+
+  * The output is a DATE, and `date::timestamptz` is midnight UTC. So the age of
+    a freshly written D-1 row is not zero — it is the distance from midnight UTC
+    on D-1 to the moment the job ran.
+  * The morning chain finishes ~06:55 NZ, which is 18:55 UTC on D-1. A row that
+    has just been written is therefore ~19 h old.
+  * The next refresh is the 06:30 fit the following morning. Immediately before
+    it, the newest row is 42.5 h old. Under NZDT it is 41.5 h.
+
+So **42.5 h is the oldest a healthy D-1 job can look**, and `max_age` is 46 —
+about three and a half hours of headroom. A morning that fails entirely is past
+46 h by that evening, which is the point of picking a number this close.
+
+Do not read these as "how often the job runs". `surfaces` runs twice a day and
+`daily_aggregation` four times, and both still produce a date that only advances
+once a day; the granularity of the output sets the floor, not the schedule.
 
 ## Nothing here touches `weather_data` unbounded
 
@@ -94,11 +115,14 @@ JOBS = [
     {
         "key": "daily_aggregation",
         "name": "Daily aggregation",
-        "runs_on": "Fargate, 6-hourly :20 NZ",
+        "runs_on": "Fargate, 01:20/06:20/13:20/19:20 NZ",
         "cadence": "every 6 h",
         "produces": "weather_data_daily",
-        # 6 h cadence + up to 2 days of designed lag before a day is complete.
-        "max_age": 54.0,
+        # It runs four times a day but only ever completes whole NZ days, so the
+        # newest date advances once. The 01:20 run is the first to close the day
+        # that just ended; the oldest a healthy row gets is 37.3 h, just before
+        # it. 42 leaves headroom without waiting a whole extra cycle.
+        "max_age": 42.0,
         "sql": "SELECT max(date)::timestamptz FROM weather_data_daily",
         "detail_sql": """SELECT count(*) FROM weather_data_daily
                           WHERE date = (SELECT max(date) FROM weather_data_daily)""",
@@ -107,8 +131,12 @@ JOBS = [
     {
         "key": "daily_qc",
         "name": "Daily QC",
-        "runs_on": "Fargate, 03:00 + 18:00 NZ",
-        "cadence": "every 6 h",
+        # It runs in three different jobs: inside both surface fits (before the
+        # spline, so a bad value never reaches the surface), and as a stage of
+        # both the aggregate and the pipeline. Eight passes a day, so 12 h is
+        # loose already — there is no 03:00 job any more.
+        "runs_on": "Fargate, inside the fit + both pipelines",
+        "cadence": "8x daily",
         "produces": "weather_qc_run",
         "max_age": 12.0,
         # The run table, not the findings: a pass that finds nothing writes no
@@ -121,10 +149,13 @@ JOBS = [
     {
         "key": "zone_hourly",
         "name": "Hourly zone rollup",
-        "runs_on": "Fargate, 18:00 NZ",
-        "cadence": "daily",
+        "runs_on": "Fargate, 06:50 + 18:00 NZ",
+        "cadence": "twice daily",
         "produces": "climate_zone_hourly",
-        "max_age": 48.0,
+        # Real timestamps, not dates: the rollup reaches 23:00 NZ on D-1, so a
+        # fresh row is ~8 h old and the oldest healthy one is 31.5 h, just
+        # before the next morning pipeline. 48 was sized for one run a day.
+        "max_age": 36.0,
         "sql": "SELECT max(timestamp_utc) FROM climate_zone_hourly",
         "detail_sql": """SELECT count(DISTINCT zone_id) FROM climate_zone_hourly
                           WHERE timestamp_utc > now() - interval '48 hours'""",
@@ -133,10 +164,10 @@ JOBS = [
     {
         "key": "zone_daily",
         "name": "Daily zone rollup",
-        "runs_on": "Fargate, 18:00 NZ",
-        "cadence": "daily",
+        "runs_on": "Fargate, 06:50 + 18:00 NZ",
+        "cadence": "twice daily",
         "produces": "climate_zone_daily",
-        "max_age": 60.0,
+        "max_age": 46.0,
         "sql": "SELECT max(date)::timestamptz FROM climate_zone_daily",
         # 23 is the whole country. Anything less means a region page is empty,
         # which is the failure this rollup was rebuilt to fix.
@@ -147,10 +178,10 @@ JOBS = [
     {
         "key": "phenology",
         "name": "Phenology",
-        "runs_on": "Fargate, 18:00 NZ",
-        "cadence": "daily",
+        "runs_on": "Fargate, 06:50 + 18:00 NZ",
+        "cadence": "twice daily",
         "produces": "phenology_estimates",
-        "max_age": 60.0,
+        "max_age": 46.0,
         "sql": "SELECT max(estimate_date)::timestamptz FROM phenology_estimates",
         "detail_sql": None,
         "detail_label": None,
@@ -158,10 +189,10 @@ JOBS = [
     {
         "key": "disease_zone",
         "name": "Disease pressure (zones)",
-        "runs_on": "Fargate, 18:00 NZ",
-        "cadence": "daily",
+        "runs_on": "Fargate, 06:50 + 18:00 NZ",
+        "cadence": "twice daily",
         "produces": "disease_pressure",
-        "max_age": 60.0,
+        "max_age": 46.0,
         "sql": "SELECT max(date)::timestamptz FROM disease_pressure",
         "detail_sql": """SELECT count(DISTINCT zone_id) FROM disease_pressure
                           WHERE date = (SELECT max(date) FROM disease_pressure)""",
@@ -170,12 +201,14 @@ JOBS = [
     {
         "key": "surfaces",
         "name": "Daily surfaces",
-        "runs_on": "Fargate, 03:00 NZ",
-        "cadence": "daily",
+        "runs_on": "Fargate, 06:30 + 15:00 NZ",
+        "cadence": "twice daily",
         "produces": "surface_run",
-        # 24 h cadence + the deliberate D-2 target. A healthy fit is two days
-        # behind by design; see the module docstring.
-        "max_age": 78.0,
+        # TWO PASSES ON THE SAME DAY, not two days apart. The 06:30 fit puts
+        # D-1 on the board without WRC; the 15:00 fit re-fits the SAME day once
+        # WRC has published. Both write the same valid_at, so the age this
+        # measures only ever advances in the morning. See the module docstring.
+        "max_age": 46.0,
         "sql": """SELECT max(valid_at) FROM surface_run
                    WHERE granularity = 'daily' AND statistic IS NULL""",
         # Four variables on the newest day. Three would mean the era pin or one
@@ -191,22 +224,97 @@ JOBS = [
     {
         "key": "site_daily",
         "name": "Pro site dailies",
-        "runs_on": "Fargate, after the fit",
-        "cadence": "daily",
+        "runs_on": "Fargate, inside the 06:30 + 15:00 fit",
+        "cadence": "twice daily",
         "produces": "insights_site_daily",
-        "max_age": 78.0,
+        # Written by the surfaces job itself, so it tracks that job exactly. If
+        # this is late and `surfaces` is not, the fit published and the site
+        # extraction inside it did not — which is a different fault.
+        "max_age": 46.0,
         "sql": "SELECT max(date)::timestamptz FROM insights_site_daily",
         "detail_sql": """SELECT count(DISTINCT site_id) FROM insights_site_daily
                           WHERE date = (SELECT max(date) FROM insights_site_daily)""",
         "detail_label": "sites populated",
     },
     {
+        "key": "monthly_surfaces",
+        "name": "Monthly surfaces",
+        # ADDED 2026-09-03, and the reason is this panel's own founding
+        # argument. There was never a standing monthly job: every monthly row in
+        # production was written by the one-off archive build in August 2026, and
+        # every monthly table sat at 2026-07 for six weeks while the daily engine
+        # ran twice a day. Nothing was watching, so nothing said so.
+        "runs_on": "Fargate, 07:00 NZ on the 10th",
+        "cadence": "monthly",
+        "produces": "surface_run (granularity=monthly)",
+        # AGED FROM THE MONTH'S END, NOT ITS `valid_at`. A monthly surface is
+        # stamped at the FIRST day of the month it covers, so measuring from
+        # that makes a perfectly fresh month look forty days stale and puts the
+        # threshold at seventy-something — a number nobody can sanity-check at a
+        # glance. `+ 1 month` is the instant the month closed, which is the
+        # thing the job is late relative to.
+        #
+        # Closed on the 10th, so a healthy row reads ~10 days and the oldest it
+        # gets is ~39, just before the following run. 42 days.
+        "max_age": 42 * 24.0,
+        "sql": """SELECT max(valid_at) + interval '1 month' FROM surface_run
+                   WHERE granularity = 'monthly'""",
+        # Four variables on the newest month, the same tell as the daily fit.
+        # Three means one variable's reduction failed and the other three
+        # published, which is silent by construction.
+        "detail_sql": """SELECT count(DISTINCT variable) FROM surface_run
+                          WHERE granularity = 'monthly'
+                            AND valid_at = (SELECT max(valid_at) FROM surface_run
+                                             WHERE granularity = 'monthly')""",
+        "detail_label": "of 4 variables",
+    },
+    {
+        "key": "zone_monthly",
+        "name": "Monthly zone roll-up",
+        "runs_on": "Fargate, inside the monthly job",
+        "cadence": "monthly",
+        "produces": "climate_zone_surface_monthly",
+        # Written by the same job, so it tracks the surfaces exactly. If this is
+        # late and `monthly_surfaces` is not, the reduction published and the
+        # roll-up after it did not — which is a different fault, and it is the
+        # one that leaves the public climate-history explorer behind the atlas.
+        "max_age": 42 * 24.0,
+        "sql": """SELECT max(make_date(year, month, 1))::timestamptz
+                         + interval '1 month'
+                    FROM climate_zone_surface_monthly""",
+        "detail_sql": """SELECT count(DISTINCT zone_id)
+                           FROM climate_zone_surface_monthly
+                          WHERE make_date(year, month, 1)
+                                = (SELECT max(make_date(year, month, 1))
+                                     FROM climate_zone_surface_monthly)""",
+        "detail_label": "of 23 zones",
+    },
+    {
+        "key": "site_phenology",
+        "name": "Pro site phenology",
+        # Stage 4b of the pipeline, added 2026-08-31 and NOT covered here until
+        # 2026-09-03. It is the stage with the best claim to a check: before it
+        # was moved after the zone stage it sat today's site beside yesterday's
+        # region, and both halves reported green while doing it.
+        "runs_on": "Fargate, 06:50 + 18:00 NZ",
+        "cadence": "twice daily",
+        "produces": "insights_site_phenology",
+        "max_age": 46.0,
+        "sql": "SELECT max(estimate_date)::timestamptz FROM insights_site_phenology",
+        "detail_sql": """SELECT count(DISTINCT site_id) FROM insights_site_phenology
+                          WHERE estimate_date = (SELECT max(estimate_date)
+                                                   FROM insights_site_phenology)""",
+        "detail_label": "sites estimated",
+    },
+    {
         "key": "site_disease",
         "name": "Disease pressure (points)",
-        "runs_on": "Fargate, 6-hourly :20 NZ",
+        "runs_on": "Fargate, 01:20/06:20/13:20/19:20 NZ",
         "cadence": "every 6 h",
-        # Scores whole LOCAL days and ends at yesterday, so ~48 h is healthy.
-        "max_age": 60.0,
+        # Scores whole LOCAL days and deliberately ends at yesterday: a day only
+        # half over reads as a dry one through the wet-hour count. Four runs a
+        # day, one date advance, same 46 h as the rest of the D-1 chain.
+        "max_age": 46.0,
         "produces": "insights_site_disease",
         "sql": "SELECT max(date)::timestamptz FROM insights_site_disease",
         "detail_sql": """SELECT count(*) FROM insights_site_disease
