@@ -40,7 +40,24 @@
       "WebFetch(domain:www.hbrc.govt.nz)",
       "Bash(python *)",
       "Bash(C:/Auxein/auxein-insights-v0.1/backend/venv/Scripts/python.exe -c ' *)",
-      "Bash(node -e \"const p=require\\('./packages/insights/package.json'\\);console.log\\(Object.keys\\(p.dependencies||{}\\).join\\(', '\\)\\)\")"
+      "Bash(node -e \"const p=require\\('./packages/insights/package.json'\\);console.log\\(Object.keys\\(p.dependencies||{}\\).join\\(', '\\)\\)\")",
+      "PowerShell($g = Get-Command gh -ErrorAction SilentlyContinue; if \\($g\\) { $g.Source } else { \"gh not found\" })",
+      "WebFetch(domain:datastore.landcareresearch.co.nz)",
+      "Bash(PYTHONIOENCODING=utf-8 python scripts/seed_gw_from_probe.py --dry-run)",
+      "Bash(./venv/Scripts/python.exe -)",
+      "Bash(scp -i \"C:/Users/Peter Taylor/.ssh/auxein-ingest.pem\" -o StrictHostKeyChecking=accept-new -q trc_aggregation.py ec2-user@15.134.113.92:/tmp/trc_aggregation.py)",
+      "Bash(ssh -i \"C:/Users/Peter Taylor/.ssh/auxein-ingest.pem\" -o StrictHostKeyChecking=accept-new -o BatchMode=yes ec2-user@15.134.113.92 \"/opt/auxein/.venv/bin/python /tmp/trc_aggregation.py\")",
+      "Bash(grep -n \"^#\\\\{1,3\\\\} \" docs/plans/GROW_TASKS_GPS_OFFLINE_2026-08-13.md)",
+      "Bash(xargs -n1 basename)",
+      "Bash(grep -n \"SUB_BLOCK\\\\|^#\\\\{1,3\\\\} \" docs/plans/SUB_BLOCK_SECTIONS.md)",
+      "Bash(./venv/Scripts/python.exe \"C:/Users/PETERT~1/AppData/Local/Temp/claude/A--auxein-insights-V0-1/36647254-c3a0-4e7f-a4c7-961dd552d0b8/scratchpad/diag_precip_artifacts.py\")",
+      "Bash(./venv/Scripts/python.exe \"C:/Users/PETERT~1/AppData/Local/Temp/claude/A--auxein-insights-V0-1/36647254-c3a0-4e7f-a4c7-961dd552d0b8/scratchpad/diag_precip_2.py\")",
+      "Bash(./venv/Scripts/python.exe -m pip install matplotlib --quiet)",
+      "Bash(./venv/Scripts/python.exe -c \"import matplotlib; print\\('ok', matplotlib.__version__\\)\")",
+      "Bash(rm -f scratchpad/rainfall_rerun_20260817.log)",
+      "Bash(nohup ./venv/Scripts/python.exe backend/scripts/interpolation/run_history.py --variable rainfall --restart)",
+      "Bash(./venv/Scripts/python.exe -c ' *)",
+      "Bash(git add *)"
     ]
   }
 }

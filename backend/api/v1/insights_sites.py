@@ -55,6 +55,7 @@ from services import phenology_basis as basis
 from services.insights_dashboard import PHENOLOGY_HARVEST_TARGETS
 from services import site_water as water
 from services import workflow_dispatch
+from scripts.disease_service_v2 import BacchusModel
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -1013,7 +1014,8 @@ WITH season AS (
     SELECT DISTINCT ON (x.site_id)
            x.site_id, x.date AS disease_date,
            x.powdery_mildew_risk, x.downy_mildew_risk, x.botrytis_risk,
-           x.pm_cumulative_index, x.botrytis_cumulative, x.humidity_available
+           x.pm_cumulative_index, x.botrytis_cumulative, x.humidity_available,
+           x.bacchus_peak, x.bacchus_infection, x.bacchus_wet_hours
       FROM insights_site_disease x
       JOIN insights_site s ON s.id = x.site_id
      WHERE s.account_id = :acc
@@ -1024,7 +1026,7 @@ SELECT s.id, s.label, s.external_ref, s.site_type, s.status,
        -- the last column of a duplicated name — so the site's NULL was being
        -- read as the CTE's matched code and every Pinot gris site reported
        -- itself as modelled.
-       s.variety, s.variety_code AS site_variety_code,
+       s.variety, s.variety_code AS site_variety_code, s.requested_metrics,
        s.latitude, s.longitude, s.zone_id, z.name AS zone_name, z.slug AS zone_slug,
        season.through, season.days, season.rain_mm, season.temp_mean,
        season.temp_min, season.temp_max, season.gdd10,
@@ -1036,6 +1038,7 @@ SELECT s.id, s.label, s.external_ref, s.site_type, s.status,
        dis.disease_date, dis.powdery_mildew_risk, dis.downy_mildew_risk,
        dis.botrytis_risk, dis.pm_cumulative_index, dis.botrytis_cumulative,
        dis.humidity_available,
+       dis.bacchus_peak, dis.bacchus_infection, dis.bacchus_wet_hours,
        y.value AS yield_value, y.unit AS yield_unit
   FROM insights_site s
   LEFT JOIN climate_zones z ON z.id = s.zone_id
@@ -1256,8 +1259,14 @@ def _shape(r: dict, vintage: int, to_date: Optional[dict] = None) -> dict:
         },
         "disease": {
             "date": _iso(r["disease_date"]),
-            # Gubler-Thomas powdery mildew and the botrytis model, which is what
-            # the client's list calls the Gubler and Bacchus models.
+            # `powdery` IS Gubler: `UCDavisPMIndex` is the Gubler-Thomas index,
+            # so the client's word for it and the mathematics agree.
+            #
+            # `botrytis` IS NOT BACCHUS, and used to be labelled as though it
+            # were. It is González-Domínguez (2015); Bacchus is the separate
+            # pair of fields below, and it is the model 23 of these sites
+            # actually asked for. Two models, two names, never one word over
+            # the other's numbers.
             "powdery": r["powdery_mildew_risk"],
             "powdery_index": _num(r["pm_cumulative_index"], 1),
             "botrytis": r["botrytis_risk"],
@@ -1266,6 +1275,21 @@ def _shape(r: dict, vintage: int, to_date: Optional[dict] = None) -> dict:
             # A score computed without humidity is a WEAKER claim, not the same
             # claim. The row says so rather than letting a colour imply parity.
             "humidity_available": r["humidity_available"],
+        },
+        # BACCHUS, ITS OWN BLOCK. Kept out of `disease` deliberately: that dict
+        # is four keys that all mean "a risk word plus a 0-100 index", and
+        # Bacchus is neither. It is an index against a threshold of exactly 1.0
+        # and a yes/no infection event, so folding it in would invite exactly
+        # the substitution this whole change is undoing.
+        #
+        # `requested` is the client's own tick from their site list. It decides
+        # what the table SHOWS, not what gets computed — every site is scored.
+        "bacchus": {
+            "requested": "bacchus" in (r.get("requested_metrics") or []),
+            "index": _num(r["bacchus_peak"], 2),
+            "threshold": 1.0,
+            "infection": r["bacchus_infection"],
+            "wet_hours": r["bacchus_wet_hours"],
         },
         "yield": {"value": _num(r["yield_value"], 2), "unit": r["yield_unit"]},
         "vintage_year": vintage,
@@ -1338,6 +1362,13 @@ def account_portfolio(slug: str,
             "with_season": sum(1 for s in sites if s["season"]["days"]),
             "with_phenology": sum(1 for s in sites if s["phenology"]["stage"]),
             "with_disease": sum(1 for s in sites if s["disease"]["date"]),
+            # How many sites ticked the Bacchus model on the client's own
+            # site list. A count, in the footer, rather than a marker on
+            # each of the 44 rows that did not.
+            "bacchus_requested": sum(1 for s in sites
+                                     if s["bacchus"]["requested"]),
+            "bacchus_infections": sum(1 for s in sites
+                                      if s["bacchus"]["infection"]),
         },
         "sites": sites,
     }
@@ -1381,8 +1412,14 @@ _CSV_COLUMNS = [
     ("disease_date", lambda s: s["disease"]["date"]),
     ("powdery_risk", lambda s: s["disease"]["powdery"]),
     ("powdery_index", lambda s: s["disease"]["powdery_index"]),
-    ("botrytis_risk", lambda s: s["disease"]["botrytis"]),
-    ("botrytis_index", lambda s: s["disease"]["botrytis_index"]),
+    # THE MODEL IS IN THE COLUMN NAME. A spreadsheet outlives the screen it
+    # came from, and "botrytis_risk" next to "bacchus_index" with no other
+    # label is how a reader concludes they are two views of one model.
+    ("botrytis_gd_risk", lambda s: s["disease"]["botrytis"]),
+    ("botrytis_gd_index", lambda s: s["disease"]["botrytis_index"]),
+    ("bacchus_index", lambda s: s["bacchus"]["index"]),
+    ("bacchus_infection", lambda s: s["bacchus"]["infection"]),
+    ("bacchus_requested", lambda s: s["bacchus"]["requested"]),
     ("downy_risk", lambda s: s["disease"]["downy"]),
     ("humidity_available", lambda s: s["disease"]["humidity_available"]),
     ("yield", lambda s: s["yield"]["value"]),
@@ -1446,7 +1483,8 @@ SELECT s.id AS site_id, s.label, s.external_ref, s.site_type, s.variety,
        d.gdd_daily, d.gdd_cumulative, d.gdd10_daily, d.gdd10_cumulative,
        d.eto_mm, d.etc_mm, d.water_balance_mm, d.eto_method,
        x.powdery_mildew_risk, x.botrytis_risk, x.downy_mildew_risk,
-       x.pm_cumulative_index, x.botrytis_cumulative, x.humidity_available
+       x.pm_cumulative_index, x.botrytis_cumulative, x.botrytis_severity,
+       x.humidity_available, x.bacchus_peak, x.bacchus_infection
   FROM insights_site s
   LEFT JOIN climate_zones z ON z.id = s.zone_id
   JOIN insights_site_daily d ON d.site_id = s.id
@@ -1548,12 +1586,25 @@ def site_timeseries(site_id: int,
         "eto_mm": col("eto_mm"),
         "etc_mm": col("etc_mm"),
         "water_balance_mm": col("water_balance_mm"),
-        # Risk bands are words, not numbers, and stay words. The cumulative
-        # indices are the plottable pair.
+        # THE WORD AND THE NUMBER MUST BE THE SAME QUANTITY.
+        #
+        # `botrytis_risk` is banded off SEVERITY (20/50/75); the chart drew
+        # `botrytis_cumulative` and captioned it with the POWDERY bands
+        # (30/50/60). So a day reading "high" in the table plotted at 25.8
+        # and the tooltip called it "low" — one day, two quantities, three
+        # answers. Severity now travels with the word it produces, and the
+        # cumulative stays as its own separately-named series.
         "powdery_risk": [r["powdery_mildew_risk"] for r in rows],
         "botrytis_risk": [r["botrytis_risk"] for r in rows],
         "powdery_index": col("pm_cumulative_index"),
+        "botrytis_severity": col("botrytis_severity"),
         "botrytis_index": col("botrytis_cumulative"),
+        # BACCHUS, ON ITS OWN SCALE. The other two indices run 0-100; this one
+        # is a fraction of an infection period and crosses at 1.0, so it cannot
+        # share their axis and the chart must not put it there.
+        "bacchus_index": col("bacchus_peak"),
+        "bacchus_threshold": BacchusModel.THRESHOLD,
+        "bacchus_infection": [r["bacchus_infection"] for r in rows],
         # ET is only computed where the client asked for it, so a site with an
         # entirely empty ET series has not failed — it was not requested.
         "has_et": any(v is not None for v in col("eto_mm")),

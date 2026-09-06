@@ -52,33 +52,68 @@ import {
 import '../../utils/chartDefaults';
 import './SitePopup.css';
 
-// The model's own bands, from `disease_service_v2`: low below 30, moderate to
-// 50, high to 60, extreme above. Drawn rather than described, because "is this
-// bad" is a question about which band the line is in and a reader should not
-// have to hold four numbers in their head to answer it.
-const RISK_BANDS = [
-  { from: 0, to: 30, fill: 'rgba(127, 154, 107, 0.10)', label: 'low' },
-  { from: 30, to: 50, fill: 'rgba(202, 138, 4, 0.10)', label: 'moderate' },
-  { from: 50, to: 60, fill: 'rgba(198, 118, 76, 0.12)', label: 'high' },
-  { from: 60, to: 100, fill: 'rgba(185, 28, 28, 0.12)', label: 'extreme' },
-];
+// THREE MODELS, THREE SCALES, AND THEY WERE ALL SHARING ONE SET OF BANDS.
+//
+// This used to be a single `RISK_BANDS` of 30/50/60 shaded behind both series.
+// Those are the POWDERY thresholds, and they were being drawn behind botrytis —
+// whose own bands are 20/50/75, and which was plotting its CUMULATIVE while the
+// table's word came from its SEVERITY. A day the portfolio called "high"
+// plotted at 25.8 and the tooltip labelled it "low". Wrong thresholds, wrong
+// quantity, in the same tooltip.
+//
+// So: each model carries its own bands, the shading is gone (four rectangles
+// cannot mean three things at once), and the band name in the tooltip is looked
+// up per series. `severity` is plotted for botrytis because severity is what
+// produces the word in the table — the number and the label are now one
+// quantity.
+const BANDS = {
+  powdery_index: [
+    { to: 30, label: 'low' }, { to: 50, label: 'moderate' },
+    { to: 60, label: 'high' }, { to: Infinity, label: 'extreme' },
+  ],
+  botrytis_severity: [
+    { to: 20, label: 'low' }, { to: 50, label: 'moderate' },
+    { to: 75, label: 'high' }, { to: Infinity, label: 'extreme' },
+  ],
+};
+
+const bandFor = (key, value) => {
+  const scale = BANDS[key];
+  if (!scale || value == null) return null;
+  return scale.find((b) => value < b.to)?.label ?? null;
+};
 
 // A local plugin, not a dependency. `chartjs-plugin-annotation` would do this
-// and more, and it is 40 kB to shade four rectangles.
-const riskBandsPlugin = {
-  id: 'riskBands',
+// and more, and it is 40 kB to draw one rule.
+//
+// It draws the BACCHUS THRESHOLD, the one line on this chart that means
+// something absolute: at 1.0 the infection period is complete. It is on the
+// right-hand axis, so it is a rule rather than a shaded band.
+const thresholdPlugin = {
+  id: 'threshold',
   beforeDatasetsDraw(chart, _args, opts) {
-    if (!opts?.bands) return;
+    if (opts?.at == null) return;
     const { ctx, chartArea, scales } = chart;
-    if (!chartArea || !scales.y) return;
+    const axis = scales[opts.axis || 'y'];
+    if (!chartArea || !axis) return;
+    const y = axis.getPixelForValue(opts.at);
+    if (y < chartArea.top || y > chartArea.bottom) return;
     ctx.save();
-    opts.bands.forEach((band) => {
-      const top = scales.y.getPixelForValue(band.to);
-      const bottom = scales.y.getPixelForValue(band.from);
-      ctx.fillStyle = band.fill;
-      ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left,
-                   bottom - top);
-    });
+    ctx.beginPath();
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = opts.colour || 'rgba(185, 28, 28, 0.65)';
+    ctx.moveTo(chartArea.left, y);
+    ctx.lineTo(chartArea.right, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (opts.label) {
+      ctx.fillStyle = opts.colour || 'rgba(185, 28, 28, 0.9)';
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(opts.label, chartArea.right - 4, y - 2);
+    }
     ctx.restore();
   },
 };
@@ -107,6 +142,9 @@ function baseOptions(unit, extra = {}) {
         grid: { display: false },
       },
       y: { title: { display: true, text: unit }, ...(extra.y || {}) },
+      // A panel that needs a second scale declares it here. Only the disease
+      // chart does, because Bacchus does not share the 0-100 index axis.
+      ...(extra.scales || {}),
     },
     plugins: {
       legend: { labels: { boxWidth: 10 } },
@@ -245,11 +283,27 @@ function SitePopup({ site, vintage, onClose }) {
         label: 'Powdery (Gubler)', data: data.powdery_index,
         borderColor: '#8a6d1f', backgroundColor: 'transparent',
         borderWidth: 1.8, pointRadius: 0, spanGaps: false, tension: 0.15,
+        yAxisID: 'y', key: 'powdery_index',
       },
       {
-        label: 'Botrytis (Bacchus)', data: data.botrytis_index,
+        // NAMED FOR THE MODEL THAT COMPUTES IT. This line was labelled
+        // "Botrytis (Bacchus)" and was González-Domínguez the whole time.
+        // Bacchus is the series below, and it is a different model.
+        label: 'Botrytis (González-Domínguez)', data: data.botrytis_severity,
         borderColor: '#7a4b6b', backgroundColor: 'transparent',
         borderWidth: 1.8, pointRadius: 0, spanGaps: false, tension: 0.15,
+        yAxisID: 'y', key: 'botrytis_severity',
+      },
+      // BACCHUS, ON ITS OWN AXIS. It is a fraction of an infection period
+      // crossing at 1.0, not a 0-100 index, and putting it on the left axis
+      // would draw it as a flat line on the floor — the exact "reassuring
+      // trough" this file refuses to draw everywhere else.
+      {
+        label: 'Botrytis (Bacchus)', data: data.bacchus_index,
+        borderColor: '#2f6f4f', backgroundColor: 'transparent',
+        borderWidth: 1.8, borderDash: [4, 3], pointRadius: 0,
+        spanGaps: false, tension: 0.15,
+        yAxisID: 'yBacchus', key: 'bacchus_index',
       },
     ],
   } : null), [data]);
@@ -271,25 +325,48 @@ function SitePopup({ site, vintage, onClose }) {
   const waterOptions = useMemo(() => baseOptions('mm', {}), []);
 
   const diseaseOptions = useMemo(() => baseOptions('index (0-100)', {
-    // FIXED, not fitted. Both models cap at 100 and their risk bands are
-    // absolute, so a season's shape is only comparable against another season
-    // if the axis does not move under it.
+    // FIXED, not fitted. Gubler and González-Domínguez both cap at 100 and
+    // their bands are absolute, so a season's shape is only comparable against
+    // another season if the axis does not move under it.
     y: { min: 0, max: 100, ticks: { stepSize: 20 } },
+    scales: {
+      yBacchus: {
+        position: 'right',
+        // HEADROOM ABOVE THE THRESHOLD. Capped at 1.0 the line would sit on
+        // the ceiling every time an infection period completed, and a reader
+        // could not tell 1.0 from 1.4.
+        min: 0, max: 1.5, ticks: { stepSize: 0.5 },
+        title: { display: true, text: 'Bacchus (1.0 = infection)' },
+        grid: { drawOnChartArea: false },
+      },
+    },
     plugins: {
-      riskBands: { bands: RISK_BANDS },
+      threshold: {
+        at: data?.bacchus_threshold ?? 1, axis: 'yBacchus',
+        label: 'Bacchus infection', colour: 'rgba(47, 111, 79, 0.75)',
+      },
       tooltip: {
         callbacks: {
           title: (items) => shortDate(items[0].label),
+          // THE BAND COMES FROM THE SERIES' OWN MODEL. One shared band table
+          // is what told a reader that a botrytis severity of 25.8 was "low"
+          // on the powdery scale.
           label: (item) => {
-            const band = RISK_BANDS.find(
-              (b) => item.parsed.y >= b.from && item.parsed.y < b.to);
+            const key = item.dataset.key;
+            if (key === 'bacchus_index') {
+              const v = item.parsed.y;
+              const t = data?.bacchus_threshold ?? 1;
+              return `${item.dataset.label}: ${item.formattedValue} of ${t}`
+                + (v >= t ? ' — infection period complete' : '');
+            }
+            const band = bandFor(key, item.parsed.y);
             return `${item.dataset.label}: ${item.formattedValue}`
-              + (band ? ` (${band.label})` : '');
+              + (band ? ` (${band})` : '');
           },
         },
       },
     },
-  }), []);
+  }), [data]);
 
   const exportOne = async () => {
     setExporting(true);
@@ -303,7 +380,9 @@ function SitePopup({ site, vintage, onClose }) {
   };
 
   if (!site) return null;
-  const hasDisease = data && data.botrytis_index.some((v) => v !== null);
+  // ANY of the three models having scored is enough to show the panel.
+  const hasDisease = data && [data.botrytis_severity, data.powdery_index,
+    data.bacchus_index].some((series) => (series || []).some((v) => v !== null));
 
   return (
     <div className="sitepop__backdrop" role="dialog" aria-modal="true"
@@ -424,12 +503,16 @@ function SitePopup({ site, vintage, onClose }) {
                 <>
                   <div className="sitepop__chart">
                     <Chart type="line" data={disease} options={diseaseOptions}
-                           plugins={[riskBandsPlugin]} />
+                           plugins={[thresholdPlugin]} />
                   </div>
                   <p className="sitepop__panel-note">
-                    Both indices run 0-100. The shading is the model&rsquo;s own
-                    risk bands: low below 30, moderate to 50, high to 60,
-                    extreme above.
+                    Three models, and they do not share a scale. Gubler and
+                    Gonz&aacute;lez-Dom&iacute;nguez run 0-100 on the left, with
+                    their own bands &mdash; Gubler low below 30, moderate to 50,
+                    high to 60; Gonz&aacute;lez-Dom&iacute;nguez low below 20,
+                    moderate to 50, high to 75. Bacchus is on the right: a
+                    fraction of an infection period, complete at 1.0. Hover any
+                    line for its own model&rsquo;s reading.
                   </p>
                 </>
               ) : (

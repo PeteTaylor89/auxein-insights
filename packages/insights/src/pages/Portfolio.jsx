@@ -122,12 +122,48 @@ const COLUMNS = [
       );
     },
     sort: (s) => s.phenology.next?.date || '' },
-  { key: 'powdery', label: 'Powdery', risk: (s) => s.disease.powdery,
+  // POWDERY IS GUBLER, and the label can say so honestly: `UCDavisPMIndex` is
+  // the Gubler-Thomas index, which is the model the client's list ticks.
+  { key: 'powdery', label: 'Powdery', sub: 'Gubler',
+    risk: (s) => s.disease.powdery,
     get: (s) => s.disease.powdery || '—',
     sort: (s) => RISK_ORDER[s.disease.powdery] ?? -1 },
-  { key: 'botrytis', label: 'Botrytis', risk: (s) => s.disease.botrytis,
+
+  // TWO BOTRYTIS COLUMNS, BOTH NAMED, because they are two models and they
+  // disagree. This column used to be headed "Botrytis" and captioned "Bacchus"
+  // on the chart while computing González-Domínguez — one word over another
+  // model's numbers, which is the substitution this pair of columns exists to
+  // end. A reader can now see which model is talking.
+  { key: 'botrytis', label: 'Botrytis', sub: 'González-Domínguez',
+    risk: (s) => s.disease.botrytis,
     get: (s) => s.disease.botrytis || '—',
     sort: (s) => RISK_ORDER[s.disease.botrytis] ?? -1 },
+
+  // BACCHUS IS NOT A RISK WORD. It is an index against a threshold of exactly
+  // 1.0, so it renders as the number and its threshold rather than being forced
+  // into low/moderate/high — bands the model does not define. `is-fired` is the
+  // only state it has: the infection period completed, or it did not.
+  //
+  // NO PER-ROW "DID THEY ASK FOR THIS" MARKER. There was one, and against the
+  // real data it fell on 44 of the 67 rows — a footnote on two thirds of a
+  // column is noise, and the tick is administrative metadata about the client's
+  // previous platform rather than anything about the vineyard. `requested`
+  // stays in the payload and in the CSV, where reconciling against their site
+  // list is the actual use for it, and the count moves to the footer.
+  { key: 'bacchus', label: 'Botrytis', sub: 'Bacchus', numeric: true,
+    get: (s) => {
+      const b = s.bacchus;
+      if (!b || b.index == null) return '—';
+      return (
+        <span className={`portfolio__bacchus${b.infection ? ' is-fired' : ''}`}>
+          {b.index.toFixed(2)}
+          <sub className="portfolio__bacchusthreshold">
+            /{b.threshold.toFixed(1)}
+          </sub>
+        </span>
+      );
+    },
+    sort: (s) => (s.bacchus?.index ?? -1) },
 ];
 
 function Portfolio() {
@@ -381,7 +417,13 @@ function Portfolio() {
                         ].filter(Boolean).join(' ')}
                       >
                         <button type="button" onClick={() => toggleSort(c.key)}>
-                          {c.label}
+                          <span className="portfolio__colname">{c.label}</span>
+                          {/* THE MODEL, UNDER THE HEADING. Two columns now
+                              read "Botrytis" and only this line separates
+                              them. */}
+                          {c.sub && (
+                            <span className="portfolio__colmodel">{c.sub}</span>
+                          )}
                           <ArrowUpDown size={11} aria-hidden="true" />
                         </button>
                       </th>
@@ -421,7 +463,7 @@ function Portfolio() {
                             {/* A disease score computed without humidity is a
                                 weaker claim, not the same claim. Marked rather
                                 than left to look identical. */}
-                            {c.risk && s.disease.date
+                            {(c.risk || c.key === 'bacchus') && s.disease.date
                               && !s.disease.humidity_available && (
                               <abbr className="portfolio__nohum"
                                     title="No humidity within range; this score used temperature only">
@@ -445,6 +487,13 @@ function Portfolio() {
               {' '}{data.summary.with_disease} of {data.summary.sites} sites
               carry a disease score; a <b>*</b> marks one modelled without
               humidity in range.
+              {' '}The two botrytis columns are two different models and will
+              disagree: Gonz&aacute;lez-Dom&iacute;nguez scales by growth stage,
+              Bacchus does not. Bacchus is an index against its own threshold
+              &mdash; at 1.0 an infection period has completed &mdash; not a
+              0-100 score, and {data.summary.bacchus_requested} of{' '}
+              {data.summary.sites} sites requested it by name. Every site is
+              scored for both.
             </p>
           </>
         )}

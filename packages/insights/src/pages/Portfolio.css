@@ -237,3 +237,31 @@
   color: var(--color-text-muted, #6b7280);
   vertical-align: baseline;
 }
+
+/* --- two botrytis models, side by side ------------------------------------
+   Two columns now read "Botrytis" and only the model line under the heading
+   separates them. It has to be legible at a glance rather than decorative,
+   because picking the wrong column is picking the wrong model. */
+.portfolio__colname { display: block; }
+.portfolio__colmodel {
+  display: block;
+  font-size: 0.68em;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--color-text-muted, #6b7280);
+}
+
+/* Bacchus is an index against a threshold, not a risk word, so it is rendered
+   as a number over its threshold and gets no risk colouring. The one state it
+   has is "the infection period completed". */
+.portfolio__bacchus { font-variant-numeric: tabular-nums; }
+.portfolio__bacchus.is-fired {
+  font-weight: 700;
+  color: #b91c1c;
+}
+.portfolio__bacchusthreshold {
+  font-size: 0.72em;
+  color: var(--color-text-muted, #6b7280);
+  vertical-align: baseline;
+}

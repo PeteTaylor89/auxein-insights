@@ -7,8 +7,9 @@ Uses hourly climate data from climate_zone_hourly table.
 
 Models:
 1. Powdery Mildew: UC Davis Risk Index (Gubler et al., 1999)
-2. Botrytis: González-Domínguez Model (2015)  
+2. Botrytis: González-Domínguez Model (2015)
 3. Downy Mildew: 3-10 Rule + Goidanich Index
+4. Botrytis: Bacchus risk index (Balasubramaniam & Edwards) — see `BacchusModel`
 
 NOTE: This service requires:
 - climate_zone_hourly table (from add_hourly_climate migration)
@@ -212,9 +213,48 @@ class BotrytisResult:
 
 class BotrytisModel:
     """González-Domínguez Botrytis Model (2015)"""
-    
+
     T_MIN, T_OPT_MIN, T_OPT_MAX, T_MAX = 5.0, 15.0, 25.0, 30.0
-    
+
+    # THE TWO VOCABULARIES DID NOT MATCH, SILENTLY.
+    #
+    # `phenology_service.determine_stage` emits five stages: pre_flowering,
+    # flowering, veraison, ripening, harvest_ready. `STAGE_FACTORS` below knows
+    # eight, and `harvest_ready` is not one of them — so `.get(stage, 0.5)` was
+    # scoring ripe fruit at harvest, the most susceptible weeks of the whole
+    # season, at 0.5 instead of 0.9.
+    #
+    # It is here rather than in either caller because BOTH paths hit it: the
+    # zone path passes `get_growth_stage`'s value straight through, and the
+    # point path passes `insights_site_phenology.current_stage`. Both read the
+    # same five-word vocabulary out of the same model. One normalisation, at the
+    # only point that consumes it.
+    STAGE_ALIASES = {'harvest_ready': 'harvest'}
+
+    STAGE_FACTORS = {
+        'dormant': 0.0, 'budburst': 0.1, 'pre_flowering': 0.3,
+        'flowering': 0.8, 'fruit_set': 0.5, 'veraison': 0.6,
+        'ripening': 1.0, 'harvest': 0.9,
+    }
+
+    # What an unrecognised stage scores. Kept at the historical 0.5 so this
+    # change moves `harvest_ready` and nothing else, but named rather than
+    # buried in a `.get()` default — it is a guess at the midpoint of a scale,
+    # and a stage arriving here means the two vocabularies have drifted again.
+    STAGE_FACTOR_UNKNOWN = 0.5
+
+    @classmethod
+    def stage_factor(cls, growth_stage: str) -> float:
+        stage = cls.STAGE_ALIASES.get(growth_stage, growth_stage)
+        factor = cls.STAGE_FACTORS.get(stage)
+        if factor is None:
+            logger.warning(
+                "botrytis: unrecognised growth stage %r — scoring at %.1f. "
+                "phenology and the susceptibility table have drifted.",
+                growth_stage, cls.STAGE_FACTOR_UNKNOWN)
+            return cls.STAGE_FACTOR_UNKNOWN
+        return factor
+
     @classmethod
     def temp_response(cls, temp: float) -> float:
         if temp is None or temp < cls.T_MIN or temp > cls.T_MAX:
@@ -255,12 +295,7 @@ class BotrytisModel:
             min_hours = 8 if temp_factor >= 0.8 else 15
             wet_factor = 1 / (1 + math.exp(-0.3 * (wet_hours - min_hours)))
             
-            stage_factors = {
-                'dormant': 0.0, 'budburst': 0.1, 'pre_flowering': 0.3,
-                'flowering': 0.8, 'fruit_set': 0.5, 'veraison': 0.6,
-                'ripening': 1.0, 'harvest': 0.9,
-            }
-            stage_factor = stage_factors.get(growth_stage, 0.5)
+            stage_factor = cls.stage_factor(growth_stage)
             severity = temp_factor * wet_factor * stage_factor * 100
         
         # Sporulation index
@@ -289,6 +324,133 @@ class BotrytisModel:
         return BotrytisResult(
             round(severity, 1), round(cumulative, 1), risk,
             wet_hours, round(spor_index, 1)
+        )
+
+
+# =============================================================================
+# BOTRYTIS - BACCHUS RISK INDEX
+# =============================================================================
+
+@dataclass
+class BacchusResult:
+    index: float          # index carried out of the window
+    peak: float           # highest index reached inside the window
+    infection: bool       # did the index reach 1.0 inside the window
+    wet_hours: int        # wet hours that contributed
+    dry_run: int          # consecutive dry hours carried out of the window
+
+
+class BacchusModel:
+    """Bacchus Botrytis cinerea risk index (Balasubramaniam & Edwards).
+
+    Developed in New Zealand, evaluated by HortResearch, and shipped inside
+    MetWatch (HortPlus). It is the model BSI's site list asks for by name —
+    their spreadsheet's "Bacchus Model" column, alongside "Gubler Model" for
+    powdery mildew, which is the HortPlus vineyard pair.
+
+    ## The specification, and how much of it is sourced
+
+    SOURCED, from HARVEST's published calculations page:
+
+        I = 84.37 - 7.238*T + 0.1856*T^2     T = mean air temperature during a
+                                             WET hour
+        the index is summed across each wet period
+        1.0 indicates a high probability of infection
+        the index RESETS after four consecutive dry hours
+
+    DERIVED, and NOT stated by the source: that `I(T)` is the NUMBER OF WET
+    HOURS REQUIRED at temperature T, so each wet hour contributes `1/I(T)`. The
+    shape settles it — the parabola bottoms out at 13.8 h at 19.5 degC, rising
+    to 30.5 h at 10 degC and 34.3 h at 30 degC, which is both the right form and
+    the right magnitude for Botrytis — and it is the only reading under which a
+    threshold of exactly 1.0 means anything. Worth confirming with HortPlus
+    before this is put in front of BSI as their model.
+
+    ## What is deliberately NOT here
+
+    NO TEMPERATURE BOUNDS. The parabola has no real roots, so `I(T)` is positive
+    everywhere and 84 wet hours at 0 degC would trigger an infection — which is
+    agronomically wrong, Botrytis being near-inactive at freezing. The published
+    specification states no cut-off and one is not invented here: adding an
+    unsourced bound to a model carrying the client's own name for it is the
+    exact mistake this whole exercise exists to correct. The four-dry-hour reset
+    makes it largely academic in practice.
+
+    NO GROWTH STAGE. Bacchus is temperature and wetness duration only. The
+    susceptibility weighting that broke González-Domínguez does not exist here,
+    which is worth knowing: the two models will disagree most in early spring,
+    when one is scaling by tissue and the other is not.
+
+    ## Wet periods do not respect midnight
+
+    `calculate` takes the index and the dry-hour run carried in from the
+    previous window and hands both back out, so a wet period running from 22:00
+    to 06:00 is ONE period rather than two truncated ones. A caller that scores
+    a day at a time must pass the previous DAY's carry — and must reset it
+    across a gap in the record, since an unscored day is not four dry hours, it
+    is no information at all.
+    """
+
+    # I = A + B*T + C*T^2, wet hours required at temperature T.
+    A, B, C = 84.37, -7.238, 0.1856
+
+    THRESHOLD = 1.0     # index at which infection is probable
+    DRY_RESET = 4       # consecutive dry hours that clear the index
+
+    @classmethod
+    def hours_required(cls, temp: float) -> float:
+        """Wet hours needed for infection at `temp`. Always positive."""
+        return cls.A + cls.B * temp + cls.C * temp * temp
+
+    @classmethod
+    def calculate(
+        cls,
+        hourly_data: List[dict],
+        previous_index: float = 0.0,
+        previous_dry_run: int = 0,
+    ) -> BacchusResult:
+        index = float(previous_index or 0.0)
+        dry_run = int(previous_dry_run or 0)
+        peak = index
+        wet_hours = 0
+
+        # AN INFECTION IS A CROSSING, NOT A LEVEL, and the difference is a whole
+        # day of double-counting.
+        #
+        # Initialising this from `index >= THRESHOLD` made every day inherit the
+        # previous day's event: eight sites fired on 28 August, and all eight
+        # fired again on 29 August — two of them on days with ZERO wet hours,
+        # because the index carried in above 1.0 before resetting. One infection
+        # period was being reported as two.
+        #
+        # So it fires only where the index moves from below the threshold to at
+        # or above it inside this window. `below` is re-armed by a reset,
+        # because a reset genuinely starts a new period and a second infection
+        # in one day is a real thing the model can say.
+        infection = False
+        below = index < cls.THRESHOLD
+
+        for hour in hourly_data:
+            temp = hour.get('temp')
+            if hour.get('is_wet') and temp is not None:
+                dry_run = 0
+                wet_hours += 1
+                index += 1.0 / cls.hours_required(temp)
+                peak = max(peak, index)
+                if below and index >= cls.THRESHOLD:
+                    infection = True
+                    below = False
+            else:
+                dry_run += 1
+                # The reset is on the RUN, not on the single hour: two dry
+                # hours in the middle of a wet night do not clear a period
+                # that is most of the way to an infection.
+                if dry_run >= cls.DRY_RESET:
+                    index = 0.0
+                    below = True
+
+        return BacchusResult(
+            round(index, 4), round(peak, 4), infection, wet_hours, dry_run
         )
 
 

@@ -137,8 +137,20 @@ module.exports = ({ config }) => {
   // causing the crash.
   const sentryDsn = process.env.SENTRY_DSN || '';
   // Source-map upload needs an auth token AND an org/project. Without them the
-  // plugin still builds; the traces are just minified bundle offsets, which are
-  // close to useless — so the build logs say so rather than looking fine.
+  // traces are minified bundle offsets, which are close to useless — so the
+  // build logs say so rather than looking fine.
+  //
+  // It is NOT merely cosmetic on iOS. The plugin installs an Xcode phase that
+  // runs sentry-cli, and with no org it exits non-zero and FAILS THE BUILD:
+  //   'An organization ID or slug is required (provide with --org)'
+  // (build 4a584d90, 2026-09-05, XCODE_BUILD_ERROR). The Android Gradle
+  // equivalent only warns, so android went green on the same commit and the
+  // failure looked platform-specific and mysterious.
+  //
+  // eas.json therefore sets SENTRY_DISABLE_AUTO_UPLOAD=true on every profile.
+  // Remove it on the profile where a real SENTRY_ORG/SENTRY_PROJECT and auth
+  // token exist, and not before. Note eas.json is itself hashed into the
+  // fingerprint, so touching it bumps the runtimeVersion on BOTH platforms.
   const sentryOrg = process.env.SENTRY_ORG || '';
   const sentryProject = process.env.SENTRY_PROJECT || '';
   if (sentryDsn && !(sentryOrg && sentryProject)) {

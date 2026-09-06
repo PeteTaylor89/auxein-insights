@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disease pressure at a POINT — the hourly interpolation and the three models.
+"""Disease pressure at a POINT — the hourly interpolation and the four models.
 
     python backend/scripts/populate_site_disease.py --days 10 --apply
     python backend/scripts/populate_site_disease.py --site 16 --from 2026-08-20 --to 2026-08-29 --apply
@@ -10,12 +10,21 @@ Two stages behind one command, because the second is useless without the first:
   1. **hourly** — synthesise this site's hourly series from the stations near it
      (`services.point_climate`) and derive wetness at the point. Writes
      `insights_site_hourly`.
-  2. **disease** — run the same three models the zone path runs, against those
-     rows. Writes `insights_site_disease`.
+  2. **disease** — run the three models the zone path runs, plus Bacchus,
+     against those rows. Writes `insights_site_disease`.
+
+## Two botrytis models, side by side
+
+González-Domínguez and Bacchus are both scored for every site. They are not
+alternatives to be picked between here: 23 of BSI's 67 sites asked for
+Bacchus by name and the presentation layer decides what to show whom, but a
+site that switches later must not have a hole in its history. They disagree
+most in early spring, because only one of them scales by growth stage.
 
 ## Nothing about the models is re-implemented here
 
-`UCDavisPMIndex`, `BotrytisModel` and `DownyMildewModel` are imported from
+`UCDavisPMIndex`, `BotrytisModel`, `BacchusModel` and `DownyMildewModel` are
+imported from
 `disease_service_v2`, and `estimate_leaf_wetness` / `calculate_dew_point` from
 `hourly_aggregation`. Only the SPATIAL SOURCE differs between a zone and a
 point; a second copy of a peer-reviewed model that drifts from the first is the
@@ -56,7 +65,7 @@ import pytz                                                         # noqa: E402
 from db.models.insights_site import InsightsSite                    # noqa: E402
 from db.session import SessionLocal                                 # noqa: E402
 from scripts.disease_service_v2 import (                            # noqa: E402
-    BotrytisModel, DownyMildewModel, UCDavisPMIndex,
+    BacchusModel, BotrytisModel, DownyMildewModel, UCDavisPMIndex,
 )
 from scripts.hourly_aggregation import (                            # noqa: E402
     estimate_leaf_wetness, get_hourly_station_data, get_vintage_year,
@@ -249,6 +258,105 @@ def conditions_48h(db, site_id: int, day: date) -> dict:
             "wet_hours_48h": r[2] or 0}
 
 
+# --- growth stage -------------------------------------------------------------
+#
+# THE BOTRYTIS MODEL IS SCALED BY TISSUE SUSCEPTIBILITY and this is where that
+# term comes from. It used to come from nowhere: `BotrytisModel.calculate` was
+# called without a stage, so every site-day scored on the model's own default of
+# `ripening` — stage_factor 1.0, the MAXIMUM in the table — while the row stored
+# `growth_stage = 'unknown'`, which is 0.5. A dormant vine in August was being
+# scored as ripe fruit, and 32 of the 67 BSI sites were reading moderate or high
+# on 4 September with no fruit on the vine.
+#
+# The zone path has always passed a real stage (`disease_service_v2`). This is
+# the same lookup against the POINT model, which now exists.
+
+# The five-word phenology vocabulary is normalised onto the model's eight-word
+# susceptibility table by `BotrytisModel.stage_factor`, NOT here — the zone path
+# feeds it the same five words and a second copy of that mapping is how the two
+# paths start disagreeing. This module passes the stage through verbatim.
+
+# What the phenology model can never say. `determine_stage` has no branch below
+# `pre_flowering` because `phenology_thresholds` carries no `gdd_budburst`
+# column, so `dormant` (0.0) and `budburst` (0.1) are unreachable and every
+# winter and early-spring day floors at `pre_flowering` (0.3). See the note in
+# the module docstring — this fix takes Appleby from 1.0 to 0.3, not to the 0.0
+# that a dormant vine on 4 September actually warrants.
+STAGE_FLOOR = "pre_flowering"
+
+
+def stage_timeline(db, site) -> dict[date, str]:
+    """Every day's growth stage at this site, as one query.
+
+    Keyed by `estimate_date`; `stage_on` carries the last known value forward.
+    Prefetched per site rather than queried per day because a backfill is 67
+    sites x 21 days and the zone path's per-day lookup is 1,407 round trips for
+    a table that fits in a dict.
+
+    WHICH VARIETY. The site's own where it named one, because that is the grape
+    in the ground. Where it did not — a met station, or a variety
+    `phenology_thresholds` does not carry, which is the four BSI Pinot gris
+    sites — the MOST ADVANCED stage across the varieties that are modelled.
+    That is the precautionary reading for a disease warning: susceptibility
+    rises through the season, so the most advanced variety is the one at risk
+    first. It overstates a mixed block slightly and it is a judgement call
+    rather than a fact; flipping it to a fixed reference variety is a one-line
+    change if you would rather it did not.
+    """
+    order = {s: i for i, s in enumerate(
+        ["pre_flowering", "flowering", "veraison", "ripening", "harvest_ready"])}
+    rows = db.execute(text("""
+        SELECT estimate_date, variety_code, current_stage
+          FROM insights_site_phenology
+         WHERE site_id = :s AND current_stage IS NOT NULL
+         ORDER BY estimate_date
+    """), {"s": site.id}).fetchall()
+
+    by_day: dict[date, str] = {}
+    for est_date, variety_code, stage in rows:
+        if site.variety_code and variety_code != site.variety_code:
+            continue
+        best = by_day.get(est_date)
+        if best is None or order.get(stage, -1) > order.get(best, -1):
+            by_day[est_date] = stage
+    return by_day
+
+
+def zone_stage_timeline(db, site) -> dict[date, str]:
+    """The surrounding zone's stages, as the fallback.
+
+    A site placed today has no point phenology and would otherwise fall through
+    to the model default, which is the bug this whole block exists to remove. A
+    neighbouring zone's stage is not this site's, but it is the same model on
+    the same calendar and it is vastly closer than `ripening`.
+    """
+    if not site.zone_id:
+        return {}
+    rows = db.execute(text("""
+        SELECT estimate_date, current_stage
+          FROM phenology_estimates
+         WHERE zone_id = :z AND current_stage IS NOT NULL
+         ORDER BY estimate_date
+    """), {"z": site.zone_id}).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
+def stage_on(timelines: list[dict[date, str]], day: date) -> tuple[str, str]:
+    """The stage in force on `day`, and where it came from.
+
+    Carries the last estimate on or before `day` forward, matching
+    `disease_service_v2.get_growth_stage`. Falls to `STAGE_FLOOR`, NOT to the
+    model's `.get()` default of 0.5 and never to `ripening` — a site with no
+    phenology at all is at the earliest stage the system can express, not the
+    most susceptible one.
+    """
+    for source, timeline in zip(("site", "zone"), timelines):
+        known = [d for d in timeline if d <= day]
+        if known:
+            return timeline[max(known)], source
+    return STAGE_FLOOR, "floor"
+
+
 def previous_state(db, site_id: int, vintage: int, day: date) -> dict:
     """State of the day BEFORE `day`.
 
@@ -261,14 +369,25 @@ def previous_state(db, site_id: int, vintage: int, day: date) -> dict:
     vintage.
     """
     r = db.execute(text("""
-        SELECT pm_cumulative_index, botrytis_cumulative, dm_goidanich_index
+        SELECT pm_cumulative_index, botrytis_cumulative, dm_goidanich_index,
+               bacchus_index, bacchus_dry_run, date
           FROM insights_site_disease
          WHERE site_id = :s AND vintage_year = :v AND date < :d
          ORDER BY date DESC LIMIT 1
     """), {"s": site_id, "v": vintage, "d": day}).fetchone()
     if not r:
-        return {"pm": 0.0, "botrytis": 0.0, "goidanich": 0.0}
+        return {"pm": 0.0, "botrytis": 0.0, "goidanich": 0.0,
+                "bacchus_index": 0.0, "bacchus_dry_run": 0}
+    # BACCHUS DOES NOT CARRY ACROSS A GAP. Its state is a live wet period, and
+    # an unscored day is not four dry hours — it is no information. Carrying an
+    # index over a hole in the record would let a wet Tuesday and a wet Friday
+    # add up to an infection that never happened. The other three models are
+    # seasonal accumulators with a decay and are unharmed by a gap, so only this
+    # one resets.
+    contiguous = r[5] == day - timedelta(days=1)
     return {"pm": float(r[0] or 0), "botrytis": float(r[1] or 0),
+            "bacchus_index": float(r[3] or 0) if contiguous else 0.0,
+            "bacchus_dry_run": int(r[4] or 0) if contiguous else 0,
             "goidanich": float(r[2] or 0)}
 
 
@@ -279,14 +398,18 @@ DISEASE_UPSERT = text("""
          pm_lethal_hours, botrytis_severity, botrytis_cumulative,
          botrytis_wet_hours, botrytis_sporulation_index, dm_primary_met,
          dm_primary_score, dm_goidanich_index, growth_stage,
-         humidity_available, hours_used, created_at)
+         humidity_available, hours_used,
+         bacchus_index, bacchus_peak, bacchus_infection,
+         bacchus_wet_hours, bacchus_dry_run, created_at)
     VALUES
         (:site_id, :date, :vintage_year, :pm_risk, :dm_risk,
          :bot_risk, :pm_daily, :pm_cum, :pm_fav,
          :pm_lethal, :bot_sev, :bot_cum,
          :bot_wet, :bot_spor, :dm_primary,
          :dm_score, :dm_goid, :growth_stage,
-         :humidity_available, :hours_used, now())
+         :humidity_available, :hours_used,
+         :bac_index, :bac_peak, :bac_infection,
+         :bac_wet, :bac_dry, now())
     ON CONFLICT (site_id, date) DO UPDATE SET
         vintage_year = EXCLUDED.vintage_year,
         powdery_mildew_risk = EXCLUDED.powdery_mildew_risk,
@@ -306,12 +429,21 @@ DISEASE_UPSERT = text("""
         growth_stage = EXCLUDED.growth_stage,
         humidity_available = EXCLUDED.humidity_available,
         hours_used = EXCLUDED.hours_used,
+        bacchus_index = EXCLUDED.bacchus_index,
+        bacchus_peak = EXCLUDED.bacchus_peak,
+        bacchus_infection = EXCLUDED.bacchus_infection,
+        bacchus_wet_hours = EXCLUDED.bacchus_wet_hours,
+        bacchus_dry_run = EXCLUDED.bacchus_dry_run,
         created_at = now()
 """)
 
 
 def build_disease(db, site, start: date, end: date) -> dict:
     written = skipped = 0
+    bacchus_events = 0
+    stages: dict[str, int] = {}
+    # Both timelines fetched once, ahead of the walk. See `stage_timeline`.
+    timelines = [stage_timeline(db, site), zone_stage_timeline(db, site)]
     day = start
     # ASCENDING: both cumulative models read the previous day.
     while day <= end:
@@ -328,11 +460,21 @@ def build_disease(db, site, start: date, end: date) -> dict:
         c48 = conditions_48h(db, site.id, day)
 
         pm = UCDavisPMIndex.calculate(temps, prev["pm"])
-        # Growth stage drives the botrytis susceptibility weighting. There is no
-        # per-site phenology yet, so the model's own default stands rather than
-        # a zone stage being borrowed — a neighbouring zone's stage is not this
-        # site's, and passing it would look like knowledge.
-        bot = BotrytisModel.calculate(hours, prev["botrytis"])
+        # Growth stage drives the botrytis susceptibility weighting, and it is
+        # now READ rather than defaulted. `insights_site_phenology` did not
+        # exist when this was written; it does now, for all 67 sites.
+        stage, stage_source = stage_on(timelines, day)
+        stages[f"{stage}/{stage_source}"] = stages.get(
+            f"{stage}/{stage_source}", 0) + 1
+        bot = BotrytisModel.calculate(hours, prev["botrytis"], stage)
+        # BACCHUS RUNS ALONGSIDE, not instead. 23 of BSI's 67 sites asked for it
+        # by name; the rest read González-Domínguez. Both are scored for every
+        # site because the models are cheap and a site that switches later
+        # should not have a hole in its history.
+        bac = BacchusModel.calculate(hours, prev["bacchus_index"],
+                                     prev["bacchus_dry_run"])
+        if bac.infection:
+            bacchus_events += 1
         dm = DownyMildewModel.calculate(
             hours, c48["min_temp_48h"], c48["total_rain_48h"],
             c48["wet_hours_48h"], prev["goidanich"])
@@ -347,16 +489,29 @@ def build_disease(db, site, start: date, end: date) -> dict:
                 "bot_wet": bot.wet_hours, "bot_spor": bot.sporulation_index,
                 "dm_primary": dm.primary_met, "dm_score": dm.primary_score,
                 "dm_goid": dm.goidanich_index,
-                "growth_stage": "unknown",
+                # THE STAGE ACTUALLY USED, not the word "unknown". The old value
+                # was a third answer: the row claimed a stage of 0.5 while the
+                # model had scored it at 1.0, so nothing on the row could be
+                # used to check the number beside it.
+                "growth_stage": stage,
                 # NOT a diagnostic flag: without humidity the botrytis and downy
                 # numbers are a different quantity, and a reader has to be able
                 # to tell.
                 "humidity_available": has_rh,
                 "hours_used": len(hours),
+                # Bacchus. `peak` is what a reader should see -- the index
+                # a day ENDS on can be zero because a reset wiped a period
+                # that got most of the way to an infection.
+                "bac_index": bac.index, "bac_peak": bac.peak,
+                "bac_infection": bac.infection,
+                "bac_wet": bac.wet_hours, "bac_dry": bac.dry_run,
         })
         written += 1
         day += timedelta(days=1)
-    return {"days": written, "days_without_hours": skipped}
+    # Reported per run so a rescore that silently fell back to the floor for
+    # every day is visible without querying the table afterwards.
+    return {"days": written, "days_without_hours": skipped,
+            "stages": stages, "bacchus_events": bacchus_events}
 
 
 # --- driver ------------------------------------------------------------------
@@ -409,7 +564,8 @@ def main() -> int:
                  "rain %.0f km", pc.MAX_TEMP_KM, pc.MAX_HUMIDITY_KM,
                  pc.MAX_RAIN_KM)
 
-        totals = {"hours": 0, "days": 0, "no_rh": 0}
+        totals = {"hours": 0, "days": 0, "no_rh": 0, "stages": {},
+                  "bacchus_events": 0}
         for site in sites:
             if site.latitude is None or site.longitude is None:
                 log.warning("  site %s has no coordinate — skipped", site.id)
@@ -433,12 +589,30 @@ def main() -> int:
             if not args.skip_disease:
                 d = build_disease(db, site, start, end)
                 totals["days"] += d["days"]
-                log.info("       %-29s %4d day(s) scored, %d without hours",
-                         "", d["days"], d["days_without_hours"])
+                totals["bacchus_events"] += d["bacchus_events"]
+                for key, n in d["stages"].items():
+                    totals["stages"][key] = totals["stages"].get(key, 0) + n
+                log.info("       %-29s %4d day(s) scored, %d without hours, "
+                         "stages %s", "", d["days"], d["days_without_hours"],
+                         ", ".join(f"{k} x{n}"
+                                   for k, n in sorted(d["stages"].items())))
 
         log.info("")
         log.info("%d hour(s), %d site-day(s) %s", totals["hours"],
                  totals["days"], "written" if args.apply else "would be written")
+        log.info("Bacchus: %d site-day(s) reached the 1.0 infection "
+                 "threshold", totals["bacchus_events"])
+        if totals["stages"]:
+            log.info("botrytis susceptibility stages used: %s",
+                     ", ".join(f"{k} x{n}"
+                               for k, n in sorted(totals["stages"].items())))
+            floored = sum(n for k, n in totals["stages"].items()
+                          if k.endswith("/floor"))
+            if floored:
+                log.warning("%d site-day(s) had NO phenology at the site or its "
+                            "zone and fell back to '%s'. That is the earliest "
+                            "stage the model can express, not a measurement.",
+                            floored, STAGE_FLOOR)
         if totals["no_rh"]:
             log.warning("%d site(s) got NO humidity at any hour — beyond %.0f km "
                         "the estimate is refused rather than guessed, so their "

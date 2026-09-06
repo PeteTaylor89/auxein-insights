@@ -1,0 +1,45 @@
+========================================================================
+ NZEnvDS_Total annual precipitation v1.0
+------------------------------------------------------------------------
+ https://lris.scinfo.org.nz/layer/105725-nzenvds-total-annual-precipitation-v10/
+========================================================================
+From: Landcare Research
+
+Description:
+  New Zealand Environmental Data Stack (NZEnvDS) comprises a set of 72 spatial
+  layers for environmental modelling and site characterisation. NZEnvDS includes
+  the layers that informed the Land Environments of New Zealand (LENZ), additional
+  layers generated for LENZ that were never publicly released, and additional
+  layers generated since, all covering mainland New Zealand and surrounding
+  inshore islands. The original/top copy of the dataset is available at
+  (https://doi.org/10.7931/m6rm-vz40), but the layers are reproduced here for ease
+  of access. See (https://newzealandecology.org/nzje/3440/) for a publication
+  describing NZEnvDS.
+  
+  Generated as part of LENZ for the years 1950–1980 (Leathwick et al. 2002).
+  
+  The precipitation layers weren’t originally included in LENZ but were generated
+  as part of the project to create the LENZ vapour pressure deficit and annual
+  water deficit layers.
+  
+  Please cite the original paper as attribution when using these layers.
+
+Region: New Zealand
+
+Category: Climate
+
+CRS: NZGD49 / New Zealand Map Grid
+
+------------------------------------------------------------------------
+ Processing steps applied by LRIS Portal
+------------------------------------------------------------------------
+
+- imported to LRIS Portal in GeoTIFF format on 22 Jul 2021
+- converted by LRIS Portal to GeoTIFF on 06 Aug 2026 (reference #4587346)
+
+------------------------------------------------------------------------
+ LICENSE: Creative Commons Attribution 4.0 International
+------------------------------------------------------------------------
+
+   http://creativecommons.org/.
+
