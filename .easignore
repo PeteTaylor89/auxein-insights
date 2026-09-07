@@ -1,0 +1,72 @@
+# .easignore — what EAS Build uploads.
+#
+# READ THIS BEFORE EDITING. When this file exists, eas-cli uses it INSTEAD of
+# .gitignore. Every rule .gitignore was carrying — node_modules/, venv/, .env,
+# the *.sql dumps — stops applying to the upload. So this file is written as an
+# ALLOWLIST: ignore everything, then name only what a mobile build needs. A
+# denylist would have to restate the whole of .gitignore, and one omission
+# uploads a secret.
+#
+# Concretely: packages/mobile/.env is gitignored and holds the *secret* Mapbox
+# download token (sk.*). It sits inside the one directory this file re-includes,
+# so the exclusion in section 5 is load-bearing, not defensive.
+#
+# Paths are relative to the WORKSPACE ROOT — npm workspaces makes that the
+# archive root, not packages/mobile.
+#
+# Measured 2026-09-08: 314 MB / 1856 tracked files in, ~6 MB out.
+# packages/auxein-marketing alone is 198 MB, docs/ 77 MB, bfg.jar 14 MB.
+#
+# This file is hashed into the fingerprint (eas-cli hashes eas.json AND
+# .easignore), so editing it bumps the runtimeVersion on BOTH platforms and
+# orphans every binary already built. Change it in the same commit as a build.
+
+# ---- 1. Everything at the root ------------------------------------------
+/*
+
+# ---- 2. The workspace manifests the install needs -----------------------
+# npm reads every workspace's package.json to resolve the tree, so a missing
+# one breaks `npm ci` even though the mobile bundle never touches that package.
+# None of the six packages has a prepare/postinstall script, so the manifest
+# alone is enough — no sources required.
+!/package.json
+!/package-lock.json
+!/packages
+/packages/*/*
+!/packages/*/package.json
+
+# ---- 3. The only package actually built ---------------------------------
+# packages/shared is deliberately NOT here: metro.config.js blockLists it,
+# along with web, insights and marketing, so its source can never enter the
+# bundle. Its package.json is already kept by section 2.
+!/packages/mobile/**
+
+# ---- 4. Re-exclude the build junk section 3 just pulled back in ----------
+/packages/mobile/node_modules/
+/packages/mobile/.expo/
+/packages/mobile/dist/
+/packages/mobile/web-build/
+/packages/mobile/.metro-health-check*
+/packages/mobile/*.tsbuildinfo
+
+# ---- 5. Secrets and signing material ------------------------------------
+/packages/mobile/.env
+/packages/mobile/.env.*
+/packages/mobile/*.jks
+/packages/mobile/*.p8
+/packages/mobile/*.p12
+/packages/mobile/*.key
+/packages/mobile/*.mobileprovision
+/packages/mobile/*.pem
+
+# ---- 6. CNG: the native dirs must never be uploaded ----------------------
+# @expo/fingerprint decides managed vs bare by asking whether
+# android/app/build.gradle exists AND is un-ignored. An uploaded native dir
+# flips the builder to bare after it prebuilds; it then hashes android/ instead
+# of the config plugins, the runtimeVersion stops matching the one eas-cli
+# computed locally, and the build dies in "Configure expo-updates". That was
+# the six consecutive failures of build 10. Neither dir exists on this machine
+# today — these lines are here so a stray `expo prebuild` cannot resurrect the
+# bug.
+/packages/mobile/android/
+/packages/mobile/ios/

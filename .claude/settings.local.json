@@ -57,7 +57,10 @@
       "Bash(rm -f scratchpad/rainfall_rerun_20260817.log)",
       "Bash(nohup ./venv/Scripts/python.exe backend/scripts/interpolation/run_history.py --variable rainfall --restart)",
       "Bash(./venv/Scripts/python.exe -c ' *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(cd C:\\\\Auxein\\\\auxein-insights-v0.1; \"=== jspdf in any package.json ===\"; Get-ChildItem -Recurse -Filter package.json -Depth 3 | Where-Object { $_.FullName -notmatch \"node_modules\" } | Select-String -Pattern \"jspdf|html2canvas\" | ForEach-Object { \"$\\($_.Path.Replace\\('C:\\\\Auxein\\\\auxein-insights-v0.1\\\\',''\\)\\): $\\($_.Line.Trim\\(\\)\\)\" }; \"=== installed? ===\"; foreach \\($p in @\\(\"node_modules\\\\jspdf\",\"packages\\\\web\\\\node_modules\\\\jspdf\",\"node_modules\\\\jspdf-autotable\"\\)\\) { if \\(Test-Path $p\\) { \"$p EXISTS\" } else { \"$p missing\" } })",
+      "PowerShell(cd C:\\\\Auxein\\\\auxein-insights-v0.1; Select-String -Path \"packages\\\\web\\\\src\\\\components\\\\reports\\\\reportPdf.js\" -Pattern \"^import|^} from|require\\\\\\(\" | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })"
     ]
   }
 }
