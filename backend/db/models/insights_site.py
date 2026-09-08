@@ -378,6 +378,28 @@ class InsightsSitePhenology(Base):
     zone_harvest_210_date = Column(Date, nullable=True)
 
     confidence = Column(String(20), nullable=True)
+
+    # --- budburst, by chilling-forcing --------------------------------------
+    #
+    # A different model from everything above it: it runs from a photoperiod
+    # trigger that moves with latitude, not from 1 September, and it has two
+    # requirements rather than one. See `services/budburst.py`.
+    #
+    # All nullable with no default. A row written before this model existed did
+    # not run it, which is not the same claim as a chilling total of zero.
+    budburst_date = Column(Date, nullable=True)
+    budburst_is_actual = Column(Boolean, nullable=True)
+    # The day the chilling requirement was met. Forcing starts here and not
+    # before, so a budburst date is unreadable without it.
+    endodormancy_date = Column(Date, nullable=True)
+    chill_units = Column(Numeric(7, 2), nullable=True)
+    # NULL until endo-dormancy releases: no forcing has been accumulated, which
+    # is not the same as having accumulated none.
+    forcing_units = Column(Numeric(9, 2), nullable=True)
+    # TRUE where the SITE records no variety, so any cultivar shown for it is a
+    # stand-in. Worth 5-20 days against a model RMSE of 4.9.
+    variety_is_assumed = Column(Boolean, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(),
                         nullable=False)
 

@@ -59,6 +59,7 @@ from scripts.phenology_service import (                             # noqa: E402
     estimate_date, determine_stage, get_vintage_year)
 from services import insights_site_baseline as baseline_svc         # noqa: E402
 from services import phenology_basis as basis                       # noqa: E402
+from services import budburst as budburst_svc                       # noqa: E402
 
 # Matches the zone job. Not a preference — the projected date is a GDD shortfall
 # divided by this rate, so a different window here would make a site's date
@@ -82,6 +83,38 @@ def thresholds(db: Session) -> list[dict]:
          WHERE is_active = true
          ORDER BY variety_name
     """)).mappings().all()]
+
+
+GDD_COLUMNS = ("gdd_flowering", "gdd_veraison", "gdd_harvest_170",
+               "gdd_harvest_180", "gdd_harvest_190", "gdd_harvest_200",
+               "gdd_harvest_210", "gdd_harvest_220")
+
+
+def varieties(db: Session, budburst_params: dict) -> list[dict]:
+    """Every variety this site can be scored for, from EITHER model.
+
+    `phenology_thresholds` and `budburst_parameters` are separate calibrations
+    and their variety sets do not match: the GDD table has Cabernet franc,
+    Cabernet Sauvignon, Grenache and Riesling, which have no budburst
+    calibration, and the budburst table has Pinot gris, which has no GDD
+    thresholds. Four Pro sites are Pinot gris.
+
+    Iterating only the GDD table would silently drop those four. Adding a Pinot
+    gris row to `phenology_thresholds` with NULL thresholds would be worse:
+    `determine_stage` falls through its whole chain when every threshold is
+    None, and the site would read "harvest" all year round.
+
+    So the union, with the GDD columns present-but-None for a budburst-only
+    variety, and `current_stage` left unset for it by the caller.
+    """
+    rows = thresholds(db)
+    have = {r["variety_code"] for r in rows}
+    for code, p in sorted(budburst_params.items()):
+        if code in have:
+            continue
+        rows.append({"variety_code": code, "variety_name": p["variety_name"],
+                     **{c: None for c in GDD_COLUMNS}})
+    return rows
 
 
 def site_gdd(db: Session, site_id: int, vintage: int,
@@ -260,14 +293,45 @@ def estimate(db: Session, site, on: date) -> list[dict]:
             "zone_harvest_210_date": z.get("harvest_210_date") if ok else None,
         }
 
+    # BUDBURST. Both loaded once per SITE rather than per variety: the
+    # parameters are six rows, and the daily series is one read spanning the
+    # whole accumulation window, which each cultivar then walks separately.
+    # Per-variety loading would be 6 identical 200-row reads per site per day.
+    bb_params = budburst_svc.parameters(db)
+    bb_series = budburst_svc.season_series(
+        db, site.id, date(vintage - 1, 1, 1), on)
+
+    # TRUE where the SITE names no variety. Every row here is explicitly one
+    # variety's estimate, so this does not describe the row — it describes the
+    # site, and it is what lets a reader tell a Pinot noir date from a Sauvignon
+    # blanc date shown only because nothing better was recorded. Measured
+    # 2026-09-08, the cultivar spread at such a site runs 5 to 20 days against a
+    # published model RMSE of 4.9.
+    # Keyed on `variety`, the human field, not `variety_code`. The four Pinot
+    # gris sites NAME a grape and simply have no code for it — calling those
+    # "assumed" would be wrong, and it is `variety IS NULL` that the portfolio
+    # tests when it decides a site gets no phenology at all.
+    assumed = getattr(site, "variety", None) is None
+
     rows = []
-    for variety in thresholds(db):
-        z = zone_dates(zone_rows.get(variety["variety_code"]) or {})
+    for variety in varieties(db, bb_params):
+        code = variety["variety_code"]
+        z = zone_dates(zone_rows.get(code) or {})
+        bb = (budburst_svc.estimate(db, site, on, vintage, bb_params[code],
+                                    series=bb_series)
+              if code in bb_params
+              else {"budburst_date": None, "endodormancy_date": None,
+                    "chill_units": None, "forcing_units": None})
         rows.append({
-            "site_id": site.id, "variety_code": variety["variety_code"],
+            "site_id": site.id, "variety_code": code,
             "vintage_year": vintage, "estimate_date": on,
             "gdd_accumulated": gdd["sep1"], "gdd_from_oct1": gdd["oct1"],
-            "current_stage": determine_stage(gdd["sep1"], gdd["oct1"], variety),
+            # None, not a stage, for a budburst-only variety: with every GDD
+            # threshold NULL `determine_stage` falls through its whole chain and
+            # would report harvest in September.
+            "current_stage": (determine_stage(gdd["sep1"], gdd["oct1"], variety)
+                              if variety["gdd_flowering"] is not None
+                              else None),
             "avg_daily_gdd": gdd["rate"],
             "flowering_date": project(gdd["sep1"], variety["gdd_flowering"]),
             "veraison_date": project(gdd["sep1"], variety["gdd_veraison"]),
@@ -289,6 +353,14 @@ def estimate(db: Session, site, on: date) -> list[dict]:
             # one would be a confidence about the interpolation dressed up as a
             # confidence about the model.
             "confidence": None,
+            # Budburst. `forcing_units` is None until endo-dormancy releases —
+            # zero forcing before that is a fact about the model, not a
+            # measurement, and the two should not look alike.
+            "budburst_date": bb["budburst_date"],
+            "endodormancy_date": bb["endodormancy_date"],
+            "chill_units": bb["chill_units"],
+            "forcing_units": bb["forcing_units"],
+            "variety_is_assumed": assumed,
         })
     return rows
 
@@ -306,7 +378,8 @@ def upsert(db: Session, rows: list[dict]) -> int:
                            "estimate_date",
                            # An observed date is not overwritten by a model
                            # run. These are the columns a human fills in.
-                           "flowering_is_actual", "veraison_is_actual")}
+                           "flowering_is_actual", "veraison_is_actual",
+                           "budburst_is_actual")}
     stmt = stmt.on_conflict_do_update(
         index_elements=["site_id", "variety_code", "vintage_year",
                         "estimate_date"],

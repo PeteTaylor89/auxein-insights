@@ -989,23 +989,53 @@ WITH season AS (
     SELECT DISTINCT ON (p.site_id)
            p.site_id, p.variety_code, p.current_stage, p.gdd_accumulated,
            p.avg_daily_gdd, p.days_vs_baseline,
-           p.flowering_date, p.veraison_date, p.harvest_210_date
+           p.flowering_date, p.veraison_date, p.harvest_210_date,
+           -- Budburst. `endodormancy_date` travels with the date because the
+           -- date is unreadable without it: forcing starts when chilling is
+           -- satisfied and not before, so two sites with the same budburst
+           -- date can have arrived by quite different routes.
+           -- `variety_is_assumed` is not decoration — at a site with no
+           -- recorded variety the cultivar spread is 5-20 days against a model
+           -- RMSE of 4.9, so a row that cannot say which it is should not
+           -- present the date as if it were measured.
+           p.budburst_date, p.endodormancy_date,
+           p.chill_units, p.forcing_units, p.variety_is_assumed,
+           -- THE TARGET THE DATE IS PROJECTED AGAINST. Without it
+           -- `forcing_units` is a number with no scale, and the whole column is
+           -- a date with nothing behind it. Gibbston on 7 Sep 2026 sat at 283.9
+           -- of 627.0 — 45% — and projected 18 October, forty-one days out;
+           -- Seaview Awatere sat at 74% and projected twenty days out. Those
+           -- are very different claims and the table showed them identically.
+           bp.f_star AS forcing_target
       FROM insights_site_phenology p
       JOIN insights_site s ON s.id = p.site_id
+      -- LEFT, not inner: the four GDD-only varieties (Cabernet franc, Cabernet
+      -- Sauvignon, Grenache, Riesling) have no budburst calibration and must
+      -- keep their flowering and veraison dates rather than vanish.
+      LEFT JOIN budburst_parameters bp
+             ON bp.variety_code = p.variety_code AND bp.is_active = true
      WHERE s.account_id = :acc AND p.vintage_year = :vintage
-       -- THE SITE'S OWN VARIETY, falling back to the caller's choice only
-       -- where the client named none. A portfolio that showed every row
-       -- Sauvignon blanc would be telling a Pinot noir grower about someone
-       -- else's grape, and the whole point of the variety column on their list
-       -- is that they monitor different blocks for different things.
-       -- NOT `COALESCE(s.variety_code, :variety)`. That substitutes the
-       -- caller's default whenever the site's code is NULL, and NULL has two
-       -- causes: a met station with no variety at all, and a site whose variety
-       -- we cannot model. The four BSI Pinot gris sites are the second, and
-       -- coalescing showed them Sauvignon blanc dates under a Pinot gris
-       -- heading. A site that named a grape gets that grape or nothing.
-       AND p.variety_code = CASE WHEN s.variety IS NULL THEN :variety
-                                 ELSE s.variety_code END
+       -- THE SITE'S OWN VARIETY OR NOTHING. No fallback to the caller's
+       -- choice, and none to Sauvignon blanc.
+       --
+       -- This clause used to read `CASE WHEN s.variety IS NULL THEN :variety
+       -- ELSE s.variety_code END`, which handed a site that named no grape the
+       -- selector's default. 37 of BSI's 67 rows were carrying Sauvignon blanc
+       -- dates on that basis. Measured 2026-09-08 by running all five
+       -- calibrated cultivars at each such site, the answer moves 5 to 20 days
+       -- depending on which grape is assumed — against a published model RMSE
+       -- of 4.9 days. The assumption was therefore the largest term in the
+       -- number, and no marker on the row makes a date built that way useful.
+       --
+       -- A NULL `variety_code` is also two different situations, and both
+       -- correctly yield nothing here: a met station with no vines, and a site
+       -- whose grape is named but not coded — the four BSI Pinot gris sites,
+       -- which once showed Sauvignon blanc dates under a Pinot gris heading.
+       --
+       -- CONSEQUENCE: `:variety` no longer selects anything. The endpoint still
+       -- accepts it and the payload still lists `varieties`, but nothing in
+       -- this query reads it.
+       AND p.variety_code = s.variety_code
      ORDER BY p.site_id, p.estimate_date DESC
 ), dis AS (
     -- The newest scored day per site. `humidity_available` travels with it:
@@ -1014,7 +1044,13 @@ WITH season AS (
     SELECT DISTINCT ON (x.site_id)
            x.site_id, x.date AS disease_date,
            x.powdery_mildew_risk, x.downy_mildew_risk, x.botrytis_risk,
-           x.pm_cumulative_index, x.botrytis_cumulative, x.humidity_available,
+           x.pm_cumulative_index,
+           -- BOTH botrytis numbers, because they are two quantities and the
+           -- export has to name each one. `botrytis_risk` is banded off
+           -- SEVERITY; the cumulative is a separate decayed accumulator and
+           -- carrying only it is what put "moderate" beside 12.7 in a
+           -- customer's spreadsheet.
+           x.botrytis_severity, x.botrytis_cumulative, x.humidity_available,
            x.bacchus_peak, x.bacchus_infection, x.bacchus_wet_hours
       FROM insights_site_disease x
       JOIN insights_site s ON s.id = x.site_id
@@ -1035,8 +1071,12 @@ SELECT s.id, s.label, s.external_ref, s.site_type, s.status,
        phen.variety_code, phen.current_stage, phen.gdd_accumulated,
        phen.avg_daily_gdd, phen.days_vs_baseline,
        phen.flowering_date, phen.veraison_date, phen.harvest_210_date,
+       phen.budburst_date, phen.endodormancy_date,
+       phen.chill_units, phen.forcing_units, phen.variety_is_assumed,
+       phen.forcing_target,
        dis.disease_date, dis.powdery_mildew_risk, dis.downy_mildew_risk,
-       dis.botrytis_risk, dis.pm_cumulative_index, dis.botrytis_cumulative,
+       dis.botrytis_risk, dis.pm_cumulative_index,
+       dis.botrytis_severity, dis.botrytis_cumulative,
        dis.humidity_available,
        dis.bacchus_peak, dis.bacchus_infection, dis.bacchus_wet_hours,
        y.value AS yield_value, y.unit AS yield_unit
@@ -1103,9 +1143,18 @@ CSV_DECIMALS = 2
 
 
 def _csv_number(value):
-    """A float or Decimal at export precision. Anything else passes through."""
-    if isinstance(value, bool) or value is None:
+    """A float or Decimal at export precision. Anything else passes through.
+
+    Booleans come out UPPERCASE because that is the only spelling Excel,
+    Sheets and LibreOffice all parse as a real boolean — `True` and `true`
+    both land as text, so a filter on "infection" silently matches nothing.
+    The two exports used to disagree here (`True` from the portfolio, `true`
+    from the daily record) which made the pair unconcatenable as well.
+    """
+    if value is None:
         return value
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
     if isinstance(value, (int,)):
         return value
     if isinstance(value, (float, Decimal)):
@@ -1179,6 +1228,17 @@ def _shape(r: dict, vintage: int, to_date: Optional[dict] = None) -> dict:
     td = to_date or {}
     lta_gdd_to_date = _num(td.get("gdd10"), 1)
     next_stage = _next_phenology_stage(r, vintage)
+
+    # How far through the forcing requirement, 0-100. Guarded on the target
+    # rather than on the accumulation: `forcing_units` is legitimately NULL
+    # until endo-dormancy releases, and a site still chilling is 0% forced
+    # rather than unknown — but a variety with no budburst calibration has no
+    # denominator at all, and those two must not both print as a blank.
+    budburst_pct = None
+    if r["forcing_target"]:
+        budburst_pct = _num(
+            100.0 * float(r["forcing_units"] or 0) / float(r["forcing_target"]), 0)
+
     return {
         "site_id": r["id"],
         "label": r["label"],
@@ -1256,6 +1316,31 @@ def _shape(r: dict, vintage: int, to_date: Optional[dict] = None) -> dict:
             "veraison": _iso(r["veraison_date"]),
             "harvest_210": _iso(r["harvest_210_date"]),
             "next": next_stage,
+            # BUDBURST IS A DIFFERENT MODEL, so it is nested rather than sitting
+            # beside the GDD dates as if it were one more threshold. It runs
+            # from a photoperiod trigger that moves with latitude, and its
+            # units are chill-days and degree-days above a per-cultivar base —
+            # none of which the `gdd` above is measured in.
+            #
+            # `variety_assumed` is carried into the payload because a date the
+            # client cannot tell from a stand-in is worse than no date: at a
+            # site with no recorded variety the spread across cultivars is
+            # 5-20 days, against a published model RMSE of 4.9.
+            "budburst": {
+                "date": _iso(r["budburst_date"]),
+                "endodormancy": _iso(r["endodormancy_date"]),
+                "chill_units": _num(r["chill_units"], 1),
+                "forcing_units": _num(r["forcing_units"], 0),
+                "forcing_target": _num(r["forcing_target"], 0),
+                # HOW FAR THROUGH THE FORCING, as a percentage, computed here so
+                # the table, the CSV and anything else read the same figure.
+                # This is the answer to "where does that date come from": a date
+                # projected from 45% of the requirement is a forty-day
+                # extrapolation on a fortnight's rate, and one projected from
+                # 74% is not.
+                "forcing_pct": budburst_pct,
+                "variety_assumed": r["variety_is_assumed"],
+            },
         },
         "disease": {
             "date": _iso(r["disease_date"]),
@@ -1270,7 +1355,14 @@ def _shape(r: dict, vintage: int, to_date: Optional[dict] = None) -> dict:
             "powdery": r["powdery_mildew_risk"],
             "powdery_index": _num(r["pm_cumulative_index"], 1),
             "botrytis": r["botrytis_risk"],
-            "botrytis_index": _num(r["botrytis_cumulative"], 1),
+            # TWO NUMBERS, TWO NAMES. There was one key here, `botrytis_index`,
+            # and it carried the CUMULATIVE while the word beside it was banded
+            # off SEVERITY. On screen that was invisible (the table shows only
+            # the word) but the CSV put them in adjacent columns, and 28 rows of
+            # the current record export "moderate" next to an index under 20.
+            # `_index` is gone rather than repointed: the name is the ambiguity.
+            "botrytis_severity": _num(r["botrytis_severity"], 1),
+            "botrytis_cumulative": _num(r["botrytis_cumulative"], 1),
             "downy": r["downy_mildew_risk"],
             # A score computed without humidity is a WEAKER claim, not the same
             # claim. The row says so rather than letting a colour imply parity.
@@ -1331,12 +1423,18 @@ def account_portfolio(slug: str,
     re-sort costs nothing and works offline; it also means the CSV export and
     the table can never disagree about what "the current view" is.
 
-    ## `variety` picks ONE variety's phenology
+    ## `variety` NO LONGER SELECTS ANYTHING
 
-    A portfolio row has space for one set of dates. Sauvignon blanc is the
-    default because it is the majority of New Zealand's planted area, not
-    because it is right for every site — the selector is in the payload's
-    `varieties` so the client offers what actually exists.
+    It used to fill in for sites that named no grape, and 37 of BSI's 67 rows
+    were carrying Sauvignon blanc dates on that basis. Running all five
+    calibrated cultivars at each such site on 2026-09-08 moved the budburst
+    answer by 5 to 20 days depending on which was assumed, against a published
+    model RMSE of 4.9 — so the assumption was the largest term in the number.
+    A site now gets its own variety's dates or none at all.
+
+    The parameter and the `varieties` list are still returned so existing
+    clients do not break, but nothing reads them. Remove the selector from the
+    UI before treating this as finished.
     """
     account = _account(db, slug, user)
     if vintage is None:
@@ -1406,6 +1504,26 @@ _CSV_COLUMNS = [
     ("next_stage_date", lambda s: (s["phenology"]["next"] or {}).get("date")),
     ("next_stage_basis", lambda s: (s["phenology"]["next"] or {}).get("basis")),
     ("gdd_base0", lambda s: s["phenology"]["gdd"]),
+    # BUDBURST COLUMNS CARRY THEIR OWN MODEL'S UNITS. `chill_days` and
+    # `forcing_degree_days` are not the `gdd_base0` above by another name —
+    # different origin, different base temperature, different accumulator — and
+    # a spreadsheet that outlives this screen has nothing but the column name to
+    # say so. `budburst_variety_assumed` rides with them for the same reason the
+    # payload carries it: at a site with no recorded variety the answer moves
+    # 5-20 days depending on which grape was guessed.
+    ("budburst", lambda s: s["phenology"]["budburst"]["date"]),
+    ("budburst_endodormancy", lambda s: s["phenology"]["budburst"]["endodormancy"]),
+    ("budburst_chill_days", lambda s: s["phenology"]["budburst"]["chill_units"]),
+    ("budburst_forcing_degree_days",
+     lambda s: s["phenology"]["budburst"]["forcing_units"]),
+    # THE TARGET AND THE PERCENTAGE TRAVEL WITH THE DATE. A spreadsheet outlives
+    # the screen, and 284 degree-days means nothing without the 627 it is
+    # counting toward. The percentage is how a reader tells a date projected
+    # from most of the way home from one extrapolated forty days out.
+    ("budburst_forcing_target", lambda s: s["phenology"]["budburst"]["forcing_target"]),
+    ("budburst_forcing_pct", lambda s: s["phenology"]["budburst"]["forcing_pct"]),
+    ("budburst_variety_assumed",
+     lambda s: s["phenology"]["budburst"]["variety_assumed"]),
     ("flowering", lambda s: s["phenology"]["flowering"]),
     ("veraison", lambda s: s["phenology"]["veraison"]),
     ("harvest_210", lambda s: s["phenology"]["harvest_210"]),
@@ -1415,10 +1533,22 @@ _CSV_COLUMNS = [
     # THE MODEL IS IN THE COLUMN NAME. A spreadsheet outlives the screen it
     # came from, and "botrytis_risk" next to "bacchus_index" with no other
     # label is how a reader concludes they are two views of one model.
+    # ...AND SO IS THE QUANTITY. `botrytis_gd_risk` is banded off severity, so
+    # severity is the column that sits next to it; the cumulative follows under
+    # its own name. A single "index" column between them was a reader's
+    # invitation to check the word against the wrong number.
     ("botrytis_gd_risk", lambda s: s["disease"]["botrytis"]),
-    ("botrytis_gd_index", lambda s: s["disease"]["botrytis_index"]),
+    ("botrytis_gd_severity", lambda s: s["disease"]["botrytis_severity"]),
+    ("botrytis_gd_cumulative", lambda s: s["disease"]["botrytis_cumulative"]),
+    # BACCHUS IS ONLY READABLE AGAINST ITS THRESHOLD. 0.86 means nothing on its
+    # own and there are no bands to fall back on, so the threshold travels in
+    # the file rather than living in the screen the file came from. Wet hours
+    # are the input the number is made of, and the first thing anyone asks
+    # after "why did this fire".
     ("bacchus_index", lambda s: s["bacchus"]["index"]),
+    ("bacchus_threshold", lambda s: s["bacchus"]["threshold"]),
     ("bacchus_infection", lambda s: s["bacchus"]["infection"]),
+    ("bacchus_wet_hours", lambda s: s["bacchus"]["wet_hours"]),
     ("bacchus_requested", lambda s: s["bacchus"]["requested"]),
     ("downy_risk", lambda s: s["disease"]["downy"]),
     ("humidity_available", lambda s: s["disease"]["humidity_available"]),
@@ -1484,7 +1614,8 @@ SELECT s.id AS site_id, s.label, s.external_ref, s.site_type, s.variety,
        d.eto_mm, d.etc_mm, d.water_balance_mm, d.eto_method,
        x.powdery_mildew_risk, x.botrytis_risk, x.downy_mildew_risk,
        x.pm_cumulative_index, x.botrytis_cumulative, x.botrytis_severity,
-       x.humidity_available, x.bacchus_peak, x.bacchus_infection
+       x.humidity_available,
+       x.bacchus_peak, x.bacchus_infection, x.bacchus_wet_hours
   FROM insights_site s
   LEFT JOIN climate_zones z ON z.id = s.zone_id
   JOIN insights_site_daily d ON d.site_id = s.id
@@ -1500,8 +1631,16 @@ SELECT s.id AS site_id, s.label, s.external_ref, s.site_type, s.variety,
 
 
 def _timeseries(db: Session, scope_sql: str, params: dict) -> list[dict]:
-    return [dict(r) for r in db.execute(
+    rows = [dict(r) for r in db.execute(
         text(_TIMESERIES_SQL.format(scope=scope_sql)), params).mappings().all()]
+    # The threshold is a model constant, not a stored value, but it has to reach
+    # the export: `bacchus_index = 0.86` is uninterpretable without it and the
+    # model publishes no bands to fall back on. Set here rather than in the
+    # column list so the one place that knows it stays `BacchusModel`.
+    for row in rows:
+        row["bacchus_threshold"] = (BacchusModel.THRESHOLD
+                                    if row["bacchus_peak"] is not None else None)
+    return rows
 
 
 def _ts_window(start: Optional[str], end: Optional[str],
@@ -1598,13 +1737,14 @@ def site_timeseries(site_id: int,
         "botrytis_risk": [r["botrytis_risk"] for r in rows],
         "powdery_index": col("pm_cumulative_index"),
         "botrytis_severity": col("botrytis_severity"),
-        "botrytis_index": col("botrytis_cumulative"),
+        "botrytis_cumulative": col("botrytis_cumulative"),
         # BACCHUS, ON ITS OWN SCALE. The other two indices run 0-100; this one
         # is a fraction of an infection period and crosses at 1.0, so it cannot
         # share their axis and the chart must not put it there.
         "bacchus_index": col("bacchus_peak"),
         "bacchus_threshold": BacchusModel.THRESHOLD,
         "bacchus_infection": [r["bacchus_infection"] for r in rows],
+        "bacchus_wet_hours": col("bacchus_wet_hours"),
         # ET is only computed where the client asked for it, so a site with an
         # entirely empty ET series has not failed — it was not requested.
         "has_et": any(v is not None for v in col("eto_mm")),
@@ -1628,8 +1768,21 @@ _TS_COLUMNS = [
     ("water_balance_mm", "water_balance_mm"), ("eto_method", "eto_method"),
     ("powdery_risk", "powdery_mildew_risk"),
     ("powdery_index", "pm_cumulative_index"),
-    ("botrytis_risk", "botrytis_risk"),
-    ("botrytis_index", "botrytis_cumulative"),
+    # SAME NAMES AS THE PORTFOLIO CSV. Somebody who exports the summary and the
+    # daily record is reconciling one against the other, and two spellings of
+    # the same quantity is the whole reason this pass exists. `botrytis_risk` /
+    # `botrytis_index` said neither which model nor which number.
+    ("botrytis_gd_risk", "botrytis_risk"),
+    ("botrytis_gd_severity", "botrytis_severity"),
+    ("botrytis_gd_cumulative", "botrytis_cumulative"),
+    # BACCHUS WAS ENTIRELY ABSENT from this export while being a column on the
+    # portfolio and a line on the chart — so the one file with a day-by-day
+    # record could not show the day an infection period completed. It is the
+    # file a grower would actually take a spray decision from.
+    ("bacchus_index", "bacchus_peak"),
+    ("bacchus_threshold", "bacchus_threshold"),
+    ("bacchus_infection", "bacchus_infection"),
+    ("bacchus_wet_hours", "bacchus_wet_hours"),
     ("downy_risk", "downy_mildew_risk"),
     ("humidity_available", "humidity_available"),
 ]
@@ -1658,9 +1811,9 @@ def _ts_csv(rows: list[dict], filename: str):
                 out.append("")
             elif isinstance(v, date):
                 out.append(v.isoformat())
-            elif isinstance(v, bool):
-                out.append("true" if v else "false")
             else:
+                # Shared with the portfolio export, booleans included, so the
+                # two files spell the same value the same way.
                 out.append(_csv_number(v))
         w.writerow(out)
     buf.seek(0)

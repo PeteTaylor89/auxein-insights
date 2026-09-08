@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Download, Loader, AlertTriangle, Search, ArrowUpDown, MapPin,
+  Download, Loader, AlertTriangle, Search, ArrowUpDown, MapPin, Info,
 } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import SiteFooter from '../components/SiteFooter';
@@ -32,10 +32,17 @@ import {
   downloadAccountTimeseriesCsv,
 } from '../services/proSiteService';
 import SitePopup from '../components/pro/SitePopup';
+import ModelsAbout from '../components/pro/ModelsAbout';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import { isPro } from '../utils/entitlements';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import './Portfolio.css';
+
+// The Models dialog is BUILT AND WIRED but not exposed yet — its references and
+// equations are being reviewed before a client sees them. Flip this to true to
+// ship it; nothing else needs to change. `ModelsAbout` stays mounted either way
+// so the flag is the only thing between here and shipping it.
+const SHOW_MODELS = false;
 
 const RISK_ORDER = { low: 0, moderate: 1, medium: 1, high: 2, extreme: 3 };
 
@@ -67,6 +74,31 @@ const signed = (v, dp = 0) => (v === null || v === undefined
     minimumFractionDigits: dp, maximumFractionDigits: dp,
   })}`);
 
+// A VARIETY THE MODEL WAS NEVER FITTED FOR IS NOT A MISSING MEASUREMENT, and a
+// bare dash says neither. The two phenology models carry different variety sets:
+// Pinot gris has a budburst calibration and no stage thresholds, so those sites
+// can show a budburst date and must show nothing for flowering, véraison and
+// harvest; Cabernet franc, Cabernet Sauvignon, Grenache and Riesling are the
+// reverse. Without a word here a client reads both as data we failed to collect.
+//
+// A site that names NO variety keeps the dash. There is nothing to say about a
+// model that was never asked to run.
+//
+// TWO REASONS FOR A BLANK, AND THEY ARE NOT THE SAME CLAIM. A variety the
+// platform holds no code for cannot select EITHER model, however well
+// calibrated they are — the four Pinot gris sites are exactly this, and Pinot
+// gris DOES have a budburst calibration, so telling that reader "not
+// calibrated" would be false. A coded variety one model was never fitted for is
+// the other case, and it gets the other word.
+const noModel = (s) => {
+  if (!s.variety) return '—';
+  const label = s.variety_modelled ? 'not calibrated' : 'variety not modelled';
+  const why = s.variety_modelled
+    ? `This model is not calibrated for ${s.variety}`
+    : `${s.variety} is not one of the varieties this platform models`;
+  return <span className="portfolio__uncal" title={why}>{label}</span>;
+};
+
 // Every column declares how to READ it and how to SORT it separately. A date
 // sorts as a string, a risk sorts by severity rather than alphabetically —
 // "high" before "low" is the whole point, and an alphabetical sort would put
@@ -97,8 +129,69 @@ const COLUMNS = [
     get: (s) => num(s.lta.gdd10, 1), sort: (s) => s.lta.gdd10 },
   { key: 'rain', label: 'Rain', numeric: true, title: 'Season to date, mm',
     get: (s) => num(s.season.rain_mm, 1), sort: (s) => s.season.rain_mm },
+  // BUDBURST IS THE OTHER MODEL ON THIS TABLE, and the sub-label says so.
+  // Everything to its left accumulates GDD from 1 September; this one starts at
+  // a photoperiod trigger in late February, accumulates chilling to a
+  // requirement, and only then accumulates degree-days above a per-cultivar
+  // base. Same column, different origin, different units — labelling it
+  // "Budburst" alone would invite the reading that it is one more GDD
+  // threshold.
+  //
+  // Judged against `season.through`, the last day of the record, not the
+  // browser's clock: whether the model has SEEN budburst happen is a question
+  // about the data, and a laptop in another timezone should not change the
+  // word.
+  { key: 'budburst', label: 'Budburst', sub: 'chilling–forcing',
+    title: 'Modelled budburst: chilling from the photoperiod trigger, then forcing to the cultivar requirement',
+    get: (s) => {
+      const b = s.phenology.budburst;
+      if (!b || !b.date) {
+        // Three different blanks, and only two of them mean the same thing.
+        // No phenology row at all: the site names no variety, or names one
+        // neither model carries. A row with no forcing target: this cultivar
+        // has no budburst calibration. A row WITH a target and no date: the
+        // model ran and could not answer — a truncated chilling window, most
+        // often — and that is a genuine absence, so it keeps the dash.
+        return (!s.phenology.variety || !b?.forcing_target)
+          ? noModel(s) : '—';
+      }
+      const seen = s.season.through && b.date <= s.season.through;
+      const pct = b.forcing_pct;
+      return (
+        <span className="portfolio__stagecell">
+          <span className="portfolio__stagedate">{shortDate(b.date)}</span>
+          {/* THE BAR IS WHERE THE DATE COMES FROM. A projected budburst is a
+              forcing shortfall divided by a trailing rate, so the same column
+              can hold a date extrapolated forty days from 45% of the
+              requirement and one twenty days from 74%, in identical type.
+              Gibbston and Seaview Awatere were exactly that pair on 7 Sep 2026.
+              The fill says which kind of claim the reader is looking at before
+              they read the date. */}
+          {pct != null && !seen ? (
+            <span
+              className="portfolio__forcing"
+              title={`${b.forcing_units} of ${b.forcing_target} °C-days`
+                     + (b.endodormancy ? `, forcing since ${b.endodormancy}` : '')}
+            >
+              <span
+                className="portfolio__forcingfill"
+                style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
+              />
+            </span>
+          ) : null}
+          <sub className="portfolio__stagebasis">
+            {seen ? 'modelled' : `predicted · ${pct == null ? '—' : `${pct}%`} forced`}
+          </sub>
+        </span>
+      );
+    },
+    sort: (s) => s.phenology.budburst?.date || '' },
   { key: 'stage', label: 'Stage',
-    get: (s) => s.phenology.stage || '—', sort: (s) => s.phenology.stage || '' },
+    // Pinot gris lands here: it carries a budburst date in the column to the
+    // left and has no stage thresholds at all, so this cell says so rather than
+    // leaving the reader to conclude the season has not started.
+    get: (s) => s.phenology.stage || noModel(s),
+    sort: (s) => s.phenology.stage || '' },
   // ONE stage, not three. Flowering, véraison and 210 g/L used to sit side by
   // side in identical type; in early September that put a picking date
   // extrapolated eight months forward beside one three weeks out, with nothing
@@ -171,7 +264,12 @@ function Portfolio() {
   const [accounts, setAccounts] = useState(null);
   const [slug, setSlug] = useState(null);
   const [data, setData] = useState(null);
-  const [variety, setVariety] = useState('SB');
+  // NO VARIETY STATE. Every phenology figure on this table now comes from the
+  // site's OWN variety — the server matches `p.variety_code = s.variety_code`
+  // with no fallback — so a picker here would change nothing on screen while
+  // looking as though it did. A site that names no grape shows no phenology at
+  // all, which is the honest answer: running all five calibrated cultivars at
+  // such a site moves budburst by 5 to 20 days, against a model RMSE of 4.9.
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -183,6 +281,7 @@ function Portfolio() {
   const [region, setRegion] = useState('');
   const [type, setType] = useState('');
   const [sort, setSort] = useState({ key: 'label', dir: 1 });
+  const [showModels, setShowModels] = useState(false);
 
   useDocumentMeta({ title: 'Portfolio · Auxein Insights' });
 
@@ -204,14 +303,14 @@ function Portfolio() {
     if (!slug) return undefined;
     let live = true;
     setLoading(true);
-    getAccountPortfolio(slug, { variety })
+    getAccountPortfolio(slug)
       .then((d) => { if (live) { setData(d); setError(null); } })
       .catch((e) => {
         if (live) setError(e?.response?.data?.detail || 'Could not load this portfolio.');
       })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [slug, variety]);
+  }, [slug]);
 
   const sites = data?.sites || [];
 
@@ -261,7 +360,7 @@ function Portfolio() {
     try {
       const opts = { vintage: data?.vintage_year };
       if (which === 'summary') {
-        await downloadAccountPortfolioCsv(slug, { ...opts, variety });
+        await downloadAccountPortfolioCsv(slug, opts);
       } else {
         await downloadAccountTimeseriesCsv(slug, opts);
       }
@@ -270,7 +369,7 @@ function Portfolio() {
     } finally {
       setExporting(false);
     }
-  }, [slug, data, variety]);
+  }, [slug, data]);
 
   if (!isPro(user)) {
     return (
@@ -331,12 +430,19 @@ function Portfolio() {
                 ))}
               </select>
             )}
-            <select value={variety} onChange={(e) => setVariety(e.target.value)}
-                    aria-label="Variety">
-              {(data?.varieties || ['SB']).map((v) => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
+            {/* Not a help link. Every column on this table is the output of a
+                named, published model with its own units, its own reference and
+                its own limits, and a client reading a botrytis band or a
+                budburst date has no way to tell which model produced it from
+                the table alone. Gated on SHOW_MODELS while the content is
+                reviewed. */}
+            {SHOW_MODELS && (
+              <button type="button" className="btn btn-secondary"
+                      onClick={() => setShowModels(true)}
+                      title="Equations, parameters, references and limits for every model on this table">
+                <Info size={15} aria-hidden="true" /> Models
+              </button>
+            )}
             <button type="button" className="btn btn-secondary"
                     onClick={() => runExport('summary')}
                     disabled={!data || !!exporting}
@@ -501,6 +607,7 @@ function Portfolio() {
           <SitePopup site={open} vintage={data?.vintage_year}
                      onClose={() => setOpen(null)} />
         )}
+        <ModelsAbout isOpen={showModels} onClose={() => setShowModels(false)} />
       </main>
       <SiteFooter />
     </>

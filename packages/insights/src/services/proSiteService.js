@@ -191,10 +191,10 @@ export async function listAccounts() {
  * slowly, so a re-sort costs nothing — and it means the CSV export and the
  * table can never disagree about what the current view is.
  */
-export async function getAccountPortfolio(slug, { vintage, variety } = {}) {
+export async function getAccountPortfolio(slug, { vintage } = {}) {
   const { data } = await publicApi.get(
     `/insights/accounts/${encodeURIComponent(slug)}/portfolio`,
-    { params: { vintage, variety } },
+    { params: { vintage } },
   );
   return data;
 }
@@ -208,15 +208,15 @@ export async function getAccountPortfolio(slug, { vintage, variety } = {}) {
  * save the error page. This is the `publicApi` rule the free-tier work already
  * ran into: a bare fetch drops the token.
  */
-export async function downloadAccountPortfolioCsv(slug, { vintage, variety } = {}) {
+export async function downloadAccountPortfolioCsv(slug, { vintage } = {}) {
   const res = await publicApi.get(
     `/insights/accounts/${encodeURIComponent(slug)}/portfolio.csv`,
-    { params: { vintage, variety }, responseType: 'blob' },
+    { params: { vintage }, responseType: 'blob' },
   );
   const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `portfolio_${slug}_${vintage || 'current'}_${variety || 'SB'}.csv`;
+  a.download = `portfolio_${slug}_${vintage || 'current'}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();

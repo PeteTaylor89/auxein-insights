@@ -1,0 +1,273 @@
+/* ModelsAbout — a reference document in a dialog.
+   Two panes: a section index that stays put, and the document itself. At 67
+   rows of table behind it the reader is here to check one model, not to read
+   nine, so the index is the primary control and the body scrolls under it. */
+
+.models__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(17, 24, 28, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.models {
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #15191a);
+  border-radius: 6px;
+  box-shadow: 0 24px 64px -24px rgba(0, 0, 0, 0.45);
+  width: min(1040px, 100%);
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.models__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+.models__head h2 { margin: 0 0 4px; font-size: 1.15rem; letter-spacing: -0.01em; }
+.models__head p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7280);
+}
+.models__close {
+  margin-left: auto;
+  flex: none;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: transparent;
+  color: inherit;
+  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.models__close:hover { background: var(--color-surface-sunk, #f3f4f6); }
+.models__close:focus-visible {
+  outline: 2px solid var(--color-accent, #2e6e5b);
+  outline-offset: 1px;
+}
+
+.models__split { display: flex; min-height: 0; flex: 1; }
+
+/* ---- index ---- */
+.models__nav {
+  flex: none;
+  width: 214px;
+  border-right: 1px solid var(--color-border, #e5e7eb);
+  padding: 16px 10px 24px;
+  overflow-y: auto;
+  background: var(--color-surface-sunk, #fafafa);
+}
+.models__navgroup { margin-bottom: 14px; }
+.models__navlabel {
+  display: block;
+  padding: 0 10px 5px;
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #9ca3af);
+}
+.models__navitem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.83rem;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.models__navitem em {
+  display: block;
+  font-style: normal;
+  font-size: 0.68rem;
+  color: var(--color-text-muted, #6b7280);
+}
+.models__navitem:hover { background: var(--color-surface, #fff); }
+.models__navitem.is-active {
+  background: var(--color-surface, #fff);
+  box-shadow: inset 2px 0 0 var(--color-accent, #2e6e5b);
+  font-weight: 500;
+}
+.models__navitem:focus-visible {
+  outline: 2px solid var(--color-accent, #2e6e5b);
+  outline-offset: -2px;
+}
+
+/* ---- document ---- */
+.models__body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 4px 28px 40px;
+  scroll-behavior: smooth;
+}
+.models__section {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--color-border-soft, #f0f1f2);
+  scroll-margin-top: 12px;
+}
+.models__section:last-child { border-bottom: 0; }
+.models__section h3 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.models__sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-accent, #2e6e5b);
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  padding: 0 7px;
+}
+.models__question {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--color-text-muted, #6b7280);
+}
+.models__section p {
+  margin: 0 0 10px;
+  max-width: 68ch;
+  font-size: 0.87rem;
+  line-height: 1.6;
+}
+.models__note {
+  border-left: 2px solid var(--color-border, #e5e7eb);
+  padding-left: 12px;
+  color: var(--color-text-muted, #6b7280);
+}
+
+/* Equations get room and a monospace face; they are the thing a reader came to
+   check, not decoration inside a paragraph. */
+.models__eqs { margin: 0 0 12px; display: grid; gap: 6px; }
+.models__eqs > div {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.models__eqs dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #9ca3af);
+}
+.models__eqs dd { margin: 0; min-width: 0; overflow-x: auto; }
+.models__eqs code,
+.models__section code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.79rem;
+  background: var(--color-surface-sunk, #f6f7f8);
+  border: 1px solid var(--color-border-soft, #eceef0);
+  border-radius: 3px;
+  padding: 2px 6px;
+  white-space: pre;
+}
+
+.models__scroller { overflow-x: auto; margin: 4px 0 14px; }
+.models__table { border-collapse: collapse; font-size: 0.8rem; }
+.models__table th,
+.models__table td {
+  padding: 5px 16px 5px 0;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border-soft, #f0f1f2);
+}
+.models__table th {
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #9ca3af);
+}
+.models__table .n { text-align: right; font-variant-numeric: tabular-nums; }
+
+.models__facts { margin: 0 0 12px; display: grid; gap: 4px; }
+.models__facts > div {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 12px;
+  font-size: 0.82rem;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--color-border, #e9ebed);
+}
+.models__facts dt { color: var(--color-text-muted, #6b7280); }
+.models__facts dd { margin: 0; }
+
+.models__refs {
+  margin: 0 0 12px;
+  padding-left: 16px;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-text-muted, #6b7280);
+}
+.models__refs li { margin-bottom: 3px; }
+
+/* The limits read as part of the model, not as small print under it. */
+.models__limits {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.6;
+  background: var(--color-surface-sunk, #f7f8f8);
+  border-left: 2px solid var(--color-warning, #b45309);
+  padding: 10px 14px;
+  border-radius: 0 3px 3px 0;
+}
+.models__limits span {
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-warning, #b45309);
+  margin-bottom: 3px;
+}
+
+@media (max-width: 760px) {
+  .models__overlay { padding: 0; }
+  .models { max-height: 100vh; border-radius: 0; }
+  .models__split { flex-direction: column; }
+  .models__nav {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 10px;
+  }
+  .models__navgroup { margin: 0; display: flex; gap: 4px; }
+  .models__navlabel { display: none; }
+  .models__navitem { white-space: nowrap; width: auto; }
+  .models__navitem em { display: none; }
+  .models__body { padding: 0 16px 32px; }
+  .models__eqs > div,
+  .models__facts > div { grid-template-columns: 1fr; gap: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .models__body { scroll-behavior: auto; }
+}

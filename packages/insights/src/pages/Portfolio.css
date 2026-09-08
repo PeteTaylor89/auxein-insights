@@ -238,6 +238,37 @@
   vertical-align: baseline;
 }
 
+/* "not calibrated" — a variety this model was never fitted for. Muted and in
+   the same size as the surrounding text rather than styled as a warning: it is
+   a statement about model coverage, not a fault at this site, and 41 rows of
+   amber would read as an alarm. Italic so it does not scan as a stage name. */
+.portfolio__uncal {
+  font-style: italic;
+  color: var(--color-text-muted, #9ca3af);
+  white-space: nowrap;
+}
+
+/* How far through the forcing requirement a projected budburst is. Two pixels
+   and no number of its own — the percentage is already spelled out on the line
+   below, and this exists so the reader can compare rows without reading any of
+   them. Only drawn while the date is still ahead: once budburst has happened
+   the accumulation is history and a progress bar would imply otherwise. */
+.portfolio__forcing {
+  display: block;
+  width: 100%;
+  max-width: 68px;
+  height: 3px;
+  margin: 3px 0 2px;
+  border-radius: 2px;
+  background: var(--color-border, #e5e7eb);
+  overflow: hidden;
+}
+.portfolio__forcingfill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent, #2e6e5b);
+}
+
 /* --- two botrytis models, side by side ------------------------------------
    Two columns now read "Botrytis" and only the model line under the heading
    separates them. It has to be legible at a glance rather than decorative,
