@@ -497,7 +497,9 @@ export const siteAttendanceService = {
     return res.data;
   },
 
-  // Manager+ only; a general_user gets a 403 and the screen does not offer it.
+  // `site_attendance:read`. Manager+ AND general_user as of 2026-09-10 — the
+  // evacuation headcount belongs to the person standing on the property.
+  // Still refused for company_user and contractors, who get a 403.
   whoIsOnSite: async (propertyId) => {
     const res = await api.get('/v1/site-attendance/on-site', {
       params: propertyId ? { property_id: propertyId } : undefined,

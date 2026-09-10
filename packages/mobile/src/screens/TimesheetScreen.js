@@ -9,15 +9,14 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
-  ActivityIndicator, StatusBar, Platform,
+  ActivityIndicator, StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '../contexts/AuthContext';
 import { timesheetService } from '../api/services';
-import { useToast, DayTotalSheet } from '../components';
+import { useToast, DayTotalSheet, DatePickerSheet } from '../components';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { isDayEditable } from '../utils/timesheetStatus';
 
@@ -109,10 +108,13 @@ export default function TimesheetScreen({ navigation }) {
 
   const monthTotal = days.reduce((s, d) => s + Number(d.effective_total_hours || 0), 0);
 
-  const handleDatePicked = async (event, picked) => {
-    // Android closes immediately; iOS keeps open. Dismiss either way.
+  // Fires ONCE, when the person has confirmed a date — Done on iOS, OK on the
+  // Android dialog. It used to be the raw picker's onChange, which on an iOS
+  // spinner fires on every wheel movement: scrolling the month wheel created a
+  // day and navigated away mid-scroll.
+  const handleDatePicked = async (picked) => {
     setShowDatePicker(false);
-    if (event?.type === 'dismissed' || !picked) return;
+    if (!picked) return;
     setCreatingDay(true);
     try {
       const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -258,15 +260,14 @@ export default function TimesheetScreen({ navigation }) {
         onClose={() => !savingTotal && setTotalFor(null)}
       />
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDatePicked}
-          maximumDate={new Date()}
-        />
-      )}
+      <DatePickerSheet
+        visible={showDatePicker}
+        value={new Date()}
+        title="Which day?"
+        maximumDate={new Date()}
+        onConfirm={handleDatePicked}
+        onClose={() => setShowDatePicker(false)}
+      />
     </SafeAreaView>
   );
 }

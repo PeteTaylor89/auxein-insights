@@ -2,9 +2,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, Modal, FlatList, StatusBar, Image,
+  TouchableOpacity, Modal, FlatList, StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,8 +13,8 @@ import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 import { tasksService, observationService, notificationService, siteService } from '../api/services';
 import { SOURCE_ICONS, SkeletonCard } from '../components';
 import ConditionsHero from '../components/ConditionsHero';
-
-const LOGO_MARK = require('../../assets/brand/logo-mark.png');
+import BrandHeader from '../components/BrandHeader';
+import OnSiteChip from '../components/OnSiteChip';
 
 export default function HomeScreen({ navigation }) {
   const { user, isManagerOrAbove } = useAuth();
@@ -83,29 +83,13 @@ export default function HomeScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Brand header */}
-      <SafeAreaView edges={['top']} style={styles.headerSafe}>
-        <View style={styles.header}>
-          <View style={styles.brandRow}>
-            <Image source={LOGO_MARK} style={styles.brandMark} resizeMode="contain" />
-            <Text style={styles.brandWordmark}>Auxein Grow</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.bellBtn}
-            onPress={() => navigation.navigate('Profile', { screen: 'Notifications' })}
-            hitSlop={10}
-          >
-            <Feather name="bell" size={20} color={colors.white} />
-            {unreadCount > 0 && (
-              <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      {/* Shared with the general_user's home screen — see components/BrandHeader.
+          Notifications sit under Profile for a full user; that stack is this
+          screen's to know, not the header's. */}
+      <BrandHeader
+        unreadCount={unreadCount}
+        onBellPress={() => navigation.navigate('Profile', { screen: 'Notifications' })}
+      />
 
       {/* Property switcher + onsite chip — context bar below header.
           Manager+ users get an "All properties" option (handled in the picker
@@ -137,21 +121,11 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Reads as a route, not a status label — the chevron is the whole
-            point, since this is where signing a visitor OUT lives. */}
-        <TouchableOpacity
-          style={styles.onsiteChip}
+        {/* Shared with the general_user's home screen — components/OnSiteChip. */}
+        <OnSiteChip
+          count={activeOnSiteCount}
           onPress={() => navigation.navigate('Visitors')}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Who's on site"
-        >
-          <Feather name="users" size={14} color={colors.primary} />
-          <Text style={styles.onsiteText}>
-            {activeOnSiteCount > 0 ? `${activeOnSiteCount} on site` : "Who's on site"}
-          </Text>
-          <Feather name="chevron-right" size={14} color={colors.primary} />
-        </TouchableOpacity>
+        />
       </View>
 
       <ScrollView
@@ -451,34 +425,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
   // Header
-  headerSafe: { backgroundColor: colors.primary },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  brandMark: { width: 28, height: 28 },
-  brandWordmark: {
-    color: colors.white, fontSize: fontSize.lg, fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  bellBtn: {
-    width: 40, height: 40, borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  bellBadge: {
-    position: 'absolute', top: -4, right: -4,
-    backgroundColor: colors.danger, borderRadius: 10,
-    paddingHorizontal: 5, paddingVertical: 1, minWidth: 18,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: colors.primary,
-  },
-  bellBadgeText: { color: colors.white, fontSize: 10, fontWeight: '700' },
-
   // Context bar (below header, on body bg)
   contextBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -496,18 +442,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   propertyName: { color: colors.text, fontSize: fontSize.base, fontWeight: '600', flexShrink: 1 },
-  onsiteChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    // Always hard right, so it holds its place whether or not the property
-    // pill is rendered beside it.
-    marginLeft: 'auto',
-    backgroundColor: colors.primary + '14',
-    paddingHorizontal: spacing.md, paddingVertical: 8,
-    borderRadius: radius.pill,
-    borderWidth: 1, borderColor: colors.primary + '30',
-  },
-  onsiteText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '600' },
-
   // Scroll
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: spacing.xl },

@@ -16,18 +16,28 @@
 //
 // It is also the H&S launchpad, because a general_user has nowhere else to go:
 // report a hazard, sign a visitor in, look at the map.
+//
+// Layout, top to bottom: the conditions hero (the same map-and-weather card the
+// full Home screen uses, so the two accounts feel like one app), who is on site
+// right now, then every button — sign on, sign off, and the three H&S actions —
+// in one tidy block underneath. The hero and the headcount are things to READ;
+// everything below them is something to DO, and mixing the two is what made
+// this screen feel like a list of unrelated cards.
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
   ActivityIndicator, StatusBar, Alert,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { siteAttendanceService } from '../api/services';
+import { siteAttendanceService, notificationService, siteService } from '../api/services';
 import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../components';
+import { useToast, OnSitePanel } from '../components';
+import ConditionsHero from '../components/ConditionsHero';
+import BrandHeader from '../components/BrandHeader';
+import OnSiteChip from '../components/OnSiteChip';
 import { colors, spacing, fontSize, radius, shadows } from '../styles/theme';
 
 const fmtTime = (iso) => {
@@ -55,11 +65,22 @@ export default function SiteSignOnScreen({ navigation }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [onSiteCount, setOnSiteCount] = useState(0);
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
     try {
-      setStatus(await siteAttendanceService.getStatus());
+      // Both in one round trip. The bell badge is not worth a second request on
+      // one bar of signal, and its failure must not take the status with it.
+      const [statusRes, unreadRes, onSiteRes] = await Promise.all([
+        siteAttendanceService.getStatus(),
+        notificationService.getUnreadCount().catch(() => null),
+        siteService.listActive().catch(() => null),
+      ]);
+      setStatus(statusRes);
+      setUnreadCount(unreadRes?.count ?? 0);
+      setOnSiteCount(onSiteRes?.total ?? 0);
     } catch (err) {
       console.log('[SignOn] status failed:', err?.message);
       // Deliberately not fatal: an offline phone still has to be able to TRY to
@@ -152,26 +173,61 @@ export default function SiteSignOnScreen({ navigation }) {
 
   if (loading && !status) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+        <BrandHeader />
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.headerObs} />
+    <View style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      {/* Notifications are in THIS stack for a general_user, not under Profile
+          — they have no Profile stack to reach. */}
+      <BrandHeader
+        unreadCount={unreadCount}
+        onBellPress={() => navigation.navigate('Notifications')}
+      />
+      {/* The context bar, same as the full Home screen but without the property
+          pill — this account picks its property by signing on to it, and a
+          second switcher above the sign-on buttons would be two controls for
+          one decision.
+
+          The chip is the ONLY route to the visitor register in this account.
+          Without it, a general_user could sign a visitor in from the H&S
+          actions below and then have no way to reach that visitor again — the
+          register would fill with people who never signed out. */}
+      <View style={styles.contextBar}>
+        <OnSiteChip
+          count={onSiteCount}
+          onPress={() => navigation.navigate('Visitors')}
+        />
+      </View>
+
       <ScrollView
         contentContainerStyle={{ padding: spacing.base, paddingBottom: insets.bottom + spacing.xl }}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />
         }
       >
-        <Text style={styles.greeting}>
-          {firstName ? `Hi ${firstName}` : 'Site sign-on'}
-        </Text>
+        {/* Map and weather for the active property. `showTasks` off: task
+            badges come from /tasks, which this account is denied at the router,
+            and it has no tasks to badge. The hero carries the greeting, so the
+            plain "Hi <name>" line that used to sit here would be a second one. */}
+        <ConditionsHero
+          firstName={firstName}
+          showTasks={false}
+          onPress={() => navigation.navigate('Map')}
+        />
+
+        {/* Who else is here. Above the buttons because it is the thing you read
+            on arrival; the property you are signing on to is usually the one
+            these people are standing on. */}
+        <OnSitePanel style={styles.onSitePanel} />
 
         {current ? (
           <View style={styles.onSiteCard}>
@@ -285,18 +341,23 @@ export default function SiteSignOnScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  contextBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  greeting: {
-    fontSize: fontSize.xl, fontWeight: '700', color: colors.text,
-    marginBottom: spacing.base,
-  },
+  // The hero sits flush at the top; everything after it needs air.
+  onSitePanel: { marginTop: spacing.base, marginBottom: spacing.base },
 
   onSiteCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.base,

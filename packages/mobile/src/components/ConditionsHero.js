@@ -57,6 +57,10 @@ function formatDateLine(d) {
 export default function ConditionsHero({
   firstName = 'there',
   onPress,
+  // Task-count badges come from /tasks, which a general_user is DENIED at the
+  // router. Left on, the hero fires a request that 403s on every render of
+  // their home screen. They have no tasks to badge anyway.
+  showTasks = true,
 }) {
   const { properties, selectedPropertyId, selectedProperty } = useProperty();
 
@@ -106,7 +110,7 @@ export default function ConditionsHero({
   // Block layer for the map preview. Scoped by the active property; when "All
   // properties" is selected the camera fits to every visible block.
   const { data: blocksGeojson } = useBlockGeojson(selectedPropertyId);
-  const { tasksByBlock } = useTasksByBlock();
+  const { tasksByBlock } = useTasksByBlock({ enabled: showTasks });
 
   // Task badges — block centroids that have any task. Same data path as the
   // full Map screen (active = scheduled/ready/in_progress, otherwise inactive)
