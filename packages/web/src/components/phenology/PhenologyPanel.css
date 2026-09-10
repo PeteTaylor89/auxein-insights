@@ -245,3 +245,113 @@
   .phen-row { grid-template-columns: 72px 1fr; gap: var(--space-sm); }
   .phen-axis-tick { font-size: 9px; }
 }
+
+/* ── Date-comparison grid (replaced the mock's fractional stage rail) ──────
+   The models produce DATES for named events, not positions on a rail, so the
+   comparison is a table: three sources down, four events across. */
+.phen-grid-wrap {
+  overflow-x: auto;
+  margin-top: var(--space-sm);
+}
+
+.phen-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.phen-grid th,
+.phen-grid td {
+  padding: var(--space-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.phen-grid thead th {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.phen-grid-corner { width: 1%; }
+
+.phen-grid-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.phen-date { font-weight: 600; color: var(--color-text); white-space: nowrap; }
+
+/* "actual" means observed rather than projected — the single most important
+   distinction on this grid, so it is a marker and not a tooltip. */
+.phen-actual {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full, 999px);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-success-text);
+  background: var(--color-success-bg);
+}
+
+.phen-cell--empty { color: var(--color-text-muted); }
+.phen-dash { cursor: help; }
+
+/* Why a cell is empty. Small and beneath the dash rather than in a tooltip,
+   because "not modelled for this variety" and "nothing to project from yet"
+   have different fixes and neither is discoverable by hovering. */
+.phen-cell-reason {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  line-height: 1.3;
+}
+
+.phen-cell--absent {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.phen-observed { color: var(--color-text); }
+
+.phen-warn {
+  padding: 1px 8px;
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+}
+
+.phen-unmodelled {
+  margin-top: var(--space-lg);
+  padding: var(--space-base);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.phen-unmodelled-title {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.phen-unmodelled-list {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.1rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}

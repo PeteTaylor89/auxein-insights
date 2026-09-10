@@ -158,6 +158,20 @@ function ArticleSurfaceMap({
     return latest ? stampFor(latest, granularity) : null;
   }, [followLatest, validAt, latest, granularity]);
 
+  // Scalars, not the object. A parent that writes `embed={{ article: slug }}`
+  // inline hands a new object identity every render, and an effect keyed on it
+  // would refetch the probed cell on each one.
+  //
+  // THESE MUST STAY ABOVE `gateKind`. A hook's dependency array is an argument
+  // expression, so `[isEmbedded, ...]` is evaluated where `useMemo` is CALLED,
+  // not when its callback runs. Declared below it, `isEmbedded` is still in the
+  // temporal dead zone at that point and every render threw
+  // `ReferenceError: Cannot access 'isEmbedded' before initialization` — which,
+  // with no error boundary around the widget, unmounted the whole article.
+  const embedArticle = embed?.article || undefined;
+  const embedResearch = embed?.research || undefined;
+  const isEmbedded = Boolean(embedArticle || embedResearch);
+
   // CAN THIS READER CLICK FOR A VALUE? One gate, not two: the date rule does
   // not apply to `/probe`, so the pinned step being old is no longer a reason
   // it cannot be read. Only the daily cadence is withheld.
@@ -174,13 +188,6 @@ function ArticleSurfaceMap({
     if (loading || granularity !== 'daily') return null;
     return access?.scope === 'none' ? 'pro' : null;
   }, [isEmbedded, loading, granularity, access]);
-
-  // Scalars, not the object. A parent that writes `embed={{ article: slug }}`
-  // inline hands a new object identity every render, and an effect keyed on it
-  // would refetch the probed cell on each one.
-  const embedArticle = embed?.article || undefined;
-  const embedResearch = embed?.research || undefined;
-  const isEmbedded = Boolean(embedArticle || embedResearch);
 
   const hasToken = Boolean(import.meta.env.VITE_MAPBOX_TOKEN);
   const canRenderMap = hasToken && !unavailable && !mapFailed && Boolean(stamp);

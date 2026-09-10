@@ -21,6 +21,7 @@
 /** Values true of the run, not of the individual vine. Safe to carry. */
 const RUN_CONSTANT_FIELDS = {
   bud_count: ['vines_sampled', 'target_buds_per_vine'],
+  shoot_count: ['vines_sampled', 'target_shoots_per_vine'],
   bunch_count: ['vines_sampled'],
   flower_set: ['shoots_sampled'],
   growth: ['leaf_layer_number'],

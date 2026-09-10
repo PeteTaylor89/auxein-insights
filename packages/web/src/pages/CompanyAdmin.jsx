@@ -1877,18 +1877,35 @@ function WeatherTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
   const [mapPickerProp, setMapPickerProp] = useState(null); // property to set location for
+  // Insights site state per property id. Fetched separately from the property
+  // list because it is a different question with a different answer shape, and
+  // because a site can move from 'populating' to 'ready' without the property
+  // changing at all.
+  const [sites, setSites] = useState({});
+  const [provisioning, setProvisioning] = useState(null);
+
+  const loadSites = useCallback((props) => {
+    Promise.all(
+      props.map(p => propertyService.getInsightsSite(p.id)
+        .then(r => [p.id, r])
+        // A per-property failure must not blank the column for the others.
+        .catch(() => [p.id, null])),
+    ).then(pairs => setSites(Object.fromEntries(pairs)));
+  }, []);
 
   const load = useCallback(() => {
     Promise.all([
       propertyService.listProperties().catch(() => []),
       companyAdminService.getClimateZones().catch(() => []),
     ]).then(([propData, zoneData]) => {
-      setProperties(Array.isArray(propData) ? propData : []);
+      const props = Array.isArray(propData) ? propData : [];
+      setProperties(props);
       const zones = zoneData?.zones || zoneData || [];
       setClimateZones(Array.isArray(zones) ? zones : []);
       setEdits({});
+      loadSites(props);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [loadSites]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1924,6 +1941,22 @@ function WeatherTab() {
     }
   };
 
+  const provisionSite = async (propId) => {
+    setProvisioning(propId);
+    try {
+      const res = await propertyService.provisionInsightsSite(propId);
+      setSites(prev => ({ ...prev, [propId]: { ...prev[propId], site: res.site } }));
+      alert(res.message);
+    } catch (err) {
+      // Every refusal here is actionable — no forecast point, or a point off
+      // the land mask — so show the message rather than a generic failure.
+      const d = err.response?.data?.detail;
+      alert(typeof d === 'string' ? d : (d?.message || 'Could not create the climate site'));
+    } finally {
+      setProvisioning(null);
+    }
+  };
+
   const hasChanges = (propId) => {
     const e = edits[propId];
     if (!e) return false;
@@ -1936,10 +1969,15 @@ function WeatherTab() {
   return (
     <div className="ca-section">
       <h2 className="ca-section-title help-tip-head">Weather & Climate Settings<HelpTip topic="manage.weather" /></h2>
-      <p className="ca-section-desc">Set the forecast point and climate zone for each property. The climate zone links to regional insights data.</p>
+      <p className="ca-section-desc">
+        Set the forecast point and climate zone for each property. The climate zone links to
+        regional insights data. A <strong>climate site</strong> goes further — it extracts this
+        property&apos;s own 1986&ndash;2023 record at the forecast point, so Insights reports its
+        weather, disease and phenology rather than its region&apos;s.
+      </p>
       <table className="ca-table">
         <thead>
-          <tr><th>Property</th><th>Forecast Lat</th><th>Forecast Lng</th><th></th><th>Climate Zone</th><th></th></tr>
+          <tr><th>Property</th><th>Forecast Lat</th><th>Forecast Lng</th><th></th><th>Climate Zone</th><th>Climate site</th><th></th></tr>
         </thead>
         <tbody>
           {properties.map(p => {
@@ -1986,6 +2024,17 @@ function WeatherTab() {
                     ))}
                   </select>
                 </td>
+                {/* The site column states one of four things and never a
+                    bare blank: ready, still building, "set a point first", or
+                    an offer. A missing site is the normal starting state, so
+                    it reads as an action rather than a fault. */}
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <InsightsSiteCell
+                    state={sites[p.id]}
+                    busy={provisioning === p.id}
+                    onProvision={() => provisionSite(p.id)}
+                  />
+                </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {hasChanges(p.id) && (
                     <button className="ca-btn-primary" onClick={() => saveProperty(p.id)} disabled={saving === p.id}>
@@ -2024,6 +2073,73 @@ function WeatherTab() {
         </p>
       </div>
     </div>
+  );
+}
+
+
+// One cell of the Weather tab: whether this property has its own point in the
+// Insights climate archive.
+//
+// The STATES AND THE WORDS ARE INSIGHTS' MY SITE PAGE, deliberately. A Grow
+// customer and an Insights Pro subscriber are frequently the same person
+// looking at the same point, and the two surfaces telling them different
+// stories about the same three states is how one product starts to feel like
+// two. So: "Building history…" while it populates (not "pending"), the
+// pipeline's own words on failure (not "contact support"), and the coordinates
+// once it is ready.
+//
+// Five states, no blanks. A blank cell would read as "broken" for the case that
+// is actually the normal starting point — most properties have no site yet, and
+// that is an offer. The order matters: "set a forecast point first" outranks
+// the offer, because a button that can only fail is worse than an explanation
+// of why there isn't one.
+function InsightsSiteCell({ state, busy, onProvision }) {
+  if (!state) return <span className="ca-muted">&mdash;</span>;
+
+  const { site, has_forecast_point: hasPoint, can_provision: canProvision } = state;
+
+  if (site) {
+    if (site.is_ready) {
+      return (
+        <span
+          className="ca-badge ca-badge--ok"
+          title={`Site ${site.id} · ${site.latitude?.toFixed(4)}, ${site.longitude?.toFixed(4)} · cell ${site.grid_key || '—'}`}
+        >
+          <Check size={12} /> Ready
+        </span>
+      );
+    }
+    if (site.status === 'failed') {
+      // The pipeline's own words. "No surfaces were readable for this cell"
+      // tells the reader something; "an error occurred" tells them nothing,
+      // and My Site has shown the detail since it shipped.
+      return (
+        <span className="ca-fail" title={site.status_detail || ''}>
+          Could not be built
+          {site.status_detail && <span className="ca-fail-detail">{site.status_detail}</span>}
+        </span>
+      );
+    }
+    return (
+      <span className="ca-muted" title="Reading 1986–2023 at this point. Usually a few minutes.">
+        Building history…
+      </span>
+    );
+  }
+
+  if (!hasPoint) {
+    return <span className="ca-muted">Set a forecast point first</span>;
+  }
+  if (!canProvision) {
+    // No owning company — the property is reached through a management
+    // relationship, so there is no account to attach a site to.
+    return <span className="ca-muted">Not available for managed properties</span>;
+  }
+
+  return (
+    <button className="ca-btn-secondary" onClick={onProvision} disabled={busy}>
+      {busy ? 'Creating…' : 'Create site'}
+    </button>
   );
 }
 

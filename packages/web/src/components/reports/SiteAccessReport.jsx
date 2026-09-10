@@ -5,7 +5,7 @@ import ReportExportButton from './ReportExportButton';
 import { buildReportPdf, contextLines } from './reportPdf';
 import {
   ReportSection, Stat, StatGrid, BarList, ReportTable, Pill, ReportNote,
-  LoadingBlock, ErrorBlock, toItems, fmtDate,
+  LoadingBlock, ErrorBlock, toItems, fmtDate, fmtTimeOn,
 } from './ReportPrimitives';
 
 // Not-applicable stays blank rather than becoming "No" — a visitor has no
@@ -50,17 +50,27 @@ export default function SiteAccessReport({ startDate, endDate, propertyId, prope
     { key: 'property_name', label: 'Property' },
     { key: 'host', label: 'Host' },
     {
+      key: 'signed_in',
+      label: 'In',
+      // A register that says only which DAY someone was here cannot answer how
+      // long they were on site, or who was here at the time of an incident.
+      render: (r) => fmtTimeOn(r.signed_in, r.visit_date),
+      text: (r) => fmtTimeOn(r.signed_in, r.visit_date),
+    },
+    {
       key: 'signed_out',
-      label: 'Signed out',
+      label: 'Out',
       // Signed in and never out is someone unaccounted for in an evacuation,
       // which is the single thing a register is for.
-      text: (r) => (r.signed_in && !r.signed_out ? 'STILL ON SITE' : fmtDate(r.signed_out)),
+      text: (r) => (r.signed_in && !r.signed_out ? 'STILL ON SITE' : fmtTimeOn(r.signed_out, r.visit_date)),
       render: (r) => (r.signed_in && !r.signed_out
         ? <Pill tone="danger">Still on site</Pill>
-        : fmtDate(r.signed_out)),
+        : fmtTimeOn(r.signed_out, r.visit_date)),
     },
     { key: 'inducted', label: 'Inducted', render: (r) => yesNo(r.inducted), text: (r) => yesNoText(r.inducted) },
-    { key: 'equipment_cleaned', label: 'Kit cleaned', render: (r) => yesNo(r.equipment_cleaned), text: (r) => yesNoText(r.equipment_cleaned) },
+    // Equipment-cleaned is off the table: it applies to contractors only, so it
+    // was blank on most rows. The biosecurity count it feeds is still in the
+    // stats above, where one number says more than a column of dashes.
   ];
 
   const pdf = () => buildReportPdf({

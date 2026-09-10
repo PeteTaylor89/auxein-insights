@@ -24,7 +24,9 @@ import {
 // shoots, shoots flower, flowers set into bunches. Reading down the row is
 // reading forward through the season, which is how a grower thinks about it —
 // alphabetical or build order put bunches before flowers, which is backwards.
-const METRICS = [
+// Exported so ReportsPanel can render one pill per metric from the SAME list
+// this report reads. Two copies would drift the moment a metric is added.
+export const METRICS = [
   { key: 'bud_count', label: 'Bud count' },
   { key: 'shoot_count', label: 'Active shoots' },
   { key: 'flower_set', label: 'Flower / fruit set' },
@@ -36,6 +38,11 @@ const blank = (n, dp = 2) => (n === null || n === undefined ? '' : Number(n).toF
 
 export default function CountsReport({
   startDate, endDate, propertyId, propertyName, companyName, initialMetric,
+  // The reports panel now carries one pill per metric, so its own picker would
+  // be a second copy of the same control sitting directly under the first.
+  // Still defaults to true — a caller that opens this report without pills of
+  // its own must be able to change metric.
+  showMetricPicker = true,
 }) {
   // A deep link from an observation run names its own metric. An unrecognised
   // one falls back to buds rather than requesting a metric the server will
@@ -66,7 +73,7 @@ export default function CountsReport({
 
   const metricLabel = METRICS.find(m => m.key === metric)?.label || 'Counts';
 
-  const picker = (
+  const picker = showMetricPicker ? (
     <div className="reports-tabs" style={{ marginBottom: 'var(--space-md)' }}>
       {METRICS.map(m => (
         <button
@@ -78,7 +85,7 @@ export default function CountsReport({
         </button>
       ))}
     </div>
-  );
+  ) : null;
 
   if (loading) return <><ReportSection title="Counts">{picker}<LoadingBlock label="counts" /></ReportSection></>;
   if (failed || !data) {

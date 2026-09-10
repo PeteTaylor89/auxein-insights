@@ -49,9 +49,14 @@ COUNT_METRICS = {
             unit="buds/vine",
         ),
         CountMetric(
-            "shoot_count", "Active shoots", [],
+            "shoot_count", "Active shoots", ["shoot_count"],
+            # Ordered: the system template writes `shoots_per_vine`, but
+            # `active_shoot_count` stays first because a company template built
+            # before the system one existed uses that name, and the first
+            # present field wins.
             ["active_shoot_count", "shoots_per_vine"],
-            weight_field="vines_sampled", unit="shoots/vine",
+            weight_field="vines_sampled", target_field="target_shoots_per_vine",
+            unit="shoots/vine",
         ),
         CountMetric(
             "flower_set", "Flower count / fruit set", ["flower_set"],

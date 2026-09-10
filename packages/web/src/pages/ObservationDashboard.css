@@ -779,6 +779,30 @@
   margin-bottom: var(--space-md);
 }
 
+/* A template whose fields the Counts report can read. Says so on the card,
+   because whether a template reaches a report is otherwise invisible until
+   someone has captured a run through it and found nothing waiting at the other
+   end. Green rather than the neutral sand of the owner badge — it is a
+   capability, not a label. */
+.od-card-badge--feeds {
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md) var(--space-xs);
+}
+
+.od-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .od-card-actions {
   display: flex;
   flex-wrap: wrap;

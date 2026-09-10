@@ -1,0 +1,327 @@
+/* ThisSeasonPanel.css — deliberately the same vocabulary as Insights' My Site
+   page (`packages/insights/src/pages/MySite.css`).
+
+   A Grow customer and an Insights Pro subscriber are often the same person
+   looking at the same point, so the two surfaces must not feel like two
+   products. What is copied is the SHAPE and the LANGUAGE: the same waiting
+   state, the same summary header, the same chip row, the same panel rhythm,
+   the same refusal box.
+
+   What is NOT copied is the palette. Colour comes from Grow's own tokens —
+   the two apps share `--color-terracotta` (#D1583B) exactly, and their olives
+   differ by a shade. Hardcoding Insights' hex here would make Grow look like
+   it was wearing another app's skin rather than like the same family.
+
+   Class prefix `gs-` (grow site) rather than `my-site__` because these are not
+   the same stylesheet and pretending otherwise invites someone to "share" them
+   across two Vite apps that have no common build. */
+
+.gs { display: flex; flex-direction: column; gap: var(--space-base); }
+
+/* --- intro ---------------------------------------------------------------- */
+
+.gs-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface-warm);
+  border-radius: var(--radius-md);
+}
+
+.gs-intro-icon { color: var(--color-primary); flex-shrink: 0; margin-top: 2px; }
+
+.gs-intro-text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: 1.6;
+  max-width: 72ch;
+}
+
+/* --- summary header (My Site's `my-site__summary`) ------------------------ */
+
+.gs-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gs-summary h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+}
+
+.gs-summary p { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+
+/* --- chips (My Site's `my-site__chips`) ----------------------------------- */
+
+.gs-chips {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--space-md);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gs-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* 44px is My Site's tap target and the reason its chips work on a phone. */
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-family: var(--font-family);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.gs-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+.gs-chip.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+/* --- panels (My Site's `my-site__panel`) ---------------------------------- */
+
+.gs-panel { margin-top: var(--space-lg); }
+.gs-panel:first-child { margin-top: 0; }
+
+.gs-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+}
+
+/* A panel heading with its scope tag beside it, rather than a bare <h3>: the
+   tag has to sit ON the heading, because it qualifies the whole panel. */
+.gs-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-xs);
+}
+
+.gs-panel-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.gs-panel-sub {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* --- waiting (My Site's `my-site__waiting`) ------------------------------- */
+
+.gs-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-warm);
+}
+
+.gs-waiting h2 { margin: 0; font-size: var(--font-size-md); color: var(--color-text); }
+
+.gs-waiting p {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  font-size: var(--font-size-sm);
+}
+
+/* Never let a dead job read as "nearly done" — My Site's rule, kept. */
+.gs-stalled { color: var(--color-terracotta) !important; font-weight: 600; }
+
+.gs-spin { animation: gs-spin 1s linear infinite; }
+@keyframes gs-spin { to { transform: rotate(360deg); } }
+
+/* --- refusal (My Site's `my-site__refusal`) ------------------------------- */
+
+.gs-refusal {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-terracotta) 35%, white);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-terracotta) 6%, white);
+  color: var(--color-danger-text);
+}
+
+.gs-refusal p { margin: 0 0 6px; line-height: 1.5; font-size: var(--font-size-sm); }
+.gs-detail { opacity: 0.85; font-size: var(--font-size-xs) !important; }
+
+/* --- an offer, not a fault ------------------------------------------------ */
+
+.gs-offer {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, white);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-primary) 7%, white);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.gs-reason {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--color-surface-warm);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+/* --- scope tag ------------------------------------------------------------ */
+/* Whose figure this is. The most important label here: a regional average over
+   a zone that can span 60 km and a reading at this property's own point are
+   different claims, and only one of them is about your vineyard. */
+
+.gs-scope {
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.gs-scope--site {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, white);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, white);
+}
+
+.gs-scope--region {
+  color: var(--color-text-muted);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+}
+
+/* --- tiles (My Site / SiteDashboard tile rhythm) -------------------------- */
+
+.gs-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}
+
+.gs-tile {
+  padding: var(--space-md);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.gs-tile-value { font-size: var(--font-size-xl); font-weight: 700; color: var(--color-text); }
+.gs-tile-label { margin-top: 2px; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.gs-tile-foot {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* --- tables --------------------------------------------------------------- */
+
+.gs-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.gs-table th, .gs-table td {
+  padding: var(--space-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+.gs-table thead th {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--color-text-muted);
+}
+
+/* --- disease -------------------------------------------------------------- */
+
+.gs-risks { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+.gs-risk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-warm);
+  border-radius: var(--radius-md);
+}
+
+.gs-risk-name { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text); }
+
+.gs-risk {
+  padding: 2px var(--space-md);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.gs-risk--danger  { color: var(--color-danger-text);  background: var(--color-danger-bg); }
+.gs-risk--warning { color: var(--color-warning-text); background: var(--color-warning-bg); }
+.gs-risk--ok      { color: var(--color-success-text); background: var(--color-success-bg); }
+/* Not modelled is NOT low. A grey badge cannot be mistaken for a green one. */
+.gs-risk--unknown { color: var(--color-text-muted);   background: var(--color-surface-warm); }
+
+/* The 14-day strip. Cells rather than a line chart: risk is three ordered
+   levels, and a line would imply a continuous scale between them. */
+.gs-strip-wrap { overflow-x: auto; }
+.gs-strip { border-collapse: collapse; font-size: var(--font-size-xs); }
+.gs-strip th {
+  padding: 2px 4px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-align: left;
+}
+.gs-strip td { padding: 2px 3px; }
+
+.gs-cell { display: block; width: 16px; height: 16px; border-radius: var(--radius-sm); }
+.gs-cell--danger  { background: var(--color-danger); }
+.gs-cell--warning { background: var(--color-warning); }
+.gs-cell--ok      { background: var(--color-success); }
+.gs-cell--unknown { background: var(--color-border); }
+
+.gs-muted { color: var(--color-text-muted); }

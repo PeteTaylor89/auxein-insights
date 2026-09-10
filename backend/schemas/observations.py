@@ -14,7 +14,7 @@ except Exception:
 ObservationRunStatus = Literal["draft", "in_progress", "completed", "cancelled"]
 SpotStatus = Literal["recorded", "void"]
 ObservationType = Literal[
-    "phenology", "bud_count", "flower_count", "pre_veraison_yield",
+    "phenology", "bud_count", "shoot_count", "flower_count", "pre_veraison_yield",
     "maturity_sampling", "post_veraison_yield", "growth", "photo_video",
     "disease", "pest", "maintenance", "biosecurity", "compliance",
     "hazard", "land_management", "weather", "lab_sampling", "irrigation_schedule",
@@ -63,6 +63,15 @@ class ObservationTemplateOut(BaseModel):
     company_id: Optional[int] = None
     observation_type: str = Field(alias="type")
     field_schema: List[Dict[str, Any]] = Field(alias="fields_json")
+
+    # Which count metric this template feeds, or None for a template that
+    # reports nothing. Resolved server-side by
+    # `services/count_metrics.metric_for_template`, which matches by field NAME
+    # as well as by type — a company's own template carries `type='other'`, so
+    # no client can work this out for itself. Surfaced so the templates list can
+    # say which templates reach a report and which are capture-only.
+    count_metric: Optional[str] = None
+    count_metric_label: Optional[str] = None
 
     created_at: datetime
     updated_at: Optional[datetime] = None

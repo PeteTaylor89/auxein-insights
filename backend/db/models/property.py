@@ -1,5 +1,5 @@
 # db/models/property.py - Property entity (Grow V1, Revision 2)
-from sqlalchemy import Column, Integer, String, Text, DateTime, Numeric, ForeignKey
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Numeric, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geometry
@@ -23,6 +23,15 @@ class Property(Base):
     climate_zone_id = Column(Integer, ForeignKey("climate_zones.id"), nullable=True, index=True)
     forecast_latitude = Column(Numeric(10, 7), nullable=True)
     forecast_longitude = Column(Numeric(10, 7), nullable=True)
+
+    # This property's point in the Insights surface archive — the source of its
+    # own season, disease and phenology rather than its region's. NULL until
+    # provisioned, and it cannot be provisioned without a forecast point, which
+    # is the lat/lon the site is placed at. Unique: two properties sharing a
+    # site would make "whose weather is this" unanswerable.
+    insights_site_id = Column(BigInteger,
+                              ForeignKey("insights_site.id", ondelete="SET NULL"),
+                              nullable=True, unique=True)
 
     # Boundary polygon for contractor geofencing (Grow V1, Revision 3).
     # POLYGON or MULTIPOLYGON in WGS84 (SRID 4326). NULL until an admin draws one.

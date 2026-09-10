@@ -309,8 +309,28 @@ def _expected_error(distance_km: Optional[float]) -> Optional[float]:
 def _open(path: Path):
     from scripts.interpolation.raster import _configure_proj
     _configure_proj()
-    import rasterio
+    rasterio = store.require_rasterio()
     return rasterio.open(path)
+
+
+def _backend_unavailable(exc: store.RasterBackendUnavailable) -> HTTPException:
+    """A missing raster backend, told apart from a bad object.
+
+    500, NOT the 503 its neighbours raise, and deliberately a different code:
+    every other failure on these paths means "this S3 object will not read",
+    which is a data fault worth chasing in the bucket. This one means the
+    server cannot read ANY object, which is a deploy fault. Sharing their
+    status made the two indistinguishable in logs and in metrics, and the
+    message — "surface is indexed but unreadable", naming the key — actively
+    pointed at the wrong half.
+
+    THE PACKAGE NAME STAYS IN THE LOG. `/tiles` and `/probe` answer anonymous
+    readers, and naming a Python dependency and its version in a public
+    response is free reconnaissance for no diagnostic gain: whoever can fix
+    this reads the server log, where `exc` carries the exact pip command.
+    """
+    logger.error("raster backend unavailable: %s", exc)
+    return HTTPException(500, "the surface renderer is not available on this server")
 
 
 # --- synthetic field -------------------------------------------------------
@@ -437,6 +457,8 @@ def point_sample(
                         v = next(ds.sample([(lon, lat)], 1))[0]
                         nodata = ds.nodata
                     val = None if (nodata is not None and float(v) == nodata) else round(float(v), 3)
+                except store.RasterBackendUnavailable as exc:
+                    raise _backend_unavailable(exc) from exc
                 except Exception as exc:                       # noqa: BLE001
                     logger.warning("stub: cannot read %s: %s", path, exc)
                     raise HTTPException(503, f"surface exists but is unreadable: {iso}") from exc
@@ -900,6 +922,10 @@ def tile(variable: str, granularity: str, valid_at: str, z: int, x: int, y: int,
     if not 0 <= z <= 12:
         raise HTTPException(422, "zoom out of range for the stub (0-12)")
 
+    try:
+        store.require_rasterio()
+    except store.RasterBackendUnavailable as exc:
+        raise _backend_unavailable(exc) from exc
     from rasterio.warp import transform_bounds
     from rasterio.windows import from_bounds
 
@@ -1658,6 +1684,8 @@ def _real_probe(db: Session, lon: float, lat: float, variable: str,
 
     try:
         sampled = store.sample(row["s3_key"], [(lon, lat)])[0]
+    except store.RasterBackendUnavailable as exc:
+        raise _backend_unavailable(exc) from exc
     except Exception as exc:                                       # noqa: BLE001
         logger.exception("probe sample failed for %s", row["s3_key"])
         raise HTTPException(
@@ -1715,6 +1743,8 @@ def _real_tile(db: Session, variable: str, granularity: str, valid_at: str,
 
     try:
         png = store.render_tile(row["s3_key"], z, x, y, chosen, lo, hi)
+    except store.RasterBackendUnavailable as exc:
+        raise _backend_unavailable(exc) from exc
     except Exception as exc:                                       # noqa: BLE001
         logger.exception("tile render failed for %s", row["s3_key"])
         raise HTTPException(503, f"surface is indexed but unreadable: {exc}") from exc
@@ -1790,6 +1820,8 @@ def _real_point(db: Session, lon: float, lat: float, variables: str,
             model_versions.add(row["model_version"])
             try:
                 sampled = store.sample(row["s3_key"], [(lon, lat)])[0]
+            except store.RasterBackendUnavailable as exc:
+                raise _backend_unavailable(exc) from exc
             except Exception as exc:                               # noqa: BLE001
                 logger.exception("point sample failed for %s", row["s3_key"])
                 raise HTTPException(
@@ -2042,6 +2074,8 @@ def projection_probe(
 
     try:
         sampled = store.sample(row["s3_key"], [(lon, lat)])[0]
+    except store.RasterBackendUnavailable as exc:
+        raise _backend_unavailable(exc) from exc
     except Exception as exc:                                       # noqa: BLE001
         logger.exception("projection probe failed for %s", row["s3_key"])
         raise HTTPException(
@@ -2102,6 +2136,8 @@ def projection_tile(variable: str, statistic: str, scenario: str, period: str,
 
     try:
         png = store.render_tile(row["s3_key"], z, x, y, ramp, lo, hi)
+    except store.RasterBackendUnavailable as exc:
+        raise _backend_unavailable(exc) from exc
     except Exception as exc:                                       # noqa: BLE001
         logger.exception("projection tile render failed for %s", row["s3_key"])
         raise HTTPException(503, f"raster unreadable: {exc}") from exc

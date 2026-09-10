@@ -225,12 +225,20 @@ PERMISSIONS: dict[str, dict[str, list[str]]] = {
     },
     # Signing on and off a PROPERTY. Its own module rather than riding on
     # `visitors`: a visitor record is about someone who does not work here, and
-    # this is about someone who does. `read` is who-is-on-site-now and stops at
-    # manager; `create` is signing yourself on, which everyone with the app can
-    # do for themselves and nobody can do for anyone else.
+    # this is about someone who does. `create` is signing yourself on, which
+    # everyone with the app can do for themselves and nobody can do for anyone
+    # else.
+    #
+    # `read` is who-is-on-site-NOW. It used to stop at manager. `general_user`
+    # was added 2026-09-10 (Pete's call) because that list is the evacuation
+    # headcount, and the person most likely to need it is the one standing on
+    # the property — not the manager in town. It is scoped to the properties
+    # they can see and shows a name and a time, nothing else. `update` still
+    # stops at manager: signing SOMEBODY ELSE off is a judgement about another
+    # person's day.
     "site_attendance": {
         "create": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager, UserType.company_user, UserType.contractor, UserType.general_user],
-        "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
+        "read":   [UserType.auxein_admin, UserType.company_admin, UserType.company_manager, UserType.general_user],
         "update": [UserType.auxein_admin, UserType.company_admin, UserType.company_manager],
         "delete": [UserType.auxein_admin, UserType.company_admin],
     },

@@ -72,7 +72,8 @@ const reportService = {
   // treat it as "not for you" rather than a failure to load.
   getCostSummary: (startDate, endDate, propertyId) =>
     get('costs/summary', dateParams(startDate, endDate, propertyId)),
-  // Two tables in one report, so the export names the one it wants.
+  // Three tables in one report — operations, varieties, blocks — so the export
+  // names the one it wants.
   exportCosts: (startDate, endDate, propertyId, section = 'operations') =>
     download(
       'costs/export',
@@ -98,6 +99,21 @@ const reportService = {
       'counts/export',
       { metric, section, ...dateParams(startDate, endDate, propertyId) },
       `${metric}_by_${section}.csv`,
+    ),
+
+  // Where each block actually is on the E-L scale, from field observations.
+  // NOT a count: a stage is an ordered category, so the payload carries modal /
+  // most-advanced / range rather than a mean and an SD.
+  getPhenologySummary: (startDate, endDate, propertyId, runId) =>
+    get('phenology/summary', {
+      ...(runId ? { run_id: runId } : {}),
+      ...dateParams(startDate, endDate, propertyId),
+    }),
+  exportPhenology: (startDate, endDate, propertyId, section = 'blocks') =>
+    download(
+      'phenology/export',
+      { section, ...dateParams(startDate, endDate, propertyId) },
+      `phenology_by_${section}.csv`,
     ),
 
   getObservationSummary: (startDate, endDate, propertyId) =>

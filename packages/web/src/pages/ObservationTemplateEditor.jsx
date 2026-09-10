@@ -55,6 +55,31 @@ const slugify = (label) => label
   .replace(/^_+|_+$/g, '')
   .slice(0, 50);
 
+// MIRROR of the value fields in `backend/services/count_metrics.py`, which is
+// the source of truth. It is here only to tell the person building a template
+// whether what they are building will reach the Counts report — the server
+// decides for real, on save, and the badge on the templates list comes from its
+// answer, not this list. Ordered by growth stage, like the registry.
+//
+// Field NAMES are what match, not labels: the server never sees a label. A
+// custom template is created as type "other" (see DEFAULT_OBSERVATION_TYPE), so
+// naming the field correctly is the ONLY way it can feed a report — which is
+// exactly how Greystone's own bud count template works.
+const COUNT_METRIC_FIELDS = [
+  { key: 'bud_count', label: 'Bud count', fields: ['buds_per_vine', 'bud_count'] },
+  { key: 'shoot_count', label: 'Active shoots', fields: ['active_shoot_count', 'shoots_per_vine'] },
+  { key: 'flower_set', label: 'Flower count / fruit set', fields: ['flowers_per_bunch', 'flower_count', 'set_percent'] },
+  { key: 'bunch_count', label: 'Bunch count', fields: ['bunches_per_vine', 'bunch_count'] },
+];
+
+/** Which count metric this set of fields would feed, or null. */
+const countMetricFor = (fields) => {
+  const names = new Set(
+    fields.filter(f => f.label?.trim()).map(f => (f.name?.trim() || slugify(f.label))),
+  );
+  return COUNT_METRIC_FIELDS.find(m => m.fields.some(n => names.has(n))) || null;
+};
+
 const blankField = () => ({
   name: '',
   label: '',
@@ -194,6 +219,8 @@ export default function ObservationTemplateEditor() {
     return <div className="ote-page"><div className="ote-loading"><Loader2 size={18} className="ote-spin" /> Loading template…</div></div>;
   }
 
+  const feeds = countMetricFor(fields);
+
   return (
     <div className="ote-page">
       <div className="ote-header">
@@ -236,14 +263,34 @@ export default function ObservationTemplateEditor() {
             />
           </div>
 
-          <div className="alert alert--info ote-alert ote-insights-note">
-            <strong>Custom templates don't feed Insights automatically.</strong>
-            <span>
-              Insights views are built against specific observation types, so a template you
-              create here captures and stores its data but won't appear in an Insights chart
-              until a view is built for it. Everything else — scheduling, capture on web and
-              mobile, and the observation record — works normally.
-            </span>
+          {/* Live, because the answer changes as fields are named. The old
+              version of this note said custom templates never feed Insights,
+              which stopped being true once the counts report started matching
+              on field name. */}
+          <div className={`alert ote-alert ote-insights-note ${feeds ? 'alert--success' : 'alert--info'}`}>
+            {feeds ? (
+              <>
+                <strong>Feeds the Counts report as {feeds.label}.</strong>
+                <span>
+                  Readings from this template roll up in Insights → Reports → Observations,
+                  alongside every other template that records the same measurement. Add
+                  <code> vines_sampled</code> if it is not there — without it every spot counts as
+                  one vine, whatever was actually sampled.
+                </span>
+              </>
+            ) : (
+              <>
+                <strong>Capture only — no report reads this yet.</strong>
+                <span>
+                  It will schedule, capture and store normally, but nothing aggregates it. To feed
+                  the Counts report, name the measurement field one of{' '}
+                  {COUNT_METRIC_FIELDS.map(m => m.fields[0]).map((n, i, a) => (
+                    <span key={n}><code>{n}</code>{i < a.length - 1 ? ', ' : ''}</span>
+                  ))}
+                  {' '}— the field NAME is what matches, not its label.
+                </span>
+              </>
+            )}
           </div>
         </section>
 

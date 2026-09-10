@@ -159,5 +159,36 @@ export const fmtDate = (iso) => {
   });
 };
 
+/** Clock time only — "10:46 am". */
+export const fmtTime = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString('en-NZ', {
+    hour: 'numeric', minute: '2-digit',
+  });
+};
+
+/**
+ * A time, promoted to a full date and time when it falls on a different day
+ * from the row it sits in.
+ *
+ * A register row already states its date, so repeating it in every in/out cell
+ * is noise — until someone signs out after midnight, where a bare "6:15 am"
+ * reads as fifteen hours BEFORE they arrived. That case is the whole reason a
+ * night shift shows up wrong in an evacuation list, so it gets the full date.
+ *
+ * The backend sends these with a +12:00/+13:00 offset, so `new Date` lands on
+ * the right NZ day without the browser having to guess.
+ */
+export const fmtTimeOn = (iso, dayIso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const day = dayIso ? new Date(dayIso) : null;
+  const sameDay = day && !Number.isNaN(day.getTime())
+    && d.toLocaleDateString('en-NZ') === day.toLocaleDateString('en-NZ');
+  return sameDay ? fmtTime(iso) : `${fmtDate(iso)}, ${fmtTime(iso)}`;
+};
+
 export const fmtNum = (n, dp = 1) =>
   (n === null || n === undefined) ? '—' : Number(n).toFixed(dp);

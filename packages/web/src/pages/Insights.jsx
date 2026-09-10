@@ -5,7 +5,7 @@ import { useAuth } from '@vineyard/shared';
 import {companiesService, propertyService} from '@vineyard/shared';
 import RegionalClimateHistory from '../components/climate/RegionalClimateHistory';
 import ArticlesCarousel from '../components/ArticlesCarousel';
-import PhenologyPanel from '../components/phenology/PhenologyPanel';
+import ThisSeasonPanel from '../components/season/ThisSeasonPanel';
 import SprayProgramPanel from '../components/spray/SprayProgramPanel';
 import HelpTip from '../components/HelpTip';
 import ReportsPanel from '../components/reports/ReportsPanel';
@@ -21,10 +21,13 @@ const INSIGHT_CARDS = [
   { key: 'reports', label: 'Reports', Icon: FileText, permission: ['reports', 'read'] },
   { key: 'climate', label: 'Climate History', Icon: ChartArea },
   { key: 'climateprojection', label: 'Climate Projections', Icon: ChartSpline },
-  { key: 'currentseason', label: 'Current Season', Icon: CloudSunRain },
-  { key: 'phenology', label: 'Phenology', Icon: Grape },
+  // Weather, disease and phenology are one question about one property, so
+  // they are one card with three sections rather than three pills that each
+  // answered part of it — two of which were placeholders and one of which
+  // rendered mock data. `currentseason`, `phenology` and `disease` are kept as
+  // deep-link ALIASES below so existing links still land somewhere sensible.
+  { key: 'thisseason', label: 'This Season', Icon: CloudSunRain },
   { key: 'sprayprogram', label: 'Spray Program', Icon: Droplets },
-  { key: 'disease', label: 'Disease', Icon: ShieldCheck },
   { key: 'biosecurity', label: 'Biosecurity', Icon: Bug },
   { key: 'industry', label: 'Latest Industry Insight', Icon: Bug },
 ];
@@ -164,105 +167,50 @@ function Insights() {
             <RegionalClimateHistory properties={properties} />
           </div>
         );
-      case 'phenology':
-        return (
-          <div className="content-container">
-            <div className="container-title">
-              <span className="help-tip-head"><span>Phenology Analysis</span><HelpTip topic="insights.phenology" /></span>
-              <button 
-                className="close-insight-btn"
-                onClick={() => setActiveInsight(null)}
-                aria-label="Close Phenology Analysis"
-              >
-                ×
-              </button>
-            </div>
-            <PhenologyPanel />
-          </div>
-        );
-      case 'climateprojection':
-        return (
-          <div className="content-container">
-            <div className="container-title">
-              <span className="help-tip-head"><span>Climate Projections</span><HelpTip topic="insights.climateprojection" /></span>
-              <button 
-                className="close-insight-btn"
-                onClick={() => setActiveInsight(null)}
-                aria-label="Close Climate Analysis"
-              >
-                ×
-              </button>
-            </div>
-            <div className="insight-placeholder">
-              <p>Climate Projections coming soon...</p>
-              <p>This will show various climate change model projections based on historical climate data.</p>
-            </div>
-          </div>
-        );
+      // The three legacy keys fall through to the same panel. A link someone
+      // saved to ?insight=phenology has to land on the phenology it names, not
+      // on an empty grid — and the panel opens on the matching section.
+      case 'thisseason':
       case 'currentseason':
+      case 'phenology':
+      case 'disease':
         return (
           <div className="content-container">
             <div className="container-title">
-              <span className="help-tip-head"><span>Current Season Climate{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.currentseason" /></span>
+              <span className="help-tip-head"><span>This Season{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.currentseason" /></span>
               <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
-                aria-label="Close Climate Analysis"
+                aria-label="Close This Season"
               >
                 ×
               </button>
             </div>
-            <div className="insight-placeholder">
-              {selectedProperty ? (
-                <>
-                  <p>Current season data for <strong>{selectedProperty.name}</strong></p>
-                  <p>Property-level climate intelligence will show: weather station data (if available), GDD accumulation vs baseline, disease pressure, and phenology estimates specific to this property's blocks.</p>
-                  {!selectedProperty.climate_zone_id && (
-                    <p style={{ color: 'var(--color-warning)' }}>Set a climate zone for this property in Manage → Weather to enable regional fallback data.</p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p>Current Season Climate Analysis coming soon...</p>
-                  <p>Select a property above for property-level insights, or view company-wide data here. This will show climate data based on modelled and Harvest API data.</p>
-                </>
-              )}
-            </div>
+            <ThisSeasonPanel
+              selectedPropertyId={selectedPropertyId}
+              selectedProperty={selectedProperty}
+              initialSection={
+                activeInsight === 'phenology' ? 'phenology'
+                  : activeInsight === 'disease' ? 'disease'
+                    : 'weather'
+              }
+            />
           </div>
         );
       case 'sprayprogram':
         return (
           <div className="content-container">
             <div className="container-title">
-              <span className="help-tip-head"><span>Spray Program{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.sprayprogram" /></span>
+              <span className="help-tip-head"><span>Spray Program{selectedProperty ? ` â€” ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.sprayprogram" /></span>
               <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
                 aria-label="Close Spray Program"
               >
-                ×
+                Ã—
               </button>
             </div>
             <SprayProgramPanel selectedPropertyId={selectedPropertyId} />
-          </div>
-        );
-      case 'disease':
-        return (
-          <div className="content-container">
-            <div className="container-title">
-              <span className="help-tip-head"><span>Disease Risk Analysis</span><HelpTip topic="insights.disease" /></span>
-              <button 
-                className="close-insight-btn"
-                onClick={() => setActiveInsight(null)}
-                aria-label="Close Disease Analysis"
-              >
-                ×
-              </button>
-            </div>
-            <div className="insight-placeholder">
-              <p>Disease risk analysis coming soon...</p>
-              <p>This will show powdery mildew, downy mildew, and botrytis risk based on weather conditions and historical patterns.</p>
-            </div>
           </div>
         );
       case 'biosecurity':

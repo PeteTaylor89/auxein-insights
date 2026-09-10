@@ -3,11 +3,15 @@
 Seed system (company_id=NULL) observation templates with field schemas that match
 the vineyard operations list.
 
+Targets whatever database the API is using — ENV decides, exactly as it does
+for the app — and prints which one before it writes anything.
+
 Usage:
-  python -m scripts.seed_system_templates
+  python -m scripts.seed_system_templates                    # all templates
+  python -m scripts.seed_system_templates --only shoot_count # just these types
 """
 from __future__ import annotations
-import os, json
+import os, re, sys, json
 from pathlib import Path
 from typing import Dict, Any, Tuple, List
 from sqlalchemy import create_engine, text
@@ -15,16 +19,62 @@ from dotenv import load_dotenv
 
 # --- load .env from repo root ---
 ROOT_DIR = Path(__file__).resolve().parents[1].parent
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
+sys.path.insert(0, str(BACKEND_DIR))
 
-DB_URL = os.getenv("LOCAL_DATABASE_URL") or os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL")
-if not DB_URL:
-    raise SystemExit("No DB URL. Set LOCAL_DATABASE_URL/DATABASE_URL in .env")
+
+def _resolve_db_url() -> str:
+    """The database the API is using — not a URL this script guesses at.
+
+    This used to read `LOCAL_DATABASE_URL` first and ignore `ENV` completely.
+    On a machine set to `ENV=staging`, where the API builds its URL from the
+    `RDS_*` variables and there is no `DATABASE_URL` at all, that sent the seed
+    at a localhost Postgres that was not running — so seeding failed with an
+    authentication error while the app itself was perfectly happy. Worse than
+    the error would have been the near miss: had localhost been up, the
+    templates would have landed in a database nothing reads.
+
+    `core.config.get_database_url()` is the same resolver the app uses, so the
+    two cannot disagree again. The old env lookup stays as a fallback for
+    running this without the backend package importable.
+    """
+    try:
+        from core.config import get_database_url
+        url = get_database_url()
+        if url:
+            return url
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        print(f"  core.config unavailable ({exc}); falling back to env vars")
+
+    url = (os.getenv("LOCAL_DATABASE_URL") or os.getenv("DATABASE_URL")
+           or os.getenv("SQLALCHEMY_DATABASE_URL"))
+    if not url:
+        raise SystemExit(
+            "No database URL. Set ENV + the RDS_* variables (as the API does), "
+            "or LOCAL_DATABASE_URL / DATABASE_URL in the repo-root .env"
+        )
+    return url
+
+
+DB_URL = _resolve_db_url()
+# Say which database out loud. This script writes system templates every
+# company can see, and ENV decides whether that is a laptop or production.
+print(f"  ENV={os.getenv('ENV', 'local')}  ->  {re.sub(r'//[^@]*@', '//***@', DB_URL)}")
 
 engine = create_engine(DB_URL, future=True)
 
 # ---------- helpers ----------
 def scope_fields(include_row=True, include_hotspot=False) -> List[Dict[str, Any]]:
+    """Block / row / photo fields prepended to a template's own fields.
+
+    STALE for the count templates, and probably for others. The live bud, bunch
+    and flower-set templates carry their measurements and nothing else — the
+    block comes from the run, the row from the picker that fills
+    `observation_spots.row_id`, and photos from `ObservationSpot.photo_file_ids`.
+    Including these asks the observer for the block a second time. Check what the
+    live template actually holds before building a new one on this.
+    """
     fields: List[Dict[str, Any]] = [
         {"name": "block_id", "label": "Block", "type": "entity_ref", "entity": "block", "required": False},
     ]
@@ -39,11 +89,15 @@ def scope_fields(include_row=True, include_hotspot=False) -> List[Dict[str, Any]
     fields.append({"name": "photos", "label": "Photos", "type": "photo_multi"})
     return fields
 
+# Hoisted out of upsert_template so the dry run asks the SAME question the write
+# does. A plan that matched on different terms than the write would be a lie.
+SELECT_ID_SQL = """
+SELECT id FROM observation_templates
+WHERE company_id IS NULL AND name = :name AND type = :type
+"""
+
+
 def upsert_template(conn, name: str, type_: str, fields: List[Dict[str, Any]]) -> Tuple[bool, bool]:
-    SELECT_ID_SQL = """
-    SELECT id FROM observation_templates
-    WHERE company_id IS NULL AND name = :name AND type = :type
-    """
     INSERT_SQL = """
     INSERT INTO observation_templates
     (company_id, name, type, version, is_active, fields_json, defaults_json, validations_json, created_by)
@@ -88,6 +142,25 @@ FIELDS_BUD_COUNT = scope_fields(include_row=True) + [
     {"name": "buds_per_vine", "label": "Buds per vine", "type": "number", "min": 0, "required": True},
     {"name": "target_buds_per_vine", "label": "Target buds per vine", "type": "number", "min": 0},
     {"name": "variance", "label": "Variance", "type": "number", "min": 0, "computed": True},
+    {"name": "notes", "label": "Notes", "type": "textarea"},
+]
+
+# 2b) Shoot counts (post-budburst): the same shape as the bud count, one growth
+# stage later. Field names matter — `shoots_per_vine`, `vines_sampled` and
+# `target_shoots_per_vine` are what services/count_metrics.py reads to feed the
+# Counts report, and renaming any of them silently drops the template out of it.
+#
+# Deliberately NOT built on scope_fields(). The live count templates (bud,
+# bunch, flower set) carry their measurements and nothing else: the BLOCK comes
+# from the run the spot belongs to, the ROW from the row picker that fills
+# `observation_spots.row_id`, and photos from `ObservationSpot.photo_file_ids`.
+# Prepending block_id/row_label here would ask the observer for the block a
+# second time and offer a text row field that competes with the real one.
+FIELDS_SHOOT_COUNT = [
+    {"name": "vines_sampled", "label": "Vines sampled (n)", "type": "integer", "min": 1, "required": True},
+    {"name": "shoots_per_vine", "label": "Active shoots per vine", "type": "number", "min": 0, "required": True,
+     "help_text": "Count shoots that have burst and are growing — not blind or dead buds"},
+    {"name": "target_shoots_per_vine", "label": "Target shoots per vine", "type": "number", "min": 0},
     {"name": "notes", "label": "Notes", "type": "textarea"},
 ]
 
@@ -294,6 +367,7 @@ FIELDS_WEATHER = scope_fields(include_row=False) + [
 TEMPLATES: List[Dict[str, Any]] = [
     {"name": "Phenology (E–L)", "type": "phenology", "fields": FIELDS_PHENOLOGY},
     {"name": "Bud Count (Post-pruning QC)", "type": "bud_count", "fields": FIELDS_BUD_COUNT},
+    {"name": "Shoot Count (Post-budburst)", "type": "shoot_count", "fields": FIELDS_SHOOT_COUNT},
     {"name": "Flower Count / Fruit Set", "type": "flower_set", "fields": FIELDS_FLOWER_SET},
     {"name": "Yield Estimation (Pre-veraison)", "type": "pre_veraison_yield", "fields": FIELDS_YIELD_PRE},
     {"name": "Maturity Sampling", "type": "maturity_sampling", "fields": FIELDS_MATURITY},
@@ -314,13 +388,53 @@ TEMPLATES: List[Dict[str, Any]] = [
     {"name": "Weather Observation", "type": "weather", "fields": FIELDS_WEATHER},
 ]
 
+def _plan(conn, todo):
+    """What a run would do, without doing it. Keyed exactly as the upsert is."""
+    creates, updates = [], []
+    for t in todo:
+        tpl_id = conn.execute(text(SELECT_ID_SQL), {"name": t["name"], "type": t["type"]}).scalar()
+        (updates if tpl_id else creates).append(t)
+    return creates, updates
+
+
 def main():
-    created = updated = 0
+    """
+    `--only <type> [...]` seeds just the named templates. `--all` seeds every one.
+    A bare run does NEITHER — it prints the plan and stops.
+
+    THE REASON THAT MATTERS: the upsert matches on name AND type, and the live
+    system templates have drifted from the names in this file. "Bud Count
+    (Post-pruning QC)" here is "Bud Count (Post-pruning)" in the database;
+    `disease` and `pest` here are one `pest_disease` template there. So a bare
+    full run does not refresh those templates — it CREATES A SECOND COPY of each,
+    company_id NULL, visible to every company, with the original left in place.
+    Twelve of them, at the time this guard was written. Hence: say --all and mean
+    it, or name the type you actually came to seed.
+    """
+    import sys
+    argv = sys.argv[1:]
+    wanted = set(argv[argv.index("--only") + 1:]) if "--only" in argv else None
+    todo = [t for t in TEMPLATES if wanted is None or t["type"] in wanted]
+    if wanted is not None and not todo:
+        raise SystemExit(f"No template matches --only {sorted(wanted)}")
+
     with engine.begin() as conn:
-        for t in TEMPLATES:
+        creates, updates = _plan(conn, todo)
+
+        if wanted is None and "--all" not in argv:
+            print(f"DRY RUN — {len(todo)} templates considered. Nothing written.")
+            print(f"  would CREATE {len(creates)}: {[t['name'] for t in creates]}")
+            print(f"  would UPDATE {len(updates)} (version bumped on each)")
+            print("A 'create' against a live database is a NEW template every company sees.")
+            print("Check the list above is really new and not a renamed original, then re-run")
+            print("with --all, or seed one type: --only <observation type>")
+            return 1
+
+        created = updated = 0
+        for t in todo:
             c, u = upsert_template(conn, t["name"], t["type"], t["fields"])
             created += int(c); updated += int(u)
-    print(f"Templates seeded. created={created} updated={updated}")
+    print(f"Templates seeded ({len(todo)} of {len(TEMPLATES)}). created={created} updated={updated}")
     return 0
 
 if __name__ == "__main__":

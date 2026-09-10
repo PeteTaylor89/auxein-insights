@@ -10,6 +10,10 @@ import articleService from '../services/articleService';
 import useArticleTracking from '../hooks/useArticleTracking';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 const ClimateWidgetRenderer = lazy(() => import('../components/climate/ClimateWidgetRenderer'));
+// NOT lazy. A boundary that has to load before it can catch is no boundary at
+// all for the very first render, which is when a widget with a bad stored
+// config throws. It is a few hundred bytes.
+import { ClimateErrorBoundary } from '../components/climate/ClimateErrorCard';
 import './ArticleDetail.css';
 
 function ArticleDetail() {
@@ -182,46 +186,53 @@ function ArticleDetail() {
         return <img key={key} src={node.attrs?.src} alt={node.attrs?.alt || ''} style={imgStyle} loading="lazy" />;
       }
       case 'climateWidget':
+        // BOUNDARY OUTSIDE SUSPENSE. Widget attrs come out of the database and
+        // outlive the code that wrote them, so one stale config must cost the
+        // reader one figure, not the whole article — an uncaught render throw
+        // unmounts the React root and blanks the page. `key` on the boundary so
+        // a body edit resets a widget that had failed.
         return (
-          <Suspense key={key} fallback={<div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>Loading chart...</div>}>
-            <ClimateWidgetRenderer
-              widgetType={node.attrs?.widgetType}
-              zoneSlug={node.attrs?.zoneSlug}
-              zoneName={node.attrs?.zoneName}
-              zoneSlugs={node.attrs?.zoneSlugs || ''}
-              zoneNames={node.attrs?.zoneNames || ''}
-              metric={node.attrs?.metric}
-              displayMode={node.attrs?.displayMode || 'chart'}
-              title={node.attrs?.title}
-              snapshotData={node.attrs?.snapshotData || null}
-              vintages={node.attrs?.vintages || ''}
-              includeBaseline={node.attrs?.includeBaseline !== false}
-              seasonLimit={node.attrs?.seasonLimit || 10}
-              scenario={node.attrs?.scenario || ''}
-              period={node.attrs?.period || ''}
-              // Current-season widgets resolve against the date the article was
-              // published, not the date it is read. Without this they follow the
-              // calendar for ever and an article headed "week ending 27 February
-              // 2026" draws whatever season happens to be running now. A draft
-              // has no published_at, so it renders live — which is what an
-              // unpublished article should do.
-              asOf={article?.published_at || null}
-              // surface_map only. Ignored by every other widget type.
-              variable={node.attrs?.variable || 'temp_mean'}
-              cadence={node.attrs?.cadence || 'monthly'}
-              validAt={node.attrs?.validAt || ''}
-              statistic={node.attrs?.statistic || ''}
-              followLatest={node.attrs?.followLatest === true}
-              mapHeight={node.attrs?.mapHeight || 420}
-              mapCentre={node.attrs?.mapCentre || ''}
-              mapZoom={node.attrs?.mapZoom ?? null}
-              basemap={node.attrs?.basemap || 'light'}
-              // Only for a PUBLISHED article — the server refuses to grant off
-              // a draft anyway, and sending the slug regardless would make a
-              // draft preview look like it works and then change on publish.
-              embed={article?.status === 'published' ? { article: slug } : null}
-            />
-          </Suspense>
+          <ClimateErrorBoundary key={key} message="This chart could not be displayed.">
+            <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>Loading chart...</div>}>
+              <ClimateWidgetRenderer
+                widgetType={node.attrs?.widgetType}
+                zoneSlug={node.attrs?.zoneSlug}
+                zoneName={node.attrs?.zoneName}
+                zoneSlugs={node.attrs?.zoneSlugs || ''}
+                zoneNames={node.attrs?.zoneNames || ''}
+                metric={node.attrs?.metric}
+                displayMode={node.attrs?.displayMode || 'chart'}
+                title={node.attrs?.title}
+                snapshotData={node.attrs?.snapshotData || null}
+                vintages={node.attrs?.vintages || ''}
+                includeBaseline={node.attrs?.includeBaseline !== false}
+                seasonLimit={node.attrs?.seasonLimit || 10}
+                scenario={node.attrs?.scenario || ''}
+                period={node.attrs?.period || ''}
+                // Current-season widgets resolve against the date the article was
+                // published, not the date it is read. Without this they follow the
+                // calendar for ever and an article headed "week ending 27 February
+                // 2026" draws whatever season happens to be running now. A draft
+                // has no published_at, so it renders live — which is what an
+                // unpublished article should do.
+                asOf={article?.published_at || null}
+                // surface_map only. Ignored by every other widget type.
+                variable={node.attrs?.variable || 'temp_mean'}
+                cadence={node.attrs?.cadence || 'monthly'}
+                validAt={node.attrs?.validAt || ''}
+                statistic={node.attrs?.statistic || ''}
+                followLatest={node.attrs?.followLatest === true}
+                mapHeight={node.attrs?.mapHeight || 420}
+                mapCentre={node.attrs?.mapCentre || ''}
+                mapZoom={node.attrs?.mapZoom ?? null}
+                basemap={node.attrs?.basemap || 'light'}
+                // Only for a PUBLISHED article — the server refuses to grant off
+                // a draft anyway, and sending the slug regardless would make a
+                // draft preview look like it works and then change on publish.
+                embed={article?.status === 'published' ? { article: slug } : null}
+              />
+            </Suspense>
+          </ClimateErrorBoundary>
         );
       case 'iframe': {
         const a = node.attrs || {};

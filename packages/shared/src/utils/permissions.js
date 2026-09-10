@@ -162,11 +162,13 @@ const PERMISSIONS = {
     delete: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN],
   },
   // Signing on and off a property. `create` is signing YOURSELF on, which
-  // anyone with the app can do; `read` is who-is-on-site-now and stops at
-  // manager.
+  // anyone with the app can do. `read` is who-is-on-site-now — the evacuation
+  // headcount — and GENERAL_USER holds it as of 2026-09-10: the person most
+  // likely to need that list is the one standing on the property. `update`
+  // (signing someone else off) still stops at manager.
   site_attendance: {
     create: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER, UserType.COMPANY_USER, UserType.CONTRACTOR, UserType.GENERAL_USER],
-    read:   [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER],
+    read:   [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER, UserType.GENERAL_USER],
     update: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN, UserType.COMPANY_MANAGER],
     delete: [UserType.AUXEIN_ADMIN, UserType.COMPANY_ADMIN],
   },

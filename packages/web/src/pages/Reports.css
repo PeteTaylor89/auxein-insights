@@ -243,38 +243,75 @@
   }
 }
 
-/* ── Grouped navigation (Operations / Compliance / Resources) ─────────── */
-/* Ten reports is too many for one tab row, so groups sit above the tabs and
-   the tabs show only the active group's reports. */
-.reports-groups {
+/* ── Grouped navigation (Operations / Observations / Compliance / Resources) ──
+   Every report pill is on screen at once. The groups are dashed clusters with a
+   faded heading — they label the pills, they do not gate them, so nobody has to
+   open a group to find out what is inside it. The dashed rule and the low
+   contrast on the heading keep the grouping readable without competing with the
+   pills themselves for attention. */
+.reports-nav {
   display: flex;
-  gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-base);
 }
 
-.reports-group {
+.reports-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md, 8px);
+}
+
+.reports-nav-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.65;
+}
+
+.reports-nav-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.reports-pill {
   padding: var(--space-xs) var(--space-base);
-  background: var(--color-surface-warm);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full, 999px);
   font-size: var(--font-size-sm);
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  font-weight: 600;
+  font-family: var(--font-family);
   color: var(--color-text-muted);
+  white-space: nowrap;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.reports-group:hover {
+.reports-pill:hover {
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-.reports-group.active {
+.reports-pill.active {
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: #ffffff;
+}
+
+/* On a phone the clusters stack full width rather than leaving a ragged column
+   of half-empty boxes. */
+@media (max-width: 768px) {
+  .reports-nav-group {
+    flex: 1 1 100%;
+  }
 }
 
 .reports-title {

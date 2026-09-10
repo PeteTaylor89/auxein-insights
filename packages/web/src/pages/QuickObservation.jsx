@@ -18,8 +18,8 @@ const TEMPLATE_GROUPS = [
     key: 'phenology',
     label: 'Phenology & Growth',
     hint: 'Seasonal monitoring',
-    types: ['phenology', 'bud_count', 'growth'],
-    names: ['Phenology', 'Bud Count', 'Growth', 'Canopy'],
+    types: ['phenology', 'bud_count', 'shoot_count', 'growth'],
+    names: ['Phenology', 'Bud Count', 'Shoot Count', 'Growth', 'Canopy'],
   },
   {
     key: 'yield',

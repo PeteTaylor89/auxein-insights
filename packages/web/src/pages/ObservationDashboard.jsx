@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles, CheckSquare, Square, Users, Layers, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import { ClipboardList, PlayCircle, Plus, Filter, ArrowRight, FileText, CheckCircle, XCircle, Rocket, Eye, Edit, Trash2, Calendar, Clock, MapPin, Zap, ListChecks, X, Wrench, Sparkles, CheckSquare, Square, Users, Layers, GripVertical, ChevronDown, ChevronRight, BarChart3 } from 'lucide-react';
 import { observationService, usersService, authService, tasksService, contractorManagementService, reportService, useAuth } from '@vineyard/shared';
 import MobileNavigation from '../components/MobileNavigation';
 import HelpTip from '../components/HelpTip';
@@ -171,6 +171,12 @@ function TemplatePreviewModal({ open, template, onClose }) {
             <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-sm)', fontWeight: 600 }}>Scope</div>
             <div style={{ fontSize: 'var(--font-size-sm)' }}><strong>Template:</strong> {template.type || template.observation_type}</div>
             <div style={{ fontSize: 'var(--font-size-sm)' }}><strong>Owner:</strong> {template.company_id ? 'Company' : 'Global'}</div>
+            <div style={{ fontSize: 'var(--font-size-sm)' }}>
+              <strong>Reporting:</strong>{' '}
+              {template.count_metric
+                ? `Feeds ${template.count_metric_label || 'the Counts report'}`
+                : 'Capture only — no report reads this'}
+            </div>
           </div>
           <div className="card--warm" style={{ padding: 'var(--space-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: 'var(--font-size-sm)' }}><strong>Note:</strong> GPS location, date/time, and user are captured automatically for all runs.</div>
@@ -769,7 +775,20 @@ function TemplatesTab() {
                 <FileText size={18} />
                 <span className="od-card-title">{t.name || `Template #${t.id}`}</span>
               </div>
-              <div className="od-card-badge">{labelFor(t)}</div>
+              <div className="od-card-badges">
+                <div className="od-card-badge">{labelFor(t)}</div>
+                {/* Whether a template reaches a report is otherwise invisible
+                    until someone has captured a run through it and found
+                    nothing at the other end. `count_metric` is resolved
+                    server-side from the FIELD NAMES as well as the type, which
+                    is why a company template built with the right field names
+                    earns this badge too. */}
+                {t.count_metric && (
+                  <div className="od-card-badge--feeds" title="Its readings appear in Insights → Reports → Observations">
+                    <BarChart3 size={11} /> Feeds {t.count_metric_label || 'Counts'}
+                  </div>
+                )}
+              </div>
               <div className="od-card-actions">
                 <button className="od-btn od-btn--primary" onClick={() => navigate(`/observations/schedule?template=${t.id}`)} title="Schedule an observation with this template">
                   <Plus size={14} /> Use Template

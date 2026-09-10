@@ -4,12 +4,21 @@
 // live. A vineyard manager does not go to Company Admin to find out what
 // happened last week, and the five reports in there were effectively invisible.
 //
-// Ten reports is too many for one row of tabs, so they are grouped by the
+// Twelve reports is too many for one flat row, so they are grouped by the
 // question being asked:
 //
-//   Operations — what got done, what is late
-//   Compliance — the audit pack: H&S, who was on site, what is planted
-//   Resources  — people, kit and contractors
+//   Operations   — what got done, what is late
+//   Observations — where the season is, and what was counted
+//   Compliance   — the audit pack: H&S, who was on site, what is planted
+//   Resources    — people, kit and contractors (HIDDEN, see `hidden` below)
+//
+// The groups label the pills, they do not hide them: every report is visible
+// without a click, so the panel answers "what can this tell me?" on sight.
+//
+// A pill is not always a whole report. The counts report is one component with
+// four metrics, and four pills that open it on a metric read better than one
+// pill and a second row of tabs underneath. So an entry names `report` (which
+// component) separately from `key` (which pill), and may carry a `metric`.
 //
 // Not every report takes the same filters, and pretending otherwise is how a
 // date range ends up silently ignored. Each entry declares what it uses and the
@@ -18,7 +27,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { propertyService, useAuth } from '@vineyard/shared';
 import HelpTip from '../HelpTip';
 import TaskReport from './TaskReport';
-import ObservationReport from './ObservationReport';
 import ContractorReport from './ContractorReport';
 import TimesheetReport from './TimesheetReport';
 import AssetReport from './AssetReport';
@@ -28,7 +36,8 @@ import HealthSafetyReport from './HealthSafetyReport';
 import SiteAccessReport from './SiteAccessReport';
 import VineyardCensusReport from './VineyardCensusReport';
 import CostReport from './CostReport';
-import CountsReport from './CountsReport';
+import CountsReport, { METRICS as COUNT_METRICS } from './CountsReport';
+import PhenologyReport from './PhenologyReport';
 import '../../pages/Reports.css';
 
 const GROUPS = [
@@ -47,14 +56,30 @@ const GROUPS = [
     ],
   },
   {
-    // Its own group rather than two entries under Operations: what was counted
-    // is a different question from what got done, and the counts report is the
-    // one that grows — bunch, flower and shoot counts all land here.
+    // Its own group rather than entries under Operations: what was counted is a
+    // different question from what got done.
+    //
+    // One pill per metric, built from the counts report's OWN metric list, so a
+    // fifth metric appears here the moment it is added there. "Runs & coverage"
+    // used to sit alongside them and was dropped — it counted runs and spots
+    // without saying anything about what was found, which is the part anyone
+    // opening this group came for. `/reports/observations/*` is still served.
     key: 'observations',
     label: 'Observations',
     reports: [
-      { key: 'counts', label: 'Counts', dates: true, property: true },
-      { key: 'observations', label: 'Runs & coverage', dates: true, property: true },
+      // Phenology first: it is the one that says where the season IS, and the
+      // counts only make sense against it. It is also not a count — a stage is
+      // an ordered category, so it has its own report rather than a fifth
+      // metric pill that would promise a mean it cannot produce.
+      { key: 'phenology', label: 'Phenology', dates: true, property: true },
+      ...COUNT_METRICS.map((m) => ({
+        key: `counts:${m.key}`,
+        label: m.label,
+        report: 'counts',
+        metric: m.key,
+        dates: true,
+        property: true,
+      })),
     ],
   },
   {
@@ -68,8 +93,13 @@ const GROUPS = [
     ],
   },
   {
+    // HIDDEN. Timesheets, assets and contractors all have a fuller home of their
+    // own elsewhere in Grow, and these three read as thin next to them. Kept
+    // whole rather than deleted: drop the `hidden` flag and the group, its
+    // reports and their render cases below all come back untouched.
     key: 'resources',
     label: 'Resources',
+    hidden: true,
     reports: [
       { key: 'timesheets', label: 'Timesheets', dates: true, property: true },
       { key: 'assets', label: 'Assets', dates: false, property: false,
@@ -92,6 +122,7 @@ export default function ReportsPanel({ companyName, initialReport, initialMetric
   // exists and that they are being kept out of it.
   const groups = useMemo(
     () => GROUPS
+      .filter((g) => !g.hidden)
       .map((g) => ({
         ...g,
         reports: g.reports.filter((r) => !r.permission || hasPermission(...r.permission)),
@@ -104,22 +135,23 @@ export default function ReportsPanel({ companyName, initialReport, initialMetric
     [groups],
   );
 
-  // A deep link names a report, not a group — the caller should not have to know
-  // which tab row it lives under. The group is resolved from it, and an unknown
-  // or forbidden report falls back to the default rather than showing an empty
-  // panel.
+  // A deep link names a report, not a pill — an observation run sends
+  // `?report=counts&metric=bud_count` and knows nothing about how the pills are
+  // arranged. So match on the COMPONENT and, when the link names one, the
+  // metric. A link that is unknown, forbidden or now hidden falls back to the
+  // default rather than showing an empty panel.
   const landing = useMemo(() => {
-    const match = allReports.find((r) => r.key === initialReport);
-    return match || null;
-  }, [initialReport, allReports]);
+    if (!initialReport) return null;
+    const candidates = allReports.filter((r) => (r.report || r.key) === initialReport);
+    if (candidates.length === 0) return null;
+    return candidates.find((r) => r.metric === initialMetric) || candidates[0];
+  }, [initialReport, initialMetric, allReports]);
 
-  const [group, setGroup] = useState(landing?.group || 'operations');
   const [report, setReport] = useState(landing?.key || 'work-by-block');
 
   // A second link arriving while the panel is already open must still move it.
   useEffect(() => {
     if (!landing) return;
-    setGroup(landing.group);
     setReport(landing.key);
   }, [landing]);
   const [startDate, setStartDate] = useState('');
@@ -137,15 +169,10 @@ export default function ReportsPanel({ companyName, initialReport, initialMetric
     () => allReports.find((r) => r.key === report) || allReports[0],
     [report, allReports],
   );
-  const activeGroup = groups.find((g) => g.key === group) || groups[0];
 
-  // Switching group lands on that group's first report rather than leaving the
-  // tab row highlighting nothing.
-  const pickGroup = (key) => {
-    setGroup(key);
-    const first = groups.find((g) => g.key === key)?.reports[0];
-    if (first) setReport(first.key);
-  };
+  // The pill's own key identifies the pill; `report` names the component behind
+  // it. They differ only where several pills share one component.
+  const shown = active.report || active.key;
 
   const prop = propertyId || undefined;
   // The PDF header names the property rather than its id, so the panel
@@ -204,46 +231,59 @@ export default function ReportsPanel({ companyName, initialReport, initialMetric
         <div className="reports-filter-note">{active.noDatesReason} — the date range does not apply.</div>
       )}
 
-      <div className="reports-groups">
+      {/* Every report is on screen at once. Clicking a group heading to find out
+          what is under it costs a click and hides the answer to "what can this
+          thing tell me?", so the groups are dashed clusters with a faded
+          heading and all their pills showing. */}
+      <div className="reports-nav">
         {groups.map((g) => (
-          <button
-            key={g.key}
-            className={`reports-group ${group === g.key ? 'active' : ''}`}
-            onClick={() => pickGroup(g.key)}
-          >
-            {g.label}
-          </button>
+          <div key={g.key} className="reports-nav-group">
+            <span className="reports-nav-label">{g.label}</span>
+            <div className="reports-nav-pills">
+              {g.reports.map((r) => (
+                <button
+                  key={r.key}
+                  className={`reports-pill ${report === r.key ? 'active' : ''}`}
+                  onClick={() => setReport(r.key)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="reports-tabs">
-        {activeGroup.reports.map((r) => (
-          <button
-            key={r.key}
-            className={`reports-tab ${report === r.key ? 'active' : ''}`}
-            onClick={() => setReport(r.key)}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
-
+      {/* Which COMPONENT to show, which is not the same as which pill is lit:
+          the four count pills all open CountsReport on their own metric. */}
       <div className="reports-content">
-        {report === 'work-by-block' && <WorkByBlockReport startDate={startDate} endDate={endDate} {...common} />}
-        {report === 'outstanding' && <OutstandingReport {...common} />}
-        {report === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} {...common} />}
-        {report === 'costs' && <CostReport startDate={startDate} endDate={endDate} {...common} />}
-        {report === 'counts' && <CountsReport startDate={startDate} endDate={endDate} initialMetric={initialMetric} {...common} />}
-        {report === 'observations' && <ObservationReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'work-by-block' && <WorkByBlockReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'outstanding' && <OutstandingReport {...common} />}
+        {shown === 'tasks' && <TaskReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'costs' && <CostReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'phenology' && <PhenologyReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'counts' && (
+          <CountsReport
+            startDate={startDate}
+            endDate={endDate}
+            // The pill IS the picker, so the report's own metric row would be a
+            // second copy of it directly underneath.
+            initialMetric={active.metric || initialMetric}
+            showMetricPicker={false}
+            {...common}
+          />
+        )}
 
-        {report === 'health-safety' && <HealthSafetyReport startDate={startDate} endDate={endDate} {...common} />}
-        {report === 'site-access' && <SiteAccessReport startDate={startDate} endDate={endDate} {...common} />}
-        {report === 'census' && <VineyardCensusReport {...common} />}
+        {shown === 'health-safety' && <HealthSafetyReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'site-access' && <SiteAccessReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'census' && <VineyardCensusReport {...common} />}
 
-        {report === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} {...common} />}
+        {/* The Resources group is hidden, so nothing lights these today. Left in
+            place so unhiding the group is a one-line change. */}
+        {shown === 'timesheets' && <TimesheetReport startDate={startDate} endDate={endDate} {...common} />}
         {/* Assets take no property or date filter — only the name for the PDF header. */}
-        {report === 'assets' && <AssetReport companyName={companyName} />}
-        {report === 'contractors' && <ContractorReport startDate={startDate} endDate={endDate} {...common} />}
+        {shown === 'assets' && <AssetReport companyName={companyName} />}
+        {shown === 'contractors' && <ContractorReport startDate={startDate} endDate={endDate} {...common} />}
       </div>
     </div>
   );

@@ -332,6 +332,69 @@ class CountReportSummary(BaseModel):
     warnings: List[str] = []
 
 
+# ── Phenology report ──────────────────────────────────────────────────
+class StageShare(BaseModel):
+    """One stage seen in a block, and how much of it that stage is."""
+    stage: str
+    name: Optional[str] = None
+    spots: int = 0
+    share_percent: Optional[float] = None
+
+
+class PhenologyStageRow(BaseModel):
+    """One block's phenological state, as observed.
+
+    Three stages, not one, because a block is rarely uniform:
+
+      `modal_stage`         what most of it is doing
+      `most_advanced_stage` what the earliest part is doing — the one that
+                            decides when work has to start
+      `stage_range`         the spread, as stages ("EL-2 – EL-9")
+
+    No mean and no standard deviation. A stage is an ordered CATEGORY: the mean
+    of EL-2 and EL-9 is not EL-5.5, and an SD over stage codes is a number with
+    no meaning. See services/phenology_stages.
+    """
+    block_id: Optional[int] = None
+    label: str
+    property_name: Optional[str] = None
+    variety: Optional[str] = None
+    #: Codes the phenology MODEL can run for this block's variety, so the report
+    #: and the panel agree about which blocks have a modelled comparison.
+    variety_codes: List[str] = []
+
+    spots: int = 0
+    #: Spots whose stage could be read. Below `spots` when some are BBCH.
+    readable_spots: int = 0
+    observed_on: Optional[str] = None
+
+    modal_stage: Optional[str] = None
+    modal_stage_name: Optional[str] = None
+    most_advanced_stage: Optional[str] = None
+    most_advanced_stage_name: Optional[str] = None
+    least_advanced_stage: Optional[str] = None
+    stage_range: Optional[str] = None
+    phase: Optional[str] = None
+    is_uniform: bool = True
+    distribution: List[StageShare] = []
+    #: Why this row may be thinner than it looks — one spot only, BBCH spots
+    #: excluded. Carried beside the figures rather than in a footnote.
+    note: Optional[str] = None
+
+
+class PhenologyReportSummary(BaseModel):
+    blocks: List[PhenologyStageRow] = []
+    runs: List[PhenologyStageRow] = []
+    total_spots: int = 0
+    readable_spots: int = 0
+    blocks_observed: int = 0
+    #: The most advanced stage anywhere in range. What is happening first.
+    most_advanced_stage: Optional[str] = None
+    most_advanced_stage_name: Optional[str] = None
+    most_advanced_block: Optional[str] = None
+    warnings: List[str] = []
+
+
 # ── Cost report ───────────────────────────────────────────────────────
 class OperationCostRow(BaseModel):
     """One operation type — pruning, spraying, mowing — across the period.
@@ -352,6 +415,30 @@ class OperationCostRow(BaseModel):
     cost_per_hectare: Optional[float] = None
 
 
+class BlockCostRow(OperationCostRow):
+    """One block's share of the spend.
+
+    Deliberately the same numbers as the cost columns on work-by-block — the two
+    reports answer "what did this block cost" from the same allocation, and a
+    figure that disagreed with itself between two tabs would be worse than the
+    duplication. What this row adds is the cost breakdown (labour / materials /
+    machinery) and the estimated-vs-actual hours, which work-by-block has no
+    room for.
+
+    `cost_per_hectare` uses BLOCK area, not area worked — the same denominator
+    as work-by-block's `hours_per_hectare`, so the two columns stay comparable.
+    An operation row uses area worked instead, because an operation crosses
+    blocks and has no area of its own.
+    """
+    block_id: Optional[int] = None
+    property_name: Optional[str] = None
+    variety: Optional[str] = None
+    #: The block's planted area. None for the unallocated row, and for a block
+    #: with no area recorded — which is why cost/ha can be blank on a row that
+    #: has a total.
+    area_hectares: Optional[float] = None
+
+
 class CostMixRow(BaseModel):
     """Labour vs materials vs machinery, as money and as a share of the total."""
     key: str
@@ -364,6 +451,9 @@ class CostReportSummary(BaseModel):
     costs: CostBreakdown = CostBreakdown()
     by_operation: List[OperationCostRow] = []
     by_variety: List[OperationCostRow] = []
+    #: Includes an "Unallocated" row for tasks with no block, so the section
+    #: still adds up to the company total above.
+    by_block: List[BlockCostRow] = []
     mix: List[CostMixRow] = []
     #: Tasks completed in range that have no live cost snapshot at all.
     uncosted_tasks: int = 0

@@ -74,6 +74,22 @@ class SurfaceNotFound(LookupError):
     """No indexed surface matches the request."""
 
 
+class RasterBackendUnavailable(RuntimeError):
+    """rasterio is not importable, so no COG can be read on this server.
+
+    A DEPLOYMENT FAULT, NOT A DATA FAULT, and it exists to keep those two apart.
+    rasterio is imported lazily throughout this module (it is ~100 MB and only
+    the surface endpoints need it), so its absence surfaces as a
+    `ModuleNotFoundError` raised from deep inside a read. Every caller in
+    `api/v1/surfaces.py` wrapped those reads in a bare `except Exception` that
+    became `503 "surface is indexed but unreadable"`, naming the S3 key — which
+    sends whoever is debugging to the bucket and the index when the problem is
+    the interpreter. That cost a debugging session on 2026-09-10, when
+    `backend/venv` turned out to be missing exactly one of its 62 pinned
+    requirements.
+    """
+
+
 # --- bands withheld from serving --------------------------------------------
 #
 # WITHHELD 2026-08-27: rainfall/max_dry_spell.
@@ -447,6 +463,28 @@ def unit_for(variable: str, statistic: Optional[str]) -> Optional[str]:
 
 # --- GDAL environment -------------------------------------------------------
 
+def require_rasterio():
+    """Import rasterio, or raise `RasterBackendUnavailable` naming the fix.
+
+    THE ONE PLACE THAT IMPORTS RASTERIO FOR A READ. Call it at the top of any
+    function that is about to touch a raster, including from `api/v1`, so a
+    missing install is reported once, in words that say what to do, instead of
+    as a `ModuleNotFoundError` wearing a corrupt-object message.
+
+    `_configure_proj` deliberately does NOT use this — it is environment setup
+    that is allowed to no-op when there is nothing to configure.
+    """
+    try:
+        import rasterio
+    except ImportError as exc:                                  # pragma: no cover
+        raise RasterBackendUnavailable(
+            "rasterio is not installed in this environment, so climate "
+            "surfaces cannot be read. Install the pinned backend "
+            "requirements: pip install -r backend/requirements.txt"
+        ) from exc
+    return rasterio
+
+
 def _configure_proj() -> None:
     """Point PROJ and GDAL at rasterio's own data, not another install's.
 
@@ -491,7 +529,7 @@ def gdal_env():
     credentials file on a workstation; neither is named here.
     """
     _configure_proj()
-    import rasterio
+    rasterio = require_rasterio()
     return rasterio.Env(
         AWS_REGION=AWS_REGION,
         GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
@@ -738,7 +776,7 @@ def render_tile(s3_key: str, z: int, x: int, y: int, ramp: str,
     coastline visibly off the basemap at low zoom, which is exactly where the
     whole country is in one tile and the error is most obvious.
     """
-    import rasterio
+    rasterio = require_rasterio()
     from rasterio.enums import Resampling
     from rasterio.vrt import WarpedVRT
     from rasterio.windows import Window, from_bounds
@@ -806,7 +844,7 @@ def render_tile(s3_key: str, z: int, x: int, y: int, ramp: str,
 
 def sample(s3_key: str, points: Sequence[tuple[float, float]]) -> list[Optional[float]]:
     """Sample a surface at (lon, lat) degrees. Returns None for nodata."""
-    import rasterio
+    rasterio = require_rasterio()
 
     with gdal_env():
         with rasterio.open(object_url(s3_key)) as ds:

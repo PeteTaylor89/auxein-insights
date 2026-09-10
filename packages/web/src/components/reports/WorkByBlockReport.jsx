@@ -55,14 +55,12 @@ export default function WorkByBlockReport({ startDate, endDate, propertyId, prop
     },
     { key: 'tasks_completed', label: 'Tasks', align: 'right' },
     { key: 'hours', label: 'Hours', align: 'right', render: (r) => fmtNum(r.hours), text: (r) => fmtNum(r.hours) },
-    { key: 'rows_completed', label: 'Rows', align: 'right' },
-    {
-      key: 'area_worked_hectares',
-      label: 'Area worked (ha)',
-      align: 'right',
-      render: (r) => fmtNum(r.area_worked_hectares, 2),
-      text: (r) => fmtNum(r.area_worked_hectares, 2),
-    },
+    // Rows completed and area worked are off the table deliberately: both come
+    // from what the person closing a task typed into `rows_completed` /
+    // `area_completed_hectares`, which is filled in rarely enough that the
+    // columns read as a page of zeros beside real hours. The fields are still
+    // in the payload and still in the CSV export, so nothing is lost — they are
+    // just not the headline this table is for.
     {
       key: 'hours_per_hectare',
       label: 'Hours / ha',

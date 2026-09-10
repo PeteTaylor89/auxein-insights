@@ -1,5 +1,11 @@
-// components/reports/CostReport.jsx — what the work cost, by operation and by
-// variety.
+// components/reports/CostReport.jsx — what the work cost, by operation, by
+// variety and by block.
+//
+// The block view overlaps work-by-block on purpose. Both allocate a task's cost
+// whole onto the block it names, so the per-block totals are the SAME numbers —
+// what this view adds is the labour / materials / machinery split and the
+// estimated-vs-actual hours, which work-by-block has no room for. Two views of
+// one allocation beat two allocations.
 //
 // The only report in the panel behind the `costs` permission rather than
 // `reports`. A company_manager holds reports:read and must not see this at all:
@@ -53,16 +59,39 @@ export default function CostReport({ startDate, endDate, propertyId, propertyNam
   if (failed || !data) return <ErrorBlock label="costs" onRetry={load} />;
 
   const currency = data.currency || 'NZD';
-  const rows = view === 'varieties' ? data.by_variety : data.by_operation;
-  const keyLabel = view === 'varieties' ? 'Variety' : 'Operation';
+  const VIEWS = {
+    operations: { rows: data.by_operation, label: 'Operation', title: 'operation' },
+    varieties: { rows: data.by_variety, label: 'Variety', title: 'variety' },
+    blocks: { rows: data.by_block || [], label: 'Block', title: 'block' },
+  };
+  const { rows, label: keyLabel, title: viewTitle } = VIEWS[view] || VIEWS.operations;
+  const byBlock = view === 'blocks';
 
   const columns = [
     {
       key: 'key',
       label: keyLabel,
-      render: (r) => String(r.key).replace(/_/g, ' '),
-      text: (r) => String(r.key).replace(/_/g, ' '),
+      // Operation keys are snake_case categories and read badly raw. A block
+      // name is already words and is left exactly as the vineyard wrote it —
+      // rewriting punctuation in someone's own block name is not tidying.
+      render: (r) => (byBlock ? String(r.key) : String(r.key).replace(/_/g, ' ')),
+      text: (r) => (byBlock ? String(r.key) : String(r.key).replace(/_/g, ' ')),
     },
+    // Where the block is and what is in it. On the other two views every one of
+    // these cells would be empty, so they only exist here.
+    ...(byBlock ? [
+      { key: 'property_name', label: 'Property' },
+      { key: 'variety', label: 'Variety' },
+      {
+        key: 'area_hectares',
+        label: 'Area (ha)',
+        align: 'right',
+        // Blank, not zero, for the unallocated row and for a block whose area
+        // was never recorded — which is also why its cost/ha is blank.
+        render: (r) => (r.area_hectares === null || r.area_hectares === undefined ? '—' : fmtNum(r.area_hectares, 2)),
+        text: (r) => (r.area_hectares === null || r.area_hectares === undefined ? '' : fmtNum(r.area_hectares, 2)),
+      },
+    ] : []),
     { key: 'tasks', label: 'Tasks', align: 'right' },
     { key: 'hours', label: 'Hours', align: 'right', render: (r) => fmtNum(r.hours), text: (r) => fmtNum(r.hours) },
     {
@@ -117,7 +146,10 @@ export default function CostReport({ startDate, endDate, propertyId, propertyNam
     },
     {
       key: 'cost_per_hectare',
-      label: 'Per ha',
+      // Block rows divide by the BLOCK's area, operation and variety rows by
+      // the area actually worked. Same word, two denominators — the header says
+      // which, because a block's cost/ha here must match work-by-block's.
+      label: byBlock ? 'Per ha (block)' : 'Per ha (worked)',
       align: 'right',
       render: (r) => money(r.cost_per_hectare, currency),
       text: (r) => moneyText(r.cost_per_hectare),
@@ -133,7 +165,7 @@ export default function CostReport({ startDate, endDate, propertyId, propertyNam
   ];
 
   const pdf = () => buildReportPdf({
-    title: `Costs by ${view === 'varieties' ? 'variety' : 'operation'}`,
+    title: `Costs by ${viewTitle}`,
     company: companyName,
     context: contextLines({
       startDate,
@@ -225,6 +257,12 @@ export default function CostReport({ startDate, endDate, propertyId, propertyNam
         >
           By variety
         </button>
+        <button
+          className={`reports-tab ${view === 'blocks' ? 'active' : ''}`}
+          onClick={() => setView('blocks')}
+        >
+          By block
+        </button>
       </div>
 
       <ReportNote>
@@ -232,6 +270,10 @@ export default function CostReport({ startDate, endDate, propertyId, propertyNam
         carried an estimate, not the whole group — a group where one job in twenty was estimated
         would otherwise read as wildly over. A dash means nothing in that group was estimated.
         Costs follow their task's block, so a job spanning blocks lands whole on the one it names.
+        {byBlock && (
+          <> The <strong>unallocated</strong> row holds tasks with no block, so this table still adds
+          up to the total above; its per-hectare figure is blank because it has no hectares.</>
+        )}
       </ReportNote>
 
       <ReportTable

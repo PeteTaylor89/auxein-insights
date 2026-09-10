@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
-from datetime import date, datetime, timedelta, timezone
+from sqlalchemy import func, or_, DateTime
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional, List
 import csv
 import io
@@ -12,6 +12,7 @@ import io
 from db.session import get_db
 from api.deps import get_current_user, require_company_user_permission
 from services.property_service import get_visible_property_ids
+from core.local_time import NZ, local_today, to_local_date
 from db.models.user import User
 from db.models.task import Task
 from db.models.observation_run import ObservationRun, ObservationSpot
@@ -33,6 +34,8 @@ from db.models.visitor import Visitor, VisitorVisit
 from db.models.site_attendance import SiteAttendance
 from db.models.training_record import TrainingRecord
 from db.models.costing import TaskCost, UserPayRate, CompanyCostSettings
+from services import phenology_stages as phen
+from services import variety_codes
 from services.count_metrics import (
     CountMetric, COUNT_METRICS, MIN_SPOTS_FOR_SD, metric_for_template,
     first_field as _first_field,
@@ -47,21 +50,84 @@ from schemas.report import (
     HealthSafetySummary, IncidentRow, RiskRow,
     SiteAccessSummary, VisitRow,
     VineyardCensusSummary, CensusBlockRow, AreaByKey,
-    CostBreakdown, CostReportSummary, OperationCostRow, CostMixRow,
+    CostBreakdown, CostReportSummary, OperationCostRow, BlockCostRow, CostMixRow,
     CountStat, CountReportSummary,
+    PhenologyStageRow, PhenologyReportSummary, StageShare,
 )
 
 router = APIRouter()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
+#
+# EVERY calendar date in this module is a NEW ZEALAND date. The API runs UTC and
+# the users are +12/+13, so for the whole NZ morning the server's own date is
+# yesterday — see core/local_time.py. Three things follow, and all three were
+# wrong here until 2026-09-10:
+#
+#   * a DateTime column holds an INSTANT. `.date()` on it gives the UTC calendar
+#     date, so a sign-on at 10:45 on the 10th (22:45 UTC on the 9th) reported as
+#     the 9th. Use `_local_date_iso`.
+#   * rendering that instant raw shows UTC. Use `_local_iso`, which carries the
+#     +12:00/+13:00 offset so the client cannot misread it either.
+#   * a date RANGE against a DateTime column has to become an instant window in
+#     NZ, or "today" starts at noon and takes half of yesterday with it.
+def _nz_day_start(day: date, aware: bool = True) -> datetime:
+    """The instant a New Zealand calendar day begins."""
+    moment = datetime.combine(day, time.min, tzinfo=NZ).astimezone(timezone.utc)
+    return moment if aware else moment.replace(tzinfo=None)
+
+
 def _date_filter(query, model, date_field, start: Optional[date], end: Optional[date]):
+    """Filter to an inclusive range of NZ calendar days.
+
+    A Date column already IS a calendar date and is compared directly. A
+    DateTime column is an instant, so the range becomes [start of the first NZ
+    day, start of the day AFTER the last) — half-open at the top, because an
+    inclusive `<=` against a timestamp excludes everything after midnight on the
+    final day.
+    """
     col = getattr(model, date_field)
+    col_type = getattr(col, "type", None)
+
+    if isinstance(col_type, DateTime):
+        aware = bool(getattr(col_type, "timezone", False))
+        if start:
+            query = query.filter(col >= _nz_day_start(start, aware))
+        if end:
+            query = query.filter(col < _nz_day_start(end + timedelta(days=1), aware))
+        return query
+
     if start:
         query = query.filter(col >= start)
     if end:
         query = query.filter(col <= end)
     return query
+
+
+def _local_date_iso(moment) -> Optional[str]:
+    """The NZ calendar date an instant fell on, as `YYYY-MM-DD`."""
+    if moment is None:
+        return None
+    if isinstance(moment, datetime):
+        return to_local_date(moment).isoformat()
+    return moment.isoformat()
+
+
+def _local_iso(moment) -> Optional[str]:
+    """An instant rendered in NZ time, offset included.
+
+    The offset matters: a client parsing this gets the right wall-clock time
+    whatever zone the browser is in, and a CSV opened in Excel reads as the time
+    the person was actually standing on the property.
+    """
+    if moment is None:
+        return None
+    if not isinstance(moment, datetime):
+        return moment.isoformat()
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(NZ).isoformat()
 
 
 def _scoped_property_ids(db: Session, current_user: User, property_id: Optional[int]) -> List[int]:
@@ -715,7 +781,9 @@ def _exclude_clones(query):
 
 
 def _today():
-    return datetime.now(timezone.utc).date()
+    # The NZ date, not the server's. Feeds the H&S overdue counts, where a UTC
+    # date made an action due today read as a day overdue all NZ morning.
+    return local_today()
 
 
 def _block_label(block: Optional[VineyardBlock]) -> str:
@@ -1351,8 +1419,9 @@ def count_report_summary(
             property_name=props.get(b.property_id) if b else None,
             variety=b.variety if b else None,
             template_name=meta.get("template_name"),
-            observed_on=(when.date().isoformat() if hasattr(when, "date") else
-                         (when.isoformat() if when else None)),
+            # The NZ day the spot was recorded. A UTC `.date()` files a
+            # morning's counting under the previous day.
+            observed_on=_local_date_iso(when),
         ))
     # Newest first: what was counted this week matters more than last spring.
     run_rows.sort(key=lambda r: (r.observed_on or "", r.spots), reverse=True)
@@ -1463,9 +1532,9 @@ class _CostGroup:
             self.hours_of_estimated += hours
         self.costs.add(cost)
 
-    def row(self) -> OperationCostRow:
+    def _common(self) -> dict:
         breakdown = self.costs.breakdown()
-        return OperationCostRow(
+        return dict(
             key=self.key,
             tasks=self.tasks,
             hours=round(self.hours, 1),
@@ -1477,10 +1546,36 @@ class _CostGroup:
             area_worked_hectares=round(self.area, 2),
             costs=breakdown,
             cost_per_hour=_per_unit(breakdown.total, self.hours),
+        )
+
+    def row(self) -> OperationCostRow:
+        common = self._common()
+        return OperationCostRow(
+            **common,
             # Area WORKED, not block area: an operation crosses blocks, and the
             # hectares it actually covered are the only denominator that means
             # anything at this grain.
-            cost_per_hectare=_per_unit(breakdown.total, self.area),
+            cost_per_hectare=_per_unit(common["costs"].total, self.area),
+        )
+
+    def block_row(self, block_id, block, property_name) -> BlockCostRow:
+        """The same group read as a block.
+
+        The ONE difference from `row()`: cost per hectare divides by the block's
+        planted area, not by the area worked. That is the denominator
+        work-by-block uses for hours/ha, and the two reports must not disagree
+        about what a block cost per hectare. The unallocated row has no block
+        and therefore no per-hectare figure at all — not a zero.
+        """
+        common = self._common()
+        area = round(float(block.area), 2) if block is not None and block.area else None
+        return BlockCostRow(
+            **common,
+            block_id=block_id,
+            property_name=property_name,
+            variety=block.variety if block is not None else None,
+            area_hectares=area,
+            cost_per_hectare=_per_unit(common["costs"].total, area) if area else None,
         )
 
 
@@ -1535,7 +1630,7 @@ def cost_report_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_company_user_permission("costs", "read")),
 ):
-    """What the work cost, by operation and by variety.
+    """What the work cost, by operation, by variety and by block.
 
     Gated on `costs`, not `reports` — a company_manager holds `reports:read`,
     and a cost divided by its hours is an hourly rate. This is the one report in
@@ -1556,9 +1651,12 @@ def cost_report_summary(
     task_costs = _task_costs(db, task_ids)
     blocks = _company_blocks(db, current_user)
 
+    props = _property_names(db)
+
     overall = _CostAccumulator()
     by_operation: dict = {}
     by_variety: dict = {}
+    by_block: dict = {}
 
     for t in tasks:
         hours = task_hours.get(t.id, 0.0)
@@ -1571,6 +1669,16 @@ def cost_report_summary(
         block = blocks.get(t.block_id) if t.block_id else None
         var_key = (block.variety if block and block.variety else "Unspecified")
         by_variety.setdefault(var_key, _CostGroup(var_key)).add(t, hours, cost)
+
+        # Cost follows its task's block whole, exactly as the hours do in
+        # work-by-block. A task with no block is its own row rather than being
+        # dropped or spread across blocks: dropping it would make the section
+        # quietly disagree with the company total above it, and spreading it
+        # would be a guess.
+        blk_key = t.block_id if t.block_id is not None else None
+        by_block.setdefault(blk_key, _CostGroup(
+            _block_label(block) if blk_key is not None else "Unallocated (no block)"
+        )).add(t, hours, cost)
 
     breakdown = overall.breakdown()
 
@@ -1603,6 +1711,18 @@ def cost_report_summary(
         key=lambda r: (r.costs.total if r.costs.total is not None else -1, r.hours),
         reverse=True,
     )
+    block_rows = sorted(
+        (
+            g.block_row(
+                bid,
+                blocks.get(bid) if bid is not None else None,
+                props.get(blocks[bid].property_id) if bid in blocks else None,
+            )
+            for bid, g in by_block.items()
+        ),
+        key=lambda r: (r.costs.total if r.costs.total is not None else -1, r.hours),
+        reverse=True,
+    )
     setup_warnings = _cost_setup_warnings(db, current_user.company_id)
 
     return CostReportSummary(
@@ -1610,6 +1730,7 @@ def cost_report_summary(
         costs=breakdown,
         by_operation=operations,
         by_variety=varieties,
+        by_block=block_rows,
         mix=mix,
         uncosted_tasks=breakdown.uncosted_tasks,
         rates_configured=not setup_warnings,
@@ -1622,24 +1743,37 @@ def cost_report_export(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     property_id: Optional[int] = Query(None),
-    section: str = Query("operations", pattern="^(operations|varieties)$"),
+    section: str = Query("operations", pattern="^(operations|varieties|blocks)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_company_user_permission("costs", "export")),
 ):
-    """Two tables in one report, so the export names the one it wants —
+    """Three tables in one report, so the export names the one it wants —
     the same shape as the health & safety export."""
     summary = cost_report_summary(start_date, end_date, property_id, db, current_user)
-    rows_in = summary.by_variety if section == "varieties" else summary.by_operation
-    label = "Variety" if section == "varieties" else "Operation"
+    rows_in = {
+        "varieties": summary.by_variety,
+        "blocks": summary.by_block,
+    }.get(section, summary.by_operation)
+    label = {"varieties": "Variety", "blocks": "Block"}.get(section, "Operation")
 
-    headers = [label, "Tasks", "Hours", "Estimated Hours", "Hours Variance", "Area Worked (ha)",
-               f"Labour ({summary.currency})", "Consumables", "Equipment", "Total Cost",
-               "Cost / Hour", "Cost / ha", "Costed Tasks", "Uncosted Tasks", "Complete"]
+    # The block section carries where the block is and what is planted in it;
+    # for the other two those columns would be empty in every row.
+    lead = [label] + (["Property", "Variety", "Area (ha)"] if section == "blocks" else [])
+    headers = lead + ["Tasks", "Hours", "Estimated Hours", "Hours Variance", "Area Worked (ha)",
+                      f"Labour ({summary.currency})", "Consumables", "Equipment", "Total Cost",
+                      "Cost / Hour", "Cost / ha", "Costed Tasks", "Uncosted Tasks", "Complete"]
     rows = []
     for r in rows_in:
         c = r.costs
-        rows.append([
-            r.key, r.tasks, r.hours,
+        head = [r.key]
+        if section == "blocks":
+            head += [
+                r.property_name or "",
+                r.variety or "",
+                r.area_hectares if r.area_hectares is not None else "",
+            ]
+        rows.append(head + [
+            r.tasks, r.hours,
             r.estimated_hours if r.estimated_hours is not None else "",
             r.hours_variance if r.hours_variance is not None else "",
             r.area_worked_hectares,
@@ -2017,12 +2151,14 @@ def site_access_summary(
             kind="visitor",
             name=f"{person.first_name} {person.last_name}".strip(),
             organisation=person.company_representing,
+            # `visit_date` is a real Date column — already a calendar date,
+            # nothing to convert. The sign in/out are instants and do need it.
             visit_date=_iso(v.visit_date),
             purpose=v.purpose,
             property_name=None,
             host=hosts.get(v.host_user_id),
-            signed_in=_iso(v.signed_in_at),
-            signed_out=_iso(v.signed_out_at),
+            signed_in=_local_iso(v.signed_in_at),
+            signed_out=_local_iso(v.signed_out_at),
             inducted=bool(v.induction_completed),
             equipment_cleaned=None,
             status=v.status,
@@ -2051,12 +2187,12 @@ def site_access_summary(
             kind="contractor",
             name=c.contact_person or c.business_name,
             organisation=c.business_name,
-            visit_date=_iso(m.arrival_datetime.date() if m.arrival_datetime else None),
+            visit_date=_local_date_iso(m.arrival_datetime),
             purpose=m.purpose,
             property_name=props.get(m.property_id),
             host=None,
-            signed_in=_iso(m.arrival_datetime),
-            signed_out=_iso(m.departure_datetime),
+            signed_in=_local_iso(m.arrival_datetime),
+            signed_out=_local_iso(m.departure_datetime),
             inducted=None,
             equipment_cleaned=bool(m.equipment_cleaned),
             status=None,
@@ -2091,12 +2227,12 @@ def site_access_summary(
             name=(f"{person.first_name or ''} {person.last_name or ''}".strip()
                   or person.username or person.email),
             organisation=None,
-            visit_date=_iso(a.signed_in_at.date() if a.signed_in_at else None),
+            visit_date=_local_date_iso(a.signed_in_at),
             purpose=None,
             property_name=props.get(a.property_id),
             host=None,
-            signed_in=_iso(a.signed_in_at),
-            signed_out=_iso(a.signed_out_at),
+            signed_in=_local_iso(a.signed_in_at),
+            signed_out=_local_iso(a.signed_out_at),
             inducted=None,
             equipment_cleaned=None,
             status=None,
@@ -2325,3 +2461,207 @@ def vineyard_census_export(
         ", ".join(b.certifications),
     ] for b in summary.blocks]
     return _csv_response(rows, headers, "vineyard_census.csv")
+
+
+# ── Phenology report ──────────────────────────────────────────────────
+def _phenology_template_ids(db: Session, current_user: User) -> List[int]:
+    """Templates that record a stage — the caller's own and the system ones.
+
+    Matched two ways, exactly as the count metrics are: by template TYPE, and by
+    FIELD NAME in `fields_json`. A company that built its own phenology template
+    carries `type='other'` and would otherwise be invisible to this report.
+    """
+    templates = db.query(ObservationTemplate).filter(
+        or_(ObservationTemplate.company_id == current_user.company_id,
+            ObservationTemplate.company_id.is_(None))
+    ).all()
+    return [t.id for t in templates if phen.is_phenology_template(t)]
+
+
+@router.get("/phenology/summary", response_model=PhenologyReportSummary)
+def phenology_report_summary(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None, description="Filter by property"),
+    run_id: Optional[int] = Query(None, description="Narrow to a single observation run"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("reports", "read")),
+):
+    """Where each block actually is on the E-L scale, from field observations.
+
+    **No mean and no standard deviation**, unlike the counts report beside it. A
+    stage is an ordered CATEGORY, not a number: the mean of EL-2 and EL-9 is not
+    EL-5.5. So each block reports the MODAL stage (what most of it is doing), the
+    MOST ADVANCED stage (what the earliest part is doing, which is what decides
+    when work starts) and the RANGE between them. A block sitting at EL-2 with
+    one spot at EL-9 is a real and important shape, and a mean would erase it.
+
+    This is the observed track only. What the MODEL says for the same block is
+    the phenology panel's job — it needs the property's Insights site, which
+    this report deliberately does not require, so a company with no site still
+    gets its own observations back.
+    """
+    template_ids = _phenology_template_ids(db, current_user)
+    warnings: List[str] = []
+    if not template_ids:
+        return PhenologyReportSummary(
+            warnings=["No observation template records a phenological stage yet."])
+
+    block_ids = _visible_block_ids(db, current_user, property_id)
+
+    q = (
+        db.query(ObservationSpot, ObservationRun)
+        .join(ObservationRun, ObservationRun.id == ObservationSpot.run_id)
+        .filter(ObservationSpot.company_id == current_user.company_id,
+                ObservationRun.template_id.in_(template_ids))
+    )
+
+    # Same NULL-property rule as every other report in this module: a spot with
+    # no block is company-wide and is kept unless a property was named.
+    if property_id is not None:
+        if not block_ids:
+            q = q.filter(ObservationSpot.id == -1)
+        else:
+            q = q.filter(ObservationSpot.block_id.in_(block_ids))
+    elif not block_ids:
+        q = q.filter(ObservationSpot.block_id.is_(None))
+    else:
+        q = q.filter(or_(ObservationSpot.block_id.in_(block_ids),
+                         ObservationSpot.block_id.is_(None)))
+
+    if run_id is not None:
+        # Block scoping above still applies — narrowing to a run must not widen
+        # what the caller can see.
+        q = q.filter(ObservationSpot.run_id == run_id)
+
+    q = _date_filter(q, ObservationSpot, "observed_at", start_date, end_date)
+    pairs = q.all()
+
+    blocks = _company_blocks(db, current_user)
+    props = _property_names(db)
+    templates_by_id = {t.id: t.name for t in db.query(ObservationTemplate).filter(
+        ObservationTemplate.id.in_(template_ids)).all()}
+
+    by_block: dict = {}
+    by_run: dict = {}
+    run_meta: dict = {}
+    total_spots = 0
+
+    for spot, run in pairs:
+        total_spots += 1
+        block_key = spot.block_id if spot.block_id is not None else run.block_id
+        by_block.setdefault(block_key, phen.StageRollup()).add(
+            spot.data_json, spot.observed_at)
+        by_run.setdefault(spot.run_id, phen.StageRollup()).add(
+            spot.data_json, spot.observed_at)
+        run_meta.setdefault(spot.run_id, {
+            "block_id": block_key,
+            "template_name": templates_by_id.get(run.template_id),
+        })
+
+    # Which model codes each block's variety resolves to. Carried on the row so
+    # this report and the phenology panel cannot disagree about whether a block
+    # has a modelled comparison — both go through services/variety_codes.
+    variety_res = variety_codes.resolve_blocks(
+        db, [b for k, b in blocks.items() if k in by_block])
+
+    def row_for(key, rollup, label, variety=None, prop_name=None) -> PhenologyStageRow:
+        modal = rollup.modal
+        most = rollup.most_advanced
+        return PhenologyStageRow(
+            block_id=key if isinstance(key, int) else None,
+            label=label,
+            property_name=prop_name,
+            variety=variety,
+            variety_codes=(variety_res[key].codes if key in variety_res else []),
+            spots=rollup.spots,
+            readable_spots=rollup.readable,
+            observed_on=_local_date_iso(rollup.latest_observed),
+            modal_stage=modal,
+            modal_stage_name=phen.stage_name(modal),
+            most_advanced_stage=most,
+            most_advanced_stage_name=phen.stage_name(most),
+            least_advanced_stage=rollup.least_advanced,
+            stage_range=rollup.range_label,
+            phase=phen.stage_phase(most),
+            is_uniform=rollup.is_uniform,
+            distribution=[StageShare(**d) for d in rollup.distribution()],
+            note=rollup.note(),
+        )
+
+    block_rows = []
+    for key, rollup in by_block.items():
+        b = blocks.get(key) if key is not None else None
+        block_rows.append(row_for(
+            key, rollup,
+            label=_block_label(b) if key is not None else "Unallocated",
+            variety=b.variety if b else None,
+            prop_name=props.get(b.property_id) if b else None,
+        ))
+    # Most advanced first: what is happening EARLIEST is what needs a decision.
+    block_rows.sort(key=lambda r: (phen.order_of(r.most_advanced_stage) or -1,
+                                   r.readable_spots), reverse=True)
+
+    run_rows = []
+    for rid, rollup in by_run.items():
+        meta = run_meta.get(rid, {})
+        b = blocks.get(meta.get("block_id"))
+        run_rows.append(row_for(
+            meta.get("block_id"), rollup,
+            label=_block_label(b) if b else "Unallocated",
+            variety=b.variety if b else None,
+            prop_name=props.get(b.property_id) if b else None,
+        ))
+    run_rows.sort(key=lambda r: (r.observed_on or ""), reverse=True)
+
+    readable = sum(r.readable_spots for r in block_rows)
+    if total_spots and not readable:
+        warnings.append(
+            "Stages were recorded, but none on the E-L scale. BBCH codes are "
+            "not converted, because the two scales do not map one to one.")
+    bbch = sum(r.bbch for r in by_block.values())
+    if bbch and readable:
+        warnings.append(
+            f"{bbch} spot{'s' if bbch != 1 else ''} recorded a BBCH code and "
+            "are excluded from the stages below.")
+
+    leader = block_rows[0] if block_rows and block_rows[0].most_advanced_stage else None
+    return PhenologyReportSummary(
+        blocks=block_rows,
+        runs=run_rows,
+        total_spots=total_spots,
+        readable_spots=readable,
+        blocks_observed=len([r for r in block_rows if r.readable_spots]),
+        most_advanced_stage=leader.most_advanced_stage if leader else None,
+        most_advanced_stage_name=leader.most_advanced_stage_name if leader else None,
+        most_advanced_block=leader.label if leader else None,
+        warnings=warnings,
+    )
+
+
+@router.get("/phenology/export")
+def phenology_report_export(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    section: str = Query("blocks", pattern="^(blocks|runs)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("reports", "export")),
+):
+    """Two tables in one report, so the export names the one it wants."""
+    summary = phenology_report_summary(start_date, end_date, property_id, None,
+                                       db, current_user)
+    rows_in = summary.runs if section == "runs" else summary.blocks
+    headers = ["Block", "Property", "Variety", "Model Varieties", "Spots",
+               "Readable Spots", "Last Observed", "Modal Stage", "Modal Stage Name",
+               "Most Advanced", "Most Advanced Name", "Least Advanced",
+               "Stage Range", "Phase", "Uniform", "Note"]
+    rows = [[
+        r.label, r.property_name or "", r.variety or "",
+        " ".join(r.variety_codes), r.spots, r.readable_spots,
+        r.observed_on or "", r.modal_stage or "", r.modal_stage_name or "",
+        r.most_advanced_stage or "", r.most_advanced_stage_name or "",
+        r.least_advanced_stage or "", r.stage_range or "", r.phase or "",
+        "yes" if r.is_uniform else "no", r.note or "",
+    ] for r in rows_in]
+    return _csv_response(rows, headers, f"phenology_by_{section}.csv")

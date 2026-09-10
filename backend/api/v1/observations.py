@@ -11,7 +11,7 @@ from sqlalchemy import select, and_, or_, func, cast, Integer
 import logging
 
 from api.deps import get_db, get_current_user
-from services.count_metrics import metric_for_template
+from services.count_metrics import COUNT_METRICS, metric_for_template
 from db.models.block import VineyardBlock
 from services.property_service import get_visible_property_ids, verify_block_access
 
@@ -192,6 +192,21 @@ def detach_reference_item_image(item_id: int, link_id: int, db: Session = Depend
 # -----------------------------
 # Templates
 # -----------------------------
+def _with_count_metric(row):
+    """Tag a template row with the count metric it feeds, if any.
+
+    Set on the ORM instance rather than resolved in the client, for the same
+    reason it is on the run: a company template carries `type='other'` and is
+    matched by FIELD NAME, and no client ever sees `fields_json`. Harmless on a
+    transient attribute — nothing maps it back to a column.
+    """
+    if row is not None:
+        key = metric_for_template(row)
+        row.count_metric = key
+        row.count_metric_label = COUNT_METRICS[key].label if key else None
+    return row
+
+
 @router.get("/observation-templates", response_model=List[ObservationTemplateOut])
 def list_templates(
     db: Session = Depends(get_db),
@@ -206,7 +221,7 @@ def list_templates(
     else:
         q = q.where(ObservationTemplate.company_id == user.company_id)
     q = q.order_by(ObservationTemplate.name.asc())
-    return db.execute(q).scalars().all()
+    return [_with_count_metric(r) for r in db.execute(q).scalars().all()]
 
 
 @router.post("/observation-templates", response_model=ObservationTemplateOut, status_code=status.HTTP_201_CREATED)
@@ -225,7 +240,7 @@ def create_template(payload: ObservationTemplateCreate, db: Session = Depends(ge
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return _with_count_metric(row)
 
 @router.get("/observation-templates/{template_id}", response_model=ObservationTemplateOut)
 def get_template(template_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
@@ -234,7 +249,7 @@ def get_template(template_id: int, db: Session = Depends(get_db), user=Depends(g
         raise HTTPException(status_code=404, detail="Template not found")
     if row.company_id is not None and row.company_id != user.company_id:
           raise HTTPException(status_code=403, detail="Access denied")
-    return row
+    return _with_count_metric(row)
 
 @router.patch("/observation-templates/{template_id}", response_model=ObservationTemplateOut)
 def update_template(template_id: int, payload: ObservationTemplateUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
@@ -255,7 +270,7 @@ def update_template(template_id: int, payload: ObservationTemplateUpdate, db: Se
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return _with_count_metric(row)
 
 @router.delete("/observation-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_template(template_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):

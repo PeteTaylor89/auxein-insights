@@ -924,3 +924,43 @@
   overflow-y: auto;
   flex: 1;
 }
+
+/* Small state badge in a table cell — used by the Weather tab's climate-site
+   column. Green because it reports a thing that is finished and working, not a
+   thing to click. */
+.ca-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ca-badge--ok {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, white);
+  border: 1px solid color-mix(in srgb, var(--color-success) 35%, white);
+}
+
+/* A build that failed, with the pipeline's own reason under it — the same
+   shape as Insights' My Site refusal box, scaled down to a table cell. */
+.ca-fail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-terracotta);
+}
+
+.ca-fail-detail {
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.85;
+  max-width: 220px;
+  white-space: normal;
+  line-height: 1.3;
+}

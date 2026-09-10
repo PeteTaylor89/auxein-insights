@@ -62,8 +62,11 @@ class InsightsSite(Base):
     company_id = Column(Integer,
                         ForeignKey('companies.id', ondelete='SET NULL'),
                         nullable=True, index=True)
-    # 'pro_slot' | 'account'. What the quota and move rules apply to, and what
-    # they do not — nobody moves a client's monitoring network.
+    # 'pro_slot' | 'account' | 'grow'. What the quota and move rules apply to,
+    # and what they do not — nobody moves a client's monitoring network, and a
+    # 'grow' site is placed at its property's forecast point and moves with it.
+    # 'grow' consumes NO pro_site_quota: the Grow subscription already covers
+    # it, and billing it as a point subscription would charge twice.
     source = Column(Text, nullable=False, server_default='pro_slot')
     # 'regional' | 'sub_regional' | 'phenology', from the client's own list.
     # NULL for a Pro slot, which has no such distinction. The three want

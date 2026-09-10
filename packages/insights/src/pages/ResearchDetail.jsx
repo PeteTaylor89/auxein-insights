@@ -16,6 +16,10 @@ import './ResearchDetail.css';
 // `surfaceMapConfig` is deliberately NOT lazy — it is a few pure functions, and
 // keeping it eager is what lets this module describe a map without loading one.
 const ArticleSurfaceMap = lazy(() => import('../components/surfaces/ArticleSurfaceMap'));
+// NOT lazy. A boundary that has to load before it can catch is no boundary at
+// all for the very first render, which is when a section with a bad stored
+// config throws. It is a few hundred bytes.
+import { ClimateErrorBoundary } from '../components/climate/ClimateErrorCard';
 
 function ResearchDetail() {
   const { slug } = useParams();
@@ -142,20 +146,27 @@ function ResearchDetail() {
       // The config is the SAME shape an article's Tiptap node carries, read
       // through the same normaliser, so one map behaves identically in a
       // research report and in an article. See `surfaceMapConfig`.
+      //
+      // BOUNDARY OUTSIDE SUSPENSE. `section.content` is a JSONB column, so a
+      // config written by an older build outlives the code that wrote it. One
+      // bad section must cost the reader one figure, not the whole report — an
+      // uncaught render throw unmounts the React root and blanks the page.
       case 'map':
         return (
-          <Suspense fallback={(
-            <div className="section-chart-placeholder">
-              <BookOpen size={32} />
-              <p>Loading the climate surface...</p>
-            </div>
-          )}
-          >
-            <ArticleSurfaceMap
-              {...surfaceMapProps(section.content)}
-              embed={report?.status === 'published' ? { research: slug } : null}
-            />
-          </Suspense>
+          <ClimateErrorBoundary message="This climate surface could not be displayed.">
+            <Suspense fallback={(
+              <div className="section-chart-placeholder">
+                <BookOpen size={32} />
+                <p>Loading the climate surface...</p>
+              </div>
+            )}
+            >
+              <ArticleSurfaceMap
+                {...surfaceMapProps(section.content)}
+                embed={report?.status === 'published' ? { research: slug } : null}
+              />
+            </Suspense>
+          </ClimateErrorBoundary>
         );
       default:
         return <p>{JSON.stringify(section.content)}</p>;

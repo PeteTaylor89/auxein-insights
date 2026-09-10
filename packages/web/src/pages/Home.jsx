@@ -7,11 +7,12 @@ import SiteBanner from '../components/SiteBanner';
 import FeedbackModal from '../components/FeedbackModal';
 import ArticlesCarousel from '../components/ArticlesCarousel';
 import { Link } from 'react-router-dom';
-import { Calendar, Shield, Map, Zap, Eye, BarChart3, MessageSquare } from "lucide-react";
+import { Calendar, Shield, Map, Zap, Eye, BarChart3, MessageSquare, ClipboardCheck } from "lucide-react";
 
 function Home() {
-  const { user, userTypeRole } = useAuth();
-  const [stats, setStats] = useState(null);
+  // The CONTEXT's hasPermission — it is bound to the 5-tier userTypeRole. The
+  // standalone helper takes the ROUTING key and answers false for everyone.
+  const { user, userTypeRole, hasPermission } = useAuth();
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [weatherLocations, setWeatherLocations] = useState([]); // [{id, name, lat, lon}]
@@ -39,9 +40,6 @@ function Home() {
           }
         }
         setCompany(companyData);
-
-        const statsData = await companiesService.getCurrentCompanyStats();
-        setStats(statsData);
 
         // Weather locations: every property with a forecast point, plus a block-centroid fallback
         try {
@@ -109,40 +107,24 @@ function Home() {
   }, [user]);
 
 
-  const renderStatValue = (value) => {
-    if (loading) return <span className="stat-skeleton" aria-hidden="true" />;
-    return value ?? 0;
-  };
-
   return (
     <div className="home-page">
       <SiteBanner />
-      <div className="home-content">
-        {/* Company Stats */}
-        <div className="stats-container">
-          <div className="container-title">
-            <span>{company?.name || 'Your Company'}</span>
-          </div>
-          <div className="stats-grid">
-            <Link to="/maps" className="stat-card">
-              <div className="stat-value">{renderStatValue(stats?.block_count)}</div>
-              <div className="stat-label">Vineyard Blocks</div>
-            </Link>
-            <Link to="/observations?tab=runs" className="stat-card">
-              <div className="stat-value">{renderStatValue(stats?.observation_count)}</div>
-              <div className="stat-label">Observations</div>
-            </Link>
-            <Link to="/observations?tab=tasks" className="stat-card">
-              <div className="stat-value">{renderStatValue(stats?.task_count)}</div>
-              <div className="stat-label">Tasks</div>
-            </Link>
-            <Link to="/company-admin" className="stat-card">
-              <div className="stat-value">{renderStatValue(stats?.user_count)}</div>
-              <div className="stat-label">Team Members</div>
-            </Link>
-          </div>
-        </div>
+      {/* The company stats grid — blocks, observations, tasks, team members —
+          used to sit here. Four counts that never changed between visits are
+          not what someone opens the app to find out, and they pushed the things
+          people actually came for below the fold. The company name stays: this
+          is a multi-tenant app and which company you are in still matters. */}
+      <div className="home-welcome">
+        {/* Held blank rather than defaulted while the company loads — flashing
+            "Your Company" and then the real name reads as a wrong answer being
+            corrected. The nbsp keeps the line height so nothing jumps. */}
+        <h1 className="home-welcome-title">
+          {loading ? '\u00a0' : (company?.name || 'Your Company')}
+        </h1>
+      </div>
 
+      <div className="home-content">
         <div className="two-column-section">
 
           <div className="stats-container column-item">
@@ -166,6 +148,16 @@ function Home() {
                 <div className="icon-wrapper"><BarChart3 size={24} /></div>
                 <div className="actions-title">Reports</div>
               </Link>
+              {/* Straight to the register rather than to Reports and then two
+                  clicks. Hidden without `reports:read`, because a shortcut that
+                  lands on a different report than the one it names is worse
+                  than no shortcut. */}
+              {hasPermission('reports', 'read') && (
+                <Link to="/Insights?insight=reports&report=site-access" className="stat-card">
+                  <div className="icon-wrapper"><ClipboardCheck size={24} /></div>
+                  <div className="actions-title">Site Access</div>
+                </Link>
+              )}
               <Link to="/maps" className="stat-card">
                 <div className="icon-wrapper"><Map size={24} /></div>
                 <div className="actions-title">Map</div>

@@ -1,180 +1,332 @@
-// components/phenology/PhenologyPanel.jsx
-// High-fidelity, NON-WIRED phenology comparison view. All data below is mock —
-// no API calls. Each block compares three independent phenology estimates:
-//   1. Regional  — Auxein Insights model from the block's climate zone + variety
-//   2. Local     — same model driven by the company's own weather stations
-//   3. Observed  — derived from the most recent in-field phenology observations
-// Markers sit on a shared BBCH-style stage timeline so divergence is obvious.
-import { useState } from 'react';
-import { Satellite, Radio, Eye, Info } from 'lucide-react';
+// components/phenology/PhenologyPanel.jsx — where this property's vines are,
+// answered three ways.
+//
+// This replaces a mock. The previous version carried "All data below is mock"
+// in its own header and had rendered four invented blocks on the live Insights
+// page since 2026-05-29, with no notice to the reader that the numbers were
+// made up.
+//
+// ## WHY IT IS NOT A REWIRING OF THAT DESIGN
+//
+// The mock placed each source as a FRACTIONAL POSITION on a six-stage rail —
+// 2.4 meaning "40% through flowering". The real models do not produce that.
+// They produce DATES for named events (budburst, flowering, veraison, harvest
+// at 21.0 and 22.0 Brix) and a current stage label, and a field observation
+// produces an E-L code for today. Squeezing those into a fraction would mean
+// inventing the fraction, which is the exact thing being removed. So the shape
+// is a date comparison, which is what the data actually is.
+//
+// ## THE THREE TRACKS, AND WHAT EACH ONE COSTS TO HAVE
+//
+//   Regional   the climate-zone model. Needs only a zone on the property, so
+//              nearly every company already has it.
+//   This site  the same model at the property's OWN point, against its own
+//              1986-2005 baseline. Needs a climate site (Manage -> Weather).
+//   Observed   what somebody stood in the block and recorded. The only track
+//              that can contradict the other two, and the only one that is
+//              about today rather than a projection.
+//
+// Every track can be missing, and each missing one states its own reason from
+// the payload rather than rendering an empty column. That is the whole reason
+// this is honest where the mock was not: "no climate site yet" and "the model
+// has nothing to project from" look identical as a blank cell.
+import { useState, useEffect, useCallback } from 'react';
+import { Satellite, Radio, Eye, Info, MapPin } from 'lucide-react';
+import { propertyService } from '@vineyard/shared';
 import './PhenologyPanel.css';
 
-// Canonical grapevine phenology stages (simplified BBCH principal stages).
-const STAGES = ['Budburst', 'Leaf Dev.', 'Flowering', 'Fruit Set', 'Veraison', 'Harvest'];
-const LAST = STAGES.length - 1;
-
 const SOURCES = {
-  regional: { label: 'Regional model', short: 'Regional', color: 'var(--color-info)', Icon: Satellite,
-    hint: 'Climate-zone model · zone + variety' },
-  local: { label: 'Local stations', short: 'Local', color: 'var(--color-primary)', Icon: Radio,
-    hint: 'Same model · company weather stations' },
-  observed: { label: 'Field observations', short: 'Observed', color: 'var(--color-accent)', Icon: Eye,
-    hint: 'Most recent in-field phenology obs' },
+  regional: {
+    label: 'Regional model', short: 'Regional', color: 'var(--color-info)',
+    Icon: Satellite, hint: "Your climate zone's model",
+  },
+  site: {
+    label: 'This site', short: 'This site', color: 'var(--color-primary)',
+    Icon: Radio, hint: "The same model at this property's own point",
+  },
+  observed: {
+    label: 'Field observations', short: 'Observed', color: 'var(--color-accent)',
+    Icon: Eye, hint: 'What was recorded in the block',
+  },
 };
 
-// ── Mock blocks ────────────────────────────────────────────────────────────
-// `value` = fractional position along STAGES (e.g. 2.4 = 40% through Flowering).
-const BLOCKS = [
-  {
-    id: 1, name: 'Home Block', variety: 'Sauvignon Blanc', zone: 'Wairau Plains', area: 12.4,
-    regional: { value: 2.4, nextDate: '12 Dec', confidence: 'High' },
-    local: { value: 2.2, nextDate: '14 Dec', confidence: 'High' },
-    observed: { value: 2.5, obsDate: '28 Nov', sampleSize: 14 },
-  },
-  {
-    id: 2, name: 'River Terrace', variety: 'Pinot Noir', zone: 'Southern Valleys', area: 8.1,
-    regional: { value: 3.1, nextDate: '20 Dec', confidence: 'Moderate' },
-    local: { value: 2.6, nextDate: '27 Dec', confidence: 'High' },
-    observed: { value: 3.6, obsDate: '1 Dec', sampleSize: 9 },
-  },
-  {
-    id: 3, name: 'Quarry Hill', variety: 'Chardonnay', zone: 'Awatere Valley', area: 5.7,
-    regional: { value: 2.0, nextDate: '18 Dec', confidence: 'Moderate' },
-    local: { value: 1.8, nextDate: '22 Dec', confidence: 'Low' },
-    observed: null,
-  },
-  {
-    id: 4, name: 'Stony Rise', variety: 'Pinot Gris', zone: 'Wairau Plains', area: 9.8,
-    regional: { value: 3.4, nextDate: '6 Jan', confidence: 'High' },
-    local: { value: 3.5, nextDate: '4 Jan', confidence: 'High' },
-    observed: { value: 3.3, obsDate: '2 Dec', sampleSize: 21 },
-  },
+// The events both models project, in season order. Budburst comes from the
+// APSIM chilling-forcing model and the rest from GDD thresholds — two different
+// models, which is why a variety can have one and not the other.
+const EVENTS = [
+  { key: 'budburst_date', label: 'Budburst', model: 'budburst' },
+  { key: 'flowering_date', label: 'Flowering', model: 'gdd' },
+  { key: 'veraison_date', label: 'Veraison', model: 'gdd' },
+  { key: 'harvest_210_date', label: 'Harvest 21.0', model: 'gdd' },
 ];
 
-const pct = (v) => `${Math.max(0, Math.min(1, v / LAST)) * 100}%`;
-const stageName = (v) => STAGES[Math.max(0, Math.min(LAST, Math.floor(v)))];
-const nextStageName = (v) => STAGES[Math.min(LAST, Math.floor(v) + 1)];
+const fmtDate = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
-// Spread across the available source estimates, in stage units.
-function divergence(block) {
-  const vals = ['regional', 'local', 'observed']
-    .map((k) => block[k]?.value)
-    .filter((v) => v != null);
-  if (vals.length < 2) return { spread: 0, label: 'Single source', level: 'none' };
-  const spread = Math.max(...vals) - Math.min(...vals);
-  if (spread >= 0.75) return { spread, label: 'Diverging', level: 'high' };
-  if (spread >= 0.35) return { spread, label: 'Minor variance', level: 'mid' };
-  return { spread, label: 'Aligned', level: 'low' };
+const fmtStage = (s) => (s ? String(s).replace(/_/g, ' ') : null);
+
+/** Signed days, as a phrase a grower reads rather than a number. */
+function vsBaseline(days) {
+  if (days === null || days === undefined) return null;
+  const n = Number(days);
+  if (n === 0) return 'on the long-term average';
+  return `${Math.abs(n)} day${Math.abs(n) === 1 ? '' : 's'} ${n < 0 ? 'ahead of' : 'behind'} average`;
 }
 
-function StageAxis() {
+/**
+ * One cell of the comparison grid.
+ *
+ * A dash is never left bare. `reason` says which kind of nothing it is — not
+ * modelled for this variety, or modelled but withheld because the model has no
+ * accumulation to project from yet. Those have different fixes and a blank cell
+ * conflates them.
+ */
+function DateCell({ value, isActual, reason }) {
+  if (value) {
+    return (
+      <td className="phen-cell">
+        <span className="phen-date">{fmtDate(value)}</span>
+        {isActual && <span className="phen-actual" title="Observed, not projected">actual</span>}
+      </td>
+    );
+  }
   return (
-    <div className="phen-row phen-axis-row">
-      <div className="phen-row-label phen-axis-corner">Stage</div>
-      <div className="phen-axis">
-        {STAGES.map((s, i) => (
-          <span key={s} className="phen-axis-tick" style={{ left: pct(i) }}>{s}</span>
-        ))}
-      </div>
-    </div>
+    <td className="phen-cell phen-cell--empty">
+      <span className="phen-dash" title={reason || undefined}>—</span>
+      {reason && <span className="phen-cell-reason">{reason}</span>}
+    </td>
   );
 }
 
-function SourceTrack({ sourceKey, data }) {
-  const meta = SOURCES[sourceKey];
-  const { Icon } = meta;
+function VarietyCard({ variety, siteReason, regionalReason }) {
+  const { regional, site, observed } = variety;
 
-  return (
-    <div className="phen-row">
-      <div className="phen-row-label">
-        <span className="phen-dot" style={{ background: meta.color }} />
-        <Icon size={15} style={{ color: meta.color }} />
-        <span className="phen-source-name">{meta.short}</span>
-      </div>
+  // What each model can say about this variety AT ALL, before asking whether it
+  // has said it yet. Pinot gris has budburst and no stages; Cabernet franc,
+  // Cabernet sauvignon, Grenache and Riesling have stages and no budburst.
+  const notModelled = (model) => {
+    if (model === 'budburst' && !variety.has_budburst) {
+      return `Budburst is not modelled for ${variety.variety_name}`;
+    }
+    if (model === 'gdd' && !variety.has_gdd) {
+      return `Stage dates are not modelled for ${variety.variety_name}`;
+    }
+    return null;
+  };
 
-      <div className="phen-rail-wrap">
-        <div className="phen-rail">
-          {/* faint stage gridlines */}
-          {STAGES.map((s, i) => (
-            <span key={s} className="phen-rail-grid" style={{ left: pct(i) }} />
-          ))}
-
-          {data ? (
-            <>
-              <div className="phen-rail-fill" style={{ width: pct(data.value), background: meta.color }} />
-              <div
-                className="phen-marker"
-                style={{ left: pct(data.value), borderColor: meta.color }}
-                title={`${stageName(data.value)} (${meta.label})`}
-              />
-            </>
-          ) : (
-            <div className="phen-rail-empty">No recent observations</div>
+  const rows = [
+    {
+      key: 'regional',
+      present: !!regional,
+      absentReason: regionalReason,
+      // The zone model does not run budburst — that is a per-site calculation —
+      // so its budburst cell is empty for a different reason than the variety.
+      get: (event) => {
+        if (event.model === 'budburst') {
+          return { value: null, reason: 'Budburst is modelled per site, not per region' };
+        }
+        const stage = regional?.stages?.[event.key.replace('_date', '')];
+        return { value: stage?.date, isActual: stage?.is_actual };
+      },
+      caption: regional && (
+        <>
+          <strong>{fmtStage(regional.stage) || 'stage unknown'}</strong>
+          {regional.gdd !== null && regional.gdd !== undefined && (
+            <span className="phen-caption-tail">{Math.round(regional.gdd)} GDD</span>
           )}
-        </div>
+          {vsBaseline(regional.days_vs_baseline) && (
+            <span className="phen-caption-tail">{vsBaseline(regional.days_vs_baseline)}</span>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'site',
+      present: !!site,
+      absentReason: siteReason,
+      get: (event) => ({ value: site?.[event.key], isActual: site?.[`${event.key.replace('_date', '')}_is_actual`] }),
+      caption: site && (
+        <>
+          <strong>{fmtStage(site.current_stage) || 'stage unknown'}</strong>
+          {site.gdd !== null && site.gdd !== undefined && (
+            <span className="phen-caption-tail">{Math.round(site.gdd)} GDD</span>
+          )}
+          {vsBaseline(site.days_vs_baseline) && (
+            <span className="phen-caption-tail">{vsBaseline(site.days_vs_baseline)}</span>
+          )}
+        </>
+      ),
+    },
+  ];
 
-        {data ? (
-          <div className="phen-caption">
-            <strong>{stageName(data.value)}</strong>
-            <span className="phen-caption-sep">→</span>
-            <span>{nextStageName(data.value)}</span>
-            {sourceKey === 'observed' ? (
-              <span className="phen-caption-tail">obs {data.obsDate} · n={data.sampleSize}</span>
-            ) : (
-              <span className="phen-caption-tail">est. {data.nextDate} · {data.confidence} conf.</span>
-            )}
-          </div>
-        ) : (
-          <div className="phen-caption phen-caption--muted">Encourage a field observation to ground-truth the models.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function BlockCard({ block }) {
-  const div = divergence(block);
   return (
     <div className="phen-card">
       <div className="phen-card-head">
         <div>
-          <h3 className="phen-card-title">{block.name}</h3>
+          <h3 className="phen-card-title">{variety.variety_name}</h3>
           <div className="phen-card-sub">
-            <span className="phen-chip">{block.variety}</span>
-            <span className="phen-card-meta">{block.zone}</span>
-            <span className="phen-card-meta">{block.area} ha</span>
+            <span className="phen-chip">{variety.variety_code}</span>
+            <span className="phen-card-meta">
+              {variety.block_count} block{variety.block_count === 1 ? '' : 's'}
+            </span>
+            {/* Coverage stated up front. Without it, a Pinot gris card looks
+                like a broken flowering model rather than a variety the GDD
+                table has never held. */}
+            {!variety.has_gdd && <span className="phen-warn">no stage model</span>}
+            {!variety.has_budburst && <span className="phen-warn">no budburst model</span>}
           </div>
         </div>
-        <span className={`phen-status phen-status--${div.level}`}>
-          {div.label}
-          {div.level !== 'none' && div.level !== 'low' && (
-            <span className="phen-status-spread"> · {div.spread.toFixed(1)} stage</span>
-          )}
-        </span>
       </div>
 
-      <div className="phen-timeline">
-        <StageAxis />
-        <SourceTrack sourceKey="regional" data={block.regional} />
-        <SourceTrack sourceKey="local" data={block.local} />
-        <SourceTrack sourceKey="observed" data={block.observed} />
+      <div className="phen-grid-wrap">
+        <table className="phen-grid">
+          <thead>
+            <tr>
+              <th className="phen-grid-corner">Source</th>
+              {EVENTS.map((e) => <th key={e.key}>{e.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const meta = SOURCES[row.key];
+              const { Icon } = meta;
+              return (
+                <tr key={row.key}>
+                  <th className="phen-grid-source" scope="row">
+                    <span className="phen-dot" style={{ background: meta.color }} />
+                    <Icon size={14} style={{ color: meta.color }} />
+                    <span className="phen-source-name">{meta.short}</span>
+                  </th>
+                  {row.present
+                    ? EVENTS.map((event) => {
+                      const cell = row.get(event);
+                      return (
+                        <DateCell
+                          key={event.key}
+                          value={cell.value}
+                          isActual={cell.isActual}
+                          reason={cell.reason || notModelled(event.model)
+                            || 'The model has nothing to project from yet'}
+                        />
+                      );
+                    })
+                    : (
+                      <td className="phen-cell phen-cell--absent" colSpan={EVENTS.length}>
+                        {row.absentReason || `No ${meta.label.toLowerCase()} for this variety.`}
+                      </td>
+                    )}
+                </tr>
+              );
+            })}
+
+            {/* Observed sits apart: it is a present-tense reading, not a set of
+                projected dates, so it gets a single spanning cell rather than
+                empty date columns that would imply it failed to predict. */}
+            <tr>
+              <th className="phen-grid-source" scope="row">
+                <span className="phen-dot" style={{ background: SOURCES.observed.color }} />
+                <Eye size={14} style={{ color: SOURCES.observed.color }} />
+                <span className="phen-source-name">Observed</span>
+              </th>
+              <td className="phen-cell phen-observed" colSpan={EVENTS.length}>
+                {observed ? (
+                  <>
+                    <strong>{observed.most_advanced_stage}</strong>{' '}
+                    {observed.most_advanced_stage_name}
+                    {!observed.is_uniform && (
+                      <span className="phen-caption-tail">range {observed.stage_range}</span>
+                    )}
+                    <span className="phen-caption-tail">
+                      {observed.readable_spots} spot{observed.readable_spots === 1 ? '' : 's'}
+                      {observed.observed_on ? ` · ${fmtDate(observed.observed_on)}` : ''}
+                    </span>
+                    {observed.note && <span className="phen-cell-reason">{observed.note}</span>}
+                  </>
+                ) : (
+                  <span className="phen-cell-reason">
+                    Nothing recorded in the field for this variety yet — a phenology
+                    observation is what grounds the two models above.
+                  </span>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+
+      {rows.map((row) => (row.present && row.caption ? (
+        <div key={`cap-${row.key}`} className="phen-caption">
+          <span className="phen-dot" style={{ background: SOURCES[row.key].color }} />
+          {row.caption}
+        </div>
+      ) : null))}
     </div>
   );
 }
 
-function PhenologyPanel() {
-  const [view] = useState('cards');
+export default function PhenologyPanel({ selectedPropertyId, selectedProperty }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(() => {
+    if (!selectedPropertyId) { setData(null); return; }
+    setLoading(true);
+    setFailed(false);
+    propertyService.getPropertyPhenology(selectedPropertyId)
+      .then(setData)
+      .catch(() => { setData(null); setFailed(true); })
+      .finally(() => setLoading(false));
+  }, [selectedPropertyId]);
+
+  useEffect(load, [load]);
+
+  // Phenology is a property question — the model runs at a point and the
+  // varieties come from that property's blocks. "All properties" has no answer,
+  // so it asks rather than picking one.
+  if (!selectedPropertyId) {
+    return (
+      <div className="phen">
+        <div className="phen-intro">
+          <MapPin size={16} className="phen-intro-icon" />
+          <p className="phen-intro-text">
+            Choose a property above. Growth stages are modelled at a point and reported per
+            variety, so there is no company-wide answer to show.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) return <div className="phen"><p className="phen-intro-text">Loading growth stages…</p></div>;
+  if (failed) {
+    return (
+      <div className="phen">
+        <p className="phen-intro-text">
+          Could not load growth stages.{' '}
+          <button className="btn-ghost" onClick={load}>Retry</button>
+        </p>
+      </div>
+    );
+  }
+  if (!data) return null;
 
   return (
     <div className="phen">
       <div className="phen-intro">
         <Info size={16} className="phen-intro-icon" />
         <p className="phen-intro-text">
-          Each block is estimated three ways — the <strong>regional</strong> climate-zone model,
-          the same model run on your <strong>local weather stations</strong>, and your most recent
-          <strong> field observations</strong>. Comparing them flags where the models drift from what's
-          actually happening in the vineyard.
+          Each variety on <strong>{data.property_name || selectedProperty?.name}</strong> is
+          estimated three ways — your <strong>climate zone&apos;s</strong> model, the same model
+          at <strong>this property&apos;s own point</strong>, and your{' '}
+          <strong>field observations</strong>. Where they disagree, the observation is the one
+          that was actually seen.
+          {data.vintage_year && <> Season <strong>{data.vintage_year}</strong>.</>}
         </p>
       </div>
 
@@ -192,13 +344,46 @@ function PhenologyPanel() {
         })}
       </div>
 
+      {data.blocks_reason && <p className="phen-disclaimer">{data.blocks_reason}</p>}
+
       <div className="phen-blocks">
-        {BLOCKS.map((b) => <BlockCard key={b.id} block={b} />)}
+        {data.varieties.map((v) => (
+          <VarietyCard
+            key={v.variety_code}
+            variety={v}
+            siteReason={data.site_reason}
+            regionalReason={data.regional_reason}
+          />
+        ))}
       </div>
 
-      <p className="phen-disclaimer">Preview with sample data — not yet connected to live models.</p>
+      {/* Varieties planted here that neither model holds. Listed rather than
+          dropped: a grower looking for their Chenin blanc block needs to find
+          out why it is absent, not conclude the page is broken. */}
+      {data.unmodelled.length > 0 && (
+        <div className="phen-unmodelled">
+          <h4 className="phen-unmodelled-title">Not modelled</h4>
+          <p className="phen-intro-text">
+            No growth-stage model exists for these yet, so they are not shown above.
+          </p>
+          <ul className="phen-unmodelled-list">
+            {data.unmodelled.map((u) => (
+              <li key={u.variety_text}>
+                <strong>{u.variety_text}</strong>
+                <span className="phen-card-meta">
+                  {' '}— {u.blocks.map((b) => b.label).join(', ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.varieties.length === 0 && !data.blocks_reason && (
+        <p className="phen-disclaimer">
+          None of this property&apos;s blocks name a variety the models can run.
+        </p>
+      )}
     </div>
   );
 }
-
-export default PhenologyPanel;
