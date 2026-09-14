@@ -126,6 +126,17 @@ constraint, better trajectory.
 
 ---
 
+## Deploy state, 2026-09-10
+
+Migration applied to prod RDS, backend deployed to EB, web frontend built.
+Mobile v0.2.1 build 11 built and submitted. **Nothing has been opened in a
+browser** — every check in this document was run from a script against prod
+data, several in a rolled-back transaction.
+
+The one untested WRITE is `POST /properties/{id}/insights-site` — creating a
+site. Everything in This Season and the phenology site track depends on it, so
+it is the first thing to try.
+
 ## Phase 1 — Property → site link — BUILT 2026-09-10, MIGRATION APPLIED
 
 - Nullable unique `properties.insights_site_id` FK. **The Grow side owns the pointer** because

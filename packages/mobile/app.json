@@ -23,7 +23,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "nz.co.auxein.grow",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Auxein Grow uses your location to show your position on the vineyard map and to geotag observations, incidents and site check-ins as you record them.",
         "ITSAppUsesNonExemptEncryption": false
@@ -36,7 +36,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "nz.co.auxein.grow",
-      "versionCode": 10,
+      "versionCode": 11,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
