@@ -79,3 +79,4 @@ from db.models.data_platform import (
     IngestionCredential,
     DeviceMeasurement,
 )
+from db.models.kpi_snapshot import KpiSnapshot

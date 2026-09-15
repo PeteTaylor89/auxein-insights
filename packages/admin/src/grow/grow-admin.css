@@ -1,0 +1,380 @@
+/* grow-admin.css — the stylesheet the Grow admin components never had of their own.
+ *
+ * In packages/web these components were styled by three things that do not exist
+ * on this origin:
+ *   - `index.css` (2,725 lines of global app styling) for .form-group,
+ *     .form-actions, .cancel-button, .error-message, .status-badge, .role-badge
+ *   - `styles/theme.css` for .btn-accent / .btn-ghost and the --color-* tokens
+ *     every one of those rules resolves against
+ *   - `pages/CompanyAdmin.css` for the modal chrome — a GLOBAL side effect of a
+ *     DIFFERENT page's import, so Grow's own /admin modals are unstyled unless
+ *     /company-admin happened to load first
+ *
+ * Rather than drag a 3,000-line theme across for eight classes, this restyles
+ * them against the admin app's own tokens (src/index.css). Most of the other
+ * class names in those components resolve to nothing in Grow either — 65 of 97
+ * are undefined there today — so they are left alone rather than invented.
+ *
+ * EVERYTHING IS SCOPED to `.grow-admin-page`, the root that GrowAdmin renders.
+ * Unscoped, `.form-group` here would fight the `.form-group` in Insights'
+ * admin.css, and the Grow tab would restyle the article editor.
+ */
+
+.grow-admin-page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+/* ── Forms ─────────────────────────────────────────────────────────── */
+
+.grow-admin-page .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.grow-admin-page .form-group label,
+.grow-admin-page .checkbox-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--admin-ink);
+}
+
+.grow-admin-page .checkbox-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  display: flex;
+}
+
+.grow-admin-page .form-group input,
+.grow-admin-page .form-group select,
+.grow-admin-page .form-group textarea {
+  padding: 9px 11px;
+  border: 1px solid #DAD6CB;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--admin-ink);
+  background: #fff;
+}
+
+.grow-admin-page .form-group input:focus,
+.grow-admin-page .form-group select:focus,
+.grow-admin-page .form-group textarea:focus {
+  outline: none;
+  border-color: var(--admin-green);
+}
+
+.grow-admin-page .form-row {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.grow-admin-page .form-section {
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 18px;
+  background: #fff;
+}
+
+.grow-admin-page .form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
+
+.grow-admin-page .submit-button,
+.grow-admin-page .update-button,
+.grow-admin-page .btn-accent {
+  padding: 8px 16px;
+  background: var(--admin-green);
+  color: #fff;
+  border: 1px solid var(--admin-green);
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.grow-admin-page .cancel-button,
+.grow-admin-page .close-button,
+.grow-admin-page .refresh-button,
+.grow-admin-page .toggle-button,
+.grow-admin-page .view-button,
+.grow-admin-page .edit-button,
+.grow-admin-page .page-button,
+.grow-admin-page .btn-ghost {
+  padding: 7px 13px;
+  background: #fff;
+  color: #55524A;
+  border: 1px solid #DAD6CB;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.grow-admin-page .delete-button,
+.grow-admin-page .toggle-button.deactivate,
+.grow-admin-page .toggle-button.suspend {
+  color: var(--admin-warn);
+  border-color: #F0DACE;
+  background: #FDF3EE;
+}
+
+.grow-admin-page button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.grow-admin-page .action-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Feedback ──────────────────────────────────────────────────────── */
+
+.grow-admin-page .error-message,
+.grow-admin-page .error-text,
+.grow-admin-page .result.error {
+  padding: 10px 12px;
+  background: #FDF3EE;
+  color: var(--admin-warn);
+  border: 1px solid #F0DACE;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.grow-admin-page .result.success {
+  padding: 10px 12px;
+  background: #F4F7EE;
+  color: var(--admin-green);
+  border: 1px solid #DDE5CE;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.grow-admin-page .loading {
+  padding: 28px;
+  text-align: center;
+  color: var(--admin-muted);
+  font-size: 14px;
+}
+
+/* ── Badges ────────────────────────────────────────────────────────── */
+
+.grow-admin-page .status-badge,
+.grow-admin-page .role-badge,
+.grow-admin-page .tier-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: #EFEDE6;
+  color: #55524A;
+  white-space: nowrap;
+}
+
+.grow-admin-page .status-badge.active,
+.grow-admin-page .role-badge.admin { background: #F4F7EE; color: var(--admin-green); }
+.grow-admin-page .status-badge.trial,
+.grow-admin-page .role-badge.manager { background: #FDF6E3; color: #8A6D1F; }
+.grow-admin-page .status-badge.past-due,
+.grow-admin-page .status-badge.suspended,
+.grow-admin-page .status-badge.cancelled,
+.grow-admin-page .status-badge.unverified { background: #FDF3EE; color: var(--admin-warn); }
+.grow-admin-page .status-badge.inactive,
+.grow-admin-page .status-badge.unknown { background: #EFEDE6; color: #77736A; }
+
+/* ── Tables ────────────────────────────────────────────────────────── */
+
+.grow-admin-page .companies-table-container,
+.grow-admin-page .users-table-container {
+  overflow-x: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.grow-admin-page .companies-table,
+.grow-admin-page .users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.grow-admin-page .companies-table th,
+.grow-admin-page .users-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--admin-ground);
+  border-bottom: 1px solid var(--admin-line);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--admin-muted);
+  white-space: nowrap;
+}
+
+.grow-admin-page .companies-table td,
+.grow-admin-page .users-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #F0EEE7;
+  vertical-align: top;
+}
+
+.grow-admin-page tr:last-child td { border-bottom: none; }
+
+/* ── Filters + pagination ──────────────────────────────────────────── */
+
+.grow-admin-page .filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.grow-admin-page .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.grow-admin-page .filter-group input,
+.grow-admin-page .filter-group select {
+  padding: 7px 10px;
+  border: 1px solid #DAD6CB;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.grow-admin-page .pagination {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.grow-admin-page .page-info { color: var(--admin-muted); }
+
+/* ── Modals ────────────────────────────────────────────────────────── */
+
+.grow-admin-page .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.grow-admin-page .modal-content {
+  background: #fff;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .2);
+}
+
+.grow-admin-page .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.grow-admin-page .modal-header h2,
+.grow-admin-page .modal-header h3 { margin: 0; font-size: 16px; }
+
+.grow-admin-page .modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.grow-admin-page .modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--admin-line);
+}
+
+/* ── Pricing / subscription blocks ─────────────────────────────────── */
+
+.grow-admin-page .pricing-preview,
+.grow-admin-page .pricing-breakdown,
+.grow-admin-page .subscription-info,
+.grow-admin-page .trial-info,
+.grow-admin-page .company-details,
+.grow-admin-page .user-details,
+.grow-admin-page .result-details {
+  background: var(--admin-ground);
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.grow-admin-page .subscription-selector {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.grow-admin-page .subscription-option {
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.grow-admin-page .subscription-option.selected {
+  border-color: var(--admin-green);
+  background: #F4F7EE;
+}
+
+.grow-admin-page .price { font-weight: 700; color: var(--admin-green); }
+.grow-admin-page .per-hectare,
+.grow-admin-page .description,
+.grow-admin-page .company-info,
+.grow-admin-page .user-info,
+.grow-admin-page .login-info,
+.grow-admin-page .last-login,
+.grow-admin-page .login-count,
+.grow-admin-page .user-count,
+.grow-admin-page .hectares-info,
+.grow-admin-page .cost-info { color: var(--admin-muted); font-size: 12px; }
+
+.grow-admin-page .company-name,
+.grow-admin-page .user-name { font-weight: 600; color: var(--admin-ink); }

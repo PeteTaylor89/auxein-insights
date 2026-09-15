@@ -1,0 +1,340 @@
+/* admin-nav.css — the unified nav.
+ *
+ * Own `anav-*` namespace so it cannot collide with the inherited `.admin-nav-*`
+ * rules in pages/admin.css (now unused) or with Grow's `.grow-admin-*`.
+ *
+ * Breakpoint is 900px, not the 768px admin.css used: three group buttons plus a
+ * full email address needs more room than three plain links, and at 800px the
+ * old bar overlapped the brand before it vanished entirely.
+ */
+
+.anav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.anav-bar {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 16px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ── Brand ─────────────────────────────────────────────────────────── */
+
+.anav-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.anav-brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--admin-ink);
+  letter-spacing: -0.01em;
+}
+
+.anav-brand-badge {
+  padding: 2px 7px;
+  background: var(--admin-green);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Desktop groups ────────────────────────────────────────────────── */
+
+.anav-groups {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+
+.anav-group { position: relative; }
+
+.anav-group-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #55524A;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.anav-group-button:hover { background: var(--admin-ground); color: var(--admin-ink); }
+
+.anav-group-button.active {
+  color: var(--admin-green);
+  background: #F4F7EE;
+}
+
+.anav-group-button.open {
+  border-color: var(--admin-line);
+  background: #fff;
+}
+
+.anav-chevron { opacity: .55; }
+.anav-group-button.open .anav-chevron { transform: rotate(180deg); }
+
+/* ── Dropdown ──────────────────────────────────────────────────────── */
+
+.anav-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  min-width: 208px;
+  background: #fff;
+  border: 1px solid var(--admin-line);
+  border-radius: 9px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .10);
+  padding: 5px;
+  z-index: 110;
+}
+
+.anav-menu-right { left: auto; right: 0; }
+
+.anav-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: #55524A;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.anav-menu-item:hover { background: var(--admin-ground); color: var(--admin-ink); }
+
+.anav-menu-item.active {
+  color: var(--admin-green);
+  background: #F4F7EE;
+  font-weight: 600;
+}
+
+.anav-menu-item svg { flex-shrink: 0; opacity: .8; }
+.anav-danger { color: var(--admin-warn); }
+.anav-danger:hover { background: #FDF3EE; color: var(--admin-warn); }
+
+/* ── Right side ────────────────────────────────────────────────────── */
+
+.anav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.anav-user { position: relative; }
+
+.anav-user-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px 5px 5px;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  color: #55524A;
+  cursor: pointer;
+  max-width: 260px;
+}
+
+.anav-user-button:hover { background: var(--admin-ground); }
+
+.anav-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--admin-green);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.anav-user-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Mobile burger ─────────────────────────────────────────────────── */
+
+.anav-burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--admin-ink);
+  cursor: pointer;
+}
+
+/* ── Drawer ────────────────────────────────────────────────────────── */
+
+.anav-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .40);
+  z-index: 120;
+}
+
+.anav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(86vw, 330px);
+  background: #fff;
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 30px rgba(0, 0, 0, .16);
+  animation: anav-slide .18s ease-out;
+}
+
+@keyframes anav-slide {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.anav-drawer-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 12px;
+  /* Clears the burger, which stays visible and fixed above the drawer. */
+  padding-top: 62px;
+}
+
+.anav-drawer-group { margin-bottom: 18px; }
+
+.anav-drawer-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--admin-muted);
+}
+
+.anav-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 10px;
+  border-radius: 8px;
+  color: #3F3C36;
+  text-decoration: none;
+  font-size: 15px;
+  /* 44px min touch target. */
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.anav-drawer-item:active { background: var(--admin-ground); }
+
+.anav-drawer-item.active {
+  background: #F4F7EE;
+  color: var(--admin-green);
+  font-weight: 600;
+}
+
+.anav-drawer-item svg { flex-shrink: 0; opacity: .75; }
+
+.anav-drawer-foot {
+  border-top: 1px solid var(--admin-line);
+  padding: 12px;
+  /* Keeps the sign-out clear of the iOS home indicator. */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--admin-ground);
+}
+
+.anav-drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.anav-drawer-email {
+  font-size: 13px;
+  color: var(--admin-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anav-drawer-signout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #DAD6CB;
+  border-radius: 8px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--admin-warn);
+  cursor: pointer;
+}
+
+/* ── Breakpoint ────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .anav-groups { display: none; }
+  .anav-user { display: none; }
+  .anav-burger { display: inline-flex; }
+  /* Above the scrim, so it stays tappable as the close control. */
+  .anav-burger { position: relative; z-index: 140; }
+}
+
+@media (max-width: 380px) {
+  .anav-bar { padding: 0 12px; gap: 10px; }
+  .anav-brand-name { font-size: 15px; }
+}

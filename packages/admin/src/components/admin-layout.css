@@ -1,0 +1,108 @@
+/* admin-layout.css — responsive corrections over the inherited admin.css.
+ *
+ * admin.css came from the Insights SPA, where the admin pages were only ever
+ * opened on a desktop. Its layout rules are fixed-width in ways that break on a
+ * phone: a 1.5rem container gutter that does not shrink, tables that force the
+ * page to scroll sideways rather than scrolling themselves, and stat grids with
+ * min-widths wider than a small screen.
+ *
+ * Loaded AFTER admin.css by AdminLayout, so these win on equal specificity.
+ * Kept separate rather than edited into admin.css so the inherited file stays a
+ * clean diff against its Insights original.
+ */
+
+.admin-main {
+  /* The nav is 56px here, not the 4rem admin.css assumed. */
+  min-height: calc(100vh - 56px);
+}
+
+.admin-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+/* Tables: scroll the table, never the page. Any admin.css table that is not
+   already inside a scroll container gets one. */
+.admin-container table {
+  max-width: 100%;
+}
+
+.admin-table-wrap,
+.admin-container .table-container,
+.admin-container .companies-table-container,
+.admin-container .users-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 700px) {
+  .admin-container {
+    padding: 16px 12px;
+  }
+
+  /* Page headers stack instead of overflowing. */
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .admin-header h1 {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  /* Card/stat grids: admin.css sets min-widths (220-280px) that are wider than
+     a 360px screen once padding is taken off, which forces a sideways scroll of
+     the whole page. One column below 700px. */
+  .admin-container .stats-grid,
+  .admin-container .stat-grid,
+  .admin-container .card-grid,
+  .admin-container .dashboard-grid,
+  .admin-container .section-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Filter/toolbar rows wrap rather than overflow. */
+  .admin-container .filters,
+  .admin-container .toolbar,
+  .admin-container .admin-toolbar {
+    flex-wrap: wrap;
+  }
+
+  /* Any full-width control in a stacked toolbar. */
+  .admin-container .filters input,
+  .admin-container .filters select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* Nothing in the admin app should push the document sideways. A table or a wide
+   chart scrolls inside its own container; the page itself never does. */
+html, body {
+  overflow-x: hidden;
+}
+
+/* ── Inherited-rule corrections ────────────────────────────────────── */
+
+/* `.job-row` (admin.css) is a 4-column grid whose minimums total 24.1rem
+   (1.6 + 9 + 5.5 + 8). On a 360px phone, minus the container gutter, that is
+   ~50px wider than the viewport — so the job health panel on the dashboard
+   pushed the whole page sideways. Below 700px it becomes two rows: status and
+   name on the first, timing on the second. */
+@media (max-width: 700px) {
+  .admin-container .job-row {
+    grid-template-columns: 1.6rem 1fr;
+    row-gap: 0.25rem;
+  }
+
+  /* Third and fourth cells drop onto a second line, indented past the icon. */
+  .admin-container .job-row > *:nth-child(3),
+  .admin-container .job-row > *:nth-child(4) {
+    grid-column: 2;
+    font-size: 0.8rem;
+    color: var(--admin-muted);
+  }
+}

@@ -57,6 +57,29 @@ def preview_insights_action(db: Session, grow_user: User):
     return "create", None
 
 
+def _grant_admin_from_grow_role(grow_user: User, profile: PublicUser) -> None:
+    """Mirror the Grow `auxein_admin` role onto the Insights `is_admin` flag.
+
+    GRANT ONLY, never revoke. An Auxein admin needs BOTH `users.user_type ==
+    'auxein_admin'` (Grow routes) and `public_users.is_admin` (Insights routes)
+    to work on admin.auxein.co.nz, and until 2026-09-15 nothing set the second
+    one. The only admin that existed was fine purely by accident: their row came
+    from the ADOPT branch, a pre-existing self-signup that already carried
+    is_admin. A NEW admin goes down the CREATE branch, takes the column default
+    of False, and then logs in successfully with every Grow tab working and
+    every Insights tab bouncing them — with nothing naming the cause.
+
+    Grant-only rather than `profile.is_admin = grow_user.is_auxein_admin`
+    because the two flags are not the same question. This function runs for
+    every Grow user on every token exchange, so mirroring both ways would let a
+    plain Grow account silently strip is_admin from an Insights-native admin who
+    happens to have one. Revocation stays a deliberate act, not a side effect of
+    logging in.
+    """
+    if grow_user.is_auxein_admin and not profile.is_admin:
+        profile.is_admin = True
+
+
 def ensure_insights_profile(db: Session, grow_user: User) -> PublicUser:
     """Return the Insights profile for a Grow user, provisioning if needed."""
     # 1) Already linked.
@@ -66,6 +89,9 @@ def ensure_insights_profile(db: Session, grow_user: User) -> PublicUser:
         .first()
     )
     if profile is not None:
+        # Self-heals rows linked before the flag was mirrored.
+        _grant_admin_from_grow_role(grow_user, profile)
+        db.flush()
         return profile
 
     email = (grow_user.email or "").lower()
@@ -82,6 +108,7 @@ def ensure_insights_profile(db: Session, grow_user: User) -> PublicUser:
         if not profile.is_verified:
             profile.is_verified = True
             profile.verified_at = datetime.now(timezone.utc)
+        _grant_admin_from_grow_role(grow_user, profile)
         db.flush()
         return profile
 
@@ -96,6 +123,10 @@ def ensure_insights_profile(db: Session, grow_user: User) -> PublicUser:
         verified_at=datetime.now(timezone.utc),
         origin="grow",
         grow_user_id=grow_user.id,
+        # Mirrors the Grow role — see _grant_admin_from_grow_role. Without this
+        # the column default (False) makes every NEW Auxein admin half-work on
+        # admin.auxein.co.nz: Grow tabs fine, Insights tabs bouncing.
+        is_admin=grow_user.is_auxein_admin,
         # Distinct segment for campaign targeting AND a Pro entitlement:
         # core/entitlements.py treats 'grow' as Pro, because Grow customers
         # already pay for the platform. Never test `tier == "pro"` anywhere.

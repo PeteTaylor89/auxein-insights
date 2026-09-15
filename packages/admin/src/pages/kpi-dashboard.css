@@ -1,0 +1,231 @@
+/* kpi-dashboard.css — scoped to .kpi-page. Mobile-first: the grid is one column
+   until there is room for two, so this reads on a phone without the sideways
+   scroll the inherited admin.css grids caused. */
+
+.kpi-page { max-width: 1200px; }
+
+.kpi-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.kpi-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--admin-muted);
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.kpi-recompute {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid #DAD6CB;
+  border-radius: 7px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  color: #55524A;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 40px;
+}
+
+.kpi-recompute:disabled { opacity: .55; cursor: default; }
+
+.kpi-spin { animation: kpi-spin 1s linear infinite; }
+@keyframes kpi-spin { to { transform: rotate(360deg); } }
+
+.kpi-error {
+  padding: 11px 13px;
+  background: #FDF3EE;
+  color: var(--admin-warn);
+  border: 1px solid #F0DACE;
+  border-radius: 7px;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.kpi-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 40px;
+  justify-content: center;
+  color: var(--admin-muted);
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.kpi-empty {
+  border: 1px dashed var(--admin-line);
+  border-radius: 10px;
+  padding: 28px;
+  background: #fff;
+  max-width: 620px;
+}
+
+.kpi-empty h2 { margin: 0 0 8px; font-size: 16px; }
+.kpi-empty p { margin: 0 0 12px; font-size: 13px; color: var(--admin-muted); line-height: 1.6; }
+
+.kpi-empty pre {
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  background: var(--admin-ground);
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.kpi-empty-note { font-size: 12px; }
+
+/* ── Groups + grid ─────────────────────────────────────────────────── */
+
+.kpi-group { margin-bottom: 30px; }
+
+.kpi-group-title {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--admin-muted);
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 14px;
+  /* One column by default; widen only when there is genuinely room. A
+     min-width-based auto-fit overflows a 360px screen once padding is taken
+     off, which is what pushed the inherited dashboard sideways. */
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── Tile ──────────────────────────────────────────────────────────── */
+
+.kpi-tile {
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  padding: 15px;
+  background: #fff;
+  min-width: 0;
+}
+
+.kpi-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+
+.kpi-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #55524A;
+}
+
+.kpi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.kpi-badge-manual { background: #EEF1FA; color: #4A5C8A; }
+.kpi-badge-warn { background: #FDF6E3; color: #8A6D1F; }
+
+.kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.kpi-value {
+  font-size: 25px;
+  font-weight: 700;
+  color: var(--admin-ink);
+  line-height: 1.15;
+  /* Long values (hectares) wrap rather than widen the grid column. */
+  word-break: break-word;
+}
+
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.kpi-delta-up { color: var(--admin-green); }
+.kpi-delta-down { color: var(--admin-warn); }
+.kpi-delta-flat { color: var(--admin-muted); }
+
+.kpi-sub {
+  font-size: 11.5px;
+  color: var(--admin-muted);
+  margin-bottom: 11px;
+}
+
+.kpi-sub strong { color: #55524A; font-weight: 600; }
+
+/* ── Sparkline ─────────────────────────────────────────────────────── */
+
+.kpi-spark {
+  width: 100%;
+  height: 34px;
+  display: block;
+  overflow: visible;
+}
+
+.kpi-spark-line {
+  fill: none;
+  stroke: var(--admin-green);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  /* The path is drawn in a non-uniform viewBox, so without this the stroke
+     thickness stretches with the box. */
+  vector-effect: non-scaling-stroke;
+}
+
+.kpi-spark-dot { fill: var(--admin-green); }
+
+/* Where a series stops being hand-kept and starts being computed. */
+.kpi-spark-seam {
+  stroke: #C9C4B6;
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.kpi-spark-empty {
+  font-size: 11px;
+  color: #A8A398;
+  height: 34px;
+  display: flex;
+  align-items: center;
+}

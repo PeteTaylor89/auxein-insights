@@ -1,0 +1,224 @@
+/* ArticleSurfaceMap — a climate surface embedded in article prose.
+ *
+ * Sized and spaced as a FIGURE in a reading column, not as a page section: it
+ * sits in the same rhythm as an inline image or a climate widget, and the
+ * article's own `.article-body` typography owns everything around it.
+ */
+
+.article-surface {
+  margin: 1.75rem 0;
+  padding: 0;
+}
+
+.article-surface__canvas {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border, #e5e7eb);
+  background: #eef2f5;
+}
+
+.article-surface__gl {
+  position: absolute;
+  inset: 0;
+}
+
+.article-surface__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* --- legend --------------------------------------------------------------
+ * Bottom-left, the one corner Mapbox does not claim: navigation sits top-right
+ * and the attribution bottom-right. */
+.article-surface__legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  width: min(230px, 55%);
+  padding: 7px 9px 6px;
+  background: rgba(255, 255, 255, 0.93);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 7px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+.article-surface__ramp {
+  height: 9px;
+  border-radius: 3px;
+}
+
+.article-surface__ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 0.66rem;
+  color: #4b5563;
+  font-variant-numeric: tabular-nums;
+}
+
+.article-surface__legend-unit {
+  margin-top: 1px;
+  font-size: 0.66rem;
+  color: #6b7280;
+}
+
+.article-surface__legend-note {
+  color: #9ca3af;
+}
+
+/* --- probe popup ---------------------------------------------------------
+ * The Mapbox popup shell is styled through its own class so the card inside
+ * can stay plain. */
+.article-surface__probe-popup .mapboxgl-popup-content {
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+}
+
+.article-surface__probe {
+  min-width: 140px;
+}
+
+.article-surface__probe-loading,
+.article-surface__probe-msg {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+.article-surface__probe-value {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: var(--primary, #16a34a);
+  font-variant-numeric: tabular-nums;
+}
+
+.article-surface__probe-unit {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* A missing value is an ABSENCE and must not read as a number. Same weight as
+ * the surrounding prose, never the value's colour or size. */
+.article-surface__probe-none {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.article-surface__probe-what {
+  margin: 3px 0 0;
+  font-size: 0.75rem;
+  color: #374151;
+}
+
+.article-surface__probe-where {
+  margin: 1px 0 0;
+  font-size: 0.7rem;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+}
+
+.article-surface__probe-cta {
+  display: inline-block;
+  margin-top: 7px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary, #16a34a);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.article-surface__probe-cta:hover {
+  filter: brightness(0.94);
+}
+
+/* --- caption -------------------------------------------------------------
+ * One line under the map, in the article's voice. The gate CTA lives here
+ * rather than over the map because it is an offer, not a warning. */
+.article-surface__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.article-surface__what {
+  font-weight: 600;
+  color: #374151;
+}
+
+.article-surface__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #9ca3af;
+}
+
+.article-surface__demo {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.article-surface__gate-cta {
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--primary, #16a34a);
+  background: none;
+  border: none;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.article-surface__gate-cta:hover {
+  filter: brightness(0.9);
+}
+
+.article-surface--empty {
+  margin: 1.75rem 0;
+  padding: 1.5rem;
+  border: 1px dashed var(--border, #e5e7eb);
+  border-radius: 10px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+.article-surface--empty p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .article-surface__legend {
+    width: min(190px, 62%);
+  }
+}

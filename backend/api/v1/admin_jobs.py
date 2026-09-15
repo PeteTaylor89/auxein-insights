@@ -98,6 +98,22 @@ router = APIRouter(prefix="/jobs", tags=["Admin - Jobs"])
 # both are worth stopping for.
 JOBS = [
     {
+        "key": "kpi_snapshots",
+        "name": "KPI snapshots",
+        "runs_on": "EventBridge, 2nd of month 02:00 NZ",
+        "cadence": "monthly",
+        "produces": "kpi_snapshots",
+        # 35 days: the gap between snapshots is a calendar month, so a 31-day
+        # February-to-March run is healthy and a 32-day threshold would flag it.
+        # Anything past 35 days means a month was genuinely missed.
+        "max_age": 35.0 * 24,
+        "sql": "SELECT max(snapshot_date)::timestamptz FROM kpi_snapshots",
+        "detail_sql": """SELECT count(*) FROM kpi_snapshots
+                          WHERE snapshot_date = (SELECT max(snapshot_date)
+                                                   FROM kpi_snapshots)""",
+        "detail_label": "metrics in the newest snapshot",
+    },
+    {
         "key": "weather_ingestion",
         "name": "Weather ingestion",
         "runs_on": "EC2 cron :05",
@@ -348,6 +364,18 @@ JOBS = [
 # carries no query it does not run. A job with no entry here reports the absence
 # explicitly rather than disappearing from the page.
 HISTORY = {
+    "kpi_snapshots": {
+        # Monthly, so the "day" axis is the snapshot date itself — one point per
+        # month rather than per day. `expected` is the count of computed metrics
+        # in services/kpi_metrics.METRICS; a month short of that means a metric
+        # raised and the job carried on around it.
+        "axis": "data", "expected": 19, "unit": "metrics",
+        "sql": """SELECT snapshot_date AS day, count(*) AS n
+                    FROM kpi_snapshots
+                   GROUP BY snapshot_date
+                   ORDER BY snapshot_date DESC
+                   LIMIT 24""",
+    },
     "weather_ingestion": {
         "axis": "data", "expected": None, "unit": "stations",
         # NZ local days, because that is the day a grower means, and bounded by

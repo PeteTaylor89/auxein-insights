@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="theme-color" content="#5B6830" />
+
+    <!-- Internal tool: keep it out of every index, and send no referrer so an
+         admin URL never leaks to a third party via an outbound link. -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+
+    <title>Auxein Admin</title>
+
+    <!-- No analytics script. This surface is staff-only; there is nothing to
+         measure and no reason to hand a third party the shape of it. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from api.v1 import site_attendance, costs, auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_insights_accounts, admin_weather, admin_data, admin_qc, admin_jobs, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types, public_taxonomy, public_map
+from api.v1 import site_attendance, costs, auth, blocks, observations, companies, admin, invitations, subscriptions, parcels, vineyard_rows, spatial_areas, risk_management, visitors, training, climate, timesheets, files, assets, maintenance, calibrations, calibration_schedules, observation_runs_complete, stock_movements, tasks, public_auth, blocks_query, regions, gis, public_climate, public_climate_zones, seasonal_stats, admin_users, admin_kpis, admin_insights_accounts, admin_weather, admin_data, admin_qc, admin_jobs, realtime_climate, notifications, public_banners, admin_banners, admin_grow_banners, articles, research, email_campaigns, enrichment, seo, article_images, properties, contractor_management, calendar, reports, aliases, company_admin, task_rows, forecast, site, feedback, insights_feedback, insights_pro, surfaces, insights_sites, map_features, map_feature_types, public_taxonomy, public_map
 from api.deps import deny_user_types
 from fastapi import Depends
 
@@ -108,11 +108,17 @@ allowed_origins = [
     "https://grow.auxein.co.nz",
     "https://insights.auxein.co.nz",
     "https://taste.auxein.co.nz",
+    # Consolidated admin surface (Insights admin + Grow admin on one origin).
+    # Note this origin talks to BOTH identity systems: /api/v1/admin/* with the
+    # Insights public_access token and /api/admin/* + /api/v1/grow-admin/* with
+    # the Grow access token.
+    "https://admin.auxein.co.nz",
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
+    "http://localhost:5176",
     # 127.0.0.1 is a DIFFERENT origin from localhost as far as CORS is
     # concerned, and the two are not interchangeable in dev. `localhost`
     # resolves to ::1 first while uvicorn binds IPv4 only, so the documented
@@ -122,6 +128,7 @@ allowed_origins = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
+    "http://127.0.0.1:5176",
 ]
 
 app.add_middleware(
@@ -404,6 +411,12 @@ app.include_router(
     seasonal_stats.router,
     prefix="/api/v1/public/seasonal-stats",
     tags=["seasonal-stats"]
+)
+
+app.include_router(
+    admin_kpis.router,
+    prefix="/api/v1/admin",
+    tags=["admin-kpis"]
 )
 
 app.include_router(

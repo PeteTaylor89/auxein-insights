@@ -45,6 +45,12 @@ class User(Base):
     
     # Security and tracking
     last_login = Column(DateTime(timezone=True), nullable=True)
+
+    # The column has always existed on `users`; it was simply never mapped here,
+    # so nothing in Python could read when an account was created. Needed by the
+    # KPI snapshots (services/kpi_metrics.py), which count users as at a past
+    # date. Mapping only — no migration, the column is already there.
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     login_count = Column(Integer, default=0, nullable=False)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime(timezone=True), nullable=True)

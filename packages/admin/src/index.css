@@ -1,0 +1,38 @@
+/* Minimal reset + brand ground. Page-level styling lives with each page for
+   now; the shared admin chrome arrives with the unified nav in Phase 4, at
+   which point Insights' Admin.css moves in and this file shrinks back to a
+   reset. Brand green #5B6830 matches Grow and Insights. */
+
+:root {
+  --admin-green: #5B6830;
+  --admin-ink: #2F2F2F;
+  --admin-muted: #77736A;
+  --admin-line: #E5E2D9;
+  --admin-ground: #FAF9F5;
+  --admin-warn: #B3541E;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--admin-ground);
+  color: var(--admin-ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+a { color: var(--admin-green); }

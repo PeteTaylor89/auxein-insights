@@ -55,6 +55,15 @@ class Company(Base):
     
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Auxein's own companies — staff accounts, test tenants, the app-store
+    # review account. Every platform KPI excludes these, and the exclusion is
+    # large: 3 of 8 companies and half the Grow user table as at 2026-09-15.
+    #
+    # A flag rather than a name list because a name list fails silently in the
+    # wrong direction: rename a company and the test data starts counting as
+    # real, with no error. See services/kpi_metrics.py.
+    is_internal = Column(Boolean, default=False, nullable=False)
     created_by = Column(Integer, nullable=True)
     
     # Property & management relationships (Grow V1)
