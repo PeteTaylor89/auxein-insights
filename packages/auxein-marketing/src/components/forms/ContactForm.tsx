@@ -139,7 +139,11 @@ export function ContactForm({ defaultProduct = '', defaultInquiryType }: Contact
         ) : (
           <motion.form
             key="form"
-            initial={{ opacity: 0 }}
+            // `false` skips the mount animation, so the form is not
+            // server-rendered at opacity:0 — a hydration failure would
+            // otherwise leave the contact form invisible. The exit animation
+            // into the success state still runs.
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onSubmit={handleSubmit(onSubmit)}

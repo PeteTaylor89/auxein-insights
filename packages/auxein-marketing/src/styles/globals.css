@@ -16,6 +16,19 @@
   html {
     scroll-behavior: smooth;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  /* The navbar is fixed (h-16 mobile / h-20 desktop), so anchored sections
+     such as /solutions#datasets would otherwise land underneath it. */
+  section[id],
+  [id][data-anchor] {
+    scroll-margin-top: 6rem;
+  }
   
   body {
     @apply font-sans text-charcoal bg-white antialiased;
@@ -93,6 +106,39 @@
 }
 
 @layer utilities {
+  /* Entry reveal that does NOT depend on JavaScript.
+     framer-motion server-renders its `initial` prop as an inline `opacity:0`,
+     so every section it wraps ships invisible and only JS makes it readable —
+     one hydration failure and the page is blank with a working navbar. These
+     run in the style engine instead, so the content appears whether or not
+     React ever hydrates. */
+  .reveal {
+    animation: reveal 600ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Where the browser supports scroll-driven animations, tie the reveal to the
+     element arriving in view rather than to page load. Still CSS-only, so the
+     no-JS guarantee holds; browsers without it simply reveal on load. */
+  @supports (animation-timeline: view()) {
+    .reveal-on-scroll {
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+      animation-delay: 0s;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal,
+    .reveal-on-scroll {
+      animation: none;
+    }
+  }
+
   .text-balance {
     text-wrap: balance;
   }

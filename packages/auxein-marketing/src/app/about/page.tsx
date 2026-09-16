@@ -4,12 +4,10 @@ import {
   Award,
   Grape,
   TrendingUp,
-  BookOpen,
-  Target,
-  Lightbulb,
 } from 'lucide-react';
 import { Container } from '@/components/layout/Container';
 import { Button } from '@/components/ui/Button';
+import { FadeIn } from '@/components/ui/FadeIn';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -47,36 +45,15 @@ const timeline = [
   },
   {
     year: 'January 2026',
-    title: 'Regional Insights Launched',
+    title: 'Auxein Insights Launched',
     description:
       'Released free regional climate intelligence to New Zealand winegrowers - live current-season tracking, historical analysis, disease pressure, and projections to 2100, publicly available at insights.auxein.co.nz.',
   },
   {
-    year: 'May 2026',
-    title: 'Auxein Grow Launches',
+    year: 'September 2026',
+    title: 'Auxein Grow Launched',
     description:
       'Full commercial release of Auxein Grow - a complete vineyard management platform combining climate intelligence, peer-reviewed disease models, compliance traceability, and mobile-first field tools.',
-  },
-];
-
-const values = [
-  {
-    icon: BookOpen,
-    title: 'Science-First',
-    description:
-      'Every model, every projection, every insight is grounded in peer-reviewed methodology. We do not guess - we build from evidence and publish our reasoning.',
-  },
-  {
-    icon: Target,
-    title: 'Decision-Useful',
-    description:
-      'Data only matters when it changes decisions. We build tools that translate complex climate signals into clear, timely actions for the people managing vines.',
-  },
-  {
-    icon: Lightbulb,
-    title: 'Built for the Industry',
-    description:
-      'Auxein is built by someone who grows grapes, studies wine, and has worked in climate risk - not by a software team guessing what viticulturists need.',
   },
 ];
 
@@ -107,7 +84,7 @@ export default function AboutPage() {
   return (
     <>
       {/* Hero */}
-      <section className="pt-32 pb-24 bg-sand relative overflow-hidden">
+      <section className="pt-24 pb-16 md:pt-32 md:pb-24 bg-sand relative overflow-hidden">
         <div className="texture-overlay" />
         <div className="absolute top-40 right-10 w-72 h-72 bg-olive/10 rounded-full blur-3xl" />
 
@@ -116,13 +93,13 @@ export default function AboutPage() {
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6">
               The Resilient Vineyard
             </h1>
-            <p className="text-xl text-charcoal-600 leading-relaxed mb-6">
-              The wine industry faces its most significant challenge in centuries.
+            <p className="text-lg md:text-xl text-charcoal-600 leading-relaxed mb-6">
+              The wine industry is facing its most significant challenge in centuries.
               Shifting climates, tightening export requirements, increasing
               operational complexity, and changing consumer behaviours demand better tools - tools built on science,
               not spreadsheets.
             </p>
-            <p className="text-xl text-charcoal-600 leading-relaxed">
+            <p className="text-lg md:text-xl text-charcoal-600 leading-relaxed">
               Auxein was founded to provide exactly that: climate intelligence and
               vineyard management tools that turn complexity into competitive advantage,
               and data into decisions that last generations.
@@ -132,9 +109,9 @@ export default function AboutPage() {
       </section>
 
       {/* Founder */}
-      <section className="py-24 bg-white">
+      <section className="py-16 md:py-24 bg-white">
         <Container>
-          <div className="grid lg:grid-cols-2 gap-16 items-start">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             <div>
               <span className="text-olive font-semibold text-sm uppercase tracking-wider">
                 The Founder
@@ -167,7 +144,7 @@ export default function AboutPage() {
             </div>
 
             {/* Credential cards — uniform 2×2 grid, no offset */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {credentials.map((cred) => {
                 const Icon = cred.icon;
                 return (
@@ -185,44 +162,37 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      {/* Values */}
-      <section className="py-24 bg-sand">
+      {/* Our Name Section */}
+      <section className="py-10 md:py-14 bg-sand">
         <Container>
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-charcoal mb-4">
-              How we work
+          <FadeIn className="max-w-3xl mx-auto text-center">
+            <span className="text-olive font-semibold text-sm uppercase tracking-wider">
+              Why Auxein?
+            </span>
+            <h2 className="text-3xl md:text-4xl font-bold text-charcoal mt-2 mb-6">
+              A name rooted in growth
             </h2>
-            <p className="text-charcoal-600 text-lg">
-              Three principles that shape every tool we build and every decision we make.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {values.map((value) => {
-              const Icon = value.icon;
-              return (
-                <div
-                  key={value.title}
-                  className="bg-white p-8 rounded-xl border border-olive/10 text-center"
-                >
-                  <div className="w-14 h-14 rounded-2xl bg-olive/10 flex items-center justify-center mx-auto mb-5">
-                    <Icon className="w-7 h-7 text-olive" />
-                  </div>
-                  <h3 className="text-xl font-bold text-charcoal mb-3">
-                    {value.title}
-                  </h3>
-                  <p className="text-charcoal-600 leading-relaxed">
-                    {value.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+            <div className="space-y-4 text-charcoal-600 text-lg leading-relaxed">
+              <p>
+                Our name comes from the Greek <em>auxein</em> (αὔξειν) - simply meaning 
+                &quot;to grow.&quot; It&apos;s the root of <em>auxin</em>, the plant hormone that 
+                drives root formation, bud development, and the instinct to reach 
+                toward light.
+              </p>
+              <p>
+                We chose it because resilience isn&apos;t about standing still. It&apos;s about 
+                adapting, evolving, and growing stronger - whatever conditions you face.
+              </p>
+              <p className="text-charcoal font-medium">
+                <strong>That&apos;s the future we&apos;re building for the wine industry.</strong>
+              </p>
+            </div>
+          </FadeIn>
         </Container>
       </section>
 
       {/* Timeline */}
-      <section className="py-24 bg-white">
+      <section className="py-16 md:py-24 bg-white">
         <Container>
           <div className="max-w-3xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold text-charcoal mb-12 text-center">
@@ -264,7 +234,7 @@ export default function AboutPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 bg-sand">
+      <section className="py-16 md:py-24 bg-sand">
         <Container>
           <div className="text-center max-w-2xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold text-charcoal mb-4">

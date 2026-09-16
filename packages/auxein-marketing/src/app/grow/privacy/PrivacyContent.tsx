@@ -39,7 +39,7 @@ export default function GrowPrivacyContent() {
           </div>
 
           {/* Content */}
-          <div className="bg-white rounded-xl p-8 md:p-12 shadow-sm border border-olive/10">
+          <div className="bg-white rounded-xl p-6 sm:p-8 md:p-12 shadow-sm border border-olive/10">
             <article className="prose prose-olive max-w-none">
               <h1 className="text-3xl font-bold text-charcoal border-b-2 border-olive pb-4 mb-6">
                 Auxein Grow — Mobile App Privacy Policy

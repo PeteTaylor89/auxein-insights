@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Container } from '@/components/layout/Container';
 import { SolutionCard } from '@/components/solutions/SolutionCard';
 import { SolutionModal } from '@/components/solutions/SolutionModal';
@@ -51,41 +50,34 @@ export default function SolutionsPage() {
         }}
       />
       {/* Hero */}
-      <section className="pt-32 pb-16 bg-sand relative overflow-hidden">
+      <section className="pt-24 pb-12 md:pt-32 md:pb-16 bg-sand relative overflow-hidden">
         <div className="texture-overlay" />
         <div className="absolute top-40 right-10 w-72 h-72 bg-olive/10 rounded-full blur-3xl" />
 
         <Container className="relative z-10">
           <div className="max-w-3xl">
-            <motion.h1
-              className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <h1
+              className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6 reveal reveal-on-scroll"
             >
               Solutions
-            </motion.h1>
-            <motion.p
-              className="text-xl text-charcoal-600 leading-relaxed"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+            </h1>
+            <p
+              className="text-xl text-charcoal-600 leading-relaxed reveal"
+              style={{ animationDelay: "0.1s" }}
             >
               From free regional intelligence to comprehensive vineyard
               management platforms, Auxein has the tools and expertise to support
               every aspect of your viticulture operation.
-            </motion.p>
+            </p>
           </div>
         </Container>
       </section>
 
       {/* Platforms */}
-      <section className="py-24 bg-white" id="platforms">
+      <section className="py-16 md:py-24 bg-white" id="platforms">
         <Container>
-          <motion.div
-            className="mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
+            className="mb-12 reveal reveal-on-scroll"
           >
             <h2 className="text-2xl md:text-3xl font-bold text-charcoal mb-3">
               Platforms
@@ -93,7 +85,7 @@ export default function SolutionsPage() {
             <p className="text-charcoal-600 max-w-2xl">
               Digital tools for climate intelligence and vineyard management.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {platforms.map((solution, i) => (
@@ -109,13 +101,10 @@ export default function SolutionsPage() {
       </section>
 
       {/* Datasets */}
-      <section className="py-24 bg-sand" id="datasets">
+      <section className="py-16 md:py-24 bg-sand" id="datasets">
         <Container>
-          <motion.div
-            className="mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
+            className="mb-12 reveal reveal-on-scroll"
           >
             <h2 className="text-2xl md:text-3xl font-bold text-charcoal mb-3">
               Data Products
@@ -123,7 +112,7 @@ export default function SolutionsPage() {
             <p className="text-charcoal-600 max-w-2xl">
               Licensable datasets for research, industry bodies, and agtech companies.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {datasets.map((solution, i) => (
@@ -139,13 +128,10 @@ export default function SolutionsPage() {
       </section>
 
       {/* Consulting */}
-      <section className="py-24 bg-white" id="consulting">
+      <section className="py-16 md:py-24 bg-white" id="consulting">
         <Container>
-          <motion.div
-            className="mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
+            className="mb-12 reveal reveal-on-scroll"
           >
             <h2 className="text-2xl md:text-3xl font-bold text-charcoal mb-3">
               Consulting Services
@@ -153,7 +139,7 @@ export default function SolutionsPage() {
             <p className="text-charcoal-600 max-w-2xl">
               Expert guidance on sustainability, carbon accounting, and climate risk.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {consulting.map((solution, i) => (

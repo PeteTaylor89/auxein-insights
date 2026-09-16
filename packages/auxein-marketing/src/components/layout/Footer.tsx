@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Mail, MapPin, Linkedin } from 'lucide-react';
 import Image from 'next/image';
+import { AppStoreBadges } from '@/components/ui/AppStoreBadges';
 
 interface FooterLink {
   label: string;
@@ -83,6 +84,13 @@ export function Footer() {
               >
                 <Linkedin className="w-6 h-6" />
               </a>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-charcoal-400 text-xs font-semibold uppercase tracking-wider mb-3">
+                Get Auxein Grow
+              </p>
+              <AppStoreBadges height={36} />
             </div>
           </div>
 

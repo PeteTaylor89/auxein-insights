@@ -1,7 +1,6 @@
 'use client';
 
 import Image from 'next/image';
-import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import type { Solution } from './solutionsData';
 
@@ -15,14 +14,13 @@ export function SolutionCard({ solution, onClick, index }: SolutionCardProps) {
   const Icon = solution.icon;
 
   return (
-    <motion.button
+    // Reveal and hover lift are both CSS now. These cards are the page's main
+    // content on / and /solutions, so they must not be server-rendered at
+    // opacity:0 — see the `.reveal` note in globals.css.
+    <button
       onClick={onClick}
-      className="group text-left w-full bg-white rounded-xl border border-olive/10 overflow-hidden hover:shadow-lg hover:border-olive/25 transition-all duration-300"
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-50px' }}
-      transition={{ delay: index * 0.1, duration: 0.5 }}
-      whileHover={{ y: -4 }}
+      className="group text-left w-full bg-white rounded-xl border border-olive/10 overflow-hidden hover:shadow-lg hover:border-olive/25 hover:-translate-y-1 transition-all duration-300 reveal"
+      style={{ animationDelay: `${index * 0.1}s` }}
     >
       {/* Header with image or gradient fallback */}
       <div className="relative h-40 overflow-hidden">
@@ -103,6 +101,6 @@ export function SolutionCard({ solution, onClick, index }: SolutionCardProps) {
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </div>
       </div>
-    </motion.button>
+    </button>
   );
 }

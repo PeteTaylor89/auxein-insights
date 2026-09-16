@@ -2,8 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Mail, MapPin, Clock, MessageSquare } from 'lucide-react';
+import { Mail, MapPin, Clock } from 'lucide-react';
 import { Container } from '@/components/layout/Container';
 import { ContactForm } from '@/components/forms/ContactForm';
 
@@ -15,9 +14,7 @@ function ContactContent() {
     <div className="grid lg:grid-cols-5 gap-12 lg:gap-16">
       {/* Contact Info */}
       <div className="lg:col-span-2">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div className="reveal reveal-on-scroll"
         >
           <h2 className="text-2xl font-bold text-charcoal mb-6">
             Let's talk
@@ -67,20 +64,18 @@ function ContactContent() {
             </div>
           </div>
 
-        </motion.div>
+        </div>
       </div>
 
       {/* Contact Form */}
-      <motion.div
-        className="lg:col-span-3"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
+      <div
+        className="lg:col-span-3 reveal"
+              style={{ animationDelay: "0.1s" }}
+            >
         <div className="bg-white p-8 md:p-10 rounded-xl shadow-sm border border-olive/10">
           <ContactForm defaultInquiryType={defaultInquiry} />
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -89,34 +84,30 @@ export default function ContactPage() {
   return (
     <>
       {/* Hero */}
-      <section className="pt-32 pb-16 bg-sand relative overflow-hidden">
+      <section className="pt-24 pb-12 md:pt-32 md:pb-16 bg-sand relative overflow-hidden">
         <div className="texture-overlay" />
         <div className="absolute top-40 right-10 w-72 h-72 bg-olive/10 rounded-full blur-3xl" />
 
         <Container className="relative z-10">
           <div className="max-w-3xl">
-            <motion.h1
-              className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <h1
+              className="text-4xl md:text-5xl lg:text-6xl font-bold text-charcoal mb-6 reveal reveal-on-scroll"
             >
               Contact
-            </motion.h1>
-            <motion.p
-              className="text-xl text-charcoal-600 leading-relaxed"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+            </h1>
+            <p
+              className="text-xl text-charcoal-600 leading-relaxed reveal"
+              style={{ animationDelay: "0.1s" }}
             >
               Have a question or want to discuss how Auxein can help your
               vineyard or project? Get in touch.
-            </motion.p>
+            </p>
           </div>
         </Container>
       </section>
 
       {/* Contact Section */}
-      <section className="py-24 bg-white">
+      <section className="py-16 md:py-24 bg-white">
         <Container>
           <Suspense fallback={<div>Loading...</div>}>
             <ContactContent />

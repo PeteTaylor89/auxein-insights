@@ -34,21 +34,27 @@ export const solutions: Solution[] = [
     description:
       'A precision vineyard management platform built by a viticulturist for viticulturists. Grow combines 40 years of block-level climate intelligence, peer-reviewed disease models, and end-to-end traceability into one mobile-first platform - turning your daily vineyard work into a compliance engine, a data asset, and a competitive advantage.',
     features: [
-      'Property-level climate history from 1986 and CMIP6 projections to 2100',
-      'Peer-reviewed disease models for downy mildew, powdery mildew, and botrytis',
-      'Phenology tracking with EL-scale observations and harvest timing estimates',
-      'Block-level spray records with assisted GrapeLink-compliant diary generation',
-      'Timestamped audit trail across every spray, observation, and harvest record',
-      'Full H&S compliance - risk register, incident reporting, and WorkSafe-aligned workflows',
-      'Mobile-first field tools for observations, tasks, alerts, and spray records',
-    ],
+    // Operations
+    'Mobile-first task management for blocks, crews and contractors',
+    'Block-level spray records',
+    'Field observations with EL-stage phenology and harvest timing estimates',
+    'H&S: ISO aligned risk register, full incident reporting',
+    'Contractor and visitor management in one place',
+    'Asset and consumable tracking, from machinery to chemical stock',
+    'Interactive vineyard maps down to the block',
+    'Timestamped audit trail on every spray, observation and harvest record',
+    // Climate
+    'Peer-reviewed disease risk models for downy mildew, powdery mildew and botrytis',
+    '40 years of property-level climate history, projected to 2100 with CMIP6',
+    'Auxein Insights included with every Grow subscription',
+  ],
     icon: BarChart3,
     cta: {
       label: 'Explore Auxein Grow',
       href: '/grow',
     },
-    badge: 'Coming May 2026',
-    comingSoon: true,
+    badge: 'Out Now!',
+    comingSoon: false,
   },
   {
     id: 'regional-insights',
