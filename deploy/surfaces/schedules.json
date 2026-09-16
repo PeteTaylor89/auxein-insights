@@ -32,7 +32,7 @@
           }
         },
         "RetryPolicy": {
-          "_comment": "One retry. The job is idempotent \u00e2\u20ac\u201d S3 objects overwrite and the index upserts \u00e2\u20ac\u201d but a second failure is a real fault and should be seen, not buried under retries.",
+          "_comment": "One retry. The job is idempotent â€” S3 objects overwrite and the index upserts â€” but a second failure is a real fault and should be seen, not buried under retries.",
           "MaximumRetryAttempts": 1,
           "MaximumEventAgeInSeconds": 3600
         },
@@ -40,7 +40,7 @@
       }
     },
     {
-      "_comment": "NOT A DUPLICATE OF auxein-surfaces-daily. Same MODE and therefore the same D-1 window: it re-fits the day the 06:30 run already fitted. The point is the station set, not the date. WRC publishes day X at ~08:07 on X+1, so the morning pass fits without its 12 thermometers and 36 gauges and this one has them. Measured cost of going without, 5 days of national cv_rmse: temp_max +4.8% (+0.065 degC), temp_min +2.3%, temp_mean +1.5%, rainfall nil. Publishing twice is safe by construction \u00e2\u20ac\u201d S3 objects overwrite, index_daily upserts, and the weekly refit has re-published finished days since it was written.",
+      "_comment": "NOT A DUPLICATE OF auxein-surfaces-daily. Same MODE and therefore the same D-1 window: it re-fits the day the 06:30 run already fitted. The point is the station set, not the date. WRC publishes day X at ~08:07 on X+1, so the morning pass fits without its 12 thermometers and 36 gauges and this one has them. Measured cost of going without, 5 days of national cv_rmse: temp_max +4.8% (+0.065 degC), temp_min +2.3%, temp_mean +1.5%, rainfall nil. Publishing twice is safe by construction â€” S3 objects overwrite, index_daily upserts, and the weekly refit has re-published finished days since it was written.",
       "Name": "auxein-surfaces-daily-final",
       "GroupName": "default",
       "Description": "CORRECTED D-1 fit, 15:00 NZ. Re-fits the same day as the 06:30 run, now that WRC has landed. The 18:00 pipeline propagates it.",
@@ -143,12 +143,49 @@
           }
         },
         "RetryPolicy": {
-          "_comment": "One retry. The job is idempotent \u00e2\u20ac\u201d S3 objects overwrite and the index upserts \u00e2\u20ac\u201d but a second failure is a real fault and should be seen, not buried under retries.",
+          "_comment": "One retry. The job is idempotent â€” S3 objects overwrite and the index upserts â€” but a second failure is a real fault and should be seen, not buried under retries.",
           "MaximumRetryAttempts": 1,
           "MaximumEventAgeInSeconds": 3600
         }
       },
       "_comment": "THE 10th, NOT THE 2nd. The plan that scoped this said the 2nd; that would publish a month that then changes underneath the published surface. daily_aggregation revises weather_data_daily for ~3 days, and auxein-surfaces-refit re-fits D-9..D-3 every Sunday, so a day is not final until it is more than nine days old and a Sunday has passed. On the 10th every day of the previous month is at least D-10 and outside both windows. Nothing operational reads a monthly surface, so eight days of latency is worth never publishing a month twice. Set MONTH=YYYY-MM on a manual run to close a different month; the whole chain is idempotent and re-running is the repair."
+    },
+    {
+      "Name": "auxein-kpi-snapshots",
+      "GroupName": "default",
+      "Description": "Monthly platform KPI snapshot. 02:00 NZ on the 2nd. A snapshot dated the 1st of month M carries month M-1, the month just ended.",
+      "ScheduleExpression": "cron(0 2 2 * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": {
+        "Mode": "OFF"
+      },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-kpi-snapshots",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": [
+                "subnet-0317587a16a8b5e59"
+              ],
+              "SecurityGroups": [
+                "REPLACE_WITH_auxein-surfaces-sg"
+              ],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "RetryPolicy": {
+          "_comment": "One retry. The upsert is keyed on (snapshot_date, metric_key), so a re-run rewrites the same row rather than adding one. Manual rows are never touched: the job passes --skip-manual and a hand-kept figure is the historical truth, not something to recompute.",
+          "MaximumRetryAttempts": 1,
+          "MaximumEventAgeInSeconds": 3600
+        }
+      },
+      "_comment": "THE 2nd, NOT THE 10th — the opposite of auxein-surfaces-monthly, and for the opposite reason. These metrics read operational tables that are final the moment the month ends; nothing revises them on a lag the way daily_aggregation and the Sunday refit revise weather_data_daily. So the only thing latency buys here is a stale dashboard. The month is computed from Pacific/Auckland inside kpi.sh rather than relying on the UTC default matching — at 02:00 NZ on the 2nd the UTC date is still the 1st, so they agree, but by a twelve-hour margin that is invisible in the code and would break if the run time moved."
     }
   ]
 }

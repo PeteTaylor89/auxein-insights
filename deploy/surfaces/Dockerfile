@@ -70,12 +70,19 @@ COPY deploy/surfaces/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend /app/backend
-# All three job scripts. `entrypoint.sh` dispatches on JOB and execs the other
-# two, so they must sit BESIDE it — it resolves them with `dirname "$0"`.
+# Every job script. `entrypoint.sh` dispatches on JOB and execs the others, so
+# they must sit BESIDE it — it resolves them with `dirname "$0"`. A script the
+# entrypoint can dispatch to but the image does not carry fails at exec time
+# with nothing but a shell error, which is how `monthly.sh` came to be missing
+# here between 2026-09-03 and 2026-09-16: it was added to the repo and wired
+# into the dispatch, but never copied in. Adding a JOB means touching BOTH.
 COPY deploy/surfaces/entrypoint.sh /app/entrypoint.sh
 COPY deploy/surfaces/pipeline.sh /app/pipeline.sh
 COPY deploy/surfaces/aggregate.sh /app/aggregate.sh
-RUN chmod +x /app/entrypoint.sh /app/pipeline.sh /app/aggregate.sh
+COPY deploy/surfaces/monthly.sh /app/monthly.sh
+COPY deploy/surfaces/kpi.sh /app/kpi.sh
+RUN chmod +x /app/entrypoint.sh /app/pipeline.sh /app/aggregate.sh \
+             /app/monthly.sh /app/kpi.sh
 
 # `run_live.py` resolves paths relative to the repo root (parents[3] from the
 # script), so the layout under /app must mirror the repository.

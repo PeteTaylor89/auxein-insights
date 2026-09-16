@@ -1,0 +1,78 @@
+{
+  "family": "auxein-kpi-snapshots",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "_comment_cpu": "0.5 vCPU / 1 GB. Nothing like the surfaces jobs: this runs ~20 aggregate SQL queries over the operational tables and writes ~20 rows. No grid, no raster, no basis matrix. The smallest valid Fargate pairing is enough and the task is billed per second.",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-execution",
+  "taskRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-task",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "surfaces",
+      "image": "992914515416.dkr.ecr.ap-southeast-2.amazonaws.com/auxein-surfaces:latest",
+      "essential": true,
+      "_comment_image": "The same image as every other job. It already carries backend/ and the interpreter, so a KPI-only image would be a second thing to rebuild and a second place for the library set to drift. SURFACE_BUCKET is not needed here and is deliberately absent.",
+      "environment": [
+        {
+          "name": "AWS_REGION",
+          "value": "ap-southeast-2"
+        },
+        {
+          "name": "ENV",
+          "value": "production"
+        },
+        {
+          "name": "JOB",
+          "value": "kpi"
+        },
+        {
+          "name": "PYTHONUNBUFFERED",
+          "value": "1"
+        },
+        {
+          "name": "RDS_DATABASE",
+          "value": "auxein_db"
+        },
+        {
+          "name": "RDS_PORT",
+          "value": "5432"
+        }
+      ],
+      "_comment_secrets": "SSM SecureString rather than plaintext env. The task role needs ssm:GetParameters and kms:Decrypt on the parameter's key.",
+      "secrets": [
+        {
+          "name": "RDS_ENDPOINT",
+          "valueFrom": "/auxein/prod/RDS_ENDPOINT"
+        },
+        {
+          "name": "RDS_USER",
+          "valueFrom": "/auxein/prod/RDS_USER"
+        },
+        {
+          "name": "RDS_PASSWORD",
+          "valueFrom": "/auxein/prod/RDS_PASSWORD"
+        },
+        {
+          "name": "SECRET_KEY",
+          "valueFrom": "/auxein/prod/SECRET_KEY"
+        }
+      ],
+      "_comment_logs": "Same group as the other jobs so /admin/jobs and the log console stay in one place. The stream prefix is what distinguishes this job's runs.",
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/auxein/surfaces",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "kpi"
+        }
+      }
+    }
+  ]
+}
