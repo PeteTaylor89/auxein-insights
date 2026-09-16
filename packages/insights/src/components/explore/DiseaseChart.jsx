@@ -83,6 +83,13 @@ function DiseaseChart({ disease }) {
         backgroundColor: BACCHUS_COLOUR,
         borderWidth: 2,
         borderDash: [4, 3],
+        // A DIAMOND, because the legend cannot show the dash. `chartDefaults`
+        // sets `usePointStyle` globally, so every legend swatch is drawn as a
+        // point and `borderDash` is discarded — which left the two botrytis
+        // entries as two green dots, differing only in their text. The dash is
+        // the cue on the chart; this is the cue in the legend. It also marks
+        // the infection points as events rather than ordinary readings.
+        pointStyle: 'rectRot',
         // A POINT ON THE DAYS THAT FIRED, and nowhere else. The crossing is the
         // event, and a peak of 1.02 against 0.98 is not a distinction the line
         // can make at this height.
