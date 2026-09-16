@@ -11,17 +11,30 @@
 // everything else was pinned to `published_at` on 2026-08-23. Cutting it at the
 // season boundary would blank this panel every September.
 //
-// Three models, three published scales, and they are NOT interchangeable:
+// Four models, four published scales, and they are NOT interchangeable:
 //   powdery   UC Davis (Gubler 1999)        cumulative index 0-100
 //   botrytis  Gonzalez-Dominguez (2015)     sporulation index 0-100
 //   downy     Goidanich                     index
-// They share an axis here because all three are "higher is worse" on a
+//   bacchus   Balasubramaniam & Edwards     fraction of ONE infection period
+// The first three share an axis because all three are "higher is worse" on a
 // comparable 0-100 span, and a grower reads them together. The tooltip names
 // the model so the shared axis never implies the numbers are the same quantity.
+//
+// BACCHUS IS ON ITS OWN AXIS, added 2026-09-16 when the zone path began scoring
+// it. It crosses at exactly 1.0 and is not a 0-100 index; drawn on the left
+// axis it would be a flat line along the floor — a reassuring trough, on the
+// one series here capable of saying "infection today".
+//
+// THE SERIES IS THE DAY'S PEAK, not the index carried out of it. A day can
+// complete an infection and then be wiped by four dry hours before midnight:
+// Nelson on 2026-09-07 peaked at 1.32, fired, and carried out 0.00. The carried
+// index would have drawn that day on the floor.
 import { useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { Info } from 'lucide-react';
+import { thresholdPlugin, BACCHUS_THRESHOLD, BACCHUS_COLOUR }
+  from '../../utils/thresholdPlugin';
 import './explore.css';
 
 const AXIS = 'rgba(110, 106, 98, 0.9)';
@@ -36,23 +49,56 @@ const MODELS = [
 ];
 
 function DiseaseChart({ disease }) {
+  // A zone scored before 2026-09-16 has no Bacchus at all, and a region whose
+  // whole window predates it must not gain an empty right-hand axis and a
+  // legend entry for a line that is not there.
+  const hasBacchus = useMemo(() => (
+    (disease?.series || []).some((p) => p.bacchus_peak != null)
+  ), [disease]);
+
   const data = useMemo(() => {
     const series = disease?.series || [];
     if (!series.length) return null;
-    return {
-      labels: series.map((p) => p.date),
-      datasets: MODELS.map((m) => ({
-        label: m.label,
-        data: series.map((p) => p[m.key]),
-        borderColor: m.colour,
-        backgroundColor: m.colour,
+    const datasets = MODELS.map((m) => ({
+      label: m.label,
+      data: series.map((p) => p[m.key]),
+      borderColor: m.colour,
+      backgroundColor: m.colour,
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+      yAxisID: 'y',
+    }));
+
+    if (hasBacchus) {
+      datasets.push({
+        // NAMED FOR ITS MODEL. The plain "Botrytis" line above is
+        // González-Domínguez; this is a different model of the same disease and
+        // the two legitimately disagree, most of all in early spring when only
+        // one of them scales by growth stage.
+        label: 'Botrytis (Bacchus)',
+        data: series.map((p) => p.bacchus_peak),
+        borderColor: BACCHUS_COLOUR,
+        backgroundColor: BACCHUS_COLOUR,
         borderWidth: 2,
-        pointRadius: 0,
+        borderDash: [4, 3],
+        // A POINT ON THE DAYS THAT FIRED, and nowhere else. The crossing is the
+        // event, and a peak of 1.02 against 0.98 is not a distinction the line
+        // can make at this height.
+        pointRadius: series.map((p) => (p.bacchus_infection ? 4 : 0)),
+        pointBackgroundColor: BACCHUS_COLOUR,
+        // spanGaps stays FALSE: a day the model could not run is a break in the
+        // line, not a straight segment drawn across it.
+        spanGaps: false,
         tension: 0.3,
         fill: false,
-      })),
-    };
-  }, [disease]);
+        yAxisID: 'yBacchus',
+      });
+    }
+
+    return { labels: series.map((p) => p.date), datasets };
+  }, [disease, hasBacchus]);
 
   if (!disease) return null;
 
@@ -90,6 +136,7 @@ function DiseaseChart({ disease }) {
         <div className="block__chart block__chart--short">
           <Line
             data={data}
+            plugins={hasBacchus ? [thresholdPlugin] : []}
             options={{
               responsive: true,
               maintainAspectRatio: false,
@@ -100,11 +147,30 @@ function DiseaseChart({ disease }) {
                   labels: { boxWidth: 12, boxHeight: 2, color: AXIS,
                             font: { size: 12 } },
                 },
+                threshold: hasBacchus ? {
+                  at: BACCHUS_THRESHOLD, axis: 'yBacchus',
+                  label: 'Bacchus infection',
+                  colour: 'rgba(47, 111, 79, 0.75)',
+                } : {},
                 tooltip: {
                   callbacks: {
                     title: (items) => new Date(items[0].label)
                       .toLocaleDateString('en-NZ',
                         { day: 'numeric', month: 'short', year: 'numeric' }),
+                    // Bacchus is read against 1.0, not against 100, so it gets
+                    // three decimals and the threshold said out loud. Without
+                    // this it renders beside three 0-100 indices and reads as
+                    // a rounding error.
+                    label: (item) => {
+                      const v = item.parsed.y;
+                      if (item.dataset.yAxisID !== 'yBacchus') {
+                        return `${item.dataset.label}: ${v == null ? '—' : Math.round(v)}`;
+                      }
+                      if (v == null) return `${item.dataset.label}: —`;
+                      const fired = v >= BACCHUS_THRESHOLD;
+                      return `${item.dataset.label}: ${v.toFixed(3)} of `
+                        + `${BACCHUS_THRESHOLD.toFixed(1)}${fired ? ' — infection' : ''}`;
+                    },
                   },
                 },
               },
@@ -125,6 +191,21 @@ function DiseaseChart({ disease }) {
                   ticks: { color: AXIS },
                   title: { display: true, text: 'Risk index', color: AXIS },
                 },
+                // HEADROOM ABOVE THE THRESHOLD. Capped at 1.0 the line would
+                // sit on the ceiling every time a period completed, and a
+                // reader could not tell 1.0 from 1.4.
+                ...(hasBacchus ? {
+                  yBacchus: {
+                    position: 'right',
+                    min: 0, max: 1.5,
+                    ticks: { color: AXIS, stepSize: 0.5 },
+                    title: { display: true, color: AXIS,
+                             text: 'Bacchus (1.0 = infection)' },
+                    // The left axis owns the gridlines. Two sets of horizontal
+                    // rules at different intervals is a moiré, not a chart.
+                    grid: { drawOnChartArea: false },
+                  },
+                } : {}),
               },
             }}
           />
@@ -133,6 +214,18 @@ function DiseaseChart({ disease }) {
         <p className="block__absent">
           <Info size={15} aria-hidden="true" />
           No readings in the last {disease.window_days} days.
+        </p>
+      )}
+
+      {hasBacchus && data && (
+        // TWO BOTRYTIS LINES IS NOT A MISTAKE, and a reader who assumes it is
+        // will take the pair for a data error. Said once, under the chart.
+        <p className="block__note">
+          Both botrytis lines model the same disease. “Botrytis” is
+          González-Domínguez on the left axis (0–100); “Botrytis (Bacchus)” is
+          the Bacchus index on the right, where 1.0 completes an infection
+          period. They disagree most in early spring, because only
+          González-Domínguez scales by growth stage.
         </p>
       )}
 

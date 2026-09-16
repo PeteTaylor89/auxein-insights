@@ -50,6 +50,7 @@ import {
   getSiteTimeseries, downloadSiteTimeseriesCsv,
 } from '../../services/proSiteService';
 import '../../utils/chartDefaults';
+import { thresholdPlugin } from '../../utils/thresholdPlugin';
 import './SitePopup.css';
 
 // THREE MODELS, THREE SCALES, AND THEY WERE ALL SHARING ONE SET OF BANDS.
@@ -83,40 +84,10 @@ const bandFor = (key, value) => {
   return scale.find((b) => value < b.to)?.label ?? null;
 };
 
-// A local plugin, not a dependency. `chartjs-plugin-annotation` would do this
-// and more, and it is 40 kB to draw one rule.
-//
-// It draws the BACCHUS THRESHOLD, the one line on this chart that means
-// something absolute: at 1.0 the infection period is complete. It is on the
-// right-hand axis, so it is a rule rather than a shaded band.
-const thresholdPlugin = {
-  id: 'threshold',
-  beforeDatasetsDraw(chart, _args, opts) {
-    if (opts?.at == null) return;
-    const { ctx, chartArea, scales } = chart;
-    const axis = scales[opts.axis || 'y'];
-    if (!chartArea || !axis) return;
-    const y = axis.getPixelForValue(opts.at);
-    if (y < chartArea.top || y > chartArea.bottom) return;
-    ctx.save();
-    ctx.beginPath();
-    ctx.setLineDash([5, 4]);
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = opts.colour || 'rgba(185, 28, 28, 0.65)';
-    ctx.moveTo(chartArea.left, y);
-    ctx.lineTo(chartArea.right, y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (opts.label) {
-      ctx.fillStyle = opts.colour || 'rgba(185, 28, 28, 0.9)';
-      ctx.font = '10px system-ui, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(opts.label, chartArea.right - 4, y - 2);
-    }
-    ctx.restore();
-  },
-};
+// The threshold rule moved to `utils/thresholdPlugin` on 2026-09-16, when the
+// REGION chart gained the same Bacchus series. Two copies of a rule drawn at an
+// absolute 1.0 could drift, and then the same index would mean two different
+// things on the site screen and the region screen.
 
 function shortDate(iso) {
   const d = new Date(`${iso}T00:00:00Z`);
