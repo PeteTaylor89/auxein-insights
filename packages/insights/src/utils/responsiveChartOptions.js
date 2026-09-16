@@ -35,9 +35,13 @@ export const getResponsiveLegend = (options = {}) => {
     position: mobile ? 'bottom' : (options.position || 'top'),
     align: mobile ? 'start' : 'center',
     labels: {
-      usePointStyle: true,
+      // Swatch SHAPE is not set here. `utils/chartDefaults` makes it a line
+      // rather than a dot, so a dashed series is identifiable from its
+      // legend entry; re-asserting `usePointStyle` here would silently undo
+      // that for every chart built through this helper.
       padding: mobile ? 8 : 15,
-      boxWidth: mobile ? 8 : 12,
+      // Wide enough for a dash pattern to read as dashed, even on mobile.
+      boxWidth: mobile ? 16 : 24,
       font: {
         size: smallMobile ? 10 : mobile ? 11 : 12,
       },

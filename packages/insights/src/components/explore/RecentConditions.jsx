@@ -126,9 +126,8 @@ function RecentConditions({ recent }) {
             plugins: {
               legend: {
                 position: 'bottom',
+                // Swatch shape and size come from `utils/chartDefaults`.
                 labels: {
-                  boxWidth: 12,
-                  boxHeight: 2,
                   color: AXIS,
                   font: { size: 12 },
                   // The two band edges are plumbing, not series.

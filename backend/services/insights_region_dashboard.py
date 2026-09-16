@@ -587,12 +587,25 @@ def _disease_series(db: Session, zone_id: int, days: int = DISEASE_WINDOW_DAYS) 
     a botrytis index at 40 that has been climbing for a fortnight is a different
     instruction from the same 40 on its way down.
 
-    Three indices, because they are the three models actually running and each
-    has its own published scale:
+    Four indices now, and the fourth does NOT share the others' axis:
 
       * `pm_cumulative_index`        UC Davis powdery, 0-100
       * `botrytis_sporulation_index` Gonzalez-Dominguez, 0-100
       * `dm_goidanich_index`         downy, Goidanich
+      * `bacchus_peak`               Bacchus, a fraction of ONE infection
+                                     period, crossing at exactly 1.0
+
+    ## Why `bacchus_peak` and not `bacchus_index`
+
+    `bacchus_index` is the state carried OUT of the day, and a day can complete
+    an infection and then be wiped by four dry hours before midnight. Nelson on
+    2026-09-07 is exactly that: peak 1.3234, infection fired, and an index of
+    0.0000 carried out because ten dry hours followed. Plotting the carried
+    index would draw that day on the floor and the infection would be invisible
+    on the one chart meant to show it.
+
+    `bacchus_infection` rides along because the crossing is the event, and a
+    peak of 1.02 against a peak of 0.98 is not a distinction the line can make.
 
     A ROLLING WINDOW, not a season. Disease pressure is a rolling quantity —
     that is why `disease_pressure` was deliberately left unpinned when the
@@ -602,7 +615,7 @@ def _disease_series(db: Session, zone_id: int, days: int = DISEASE_WINDOW_DAYS) 
     rows = db.execute(text("""
         SELECT date, pm_cumulative_index, botrytis_sporulation_index,
                dm_goidanich_index, downy_mildew_risk, powdery_mildew_risk,
-               botrytis_risk, growth_stage
+               botrytis_risk, growth_stage, bacchus_peak, bacchus_infection
           FROM disease_pressure
          WHERE zone_id = :z AND date > current_date - :d
          ORDER BY date
@@ -616,6 +629,12 @@ def _disease_series(db: Session, zone_id: int, days: int = DISEASE_WINDOW_DAYS) 
         "powdery": f(r["pm_cumulative_index"]),
         "botrytis": f(r["botrytis_sporulation_index"]),
         "downy": f(r["dm_goidanich_index"]),
+        # NULL, never 0, on a day scored before the zone path ran Bacchus. The
+        # columns landed on 2026-09-16 and the zone record starts 1 September;
+        # an older day did not run the model, which is not a claim that nothing
+        # happened on it.
+        "bacchus_peak": f(r["bacchus_peak"]),
+        "bacchus_infection": r["bacchus_infection"],
         "powdery_risk": r["powdery_mildew_risk"],
         "botrytis_risk": r["botrytis_risk"],
         "downy_risk": r["downy_mildew_risk"],

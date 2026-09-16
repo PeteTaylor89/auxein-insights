@@ -134,9 +134,9 @@ const HourlyTemperatureChart = ({ zone }) => {
     plugins: {
       legend: {
         position: 'top',
+        // Swatch shape and width come from `utils/chartDefaults`: a line, so
+        // the dashed frost segments read as dashed in the legend too.
         labels: {
-          usePointStyle: true,
-          boxWidth: 8,
           padding: 8,
           font: { size: 11 },
           filter: (item) => item.text !== 'Max', // hide the invisible band edge

@@ -14,6 +14,7 @@ Models:
 NOTE: This service requires:
 - climate_zone_hourly table (from add_hourly_climate migration)
 - Updated disease_pressure columns (pm_*, botrytis_*, dm_*)
+- bacchus_* columns on disease_pressure (from zone_bacchus_index migration)
 
 Usage:
     python scripts/disease_service_v2.py                              # Process yesterday
@@ -620,12 +621,30 @@ def get_previous_state(db: Session, zone_id: int, vintage_year: int,
 
     This matters because `--start/--end`, `--backfill` and the daily pipeline's
     lookback window all recompute days that already have rows.
+
+    ## Bacchus is the one model here that does NOT carry across a gap
+
+    The other three are seasonal accumulators with a decay, and a missing day
+    costs them a little accuracy and nothing else. Bacchus's state is a LIVE WET
+    PERIOD: `bacchus_index` is a partial infection in progress and
+    `bacchus_dry_run` is how close it is to being wiped. An unscored day is not
+    four dry hours — it is no information at all — so carrying an index across a
+    hole lets a wet Tuesday and a wet Friday add up to an infection that never
+    happened.
+
+    Gaps are NORMAL on this path, which is why this is a rule rather than an
+    edge case: `run_disease_service` skips any day with fewer than 12 hourly
+    rows, so a thin day writes no row and the day after it is genuinely
+    non-contiguous. Same rule as `populate_site_disease.previous_state`.
     """
     result = db.execute(text("""
         SELECT
             pm_cumulative_index,
             botrytis_cumulative,
-            dm_goidanich_index
+            dm_goidanich_index,
+            bacchus_index,
+            bacchus_dry_run,
+            date
         FROM disease_pressure
         WHERE zone_id = :zone_id
           AND vintage_year = :vintage_year
@@ -634,14 +653,18 @@ def get_previous_state(db: Session, zone_id: int, vintage_year: int,
         LIMIT 1
     """), {'zone_id': zone_id, 'vintage_year': vintage_year,
            'target_date': target_date}).fetchone()
-    
+
     if result:
+        contiguous = result[5] == target_date - timedelta(days=1)
         return {
             'pm_cumulative': float(result[0]) if result[0] else 0,
             'botrytis_cumulative': float(result[1]) if result[1] else 0,
             'goidanich': float(result[2]) if result[2] else 0,
+            'bacchus_index': float(result[3] or 0) if contiguous else 0.0,
+            'bacchus_dry_run': int(result[4] or 0) if contiguous else 0,
         }
-    return {'pm_cumulative': 0, 'botrytis_cumulative': 0, 'goidanich': 0}
+    return {'pm_cumulative': 0, 'botrytis_cumulative': 0, 'goidanich': 0,
+            'bacchus_index': 0.0, 'bacchus_dry_run': 0}
 
 
 def get_growth_stage(db: Session, zone_id: int, target_date: date) -> str:
@@ -677,7 +700,7 @@ def run_disease_service(
     """Run disease pressure calculations, optionally filtered to a single zone."""
     logger.info("=" * 60)
     logger.info("Disease Pressure Service v2")
-    logger.info("UC Davis PM | González-Domínguez Botrytis | Goidanich DM")
+    logger.info("UC Davis PM | González-Domínguez Botrytis | Bacchus | Goidanich DM")
     logger.info("=" * 60)
     
     db = SessionLocal()
@@ -740,6 +763,12 @@ def run_disease_service(
                 
                 pm = UCDavisPMIndex.calculate(temps, prev['pm_cumulative'])
                 bot = BotrytisModel.calculate(hourly, prev['botrytis_cumulative'], stage)
+                # Scored for every zone alongside González-Domínguez, never
+                # instead of it. The two disagree most in early spring because
+                # only one of them scales by growth stage, and a zone whose
+                # audience switches later must not have a hole in its history.
+                bac = BacchusModel.calculate(hourly, prev['bacchus_index'],
+                                             prev['bacchus_dry_run'])
                 dm = DownyMildewModel.calculate(
                     hourly,
                     conditions_48h['min_temp_48h'],
@@ -747,10 +776,11 @@ def run_disease_service(
                     conditions_48h['wet_hours_48h'],
                     prev['goidanich']
                 )
-                
+
                 logger.info(
                     f"  {target}: PM={pm.risk_level}({pm.cumulative_index:.0f}) "
                     f"Bot={bot.risk_level}({bot.severity:.0f}) "
+                    f"Bac={bac.peak:.3f}{'*' if bac.infection else ''} "
                     f"DM={dm.risk_level}({dm.goidanich_index:.0f})"
                 )
                 
@@ -777,6 +807,19 @@ def run_disease_service(
                             'sporulation_index': bot.sporulation_index,
                             'growth_stage': stage,
                         },
+                        # A SEPARATE BLOCK, not merged into 'botrytis'. Both
+                        # models score the same disease on scales that share no
+                        # units — González-Domínguez severity is 0-100, Bacchus
+                        # is a fraction of one infection — and a reader who
+                        # cannot tell which number they have will band one under
+                        # the other's thresholds.
+                        'bacchus': {
+                            'index': bac.index,
+                            'peak': bac.peak,
+                            'infection': bac.infection,
+                            'wet_hours': bac.wet_hours,
+                            'dry_run': bac.dry_run,
+                        },
                         'downy': {
                             'primary_met': dm.primary_met,
                             'primary_score': dm.primary_score,
@@ -791,6 +834,8 @@ def run_disease_service(
                             pm_favorable_hours, pm_lethal_hours,
                             botrytis_risk, botrytis_severity, botrytis_cumulative,
                             botrytis_wet_hours, botrytis_sporulation_index,
+                            bacchus_index, bacchus_peak, bacchus_infection,
+                            bacchus_wet_hours, bacchus_dry_run,
                             downy_mildew_risk, dm_primary_met, dm_primary_score,
                             dm_goidanich_index,
                             growth_stage, humidity_available,
@@ -801,6 +846,8 @@ def run_disease_service(
                             :pm_fav, :pm_lethal,
                             :bot_risk, :bot_sev, :bot_cum,
                             :bot_wet, :bot_spor,
+                            :bac_index, :bac_peak, :bac_infection,
+                            :bac_wet, :bac_dry,
                             :dm_risk, :dm_primary, :dm_score,
                             :dm_goidanich,
                             :stage, TRUE,
@@ -818,13 +865,25 @@ def run_disease_service(
                             botrytis_cumulative = EXCLUDED.botrytis_cumulative,
                             botrytis_wet_hours = EXCLUDED.botrytis_wet_hours,
                             botrytis_sporulation_index = EXCLUDED.botrytis_sporulation_index,
+                            bacchus_index = EXCLUDED.bacchus_index,
+                            bacchus_peak = EXCLUDED.bacchus_peak,
+                            bacchus_infection = EXCLUDED.bacchus_infection,
+                            bacchus_wet_hours = EXCLUDED.bacchus_wet_hours,
+                            bacchus_dry_run = EXCLUDED.bacchus_dry_run,
                             downy_mildew_risk = EXCLUDED.downy_mildew_risk,
                             dm_primary_met = EXCLUDED.dm_primary_met,
                             dm_primary_score = EXCLUDED.dm_primary_score,
                             dm_goidanich_index = EXCLUDED.dm_goidanich_index,
                             growth_stage = EXCLUDED.growth_stage,
                             humidity_available = EXCLUDED.humidity_available,
-                            risk_factors = EXCLUDED.risk_factors
+                            risk_factors = EXCLUDED.risk_factors,
+                            -- A RE-SCORED DAY IS A CHANGED ROW. Without this
+                            -- the row keeps the timestamp of its first write,
+                            -- so nothing downstream can tell that a replay
+                            -- moved the numbers — and every consumer holding a
+                            -- copy diverges silently. The site path has always
+                            -- done this; the zone path never did.
+                            created_at = now()
                     """), {
                         'zone_id': zone_id,
                         'date': target,
@@ -839,6 +898,11 @@ def run_disease_service(
                         'bot_cum': bot.cumulative,
                         'bot_wet': bot.wet_hours,
                         'bot_spor': bot.sporulation_index,
+                        'bac_index': bac.index,
+                        'bac_peak': bac.peak,
+                        'bac_infection': bac.infection,
+                        'bac_wet': bac.wet_hours,
+                        'bac_dry': bac.dry_run,
                         'dm_risk': dm.risk_level,
                         'dm_primary': dm.primary_met,
                         'dm_score': dm.primary_score,

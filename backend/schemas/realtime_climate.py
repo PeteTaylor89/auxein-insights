@@ -239,11 +239,38 @@ class DiseaseRisk(BaseModel):
     spray_recommendation: Optional[str] = None
 
 
+class BacchusReading(BaseModel):
+    """Bacchus botrytis index for a single day.
+
+    DELIBERATELY NOT A `DiseaseRisk`, and this is the whole reason it is a
+    separate model. `DiseaseRisk` requires a `risk_level` — one of low /
+    moderate / high / extreme — and Bacchus does not produce one. It produces a
+    fraction of a single infection period that crosses at exactly 1.0. Banding
+    it into risk words would mean inventing thresholds the published model does
+    not state, on a model that already carries a client's name for it.
+
+    `peak` is the value to display and `index` is the state carried out of the
+    day; they differ whenever four dry hours reset a period before midnight.
+    `infection` is the crossing, which is the event a grower acts on.
+    """
+    index: Optional[float] = None
+    peak: Optional[float] = None
+    infection: Optional[bool] = None
+    wet_hours: Optional[int] = None
+    # Stated rather than assumed by the client. It is 1.0 by definition of the
+    # index, and nothing reading this should carry its own copy of that number.
+    threshold: float = 1.0
+
+
 class DailyDiseasePressure(BaseModel):
     """Disease pressure for a single day."""
     date: date
     overall_risk: str
     diseases: List[DiseaseRisk]
+    # OUTSIDE `diseases`, per `BacchusReading`. NULL on a day scored before the
+    # zone path ran Bacchus (the columns landed 2026-09-16 and the zone record
+    # starts 1 September) — absent, never a zero index.
+    bacchus: Optional[BacchusReading] = None
     recommendations: Optional[str] = None
     humidity_available: bool = False
 

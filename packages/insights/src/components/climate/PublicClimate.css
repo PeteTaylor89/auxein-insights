@@ -554,6 +554,17 @@
   margin-bottom: 24px;
 }
 
+/* Sits under the disease chart and explains why there are two botrytis lines.
+   Pulled up against that chart's own bottom margin so it reads as a caption on
+   the chart rather than as the opening line of whatever follows it. */
+.disease-chart__note {
+  margin: -16px 0 24px;
+  padding: 0 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted, #6e6a62);
+}
+
 /* =============================================================================
    SEASON CARDS
    ============================================================================= */

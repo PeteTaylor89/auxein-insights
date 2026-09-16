@@ -455,8 +455,9 @@ const SeasonExplorer = ({ zone, comparisonZones = [], onComparisonZonesChange })
     plugins: {
       legend: {
         position: 'top',
+        // Line-shaped swatches come from `utils/chartDefaults`, so the
+        // dashed baseline series is identifiable from its legend entry.
         labels: {
-          usePointStyle: true,
           padding: 8,
           filter: (item) => !item.text.includes('SD'), // Hide SD from legend
         }

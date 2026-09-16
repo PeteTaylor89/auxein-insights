@@ -36,6 +36,8 @@ import {
   RISK_LEVELS,
   DISEASE_NAMES,
 } from '../../services/realtimeClimateService';
+import { thresholdPlugin, BACCHUS_THRESHOLD, BACCHUS_COLOUR }
+  from '../../utils/thresholdPlugin';
 
 // Chart colors for each disease
 const DISEASE_COLORS = {
@@ -43,6 +45,15 @@ const DISEASE_COLORS = {
   powdery_mildew: { main: '#F59E0B', light: '#FCD34D', fill: 'rgba(245, 158, 11, 0.15)' },
   botrytis: { main: '#8B5CF6', light: '#C4B5FD', fill: 'rgba(139, 92, 246, 0.15)' },
 };
+
+// BACCHUS IS NOT IN `DISEASE_COLORS`, deliberately. That map is keyed by the
+// three diseases this explorer bands into risk words, and every loop over it —
+// the risk cards, the expandable contributing factors — would gain a fourth
+// entry with no risk level to put in it. Bacchus is a second BOTRYTIS model
+// that produces an index, not a risk word: one chart series and nothing else.
+//
+// Its colour is imported rather than declared here, so the same model is the
+// same green on this explorer, the region dashboard and the Pro site chart.
 
 // Risk level icons
 const RiskIcon = ({ level, size = 24 }) => {
@@ -107,6 +118,14 @@ const DiseasePressureExplorer = ({ zone }) => {
     setExpandedDisease(expandedDisease === diseaseKey ? null : diseaseKey);
   };
 
+  // A zone scored before 2026-09-16 carries no Bacchus, and a window entirely
+  // before it must not gain an empty right-hand axis and a legend entry for a
+  // line that is not there.
+  const hasBacchus = useMemo(() => (
+    (pressureData?.chart_data?.daily || [])
+      .some(d => d.bacchus_peak !== null && d.bacchus_peak !== undefined)
+  ), [pressureData]);
+
   // Chart data
   const chartData = useMemo(() => {
     if (!pressureData?.chart_data?.daily) return null;
@@ -145,10 +164,36 @@ const DiseasePressureExplorer = ({ zone }) => {
           tension: 0.3,
           pointRadius: 2,
           pointHoverRadius: 5,
+          yAxisID: 'y',
         },
+        ...(hasBacchus ? [{
+          // NAMED FOR ITS MODEL. The plain "Botrytis" line above is
+          // González-Domínguez; this is a different model of the same disease.
+          label: 'Botrytis (Bacchus)',
+          // THE DAY'S PEAK, not the index carried out of it. A day can complete
+          // an infection and then be wiped by four dry hours before midnight —
+          // Nelson on 2026-09-07 peaked at 1.32, fired, and carried out 0.00.
+          data: data.map(d => d.bacchus_peak),
+          borderColor: BACCHUS_COLOUR,
+          backgroundColor: BACCHUS_COLOUR,
+          borderDash: [4, 3],
+          fill: false,
+          tension: 0.3,
+          // A marker only on the days that fired. The crossing is the event,
+          // and a peak of 1.02 against 0.98 is not a distinction the line can
+          // make at this height.
+          pointRadius: data.map(d => (d.bacchus_infection ? 5 : 2)),
+          pointHoverRadius: 6,
+          // A diamond for the infection markers, so an event reads as an event
+          // rather than as an ordinary daily reading. The legend no longer
+          // depends on this — its swatch is a dashed line, see `legend.labels`.
+          pointStyle: 'rectRot',
+          spanGaps: false,
+          yAxisID: 'yBacchus',
+        }] : []),
       ],
     };
-  }, [pressureData]);
+  }, [pressureData, hasBacchus]);
 
   // Chart options
   const chartOptions = {
@@ -157,8 +202,16 @@ const DiseasePressureExplorer = ({ zone }) => {
     plugins: {
       legend: {
         position: 'top',
-        labels: { usePointStyle: true, padding: 15 },
+        // Line-shaped swatches — so the dashed Bacchus series is identifiable
+        // from its legend entry — come from `utils/chartDefaults` and apply
+        // app-wide. Only the padding is set here.
+        labels: { padding: 15 },
       },
+      threshold: hasBacchus ? {
+        at: BACCHUS_THRESHOLD, axis: 'yBacchus',
+        label: 'Bacchus infection',
+        colour: 'rgba(47, 111, 79, 0.75)',
+      } : {},
       tooltip: {
         mode: 'index',
         intersect: false,
@@ -166,6 +219,16 @@ const DiseasePressureExplorer = ({ zone }) => {
           label: (context) => {
             const value = context.raw;
             if (value === null || value === undefined) return `${context.dataset.label}: N/A`;
+            // BACCHUS IS READ AGAINST 1.0, NOT AGAINST 100. At one decimal
+            // place the entire useful range of this model — 0.00 to 1.00 —
+            // collapses into eleven values, and a 0.297 reads as 0.3 beside
+            // three 0-100 scores, which looks like a rounding error rather
+            // than a number.
+            if (context.dataset.yAxisID === 'yBacchus') {
+              const fired = value >= BACCHUS_THRESHOLD;
+              return `${context.dataset.label}: ${value.toFixed(3)} of `
+                + `${BACCHUS_THRESHOLD.toFixed(1)}${fired ? ' — infection' : ''}`;
+            }
             return `${context.dataset.label}: ${value.toFixed(1)}`;
           },
         },
@@ -183,6 +246,21 @@ const DiseasePressureExplorer = ({ zone }) => {
           callback: (value) => `${value}`,
         },
       },
+      // HEADROOM ABOVE THE THRESHOLD. Capped at 1.0 the line would sit on the
+      // ceiling every time a period completed, and a reader could not tell 1.0
+      // from 1.4.
+      ...(hasBacchus ? {
+        yBacchus: {
+          position: 'right',
+          min: 0,
+          max: 1.5,
+          ticks: { stepSize: 0.5 },
+          title: { display: true, text: 'Bacchus (1.0 = infection)' },
+          // The left axis owns the gridlines. Two sets of horizontal rules at
+          // different intervals is a moiré, not a chart.
+          grid: { drawOnChartArea: false },
+        },
+      } : {}),
       x: {
         ticks: {
           maxTicksLimit: 10,
@@ -429,9 +507,26 @@ const DiseasePressureExplorer = ({ zone }) => {
 
         <div className="chart-container">
           {chartData && (
-            <Line data={chartData} options={chartOptions} />
+            <Line
+              data={chartData}
+              options={chartOptions}
+              plugins={hasBacchus ? [thresholdPlugin] : []}
+            />
           )}
         </div>
+
+        {hasBacchus && chartData && (
+          // TWO BOTRYTIS LINES IS NOT A MISTAKE, and a reader who assumes it is
+          // will take the pair for a data error. Said once, under the chart.
+          <p className="disease-chart__note">
+            Both botrytis lines model the same disease. “Botrytis” is
+            González-Domínguez on the left axis (0–100); “Botrytis (Bacchus)” is
+            the Bacchus index on the right, where 1.0 completes an infection
+            period and a marker shows the day it crossed. They disagree most in
+            early spring, because only González-Domínguez scales by growth
+            stage.
+          </p>
+        )}
       </div>
 
       {/* General Recommendations */}

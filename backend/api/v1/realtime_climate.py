@@ -57,6 +57,7 @@ from schemas.realtime_climate import (
     VarietyInfo,
     VarietiesListResponse,
     DiseaseRisk,
+    BacchusReading,
     DailyDiseasePressure,
     DiseasePressureResponse,
     ZoneClimateSnapshot,
@@ -1005,18 +1006,42 @@ def get_disease_pressure(
             default='low'
         )
         
+        # Bacchus rides BESIDE `diseases`, never inside it — see
+        # `BacchusReading`. A `DiseaseRisk` requires a risk word and this model
+        # does not produce one.
+        #
+        # The guard is on the columns being present at all: every scored day
+        # writes all five together, so an absent peak means the day did not run
+        # the model. A peak of 0.0 is a real reading — no wet hours accumulated
+        # — and must not be filtered out with it.
+        bacchus = None
+        if p.bacchus_peak is not None or p.bacchus_index is not None:
+            bacchus = BacchusReading(
+                index=float(p.bacchus_index) if p.bacchus_index is not None else None,
+                peak=float(p.bacchus_peak) if p.bacchus_peak is not None else None,
+                infection=p.bacchus_infection,
+                wet_hours=p.bacchus_wet_hours,
+            )
+
         return DailyDiseasePressure(
             date=p.date,
             overall_risk=overall,
             diseases=diseases,
+            bacchus=bacchus,
             recommendations=p.recommendations,
             humidity_available=p.humidity_available or False,
         )
-    
+
     current = build_daily_pressure(pressure_data[0])
     recent = [build_daily_pressure(p) for p in pressure_data]
-    
+
     # Build chart data (chronological order)
+    #
+    # `bacchus_peak` is read from the COLUMN, not from `risk_factors`. The three
+    # scores above come out of that JSON because they always have; the column is
+    # the record for Bacchus and carries four decimal places, where the JSON
+    # scores are ints. Reading a 0.1832 index through an int cast would floor
+    # every value below 1.0 to zero — the entire useful range of this model.
     chart_data = {
         "daily": [
             {
@@ -1024,6 +1049,8 @@ def get_disease_pressure(
                 "downy_mildew": p.risk_factors.get('scores', {}).get('downy') if p.risk_factors else None,
                 "powdery_mildew": p.risk_factors.get('scores', {}).get('powdery') if p.risk_factors else None,
                 "botrytis": p.risk_factors.get('scores', {}).get('botrytis') if p.risk_factors else None,
+                "bacchus_peak": float(p.bacchus_peak) if p.bacchus_peak is not None else None,
+                "bacchus_infection": p.bacchus_infection,
             }
             for p in reversed(pressure_data)
         ]

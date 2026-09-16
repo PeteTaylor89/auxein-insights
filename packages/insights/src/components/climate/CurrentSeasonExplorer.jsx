@@ -252,7 +252,9 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
     plugins: {
       legend: {
         position: 'top',
-        labels: { usePointStyle: true, padding: 8 },
+        // Line-shaped swatches come from `utils/chartDefaults`, so the
+        // dashed baseline series is identifiable from its legend entry.
+        labels: { padding: 8 },
       },
       tooltip: {
         mode: 'index',
@@ -288,9 +290,9 @@ const CurrentSeasonExplorer = ({ zone, inSeason = true }) => {
     plugins: {
       legend: {
         position: 'top',
+        // Swatch shape and width come from `utils/chartDefaults`: a line, so
+        // the dashed baseline reads as dashed in the legend too.
         labels: {
-          usePointStyle: true,
-          boxWidth: 8,
           padding: 8,
           font: { size: 11 },
         },

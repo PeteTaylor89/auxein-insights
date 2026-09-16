@@ -360,7 +360,37 @@ class DiseasePressure(Base):
     botrytis_wet_hours = Column(Integer)
     # Sporulation index (conditions for secondary spread)
     botrytis_sporulation_index = Column(Numeric(5, 2))
-    
+
+    # ==========================================================================
+    # BOTRYTIS - Bacchus risk index (Balasubramaniam & Edwards)
+    # ==========================================================================
+    # Added by `zone_bacchus_index` (2026-09-16). The point twin of these lives
+    # on `insights_site_disease`; the two MUST agree on precision or a zone and
+    # a site at the same place stop being comparable at the fourth place.
+    #
+    # A SECOND botrytis model, not a replacement for González-Domínguez above.
+    # The two disagree most in early spring, because only that one scales by
+    # growth stage.
+    #
+    # NUMERIC(7,4), not (5,2) like its neighbours: the index sums 1/I terms of
+    # order 0.01-0.07 against a threshold of exactly 1.0, and two decimal places
+    # would lose a fifth of a wet hour per hour until the rounding decided
+    # infections.
+    #
+    # The index carried OUT of the day — state, for the next day's carry-in.
+    bacchus_index = Column(Numeric(7, 4))
+    # The highest index reached DURING the day. THIS is the value to display: a
+    # day can complete an infection and then be wiped by four dry hours before
+    # midnight, and `bacchus_index` would read 0.0 for it.
+    bacchus_peak = Column(Numeric(7, 4))
+    # Did the index CROSS 1.0 inside the day. A crossing, not a level — a day
+    # that merely carried in above the threshold has not had a new infection.
+    bacchus_infection = Column(Boolean)
+    # Wet hours that contributed.
+    bacchus_wet_hours = Column(Integer)
+    # Consecutive dry hours at the day's end — state, and four of them reset it.
+    bacchus_dry_run = Column(Integer)
+
     # ==========================================================================
     # DOWNY MILDEW - 3-10 Rule + Goidanich Index
     # ==========================================================================

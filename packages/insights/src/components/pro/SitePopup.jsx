@@ -118,7 +118,10 @@ function baseOptions(unit, extra = {}) {
       ...(extra.scales || {}),
     },
     plugins: {
-      legend: { labels: { boxWidth: 10 } },
+      // Swatch shape and width come from `utils/chartDefaults`: a line, wide
+      // enough to read as dashed. The old `boxWidth: 10` here predated that and
+      // was too narrow for the Bacchus dash to show as anything but a stub.
+      legend: {},
       tooltip: {
         callbacks: { title: (items) => shortDate(items[0].label) },
       },

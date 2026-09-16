@@ -170,8 +170,9 @@ function SeasonProgressChart({ season, metric = 'gdd10' }) {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: { boxWidth: 12, boxHeight: 2, usePointStyle: false,
-                  color: AXIS, font: { size: 12 },
+        // Swatch shape and size come from `utils/chartDefaults` — a line, so
+        // the dashed comparison series reads as dashed in the legend too.
+        labels: { color: AXIS, font: { size: 12 },
                   filter: (item) => !item.text.startsWith('Band ') },
       },
       tooltip: {

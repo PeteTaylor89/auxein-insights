@@ -83,12 +83,10 @@ function DiseaseChart({ disease }) {
         backgroundColor: BACCHUS_COLOUR,
         borderWidth: 2,
         borderDash: [4, 3],
-        // A DIAMOND, because the legend cannot show the dash. `chartDefaults`
-        // sets `usePointStyle` globally, so every legend swatch is drawn as a
-        // point and `borderDash` is discarded — which left the two botrytis
-        // entries as two green dots, differing only in their text. The dash is
-        // the cue on the chart; this is the cue in the legend. It also marks
-        // the infection points as events rather than ordinary readings.
+        // A DIAMOND for the infection markers, so an event reads as an event
+        // rather than as an ordinary daily reading. The legend no longer needs
+        // this to be distinguishable — its swatch is a dashed line now, see the
+        // `legend.labels` block below.
         pointStyle: 'rectRot',
         // A POINT ON THE DAYS THAT FIRED, and nowhere else. The crossing is the
         // event, and a peak of 1.02 against 0.98 is not a distinction the line
@@ -151,8 +149,11 @@ function DiseaseChart({ disease }) {
               plugins: {
                 legend: {
                   position: 'bottom',
-                  labels: { boxWidth: 12, boxHeight: 2, color: AXIS,
-                            font: { size: 12 } },
+                  // Line-shaped swatches — so the dashed Bacchus series is
+                  // identifiable from its legend entry — come from
+                  // `utils/chartDefaults` and apply app-wide. Only the colour
+                  // and size are set here.
+                  labels: { color: AXIS, font: { size: 12 } },
                 },
                 threshold: hasBacchus ? {
                   at: BACCHUS_THRESHOLD, axis: 'yBacchus',
