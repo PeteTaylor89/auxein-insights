@@ -553,6 +553,63 @@ def object_url(s3_key: str) -> str:
     return f"/vsis3/{BUCKET}/{s3_key}"
 
 
+# --- signed object access (partner API) -------------------------------------
+
+# How long a minted URL stays usable. Short on purpose: the URL is the licensed
+# artefact, and a long-lived one is a link that can be forwarded. Fifteen
+# minutes is comfortably longer than a download of a 2 MiB object and far
+# shorter than a working day.
+PRESIGN_TTL_S = int(os.getenv("SURFACE_PRESIGN_TTL_S", "900"))
+
+
+def presign(s3_key: str, ttl_s: int = PRESIGN_TTL_S) -> dict:
+    """A time-limited download URL for one published object, plus its size.
+
+    ## The key comes from `surface_run`, never from a caller
+
+    There is no path parameter on any partner raster endpoint and there must not
+    be one. The bucket holds `_backup/`, `_build/`, `_runs/`, the projection
+    layers, the withheld frost statistics and a set of legacy duplicate trees
+    outside `surfaces/v2/`. **The index is the allowlist**: if a key did not
+    come out of a `surface_run` row that survived the withheld-statistic filter,
+    it does not get signed.
+
+    `bytes` is read from the object HEAD rather than guessed, because it is what
+    the byte quota is charged against — and a quota charged on an estimate is
+    not a quota. `ETag` is returned as the checksum: for a single-part upload it
+    is the MD5, and for a multipart it is not, so it is labelled `etag` rather
+    than promised as a digest of the content.
+    """
+    import boto3
+    from botocore.exceptions import BotoCoreError, ClientError
+
+    client = boto3.client("s3", region_name=AWS_REGION)
+    size, etag = None, None
+    try:
+        head = client.head_object(Bucket=BUCKET, Key=s3_key)
+        size = head.get("ContentLength")
+        etag = (head.get("ETag") or "").strip('"') or None
+    except (BotoCoreError, ClientError):
+        # A HEAD failure must not lose the URL: the object is indexed, the
+        # caller can still fetch it, and the only cost is that this one request
+        # bills no bytes. Logged so a systematic failure is visible rather than
+        # quietly making the byte quota stop counting.
+        log.warning("presign: HEAD failed for %s; size unknown", s3_key)
+
+    url = client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": BUCKET, "Key": s3_key},
+        ExpiresIn=ttl_s,
+    )
+    return {
+        "url": url,
+        "expires_at": (datetime.now(timezone.utc)
+                       + timedelta(seconds=ttl_s)).isoformat(),
+        "bytes": size,
+        "etag": etag,
+    }
+
+
 # --- index queries ----------------------------------------------------------
 
 def _valid_at_for(granularity: str, when: str) -> datetime:

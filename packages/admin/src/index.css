@@ -10,6 +10,27 @@
   --admin-line: #E5E2D9;
   --admin-ground: #FAF9F5;
   --admin-warn: #B3541E;
+
+  /* Planner urgency. Defined here, once, because a status colour hardcoded at
+     the call site is the thing that makes a later theme change impossible.
+     Each has a tint for chip backgrounds and a solid for the marker bar. */
+  --urgency-low: #7A8A9A;
+  --urgency-low-tint: #EEF2F5;
+  --urgency-normal: #5B6830;
+  --urgency-normal-tint: #EFF1E7;
+  --urgency-high: #B3541E;
+  --urgency-high-tint: #FAEDE4;
+  --urgency-urgent: #9B2226;
+  --urgency-urgent-tint: #F9E7E7;
+
+  /* Project colours, referenced by TOKEN NAME from admin_projects.colour.
+     The database stores 'teal', never a hex value, so the palette stays here. */
+  --proj-teal: #2A7F7F;
+  --proj-amber: #B07D2B;
+  --proj-plum: #7A4A72;
+  --proj-slate: #5A6B7D;
+  --proj-moss: #5B6830;
+  --proj-clay: #A2553A;
 }
 
 * { box-sizing: border-box; }

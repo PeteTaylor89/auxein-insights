@@ -1,0 +1,411 @@
+/* AdminPartners.css — partner clients, keys and the endpoint grant matrix.
+ *
+ * Uses the admin tokens from index.css (--admin-green/ink/muted/line/ground/
+ * warn) rather than raw hex, so this page follows a theme change instead of
+ * drifting away from one.
+ *
+ * The `pk-` prefix is deliberate: this page renders tables and checkboxes that
+ * every other admin page also renders, and unprefixed `.matrix` or `.card`
+ * would collide the first time two of them are open in one bundle. */
+
+.pk-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  line-height: 1.45;
+}
+.pk-alert code { font-size: 0.85em; }
+.pk-alert button {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  display: flex;
+}
+.pk-alert--error {
+  background: #FDECEA;
+  color: #8A2318;
+  border: 1px solid #F2C6C0;
+}
+.pk-alert--warn {
+  background: #FDF3E7;
+  color: var(--admin-warn);
+  border: 1px solid #EBD3B6;
+}
+.pk-alert--inline { margin: 0.9rem 0 0; }
+
+/* --- toolbar and client tabs --------------------------------------------- */
+
+.pk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.pk-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; flex: 1; }
+.pk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--admin-line);
+  background: #fff;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--admin-ink);
+}
+.pk-tab.is-active {
+  background: var(--admin-green);
+  border-color: var(--admin-green);
+  color: #fff;
+}
+
+/* --- cards ---------------------------------------------------------------- */
+
+.pk-card {
+  background: #fff;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.pk-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.pk-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.pk-card__head h3 { margin-bottom: 0; }
+.pk-count {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--admin-muted);
+}
+.pk-subhead {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+}
+
+.pk-dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.85rem 1.5rem;
+  margin: 0;
+}
+.pk-dl dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+  margin-bottom: 0.15rem;
+}
+.pk-dl dd { margin: 0; font-size: 0.92rem; }
+
+/* --- tables --------------------------------------------------------------- */
+
+.pk-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.pk-table th,
+.pk-table td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--admin-line);
+  vertical-align: middle;
+}
+.pk-table thead th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--admin-muted);
+  font-weight: 600;
+}
+.pk-table--compact th,
+.pk-table--compact td { padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+.pk-table tr.is-revoked { opacity: 0.5; }
+
+.pk-key__label { font-weight: 500; }
+.pk-key__masked { font-size: 0.78rem; color: var(--admin-muted); }
+.pk-key__actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
+.pk-muted { color: var(--admin-muted); }
+
+/* --- the endpoint matrix -------------------------------------------------- */
+
+/* Horizontally scrollable rather than wrapped: columns are keys, and a wrapped
+ * matrix stops being a matrix. */
+.pk-matrix__wrap { overflow-x: auto; }
+.pk-matrix { border-collapse: collapse; font-size: 0.9rem; min-width: 420px; }
+.pk-matrix th,
+.pk-matrix td {
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--admin-line);
+  text-align: center;
+}
+.pk-matrix thead th { vertical-align: bottom; }
+.pk-matrix__ep { text-align: left !important; min-width: 200px; }
+.pk-matrix__key { min-width: 140px; }
+.pk-matrix__keylabel { display: block; font-weight: 600; font-size: 0.85rem; }
+.pk-matrix__key code,
+.pk-matrix tbody th code {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--admin-muted);
+  font-weight: 400;
+}
+.pk-matrix tbody th {
+  text-align: left;
+  font-weight: 500;
+}
+.pk-matrix input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--admin-green);
+  cursor: pointer;
+}
+
+/* NOT SOLD, which is a different fact from "switched off". The row is dimmed
+ * and the control is disabled so the two read differently at a glance. */
+.pk-matrix tr.is-unsold { background: var(--admin-ground); }
+.pk-matrix tr.is-unsold th { color: var(--admin-muted); }
+.pk-matrix input[type='checkbox']:disabled { cursor: not-allowed; opacity: 0.35; }
+
+.pk-matrix__note {
+  margin: 0.7rem 0 0;
+  font-size: 0.8rem;
+  color: var(--admin-muted);
+}
+
+/* --- stats and refusals --------------------------------------------------- */
+
+.pk-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.pk-stats div { display: flex; flex-direction: column; }
+.pk-stats span { font-size: 1.35rem; font-weight: 600; line-height: 1.2; }
+.pk-stats small {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+}
+
+.pk-refusals { list-style: none; margin: 0; padding: 0; }
+.pk-refusals li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--admin-line);
+  font-size: 0.85rem;
+}
+.pk-refusals code { color: var(--admin-warn); }
+
+/* --- new client form ------------------------------------------------------ */
+
+.pk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.9rem 1.1rem;
+}
+.pk-grid label,
+.pk-newclient .pk-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+  font-weight: 600;
+}
+.pk-grid input,
+.pk-grid select {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.9rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--admin-ink);
+  background: #fff;
+}
+.pk-grid small {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+}
+
+.pk-newclient__ents { margin-top: 1rem; }
+.pk-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.45rem; }
+.pk-chip {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--admin-line);
+  background: #fff;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--admin-ink);
+}
+.pk-chip.is-on {
+  background: var(--admin-green);
+  border-color: var(--admin-green);
+  color: #fff;
+}
+
+.pk-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
+/* --- buttons -------------------------------------------------------------- */
+
+/* Global button padding is set once in index.css; these only add the variants.
+ * Redeclaring padding here is what makes admin buttons drift apart. */
+.pk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+.pk-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pk-btn--primary { background: var(--admin-green); color: #fff; }
+.pk-btn--ghost {
+  background: #fff;
+  border-color: var(--admin-line);
+  color: var(--admin-ink);
+}
+.pk-btn--danger { background: #B3261E; color: #fff; }
+
+.pk-pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--admin-ground);
+  border: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+}
+.pk-pill--ok {
+  background: #EAF1E0;
+  border-color: #C8D9AE;
+  color: var(--admin-green);
+}
+.pk-pill--off {
+  background: #F4F2EE;
+  border-color: var(--admin-line);
+  color: var(--admin-muted);
+}
+
+.pk-empty {
+  color: var(--admin-muted);
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.pk-spin { animation: pk-rotate 1s linear infinite; }
+@keyframes pk-rotate { to { transform: rotate(360deg); } }
+
+/* --- the reveal modal ----------------------------------------------------- */
+
+/* No click-outside handler and no Escape binding, deliberately. The secret is
+ * not stored and cannot be recovered, so an accidental dismissal costs a
+ * rotation and a support round trip. */
+.pk-modal__scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 30, 28, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+.pk-modal {
+  background: #fff;
+  border-radius: 10px;
+  max-width: 560px;
+  width: 100%;
+  padding: 1.4rem 1.5rem;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+.pk-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+.pk-modal__head h2 { margin: 0; font-size: 1.05rem; }
+.pk-modal__warn {
+  display: flex;
+  gap: 0.55rem;
+  background: #FDF3E7;
+  border: 1px solid #EBD3B6;
+  color: var(--admin-warn);
+  padding: 0.7rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.87rem;
+  line-height: 1.45;
+  margin-bottom: 0.9rem;
+}
+.pk-modal__key {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--admin-ground);
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  padding: 0.7rem 0.8rem;
+}
+.pk-modal__key code {
+  flex: 1;
+  font-size: 0.85rem;
+  word-break: break-all;
+  user-select: all;
+  line-height: 1.5;
+}
+.pk-modal__ack {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.pk-modal__ack input { width: 16px; height: 16px; accent-color: var(--admin-green); }
+.pk-modal__foot { display: flex; justify-content: flex-end; margin-top: 1.1rem; }
+
+@media (max-width: 720px) {
+  .pk-toolbar { flex-direction: column; align-items: stretch; }
+  .pk-key__actions { flex-wrap: wrap; justify-content: flex-start; }
+}

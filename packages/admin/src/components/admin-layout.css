@@ -11,15 +11,27 @@
  * clean diff against its Insights original.
  */
 
+/* The nav is now a FIXED left sidebar, so the content well is inset by its
+   width rather than pushed down by a bar. Below 900px the sidebar goes
+   off-canvas and a slim top bar takes its place, so the inset becomes a
+   top offset instead. */
 .admin-main {
-  /* The nav is 56px here, not the 4rem admin.css assumed. */
-  min-height: calc(100vh - 56px);
+  min-height: 100vh;
+  margin-left: var(--anav-width, 228px);
 }
 
 .admin-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 20px 16px;
+  padding: 22px 22px 40px;
+}
+
+@media (max-width: 900px) {
+  .admin-main {
+    margin-left: 0;
+    padding-top: var(--anav-top, 52px);
+    min-height: calc(100vh - var(--anav-top, 52px));
+  }
 }
 
 /* Tables: scroll the table, never the page. Any admin.css table that is not
@@ -38,7 +50,7 @@
 
 @media (max-width: 700px) {
   .admin-container {
-    padding: 16px 12px;
+    padding: 16px 13px 32px;
   }
 
   /* Page headers stack instead of overflowing. */

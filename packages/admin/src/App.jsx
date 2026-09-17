@@ -15,6 +15,8 @@ import AdminRoute from './components/AdminRoute';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import KpiDashboard from './pages/KpiDashboard';
+import Planner from './pages/Planner';
+import Projects from './pages/Projects';
 // Phase 1's scaffold, kept as a diagnostic. It is the only screen that shows
 // BOTH identities side by side, which is exactly what you want when the admin
 // site half-works (plan §7.1/§7.6).
@@ -27,6 +29,7 @@ import QcDashboard from './pages/QcDashboard';
 import JobsDashboard from './pages/JobsDashboard';
 import BannerManagement from './pages/BannerManagement';
 import AdminAccounts from './pages/admin/AdminAccounts';
+import AdminPartners from './pages/admin/AdminPartners';
 import AdminArticleList from './pages/admin/AdminArticleList';
 import AdminArticleEditor from './pages/admin/AdminArticleEditor';
 import AdminResearchList from './pages/admin/AdminResearchList';
@@ -70,11 +73,14 @@ function AppRoutes() {
       <Route path="/" element={<Guarded><AdminDashboard /></Guarded>} />
       <Route path="/session" element={<Guarded><SessionInfo /></Guarded>} />
       <Route path="/kpis" element={<Guarded><KpiDashboard /></Guarded>} />
+      <Route path="/planner" element={<Guarded><Planner /></Guarded>} />
+      <Route path="/projects" element={<Guarded><Projects /></Guarded>} />
 
       <Route path="/users" element={<Guarded><UserManagement /></Guarded>} />
       <Route path="/users/:id" element={<Guarded><UserDetail /></Guarded>} />
 
       <Route path="/accounts" element={<Guarded><AdminAccounts /></Guarded>} />
+      <Route path="/partners" element={<Guarded><AdminPartners /></Guarded>} />
 
       <Route path="/articles" element={<Guarded><AdminArticleList /></Guarded>} />
       <Route path="/articles/new" element={<Guarded><AdminArticleEditor /></Guarded>} />

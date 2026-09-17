@@ -1,0 +1,382 @@
+/* projects.css — scoped to .proj-page. Reuses the .td-* form idioms from
+   task-detail.css inside the drawers, so the two panels feel like one thing. */
+
+.proj-page { max-width: 1240px; }
+
+/* Title and subtitle come from AdminLayout; this is a control row only. */
+.proj-head {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.proj-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.proj-showarch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.proj-new,
+.proj-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--admin-green);
+  border-radius: 7px;
+  background: var(--admin-green);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.proj-save:disabled { opacity: 0.6; cursor: progress; }
+
+.proj-error {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #E6C9B8;
+  border-radius: 8px;
+  background: var(--urgency-high-tint);
+  color: var(--admin-warn);
+  font-size: 13px;
+}
+
+.proj-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 13px;
+}
+
+.proj-spin { animation: proj-rotate 1s linear infinite; }
+@keyframes proj-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .proj-spin { animation: none; } }
+
+/* --------------------------------------------------------------- totals */
+
+.proj-totals {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.proj-totals > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proj-bignum {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.proj-biglabel {
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+/* Unattributed time is the number the whole feature exists to surface, so it
+   is marked rather than shown as just another total. */
+.proj-unattributed .proj-bignum { color: var(--admin-warn); }
+
+/* ---------------------------------------------------------------- cards */
+
+.proj-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+}
+
+.proj-card {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.proj-card:hover { border-color: var(--admin-green); }
+
+.proj-stripe {
+  flex: none;
+  width: 4px;
+  align-self: stretch;
+}
+
+.proj-cardmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 15px;
+}
+
+.proj-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.proj-status {
+  padding: 1px 8px;
+  border-radius: 9px;
+  background: var(--admin-line);
+  font-size: 11px;
+}
+
+.proj-status.is-active { background: var(--urgency-normal-tint); color: var(--admin-green); }
+.proj-status.is-on_hold { background: var(--urgency-low-tint); color: var(--urgency-low); }
+.proj-status.is-done { background: var(--admin-line); }
+.proj-status.is-archived { background: transparent; border: 1px solid var(--admin-line); }
+
+.proj-hours {
+  font-size: 13px;
+  color: var(--admin-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.proj-hours strong { color: var(--admin-ink); }
+
+.proj-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--admin-line);
+  overflow: hidden;
+}
+
+.proj-barfill {
+  display: block;
+  height: 100%;
+  background: var(--admin-green);
+  border-radius: 3px;
+}
+
+.proj-barfill.is-over { background: var(--urgency-urgent); }
+
+.proj-notarget,
+.proj-tasks {
+  font-size: 11px;
+  color: var(--admin-muted);
+}
+
+.proj-empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--admin-muted);
+  font-size: 13px;
+  border: 1px dashed var(--admin-line);
+  border-radius: 10px;
+}
+
+/* --------------------------------------------------------------- drawer */
+
+.proj-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.proj-colours {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.proj-colours legend {
+  padding: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+
+.proj-colours label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 6px;
+  border: 1px solid var(--admin-line);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.proj-colours label.is-on { border-color: var(--admin-ink); }
+
+/* The radio itself is hidden visually but stays in the accessibility tree and
+   the tab order — `display:none` would remove it from both. */
+.proj-colours input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.proj-colours input:focus-visible + span {
+  outline: 2px solid var(--admin-ink);
+  outline-offset: 2px;
+}
+
+.proj-colours label > span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.proj-colours em { font-style: normal; color: var(--admin-muted); }
+
+.proj-progressline {
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.proj-deletewarn {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: var(--admin-ground);
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.proj-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proj-notes li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--admin-ground);
+  font-size: 13px;
+}
+
+.proj-notewhen {
+  flex: none;
+  font-size: 11px;
+  color: var(--admin-muted);
+  padding-top: 2px;
+  min-width: 78px;
+}
+
+.proj-notebody {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.proj-notes button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--admin-muted);
+  cursor: pointer;
+  opacity: 0.45;
+  padding: 2px;
+}
+
+.proj-notes li:hover button,
+.proj-notes button:focus-visible { opacity: 1; color: var(--admin-warn); }
+
+.proj-tasklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.proj-tasklist li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.proj-tasklist li > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-tasklist li.is-done { opacity: 0.55; }
+.proj-tasklist li.is-done > span:nth-child(2) { text-decoration: line-through; }
+
+.proj-taskdot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--urgency-normal);
+}
+
+.proj-taskdot.u-low { background: var(--urgency-low); }
+.proj-taskdot.u-normal { background: var(--urgency-normal); }
+.proj-taskdot.u-high { background: var(--urgency-high); }
+.proj-taskdot.u-urgent { background: var(--urgency-urgent); }
+
+.proj-taskdue {
+  flex: none;
+  font-size: 11px;
+  color: var(--admin-muted);
+}

@@ -1,25 +1,28 @@
-// src/components/AdminNav.jsx — the unified nav for both admin halves.
+// src/components/AdminNav.jsx — the admin sidebar.
 //
-// Replaces the flat 12-item bar inherited from Insights, which had two problems:
-// it was a single undifferentiated row, and below 768px `admin.css` simply
-// `display: none`d it — there was no mobile navigation at all, just a brand and
-// a dead "Exit Admin" link.
+// WAS a top bar of click-to-open dropdowns. That put EVERY destination two
+// clicks away, and because the menus opened on click rather than hover, even
+// finding out what a group contained cost a click. For a tool used all day
+// with eighteen destinations, that is the wrong shape: the nav should be a map
+// you read, not a set of drawers you rummage through.
 //
-// Structure is three groups, and the grouping is load-bearing rather than
-// cosmetic: "Banners" exists in BOTH Insights and Grow and they are different
-// features against different backends (`admin_banners` vs `admin_grow_banners`).
-// A flat list puts two identical words side by side; a grouped one makes the
-// difference the first thing you read (plan §7.2).
+// Now a persistent left sidebar. Every item is visible and one click away, the
+// grouping is a heading rather than a container to open, and the active item is
+// obvious without hunting. The mobile drawer already worked this way — it
+// listed everything flat under group headings — so this makes the desktop
+// agree with the phone rather than the other way round.
 //
-// Uses its own `anav-*` class names rather than the old `.admin-nav-*` ones so
-// the two cannot fight during the transition. The old rules in admin.css are
-// now unused.
-import { useState, useEffect, useRef } from 'react';
+// The grouping is still load-bearing, not decorative: "Banners" and "Users"
+// each exist in BOTH Insights and Grow and are different features against
+// different backends (`admin_banners` vs `admin_grow_banners`). Flat, those are
+// pairs of identical words; grouped, the difference is the first thing read.
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Building2, Cloud, Megaphone, FileText, BookOpen,
   Mail, Map, ShieldCheck, Activity, Sprout, MapPinned, Wrench, BarChart3,
-  Menu, X, ChevronDown, LogOut, TrendingUp,
+  Menu, X, LogOut, TrendingUp, CalendarCheck, ListTodo, FolderKanban,
+  Handshake,
 } from 'lucide-react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import './admin-nav.css';
@@ -63,6 +66,29 @@ export const NAV_GROUPS = [
       { path: '/grow/banners', icon: Megaphone, label: 'Banners' },
     ],
   },
+  // Partner clients are neither Insights nor Grow — they are licensees of the
+  // data both products sit on. Its own group because a row labelled "Partners"
+  // under "Insights" reads as an Insights feature, which is the one thing it is
+  // not.
+  {
+    id: 'partners',
+    label: 'Partners',
+    icon: Handshake,
+    items: [
+      { path: '/partners', icon: Handshake, label: 'Data API' },
+    ],
+  },
+  // The only group that is not platform data. These rows belong to the signed-in
+  // admin, scoped to the caller and invisible to any other admin.
+  {
+    id: 'planner',
+    label: 'Planner',
+    icon: CalendarCheck,
+    items: [
+      { path: '/planner', icon: ListTodo, label: 'My tasks' },
+      { path: '/projects', icon: FolderKanban, label: 'Projects' },
+    ],
+  },
 ];
 
 const ALL_PATHS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.path));
@@ -80,54 +106,25 @@ export function isPathActive(itemPath, pathname) {
   );
 }
 
-function groupIsActive(group, pathname) {
-  return group.items.some((i) => isPathActive(i.path, pathname));
-}
-
 export default function AdminNav() {
   const location = useLocation();
   const { growUser, logout } = useAdminAuth();
 
-  const [openGroup, setOpenGroup] = useState(null);   // desktop dropdown
-  const [drawerOpen, setDrawerOpen] = useState(false); // mobile drawer
-  const [userOpen, setUserOpen] = useState(false);
-  const navRef = useRef(null);
+  // Only one piece of open/closed state left. The dropdowns are gone, so there
+  // is no open-group, no click-outside handler and no user menu to close —
+  // three sources of "it stayed open over the page I moved to" removed with it.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Any navigation closes everything. Without this the dropdown stays open
-  // over the page you just moved to.
-  useEffect(() => {
-    setOpenGroup(null);
-    setDrawerOpen(false);
-    setUserOpen(false);
-  }, [location.pathname]);
+  useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
-  // Escape closes whatever is open, outermost first.
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'Escape') return;
-      if (drawerOpen) setDrawerOpen(false);
-      else if (openGroup) setOpenGroup(null);
-      else if (userOpen) setUserOpen(false);
-    };
+    const onKey = (e) => { if (e.key === 'Escape') setDrawerOpen(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [drawerOpen, openGroup, userOpen]);
+  }, []);
 
-  // Click outside the bar closes the desktop menus.
-  useEffect(() => {
-    if (!openGroup && !userOpen) return undefined;
-    const onDown = (e) => {
-      if (navRef.current && !navRef.current.contains(e.target)) {
-        setOpenGroup(null);
-        setUserOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [openGroup, userOpen]);
-
-  // The drawer is fixed and scrolls independently; letting the page behind it
-  // scroll too is the classic mobile-drawer bug.
+  // The drawer scrolls independently; letting the page behind it scroll too is
+  // the classic mobile-drawer bug.
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const prev = document.body.style.overflow;
@@ -141,146 +138,77 @@ export default function AdminNav() {
     .map((s) => s[0]?.toUpperCase()).join('');
 
   return (
-    <header className="anav" ref={navRef}>
-      <div className="anav-bar">
-        <Link to="/" className="anav-brand" aria-label="Auxein Admin, dashboard">
+    <>
+      {/* Mobile only: a slim bar carrying the brand and the drawer toggle. */}
+      <header className="anav-topbar">
+        <Link to="/" className="anav-brand">
+          <span className="anav-brand-name">Auxein</span>
+          <span className="anav-brand-badge">Admin</span>
+        </Link>
+        <button
+          type="button"
+          className="anav-burger"
+          aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={drawerOpen}
+          onClick={() => setDrawerOpen((v) => !v)}
+        >
+          {drawerOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </header>
+
+      {drawerOpen && (
+        <div className="anav-scrim" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+      )}
+
+      <aside className={`anav${drawerOpen ? ' is-open' : ''}`} aria-label="Main">
+        <Link to="/" className="anav-brand anav-brand-desktop">
           <span className="anav-brand-name">Auxein</span>
           <span className="anav-brand-badge">Admin</span>
         </Link>
 
-        {/* ── Desktop: grouped dropdowns ───────────────────────────── */}
-        <nav className="anav-groups" aria-label="Main">
+        <nav className="anav-scroll">
           {NAV_GROUPS.map((group) => {
             const GroupIcon = group.icon;
-            const active = groupIsActive(group, location.pathname);
-            const open = openGroup === group.id;
             return (
-              <div className="anav-group" key={group.id}>
-                <button
-                  type="button"
-                  className={`anav-group-button${active ? ' active' : ''}${open ? ' open' : ''}`}
-                  aria-expanded={open}
-                  aria-haspopup="true"
-                  onClick={() => setOpenGroup(open ? null : group.id)}
-                >
-                  <GroupIcon size={16} />
-                  <span>{group.label}</span>
-                  <ChevronDown size={14} className="anav-chevron" />
-                </button>
-
-                {open && (
-                  <div className="anav-menu" role="menu">
-                    {group.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
+              <section className="anav-group" key={group.id}>
+                <h2 className="anav-heading">
+                  <GroupIcon size={13} aria-hidden="true" />
+                  {group.label}
+                </h2>
+                <ul>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isPathActive(item.path, location.pathname);
+                    return (
+                      <li key={item.path}>
                         <Link
-                          key={item.path}
                           to={item.path}
-                          role="menuitem"
-                          className={`anav-menu-item${isPathActive(item.path, location.pathname) ? ' active' : ''}`}
+                          className={`anav-item${active ? ' active' : ''}`}
+                          aria-current={active ? 'page' : undefined}
                         >
-                          <Icon size={15} />
+                          <Icon size={16} aria-hidden="true" />
                           <span>{item.label}</span>
                         </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             );
           })}
         </nav>
 
-        <div className="anav-right">
-          {/* ── Desktop: identity + sign out ───────────────────────── */}
-          <div className="anav-user">
-            <button
-              type="button"
-              className="anav-user-button"
-              aria-expanded={userOpen}
-              aria-haspopup="true"
-              onClick={() => setUserOpen((v) => !v)}
-            >
-              <span className="anav-avatar" aria-hidden="true">{initials}</span>
-              <span className="anav-user-email">{email}</span>
-              <ChevronDown size={14} className="anav-chevron" />
-            </button>
-            {userOpen && (
-              <div className="anav-menu anav-menu-right" role="menu">
-                <Link to="/session" role="menuitem" className="anav-menu-item">
-                  <ShieldCheck size={15} />
-                  <span>Session details</span>
-                </Link>
-                <button type="button" role="menuitem" className="anav-menu-item anav-danger" onClick={logout}>
-                  <LogOut size={15} />
-                  <span>Sign out</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ── Mobile: drawer toggle ──────────────────────────────── */}
-          <button
-            type="button"
-            className="anav-burger"
-            aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={drawerOpen}
-            onClick={() => setDrawerOpen((v) => !v)}
-          >
-            {drawerOpen ? <X size={20} /> : <Menu size={20} />}
+        <div className="anav-foot">
+          <Link to="/session" className="anav-who">
+            <span className="anav-avatar" aria-hidden="true">{initials}</span>
+            <span className="anav-email" title={email}>{email}</span>
+          </Link>
+          <button type="button" className="anav-signout" onClick={logout}>
+            <LogOut size={15} aria-hidden="true" />
+            <span>Sign out</span>
           </button>
         </div>
-      </div>
-
-      {/* ── Mobile drawer ────────────────────────────────────────── */}
-      {drawerOpen && (
-        <>
-          <div
-            className="anav-scrim"
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="anav-drawer" role="dialog" aria-modal="true" aria-label="Menu">
-            <div className="anav-drawer-scroll">
-              {NAV_GROUPS.map((group) => {
-                const GroupIcon = group.icon;
-                return (
-                  <section className="anav-drawer-group" key={group.id}>
-                    <h2 className="anav-drawer-heading">
-                      <GroupIcon size={14} />
-                      {group.label}
-                    </h2>
-                    {group.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          className={`anav-drawer-item${isPathActive(item.path, location.pathname) ? ' active' : ''}`}
-                        >
-                          <Icon size={17} />
-                          <span>{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </section>
-                );
-              })}
-            </div>
-
-            <div className="anav-drawer-foot">
-              <div className="anav-drawer-user">
-                <span className="anav-avatar" aria-hidden="true">{initials}</span>
-                <span className="anav-drawer-email">{email}</span>
-              </div>
-              <button type="button" className="anav-drawer-signout" onClick={logout}>
-                <LogOut size={16} />
-                Sign out
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </header>
+      </aside>
+    </>
   );
 }

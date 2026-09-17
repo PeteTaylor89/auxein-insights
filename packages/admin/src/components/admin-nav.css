@@ -1,340 +1,254 @@
-/* admin-nav.css — the unified nav.
+/* admin-nav.css — the persistent left sidebar.
  *
- * Own `anav-*` namespace so it cannot collide with the inherited `.admin-nav-*`
- * rules in pages/admin.css (now unused) or with Grow's `.grow-admin-*`.
- *
- * Breakpoint is 900px, not the 768px admin.css used: three group buttons plus a
- * full email address needs more room than three plain links, and at 800px the
- * old bar overlapped the brand before it vanished entirely.
+ * Replaces the dropdown bar. The sidebar is fixed, scrolls on its own, and
+ * shows every destination at once; `.admin-main` is inset by its width in
+ * admin-layout.css. Below 900px it becomes an off-canvas drawer behind the
+ * top bar's burger.
  */
 
-.anav {
-  position: sticky;
+:root {
+  --anav-width: 228px;
+  --anav-top: 52px; /* mobile top bar height */
+}
+
+/* ------------------------------------------------------------- top bar */
+/* Mobile only. On desktop the sidebar carries the brand itself. */
+
+.anav-topbar {
+  display: none;
+  position: fixed;
   top: 0;
-  z-index: 100;
+  left: 0;
+  right: 0;
+  height: var(--anav-top);
+  z-index: 40;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
   background: #fff;
   border-bottom: 1px solid var(--admin-line);
 }
 
-.anav-bar {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 16px;
-  height: 56px;
-  display: flex;
+.anav-burger {
+  display: inline-flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--admin-ink);
+  cursor: pointer;
 }
 
-/* ── Brand ─────────────────────────────────────────────────────────── */
+/* -------------------------------------------------------------- brand */
 
 .anav-brand {
-  display: flex;
-  align-items: center;
+  display: inline-flex;
+  align-items: baseline;
   gap: 7px;
   text-decoration: none;
-  flex-shrink: 0;
+  color: var(--admin-ink);
 }
 
 .anav-brand-name {
   font-size: 16px;
   font-weight: 700;
-  color: var(--admin-ink);
   letter-spacing: -0.01em;
 }
 
 .anav-brand-badge {
-  padding: 2px 7px;
-  background: var(--admin-green);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: #fff;
+  background: var(--admin-green);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.anav-brand-desktop {
+  flex: none;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+/* ------------------------------------------------------------ sidebar */
+
+.anav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--anav-width);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-right: 1px solid var(--admin-line);
+}
+
+.anav-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.anav-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* A heading, not a button. It labels the group; it does not open it. */
+.anav-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 5px;
+  padding: 0 8px;
   font-size: 10px;
   font-weight: 700;
-  border-radius: 4px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: var(--admin-muted);
 }
 
-/* ── Desktop groups ────────────────────────────────────────────────── */
-
-.anav-groups {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-}
-
-.anav-group { position: relative; }
-
-.anav-group-button {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 11px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: none;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #55524A;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.anav-group-button:hover { background: var(--admin-ground); color: var(--admin-ink); }
-
-.anav-group-button.active {
-  color: var(--admin-green);
-  background: #F4F7EE;
-}
-
-.anav-group-button.open {
-  border-color: var(--admin-line);
-  background: #fff;
-}
-
-.anav-chevron { opacity: .55; }
-.anav-group-button.open .anav-chevron { transform: rotate(180deg); }
-
-/* ── Dropdown ──────────────────────────────────────────────────────── */
-
-.anav-menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  min-width: 208px;
-  background: #fff;
-  border: 1px solid var(--admin-line);
-  border-radius: 9px;
-  box-shadow: 0 8px 26px rgba(0, 0, 0, .10);
-  padding: 5px;
-  z-index: 110;
-}
-
-.anav-menu-right { left: auto; right: 0; }
-
-.anav-menu-item {
+.anav-item {
   display: flex;
   align-items: center;
   gap: 9px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  font-family: inherit;
-  font-size: 13.5px;
-  color: #55524A;
+  padding: 7px 9px;
+  border-radius: 7px;
   text-decoration: none;
-  text-align: left;
-  cursor: pointer;
-  box-sizing: border-box;
+  color: var(--admin-ink);
+  font-size: 13.5px;
+  line-height: 1.3;
+  /* The active marker occupies space whether or not it is shown, so an item
+     does not shift sideways when it becomes current. */
+  border-left: 2px solid transparent;
 }
 
-.anav-menu-item:hover { background: var(--admin-ground); color: var(--admin-ink); }
+.anav-item:hover { background: var(--admin-ground); }
 
-.anav-menu-item.active {
+.anav-item svg { flex: none; color: var(--admin-muted); }
+
+.anav-item.active {
+  background: var(--urgency-normal-tint);
+  border-left-color: var(--admin-green);
   color: var(--admin-green);
-  background: #F4F7EE;
   font-weight: 600;
 }
 
-.anav-menu-item svg { flex-shrink: 0; opacity: .8; }
-.anav-danger { color: var(--admin-warn); }
-.anav-danger:hover { background: #FDF3EE; color: var(--admin-warn); }
+.anav-item.active svg { color: var(--admin-green); }
 
-/* ── Right side ────────────────────────────────────────────────────── */
-
-.anav-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  flex-shrink: 0;
+.anav-item:focus-visible {
+  outline: 2px solid var(--admin-green);
+  outline-offset: -2px;
 }
 
-.anav-user { position: relative; }
+/* --------------------------------------------------------------- foot */
 
-.anav-user-button {
+.anav-foot {
+  flex: none;
+  border-top: 1px solid var(--admin-line);
+  padding: 10px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 9px 5px 5px;
-  border: 1px solid var(--admin-line);
-  border-radius: 999px;
-  background: #fff;
-  font-family: inherit;
-  font-size: 13px;
-  color: #55524A;
-  cursor: pointer;
-  max-width: 260px;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.anav-user-button:hover { background: var(--admin-ground); }
+.anav-who {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  text-decoration: none;
+  color: var(--admin-ink);
+  min-width: 0;
+}
+
+.anav-who:hover { background: var(--admin-ground); }
 
 .anav-avatar {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--admin-green);
   color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.anav-user-email {
+.anav-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--admin-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ── Mobile burger ─────────────────────────────────────────────────── */
-
-.anav-burger {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--admin-line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--admin-ink);
-  cursor: pointer;
-}
-
-/* ── Drawer ────────────────────────────────────────────────────────── */
-
-.anav-scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .40);
-  z-index: 120;
-}
-
-.anav-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(86vw, 330px);
-  background: #fff;
-  z-index: 130;
-  display: flex;
-  flex-direction: column;
-  box-shadow: -8px 0 30px rgba(0, 0, 0, .16);
-  animation: anav-slide .18s ease-out;
-}
-
-@keyframes anav-slide {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-
-.anav-drawer-scroll {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 14px 12px;
-  /* Clears the burger, which stays visible and fixed above the drawer. */
-  padding-top: 62px;
-}
-
-.anav-drawer-group { margin-bottom: 18px; }
-
-.anav-drawer-heading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 6px;
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--admin-muted);
-}
-
-.anav-drawer-item {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 11px 10px;
-  border-radius: 8px;
-  color: #3F3C36;
-  text-decoration: none;
-  font-size: 15px;
-  /* 44px min touch target. */
-  min-height: 44px;
-  box-sizing: border-box;
-}
-
-.anav-drawer-item:active { background: var(--admin-ground); }
-
-.anav-drawer-item.active {
-  background: #F4F7EE;
-  color: var(--admin-green);
-  font-weight: 600;
-}
-
-.anav-drawer-item svg { flex-shrink: 0; opacity: .75; }
-
-.anav-drawer-foot {
-  border-top: 1px solid var(--admin-line);
-  padding: 12px;
-  /* Keeps the sign-out clear of the iOS home indicator. */
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  background: var(--admin-ground);
-}
-
-.anav-drawer-user {
+.anav-signout {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin-bottom: 10px;
-  min-width: 0;
-}
-
-.anav-drawer-email {
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
   font-size: 13px;
   color: var(--admin-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.anav-drawer-signout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid #DAD6CB;
-  border-radius: 8px;
-  background: #fff;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--admin-warn);
   cursor: pointer;
+  text-align: left;
 }
 
-/* ── Breakpoint ────────────────────────────────────────────────────── */
+.anav-signout:hover { background: var(--urgency-high-tint); color: var(--admin-warn); }
+
+/* --------------------------------------------------------------- scrim */
+
+.anav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(47, 47, 47, 0.3);
+}
+
+/* ---------------------------------------------------------- responsive */
 
 @media (max-width: 900px) {
-  .anav-groups { display: none; }
-  .anav-user { display: none; }
-  .anav-burger { display: inline-flex; }
-  /* Above the scrim, so it stays tappable as the close control. */
-  .anav-burger { position: relative; z-index: 140; }
+  .anav-topbar { display: flex; }
+  .anav-scrim { display: block; }
+  .anav-brand-desktop { display: none; }
+
+  .anav {
+    top: var(--anav-top);
+    width: min(280px, 84vw);
+    transform: translateX(-102%);
+    transition: transform 0.18s ease-out;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .anav.is-open { transform: none; }
 }
 
-@media (max-width: 380px) {
-  .anav-bar { padding: 0 12px; gap: 10px; }
-  .anav-brand-name { font-size: 15px; }
+@media (prefers-reduced-motion: reduce) {
+  .anav { transition: none; }
 }

@@ -1,0 +1,480 @@
+/* planner.css — scoped to .plan-page.
+   Mobile-first: the month grid is genuinely unusable below ~700px, so it is
+   not shrunk, it is REPLACED by the agenda at that width. A seven-column grid
+   squeezed onto a phone is a row of unreadable slivers. */
+
+.plan-page { max-width: 1240px; }
+
+/* ---------------------------------------------------------------- header */
+
+/* The page title and subtitle come from AdminLayout, so this header is only
+   a control row. It sits right-aligned under the title block rather than
+   competing with it for the top line. */
+.plan-head {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.plan-viewtoggle {
+  display: inline-flex;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.plan-viewtoggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.plan-viewtoggle button + button { border-left: 1px solid var(--admin-line); }
+
+.plan-viewtoggle button.is-on {
+  background: var(--admin-green);
+  color: #fff;
+}
+
+.plan-showdone {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.plan-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid #E6C9B8;
+  border-radius: 8px;
+  background: var(--urgency-high-tint);
+  color: var(--admin-warn);
+  font-size: 13px;
+}
+
+.plan-error button {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.plan-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 13px;
+}
+
+.plan-spin { animation: plan-rotate 1s linear infinite; }
+
+@keyframes plan-rotate { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-spin { animation: none; }
+}
+
+/* ------------------------------------------------------------ month bar */
+
+.plan-monthbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.plan-monthbar h2 {
+  margin: 0;
+  min-width: 170px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.plan-monthbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--admin-ink);
+  cursor: pointer;
+}
+
+.plan-monthbar .plan-today {
+  width: auto;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--admin-muted);
+}
+
+/* ----------------------------------------------------------- month grid */
+
+.plan-weekdays,
+.plan-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.plan-weekdays { margin-bottom: 6px; }
+
+.plan-weekday {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+  padding-left: 3px;
+}
+
+.plan-week { margin-bottom: 6px; }
+
+.plan-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 124px;
+  padding: 6px 6px 8px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+/* NO inner scroll and no clipping. The cell grows to fit its chips, and CSS
+   grid already equalises every cell in the same week row, so the grid stays
+   tidy. The previous `min-height` + `overflow:hidden` + `overflow-y:auto`
+   combination produced up to forty-two independent scrollbars — a task past
+   the third was invisible, and the quick-add box was clipped out of a full
+   cell entirely. */
+
+.plan-cell.is-out { background: #FBFAF7; }
+.plan-cell.is-out .plan-daynum { color: #B9B4A8; }
+
+.plan-cell.is-today { border-color: var(--admin-green); }
+
+.plan-cell.is-today .plan-daynum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--admin-green);
+  color: #fff;
+}
+
+.plan-cellhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan-daynum {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--admin-muted);
+  padding-left: 2px;
+}
+
+.plan-addday {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--admin-muted);
+  cursor: pointer;
+  /* Always present, just quiet. Hiding it until hover made the only way to
+     add a task on a given day invisible until you happened to sweep the
+     mouse over the right cell — and invisible entirely on a touch screen. */
+  opacity: 0.4;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.plan-cell:hover .plan-addday,
+.plan-addday:focus-visible { opacity: 1; }
+
+.plan-addday:hover {
+  opacity: 1;
+  background: var(--urgency-normal-tint);
+  color: var(--admin-green);
+}
+
+.plan-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ----------------------------------------------------------------- chip */
+
+.plan-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 7px 5px 5px;
+  border-radius: 6px;
+  border-left: 3px solid var(--urgency-normal);
+  background: var(--urgency-normal-tint);
+  font-size: 12.5px;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.plan-chip.u-low { border-left-color: var(--urgency-low); background: var(--urgency-low-tint); }
+.plan-chip.u-normal { border-left-color: var(--urgency-normal); background: var(--urgency-normal-tint); }
+.plan-chip.u-high { border-left-color: var(--urgency-high); background: var(--urgency-high-tint); }
+.plan-chip.u-urgent { border-left-color: var(--urgency-urgent); background: var(--urgency-urgent-tint); }
+
+/* A button, not a span — the title opens the detail drawer, so it has to be
+   reachable and activatable by keyboard. Stripped back to look like text. */
+.plan-chiptext {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* Two lines, then ellipsis. A single nowrap line in a ~150px cell left
+     roughly sixty pixels for the title once the tick, dot and subtask count
+     had taken their share — almost every task read as an ellipsis. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.plan-chip.is-done { opacity: 0.55; }
+.plan-chip.is-done .plan-chiptext { text-decoration: line-through; }
+
+.plan-projdot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.plan-subcount {
+  flex: none;
+  font-size: 10px;
+  color: var(--admin-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-tick {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.plan-tick[aria-pressed='true'] {
+  background: var(--admin-green);
+  border-color: var(--admin-green);
+  color: #fff;
+}
+
+.plan-tick:disabled { opacity: 0.5; cursor: progress; }
+
+.plan-quickadd input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--admin-green);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------- agenda */
+
+.plan-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.plan-bucket h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+
+.plan-bucket.is-overdue h3 { color: var(--urgency-urgent); }
+
+.plan-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--admin-line);
+  color: var(--admin-ink);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.plan-bucket ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border: 1px solid var(--admin-line);
+  border-left: 3px solid var(--urgency-normal);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.plan-row.u-low { border-left-color: var(--urgency-low); }
+.plan-row.u-normal { border-left-color: var(--urgency-normal); }
+.plan-row.u-high { border-left-color: var(--urgency-high); }
+.plan-row.u-urgent { border-left-color: var(--urgency-urgent); }
+
+.plan-row.is-done { opacity: 0.55; }
+.plan-row.is-done .plan-rowtitle { text-decoration: line-through; }
+
+.plan-rowmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-rowtitle {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-rowtitle:hover,
+.plan-chiptext:hover { text-decoration: underline; }
+
+.plan-rowmeta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.plan-client { font-weight: 500; }
+.plan-projtag { font-weight: 500; }
+
+.plan-when {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12px;
+  color: var(--admin-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-when em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--admin-muted);
+}
+
+.plan-bucket.is-overdue .plan-when em { color: var(--urgency-urgent); }
+
+.plan-empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--admin-muted);
+  font-size: 13px;
+  border: 1px dashed var(--admin-line);
+  border-radius: 10px;
+}
+
+/* ----------------------------------------------------------- responsive */
+
+@media (max-width: 700px) {
+  /* The seven-column grid is not shrunk to phone width — at that size each
+     cell is about 45px and every chip is an ellipsis. The agenda carries the
+     same information in a form that reads. */
+  .plan-grid,
+  .plan-monthbar { display: none; }
+
+  .plan-viewtoggle { display: none; }
+
+  .plan-when { align-items: flex-start; }
+
+  .plan-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

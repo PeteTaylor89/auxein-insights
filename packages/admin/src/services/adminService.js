@@ -402,10 +402,85 @@ export const adminAccountService = {
 };
 
 // ============================================
+// PARTNER DATA API
+// ============================================
+
+export const adminPartnerService = {
+  /** Every partner client, with the endpoint vocabulary the matrix renders. */
+  listClients: async () => {
+    const response = await publicApi.get(`${ADMIN_BASE}/partners`);
+    return response.data;
+  },
+
+  /** One client with all its keys, their grants and their limits. */
+  getClient: async (id) => {
+    const response = await publicApi.get(`${ADMIN_BASE}/partners/${id}`);
+    return response.data;
+  },
+
+  createClient: async (data) => {
+    const response = await publicApi.post(`${ADMIN_BASE}/partners`, data);
+    return response.data;
+  },
+
+  updateClient: async (id, data) => {
+    const response = await publicApi.patch(`${ADMIN_BASE}/partners/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Mint a key. THE RESPONSE CONTAINS THE ONLY COPY OF THE SECRET.
+   * It is not stored and cannot be re-read — the caller must show it and must
+   * not log it.
+   */
+  createKey: async (clientId, data) => {
+    const response = await publicApi.post(
+      `${ADMIN_BASE}/partners/${clientId}/keys`, data);
+    return response.data;
+  },
+
+  /**
+   * Issue a replacement carrying the same grants and limits. BOTH keys stay
+   * active — the old one is revoked separately, after the partner cuts over.
+   */
+  rotateKey: async (clientId, keyId) => {
+    const response = await publicApi.post(
+      `${ADMIN_BASE}/partners/${clientId}/keys/${keyId}/rotate`);
+    return response.data;
+  },
+
+  revokeKey: async (clientId, keyId) => {
+    const response = await publicApi.delete(
+      `${ADMIN_BASE}/partners/${clientId}/keys/${keyId}`);
+    return response.data;
+  },
+
+  /** Partial map — only the endpoints named are touched. */
+  setGrants: async (clientId, keyId, grants) => {
+    const response = await publicApi.put(
+      `${ADMIN_BASE}/partners/${clientId}/keys/${keyId}/grants`, { grants });
+    return response.data;
+  },
+
+  setLimits: async (clientId, keyId, limits) => {
+    const response = await publicApi.put(
+      `${ADMIN_BASE}/partners/${clientId}/keys/${keyId}/limits`, limits);
+    return response.data;
+  },
+
+  getUsage: async (clientId, days = 30) => {
+    const response = await publicApi.get(
+      `${ADMIN_BASE}/partners/${clientId}/usage`, { params: { days } });
+    return response.data;
+  },
+};
+
+// ============================================
 // COMBINED ADMIN SERVICE
 // ============================================
 
 const adminService = {
+  partners: adminPartnerService,
   users: adminUserService,
   weather: adminWeatherService,
   data: adminDataService,
