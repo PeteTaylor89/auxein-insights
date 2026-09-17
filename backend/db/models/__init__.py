@@ -60,7 +60,7 @@ from db.models.insights_account import (
 from db.models.insights_site import (
     InsightsSite, InsightsSiteDaily, InsightsSiteMonthly,
     InsightsSitePhenology, InsightsSiteProjection, InsightsSiteSeason,
-    InsightsSiteYield,
+    InsightsSiteYield, InsightsSiteReferenceStation,
 )
 from db.models.site_banner import SiteBanner
 from db.models.article import Article
@@ -80,3 +80,9 @@ from db.models.data_platform import (
     DeviceMeasurement,
 )
 from db.models.kpi_snapshot import KpiSnapshot
+from db.models.admin_task import AdminTask, AdminTaskSubtask
+from db.models.admin_project import AdminProject, AdminProjectNote, AdminTimeEntry
+from db.models.partner import (
+    PartnerClient, PartnerCredential, PartnerGrant, PartnerLimit,
+    PartnerRequestLog,
+)

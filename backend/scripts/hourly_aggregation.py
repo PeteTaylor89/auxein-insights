@@ -345,6 +345,40 @@ def get_zone_station_mappings(db: Session, zone_id: int = None) -> Dict[int, Lis
     return mappings
 
 
+# The variable spellings each leg of the point/zone path accepts.
+#
+# ONE DEFINITION, because two consumers now read it. `get_hourly_station_data`
+# below builds its CASE arms from this dict, and the portfolio's Stations tab
+# (`api/v1/insights_sites.account_stations`) uses the same lists to decide
+# whether a station carries a leg at all. A tab that named a station the models
+# do not actually read from — or omitted one they do — would be worse than no
+# tab, and a second hand-maintained copy of these spellings is exactly how that
+# happens. The ingestion platform normalises most sources, but not all of them
+# and not retrospectively, which is why the synonyms exist at read time.
+VARIABLE_ALIASES = {
+    'temp': ('temperature', 'temp', 'air_temperature'),
+    'rh': ('humidity', 'relative_humidity', 'rh'),
+    'rain': ('rainfall', 'precipitation', 'precip', 'rain'),
+    'wind': ('wind_speed', 'windspeed', 'wind'),
+}
+
+# QC quarantines by SETTING quality to 'QUARANTINED', so the rule is an
+# EXCLUSION — "everything QC has blessed" — never an inclusion list. Shared for
+# the same reason as the aliases: see the note inside the query below for what
+# `quality = 'GOOD'` cost when it was an inclusion filter.
+QUALITY_FILTER = "coalesce(quality, '') <> 'QUARANTINED'"
+
+
+def _alias_sql(leg: str) -> str:
+    """The `variable IN (...)` list for one leg, as SQL literals.
+
+    Built from `VARIABLE_ALIASES` rather than written out, so the query and the
+    Stations tab cannot disagree about what counts as a thermometer. The values
+    are module constants, never caller input.
+    """
+    return ", ".join("'%s'" % v for v in VARIABLE_ALIASES[leg])
+
+
 def get_hourly_station_data(
     db: Session, 
     station_ids: List[int],
@@ -368,26 +402,26 @@ def get_hourly_station_data(
     # Pivot EAV data: rows -> columns, aggregated by hour
     # Note: Different stations may report different variables (temp-only, humidity-only, etc.)
     # We include all stations and aggregate at zone level
-    result = db.execute(text("""
+    result = db.execute(text(f"""
         SELECT 
             date_trunc('hour', timestamp) as hour_utc,
             station_id,
             -- Temperature
-            AVG(CASE WHEN variable IN ('temperature', 'temp', 'air_temperature') THEN value END) as temp_mean,
-            MIN(CASE WHEN variable IN ('temperature', 'temp', 'air_temperature') THEN value END) as temp_min,
-            MAX(CASE WHEN variable IN ('temperature', 'temp', 'air_temperature') THEN value END) as temp_max,
+            AVG(CASE WHEN variable IN ({_alias_sql('temp')}) THEN value END) as temp_mean,
+            MIN(CASE WHEN variable IN ({_alias_sql('temp')}) THEN value END) as temp_min,
+            MAX(CASE WHEN variable IN ({_alias_sql('temp')}) THEN value END) as temp_max,
             -- Humidity
-            AVG(CASE WHEN variable IN ('humidity', 'relative_humidity', 'rh') THEN value END) as humidity_mean,
-            MIN(CASE WHEN variable IN ('humidity', 'relative_humidity', 'rh') THEN value END) as humidity_min,
-            MAX(CASE WHEN variable IN ('humidity', 'relative_humidity', 'rh') THEN value END) as humidity_max,
+            AVG(CASE WHEN variable IN ({_alias_sql('rh')}) THEN value END) as humidity_mean,
+            MIN(CASE WHEN variable IN ({_alias_sql('rh')}) THEN value END) as humidity_min,
+            MAX(CASE WHEN variable IN ({_alias_sql('rh')}) THEN value END) as humidity_max,
             -- Rainfall (sum for the hour, not average)
-            SUM(CASE WHEN variable IN ('rainfall', 'precipitation', 'precip', 'rain') THEN value ELSE 0 END) as rainfall_mm,
+            SUM(CASE WHEN variable IN ({_alias_sql('rain')}) THEN value ELSE 0 END) as rainfall_mm,
             -- Wind, m/s at every source. AVG not MAX: the drying term is about
             -- the hour's ventilation, and a gust is already its own variable.
-            AVG(CASE WHEN variable IN ('wind_speed', 'windspeed', 'wind') THEN value END) as wind_mean,
+            AVG(CASE WHEN variable IN ({_alias_sql('wind')}) THEN value END) as wind_mean,
             -- Record counts per variable type
-            COUNT(DISTINCT CASE WHEN variable IN ('temperature', 'temp', 'air_temperature') THEN timestamp END) as temp_count,
-            COUNT(DISTINCT CASE WHEN variable IN ('humidity', 'relative_humidity', 'rh') THEN timestamp END) as humidity_count
+            COUNT(DISTINCT CASE WHEN variable IN ({_alias_sql('temp')}) THEN timestamp END) as temp_count,
+            COUNT(DISTINCT CASE WHEN variable IN ({_alias_sql('rh')}) THEN timestamp END) as humidity_count
         FROM weather_data
         WHERE station_id = ANY(:station_ids)
           AND timestamp >= :start_dt
@@ -411,7 +445,7 @@ def get_hourly_station_data(
           --     case-sensitive.
           -- Measured over 7 days: 71 stations / 10 zones under the old filter
           -- against 92 / 19 under this one.
-          AND coalesce(quality, '') <> 'QUARANTINED'
+          AND {QUALITY_FILTER}
         GROUP BY date_trunc('hour', timestamp), station_id
         ORDER BY hour_utc, station_id
     """), {

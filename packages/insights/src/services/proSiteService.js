@@ -284,6 +284,50 @@ export function downloadAccountTimeseriesCsv(slug, opts = {}) {
                      opts, `${slug}_daily.csv`);
 }
 
+/**
+ * Each site's MEASURED equivalent: one real station per variable, and its reach.
+ *
+ * A SEPARATE REQUEST FROM THE PORTFOLIO, on purpose — most visits never leave
+ * the first tab, and folding this in would make everybody wait for a tab they
+ * did not ask for.
+ *
+ * These are OBSERVED station aggregates, not adjusted toward the site. Every
+ * other number on the account is modelled: the daily record comes from the
+ * 500 m surface and the hourly record is interpolated from neighbours. The
+ * payload carries that distinction in `basis` and the tab prints it, along with
+ * the distance and signed elevation difference that bound the word "equivalent".
+ *
+ * A variable may carry `role: 'fill'`, meaning the client's nominated mast does
+ * not measure it and a different station supplied it. That is a different claim
+ * and the UI must not render the two identically.
+ */
+export async function getAccountReference(slug) {
+  const { data } = await publicApi.get(
+    `/insights/accounts/${encodeURIComponent(slug)}/reference`,
+  );
+  return data;
+}
+
+/**
+ * The measured daily record. `siteId` narrows to one site, which is what the
+ * modal asks for — the whole account is ~3,000 rows to draw 380.
+ */
+export async function getAccountReferenceDaily(slug, { siteId, start, end } = {}) {
+  const { data } = await publicApi.get(
+    `/insights/accounts/${encodeURIComponent(slug)}/reference-daily`,
+    { params: { site_id: siteId, start, end } },
+  );
+  return data;
+}
+
+export function downloadAccountReferenceCsv(slug, { start, end } = {}) {
+  return downloadCsv(
+    `/insights/accounts/${encodeURIComponent(slug)}/reference-daily.csv`,
+    { start, end },
+    `${slug}_reference_daily.csv`,
+  );
+}
+
 // Metrics worth charting on the Pro page, in the order a grower reads them.
 // `r99p` is absent because the API omits it per site and says so in
 // `meta.omitted` — showing it computed a different way from the regional figure

@@ -155,29 +155,25 @@ class Neighbour:
 PAIR_TEMP_KM = 3.0
 
 
-def nearest_stations(db: Session, lat: float, lon: float,
-                     limit: int = MAX_NEIGHBOURS,
-                     max_km: float = None) -> list[Neighbour]:
-    """The closest active stations to a point, nearest first.
+# The station predicate, in one place. `is_active` is the whole eligibility
+# rule: a quarantined or decommissioned station must not be interpolated from,
+# and a station with no coordinates cannot be weighted by distance at all.
+_STATION_COLUMNS = "station_id, latitude, longitude, elevation"
+_STATION_PREDICATE = ("is_active "
+                      "AND latitude IS NOT NULL AND longitude IS NOT NULL")
 
-    Bounded by a bounding box first so the database can use an index rather than
-    computing a great-circle distance for every station in the country; the exact
-    distance is then applied to the shortlist. The box is deliberately generous.
+
+def _rank(rows, lat: float, lon: float, cap: float,
+          limit: int) -> list[Neighbour]:
+    """Exact distance, the cap, and the ordering — the ranking itself.
+
+    THE ONE DEFINITION. `nearest_stations` reaches it through a bounding-box
+    query and `nearest_stations_bulk` through a single catalogue read, and they
+    have to return the same neighbours for the same point or the Stations tab
+    would name stations the disease models are not reading from. The box in
+    `nearest_stations` is only an index hint — it is always at least as large as
+    `cap`, and this function applies the true great-circle test either way.
     """
-    cap = max_km or max(MAX_TEMP_KM, MAX_HUMIDITY_KM, MAX_RAIN_KM, MAX_WIND_KM)
-    # One degree of latitude is ~111 km; longitude shrinks with latitude.
-    dlat = cap / 111.0
-    dlon = cap / (111.0 * max(0.2, math.cos(math.radians(lat))))
-    rows = db.execute(text("""
-        SELECT station_id, latitude, longitude, elevation
-          FROM weather_stations
-         WHERE is_active
-           AND latitude IS NOT NULL AND longitude IS NOT NULL
-           AND latitude BETWEEN :lat0 AND :lat1
-           AND longitude BETWEEN :lon0 AND :lon1
-    """), {"lat0": lat - dlat, "lat1": lat + dlat,
-           "lon0": lon - dlon, "lon1": lon + dlon}).fetchall()
-
     out = []
     for sid, slat, slon, elev in rows:
         d = haversine_km(lat, lon, float(slat), float(slon))
@@ -187,6 +183,59 @@ def nearest_stations(db: Session, lat: float, lon: float,
                                  float(slat), float(slon)))
     out.sort(key=lambda n: n.distance_km)
     return out[:limit]
+
+
+def default_cap() -> float:
+    """The widest leg's reach — how far a neighbour can matter for anything."""
+    return max(MAX_TEMP_KM, MAX_HUMIDITY_KM, MAX_RAIN_KM, MAX_WIND_KM)
+
+
+def nearest_stations(db: Session, lat: float, lon: float,
+                     limit: int = MAX_NEIGHBOURS,
+                     max_km: float = None) -> list[Neighbour]:
+    """The closest active stations to a point, nearest first.
+
+    Bounded by a bounding box first so the database can use an index rather than
+    computing a great-circle distance for every station in the country; the exact
+    distance is then applied to the shortlist by `_rank`. The box is deliberately
+    generous.
+    """
+    cap = max_km or default_cap()
+    # One degree of latitude is ~111 km; longitude shrinks with latitude.
+    dlat = cap / 111.0
+    dlon = cap / (111.0 * max(0.2, math.cos(math.radians(lat))))
+    rows = db.execute(text(f"""
+        SELECT {_STATION_COLUMNS}
+          FROM weather_stations
+         WHERE {_STATION_PREDICATE}
+           AND latitude BETWEEN :lat0 AND :lat1
+           AND longitude BETWEEN :lon0 AND :lon1
+    """), {"lat0": lat - dlat, "lat1": lat + dlat,
+           "lon0": lon - dlon, "lon1": lon + dlon}).fetchall()
+
+    return _rank(rows, lat, lon, cap, limit)
+
+
+def nearest_stations_bulk(db: Session, points: dict,
+                          limit: int = MAX_NEIGHBOURS,
+                          max_km: float = None) -> dict:
+    """`nearest_stations` for many points, on ONE catalogue read.
+
+    `points` is {key: (lat, lon)}; the return is {key: [Neighbour, ...]}.
+
+    A portfolio resolves 67 points at once, and 67 bounding-box queries is 67
+    round trips to answer a question the whole station catalogue — under a
+    thousand rows — answers in one. The ranking is `_rank` either way, so this
+    returns exactly what looping `nearest_stations` would.
+    """
+    cap = max_km or default_cap()
+    rows = db.execute(text(f"""
+        SELECT {_STATION_COLUMNS}
+          FROM weather_stations
+         WHERE {_STATION_PREDICATE}
+    """)).fetchall()
+    return {key: _rank(rows, lat, lon, cap, limit)
+            for key, (lat, lon) in points.items()}
 
 
 def _idw(pairs: list[tuple[float, float]]) -> Optional[float]:

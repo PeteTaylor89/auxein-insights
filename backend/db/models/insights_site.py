@@ -409,3 +409,54 @@ class InsightsSitePhenology(Base):
     def __repr__(self) -> str:
         return (f"<InsightsSitePhenology {self.site_id} {self.variety_code} "
                 f"{self.vintage_year} {self.estimate_date}>")
+
+
+class InsightsSiteReferenceStation(Base):
+    """The measured station standing in for this site, one per variable.
+
+    Created by `alembic/versions/site_reference_station.py`; the reasoning for
+    the shape lives there and is not repeated. The two things that read as
+    omissions from here:
+
+    * `(site_id, variable)` is the WHOLE key, so one station supplies each
+      variable and the database says so. A mast that measures four things is
+      four rows because councils register each sensor as its own station.
+    * `role` distinguishes the mast the client nominated from one borrowed
+      because that mast does not measure the variable at all. They are different
+      claims about where a number came from, and a screen that showed them
+      identically would put the client's name on a reading their station never
+      took.
+    """
+    __tablename__ = 'insights_site_reference_station'
+
+    site_id = Column(BigInteger,
+                     ForeignKey('insights_site.id', ondelete='CASCADE'),
+                     primary_key=True)
+    # 'temp' | 'humidity' | 'rainfall' | 'solar' — the column GROUPS of
+    # `weather_data_daily`. `temp` carries the GDD columns too: a growing degree
+    # day is derived from that station's own temperatures and must not come from
+    # a different mast than the temperatures behind it.
+    variable = Column(Text, primary_key=True)
+
+    # `weather_stations` here and `devices` in the migration, deliberately.
+    # That name is a VIEW over `devices` — Postgres will not accept a foreign
+    # key to it — but SQLAlchemy resolves this against its own metadata, where
+    # the view is a mapped table, and never checks it against the database.
+    # `realtime_climate.py` and `data_platform.py` declare it the same way. The
+    # constraint that is actually enforced is the one in the migration.
+    station_id = Column(Integer,
+                        ForeignKey('weather_stations.station_id',
+                                   ondelete='RESTRICT'),
+                        nullable=False, index=True)
+    # 'primary' | 'fill'
+    role = Column(Text, nullable=False, server_default='primary')
+    note = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(),
+                        nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(),
+                        nullable=True)
+
+    def __repr__(self) -> str:
+        return (f"<InsightsSiteReferenceStation site={self.site_id} "
+                f"{self.variable}={self.station_id} {self.role}>")

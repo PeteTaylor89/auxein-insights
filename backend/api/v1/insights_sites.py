@@ -54,7 +54,9 @@ from services import insights_site_baseline as site_baseline
 from services import phenology_basis as basis
 from services.insights_dashboard import PHENOLOGY_HARVEST_TARGETS
 from services import site_water as water
+from services import point_climate as pc
 from services import workflow_dispatch
+from scripts import hourly_aggregation as hourly
 from scripts.disease_service_v2 import BacchusModel
 
 log = logging.getLogger(__name__)
@@ -1597,6 +1599,743 @@ def account_portfolio_csv(slug: str,
         media_type="text/csv",
         headers={"Content-Disposition":
                  f'attachment; filename="portfolio_{stamp}.csv"'})
+
+
+# --- enterprise accounts: where each site's hourly record comes from ---------
+#
+# THIS TAB IS ABOUT THE POINT PATH, AND ONLY THE POINT PATH.
+#
+# Two spatial paths feed a site and they are not interchangeable:
+#
+#   * The SURFACE path — temperature, rainfall, GDD, the long-term average and
+#     both phenology models — reads this site's cell out of the national 500 m
+#     raster. That raster is fitted over every station in the country at once,
+#     so no station "feeds" one site and naming two would be a fiction.
+#   * The POINT path — the hourly series, leaf wetness, and therefore all four
+#     disease models — interpolates the stations near the site, in
+#     `services/point_climate`. That IS a per-site station list, and it is what
+#     this endpoint reports.
+#
+# Presenting this as "the data sources for this site" would misattribute
+# three-quarters of the portfolio's columns, which is why the payload carries
+# `paths` and the tab prints it.
+#
+# NOTHING HERE RE-RANKS OR RE-WEIGHTS. The neighbours come from
+# `point_climate.nearest_stations_bulk` (the same `_rank` the disease pipeline
+# reaches through `nearest_stations`), the caps are that module's constants, the
+# weights are its IDW, the confidence is its `confidence_for`, and the variable
+# spellings are `hourly_aggregation.VARIABLE_ALIASES`. A tab that names a
+# station the models are not reading from is worse than no tab at all.
+
+# The four legs, in the order they limit a disease score: humidity is the
+# binding constraint (`confidence_for` says so), temperature is available almost
+# everywhere, rainfall is capped hardest because convective rain is cellular,
+# and wind only trims the drying term.
+_STATION_LEGS = (
+    ("temp", "Temperature", pc.MAX_TEMP_KM),
+    ("rh", "Humidity", pc.MAX_HUMIDITY_KM),
+    ("rain", "Rainfall", pc.MAX_RAIN_KM),
+    ("wind", "Wind", pc.MAX_WIND_KM),
+)
+
+# How recently a station must have reported to count as feeding the site today.
+# Seven days, not one: ECAN_AIR lands ~24.8 h behind and the morning chain is
+# D-1, so a 24 h window would report half the South Island as silent every
+# morning. Long enough to be stable, short enough that a dead gauge shows up.
+STATION_WINDOW_DAYS = 7
+
+# How many stations per leg the tab names. Two is the question people ask; the
+# contributor COUNT beside it is what stops two from reading as all of them.
+STATIONS_PER_LEG = 2
+
+
+def _station_reports(db: Session, station_ids: list, since: datetime) -> dict:
+    """{(station_id, leg): (n, last_at)} over the window.
+
+    ONE query for every station on the account, not one per site — 67 sites
+    share 143 neighbours, and the union is what the database should be asked
+    about.
+
+    `variable = ANY(...)` is in the WHERE clause and it is NOT cosmetic.
+    `weather_data` is a view over 47 partitions; grouping first and classifying
+    the variable afterwards measured 50 seconds, against 1.3 with the variable
+    list constraining the scan. The timestamp bound is mandatory for the same
+    reason.
+    """
+    if not station_ids:
+        return {}
+    # Flattened once, so the leg each spelling belongs to is still derived from
+    # the same dict the hourly query builds its CASE arms from.
+    leg_of = {spelling: leg
+              for leg, spellings in hourly.VARIABLE_ALIASES.items()
+              for spelling in spellings}
+    rows = db.execute(text(f"""
+        SELECT station_id, variable, count(*) AS n, max(timestamp) AS last_at
+          FROM weather_data
+         WHERE station_id = ANY(:ids)
+           AND variable = ANY(:vars)
+           AND timestamp >= :since
+           AND {hourly.QUALITY_FILTER}
+         GROUP BY station_id, variable
+    """), {"ids": station_ids, "vars": list(leg_of), "since": since}).all()
+
+    out = {}
+    for station_id, variable, n, last_at in rows:
+        key = (station_id, leg_of[variable])
+        have = out.get(key)
+        # A mast can report two spellings of one leg. Sum the records and keep
+        # the later timestamp — treating the second spelling as its own leg
+        # would double-count a station that simply changed its vocabulary.
+        out[key] = (n if have is None else have[0] + n,
+                    last_at if have is None or last_at > have[1] else have[1])
+    return out
+
+
+def _account_station_sites(db: Session, account_id: int,
+                           per_leg: int = STATIONS_PER_LEG,
+                           window_days: int = STATION_WINDOW_DAYS):
+    """Every site on the account with the stations its hourly record is built
+    from, per leg, nearest first. Returns (sites, generated_at)."""
+    rows = db.execute(text("""
+        SELECT s.id, s.label, s.external_ref, s.site_type, s.status,
+               s.latitude, s.longitude, s.elevation_m, s.requested_metrics,
+               z.name AS zone_name
+          FROM insights_site s
+          LEFT JOIN climate_zones z ON z.id = s.zone_id
+         WHERE s.account_id = :acc
+         ORDER BY z.name NULLS LAST, s.label
+    """), {"acc": account_id}).mappings().all()
+
+    now = datetime.now(timezone.utc)
+    points = {r["id"]: (float(r["latitude"]), float(r["longitude"]))
+              for r in rows}
+    neighbours = pc.nearest_stations_bulk(db, points)
+
+    station_ids = sorted({n.station_id
+                          for group in neighbours.values() for n in group})
+    reports = _station_reports(db, station_ids,
+                               now - timedelta(days=window_days))
+    meta = {r[0]: r for r in db.execute(text("""
+        SELECT station_id, station_code, station_name, data_source, region
+          FROM weather_stations WHERE station_id = ANY(:ids)
+    """), {"ids": station_ids}).all()} if station_ids else {}
+
+    sites = []
+    for r in rows:
+        legs = {}
+        estimate = {}
+        for leg, _label, cap in _STATION_LEGS:
+            # Eligible = carries this leg, AND is inside THIS leg's cap. Both
+            # tests matter: the two nearest stations to Appleby are rain gauges,
+            # so ranking on distance alone would name stations that contribute
+            # nothing to its humidity.
+            eligible = [n for n in neighbours[r["id"]]
+                        if (n.station_id, leg) in reports
+                        and n.distance_km <= cap]
+            weights = [1.0 / max(n.distance_km, pc.MIN_SEPARATION_KM) ** pc.IDW_POWER
+                       for n in eligible]
+            total = sum(weights)
+            named = []
+            for rank, (n, w) in enumerate(zip(eligible, weights), start=1):
+                if rank > per_leg:
+                    break
+                _count, last_at = reports[(n.station_id, leg)]
+                m = meta.get(n.station_id)
+                named.append({
+                    "rank": rank,
+                    "station_id": n.station_id,
+                    "code": m[1] if m else None,
+                    "name": m[2] if m else None,
+                    "source": m[3] if m else None,
+                    "distance_km": _num(n.distance_km, 2),
+                    "elevation_m": _num(n.elevation_m, 0),
+                    # The share of the IDW weight this station carries, over
+                    # EVERY eligible contributor rather than over the two shown.
+                    # Cromwell's thermometer is 100% of its own leg while
+                    # Martinborough's top gauge is 26% of eleven; a percentage
+                    # normalised over the two named would print both near 100
+                    # and hide the entire difference.
+                    "weight_pct": _num(w / total * 100.0, 1) if total else None,
+                    "last_report": last_at.isoformat() if last_at else None,
+                    "hours_stale": _num(
+                        (now - last_at).total_seconds() / 3600.0, 1)
+                    if last_at else None,
+                })
+            legs[leg] = {
+                "cap_km": cap,
+                # HOW MANY, not how many are shown. A leg resting on one sensor
+                # and a leg averaging eleven are different products, and the two
+                # named rows look identical without this number.
+                "contributors": len(eligible),
+                "nearest_km": _num(eligible[0].distance_km, 2) if eligible else None,
+                "stations": named,
+            }
+            estimate[f"{leg}_station_count"] = len(eligible)
+            estimate[f"{leg}_nearest_km"] = (eligible[0].distance_km
+                                             if eligible else None)
+
+        sites.append({
+            "site_id": r["id"],
+            "label": r["label"],
+            "external_ref": r["external_ref"],
+            "site_type": r["site_type"],
+            "status": r["status"],
+            "zone_name": r["zone_name"],
+            "latitude": _num(r["latitude"], 5),
+            "longitude": _num(r["longitude"], 5),
+            "elevation_m": _num(r["elevation_m"], 0),
+            "requested_metrics": r["requested_metrics"],
+            # `point_climate.confidence_for`, NOT a second rule. This is the
+            # same word `insights_site_hourly.confidence` carries on every row
+            # the disease models scored, so the tab and the record agree by
+            # construction rather than by review.
+            "confidence": pc.confidence_for(estimate),
+            "legs": legs,
+        })
+    return sites, now
+
+
+@router.get("/accounts/{slug}/stations")
+def account_stations(slug: str,
+                     per_leg: int = Query(STATIONS_PER_LEG, ge=1, le=6),
+                     window_days: int = Query(STATION_WINDOW_DAYS, ge=1, le=90),
+                     db: Session = Depends(get_db),
+                     user: PublicUser = Depends(require_pro)):
+    """Which stations feed each site's hourly record, per leg, nearest first.
+
+    Resolved AT REQUEST TIME rather than read back from a table, and that is a
+    deliberate limit rather than an omission. `insights_site_hourly` stores
+    `*_station_count` and `*_nearest_km` but never the station IDENTITY, so the
+    only honest answer available is "the network as it stands now". This
+    endpoint cannot say which station produced last Tuesday's botrytis score,
+    and the tab must not imply that it can.
+
+    It is cheap to resolve: the neighbour set is a property of the site, not of
+    the hour, which is why `PointInterpolator` also resolves it once and reuses
+    it for every hour of a backfill.
+    """
+    account = _account(db, slug, user)
+    sites, generated_at = _account_station_sites(db, account["id"],
+                                                 per_leg, window_days)
+
+    # Counted off the rows, so the footer and the table cannot disagree.
+    distinct = {st["station_id"]
+                for site in sites for leg in site["legs"].values()
+                for st in leg["stations"]}
+    return {
+        "account": {"slug": account["slug"], "name": account["name"],
+                    "role": account["role"]},
+        "generated_at": generated_at.isoformat(),
+        "window_days": window_days,
+        "per_leg": per_leg,
+        # The caps are the product decision on this page and belong in the
+        # payload: a leg is empty because of one of these numbers, and a reader
+        # cannot tell "no station" from "none close enough" without them.
+        "caps_km": {leg: cap for leg, _label, cap in _STATION_LEGS},
+        "legs": [{"key": leg, "label": label, "cap_km": cap}
+                 for leg, label, cap in _STATION_LEGS],
+        # What this page is and is not about. Rendered, not decorative.
+        "paths": {
+            "point": ("Hourly record, leaf wetness and all four disease models "
+                      "— interpolated from the stations below."),
+            "surface": ("Temperature, rainfall, GDD, the long-term average and "
+                        "both phenology models — read from the national 500 m "
+                        "surface, which is fitted over every station in the "
+                        "country. No single station feeds those columns."),
+        },
+        "summary": {
+            "sites": len(sites),
+            "stations": len(distinct),
+            # The three worth looking at, and each is a different failure. No
+            # humidity in range means the disease models cannot score the site
+            # at all; a single contributor means one sensor fault is a total
+            # outage rather than a degradation.
+            "no_humidity": sum(1 for s in sites
+                               if not s["legs"]["rh"]["contributors"]),
+            "single_contributor": sum(
+                1 for s in sites
+                if any(leg["contributors"] == 1 for leg in s["legs"].values())),
+            "low_confidence": sum(1 for s in sites
+                                  if s["confidence"] == "low"),
+        },
+        "sites": sites,
+    }
+
+
+# One row per site per leg per named station — FLAT, because a nested payload is
+# not a spreadsheet. `site_id` and `variable` together are the key, and the file
+# concatenates with itself across accounts.
+_STATION_CSV_COLUMNS = [
+    ("site_id", lambda s, leg, st: s["site_id"]),
+    ("label", lambda s, leg, st: s["label"]),
+    ("external_ref", lambda s, leg, st: s["external_ref"]),
+    ("site_type", lambda s, leg, st: s["site_type"]),
+    ("region", lambda s, leg, st: s["zone_name"]),
+    ("site_latitude", lambda s, leg, st: s["latitude"]),
+    ("site_longitude", lambda s, leg, st: s["longitude"]),
+    ("site_elevation_m", lambda s, leg, st: s["elevation_m"]),
+    ("confidence", lambda s, leg, st: s["confidence"]),
+    ("variable", lambda s, leg, st: leg),
+    ("cap_km", lambda s, leg, st: s["legs"][leg]["cap_km"]),
+    # The count travels on EVERY row, not only the first. A spreadsheet gets
+    # sorted, and a value that only makes sense next to the row above it is a
+    # value that will eventually be read against the wrong site.
+    ("contributors", lambda s, leg, st: s["legs"][leg]["contributors"]),
+    ("nearest_km", lambda s, leg, st: s["legs"][leg]["nearest_km"]),
+    ("rank", lambda s, leg, st: st and st["rank"]),
+    ("station_id", lambda s, leg, st: st and st["station_id"]),
+    ("station_code", lambda s, leg, st: st and st["code"]),
+    ("station_name", lambda s, leg, st: st and st["name"]),
+    ("data_source", lambda s, leg, st: st and st["source"]),
+    ("distance_km", lambda s, leg, st: st and st["distance_km"]),
+    ("station_elevation_m", lambda s, leg, st: st and st["elevation_m"]),
+    ("weight_pct", lambda s, leg, st: st and st["weight_pct"]),
+    ("last_report_utc", lambda s, leg, st: st and st["last_report"]),
+    ("hours_stale", lambda s, leg, st: st and st["hours_stale"]),
+]
+
+
+@router.get("/accounts/{slug}/stations.csv")
+def account_stations_csv(slug: str,
+                         per_leg: int = Query(STATIONS_PER_LEG, ge=1, le=6),
+                         window_days: int = Query(STATION_WINDOW_DAYS,
+                                                  ge=1, le=90),
+                         db: Session = Depends(get_db),
+                         user: PublicUser = Depends(require_pro)):
+    """The same rows as the tab, from the SAME builder.
+
+    A LEG WITH NO STATION STILL WRITES A ROW, with the station columns empty.
+    Dropping it would make "this site has no hygrometer in range" — the most
+    actionable fact in the file — indistinguishable from a site that was never
+    exported, and a reader has no way to notice the absence of a row.
+    """
+    import csv
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    account = _account(db, slug, user)
+    sites, _generated = _account_station_sites(db, account["id"],
+                                               per_leg, window_days)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([name for name, _ in _STATION_CSV_COLUMNS])
+    for site in sites:
+        for leg, _label, _cap in _STATION_LEGS:
+            for station in (site["legs"][leg]["stations"] or [None]):
+                writer.writerow([
+                    "" if (v := get(site, leg, station)) is None
+                    else _csv_number(v)
+                    for _, get in _STATION_CSV_COLUMNS])
+    buf.seek(0)
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition":
+                 f'attachment; filename="stations_{account["slug"]}.csv"'})
+
+
+# --- enterprise accounts: the measured equivalent of each site --------------
+#
+# A MEASURED STATION BESIDE THE MODELLED SITE, which is a different product from
+# the portfolio and from the station network behind the disease models.
+#
+# Everything else on this account is estimated: the daily record comes from the
+# 500 m surface, the hourly record is interpolated from neighbours. BSI asked for
+# the other thing — the observed record of one real station as close as possible
+# to each Regional site, to read the estimate against. So these numbers are
+# nobody's model output. They are `weather_data_daily`, a station's own
+# aggregated observations, and they are not adjusted toward the site in any way.
+#
+# WHICH IS WHY THE DISTANCE AND THE ELEVATION DIFFERENCE TRAVEL EVERYWHERE. The
+# whole claim is "equivalent", and those two numbers are what bound it: at the
+# engine's own 0.6 degC/100 m, Waipara West's borrowed thermometer sits 67 m
+# below the site, which is ~0.4 degC before anything else is considered. A table
+# that printed the reading without the separation would be asserting a
+# measurement AT the site, which is exactly what this platform does not have.
+
+# `weather_data_daily` column groups. The keys are `variable` on
+# `insights_site_reference_station` and the CHECK constraint there is the same
+# four.
+#
+# GDD RIDES WITH TEMPERATURE and cannot be its own pairing: a growing degree day
+# is derived from that station's own min and max, so sourcing it from a
+# different mast than the temperatures behind it would produce a column that
+# contradicts the two next to it.
+_REF_VARIABLES = {
+    "temp": {
+        "label": "Temperature",
+        "probe": "temp_mean",
+        "columns": ("temp_min", "temp_max", "temp_mean",
+                    "gdd_base0", "gdd_base10"),
+        "count": "temp_record_count",
+    },
+    "humidity": {
+        "label": "Humidity",
+        "probe": "humidity_mean",
+        "columns": ("humidity_min", "humidity_max", "humidity_mean"),
+        "count": "humidity_record_count",
+    },
+    "rainfall": {
+        "label": "Rainfall",
+        "probe": "rainfall_mm",
+        "columns": ("rainfall_mm",),
+        "count": "rainfall_record_count",
+    },
+    "solar": {
+        "label": "Solar",
+        "probe": "solar_radiation",
+        "columns": ("solar_radiation",),
+        "count": None,
+    },
+}
+
+# How far back the coverage figure looks. A year, so a seasonal instrument and a
+# dead one are distinguishable — a gauge that stopped in March reads as complete
+# over any window short enough to sit inside its good period.
+REFERENCE_COVERAGE_DAYS = 365
+
+
+def _reference_pairings(db: Session, account_id: int) -> list[dict]:
+    """The stored pairing for every site on the account, with what it can give.
+
+    Distance is computed here rather than stored. A station does not move, but a
+    SITE does — a Pro point may be relocated twice a year — and a stored distance
+    would then describe a pairing that no longer exists while looking authoritative.
+    """
+    rows = db.execute(text("""
+        SELECT s.id AS site_id, s.label, s.external_ref, s.site_type,
+               s.latitude, s.longitude, s.elevation_m,
+               z.name AS zone_name,
+               f.variable, f.station_id, f.role, f.note,
+               w.station_code, w.station_name, w.data_source,
+               w.latitude AS st_lat, w.longitude AS st_lon,
+               w.elevation AS st_elev
+          FROM insights_site s
+          JOIN insights_site_reference_station f ON f.site_id = s.id
+          JOIN weather_stations w ON w.station_id = f.station_id
+          LEFT JOIN climate_zones z ON z.id = s.zone_id
+         WHERE s.account_id = :acc
+         ORDER BY z.name NULLS LAST, s.label
+    """), {"acc": account_id}).mappings().all()
+    if not rows:
+        return []
+
+    # Coverage in ONE query over every station involved, not one per pairing.
+    station_ids = sorted({r["station_id"] for r in rows})
+    probes = ", ".join(
+        f"count(*) FILTER (WHERE {v['probe']} IS NOT NULL) AS have_{k}"
+        for k, v in _REF_VARIABLES.items())
+    # Keyed by NAME, not position: `.mappings()` rows are RowMapping, and `r[0]`
+    # raises rather than returning the first column.
+    cover = {r["station_id"]: r for r in db.execute(text(f"""
+        SELECT station_id, {probes}, count(*) AS days,
+               min(date) AS first_date, max(date) AS last_date
+          FROM weather_data_daily
+         WHERE station_id = ANY(:ids) AND date >= :since
+         GROUP BY station_id
+    """), {"ids": station_ids,
+           "since": date.today() - timedelta(days=REFERENCE_COVERAGE_DAYS)}
+    ).mappings().all()}
+    # The whole record, unbounded, so the UI can say how far back a download can
+    # reach. Separate from the coverage window on purpose: one answers "is this
+    # instrument alive", the other "how much history is there".
+    span = {r[0]: (r[1], r[2]) for r in db.execute(text("""
+        SELECT station_id, min(date), max(date)
+          FROM weather_data_daily WHERE station_id = ANY(:ids)
+         GROUP BY station_id
+    """), {"ids": station_ids}).all()}
+
+    sites: dict = {}
+    for r in rows:
+        site = sites.setdefault(r["site_id"], {
+            "site_id": r["site_id"],
+            "label": r["label"],
+            "external_ref": r["external_ref"],
+            "site_type": r["site_type"],
+            "zone_name": r["zone_name"],
+            "latitude": _num(r["latitude"], 5),
+            "longitude": _num(r["longitude"], 5),
+            "elevation_m": _num(r["elevation_m"], 0),
+            "variables": {},
+        })
+        c = cover.get(r["station_id"])
+        s = span.get(r["station_id"])
+        window = (c["days"] if c else 0)
+        have = (c[f"have_{r['variable']}"] if c else 0)
+        st_elev = (float(r["st_elev"]) if r["st_elev"] is not None else None)
+        site_elev = (float(r["elevation_m"])
+                     if r["elevation_m"] is not None else None)
+        site["variables"][r["variable"]] = {
+            "label": _REF_VARIABLES[r["variable"]]["label"],
+            "station_id": r["station_id"],
+            "code": r["station_code"],
+            "name": r["station_name"],
+            "source": r["data_source"],
+            # `fill` means the client's nominated mast does not measure this and
+            # a different one was used. It is a different claim and the note
+            # says which station and why.
+            "role": r["role"],
+            "note": r["note"],
+            "distance_km": _num(pc.haversine_km(
+                float(r["latitude"]), float(r["longitude"]),
+                float(r["st_lat"]), float(r["st_lon"])), 2),
+            "elevation_m": st_elev,
+            # SIGNED, station minus site. The sign is the whole value: a
+            # thermometer BELOW the site reads warm, one above reads cool, and
+            # an absolute difference cannot say which way the bias runs.
+            "elevation_delta_m": (None if st_elev is None or site_elev is None
+                                  else round(st_elev - site_elev)),
+            "days_with_data": have,
+            "days_in_window": window,
+            "coverage_pct": _num(have / window * 100.0, 1) if window else None,
+            "record_first": s[0].isoformat() if s else None,
+            "record_last": s[1].isoformat() if s else None,
+        }
+    return list(sites.values())
+
+
+@router.get("/accounts/{slug}/reference")
+def account_reference(slug: str,
+                      db: Session = Depends(get_db),
+                      user: PublicUser = Depends(require_pro)):
+    """Each site's measured equivalent: one station per variable, and its reach.
+
+    Returns nothing for an account with no pairings, and that is not an error —
+    the pairing is a curated decision seeded per client, so most accounts
+    correctly have none.
+    """
+    account = _account(db, slug, user)
+    sites = _reference_pairings(db, account["id"])
+    fills = sum(1 for s in sites for v in s["variables"].values()
+                if v["role"] == "fill")
+    return {
+        "account": {"slug": account["slug"], "name": account["name"],
+                    "role": account["role"]},
+        "coverage_days": REFERENCE_COVERAGE_DAYS,
+        "variables": [{"key": k, "label": v["label"]}
+                      for k, v in _REF_VARIABLES.items()],
+        # What these numbers ARE, carried in the payload so the endpoint and the
+        # screen cannot end up making different claims.
+        "basis": ("Observed daily aggregates from the station itself, not "
+                  "adjusted toward the site. Every other number on this "
+                  "account is modelled — the daily record from the 500 m "
+                  "surface, the hourly record interpolated from neighbours."),
+        "summary": {
+            "sites": len(sites),
+            "stations": len({v["station_id"] for s in sites
+                             for v in s["variables"].values()}),
+            # How many variables are NOT coming from the nominated mast. The
+            # number a reader needs before trusting the word "equivalent".
+            "filled": fills,
+        },
+        "sites": sites,
+    }
+
+
+# The daily assembly. Every variable group is joined SEPARATELY, because each one
+# may come from a different station — that is the entire point of keying the
+# pairing per variable, and a single join would silently collapse Cromwell's four
+# masts into whichever one the planner reached first.
+#
+# `days` is built from the union of the pairing's own stations rather than from a
+# generated date series: a day no station reported is a day with nothing to show,
+# and manufacturing the row would fill a spreadsheet with blank dates that look
+# like outages at the site.
+_REFERENCE_DAILY_SQL = """
+WITH ref AS (
+    SELECT f.site_id, f.variable, f.station_id
+      FROM insights_site_reference_station f
+      JOIN insights_site s ON s.id = f.site_id
+     WHERE s.account_id = :acc
+), days AS (
+    SELECT DISTINCT r.site_id, w.date
+      FROM ref r
+      JOIN weather_data_daily w ON w.station_id = r.station_id
+     WHERE w.date >= :start AND w.date <= :end
+)
+SELECT d.site_id, s.label, s.external_ref, s.site_type, z.name AS zone_name,
+       d.date,
+       t.temp_min, t.temp_max, t.temp_mean,
+       t.gdd_base0, t.gdd_base10, t.temp_record_count,
+       rt.station_id AS temp_station_id, wt.station_code AS temp_station,
+       h.humidity_min, h.humidity_max, h.humidity_mean,
+       h.humidity_record_count,
+       rh.station_id AS humidity_station_id, wh.station_code AS humidity_station,
+       p.rainfall_mm, p.rainfall_record_count,
+       rp.station_id AS rainfall_station_id, wp.station_code AS rainfall_station,
+       sr.solar_radiation,
+       rs.station_id AS solar_station_id, ws.station_code AS solar_station
+  FROM days d
+  JOIN insights_site s ON s.id = d.site_id
+  LEFT JOIN climate_zones z ON z.id = s.zone_id
+
+  LEFT JOIN ref rt ON rt.site_id = d.site_id AND rt.variable = 'temp'
+  LEFT JOIN weather_stations wt ON wt.station_id = rt.station_id
+  LEFT JOIN weather_data_daily t
+         ON t.station_id = rt.station_id AND t.date = d.date
+
+  LEFT JOIN ref rh ON rh.site_id = d.site_id AND rh.variable = 'humidity'
+  LEFT JOIN weather_stations wh ON wh.station_id = rh.station_id
+  LEFT JOIN weather_data_daily h
+         ON h.station_id = rh.station_id AND h.date = d.date
+
+  LEFT JOIN ref rp ON rp.site_id = d.site_id AND rp.variable = 'rainfall'
+  LEFT JOIN weather_stations wp ON wp.station_id = rp.station_id
+  LEFT JOIN weather_data_daily p
+         ON p.station_id = rp.station_id AND p.date = d.date
+
+  LEFT JOIN ref rs ON rs.site_id = d.site_id AND rs.variable = 'solar'
+  LEFT JOIN weather_stations ws ON ws.station_id = rs.station_id
+  LEFT JOIN weather_data_daily sr
+         ON sr.station_id = rs.station_id AND sr.date = d.date
+
+ ORDER BY s.label, d.date
+"""
+
+
+def _reference_window(vintage: Optional[int], start, end):
+    """The date range, defaulting to the season the portfolio is showing.
+
+    1 September to 30 April, the SAME gate the accumulators use, so a reference
+    export and a portfolio row cover the same days and a client comparing them
+    is comparing places rather than calendars.
+    """
+    if start and end:
+        return start, end
+    if vintage is None:
+        vintage = dashboard.current_vintage(datetime.now(timezone.utc).date())
+    return (start or date(vintage - 1, 9, 1),
+            end or min(date(vintage, 4, 30), date.today()))
+
+
+def _reference_daily_rows(db: Session, account_id: int, start, end):
+    return [dict(r) for r in db.execute(
+        text(_REFERENCE_DAILY_SQL),
+        {"acc": account_id, "start": start, "end": end}).mappings().all()]
+
+
+@router.get("/accounts/{slug}/reference-daily")
+def account_reference_daily(slug: str,
+                            vintage: Optional[int] = Query(None),
+                            start: Optional[date] = Query(None),
+                            end: Optional[date] = Query(None),
+                            site_id: Optional[int] = Query(None),
+                            db: Session = Depends(get_db),
+                            user: PublicUser = Depends(require_pro)):
+    """The measured daily record, one row per site per date.
+
+    `site_id` narrows to one site, which is what the screen asks for — a client
+    reads one site's days at a time, and shipping eight sites' worth to render
+    one is ~3,000 rows to draw 380.
+    """
+    account = _account(db, slug, user)
+    lo, hi = _reference_window(vintage, start, end)
+    rows = _reference_daily_rows(db, account["id"], lo, hi)
+    if site_id is not None:
+        rows = [r for r in rows if r["site_id"] == site_id]
+    return {
+        "account": {"slug": account["slug"], "name": account["name"]},
+        "start": lo.isoformat(),
+        "end": hi.isoformat(),
+        "rows": [{
+            "site_id": r["site_id"], "label": r["label"],
+            "date": r["date"].isoformat(),
+            "temp_min": _num(r["temp_min"], 1),
+            "temp_max": _num(r["temp_max"], 1),
+            "temp_mean": _num(r["temp_mean"], 1),
+            "gdd_base10": _num(r["gdd_base10"], 1),
+            "gdd_base0": _num(r["gdd_base0"], 1),
+            "humidity_min": _num(r["humidity_min"], 1),
+            "humidity_max": _num(r["humidity_max"], 1),
+            "humidity_mean": _num(r["humidity_mean"], 1),
+            "rainfall_mm": _num(r["rainfall_mm"], 1),
+            "solar_radiation": _num(r["solar_radiation"], 1),
+            # THE RECORD COUNTS TRAVEL WITH THE VALUES. A daily mean built from
+            # three readings and one built from 144 are not the same number, and
+            # nothing else on the row can tell them apart. A partial day is the
+            # most common way an observed series quietly disagrees with a
+            # modelled one.
+            "temp_records": r["temp_record_count"],
+            "humidity_records": r["humidity_record_count"],
+            "rainfall_records": r["rainfall_record_count"],
+        } for r in rows],
+    }
+
+
+# One row per site per date. The station CODE is on every row rather than in a
+# header, because a spreadsheet gets sorted and filtered and a provenance that
+# only makes sense next to the row above it will be read against the wrong site.
+_REFERENCE_CSV_COLUMNS = [
+    ("site_id", lambda r: r["site_id"]),
+    ("label", lambda r: r["label"]),
+    ("external_ref", lambda r: r["external_ref"]),
+    ("site_type", lambda r: r["site_type"]),
+    ("region", lambda r: r["zone_name"]),
+    ("date", lambda r: r["date"]),
+    ("temp_station", lambda r: r["temp_station"]),
+    ("temp_min_c", lambda r: r["temp_min"]),
+    ("temp_max_c", lambda r: r["temp_max"]),
+    ("temp_mean_c", lambda r: r["temp_mean"]),
+    ("temp_records", lambda r: r["temp_record_count"]),
+    ("gdd_base0", lambda r: r["gdd_base0"]),
+    ("gdd_base10", lambda r: r["gdd_base10"]),
+    ("humidity_station", lambda r: r["humidity_station"]),
+    ("humidity_min_pct", lambda r: r["humidity_min"]),
+    ("humidity_max_pct", lambda r: r["humidity_max"]),
+    ("humidity_mean_pct", lambda r: r["humidity_mean"]),
+    ("humidity_records", lambda r: r["humidity_record_count"]),
+    ("rainfall_station", lambda r: r["rainfall_station"]),
+    ("rainfall_mm", lambda r: r["rainfall_mm"]),
+    ("rainfall_records", lambda r: r["rainfall_record_count"]),
+    ("solar_station", lambda r: r["solar_station"]),
+    ("solar_radiation", lambda r: r["solar_radiation"]),
+]
+
+
+@router.get("/accounts/{slug}/reference-daily.csv")
+def account_reference_daily_csv(slug: str,
+                                vintage: Optional[int] = Query(None),
+                                start: Optional[date] = Query(None),
+                                end: Optional[date] = Query(None),
+                                db: Session = Depends(get_db),
+                                user: PublicUser = Depends(require_pro)):
+    """The measured daily record as CSV, from the SAME query the screen reads.
+
+    THE STATION COLUMN IS NOT OPTIONAL. Four of these columns can come from four
+    different masts at one site, and a file that named none of them would be
+    four instruments presented as one weather station. `temp_station` next to
+    `temp_mean_c` is what makes the file defensible a year after it was sent.
+
+    An absent value is an empty cell, never 0 — a day the gauge did not report
+    and a dry day are different facts, and a spreadsheet is where that
+    distinction does the most damage.
+    """
+    import csv
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    account = _account(db, slug, user)
+    lo, hi = _reference_window(vintage, start, end)
+    rows = _reference_daily_rows(db, account["id"], lo, hi)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([name for name, _ in _REFERENCE_CSV_COLUMNS])
+    for r in rows:
+        writer.writerow(["" if (v := get(r)) is None else _csv_number(v)
+                         for _, get in _REFERENCE_CSV_COLUMNS])
+    buf.seek(0)
+
+    stamp = f"{account['slug']}_{lo.isoformat()}_{hi.isoformat()}"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition":
+                 f'attachment; filename="reference_daily_{stamp}.csv"'})
 
 
 # --- time series: one site for the popup, every site for the export ----------

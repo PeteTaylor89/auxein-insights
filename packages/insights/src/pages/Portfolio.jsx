@@ -19,19 +19,22 @@
 // dash. Rendering 0 would be a claim: zero GDD accumulated, zero disease
 // pressure, an average of nothing. Before 1 September every season column on
 // this page is legitimately empty, and it has to read that way.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Download, Loader, AlertTriangle, Search, ArrowUpDown, MapPin, Info,
+  Gauge,
 } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import SiteFooter from '../components/SiteFooter';
 import AccessGate from '../components/auth/AccessGate';
 import {
   listAccounts, getAccountPortfolio, downloadAccountPortfolioCsv,
-  downloadAccountTimeseriesCsv,
+  downloadAccountTimeseriesCsv, getAccountReference,
+  downloadAccountReferenceCsv,
 } from '../services/proSiteService';
 import SitePopup from '../components/pro/SitePopup';
+import ReferenceDaily from '../components/pro/ReferenceDaily';
 import ModelsAbout from '../components/pro/ModelsAbout';
 import { usePublicAuth } from '../contexts/PublicAuthContext';
 import { isPro } from '../utils/entitlements';
@@ -98,6 +101,117 @@ const noModel = (s) => {
     : `${s.variety} is not one of the varieties this platform models`;
   return <span className="portfolio__uncal" title={why}>{label}</span>;
 };
+
+// --- the Reference tab -------------------------------------------------------
+//
+// THE MEASURED EQUIVALENT OF EACH SITE, which is a different claim from every
+// other number this client is shown.
+//
+// The Sites tab is modelled throughout: the daily record comes from the 500 m
+// surface and the disease models run on an hourly series interpolated from
+// neighbouring stations. BSI asked for the other thing — the observed record of
+// one real station as close as possible to each Regional site, to read the
+// estimate against. So nothing on this tab is adjusted toward the site, and the
+// note above the table says so in the API's own words rather than the
+// component's.
+//
+// ## ONE STATION PER VARIABLE, NOT ONE PER SITE
+//
+// "One to one" holds at the MAST and never at the row. Councils register each
+// sensor as its own station — CODC Cromwell is four station ids on one mast at
+// 212 m — and a nominated mast may not measure a variable at all: Greystone
+// Base has no thermometer, so Waipara West's temperature is borrowed from a
+// block 67 m below the site and marked `fill`. Both facts are unrepresentable
+// if a site has a single station, which is why the pairing is keyed per
+// variable in the database and rendered per variable here.
+//
+// ## Distance and elevation travel with every cell
+//
+// The whole claim is "equivalent", and those two numbers are what bound it. At
+// the engine's own 0.6 degC/100 m a 67 m difference is ~0.4 degC before
+// anything else is considered, and a signed delta is the only form that says
+// which way the bias runs.
+
+// Below this a pairing has stopped being a description of the site. Not a
+// refusal — the client chose these stations and Martinborough's best option is
+// genuinely 14.7 km away — but it is worth marking rather than leaving the
+// reader to compare eight numbers by eye.
+const REFERENCE_FAR_KM = 10;
+
+// Coverage under this over the last year is a partial instrument, and the word
+// "equivalent" is doing more work than the record supports.
+const REFERENCE_THIN_PCT = 90;
+
+const VARIABLE_ORDER = ['temp', 'humidity', 'rainfall', 'solar'];
+const VARIABLE_LABEL = {
+  temp: 'Temperature', humidity: 'Humidity',
+  rainfall: 'Rainfall', solar: 'Solar',
+};
+
+/** One variable of one site: which station supplies it, and how well. */
+function VariableCell({ v }) {
+  // NOT A DASH. A variable nobody paired is a decision, not a missing reading,
+  // and the two must not share a cell.
+  if (!v) return <span className="portfolio__nopair">not paired</span>;
+  const far = v.distance_km != null && v.distance_km > REFERENCE_FAR_KM;
+  const thin = v.coverage_pct != null && v.coverage_pct < REFERENCE_THIN_PCT;
+  return (
+    <div className="portfolio__pair">
+      <span className="portfolio__paircode"
+            title={`${v.name || ''}${v.source ? ` · ${v.source}` : ''}${
+              v.record_first ? ` · record ${v.record_first} to ${v.record_last}` : ''}`}>
+        {v.code}
+        {/* A borrowed station is a different claim from the nominated one.
+            The note carries which station and why. */}
+        {v.role === 'fill' && (
+          <em className="portfolio__fill"
+              title={v.note || 'Borrowed: the nominated station does not measure this'}>
+            fill
+          </em>
+        )}
+      </span>
+      <span className="portfolio__pairgeo">
+        <span className={far ? 'is-far' : ''}>{num(v.distance_km, 2)} km</span>
+        {v.elevation_delta_m !== null && v.elevation_delta_m !== undefined && (
+          // SIGNED. A thermometer below the site reads warm and one above reads
+          // cool; an absolute difference cannot say which.
+          <span title={`Station is ${Math.abs(v.elevation_delta_m)} m ${
+            v.elevation_delta_m > 0 ? 'above' : 'below'} the site — about ${
+            (Math.abs(v.elevation_delta_m) * 0.006).toFixed(1)} °C of lapse`}>
+            {v.elevation_delta_m > 0 ? '+' : ''}{v.elevation_delta_m} m
+          </span>
+        )}
+      </span>
+      <span className={`portfolio__paircov${thin ? ' is-thin' : ''}`}
+            title={`${v.days_with_data} of ${v.days_in_window} days in the last year`}>
+        {v.coverage_pct === null || v.coverage_pct === undefined
+          ? '—' : `${num(v.coverage_pct, 0)}%`}
+      </span>
+    </div>
+  );
+}
+
+// Variable columns sort on COVERAGE, not distance. The question this tab
+// generates is "which of these pairings can I actually rely on", and the
+// nearest station with a broken gauge is the wrong answer to it.
+const variableColumn = (key) => ({
+  key,
+  label: VARIABLE_LABEL[key],
+  sub: 'station · dist · cover',
+  get: (s) => <VariableCell v={s.variables[key]} />,
+  sort: (s) => (s.variables[key] ? s.variables[key].coverage_pct : null),
+});
+
+const REFERENCE_COLUMNS = [
+  { key: 'label', label: 'Site', sticky: true,
+    get: (s) => s.label, sort: (s) => (s.label || '').toLowerCase() },
+  { key: 'region', label: 'Region',
+    get: (s) => s.zone_name || '—', sort: (s) => s.zone_name || '' },
+  { key: 'type', label: 'Type',
+    get: (s) => SITE_TYPE_LABEL[s.site_type] || s.site_type || '—',
+    sort: (s) => s.site_type || '' },
+  ...VARIABLE_ORDER.map(variableColumn),
+];
 
 // Every column declares how to READ it and how to SORT it separately. A date
 // sorts as a string, a risk sorts by severity rather than alphabetically —
@@ -282,6 +396,21 @@ function Portfolio() {
   const [type, setType] = useState('');
   const [sort, setSort] = useState({ key: 'label', dir: 1 });
   const [showModels, setShowModels] = useState(false);
+  // 'sites' | 'reference'. Two questions about one account — what the models
+  // say, and what a real instrument nearby measured — so the filters are shared
+  // and only the columns change.
+  const [tab, setTab] = useState('sites');
+  const [reference, setReference] = useState(null);
+  const [refLoading, setRefLoading] = useState(false);
+  const [refError, setRefError] = useState(null);
+  // Bumped by "Try again". A counter rather than a boolean, so a second failure
+  // can still be retried a third time.
+  const [refRetry, setRefRetry] = useState(0);
+  // The slug already fetched, or being fetched. See the effect below for why
+  // this is a ref and not state.
+  const refFetched = useRef(null);
+  // The site whose measured days are open in the modal.
+  const [openRef, setOpenRef] = useState(null);
 
   useDocumentMeta({ title: 'Portfolio · Auxein Insights' });
 
@@ -303,6 +432,13 @@ function Portfolio() {
     if (!slug) return undefined;
     let live = true;
     setLoading(true);
+    // A new account invalidates the pairings as well as the table, and leaving
+    // the old ones mounted would show one client's stations under another
+    // client's name for as long as the second request takes.
+    setReference(null);
+    setRefError(null);
+    setRefLoading(false);
+    setOpenRef(null);
     getAccountPortfolio(slug)
       .then((d) => { if (live) { setData(d); setError(null); } })
       .catch((e) => {
@@ -311,6 +447,50 @@ function Portfolio() {
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [slug]);
+
+  // FETCHED ON FIRST OPEN, not with the portfolio. Most visits never leave the
+  // first tab, and folding this in would make everybody wait for a tab they did
+  // not ask for.
+  //
+  // THE IN-FLIGHT MARKER IS A REF, AND THE EFFECT DEPENDS ON NOTHING IT SETS.
+  // This was written with the data/loading/error state in the dependency array
+  // and a `live` flag cleared on teardown, and it hung on the spinner every
+  // time: `setRefLoading(true)` changed a dependency of its own effect, so React
+  // tore the effect down — running `live = false` — before the request came
+  // back, and every callback on it became a no-op. A ref survives that
+  // teardown, which is the whole reason it is one.
+  //
+  // It also does the job the dependencies were there for: it holds the slug
+  // already fetched, so toggling tabs does not refetch, switching accounts
+  // does, and clearing it on failure is what lets "Try again" through without
+  // opening a retry loop.
+  useEffect(() => {
+    if (tab !== 'reference' || !slug) return;
+    if (refFetched.current === slug) return;
+    refFetched.current = slug;
+    setRefLoading(true);
+    getAccountReference(slug)
+      .then((d) => {
+        // Not "is this component still mounted" but "is this still the account
+        // on screen" — the only staleness that can produce a wrong answer.
+        if (refFetched.current !== slug) return;
+        setReference(d);
+        setRefError(null);
+      })
+      .catch((e) => {
+        if (refFetched.current !== slug) return;
+        refFetched.current = null;
+        setRefError(e?.response?.data?.detail
+          || 'Could not load the reference stations for this account.');
+      })
+      .finally(() => {
+        // Left alone when another account's request has taken over, so its
+        // spinner is not cleared by this one finishing late.
+        if (refFetched.current === slug || refFetched.current === null) {
+          setRefLoading(false);
+        }
+      });
+  }, [tab, slug, refRetry]);
 
   const sites = data?.sites || [];
 
@@ -345,6 +525,52 @@ function Portfolio() {
       });
   }, [sites, query, region, type, sort]);
 
+  // THE SAME SEASON THE SITES TAB IS SHOWING, so a measured day and a modelled
+  // one sit on the same calendar. Derived from the portfolio's own
+  // `vintage_year` rather than from today's date: the two tabs would otherwise
+  // drift apart on 1 May, when the season ends but the portfolio keeps showing
+  // it. Clamped to today because a station cannot have reported tomorrow.
+  const refWindow = useMemo(() => {
+    const v = data?.vintage_year || new Date().getFullYear();
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const today = new Date();
+    const close = new Date(Date.UTC(v, 3, 30));
+    return {
+      start: `${v - 1}-09-01`,
+      end: iso(close < today ? close : today),
+    };
+  }, [data]);
+
+  // The same filters, applied to the pairing rows. Sorting and filtering stay
+  // LOCAL here for the same reason they are on the other tab — one payload,
+  // instant re-sort, and an export that cannot disagree with the screen.
+  const shownReference = useMemo(() => {
+    const rows = reference?.sites || [];
+    const q = query.trim().toLowerCase();
+    const col = REFERENCE_COLUMNS.find((c) => c.key === sort.key)
+      || REFERENCE_COLUMNS[0];
+    return rows
+      .filter((s) => (!region || s.zone_name === region))
+      .filter((s) => (!type || s.site_type === type))
+      // THE SEARCH REACHES THE STATION CODES TOO. "Which of my sites does this
+      // mast stand in for" is the second question this tab generates, and
+      // without this it is unanswerable except by eye.
+      .filter((s) => !q || (s.label || '').toLowerCase().includes(q)
+        || (s.zone_name || '').toLowerCase().includes(q)
+        || Object.values(s.variables).some(
+          (v) => `${v.code || ''} ${v.name || ''}`.toLowerCase().includes(q),
+        ))
+      .slice()
+      .sort((a, b) => {
+        const av = col.sort(a);
+        const bv = col.sort(b);
+        if (av === null || av === undefined || av === '') return 1;
+        if (bv === null || bv === undefined || bv === '') return -1;
+        if (av === bv) return 0;
+        return (av > bv ? 1 : -1) * sort.dir;
+      });
+  }, [reference, query, region, type, sort]);
+
   const toggleSort = useCallback((key) => {
     setSort((prev) => (prev.key === key
       ? { key, dir: -prev.dir }
@@ -355,12 +581,20 @@ function Portfolio() {
   // The summary is one row per site — today's state, what the table shows. The
   // daily export is one row per site per date, which is what anybody doing
   // their own analysis actually needs and is ~16,000 rows for a season.
+  //
+  // The reference export is a third product again, and the one that is not
+  // model output at all: one row per site per day of OBSERVED station
+  // aggregates, with the station that supplied each variable named on every
+  // row. It shares the season window with the other two, so the three files
+  // cover the same days and can be read side by side.
   const runExport = useCallback(async (which) => {
     setExporting(which);
     try {
       const opts = { vintage: data?.vintage_year };
       if (which === 'summary') {
         await downloadAccountPortfolioCsv(slug, opts);
+      } else if (which === 'reference') {
+        await downloadAccountReferenceCsv(slug);
       } else {
         await downloadAccountTimeseriesCsv(slug, opts);
       }
@@ -443,26 +677,61 @@ function Portfolio() {
                 <Info size={15} aria-hidden="true" /> Models
               </button>
             )}
-            <button type="button" className="btn btn-secondary"
-                    onClick={() => runExport('summary')}
-                    disabled={!data || !!exporting}
-                    title="One row per site: what this table shows">
-              {exporting === 'summary'
-                ? <Loader size={15} className="spin" aria-hidden="true" />
-                : <Download size={15} aria-hidden="true" />}
-              {' '}Summary CSV
-            </button>
-            <button type="button" className="btn btn-secondary"
-                    onClick={() => runExport('daily')}
-                    disabled={!data || !!exporting}
-                    title="One row per site per day for the whole season">
-              {exporting === 'daily'
-                ? <Loader size={15} className="spin" aria-hidden="true" />
-                : <Download size={15} aria-hidden="true" />}
-              {' '}Daily CSV
-            </button>
+            {/* THE EXPORT FOLLOWS THE TAB. Offering all three at once invites
+                somebody on the Measured tab to click "Summary CSV" and get a
+                file with no station in it. */}
+            {tab === 'sites' ? (
+              <>
+                <button type="button" className="btn btn-secondary"
+                        onClick={() => runExport('summary')}
+                        disabled={!data || !!exporting}
+                        title="One row per site: what this table shows">
+                  {exporting === 'summary'
+                    ? <Loader size={15} className="spin" aria-hidden="true" />
+                    : <Download size={15} aria-hidden="true" />}
+                  {' '}Summary CSV
+                </button>
+                <button type="button" className="btn btn-secondary"
+                        onClick={() => runExport('daily')}
+                        disabled={!data || !!exporting}
+                        title="One row per site per day for the whole season">
+                  {exporting === 'daily'
+                    ? <Loader size={15} className="spin" aria-hidden="true" />
+                    : <Download size={15} aria-hidden="true" />}
+                  {' '}Daily CSV
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn btn-secondary"
+                      onClick={() => runExport('reference')}
+                      disabled={!reference || !!exporting}
+                      title="One row per site per day of measured station data, with the station that supplied each variable named on every row">
+                {exporting === 'reference'
+                  ? <Loader size={15} className="spin" aria-hidden="true" />
+                  : <Download size={15} aria-hidden="true" />}
+                {' '}Measured CSV
+              </button>
+            )}
           </div>
         </header>
+
+        {data && (
+          <div className="portfolio__tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={tab === 'sites'}
+                    className={tab === 'sites' ? 'is-active' : ''}
+                    onClick={() => setTab('sites')}>
+              Sites
+            </button>
+            {/* "Measured" rather than "Stations": the distinction the tab
+                exists to draw is observed against modelled, and naming it after
+                the instrument buries that under a piece of infrastructure. */}
+            <button type="button" role="tab" aria-selected={tab === 'reference'}
+                    className={tab === 'reference' ? 'is-active' : ''}
+                    onClick={() => setTab('reference')}>
+              <Gauge size={14} aria-hidden="true" /> Measured
+            </button>
+          </div>
+        )}
 
         {error && (
           <p className="portfolio__error">
@@ -494,7 +763,9 @@ function Portfolio() {
               ))}
             </select>
             <span className="portfolio__count">
-              {shown.length} of {sites.length}
+              {tab === 'sites'
+                ? `${shown.length} of ${sites.length}`
+                : `${shownReference.length} of ${reference?.sites?.length ?? 0}`}
             </span>
           </div>
         )}
@@ -505,7 +776,7 @@ function Portfolio() {
           </p>
         )}
 
-        {data && !loading && (
+        {data && !loading && tab === 'sites' && (
           <>
             <div className="portfolio__scroll">
               <table className="portfolio__table">
@@ -603,9 +874,128 @@ function Portfolio() {
             </p>
           </>
         )}
+
+        {tab === 'reference' && refLoading && (
+          <p className="portfolio__loading">
+            <Loader size={16} className="spin" aria-hidden="true" />
+            {' '}Loading the measured stations…
+          </p>
+        )}
+
+        {tab === 'reference' && refError && (
+          <p className="portfolio__error">
+            <AlertTriangle size={15} aria-hidden="true" /> {refError}
+            {' '}
+            <button type="button" className="portfolio__retry"
+                    onClick={() => {
+                      setRefError(null);
+                      setRefRetry((n) => n + 1);
+                    }}>
+              Try again
+            </button>
+          </p>
+        )}
+
+        {/* NOT AN ERROR. The pairing is a curated decision seeded per client,
+            so an account with none is the normal case rather than a failure,
+            and telling the reader it broke would send them chasing a bug. */}
+        {tab === 'reference' && reference && !refLoading
+          && !reference.sites.length && (
+          <p className="portfolio__loading">
+            No measured stations are paired with this account yet.
+          </p>
+        )}
+
+        {tab === 'reference' && reference && !refLoading
+          && reference.sites.length > 0 && (
+          <>
+            {/* THE FIRST THING ON THIS TAB. Without it these readings are taken
+                for the site's own, and the whole point is that they are a
+                different instrument in a different place. The wording arrives
+                from the API so the endpoint and the screen cannot end up making
+                different claims. */}
+            <p className="portfolio__paths">
+              <Info size={14} aria-hidden="true" />
+              <span><b>Measured, not modelled.</b> {reference.basis}</span>
+            </p>
+
+            <div className="portfolio__scroll">
+              <table className="portfolio__table portfolio__table--reference">
+                <thead>
+                  <tr>
+                    {REFERENCE_COLUMNS.map((c) => (
+                      <th
+                        key={c.key}
+                        scope="col"
+                        title={c.title}
+                        className={[
+                          c.sticky ? 'is-sticky' : '',
+                          sort.key === c.key ? 'is-sorted' : '',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        <button type="button" onClick={() => toggleSort(c.key)}>
+                          <span className="portfolio__colname">{c.label}</span>
+                          {c.sub && (
+                            <span className="portfolio__colmodel">{c.sub}</span>
+                          )}
+                          <ArrowUpDown size={11} aria-hidden="true" />
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownReference.map((s) => (
+                    <tr key={s.site_id}>
+                      {REFERENCE_COLUMNS.map((c) => (c.sticky ? (
+                        <th key={c.key} scope="row" className="is-sticky">
+                          {/* Opens the measured days rather than navigating.
+                              The pairing answers "where does this come from";
+                              the modal answers "what did it record", which is
+                              the next question every time. */}
+                          <button type="button" className="portfolio__open"
+                                  onClick={() => setOpenRef(s)}>
+                            {c.get(s)}
+                          </button>
+                        </th>
+                      ) : (
+                        <td key={c.key}>{c.get(s)}</td>
+                      )))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="portfolio__foot">
+              <Gauge size={13} aria-hidden="true" />
+              {reference.summary.stations} station(s) stand in for{' '}
+              {reference.summary.sites} site(s). Each cell names the station,
+              its distance, its height against the site and how much of the last
+              {' '}{reference.coverage_days} days it actually recorded.
+              {' '}A station <b>below</b> the site reads warm and one above
+              reads cool, at roughly 0.6 &deg;C per 100 m.
+              {reference.summary.filled > 0 && (
+                <>
+                  {' '}<b>{reference.summary.filled}</b> variable(s) are marked
+                  {' '}<b>fill</b>: the nominated station does not measure them
+                  at all, so the nearest one that does was used instead &mdash;
+                  hover the badge for which and why.
+                </>
+              )}
+              {' '}Click a site for its day-by-day record. These are the
+              station's own observations and are not adjusted toward the site.
+            </p>
+          </>
+        )}
         {open && (
           <SitePopup site={open} vintage={data?.vintage_year}
                      onClose={() => setOpen(null)} />
+        )}
+        {openRef && (
+          <ReferenceDaily slug={slug} site={openRef}
+                          start={refWindow.start} end={refWindow.end}
+                          onClose={() => setOpenRef(null)} />
         )}
         <ModelsAbout isOpen={showModels} onClose={() => setShowModels(false)} />
       </main>

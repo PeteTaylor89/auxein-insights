@@ -1,0 +1,125 @@
+/* One site's measured daily record, in the shared portfolio modal shell
+   (`.sitepop__backdrop` / `.sitepop`). Narrower than SitePopup: this is a dense
+   numeric table rather than a set of time-series charts, so the constraint is
+   row legibility, not horizontal room for 242 days. */
+.refday { width: min(880px, 100%); }
+
+.refday__scroll {
+  /* The table scrolls INSIDE the modal so the header and the footnote stay put
+     while a season of rows moves. A modal that scrolls as one piece puts the
+     column headings off screen by the second week of October. */
+  max-height: min(60vh, 560px);
+  overflow: auto;
+  border: 1px solid rgb(var(--primary-rgb) / 0.18);
+  border-radius: 7px;
+}
+
+.refday__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.refday__table th,
+.refday__table td {
+  padding: 5px 9px;
+  text-align: left;
+  border-bottom: 1px solid rgb(var(--primary-rgb) / 0.1);
+  white-space: nowrap;
+}
+
+.refday__table thead th {
+  position: sticky;
+  background: #f6f7f2;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #5c6650;
+  z-index: 2;
+}
+
+/* Two sticky header rows, so the group row keeps naming the STATION while the
+   reader is forty days down the table. The offsets are hard-wired to the two
+   rows' own heights; a single sticky row would let the station scroll away and
+   leave "Min / Max / Mean" belonging to nothing. */
+.refday__table thead tr:first-child th { top: 0; }
+.refday__table thead tr:last-child th { top: 34px; }
+
+.refday__grouprow th {
+  border-bottom: 1px solid rgb(var(--primary-rgb) / 0.18);
+  border-left: 1px solid rgb(var(--primary-rgb) / 0.12);
+  text-align: center;
+}
+
+.refday__grouprow th:first-child { border-left: 0; }
+
+.refday__groupname { display: block; color: #3d4632; }
+
+/* The station code under the group name, muted but always present. */
+.refday__groupstation {
+  display: block;
+  margin-top: 1px;
+  font-weight: 500;
+  font-size: 0.64rem;
+  color: #8a9276;
+  cursor: help;
+  letter-spacing: 0.01em;
+}
+
+/* A borrowed station. Coloured because "fill" sitting in grey beside a code
+   reads as part of the code. */
+.refday__fill {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(202, 138, 4, 0.18);
+  color: #7a5a10;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.refday__table tbody th {
+  font-weight: 500;
+  color: #5c6650;
+  font-variant-numeric: tabular-nums;
+}
+
+.refday__table .is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.refday__table tbody tr:hover td,
+.refday__table tbody tr:hover th {
+  background: rgb(var(--primary-rgb) / 0.05);
+}
+
+/* A day built from too few readings. Same visual weight as the portfolio's
+   no-humidity marker, because it is the same kind of claim: the number is real
+   but weaker than the one beside it. */
+.refday__thin {
+  margin-left: 2px;
+  color: #8a6d1f;
+  text-decoration: none;
+  cursor: help;
+  font-weight: 700;
+}
+
+.refday__state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0;
+  font-size: 0.85rem;
+  color: #6b7360;
+}
+
+.refday__state.is-error { color: #b91c1c; }
+
+.refday__foot {
+  margin: 10px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #6b7360;
+}
+
+.refday__foot b { color: #5c6650; }
