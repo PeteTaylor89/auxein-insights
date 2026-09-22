@@ -298,10 +298,8 @@
 }
 
 /* --- the Measured tab ------------------------------------------------------
-   Each variable cell stacks three lines — station, geometry, coverage — so the
-   row height does the work the column count does on the Sites tab. The order
-   is the order the question is asked in: which station, how far and how high,
-   and can I rely on it. */
+   Each variable cell stacks two lines — station, then geometry — so the row
+   height does the work the column count does on the Sites tab. */
 
 .portfolio__tabs {
   display: flex;
@@ -398,16 +396,6 @@
    chose these — but it should not read the same as 800 m away. */
 .portfolio__pairgeo .is-far { color: #8a5a2b; font-weight: 600; }
 
-.portfolio__paircov {
-  font-size: 0.7rem;
-  color: #8a9276;
-  font-variant-numeric: tabular-nums;
-  cursor: help;
-}
-
-/* A partial instrument. The number is real; the record behind it is not
-   complete, and the two must not look the same. */
-.portfolio__paircov.is-thin { color: #b91c1c; font-weight: 600; }
 
 /* NOT a dash and not a muted nothing. A variable nobody paired is a decision
    somebody has to make, and it has to read as one. */

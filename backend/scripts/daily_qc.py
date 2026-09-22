@@ -39,10 +39,17 @@ look wrong.
 
 ## What is deliberately NOT checked
 
-Rainfall is not neighbour-checked. Convective rain is genuinely cellular — a
-gauge can record 40 mm while one 12 km away records nothing — so disagreement
-is signal. Rainfall's failure mode is the stuck-zero RUN, which needs months of
-context and is handled by its own quarantine, not by a daily check.
+Rainfall is not neighbour-checked DAY BY DAY. Convective rain is genuinely
+cellular — a gauge can record 40 mm while one 12 km away records nothing — so
+one day's disagreement is signal.
+
+Rainfall's failure mode is the stuck-zero RUN, and that IS checked here, over the
+run rather than the day (`check_stuck_rain`). Three weeks averages the cells out:
+no gauge reads exactly 0.0 mm for 21 reporting days while three neighbours
+record a median 20 mm. Added 2026-09-22 after five gauges were found reading 0 mm
+for all of September. Four of them had been quarantined on 08-21, and their later
+readings came in GOOD because the quarantine was a one-off UPDATE with an end
+date. So a gauge quarantined as stuck now STAYS stuck until it reports rain.
 
 Usage:
     python scripts/daily_qc.py --start 2026-08-01 --end 2026-08-23
@@ -67,6 +74,9 @@ logger = logging.getLogger("daily_qc")
 
 TEMP_VARS = ('temp', 'temperature', 'air_temperature')
 RH_VARS = ('rh', 'humidity', 'relative_humidity')
+# Mirrors `daily_aggregation.RAIN_VARS`, so a quarantine reaches every raw row
+# the daily sum is built from.
+RAIN_VARS = ('rainfall', 'precipitation', 'precip', 'rain')
 QUARANTINE_QUALITY = 'QUARANTINED'
 
 # Which raw variables to quarantine, and which daily columns to clear, for a
@@ -81,6 +91,7 @@ FAMILIES = {
     "humidity_min":  (RH_VARS, ("humidity_min", "humidity_max", "humidity_mean"), "humidity_record_count"),
     "humidity_max":  (RH_VARS, ("humidity_min", "humidity_max", "humidity_mean"), "humidity_record_count"),
     "humidity_mean": (RH_VARS, ("humidity_min", "humidity_max", "humidity_mean"), "humidity_record_count"),
+    "rainfall":  (RAIN_VARS, ("rainfall_mm",), "rainfall_record_count"),
 }
 
 # --- thresholds -------------------------------------------------------------
@@ -204,7 +215,40 @@ CHECKS = (
     "rh_flatline",
     "rh_neighbour_outlier",
     "rh_saturated",
+    "stuck_rain_zero",
+    "stuck_rain_continues",
+    "stuck_rain_suspect",
 )
+
+# --- stuck-at-zero rain gauges ---------------------------------------------
+#
+# Reporting days of exactly 0.0 mm since the gauge's last wet day before a run
+# is even considered. The 2026-09 cases were 25 days (WRC_SCHIPPERS_FARM, dead
+# on 08-27) and many months (the four HORIZONS gauges); 21 catches the first
+# inside a month.
+STUCK_RAIN_MIN_DAYS = 21
+# How far back to look for the last wet day. A gauge with none inside this
+# window is treated as dry for the whole of it.
+STUCK_RAIN_LOOKBACK = 400
+# The neighbour comparison uses at most this many trailing days of the run, so
+# a year-long fault is judged on recent weather rather than on a whole year.
+STUCK_RAIN_COMPARE_DAYS = 60
+# Corroboration: at least this many gauges within the radius, each reporting on
+# 80% of the comparison days, with a median total at or above the floor. September
+# 2026 neighbours of the five stuck gauges read 29-125 mm; 20 mm over three weeks
+# is far below that and far above what a genuinely dry spell leaves behind.
+STUCK_RAIN_RADIUS_KM = 30.0
+STUCK_RAIN_MIN_NEIGHBOURS = 3
+STUCK_RAIN_NEIGHBOUR_COVERAGE = 0.8
+STUCK_RAIN_NEIGHBOUR_MM = 20.0
+# A new detection rejects the run's zero days back this far, not just the QC
+# window, so a gauge that died three weeks ago does not keep its first week of
+# zeros. Capped so one long fault cannot trip --max-reject-rate on its own.
+STUCK_RAIN_BACKFILL_DAYS = 60
+# Quarantine reasons that mean "this gauge was stuck". The first is the manual
+# quarantine script; the second is `clean()` recording this module's own rejects.
+STUCK_RAIN_REASONS = ("stuck_rainfall_zero",)
+STUCK_RAIN_AUTO_REASON_LIKE = "auto_qc:%stuck_rain%"
 
 
 class QcRun:
@@ -592,6 +636,131 @@ def check_saturation(db, lo: date, hi: date) -> list[dict]:
     return out
 
 
+def _was_quarantined_stuck(db, station_id: int, since: date | None) -> bool:
+    """Has this gauge been quarantined as stuck since its last wet day?
+
+    Asked only of the handful of gauges showing a long dry calendar gap with
+    few reporting days — the signature of a history a quarantine has already
+    cleared — so the scan of the raw table stays per-station and bounded.
+    """
+    from sqlalchemy import text
+    return db.execute(text("""
+        SELECT 1 FROM timeseries_observations
+         WHERE station_id = :sid AND variable = ANY(:vars) AND quality = :q
+           AND (CAST(:since AS date) IS NULL OR timestamp >= CAST(:since AS date))
+           AND (quality_flags -> 'quarantine' ->> 'reason' = ANY(:reasons)
+                OR quality_flags -> 'quarantine' ->> 'reason' LIKE :auto)
+         LIMIT 1
+    """), {"sid": station_id, "vars": list(RAIN_VARS), "q": QUARANTINE_QUALITY,
+           "since": since, "reasons": list(STUCK_RAIN_REASONS),
+           "auto": STUCK_RAIN_AUTO_REASON_LIKE}).first() is not None
+
+
+def check_stuck_rain(db, lo: date, hi: date) -> list[dict]:
+    """Rain gauges stuck at exactly zero while still reporting.
+
+    Two ways in, both `reject`:
+
+    * **stuck_rain_continues**: the gauge has already been quarantined as stuck
+      and has reported no rain since. Its new zero days are rejected as they
+      arrive. A stuck gauge stays stuck until it records rain, and that first
+      wet reading is never touched, so recovery shows up by itself. The cost is
+      that a repaired gauge loses its true zeros until the next rain. That is
+      cheap, because zeros are the one value its neighbours can supply.
+    * **stuck_rain_zero**: a new fault. At least STUCK_RAIN_MIN_DAYS reporting
+      days of exactly 0.0 since the last wet day, AND corroborated: at least
+      STUCK_RAIN_MIN_NEIGHBOURS gauges within STUCK_RAIN_RADIUS_KM, reporting
+      over the same days, with a median total of STUCK_RAIN_NEIGHBOUR_MM or
+      more. A long run that cannot be corroborated (a thin network, or a
+      genuinely dry spell) is only a `stuck_rain_suspect` flag.
+
+    Only reporting days count (rainfall_record_count > 0). A NULL day is a gap,
+    and a GHCN-only SYNOP day carries no record count, so neither can look stuck.
+    """
+    from sqlalchemy import text
+    span_lo = hi - timedelta(days=STUCK_RAIN_LOOKBACK)
+    rows = db.execute(text("""
+        SELECT station_id, date, rainfall_mm
+          FROM weather_data_daily
+         WHERE date BETWEEN :lo AND :hi
+           AND rainfall_mm IS NOT NULL AND rainfall_record_count > 0
+    """), {"lo": span_lo, "hi": hi}).all()
+    if not rows:
+        return []
+    df = pd.DataFrame(rows, columns=["station_id", "date", "rain"])
+    df["rain"] = pd.to_numeric(df["rain"], errors="coerce")
+
+    loc = {int(r[0]): (float(r[1]), float(r[2])) for r in db.execute(text("""
+        SELECT station_id, latitude, longitude FROM weather_stations
+         WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+    """)).all()}
+    ids = np.array(sorted(loc))
+    lat = np.radians([loc[i][0] for i in ids])
+    lon = np.radians([loc[i][1] for i in ids])
+
+    def within(sid: int) -> np.ndarray:
+        a, b = np.radians(loc[sid][0]), np.radians(loc[sid][1])
+        h = (np.sin((lat - a) / 2) ** 2
+             + np.cos(a) * np.cos(lat) * np.sin((lon - b) / 2) ** 2)
+        km = 6371.0 * 2 * np.arcsin(np.sqrt(h))
+        return ids[(km <= STUCK_RAIN_RADIUS_KM) & (ids != sid)]
+
+    by_station = {sid: g.sort_values("date") for sid, g in df.groupby("station_id")}
+    out: list[dict] = []
+    for sid, g in by_station.items():
+        sid = int(sid)
+        wet = g.loc[g.rain > 0, "date"]
+        last_wet = wet.max() if len(wet) else None
+        tail = g if last_wet is None else g[g.date > last_wet]
+        # Everything after the last wet day is a zero by construction.
+        in_window = tail[tail.date >= lo]
+        if in_window.empty:
+            continue
+        gap = (hi - (last_wet or span_lo)).days
+
+        if len(tail) < STUCK_RAIN_MIN_DAYS:
+            # A long dry CALENDAR gap with few reporting days is what a gauge
+            # looks like after a quarantine cleared its history. Only then is the
+            # raw table asked whether that is what happened.
+            if gap >= STUCK_RAIN_MIN_DAYS and _was_quarantined_stuck(db, sid, last_wet):
+                for d in in_window.date:
+                    out.append(_finding(
+                        sid, d, "rainfall", "stuck_rain_continues", "reject",
+                        value=0.0, last_wet=str(last_wet) if last_wet else None,
+                        note="quarantined as stuck and no rain reported since"))
+            continue
+
+        if sid not in loc:
+            continue
+        cmp_lo = max(tail.date.min(), hi - timedelta(days=STUCK_RAIN_COMPARE_DAYS))
+        cmp_days = (hi - cmp_lo).days + 1
+        zero_days = int((tail.date >= cmp_lo).sum())
+        totals = []
+        for nb in within(sid):
+            ng = by_station.get(int(nb))
+            if ng is None:
+                continue
+            ng = ng[(ng.date >= cmp_lo) & (ng.date <= hi)]
+            if len(ng) >= STUCK_RAIN_NEIGHBOUR_COVERAGE * cmp_days:
+                totals.append(float(ng.rain.sum()))
+        median = float(np.median(totals)) if totals else None
+        detail = dict(last_wet=str(last_wet) if last_wet else None,
+                      zero_days=zero_days, compare_from=str(cmp_lo),
+                      neighbours=len(totals),
+                      neighbour_median_mm=None if median is None else round(median, 1))
+        if (len(totals) >= STUCK_RAIN_MIN_NEIGHBOURS
+                and median >= STUCK_RAIN_NEIGHBOUR_MM):
+            back = hi - timedelta(days=STUCK_RAIN_BACKFILL_DAYS)
+            for d in tail.loc[tail.date >= back, "date"]:
+                out.append(_finding(sid, d, "rainfall", "stuck_rain_zero", "reject",
+                                    value=0.0, expected=median, **detail))
+        else:
+            out.append(_finding(sid, hi, "rainfall", "stuck_rain_suspect", "flag",
+                                value=0.0, expected=median, **detail,
+                                note="long zero run, not corroborated by neighbours"))
+    return out
+
+
 def persist(db, findings: list[dict], run_id: str) -> int:
     from psycopg2.extras import execute_values, Json
     if not findings:
@@ -771,7 +940,17 @@ def main() -> int:
                         RH_SATURATED_WINDOW)
             findings.extend(sat)
 
-        rejects = [f for f in findings if f["severity"] == "reject"]
+        # Window-level too: a stuck gauge is a run, and any single zero day is
+        # ordinary weather. Rejects may predate `lo` for a newly found fault.
+        stuck = check_stuck_rain(db, lo, hi)
+        if stuck:
+            for check in ("stuck_rain_zero", "stuck_rain_continues", "stuck_rain_suspect"):
+                got = sorted({f["station_id"] for f in stuck if f["check_name"] == check})
+                if got:
+                    logger.info("  %s: %d station(s) %s", check, len(got), got)
+            findings.extend(stuck)
+
+        rejects =[f for f in findings if f["severity"] == "reject"]
         flags = [f for f in findings if f["severity"] == "flag"]
         logger.info("\n%d finding(s): %d reject, %d flag, over %d station-days",
                     len(findings), len(rejects), len(flags), n_station_days)

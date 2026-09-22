@@ -24,11 +24,16 @@ nearest station that does measure it is used and MARKED `fill`:
 * **HBRC St Johns has no rain gauge at all** — zero rainfall days in the whole
   record. Lawn Rd's rainfall comes from HBRC Farndon, 2.51 km from the site with
   a complete year behind it.
+* **MDC Blenheim Bowling Club has no rain gauge either.** Its raw feed is
+  temperature, humidity and wind only. It was first seeded as "rainfall on 292
+  of 381 days", but every one of those days was a fabricated 0.00 mm with no
+  records behind it (the pre-B4.1 aggregator, cleared 2026-09-22). Marlborough
+  Research Station's rainfall comes from MDC Office, 1.75 km from the site.
 
 ## A patchy variable is reported, never spliced
 
-`SYNOP_93546` carries rainfall on 174 of the last 365 days and MDC Blenheim
-Bowling on 276. Those are PARTIAL, not absent. Nothing is filled over them:
+`SYNOP_93546` carries rainfall on 174 of the last 365 days. That is PARTIAL,
+not absent. Nothing is filled over them:
 silently covering the gaps from a second gauge would make one column two
 different instruments with no way to say which day came from which. The coverage
 is reported and the client renominates if they want to — **an absent variable is
@@ -38,8 +43,7 @@ Appleby is what that loop looks like when it works. It was seeded on SYNOP for
 all three variables; the coverage figure showed 174 of 365 days of rainfall
 against a TDC gauge 2.61 km from the site with a complete year, and BSI moved
 the rainfall pairing on 2026-09-17. That is a second NOMINATION and stays
-`primary`. Nelson AWS still reads rainfall from SYNOP at 47.7% and Marlborough
-from Blenheim Bowling at 75.6%, both untouched and both visible.
+`primary`. Nelson AWS still reads rainfall from SYNOP, left there on purpose.
 
 Solar is seeded only where the nominated mast measures it (Cromwell,
 Martinborough, Waipara). Nothing is borrowed to manufacture a solar series that
@@ -119,8 +123,9 @@ PAIRINGS = [
     ("regional|Marlborough Research Station Cliflo: 12430|1", "humidity",
      "MDC_BLENHEIM_BOWLING", "primary", None),
     ("regional|Marlborough Research Station Cliflo: 12430|1", "rainfall",
-     "MDC_BLENHEIM_BOWLING", "primary",
-     "Rainfall present on 292 of the last 381 days"),
+     "MDC_BLENHEIM_OFFICE", "fill",
+     "Blenheim Bowling Club has no rain gauge; MDC Office is 1.75 km from the "
+     "site"),
 
     # --- Martinborough: Tauherenikau at Racecourse, 14.70 km. The furthest
     # pairing but the best equipped — complete on all four variables.

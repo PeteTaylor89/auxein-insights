@@ -138,10 +138,6 @@ const noModel = (s) => {
 // reader to compare eight numbers by eye.
 const REFERENCE_FAR_KM = 10;
 
-// Coverage under this over the last year is a partial instrument, and the word
-// "equivalent" is doing more work than the record supports.
-const REFERENCE_THIN_PCT = 90;
-
 const VARIABLE_ORDER = ['temp', 'humidity', 'rainfall', 'solar'];
 const VARIABLE_LABEL = {
   temp: 'Temperature', humidity: 'Humidity',
@@ -154,7 +150,6 @@ function VariableCell({ v }) {
   // and the two must not share a cell.
   if (!v) return <span className="portfolio__nopair">not paired</span>;
   const far = v.distance_km != null && v.distance_km > REFERENCE_FAR_KM;
-  const thin = v.coverage_pct != null && v.coverage_pct < REFERENCE_THIN_PCT;
   return (
     <div className="portfolio__pair">
       <span className="portfolio__paircode"
@@ -182,24 +177,16 @@ function VariableCell({ v }) {
           </span>
         )}
       </span>
-      <span className={`portfolio__paircov${thin ? ' is-thin' : ''}`}
-            title={`${v.days_with_data} of ${v.days_in_window} days in the last year`}>
-        {v.coverage_pct === null || v.coverage_pct === undefined
-          ? '—' : `${num(v.coverage_pct, 0)}%`}
-      </span>
     </div>
   );
 }
 
-// Variable columns sort on COVERAGE, not distance. The question this tab
-// generates is "which of these pairings can I actually rely on", and the
-// nearest station with a broken gauge is the wrong answer to it.
 const variableColumn = (key) => ({
   key,
   label: VARIABLE_LABEL[key],
-  sub: 'station · dist · cover',
+  sub: 'station · dist · elev',
   get: (s) => <VariableCell v={s.variables[key]} />,
-  sort: (s) => (s.variables[key] ? s.variables[key].coverage_pct : null),
+  sort: (s) => (s.variables[key] ? s.variables[key].distance_km : null),
 });
 
 const REFERENCE_COLUMNS = [
@@ -971,8 +958,7 @@ function Portfolio() {
               <Gauge size={13} aria-hidden="true" />
               {reference.summary.stations} station(s) stand in for{' '}
               {reference.summary.sites} site(s). Each cell names the station,
-              its distance, its height against the site and how much of the last
-              {' '}{reference.coverage_days} days it actually recorded.
+              its distance and its height against the site.
               {' '}A station <b>below</b> the site reads warm and one above
               reads cool, at roughly 0.6 &deg;C per 100 m.
               {reference.summary.filled > 0 && (

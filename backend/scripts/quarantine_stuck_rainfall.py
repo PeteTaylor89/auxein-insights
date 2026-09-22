@@ -59,6 +59,21 @@ Usage:
     python scripts/quarantine_stuck_rainfall.py --survey --source WRC
     python scripts/quarantine_stuck_rainfall.py --source WRC            # apply
     python scripts/quarantine_stuck_rainfall.py --undo
+
+    # Named gauges, window = day after the last non-zero reading .. today
+    python scripts/quarantine_stuck_rainfall.py --survey --station WRC_SCHIPPERS_FARM
+    python scripts/quarantine_stuck_rainfall.py --station WRC_SCHIPPERS_FARM --station ...
+
+WHY A NAMED MODE
+----------------
+The survey only sees COMPLETE calendar months, so it cannot catch the current
+month, and it cannot catch a gauge that died mid-month until two full months
+have passed. On 2026-09-22 five gauges had read exactly 0 mm for all of September
+while neighbours read 30-125 mm. Four were HORIZONS gauges quarantined on 08-21
+whose later readings came back in as GOOD. WRC_SCHIPPERS_FARM had died on 08-27.
+`--station` covers them from the day after each one's last non-zero reading, and
+REFUSES a station if its window holds any non-zero value or too few reporting
+days, so it cannot be pointed at a working gauge.
 """
 
 import argparse
@@ -213,6 +228,103 @@ def apply(db, found):
     return changed
 
 
+# A named window must still look like a stuck gauge and not a dry fortnight.
+MIN_NAMED_REPORTING_DAYS = 18
+
+NAMED_SQL = """
+    WITH s AS (
+        SELECT station_id, station_code, data_source
+          FROM weather_stations WHERE station_code = :code
+    ), last_wet AS (
+        SELECT max(d.date) AS d
+          FROM weather_data_daily d JOIN s ON s.station_id = d.station_id
+         WHERE d.rainfall_mm > 0
+    )
+    SELECT s.data_source, s.station_code, s.station_id,
+           (SELECT d FROM last_wet) AS last_wet,
+           count(d.date) FILTER (WHERE d.rainfall_record_count > 0) AS reporting_days,
+           count(d.date) FILTER (WHERE d.rainfall_mm > 0)           AS wet_days,
+           coalesce(sum(d.rainfall_record_count), 0)                AS records,
+           max(d.date)                                              AS last_day
+      FROM s
+      LEFT JOIN weather_data_daily d
+             ON d.station_id = s.station_id
+            AND d.date > (SELECT d FROM last_wet)
+            AND d.rainfall_mm IS NOT NULL
+     GROUP BY 1, 2, 3
+"""
+
+
+def survey_named(db, codes):
+    """One window per named station, from the day after its last non-zero reading.
+
+    Returns (source, code, station_id, first_day, end_exclusive, days, records).
+    """
+    import datetime as dt
+    found, refused = [], []
+    print(f"  {'source':<10} {'station':<40} {'window':<24} {'days':>5} {'records':>9}")
+    for code in codes:
+        row = db.execute(text(NAMED_SQL), {'code': code}).fetchone()
+        if row is None:
+            refused.append(f"{code}: no such station_code")
+            continue
+        src, scode, sid, last_wet, days, wet, records, last_day = row
+        if last_wet is None:
+            refused.append(f"{code}: never recorded rain at all; not a stuck gauge, "
+                           "treat it as gaugeless")
+            continue
+        if wet or days < MIN_NAMED_REPORTING_DAYS or last_day is None:
+            refused.append(f"{code}: {days} reporting day(s) since {last_wet}, "
+                           f"{wet} wet; needs >= {MIN_NAMED_REPORTING_DAYS} and none wet")
+            continue
+        first = last_wet + dt.timedelta(days=1)
+        end_excl = last_day + dt.timedelta(days=1)
+        print(f"  {src:<10} {scode[:40]:<40} {first}..{last_day}  {days:>5} {records:>9,d}")
+        found.append((src, scode, sid, first, end_excl, days, records))
+    for r in refused:
+        print(f"  REFUSED {r}")
+    return found, refused
+
+
+def apply_named(db, found):
+    """`apply`, with each named station's exact day window rather than months."""
+    changed = daily_cleared = 0
+    for src, code, sid, first, end_excl, days, records in found:
+        note = (f"gauge reported {records:,d} readings on {days} days from "
+                f"{first} totalling exactly 0.0 mm while neighbours recorded rain")
+        # NZ days, not UTC ones: `weather_data_daily.date` is the NZ calendar day.
+        res = db.execute(text("""
+            UPDATE timeseries_observations t
+               SET quality = 'QUARANTINED',
+                   quality_flags = coalesce(t.quality_flags, '{}'::jsonb)
+                       || jsonb_build_object('quarantine', jsonb_build_object(
+                              'reason', :reason,
+                              'note', :note,
+                              'window', :window,
+                              'ref', 'Named stuck-gauge sweep 2026-09-22'))
+             WHERE t.station_id = :sid AND t.variable = ANY(:vars)
+               AND t.timestamp >= (CAST(:first AS timestamp) AT TIME ZONE 'Pacific/Auckland')
+               AND t.timestamp <  (CAST(:last AS timestamp) AT TIME ZONE 'Pacific/Auckland')
+               AND coalesce(t.quality,'') <> 'QUARANTINED'
+        """), {'sid': sid, 'vars': list(RAIN_VARS), 'reason': REASON, 'note': note,
+               'window': f"{first}..{end_excl}", 'first': first, 'last': end_excl})
+        # See `apply`: the B4.1 COALESCE would otherwise restore these.
+        dres = db.execute(text("""
+            UPDATE weather_data_daily
+               SET rainfall_mm = NULL, rainfall_record_count = 0
+             WHERE station_id = :sid AND date >= :first AND date < :last
+               AND rainfall_mm IS NOT NULL
+        """), {'sid': sid, 'first': first, 'last': end_excl})
+        print(f"  {code[:40]:<40} {res.rowcount:>9,d} raw quarantined, "
+              f"{dres.rowcount:>5,d} daily row(s) cleared")
+        changed += res.rowcount
+        daily_cleared += dres.rowcount
+    print(f"\n  {daily_cleared:,d} daily rainfall value(s) cleared in total")
+    print("  NOTE: readings that arrive after today come in as GOOD again. "
+          "A named quarantine covers the past only.")
+    return changed
+
+
 def undo(db):
     res = db.execute(text("""
         UPDATE timeseries_observations t
@@ -228,6 +340,9 @@ def main():
     ap.add_argument('--survey', action='store_true', help='read-only')
     ap.add_argument('--source', default=None, help='limit to one data_source')
     ap.add_argument('--undo', action='store_true')
+    ap.add_argument('--station', action='append', default=[],
+                    help='named station_code, repeatable. Window is the day after '
+                         'its last non-zero reading to today')
     args = ap.parse_args()
 
     db = SessionLocal()
@@ -236,6 +351,22 @@ def main():
             n = undo(db)
             db.commit()
             print(f"released {n} row(s) with reason={REASON}")
+            return
+
+        if args.station:
+            print(f"Stuck-at-zero rainfall — {len(args.station)} named station(s)\n")
+            found, refused = survey_named(db, args.station)
+            if refused:
+                print(f"\nREFUSING: {len(refused)} station(s) did not qualify; "
+                      "nothing written")
+                return
+            if args.survey or not found:
+                print("\n[SURVEY] nothing written")
+                return
+            print("\napplying...")
+            n = apply_named(db, found)
+            db.commit()
+            print(f"\nquarantined {n} row(s)")
             return
 
         scope = args.source or 'ALL SOURCES'
