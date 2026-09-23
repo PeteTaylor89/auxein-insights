@@ -87,8 +87,12 @@ const GROUPS = [
   { key: 'rainfall', label: 'Rainfall',
     cols: [{ k: 'rainfall_mm', h: 'mm', dp: 1 }],
     records: 'rainfall_records' },
+  // Mean irradiance, not a daily energy total. The unit is in the header
+  // because the number is meaningless without it — and because this column
+  // read as an unlabelled sum until 2026-09-23, which made a densely-sampled
+  // station look sunnier than a bright one.
   { key: 'solar', label: 'Solar',
-    cols: [{ k: 'solar_radiation', h: 'Rad', dp: 0 }],
+    cols: [{ k: 'solar_radiation', h: 'W/m² mean', dp: 0 }],
     records: null },
 ];
 

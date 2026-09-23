@@ -153,8 +153,8 @@ def aggregate_station_day(
             -- Rainfall
             SUM(CASE WHEN variable IN ('rainfall', 'precipitation', 'precip', 'rain') THEN value END) as rainfall_sum,
             COUNT(CASE WHEN variable IN ('rainfall', 'precipitation', 'precip', 'rain') THEN 1 END) as rainfall_count,
-            -- Solar radiation
-            SUM(CASE WHEN variable IN ('solar_radiation', 'solar', 'radiation') THEN value END) as solar_sum,
+            -- Solar radiation. THE MEAN, NOT THE SUM — see _build_record.
+            AVG(CASE WHEN variable IN ('solar_radiation', 'solar', 'radiation') THEN value END) as solar_mean,
             -- Overall record count
             COUNT(*) as total_count
         FROM weather_data
@@ -223,7 +223,29 @@ def _build_record(station_id: int, target_date: date, row) -> dict:
         # SUM returns NULL iff no rainfall rows matched (a genuine 0mm day still
         # sums to 0, which is kept).
         'rainfall_mm': row['rainfall_sum'],
-        'solar_radiation': row['solar_sum'],
+        # SOLAR IS A MEAN IRRADIANCE IN W/m2, NOT A SUM. Fixed 2026-09-23.
+        #
+        # This column stored `SUM(value)` over a day of instantaneous W/m2
+        # readings, which is not a physical quantity: it scales with how often
+        # the station reports. Measured on 2026-09-20, the three masts paired on
+        # the Measured tab:
+        #
+        #   Martinborough  144 samples  mean 185.1 W/m2   stored 26,657
+        #   Cromwell       144 samples  mean 160.7 W/m2   stored 23,134
+        #   Greystone 07   365 samples  mean  81.7 W/m2   stored 29,834
+        #
+        # Greystone showed the LARGEST number of the three while receiving less
+        # than half the energy — only its sampling rate was higher. Across the
+        # network that day, 22 of 37 solar stations reported hourly and the rest
+        # ran from 96 to 1,430 samples, so the column could not be compared
+        # between two stations at all.
+        #
+        # A mean is comparable at any cadence. MJ/m2 would be the meteorological
+        # convention but needs a reliable sampling interval per station-day,
+        # which an irregular Harvest feed does not have (365 samples is not a
+        # clean 4 minutes). The conversion, when the interval IS known, is
+        # mean_W_m2 * 86400 / 1e6.
+        'solar_radiation': row['solar_mean'],
         'gdd_base0': gdd_base0,
         'gdd_base10': gdd_base10,
         'temp_record_count': row['temp_count'] or 0,
@@ -284,7 +306,7 @@ AGGREGATE_RANGE_SQL = text(f"""
             COUNT(CASE WHEN variable IN {RH_VARS} THEN 1 END) as humidity_count_h,
             SUM(CASE WHEN variable IN {RAIN_VARS} THEN value END) as rainfall_sum_h,
             COUNT(CASE WHEN variable IN {RAIN_VARS} THEN 1 END) as rainfall_count_h,
-            SUM(CASE WHEN variable IN {SOLAR_VARS} THEN value END) as solar_sum_h,
+            AVG(CASE WHEN variable IN {SOLAR_VARS} THEN value END) as solar_mean_h,
             COUNT(*) as total_count_h
         FROM weather_data
         WHERE station_id = ANY(:station_ids)
@@ -307,7 +329,10 @@ AGGREGATE_RANGE_SQL = text(f"""
         COALESCE(SUM(humidity_count_h), 0) as humidity_count,
         SUM(rainfall_sum_h) as rainfall_sum,
         COALESCE(SUM(rainfall_count_h), 0) as rainfall_count,
-        SUM(solar_sum_h) as solar_sum,
+        -- HOUR-WEIGHTED, for the same reason temp_mean is: a station that
+        -- samples ten times more often overnight would otherwise drag the daily
+        -- mean toward the hours when irradiance is zero.
+        AVG(solar_mean_h) as solar_mean,
         COALESCE(SUM(total_count_h), 0) as total_count
     FROM hourly
     GROUP BY station_id, obs_date

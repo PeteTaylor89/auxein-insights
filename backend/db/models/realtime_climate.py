@@ -44,7 +44,10 @@ class WeatherDataDaily(Base):
     # Rainfall (mm) - sum for the day
     rainfall_mm = Column(Numeric(8, 2))
     
-    # Solar radiation (MJ/m²) - sum for the day
+    # Solar radiation: MEAN IRRADIANCE IN W/m2 over the day, hour-weighted.
+    # NOT MJ/m2 and NOT a sum, whatever this comment said before 2026-09-23 —
+    # a sum of instantaneous readings scales with the station's sampling rate,
+    # so it could not be compared between two stations. See daily_aggregation.
     solar_radiation = Column(Numeric(8, 2))
     
     # GDD calculations
@@ -88,7 +91,8 @@ class ClimateZoneDaily(Base):
     # Rainfall (mm)
     rainfall_mm = Column(Numeric(8, 2))
     
-    # Solar radiation (MJ/m²)
+    # Solar radiation: mean irradiance in W/m2, inherited from the station
+    # rollup. See WeatherDataDaily.solar_radiation.
     solar_radiation = Column(Numeric(8, 2))
     
     # GDD calculations (base 0 for phenology)
