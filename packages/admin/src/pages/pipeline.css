@@ -1,0 +1,679 @@
+/* pipeline.css — scoped to .pipe-*. Inside the drawers it reuses the .td-*
+   form idioms from task-detail.css, so every admin drawer reads the same. */
+
+.pipe-page {
+  /* Stage colours. Open stages step from neutral to the brand green as a lead
+     warms up; won and lost are the two ends, never confused with each other. */
+  --stage-new: #7A8A9A;
+  --stage-contacted: #2A7F7F;
+  --stage-demo: #B07D2B;
+  --stage-trial: #7A4A72;
+  --stage-won: #5B6830;
+  --stage-lost: #9B2226;
+  max-width: 1400px;
+}
+
+/* --------------------------------------------------------------- totals */
+
+.pipe-totals {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.pipe-totals > div { display: flex; flex-direction: column; gap: 2px; }
+.pipe-bignum { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pipe-biglabel { font-size: 12px; color: var(--admin-muted); }
+.pipe-totals .is-warn .pipe-bignum { color: var(--admin-warn); }
+
+.pipe-synced {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: var(--urgency-normal-tint);
+  color: var(--admin-green);
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------- controls */
+
+.pipe-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.pipe-search {
+  flex: 1 1 240px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--admin-muted);
+}
+
+.pipe-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--admin-ink);
+  outline: none;
+}
+
+.pipe-search:focus-within { border-color: var(--admin-green); }
+
+.pipe-select {
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.pipe-toggle {
+  display: inline-flex;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.pipe-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.pipe-toggle button + button { border-left: 1px solid var(--admin-line); }
+
+.pipe-toggle button[aria-pressed='true'] {
+  background: var(--urgency-normal-tint);
+  color: var(--admin-green);
+  font-weight: 600;
+}
+
+.pipe-new,
+.pipe-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--admin-green);
+  border-radius: 7px;
+  background: var(--admin-green);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pipe-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pipe-ghost {
+  padding: 8px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pipe-error {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid #E6C9B8;
+  border-radius: 8px;
+  background: var(--urgency-high-tint);
+  color: var(--admin-warn);
+  font-size: 13px;
+}
+
+.pipe-loading,
+.pipe-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--admin-muted);
+  font-size: 13px;
+}
+
+.pipe-spin { animation: pipe-rotate 1s linear infinite; }
+@keyframes pipe-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pipe-spin { animation: none; } }
+
+/* ---------------------------------------------------------------- board */
+
+/* Six columns side by side. Below the width where six fit, the board scrolls
+   sideways INSIDE its own box — the page itself never scrolls horizontally. */
+.pipe-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(210px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+}
+
+.pipe-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  padding: 8px;
+  border: 1px solid var(--admin-line);
+  border-top: 3px solid var(--col, var(--admin-line));
+  border-radius: 10px;
+  background: var(--admin-ground);
+  scroll-snap-align: start;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.pipe-col.is-new { --col: var(--stage-new); }
+.pipe-col.is-contacted { --col: var(--stage-contacted); }
+.pipe-col.is-demo { --col: var(--stage-demo); }
+.pipe-col.is-trial { --col: var(--stage-trial); }
+.pipe-col.is-won { --col: var(--stage-won); }
+.pipe-col.is-lost { --col: var(--stage-lost); }
+
+.pipe-col.is-over {
+  background: #fff;
+  border-color: var(--col);
+}
+
+.pipe-colhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 2px 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--admin-ink);
+}
+
+.pipe-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--admin-line);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--admin-muted);
+}
+
+.pipe-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pipe-colempty {
+  margin: 10px 4px;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.pipe-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: var(--admin-ink);
+  cursor: grab;
+  transition: box-shadow 0.12s, border-color 0.12s;
+}
+
+.pipe-card:hover { border-color: #CFCABD; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05); }
+.pipe-card:focus-visible { outline: 2px solid var(--admin-green); outline-offset: 1px; }
+.pipe-card.is-dragging { opacity: 0.45; }
+
+.pipe-cardname {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pipe-cardco {
+  font-size: 12px;
+  color: var(--admin-muted);
+  overflow-wrap: anywhere;
+}
+
+.pipe-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+
+.pipe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--admin-ground);
+  border: 1px solid var(--admin-line);
+  font-size: 11px;
+  color: var(--admin-muted);
+}
+
+.pipe-chip.src-insights {
+  background: var(--urgency-normal-tint);
+  border-color: transparent;
+  color: var(--admin-green);
+}
+
+.pipe-chip.is-warn {
+  background: var(--urgency-high-tint);
+  border-color: transparent;
+  color: var(--admin-warn);
+}
+
+.pipe-chip.is-good {
+  background: var(--admin-green);
+  border-color: transparent;
+  color: #fff;
+}
+
+.pipe-next {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--admin-muted);
+  overflow-wrap: anywhere;
+}
+
+.pipe-next.is-overdue { color: var(--admin-warn); font-weight: 600; }
+.pipe-next svg { flex: none; margin-top: 2px; }
+
+/* ---------------------------------------------------------------- table */
+
+.pipe-tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.pipe-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pipe-table th {
+  position: sticky;
+  top: 0;
+  padding: 0;
+  background: var(--admin-ground);
+  border-bottom: 1px solid var(--admin-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pipe-table th button {
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--admin-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pipe-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--admin-line);
+  vertical-align: top;
+}
+
+.pipe-table tbody tr { cursor: pointer; }
+.pipe-table tbody tr:hover { background: var(--admin-ground); }
+.pipe-table tbody tr:last-child td { border-bottom: 0; }
+.pipe-table td.is-overdue { color: var(--admin-warn); font-weight: 600; }
+
+.pipe-rowlink {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--admin-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pipe-rowsub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--admin-muted);
+}
+
+.pipe-stage {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--admin-muted);
+}
+
+.pipe-stage.is-new { background: var(--stage-new); }
+.pipe-stage.is-contacted { background: var(--stage-contacted); }
+.pipe-stage.is-demo { background: var(--stage-demo); }
+.pipe-stage.is-trial { background: var(--stage-trial); }
+.pipe-stage.is-won { background: var(--stage-won); }
+.pipe-stage.is-lost { background: var(--stage-lost); }
+
+/* --------------------------------------------------------------- drawer */
+
+/* The drawers render inside .pipe-page, so the stage colours reach them. */
+.pipe-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.pipe-step {
+  padding: 7px 6px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.pipe-step:hover { border-color: var(--step); color: var(--step); }
+.pipe-step.is-new { --step: var(--stage-new); }
+.pipe-step.is-contacted { --step: var(--stage-contacted); }
+.pipe-step.is-demo { --step: var(--stage-demo); }
+.pipe-step.is-trial { --step: var(--stage-trial); }
+.pipe-step.is-won { --step: var(--stage-won); }
+.pipe-step.is-lost { --step: var(--stage-lost); }
+
+.pipe-step[aria-pressed='true'] {
+  background: var(--step);
+  border-color: var(--step);
+  color: #fff;
+  font-weight: 600;
+}
+
+.pipe-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--urgency-normal-tint);
+  color: var(--admin-green);
+  font-size: 13px;
+}
+
+.pipe-match span { flex: 1 1 200px; }
+
+.pipe-match button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--admin-green);
+  border-radius: 6px;
+  background: var(--admin-green);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pipe-warnline {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--urgency-high-tint);
+  color: var(--admin-warn);
+  font-size: 13px;
+}
+
+.pipe-warnline svg { flex: none; margin-top: 2px; }
+
+.pipe-nextrow input.is-overdue { border-color: var(--admin-warn); color: var(--admin-warn); }
+
+.pipe-linked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pipe-linked button {
+  padding: 3px 8px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.pipe-picker { display: flex; flex-direction: column; gap: 6px; }
+.pipe-picker select { min-height: 60px; }
+
+.pipe-form { display: flex; flex-direction: column; }
+
+.pipe-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.pipe-facts dt { color: var(--admin-muted); }
+.pipe-facts dd { margin: 0; text-transform: none; }
+
+/* ------------------------------------------------------------- activity */
+
+.pipe-logform {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.pipe-kinds { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.pipe-kinds button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--admin-line);
+  border-radius: 14px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.pipe-kinds button[aria-pressed='true'] {
+  border-color: var(--admin-green);
+  background: var(--urgency-normal-tint);
+  color: var(--admin-green);
+  font-weight: 600;
+}
+
+.pipe-logform textarea,
+.pipe-logrow input {
+  padding: 7px 9px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.pipe-logform textarea:focus,
+.pipe-logrow input:focus { outline: none; border-color: var(--admin-green); }
+
+.pipe-logrow {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.pipe-logrow input { flex: 0 1 160px; min-width: 0; }
+
+.pipe-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+/* The spine the icons sit on. */
+.pipe-timeline::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--admin-line);
+}
+
+.pipe-timeline li {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.pipe-tlicon {
+  flex: none;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  border: 1px solid var(--admin-line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--admin-muted);
+}
+
+.pipe-timeline li.is-stage .pipe-tlicon {
+  background: var(--admin-ground);
+}
+
+.pipe-tlmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.pipe-tlhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+
+.pipe-timeline li.is-stage .pipe-tlhead { color: var(--admin-muted); }
+
+.pipe-tlwhen { font-size: 11.5px; color: var(--admin-muted); }
+
+.pipe-tlbody {
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pipe-tldel {
+  flex: none;
+  align-self: flex-start;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: var(--admin-muted);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pipe-timeline li:hover .pipe-tldel,
+.pipe-tldel:focus-visible { opacity: 1; color: var(--admin-warn); }
+
+/* Touch screens have no hover, so the delete must not depend on it. */
+@media (hover: none) {
+  .pipe-tldel { opacity: 0.6; }
+}
+
+/* --------------------------------------------------------------- phones */
+
+@media (max-width: 640px) {
+  .pipe-totals { gap: 16px 22px; }
+  .pipe-bignum { font-size: 19px; }
+  .pipe-board { grid-template-columns: repeat(6, 78vw); }
+  .pipe-new { flex: 1 1 auto; justify-content: center; }
+  .pipe-steps { grid-template-columns: repeat(2, 1fr); }
+}

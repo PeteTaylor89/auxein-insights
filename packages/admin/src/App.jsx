@@ -17,6 +17,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import KpiDashboard from './pages/KpiDashboard';
 import Planner from './pages/Planner';
 import Projects from './pages/Projects';
+import Pipeline from './pages/Pipeline';
 // Phase 1's scaffold, kept as a diagnostic. It is the only screen that shows
 // BOTH identities side by side, which is exactly what you want when the admin
 // site half-works (plan §7.1/§7.6).
@@ -110,6 +111,9 @@ function AppRoutes() {
           tab lived in component state. A bare /grow lands on Companies. */}
       <Route path="/grow" element={<Navigate to="/grow/companies" replace />} />
       <Route path="/grow/:tab" element={<Guarded><GrowAdmin /></Guarded>} />
+      {/* Top-level, NOT /grow/pipeline: /grow/:tab belongs to GrowAdmin and
+          would swallow it. The nav still files it under Grow. */}
+      <Route path="/pipeline" element={<Guarded><Pipeline /></Guarded>} />
 
       <Route path="/email" element={<Guarded><AdminEmailCampaignList /></Guarded>} />
       <Route path="/email/new" element={<Guarded><AdminEmailCampaignEditor /></Guarded>} />

@@ -22,7 +22,7 @@ import {
   LayoutDashboard, Users, Building2, Cloud, Megaphone, FileText, BookOpen,
   Mail, Map, ShieldCheck, Activity, Sprout, MapPinned, Wrench, BarChart3,
   Menu, X, LogOut, TrendingUp, CalendarCheck, ListTodo, FolderKanban,
-  Handshake,
+  Handshake, Filter,
 } from 'lucide-react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import './admin-nav.css';
@@ -64,6 +64,7 @@ export const NAV_GROUPS = [
       { path: '/grow/properties', icon: MapPinned, label: 'Properties' },
       { path: '/grow/contractors', icon: Wrench, label: 'Contractors' },
       { path: '/grow/banners', icon: Megaphone, label: 'Banners' },
+      { path: '/pipeline', icon: Filter, label: 'Pipeline' },
     ],
   },
   // Partner clients are neither Insights nor Grow — they are licensees of the

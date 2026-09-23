@@ -82,6 +82,7 @@ from db.models.data_platform import (
 from db.models.kpi_snapshot import KpiSnapshot
 from db.models.admin_task import AdminTask, AdminTaskSubtask
 from db.models.admin_project import AdminProject, AdminProjectNote, AdminTimeEntry
+from db.models.grow_pipeline import GrowLead, GrowLeadActivity
 from db.models.partner import (
     PartnerClient, PartnerCredential, PartnerGrant, PartnerLimit,
     PartnerRequestLog,
