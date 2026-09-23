@@ -1,0 +1,105 @@
+# Rebuild the Fargate image whenever the code inside it reaches main.
+#
+# WHY THIS EXISTS
+# ---------------
+# `auxein-surfaces:latest` is the image for every scheduled job — the six-hourly
+# rollup, the 18:00 pipeline, the surface fits, the monthly close and the KPI
+# snapshot. Nothing rebuilt it on merge, so the runner could sit behind main
+# indefinitely while every run reported success. On 2026-09-23 alone that cost
+# three separate incidents:
+#
+#   * zone `bacchus_*` read NULL for 22 zones over 7 days, because the migration
+#     had landed and the code that writes those columns had not
+#   * a new stuck-gauge QC check could not act, for the same reason
+#   * a solar backfill was REVERTED INSIDE THE HOUR — the six-hourly rollup
+#     re-aggregated its 3-day lookback with the old code and wrote the broken
+#     values back over the repaired ones
+#
+# A code change plus a green pipeline is not the same as the code being live.
+# See docs/plans and the `project_fargate_image_lag` note.
+#
+# WHY A WORKFLOW RATHER THAN A CODEBUILD WEBHOOK
+# ----------------------------------------------
+# A native webhook needs CodeBuild to hold a GitHub credential with
+# `admin:repo_hook`, and this account has no source credentials stored. This
+# route reuses the AWS keys already configured as repository secrets and adds no
+# new long-lived token anywhere.
+#
+# This is NOT a return to running jobs on GitHub Actions. The reason those moved
+# off (see `project_jobs_off_github`) was scheduler lateness and the DST
+# two-cron hack — both properties of `schedule:`, which this file does not use.
+# It fires on an event, and if Actions is down the worst case is the old
+# behaviour: a stale image, which is what we have today anyway.
+name: surfaces image
+
+on:
+  push:
+    branches: [main]
+    # Exactly what the Dockerfile copies in: `backend/` and the deploy scripts.
+    # A docs or frontend commit does not change the image and should not spend a
+    # build. Keep this in step with deploy/surfaces/Dockerfile.
+    paths:
+      - 'backend/**'
+      - 'deploy/surfaces/**'
+      - '.github/workflows/surfaces-image.yml'
+  # So a stale image can always be corrected by hand, including for a commit
+  # that this file's path filter deliberately ignored.
+  workflow_dispatch:
+
+# QUEUED, NOT CANCELLED. Two pushes close together must not build at once,
+# because both tag `:latest` and the one that finishes last wins regardless of
+# which commit is newer.
+#
+# `cancel-in-progress: true` would be WRONG here and subtly so: cancelling the
+# workflow run does not stop the CodeBuild build it has already started, so the
+# older build keeps going and can push `:latest` after the newer one, leaving
+# the schedules on the earlier commit with nothing to show for it.
+concurrency:
+  group: surfaces-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # The build itself takes about two minutes; the project's own timeout is 30.
+    timeout-minutes: 40
+    env:
+      AWS_REGION: ap-southeast-2
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      # THIS JOB WAITS FOR THE BUILD AND FAILS WITH IT. Firing start-build and
+      # exiting would report success for a build that went on to fail, which is
+      # the exact failure shape this workflow exists to end.
+      - name: Start the CodeBuild project and wait
+        run: |
+          set -euo pipefail
+          ID=$(aws codebuild start-build \
+                 --project-name auxein-surfaces-image \
+                 --source-version "$GITHUB_SHA" \
+                 --region "$AWS_REGION" \
+                 --query 'build.id' --output text)
+          echo "build $ID for $GITHUB_SHA"
+          while :; do
+            sleep 20
+            STATUS=$(aws codebuild batch-get-builds --ids "$ID" \
+                       --region "$AWS_REGION" \
+                       --query 'builds[0].buildStatus' --output text)
+            [ "$STATUS" = "IN_PROGRESS" ] || break
+          done
+          echo "$ID finished: $STATUS"
+          echo "### surfaces image: $STATUS ($GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
+          [ "$STATUS" = "SUCCEEDED" ]
+
+      # `:latest` is what every task definition pulls, so a build that succeeded
+      # without moving the tag would leave the schedules on the old image and
+      # look fine. Assert on the tag, not on the build's exit code.
+      - name: Confirm :latest moved to this commit
+        run: |
+          set -euo pipefail
+          SHORT=$(echo "$GITHUB_SHA" | cut -c1-12)
+          TAGS=$(aws ecr describe-images --repository-name auxein-surfaces \
+                   --image-ids imageTag=latest --region "$AWS_REGION" \
+                   --query 'imageDetails[0].imageTags' --output text)
+          echo "latest carries: $TAGS"
+          echo "$TAGS" | grep -q "$SHORT"
