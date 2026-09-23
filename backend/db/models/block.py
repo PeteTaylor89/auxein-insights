@@ -43,7 +43,9 @@ class VineyardBlock(Base):
     centroid_latitude = Column(Float, nullable=True)
     gi = Column(String, nullable=True)
     elevation = Column(Float, nullable=True)
-    geometry = Column(Geometry('GEOMETRY'), nullable=True)
+    # SRID 4326 matches prod (see alembic vineyard_blocks_srid); query the column
+    # directly rather than through ST_SetSRID, which defeats the GiST index.
+    geometry = Column(Geometry('GEOMETRY', srid=4326), nullable=True)
     row_start = Column(String, nullable=True)
     row_end = Column(String, nullable=True)
     row_count = Column(Integer, nullable=True)
