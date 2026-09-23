@@ -355,3 +355,128 @@
   font-size: var(--font-size-sm);
   color: var(--color-text);
 }
+
+/* --- the season as a line (2026-09-23) -----------------------------------
+   Replaces the stage GRID. Early in the season that grid was a wall of dashes,
+   and it printed a harvest date beside a budburst date in the same weight. The
+   line shows what has happened, the one stage being headed for, and hides the
+   rest behind a toggle. */
+
+.phen-card-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.phen-scope-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(91, 104, 48, 0.12);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4a5340;
+}
+
+.phen-line {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phen-step {
+  display: grid;
+  /* mark | stage | date | basis — the date column is fixed so the dates line
+     up down the card and can be read as a sequence. */
+  grid-template-columns: 20px minmax(90px, 1fr) 110px auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 0.84rem;
+}
+
+.phen-step:last-child { border-bottom: 0; }
+
+.phen-step-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted, #8a9276);
+}
+
+.phen-step.is-passed .phen-step-mark { color: #4a7c3f; }
+
+/* The stage being headed for is the one the card is about. */
+.phen-step.is-next {
+  background: rgba(91, 104, 48, 0.05);
+  border-radius: 6px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.phen-step.is-next .phen-step-mark,
+.phen-step.is-next .phen-step-label { color: #3d4632; font-weight: 600; }
+
+.phen-step-label { color: var(--color-text, #3d4632); }
+
+.phen-step-date {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #3d4632);
+}
+
+.phen-step-basis {
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #8a9276);
+}
+
+.phen-step.is-next .phen-step-basis { color: #5b6830; font-weight: 600; }
+
+/* The region's date for the same stage, subordinate to the property's own. */
+.phen-step-region {
+  grid-column: 3 / -1;
+  font-size: 0.68rem;
+  color: #8a9276;
+}
+
+.phen-line--later { opacity: 0.85; }
+
+.phen-later-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  /* Explicit padding: the global button rule would otherwise size this. */
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary, #5b6830);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.phen-observed-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.phen-observed-row svg { flex: 0 0 auto; margin-top: 3px; }
+
+@media (max-width: 640px) {
+  .phen-step {
+    grid-template-columns: 18px 1fr auto;
+  }
+  .phen-step-basis { grid-column: 2 / -1; }
+}

@@ -1,183 +1,164 @@
 // src/components/climate/RegionalClimateHistory.jsx
 /**
- * RegionalClimateHistory
+ * Climate History, chosen rather than scrolled.
  *
- * Grow-side Climate History view, organised by climate zone. For each distinct
- * climate zone that the company's properties belong to, it renders a collapsible
- * block: the zone's regional climate history (wired in Phase 2) followed by the
- * properties in that zone nested underneath.
+ * This was an accordion of zones, each opening onto a regional explorer with the
+ * company's properties nested under it, and the first zone open on arrival. Two
+ * problems with that: it decided for the reader which region they came for, and
+ * with the property records added underneath (2026-09-23) a single open zone ran
+ * to several screens.
  *
- * Only zones associated with the company's properties are shown. Properties with
- * no climate zone assigned are grouped under "Unassigned" with a prompt.
+ * So: a pill per region, and — once a region is chosen — a pill per property in
+ * it, with the region's own record as the first of those. NOTHING IS OPEN ON
+ * ARRIVAL. A company with four regions gets four pills and picks one; that is
+ * cheaper to read than four collapsed headers, and it never loads a region's
+ * history nobody asked for.
+ *
+ * Properties with no climate zone are still listed, because a grower looking for
+ * one needs to find out why it is not there rather than conclude the page is
+ * broken.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  ChevronDown, ChevronUp, MapPin, MapPinned, Layers, AlertTriangle,
-} from 'lucide-react';
+import { MapPin, Layers, AlertTriangle } from 'lucide-react';
 import { getZones } from '../../services/publicClimateService';
 import SeasonExplorer from './SeasonExplorer';
+import PropertyClimateHistory from './PropertyClimateHistory';
 import './SeasonExplorer.css';
 import './RegionalClimateHistory.css';
 
 const RegionalClimateHistory = ({ properties = [] }) => {
   const [zones, setZones] = useState([]);
-  const [loadingZones, setLoadingZones] = useState(true);
-  const [zonesError, setZonesError] = useState(null);
-  const [expandedZoneId, setExpandedZoneId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  // Nothing selected on arrival — see the note above.
+  const [zoneId, setZoneId] = useState(null);
+  // null means "the region itself"; otherwise a property id.
+  const [propertyId, setPropertyId] = useState(null);
 
-  // Load all climate zones once (public endpoint) to resolve property zone ids
   useEffect(() => {
-    let alive = true;
-    setLoadingZones(true);
+    let live = true;
     getZones()
-      .then((res) => {
-        if (!alive) return;
-        setZones(Array.isArray(res?.zones) ? res.zones : []);
-        setZonesError(null);
-      })
-      .catch(() => { if (alive) setZonesError('Failed to load climate zones'); })
-      .finally(() => { if (alive) setLoadingZones(false); });
-    return () => { alive = false; };
+      .then((data) => { if (live) setZones(data?.zones || data || []); })
+      .catch(() => { if (live) setZones([]); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
   }, []);
 
-  const zoneById = useMemo(() => {
-    const m = new Map();
-    zones.forEach((z) => m.set(z.id, z));
-    return m;
-  }, [zones]);
-
-  // Group company properties by their climate zone
   const { zoneGroups, unassigned } = useMemo(() => {
-    const groups = new Map(); // zoneId -> { zone, properties: [] }
-    const orphans = [];
-    properties.forEach((p) => {
-      const zid = p.climate_zone_id;
-      if (zid && zoneById.has(zid)) {
-        if (!groups.has(zid)) groups.set(zid, { zone: zoneById.get(zid), properties: [] });
-        groups.get(zid).properties.push(p);
-      } else {
-        orphans.push(p);
-      }
-    });
-    const sorted = [...groups.values()].sort((a, b) => a.zone.name.localeCompare(b.zone.name));
-    return { zoneGroups: sorted, unassigned: orphans };
-  }, [properties, zoneById]);
-
-  // Auto-expand the first zone once groups are known
-  useEffect(() => {
-    if (expandedZoneId == null && zoneGroups.length > 0) {
-      setExpandedZoneId(zoneGroups[0].zone.id);
+    const byZone = new Map();
+    const none = [];
+    for (const p of properties) {
+      if (!p.climate_zone_id) { none.push(p); continue; }
+      if (!byZone.has(p.climate_zone_id)) byZone.set(p.climate_zone_id, []);
+      byZone.get(p.climate_zone_id).push(p);
     }
-  }, [zoneGroups, expandedZoneId]);
+    const groups = [];
+    for (const [id, props] of byZone) {
+      const zone = zones.find((z) => z.id === id);
+      if (zone) groups.push({ zone, properties: props });
+    }
+    groups.sort((a, b) => a.zone.name.localeCompare(b.zone.name));
+    return { zoneGroups: groups, unassigned: none };
+  }, [properties, zones]);
 
-  const toggle = (zid) => setExpandedZoneId((prev) => (prev === zid ? null : zid));
+  const active = zoneGroups.find((g) => g.zone.id === zoneId) || null;
+  const activeProperty = active?.properties.find((p) => p.id === propertyId) || null;
 
-  if (loadingZones) {
-    return <div className="rch-state">Loading climate zones…</div>;
-  }
-  if (zonesError) {
-    return <div className="rch-state rch-state-error">{zonesError}</div>;
-  }
-  if (properties.length === 0) {
-    return (
-      <div className="rch-state">
-        No properties found for your company. Add a property and assign its climate zone
-        in Manage → Weather to see regional climate history here.
-      </div>
-    );
+  const chooseZone = (id) => {
+    setZoneId((current) => (current === id ? null : id));
+    // A new region starts on its own record, not on whichever property happened
+    // to be selected in the last one.
+    setPropertyId(null);
+  };
+
+  if (loading) return <p className="rch-loading">Loading climate zones…</p>;
+
+  if (zoneGroups.length === 0 && unassigned.length === 0) {
+    return <p className="rch-loading">No properties to show climate history for.</p>;
   }
 
   return (
-    <div className="regional-climate-history">
-      {zoneGroups.length === 0 && (
-        <div className="rch-state">
-          None of your properties have a climate zone assigned yet. Set one in
-          Manage → Weather to see regional climate history here.
+    <div className="rch">
+      {zoneGroups.length > 0 && (
+        <div className="rch-pills" role="group" aria-label="Region">
+          {zoneGroups.map(({ zone, properties: zoneProps }) => (
+            <button
+              key={zone.id}
+              type="button"
+              className={`rch-pill${zone.id === zoneId ? ' is-active' : ''}`}
+              onClick={() => chooseZone(zone.id)}
+            >
+              <Layers size={14} aria-hidden="true" />
+              {zone.name}
+              <span className="rch-pill-count">{zoneProps.length}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {zoneGroups.map(({ zone, properties: zoneProps }) => {
-        const open = expandedZoneId === zone.id;
-        return (
-          <div key={zone.id} className={`rch-zone ${open ? 'open' : ''}`}>
+      {/* The region's own record is the first pill of the second row rather than
+          a separate control: it is one more thing you can be looking at, and
+          the reader should not have to learn two ways of choosing. */}
+      {active && (
+        <div className="rch-pills rch-pills--sub" role="group" aria-label="Property">
+          <button
+            type="button"
+            className={`rch-pill rch-pill--sub${propertyId === null ? ' is-active' : ''}`}
+            onClick={() => setPropertyId(null)}
+          >
+            {active.zone.name} region
+          </button>
+          {active.properties.map((p) => (
             <button
+              key={p.id}
               type="button"
-              className="rch-zone-header"
-              onClick={() => toggle(zone.id)}
-              aria-expanded={open}
+              className={`rch-pill rch-pill--sub${p.id === propertyId ? ' is-active' : ''}`}
+              onClick={() => setPropertyId(p.id)}
             >
-              <div className="rch-zone-title">
-                <Layers size={18} />
-                <span className="rch-zone-name">{zone.name}</span>
-                {zone.region_name && <span className="rch-zone-region">{zone.region_name}</span>}
-              </div>
-              <div className="rch-zone-meta">
-                <span className="rch-zone-count">
-                  <MapPinned size={14} />
-                  {zoneProps.length} {zoneProps.length === 1 ? 'property' : 'properties'}
-                </span>
-                {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </div>
+              <MapPin size={13} aria-hidden="true" />
+              {p.name}
             </button>
+          ))}
+        </div>
+      )}
 
-            {open && (
-              <div className="rch-zone-body">
-                {/* Zone-level regional climate history */}
-                <div className="rch-history">
-                  <SeasonExplorer
-                    zone={{ slug: zone.slug, name: zone.name, region_name: zone.region_name }}
-                  />
-                </div>
+      {!active && (
+        <p className="rch-prompt">
+          Choose a region to see its climate history, then a property for its own
+          1986&ndash;2023 record.
+        </p>
+      )}
 
-                {/* Nested property placeholders */}
-                <div className="rch-properties">
-                  <div className="rch-properties-label">Properties in this zone</div>
-                  <div className="rch-property-grid">
-                    {zoneProps.map((p) => (
-                      <div key={p.id} className="rch-property-card">
-                        <div className="rch-property-name">
-                          <MapPin size={14} /> {p.name}
-                        </div>
-                        {p.region && <div className="rch-property-region">{p.region}</div>}
-                        <div className="rch-property-note">Property-level climate coming soon</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {active && !activeProperty && (
+        <SeasonExplorer
+          key={active.zone.id}
+          zone={{
+            slug: active.zone.slug,
+            name: active.zone.name,
+            region_name: active.zone.region_name,
+          }}
+        />
+      )}
+
+      {activeProperty && (
+        <PropertyClimateHistory
+          key={activeProperty.id}
+          property={activeProperty}
+          embedded
+        />
+      )}
 
       {unassigned.length > 0 && (
-        <div className="rch-zone rch-zone-unassigned open">
-          <div className="rch-zone-header static">
-            <div className="rch-zone-title">
-              <AlertTriangle size={18} />
-              <span className="rch-zone-name">Unassigned</span>
-            </div>
-            <span className="rch-zone-count">
-              {unassigned.length} {unassigned.length === 1 ? 'property' : 'properties'}
+        <div className="rch-unassigned">
+          <p className="rch-unassigned-note">
+            <AlertTriangle size={15} aria-hidden="true" />
+            {unassigned.length === 1 ? 'One property has' : `${unassigned.length} properties have`}
+            {' '}no climate zone set, so there is no regional history to show for
+            {unassigned.length === 1 ? ' it' : ' them'}. Assign one in Manage &rarr; Weather.
+            <span className="rch-unassigned-names">
+              {unassigned.map((p) => p.name).join(', ')}
             </span>
-          </div>
-          <div className="rch-zone-body">
-            <p className="rch-unassigned-note">
-              These properties have no climate zone set. Assign one in Manage → Weather
-              to see regional climate history.
-            </p>
-            <div className="rch-property-grid">
-              {unassigned.map((p) => (
-                <div key={p.id} className="rch-property-card muted">
-                  <div className="rch-property-name">
-                    <MapPin size={14} /> {p.name}
-                  </div>
-                  {p.region && <div className="rch-property-region">{p.region}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
+          </p>
         </div>
       )}
     </div>

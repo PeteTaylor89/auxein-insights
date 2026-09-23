@@ -1,0 +1,240 @@
+/* PropertyCharts.css — one property's own climate record, inside the zone
+   accordion on Grow's Insights → Climate History tab.
+
+   Class prefix `pch-` (property climate history). The Insights Pro page uses
+   `site-chart__*` / `my-site__*`; these are the same charts but they sit inside
+   Grow's card chrome, so the shapes are shared and the names are not. Colours
+   come from Grow's theme tokens where one exists, and fall back to the literal
+   the Pro page uses so the two read as one product. */
+
+.pch-card {
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+  overflow: hidden;
+}
+
+.pch-card.is-open {
+  border-color: rgba(61, 70, 50, 0.35);
+}
+
+/* The whole header is the control. Grow has a global `button { padding }` rule
+   that clips anything sizing itself, so padding is always explicit here — see
+   the web-global-button-padding note. */
+.pch-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text, #2f3428);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pch-card-head:hover {
+  background: rgba(61, 70, 50, 0.04);
+}
+
+.pch-card-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.pch-card-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pch-card-body {
+  padding: 0 14px 16px;
+}
+
+.pch-panel {
+  margin-top: 18px;
+}
+
+.pch-panel h4 {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text, #3d4632);
+}
+
+/* --- chips (metric and variable selectors) -------------------------------- */
+
+.pch-chips,
+.pch-windows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* A horizontal scroller on a phone rather than four rows of chips. */
+@media (max-width: 640px) {
+  .pch-chips,
+  .pch-windows {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.pch-chip,
+.pch-window {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  /* 44px is the tap target that makes these usable in a vineyard. */
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pch-chip.is-active,
+.pch-window.is-active {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: #fff;
+}
+
+/* --- charts --------------------------------------------------------------- */
+
+.pch-chart {
+  position: relative;
+  width: 100%;
+}
+
+.pch-empty,
+.pch-note {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pch-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary, #5b6830);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* --- states --------------------------------------------------------------- */
+
+.pch-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pch-spin {
+  animation: pch-spin 1s linear infinite;
+}
+
+@keyframes pch-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* No site yet, or one still building. Not an error box: this is the normal
+   starting state for a property, and the copy is an offer. */
+.pch-absent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1px solid rgba(91, 104, 48, 0.18);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.05);
+}
+
+.pch-absent svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--color-primary, #5b6830);
+}
+
+.pch-absent p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #5f6754);
+}
+
+.pch-baseline {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.04);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pch-baseline svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.pch-baseline strong {
+  color: #4a5340;
+  font-weight: 600;
+}
+
+/* --- view pills ----------------------------------------------------------
+   Season by season and month by month are alternatives, not a sequence. The
+   two stacked made a property's card taller than a screen. */
+.pch-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.pch-view {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pch-view:hover { border-color: #3f6f4a; }
+
+.pch-view.is-active {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: #fff;
+}

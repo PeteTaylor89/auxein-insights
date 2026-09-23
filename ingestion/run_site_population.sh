@@ -22,24 +22,8 @@ export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 cd "$(dirname "$0")/.."                   # -> repo root; backend/ is below it
 LOG=/opt/auxein/logs; mkdir -p "$LOG"
 
-# --- non-secret config, mirroring run_all.sh ---
-export ENV=staging
-export AWS_REGION=ap-southeast-2
-export RDS_DATABASE=auxein_db
-export RDS_ENDPOINT=auxein-db.cnmusikiqmmn.ap-southeast-2.rds.amazonaws.com
-export RDS_PORT=5432
-export PYTHONIOENCODING=utf-8
-
-# Extraction is ~7,700 single-cell reads and the process sleeps on the network
-# ~96% of the time, so this is a latency knob, not a CPU one. GitHub used 12 on
-# a 2-core 7 GB runner; this box is a 1 GB t3.micro that is also running hourly
-# ingestion, so it is halved. Raise it only after watching free memory during a
-# real extraction.
-export INSIGHTS_SITE_WORKERS="${INSIGHTS_SITE_WORKERS:-6}"
-
-export SECRET_KEY=$(aws ssm get-parameter --name /auxein/ingest/SECRET_KEY --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
-export RDS_USER=$(aws ssm get-parameter --name /auxein/ingest/RDS_USER --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
-export RDS_PASSWORD=$(aws ssm get-parameter --name /auxein/ingest/RDS_PASSWORD --with-decryption --query Parameter.Value --output text --region "$AWS_REGION")
+# Config and SSM secrets, shared with deploy_site_population.sh's import check.
+. ingestion/site_population_env.sh
 
 PY=/opt/auxein/.venv-app/bin/python
 
@@ -55,8 +39,53 @@ if ! flock -n 9; then
 fi
 
 cd backend
+
+# Sites in the queue BEFORE the populator runs — the ones this run may finish.
+QUEUED_SQL="SELECT id FROM insights_site WHERE status = 'populating' ORDER BY requested_at"
+site_ids() {   # $1 = SQL returning one id column
+  "$PY" - "$1" <<'PY'
+import os, sys, psycopg2
+cn = psycopg2.connect(
+    host=os.environ["RDS_ENDPOINT"], port=os.environ.get("RDS_PORT", "5432"),
+    user=os.environ["RDS_USER"], password=os.environ["RDS_PASSWORD"],
+    dbname=os.environ["RDS_DATABASE"], connect_timeout=20)
+cur = cn.cursor()
+cur.execute(sys.argv[1])
+print(" ".join(str(r[0]) for r in cur.fetchall()))
+cn.close()
+PY
+}
+queued=$(site_ids "$QUEUED_SQL" 2>>"$LOG/site_population.log")
+
 "$PY" scripts/populate_insights_sites.py >> "$LOG/site_population.log" 2>&1
 rc=$?
+
+# THE POPULATOR DOES NOT CHAIN. It fills the monthly archive and flips the site
+# to 'ready', and a site it finishes has NO daily series and NO water balance:
+# the nightly jobs only extend the last day or two, they never backfill. So a
+# new site read 'ready' with empty daily charts until somebody ran the other two
+# scripts by hand. Both are run here, per site, for every site this run
+# finished. 2026-02-15 is where the daily surface archive starts (the budburst
+# backfill), so this is the whole daily record, not a guess at a window.
+DAILY_FROM=2026-02-15
+DAILY_TO=$(date -d yesterday +%F)
+# Phenology too, or the site track stays blank until the 18:00 NZ pipeline
+# (stage 4b) next runs — which is what Testing Property showed on 2026-09-22.
+# It reads the daily series just written, so it runs after it, and from
+# 1 September because that is where the season's accumulation starts. It ends
+# at yesterday because it needs a daily record for the day it estimates.
+if [ "$(date +%-m)" -ge 9 ]; then PHEN_FROM="$(date +%Y)-09-01"; else PHEN_FROM="$(( $(date +%Y) - 1 ))-09-01"; fi
+for sid in $queued; do
+  now=$(site_ids "SELECT id FROM insights_site WHERE id = $sid AND status = 'ready'" 2>>"$LOG/site_population.log")
+  [ -n "$now" ] || continue
+  echo "$(date -Is) site $sid ready; daily $DAILY_FROM..$DAILY_TO and water" >> "$LOG/site_population.log"
+  "$PY" scripts/populate_site_daily.py --site "$sid" --from "$DAILY_FROM" --to "$DAILY_TO" >> "$LOG/site_population.log" 2>&1 \
+    || { echo "SITE-ALERT site=$sid daily backfill failed" >> "$LOG/site_population.log"; rc=1; }
+  "$PY" scripts/populate_site_phenology.py --site "$sid" --from "$PHEN_FROM" --to "$DAILY_TO" >> "$LOG/site_population.log" 2>&1 \
+    || { echo "SITE-ALERT site=$sid phenology failed" >> "$LOG/site_population.log"; rc=1; }
+  "$PY" scripts/populate_site_water.py --site "$sid" >> "$LOG/site_population.log" 2>&1 \
+    || { echo "SITE-ALERT site=$sid water balance failed" >> "$LOG/site_population.log"; rc=1; }
+done
 
 # The populator marks a site 'failed' with a customer-readable detail and leaves
 # the previous rows in place, which is honest to the customer and INVISIBLE to

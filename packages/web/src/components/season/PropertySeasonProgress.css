@@ -1,0 +1,87 @@
+/* PropertySeasonProgress.css — the season curve, under the season's metrics.
+   It shares the panel it sits in, so it carries no border or background of its
+   own: a second card inside a card reads as two separate answers to one
+   question. Prefix `psp-`. */
+
+.psp {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border, #e5e2dc);
+}
+
+.psp-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.psp-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The two groups do different jobs — one picks WHAT is plotted, the other what
+   it is read AGAINST — so the second is labelled rather than left to look like
+   more of the first. */
+.psp-pills--compare { margin-left: auto; }
+
+.psp-pills-label {
+  margin-right: 2px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+/* Explicit padding and min-height: Grow's global `button` rule would otherwise
+   size these, and 44px is the tap target that makes them usable outdoors. */
+.psp-pill {
+  min-height: 36px;
+  padding: 4px 11px;
+  border: 1px solid var(--color-border, #e5e2dc);
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #2c2a26);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.psp-pill:hover { border-color: #3f6f4a; }
+
+.psp-pill.is-active {
+  background: #3f6f4a;
+  border-color: #3f6f4a;
+  color: #fff;
+}
+
+.psp-plot {
+  position: relative;
+  height: 300px;
+}
+
+.psp-note,
+.psp-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.psp-note svg,
+.psp-state svg { flex: 0 0 auto; margin-top: 2px; }
+
+.psp-spin { animation: psp-spin 1s linear infinite; }
+
+@keyframes psp-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .psp-controls { flex-direction: column; align-items: flex-start; }
+  .psp-pills--compare { margin-left: 0; }
+  .psp-plot { height: 240px; }
+}

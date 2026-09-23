@@ -39,9 +39,11 @@ distance to the nearest land cell, and it is passed straight through rather than
 swallowed, because "move it 300 m inland" is something the user can act on.
 """
 import logging
+import math
 import re
 from typing import Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from db.models.insights_account import InsightsAccount, InsightsAccountMember
@@ -210,3 +212,131 @@ def provision_site_for_property(db: Session, prop: Property) -> InsightsSite:
     log.info("site %s placed for property %s (company %s) at %.5f,%.5f",
              site.id, prop.id, company_id, lat, lon)
     return site
+
+
+# --- moving a site when the property's point changes --------------------------
+#
+# Saving a forecast point in Manage -> Weather does NOT move the site, and must
+# not: the site's whole value is its extracted 1986-2023 record, and rebuilding
+# that on every property save would mean a mistyped coordinate silently throws
+# away 38 years of history with no undo. Pete, 2026-09-23: show the drift and
+# let someone press the button.
+#
+# Discovered the same day: property 14's point was corrected by 67 km and its
+# site stayed in central Christchurch, so every figure on its climate panels was
+# for the wrong place while reading as perfectly healthy.
+
+
+def point_drift_m(prop: Property, site: InsightsSite) -> Optional[float]:
+    """Metres between the property's forecast point and where its site sits.
+
+    None when either side has no point. Equirectangular rather than haversine:
+    at the scale that matters here (tens of metres to tens of km, all within one
+    country) the difference is millimetres, and this has no dependencies.
+    """
+    if (prop.forecast_latitude is None or prop.forecast_longitude is None
+            or site is None):
+        return None
+    lat1, lon1 = float(prop.forecast_latitude), float(prop.forecast_longitude)
+    lat2, lon2 = float(site.latitude), float(site.longitude)
+    mean_lat = math.radians((lat1 + lat2) / 2)
+    dx = (lon1 - lon2) * 111_320 * math.cos(mean_lat)
+    dy = (lat1 - lat2) * 111_320
+    return math.hypot(dx, dy)
+
+
+#: Below this, the two points are the same place as far as a 500 m surface is
+#: concerned, and a "move" would re-extract 456 months to land on the same cell.
+DRIFT_TOLERANCE_M = 50.0
+
+
+def nearest_zone(db: Session, lat: float, lon: float) -> Optional[dict]:
+    """The closest wine zone to a point that is not inside one.
+
+    `resolve_zone` deliberately refuses to snap an outside point to a nearby
+    region. That is right — but "no region" with no further detail is not
+    actionable, and the two points corrected on 2026-09-23 were 280 m and 9.2 km
+    outside their zones, which are very different problems. So the distance is
+    reported and the decision stays with the user, the same way an off-mask
+    refusal reports the nearest land cell.
+    """
+    row = db.execute(text("""
+        SELECT id, name,
+               ST_Distance(geometry::geography,
+                           ST_SetSRID(ST_Point(:lon, :lat), 4326)::geography) AS m
+          FROM climate_zones
+         WHERE geometry IS NOT NULL AND is_active = true
+         ORDER BY m ASC
+         LIMIT 1
+    """), {"lat": lat, "lon": lon}).mappings().first()
+    return None if row is None else {"zone_id": row["id"], "name": row["name"],
+                                     "distance_m": float(row["m"])}
+
+
+def move_site_to_property_point(db: Session, prop: Property) -> dict:
+    """Re-place this property's site at its current forecast point.
+
+    Mirrors the Insights move (`PATCH /insights/sites/{id}`): re-resolve the
+    cell and the zone, mark it populating and let the populator rebuild it.
+
+    **The old rows are left in place.** A site showing its previous record for a
+    few minutes beats a customer watching an empty page, and the populator
+    overwrites by primary key.
+
+    **The Pro move allowance is NOT applied here.** `MOVES_PER_WINDOW` exists so
+    a point subscription cannot be walked around the country to sample the
+    archive; a Grow company correcting its own vineyard's coordinates is not
+    that, and rate-limiting it would leave a customer stuck with a site they can
+    see is in the wrong place. The move is still recorded, so the count is there
+    if that judgement ever needs revisiting.
+    """
+    if prop.insights_site_id is None:
+        raise ProvisioningError(
+            "no_site", f"{prop.name} has no climate site to move.")
+    site = db.get(InsightsSite, prop.insights_site_id)
+    if site is None:
+        raise ProvisioningError(
+            "no_site", f"{prop.name} has no climate site to move.")
+
+    lat, lon = prop.forecast_latitude, prop.forecast_longitude
+    if lat is None or lon is None:
+        raise ProvisioningError(
+            "no_forecast_point",
+            f"{prop.name} has no weather location set, so there is no point to "
+            "move its climate site to.")
+    lat, lon = float(lat), float(lon)
+
+    drift = point_drift_m(prop, site)
+    if drift is not None and drift < DRIFT_TOLERANCE_M:
+        # Not an error. Rebuilding 456 months to land on the same cell is a
+        # waste, and saying so is more useful than a spinner that changes
+        # nothing.
+        return {"moved": False, "site": site, "drift_m": drift,
+                "reason": "The site is already at this property's point."}
+
+    try:
+        cell = svc.resolve_cell(db, lat, lon)
+    except svc.PlacementError as exc:
+        raise ProvisioningError(exc.code, exc.message, exc.detail) from exc
+
+    zone_id = svc.resolve_zone(db, lat, lon)
+
+    site.latitude, site.longitude = lat, lon
+    site.grid_row, site.grid_col = cell["row"], cell["col"]
+    site.grid_key = cell["grid_key"]
+    site.zone_id = zone_id
+    # The label is a snapshot taken when the site was placed, so a property
+    # renamed since then still carries the old name into the Insights portfolio.
+    # A move is the natural moment to resync it.
+    site.label = (prop.name or site.label or "")[:80]
+    site.status = "populating"
+    site.status_detail = None
+    svc.record_move(site)
+    db.flush()
+
+    log.info("site %s moved to property %s point %.5f,%.5f (%.0f m), zone %s",
+             site.id, prop.id, lat, lon, drift or 0.0, zone_id)
+    return {"moved": True, "site": site, "drift_m": drift,
+            # Absent is a real answer, and its distance is the actionable part.
+            "zone_id": zone_id,
+            "nearest_zone": None if zone_id else nearest_zone(db, lat, lon)}

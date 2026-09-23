@@ -1,210 +1,116 @@
-/* src/components/climate/RegionalClimateHistory.css */
+/* RegionalClimateHistory.css — the Climate History tab's chooser.
 
-.regional-climate-history {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
+   Rewritten 2026-09-23 with the accordion. Two pill rows (region, then the
+   properties in it) and one panel below them, on the page's own background:
+   the sand fill this used to paint behind the explorer made the regional view
+   look like a different product from the property record sitting under it. */
 
-/* ---- States (loading / error / empty) ---- */
-.rch-state {
-  padding: 28px 20px;
-  text-align: center;
-  color: var(--color-text-muted);
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-.rch-state-error {
-  color: var(--color-danger-hover);
-  border-color: var(--color-danger-bg);
-  background: var(--color-danger-bg);
-}
-
-/* ---- Zone accordion block ---- */
-.rch-zone {
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.rch-zone.open {
-  border-color: var(--color-primary, #5b6830);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-}
-
-.rch-zone-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: 16px 18px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-}
-.rch-zone-header.static {
-  cursor: default;
-}
-.rch-zone-header:hover:not(.static) {
-  background: #fafaf7;
-}
-
-.rch-zone-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.rch-zone-title svg {
-  color: var(--color-primary, #5b6830);
-  flex-shrink: 0;
-}
-.rch-zone-name {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rch-zone-region {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  background: #f3f4f1;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-}
-
-.rch-zone-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  flex-shrink: 0;
-}
-.rch-zone-meta svg:last-child {
-  color: var(--color-text-muted);
-}
-.rch-zone-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-.rch-zone-count svg {
-  color: var(--color-primary, #5b6830);
-}
-
-/* ---- Zone body ---- */
-.rch-zone-body {
-  padding: 0 18px 18px;
-  border-top: 1px solid #f0f0ec;
-}
-
-.rch-history {
-  margin-top: var(--space-base);
-}
-
-.rch-history-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 36px 20px;
-  margin-top: var(--space-base);
-  text-align: center;
-  color: var(--color-text-muted);
-  background: #fafaf7;
-  border: 1px dashed #d6d8cf;
-  border-radius: 10px;
-}
-.rch-history-placeholder svg {
-  color: #c2c7b4;
-}
-.rch-history-placeholder p {
+.rch-loading,
+.rch-prompt {
   margin: 0;
-  font-size: 0.92rem;
+  padding: 14px 0;
+  font-size: 0.86rem;
+  color: var(--color-text-muted, #6b7360);
 }
 
-/* ---- Nested properties ---- */
-.rch-properties {
-  margin-top: 18px;
-}
-.rch-properties-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+/* --- pills ---------------------------------------------------------------- */
+
+.rch-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 10px;
 }
-.rch-property-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
+
+/* The second row is the sub-choice, and sits slightly in from the first so the
+   two read as a hierarchy rather than as eight equal options. */
+.rch-pills--sub {
+  margin-bottom: 14px;
+  padding-left: 2px;
 }
-.rch-property-card {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: #fff;
-}
-.rch-property-card.muted {
-  background: var(--color-surface-warm);
-  border-style: dashed;
-}
-.rch-property-name {
-  display: flex;
+
+.rch-pill {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* Explicit sizing: Grow's global `button { padding }` clips controls that
+     size themselves. 40px keeps them tappable outdoors. */
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.82rem;
   font-weight: 600;
-  font-size: 0.92rem;
-  color: var(--color-text);
-}
-.rch-property-name svg {
-  color: var(--color-primary, #5b6830);
-  flex-shrink: 0;
-}
-.rch-property-region {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  margin-top: 3px;
-}
-.rch-property-note {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-  margin-top: var(--space-sm);
-  font-style: italic;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-/* ---- Unassigned group ---- */
-.rch-zone-unassigned .rch-zone-title svg {
-  color: var(--color-warning, #d97706);
+.rch-pill:hover { border-color: #3f6f4a; }
+
+.rch-pill.is-active {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: #fff;
 }
+
+.rch-pill svg { flex: 0 0 auto; }
+
+.rch-pill--sub {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.rch-pill-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.rch-pill.is-active .rch-pill-count {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+@media (max-width: 640px) {
+  .rch-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rch-pill { scroll-snap-align: start; }
+}
+
+/* --- properties with no zone ---------------------------------------------- */
+
+.rch-unassigned {
+  margin-top: 18px;
+}
+
 .rch-unassigned-note {
-  margin: var(--space-base) 0 var(--space-md);
-  font-size: 0.88rem;
-  color: #92732a;
-  background: var(--color-warning-bg);
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(202, 138, 4, 0.22);
+  border-radius: 8px;
+  background: rgba(202, 138, 4, 0.06);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #6b7360;
 }
 
-@media (max-width: 560px) {
-  .rch-property-grid {
-    grid-template-columns: 1fr;
-  }
-  .rch-zone-region {
-    display: none;
-  }
+.rch-unassigned-note svg { flex: 0 0 auto; margin-top: 2px; color: #8a5a1a; }
+
+.rch-unassigned-names {
+  display: block;
+  margin-top: 3px;
+  font-weight: 600;
+  color: #4a5340;
 }

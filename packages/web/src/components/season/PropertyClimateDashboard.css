@@ -1,0 +1,322 @@
+/* PropertyClimateDashboard.css — the My Site dashboard inside Grow's This
+   Season tab. Prefix `pcd-`.
+
+   THE THREE PANELS LOOK ALIKE ON PURPOSE and are labelled apart in words, not
+   by styling: they are three scales answering one question, and giving the
+   regional strip its own visual treatment would invite reading the difference
+   as importance rather than as scale. */
+
+.pcd { margin-top: 18px; }
+
+.pcd-panel {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+}
+
+.pcd-panel--pending { background: rgba(91, 104, 48, 0.04); }
+
+.pcd-head h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  color: var(--color-text, #3d4632);
+}
+
+.pcd-state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 128, 105, 0.12);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #78806a;
+}
+
+.pcd-state.is-in_progress { background: rgba(91, 104, 48, 0.16); color: #4a5340; }
+
+.pcd-scope {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7360);
+}
+
+/* The elapsed fraction of the season — see the note in the component. */
+.pcd-progress {
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(120, 128, 105, 0.16);
+  overflow: hidden;
+}
+
+.pcd-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #5b6830;
+}
+
+.pcd-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pcd-metric-label {
+  margin: 0 0 2px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcd-metric-value {
+  margin: 0;
+  font-size: 1.24rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #3d4632);
+}
+
+.pcd-metric-unit {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #8a9276;
+}
+
+.pcd-metric-normal,
+.pcd-metric-days {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcd-metric-scope {
+  display: block;
+  font-size: 0.66rem;
+  color: #8a9276;
+}
+
+/* Colour says which way costs money; the number reads the same either way. */
+.pcd-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pcd-delta.is-good { color: #4a7c3f; }
+.pcd-delta.is-bad { color: #b4633a; }
+.pcd-delta.is-flat { color: #8a9276; }
+
+.pcd-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pcd-tile {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  background: rgba(138, 154, 91, 0.05);
+}
+
+.pcd-tile-label {
+  margin: 0 0 4px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcd-tile-value {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #3d4632);
+}
+
+.pcd-tile-unit { font-size: 0.78rem; font-weight: 500; color: #8a9276; }
+
+.pcd-tile-caption {
+  margin: 2px 0 8px;
+  font-size: 0.68rem;
+  color: #8a9276;
+}
+
+.pcd-tile-rows { margin: 0; }
+
+.pcd-tile-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.74rem;
+}
+
+.pcd-tile-rows dt { color: var(--color-text-muted, #6b7360); }
+
+.pcd-tile-rows dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #3d4632);
+}
+
+.pcd-muted { color: #8a9276; font-weight: 400; }
+
+.pcd-tile-position {
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: #6b7360;
+}
+
+.pcd-tile-position.is-above { color: #b4633a; }
+.pcd-tile-position.is-below { color: #5682a8; }
+
+.pcd-usual {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.pcd-usual-label {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcd-usual dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.pcd-usual dt { font-size: 0.7rem; color: #8a9276; }
+
+.pcd-usual dd {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #3d4632);
+}
+
+.pcd-usual dd span { font-size: 0.7rem; font-weight: 500; color: #8a9276; }
+
+.pcd-note,
+.pcd-reason,
+.pcd-loading,
+.pcd-baseline {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcd-note { margin: 12px 0 0; }
+.pcd-reason { margin: 10px 0 0; }
+.pcd-loading { margin: 14px 0 0; }
+
+.pcd-note svg,
+.pcd-reason svg,
+.pcd-baseline svg { flex: 0 0 auto; margin-top: 2px; }
+
+.pcd-baseline {
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(91, 104, 48, 0.16);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.04);
+}
+
+.pcd-baseline strong { color: #4a5340; font-weight: 600; }
+
+.pcd-absent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 11px 13px;
+  border: 1px solid rgba(91, 104, 48, 0.18);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.05);
+}
+
+.pcd-absent svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-primary, #5b6830); }
+
+.pcd-absent p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #5f6754);
+}
+
+.pcd-era {
+  margin-top: 12px;
+  font-size: 0.74rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcd-era summary { cursor: pointer; font-weight: 600; }
+
+.pcd-era ul { margin: 6px 0 0; padding-left: 18px; }
+
+.pcd-era li { margin-bottom: 4px; line-height: 1.5; }
+
+.pcd-spin { animation: pcd-spin 1s linear infinite; }
+
+@keyframes pcd-spin { to { transform: rotate(360deg); } }
+
+/* --- view pills ----------------------------------------------------------
+   One answer at a time. Stacked, the three blocks ran to several screens and
+   the tiles were reached by scrolling past everything rather than by asking. */
+.pcd-views,
+.pch-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pcd-view {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pcd-view:hover { border-color: #3f6f4a; }
+
+.pcd-view.is-active {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .pcd-views { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

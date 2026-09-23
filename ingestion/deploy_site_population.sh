@@ -23,10 +23,20 @@ export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 VENV=/opt/auxein/.venv-app
 
-echo "== repo:  $REPO"
-echo "== venv:  $VENV"
+# NOT bare `python3`. On this box (Amazon Linux 2023) that is 3.9, and the
+# surfaces pins cannot install on it: rasterio 1.5.0 needs >=3.12, scipy 1.18
+# >=3.11. A 3.9 venv fails at pip install, and this script was never finished
+# on 2026-08-31, so site population sat dead from then until 2026-09-22.
+# 3.13 is what the Fargate image runs (deploy/surfaces/Dockerfile) and what the
+# archive was produced on. `sudo dnf install -y python3.13` if it is missing.
+PYTHON="${PYTHON:-python3.13}"
+"$PYTHON" -c 'import sys; assert sys.version_info >= (3, 12), sys.version' \
+  || { echo "== $PYTHON missing or older than 3.12 (sudo dnf install -y python3.13)"; exit 1; }
 
-python3 -m venv "$VENV"
+echo "== repo:  $REPO"
+echo "== venv:  $VENV ($("$PYTHON" --version))"
+
+"$PYTHON" -m venv "$VENV"
 "$VENV/bin/pip" install --upgrade pip wheel
 
 # The surfaces image's pinned set, which is the one validated to run this code
@@ -35,10 +45,13 @@ python3 -m venv "$VENV"
 "$VENV/bin/pip" install --no-cache-dir -r "$REPO/deploy/surfaces/requirements.txt"
 
 echo "== import check (nothing is executed; the __main__ guard does not fire)"
+# With the job's own environment: config.py refuses to import without
+# SECRET_KEY and the RDS settings, and a check that cannot import proves nothing.
+. "$REPO/ingestion/site_population_env.sh"
 cd "$REPO/backend"
 "$VENV/bin/python" - <<'PY'
 import runpy
-for n in ("populate_insights_sites",):
+for n in ("populate_insights_sites", "populate_site_daily", "populate_site_phenology", "populate_site_water"):
     runpy.run_path(f"scripts/{n}.py", run_name="deploy_check")
     print("IMPORT-OK", n)
 PY
@@ -46,18 +59,24 @@ PY
 chmod +x "$REPO/ingestion/run_site_population.sh"
 mkdir -p /opt/auxein/logs
 
+# INSTALLED, not printed. This script used to end by printing the line for a
+# manual `crontab -e`, and that manual step is exactly what never happened.
+# Idempotent: an existing site-population line is replaced, never duplicated —
+# two pollers on one queue double-extract without failing. `bash` in front, as
+# run_all.sh has it, so a checkout that loses the exec bit still runs.
+CRON_LINE="*/5 * * * * bash $REPO/ingestion/run_site_population.sh"
+( crontab -l 2>/dev/null | grep -v 'run_site_population.sh' ; echo "$CRON_LINE" ) | crontab -
+echo "== crontab now:"
+crontab -l
+
 cat <<EOF
-
-== Add this crontab line (crontab -e), then check it against run_all.sh's
-
-  */5 * * * * $REPO/ingestion/run_site_population.sh
 
 Every five minutes, matching what GitHub was ASKED for and, unlike GitHub,
 what it will actually do. The wrapper takes an flock, so an overrun skips
 rather than piles up.
 
 == Verify, in this order:
-  1. $REPO/ingestion/run_site_population.sh          # run it by hand once
+  1. bash $REPO/ingestion/run_site_population.sh     # run it by hand once
   2. tail -n 40 /opt/auxein/logs/site_population.log # exit=0, no SITE-ALERT
   3. wait 5 minutes, tail again                      # cron fired
   4. add a site in the UI and time it                # end to end

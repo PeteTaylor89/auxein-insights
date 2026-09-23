@@ -22,23 +22,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { CloudSun, ShieldCheck, Grape, MapPin, Info, Loader, AlertTriangle } from 'lucide-react';
 import { propertyService } from '@vineyard/shared';
 import PhenologyPanel from '../phenology/PhenologyPanel';
+import PropertyClimateDashboard from './PropertyClimateDashboard';
+import PropertyDiseaseDetail from './PropertyDiseaseDetail';
 import './ThisSeasonPanel.css';
 
 const SECTIONS = [
   { key: 'weather', label: 'Weather', Icon: CloudSun },
   { key: 'disease', label: 'Disease', Icon: ShieldCheck },
   { key: 'phenology', label: 'Phenology', Icon: Grape },
-];
-
-// Risk vocabulary as the models emit it. Ordered worst first, which is also the
-// order the tones escalate.
-const RISK_TONE = { high: 'danger', moderate: 'warning', low: 'ok' };
-const RISK_LABEL = { high: 'High', moderate: 'Moderate', low: 'Low' };
-
-const DISEASES = [
-  { key: 'powdery_mildew_risk', label: 'Powdery mildew' },
-  { key: 'downy_mildew_risk', label: 'Downy mildew' },
-  { key: 'botrytis_risk', label: 'Botrytis' },
 ];
 
 const fmtDate = (iso) => {
@@ -61,27 +52,26 @@ function ScopeTag({ isSite }) {
   );
 }
 
-function RiskBadge({ level }) {
-  const tone = RISK_TONE[level] || 'unknown';
-  return (
-    <span className={`gs-risk gs-risk--${tone}`}>
-      {RISK_LABEL[level] || level || 'Not modelled'}
-    </span>
-  );
-}
-
+// Weather is now the property's own record and nothing else.
+//
+// This used to open on four REGIONAL tiles and a table of the last completed
+// season, with the property's own dashboard below them — three summaries of the
+// same season before the reader reached a chart. Pete, 2026-09-23: drop the
+// tiles, lead with the season in progress.
+//
+// THE REGIONAL FALLBACK SURVIVES, for the case that needs it. A property with
+// no climate site has nothing of its own to show, and the regional figures need
+// no setup at all — so they still render, but only then, and labelled. Without
+// that, switching to a property that has not been set up would leave the tab
+// empty of everything except an instruction.
 function WeatherSection({ data }) {
   const regional = data.season?.regional;
-  const site = data.season?.site;
+  const hasSite = Boolean(data.site?.is_ready);
   const s = regional?.season;
 
   return (
     <div className="gs-panel">
-      {!regional && !site && (
-        <p className="gs-reason">{data.season?.reason || data.zone_reason}</p>
-      )}
-
-      {s && (
+      {!hasSite && s && (
         <>
           <div className="gs-panel-head">
             <h4 className="gs-panel-title">
@@ -115,133 +105,52 @@ function WeatherSection({ data }) {
         </>
       )}
 
-      {/* The site's own record is a DIFFERENT SEASON from the one above — the
-          extracted record holds completed seasons, and the newest is 2026 while
-          the live regional figure is 2027. Labelling them both "this season"
-          would be two different claims under one heading. */}
-      {site && (
-        <div className="gs-panel">
-          <div className="gs-panel-head">
-            <h4 className="gs-panel-title">Season {site.vintage_year}, completed</h4>
-            <ScopeTag isSite />
-          </div>
-          <p className="gs-panel-sub">
-            This property&apos;s own point, against its own{' '}
-            {site.baseline_period || '1986–2005'} normals
-            {site.metrics[0]?.baseline_seasons
-              ? ` (${site.metrics[0].baseline_seasons} seasons)`
-              : ''}.
-            {' '}Computed from this site&apos;s own record, so the comparison is
-            the same place in two periods.
-          </p>
-          <table className="gs-table">
-            <thead>
-              <tr><th>Metric</th><th>This season</th><th>Baseline</th><th>Difference</th></tr>
-            </thead>
-            <tbody>
-              {site.metrics.map((m) => (
-                <tr key={m.metric}>
-                  <td>{m.label}</td>
-                  <td>{num(m.value)} {m.unit}</td>
-                  <td>{m.baseline === null ? '—' : `${num(m.baseline)} ${m.unit}`}</td>
-                  <td>
-                    {m.vs_baseline === null
-                      ? <span className="gs-muted" title="No baseline to compare against">—</span>
-                      : `${m.vs_baseline > 0 ? '+' : ''}${num(m.vs_baseline)}`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {!hasSite && !s && (
+        <p className="gs-reason">{data.season?.reason || data.zone_reason}</p>
       )}
 
-      {!site && data.season?.site_reason && (
-        <p className="gs-offer">{data.season.site_reason}</p>
-      )}
+      {/* The season in progress at this property's own cell, the season just
+          finished at its region, and what the cell usually does — chosen by
+          pills inside, each labelled with its own scale. */}
+      <PropertyClimateDashboard
+        propertyId={data.property_id}
+        propertyName={data.property_name}
+      />
     </div>
   );
 }
 
+// Disease is the models' own curves now — Pete, 2026-09-23: "can we only do
+// the graphs for disease pressures".
+//
+// Gone: the three risk badges and the 14-day colour strip. Both said the same
+// thing as the charts in a coarser vocabulary — a strip of green squares is a
+// banded index with the numbers taken out — and the strip in particular invited
+// reading a run of colours as a trend when the underlying indices had barely
+// moved. What is kept from the old panel is the humidity caveat, which the
+// charts cannot say for themselves, and the scope tag.
 function DiseaseSection({ data }) {
   const d = data.disease || {};
-  // The site's own modelling wins when it exists; the region is the fallback,
-  // and the tag says which is on screen.
   const active = d.site || d.regional;
-  const isSite = !!d.site;
-
-  if (!active) {
-    return <div className="gs-panel"><p className="gs-reason">{d.reason || data.zone_reason}</p></div>;
-  }
 
   return (
     <div className="gs-panel">
-      <div className="gs-panel-head">
-        <h4 className="gs-panel-title">
-          Pressure to {fmtDate(active.as_of)}
-        </h4>
-        <ScopeTag isSite={isSite} />
-      </div>
-      <p className="gs-panel-sub">
-        Modelled over the last {d.window_days} days
-        {active.growth_stage
-          ? <> at growth stage <strong>{String(active.growth_stage).replace(/_/g, ' ')}</strong></>
-          : null}.
-      </p>
-
-      <div className="gs-risks">
-        {DISEASES.map((disease) => (
-          <div key={disease.key} className="gs-risk-row">
-            <span className="gs-risk-name">{disease.label}</span>
-            <RiskBadge level={active[disease.key]} />
-          </div>
-        ))}
-      </div>
-
-      {/* A risk level computed without a hygrometer is not the same claim as
-          one computed with one — botrytis in particular is a wetness model. */}
-      {!active.humidity_available && (
+      {/* The caveat rides above the charts rather than inside one: it applies
+          to every model on the tab, and botrytis in particular is a wetness
+          model that cannot see what it is missing. */}
+      {active && active.humidity_available === false && (
         <p className="gs-reason">
-          <strong>No humidity data for this period.</strong> The mildew and botrytis
-          models are wetness-driven, so these levels are based on temperature and
-          rainfall alone and will read low more often than they should.
+          <strong>No humidity data for this period.</strong> The mildew and
+          botrytis models are wetness-driven, so these read low more often than
+          they should.
         </p>
       )}
 
-      {active.series?.length > 1 && (
-        <div className="gs-panel">
-          <h4 className="gs-panel-title">Last {active.series.length} days</h4>
-          <div className="gs-strip-wrap">
-            <table className="gs-strip">
-              <thead>
-                <tr>
-                  <th />
-                  {active.series.map((row) => (
-                    <th key={row.date}>{fmtDate(row.date)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[['powdery', 'Powdery'], ['downy', 'Downy'], ['botrytis', 'Botrytis']].map(([k, label]) => (
-                  <tr key={k}>
-                    <th scope="row">{label}</th>
-                    {active.series.map((row) => (
-                      <td key={row.date}>
-                        <span
-                          className={`gs-cell gs-cell--${RISK_TONE[row[k]] || 'unknown'}`}
-                          title={`${label}: ${RISK_LABEL[row[k]] || 'not modelled'} on ${fmtDate(row.date)}`}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {!active && (
+        <p className="gs-reason">{d.reason || data.zone_reason}</p>
       )}
 
-      {!isSite && data.site_reason && <p className="gs-offer">{data.site_reason}</p>}
+      <PropertyDiseaseDetail propertyId={data.property_id} />
     </div>
   );
 }

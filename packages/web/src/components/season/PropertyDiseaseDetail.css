@@ -1,0 +1,147 @@
+/* PropertyDiseaseDetail.css — the disease models, under the risk badges.
+   Prefix `pdd-`. Each card is one MODEL, not one disease: botrytis has two. */
+
+.pdd {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border, #e5e2dc);
+}
+
+.pdd-head h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  color: var(--color-text, #3d4632);
+}
+
+.pdd-scope {
+  margin: 0 0 12px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pdd-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdd-card {
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border-radius: 8px;
+  background: var(--color-surface, #fff);
+  overflow: hidden;
+}
+
+.pdd-card--empty {
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.pdd-card--empty h5 { margin: 0 0 3px; font-size: 0.84rem; }
+
+/* Explicit padding — Grow's global `button` rule would otherwise size this. */
+.pdd-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text, #2f3428);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pdd-card-head:hover { background: rgba(61, 70, 50, 0.04); }
+
+.pdd-card-title { font-size: 0.86rem; font-weight: 600; }
+
+/* The model's name sits beside the disease, always. Two of these cards are
+   botrytis and the model is the only thing telling them apart. */
+.pdd-model {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #8a9276);
+}
+
+.pdd-card-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.pdd-latest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdd-band {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pdd-band--ok { background: rgba(91, 140, 90, 0.16); color: #3f6f4a; }
+.pdd-band--warning { background: rgba(202, 138, 4, 0.16); color: #8a5a1a; }
+.pdd-band--danger { background: rgba(190, 70, 50, 0.14); color: #a33; }
+
+.pdd-card-body {
+  padding: 0 14px 14px;
+}
+
+.pdd-plot {
+  position: relative;
+  height: 220px;
+}
+
+.pdd-note,
+.pdd-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pdd-note svg,
+.pdd-state svg { flex: 0 0 auto; margin-top: 2px; }
+
+.pdd-note--foot { margin-top: 12px; }
+
+.pdd-spin { animation: pdd-spin 1s linear infinite; }
+
+@keyframes pdd-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .pdd-plot { height: 190px; }
+}
+
+/* Two charts across on a wide screen (2026-09-23). The tab is the charts now,
+   and four full-width plots stacked is a page of scrolling for what is one
+   comparison — powdery against botrytis against downy, at a glance. */
+@media (min-width: 900px) {
+  .pdd-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+}

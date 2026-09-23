@@ -39,7 +39,7 @@ project from AND it lands inside its own vintage. Nothing here re-derives a
 date, so nothing here can leak one that those tests rejected.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy import text
@@ -53,6 +53,9 @@ from db.models.property import Property
 from services import phenology_stages as phen
 from services import variety_codes
 from services import insights_dashboard as dash
+from services import phenology_basis as basis
+from services import insights_site_baseline as site_baseline
+from core.local_time import local_today
 from sqlalchemy import or_
 
 log = logging.getLogger(__name__)
@@ -197,6 +200,88 @@ def _observed_track(rollup: Optional[phen.StageRollup]) -> Optional[dict]:
     }
 
 
+# --- the season as a line, not a grid ----------------------------------------
+#
+# The panel used to render every stage as a column: four dates per variety, per
+# source, most of them empty for most of the season. Early on that is a wall of
+# dashes, and a 220 g/L date printed in September is eight months of forward
+# extrapolation from two days of measured season, shown in the same font as a
+# budburst date that has already happened.
+#
+# So the payload carries an ORDERED LINE instead: what has happened, then the
+# one stage being headed for, then what is waiting behind it. The rule lives in
+# `phenology_basis` and is shared with the Insights endpoints, because the whole
+# point is that the two products withhold the same dates for the same reasons.
+
+#: Budburst first — it comes from the APSIM chilling-forcing model rather than
+#: the GDD thresholds, so a variety can have it and nothing else (Pinot gris) or
+#: the reverse (Riesling). The rest is the Pro sequence.
+TIMELINE_ORDER = ("budburst", "flowering", "veraison", "harvest_210", "harvest_220")
+
+TIMELINE_NAMES = {
+    "budburst": "Budburst",
+    "flowering": "Flowering",
+    "veraison": "Veraison",
+    "harvest_210": "Harvest 21.0",
+    "harvest_220": "Harvest 22.0",
+}
+
+
+def _timeline(track: Optional[dict], vintage: int, today: date,
+              regional: Optional[dict] = None) -> Optional[List[dict]]:
+    """An ordered line of stages for one variety, from one source's dates.
+
+    Returns None when there is no track at all — the caller already explains
+    that absence and a line of five "unavailable" rows would bury it.
+    """
+    if track is None:
+        return None
+
+    season_start, season_end = site_baseline.season_bounds(vintage)
+    gdd = track.get("gdd")
+
+    stages = {}
+    for key in TIMELINE_ORDER:
+        value = track.get(f"{key}_date")
+        as_date = date.fromisoformat(value) if isinstance(value, str) else value
+        stages[key] = {
+            "date": value,
+            "is_actual": bool(track.get(f"{key}_is_actual")),
+            # The same two tests the Pro page applies: something to project
+            # from, and a date that lands inside its own vintage.
+            "status": basis.classify(as_date, bool(track.get(f"{key}_is_actual")),
+                                     gdd, season_start, season_end),
+        }
+
+    progress = basis.stage_progress(stages, today, order=TIMELINE_ORDER,
+                                    names=TIMELINE_NAMES)
+
+    line = []
+    for key in TIMELINE_ORDER:
+        p = progress[key]
+        shown = basis.is_shown(stages[key]["status"]) and p["role"] in ("passed", "next")
+        when = stages[key]["date"] if shown else None
+        days_away = None
+        if when and p["role"] == "next":
+            days_away = (date.fromisoformat(when) - today).days
+        line.append({
+            "key": key,
+            "label": TIMELINE_NAMES[key],
+            "date": when,
+            "role": p["role"],
+            # observed | modelled | predicted — a date in the future is a
+            # prediction, the same date once it is behind us is not.
+            "basis": p["basis"],
+            "after": p["after"],
+            "days_away": days_away,
+            # The region's own date for the same stage, for the reader who wants
+            # to know whether their point is ahead of its district. Carried on
+            # the row rather than as a second line.
+            "regional_date": (regional or {}).get(f"{key}_date"),
+        })
+    return line
+
+
 def property_phenology(db: Session, prop: Property,
                        vintage: Optional[int] = None) -> dict:
     """Assemble all three tracks for one property."""
@@ -251,10 +336,15 @@ def property_phenology(db: Session, prop: Property,
         regional_rows = {r["code"]: r for r in rows}
 
     observed = _observed_by_variety(db, prop, block_codes)
+    # NZ-local: the date boundary decides whether a stage reads as
+    # passed or as next, and UTC is a day behind all NZ morning.
+    today = local_today()
 
     varieties = []
     for code, blks in sorted(blocks_for.items(),
                              key=lambda kv: -len(kv[1])):
+        site_track = _site_track(site_rows.get(code))
+        regional_track = regional_rows.get(code)
         varieties.append({
             "variety_code": code,
             "variety_name": names.get(code, code),
@@ -262,9 +352,17 @@ def property_phenology(db: Session, prop: Property,
             "has_budburst": coverage[code]["has_budburst"],
             "blocks": blks,
             "block_count": len(blks),
-            "regional": regional_rows.get(code),
+            "regional": regional_track,
             "site": _site_track(site_rows.get(code)),
             "observed": _observed_track(observed.get(code)),
+            # The season as a line: what has happened, the one stage being
+            # headed for, and what is waiting behind it. Built from the SITE
+            # where there is one and the region otherwise, so a property with no
+            # climate site still gets a line rather than an explanation.
+            "timeline": (_timeline(site_track, vintage, today, regional_track)
+                         or _timeline(regional_track, vintage, today)),
+            "timeline_scope": "site" if site_track else (
+                "region" if regional_track else None),
         })
 
     return {
@@ -290,6 +388,14 @@ def property_phenology(db: Session, prop: Property,
             "label": site.label, "status_detail": site.status_detail,
         },
         "site_reason": (
+            # Ready but no rows is its own state: site phenology is estimated by
+            # the nightly pipeline (and by the populator's chain), so a site
+            # finished today can be ready and still blank until that runs.
+            # Without this the site column rendered empty with no reason — what
+            # Testing Property showed on 2026-09-22.
+            ("This property's climate site is ready; its own growth-stage "
+             "estimate is added in tonight's run.")
+            if site_ready and not site_rows else
             None if site_ready else
             "This property has no climate site yet, so there is no modelled "
             "estimate at its own point. Create one in Manage → Weather."

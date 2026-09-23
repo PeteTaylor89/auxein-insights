@@ -1,0 +1,274 @@
+/* PropertyProjections.css — the projections grid on Grow's Insights page.
+   Prefix `pcj-` (property climate projections). Shapes ported from the Insights
+   Pro panel; colours resolve through Grow's tokens with the Pro literals as
+   fallbacks, so the two products read as one. */
+
+.pcj {
+  padding: 4px 2px 2px;
+}
+
+.pcj-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.02rem;
+  color: var(--color-text, #3d4632);
+}
+
+.pcj-scope {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+/* One header column plus one per horizon. Driven by the server's vocabulary,
+   so this stays correct if a fourth scenario ever appears. */
+.pcj-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) repeat(3, 1fr);
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.pcj-corner {
+  min-height: 1px;
+}
+
+.pcj-period,
+.pcj-scenario {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #4a5340;
+}
+
+.pcj-period small,
+.pcj-scenario small {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #8a9276;
+}
+
+.pcj-scenario {
+  justify-content: center;
+}
+
+.pcj-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 46px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(138, 154, 91, 0.06);
+  cursor: default;
+}
+
+.pcj-cell b {
+  font-size: 0.98rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #3d4632;
+}
+
+/* The region's figure, deliberately subordinate. It is context for the
+   property's number, not a second reading competing with it. */
+.pcj-cell small {
+  font-size: 0.62rem;
+  color: #8a9276;
+  font-variant-numeric: tabular-nums;
+}
+
+/* DIRECTION ONLY, never magnitude — see the note in the component. */
+.pcj-cell--up {
+  background: rgba(198, 118, 76, 0.12);
+  border-color: rgba(198, 118, 76, 0.3);
+}
+
+.pcj-cell--down {
+  background: rgba(86, 130, 168, 0.12);
+  border-color: rgba(86, 130, 168, 0.3);
+}
+
+/* Not published for this scenario — wl3 exists for ssp3-7.0 alone. Hatched so
+   it cannot be mistaken for a value of zero, which is what an empty flat cell
+   would imply. */
+.pcj-cell--none {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(138, 154, 91, 0.07),
+    rgba(138, 154, 91, 0.07) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+.pcj-cell--none b {
+  color: #a8b096;
+  font-weight: 500;
+}
+
+.pcj-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.pcj-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Explicit padding: Grow has a global `button { padding: 8px 16px }` that
+   clips controls sizing themselves. */
+.pcj-chip {
+  padding: 4px 10px;
+  border: 1px solid rgba(91, 104, 48, 0.24);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #5c6650;
+  cursor: pointer;
+}
+
+.pcj-chip:hover {
+  background: rgba(91, 104, 48, 0.08);
+}
+
+.pcj-chip.is-active {
+  background: rgba(91, 104, 48, 0.16);
+  border-color: rgba(91, 104, 48, 0.42);
+  color: #3d4632;
+}
+
+.pcj-selects {
+  display: flex;
+  gap: 6px;
+}
+
+.pcj-selects select {
+  padding: 4px 8px;
+  border: 1px solid rgba(91, 104, 48, 0.24);
+  border-radius: 6px;
+  background: var(--color-surface, #fff);
+  font-size: 0.74rem;
+  color: #3d4632;
+}
+
+.pcj-sronly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.pcj-stale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(202, 138, 4, 0.12);
+  font-size: 0.76rem;
+  color: #8a5a1a;
+}
+
+.pcj-reason,
+.pcj-loading,
+.pcj-error {
+  margin: 14px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.pcj-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pcj-spin {
+  animation: pcj-spin 1s linear infinite;
+}
+
+@keyframes pcj-spin {
+  to { transform: rotate(360deg); }
+}
+
+.pcj-error {
+  color: var(--color-danger, #a33);
+}
+
+.pcj-link {
+  margin: 14px 0 0;
+}
+
+.pcj-link a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-primary, #5b6830);
+}
+
+.pcj-intro,
+.pcj-absent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 13px;
+  border: 1px solid rgba(91, 104, 48, 0.18);
+  border-radius: 8px;
+  background: rgba(91, 104, 48, 0.05);
+}
+
+.pcj-intro p,
+.pcj-absent p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #5f6754);
+}
+
+.pcj-intro-icon,
+.pcj-absent svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--color-primary, #5b6830);
+}
+
+/* The grid is four columns of numbers; on a phone it scrolls sideways rather
+   than crushing a scenario label to three characters. */
+@media (max-width: 640px) {
+  .pcj-grid {
+    grid-template-columns: minmax(96px, 1fr) repeat(3, minmax(74px, 1fr));
+  }
+
+  .pcj-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pcj-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

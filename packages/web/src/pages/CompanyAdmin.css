@@ -964,3 +964,44 @@
   white-space: normal;
   line-height: 1.3;
 }
+
+/* --- climate site drift ---------------------------------------------------
+   Saving a forecast point does not move the property's climate site: its
+   1986-2023 record is re-extracted, so that is a deliberate press. This is the
+   only thing on the page that says the two have come apart, so it sits under
+   the status badge rather than replacing it — the site is still readable, it is
+   just answering about somewhere else. */
+.ca-site-drift {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 6px;
+  white-space: normal;
+}
+
+.ca-site-drift-text {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--color-warning-text, #8a5a1a);
+  max-width: 200px;
+}
+
+.ca-site-drift-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* What just happened to this site, beside the site rather than in a dialog. */
+.ca-site-note {
+  display: block;
+  margin-top: 6px;
+  max-width: 220px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.ca-site-note--ok { color: var(--color-text-muted, #6b7360); }
+.ca-site-note--warn { color: var(--color-warning-text, #8a5a1a); }
+.ca-site-note--error { color: var(--color-danger, #a33); }

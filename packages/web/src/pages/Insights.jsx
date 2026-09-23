@@ -4,6 +4,7 @@ import MobileNavigation from '../components/MobileNavigation';
 import { useAuth } from '@vineyard/shared';
 import {companiesService, propertyService} from '@vineyard/shared';
 import RegionalClimateHistory from '../components/climate/RegionalClimateHistory';
+import PropertyProjections from '../components/climate/PropertyProjections';
 import ArticlesCarousel from '../components/ArticlesCarousel';
 import ThisSeasonPanel from '../components/season/ThisSeasonPanel';
 import SprayProgramPanel from '../components/spray/SprayProgramPanel';
@@ -165,6 +166,27 @@ function Insights() {
               </button>
             </div>
             <RegionalClimateHistory properties={properties} />
+          </div>
+        );
+      // Had a pill in the row and NO case here since the pill was added, so
+      // clicking it highlighted the pill and rendered nothing at all.
+      case 'climateprojection':
+        return (
+          <div className="content-container">
+            <div className="container-title">
+              <span className="help-tip-head"><span>Climate Projections{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.climateprojection" /></span>
+              <button
+                className="close-insight-btn"
+                onClick={() => setActiveInsight(null)}
+                aria-label="Close Climate Projections"
+              >
+                ×
+              </button>
+            </div>
+            <PropertyProjections
+              selectedPropertyId={selectedPropertyId}
+              selectedProperty={selectedProperty}
+            />
           </div>
         );
       // The three legacy keys fall through to the same panel. A link someone

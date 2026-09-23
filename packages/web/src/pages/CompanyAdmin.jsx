@@ -1883,6 +1883,9 @@ function WeatherTab() {
   // changing at all.
   const [sites, setSites] = useState({});
   const [provisioning, setProvisioning] = useState(null);
+  // What just happened to a property's site, shown under its cell. Inline
+  // rather than an alert: the outcome belongs next to the thing it happened to.
+  const [siteNote, setSiteNote] = useState({});
 
   const loadSites = useCallback((props) => {
     Promise.all(
@@ -1952,6 +1955,43 @@ function WeatherTab() {
       // the land mask — so show the message rather than a generic failure.
       const d = err.response?.data?.detail;
       alert(typeof d === 'string' ? d : (d?.message || 'Could not create the climate site'));
+    } finally {
+      setProvisioning(null);
+    }
+  };
+
+  // Moving rebuilds 38 years of record, so it is confirmed before it runs. The
+  // confirmation is INLINE, in the cell, rather than a `window.confirm`: a
+  // native dialog blocks the page, cannot say the distance without shouting it
+  // in a system font, and reads as an error box for what is a routine
+  // correction. The distance is what makes it worth confirming at all — "move
+  // the site" sounds trivial until you know it is 67 km.
+  const moveSite = async (propId) => {
+    setProvisioning(propId);
+    setSiteNote((prev) => ({ ...prev, [propId]: null }));
+    try {
+      const res = await propertyService.moveInsightsSite(propId);
+      setSites((prev) => ({ ...prev, [propId]: { ...prev[propId], site: res.site } }));
+      // The zone warning is the consequence a user cannot see from a map pin: a
+      // point outside every wine zone keeps working but loses every regional
+      // comparison on the Insights page.
+      setSiteNote((prev) => ({
+        ...prev,
+        [propId]: {
+          tone: res.zone_warning ? 'warn' : 'ok',
+          text: [res.message, res.zone_warning].filter(Boolean).join(' '),
+        },
+      }));
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      setSiteNote((prev) => ({
+        ...prev,
+        [propId]: {
+          tone: 'error',
+          text: typeof d === 'string' ? d
+            : (d?.message || 'Could not move the climate site.'),
+        },
+      }));
     } finally {
       setProvisioning(null);
     }
@@ -2033,6 +2073,8 @@ function WeatherTab() {
                     state={sites[p.id]}
                     busy={provisioning === p.id}
                     onProvision={() => provisionSite(p.id)}
+                    onMove={() => moveSite(p.id)}
+                    note={siteNote[p.id]}
                   />
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
@@ -2093,20 +2135,81 @@ function WeatherTab() {
 // that is an offer. The order matters: "set a forecast point first" outranks
 // the offer, because a button that can only fail is worse than an explanation
 // of why there isn't one.
-function InsightsSiteCell({ state, busy, onProvision }) {
+// How far apart the two points have to be before it is worth saying so. Matches
+// `DRIFT_TOLERANCE_M` server-side: below this they are the same cell.
+const DRIFT_SHOWN_FROM_M = 50;
+
+/** "67 km" / "280 m" — a distance a reader can picture, not a raw metre count. */
+function formatDrift(m) {
+  if (m == null) return null;
+  return m >= 1000 ? `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km` : `${Math.round(m)} m`;
+}
+
+function InsightsSiteCell({ state, busy, onProvision, onMove, note }) {
+  // Hooks run before any early return — a cell that renders a dash today can
+  // render a site a moment later, and a conditional hook would break on that.
+  const [confirming, setConfirming] = useState(false);
+
   if (!state) return <span className="ca-muted">&mdash;</span>;
 
   const { site, has_forecast_point: hasPoint, can_provision: canProvision } = state;
 
+  // Saving a forecast point does NOT move the site — its 1986-2023 record is
+  // re-extracted, so that is a deliberate press rather than a side effect of an
+  // edit. This is the only thing that tells anyone the two have come apart.
+  const drifted = site && site.point_drift_m != null
+    && site.point_drift_m >= DRIFT_SHOWN_FROM_M;
+
+  const moveControl = drifted && (
+    <span className="ca-site-drift">
+      <span className="ca-site-drift-text">
+        {formatDrift(site.point_drift_m)} from this property&rsquo;s point
+      </span>
+      {confirming ? (
+        <>
+          {/* The consequence, then the two ways out of it. Stated here rather
+              than in a dialog so it sits beside the distance above it. */}
+          <span className="ca-site-drift-text">
+            Rebuild its 1986&ndash;2023 record at the new point? The figures you
+            have stay visible until the new ones land.
+          </span>
+          <span className="ca-site-drift-actions">
+            <button className="ca-btn-primary" disabled={busy}
+                    onClick={() => { setConfirming(false); onMove(); }}>
+              {busy ? 'Moving…' : 'Yes, move it'}
+            </button>
+            <button className="ca-btn-secondary" disabled={busy}
+                    onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </span>
+        </>
+      ) : (
+        <button className="ca-btn-secondary" onClick={() => setConfirming(true)}
+                disabled={busy}>
+          Move &amp; rebuild
+        </button>
+      )}
+    </span>
+  );
+
+  const noteLine = note && (
+    <span className={`ca-site-note ca-site-note--${note.tone}`}>{note.text}</span>
+  );
+
   if (site) {
     if (site.is_ready) {
       return (
-        <span
-          className="ca-badge ca-badge--ok"
-          title={`Site ${site.id} · ${site.latitude?.toFixed(4)}, ${site.longitude?.toFixed(4)} · cell ${site.grid_key || '—'}`}
-        >
-          <Check size={12} /> Ready
-        </span>
+        <>
+          <span
+            className="ca-badge ca-badge--ok"
+            title={`Site ${site.id} · ${site.latitude?.toFixed(4)}, ${site.longitude?.toFixed(4)} · cell ${site.grid_key || '—'}`}
+          >
+            <Check size={12} /> Ready
+          </span>
+          {moveControl}
+          {noteLine}
+        </>
       );
     }
     if (site.status === 'failed') {
@@ -2114,16 +2217,25 @@ function InsightsSiteCell({ state, busy, onProvision }) {
       // tells the reader something; "an error occurred" tells them nothing,
       // and My Site has shown the detail since it shipped.
       return (
-        <span className="ca-fail" title={site.status_detail || ''}>
-          Could not be built
-          {site.status_detail && <span className="ca-fail-detail">{site.status_detail}</span>}
-        </span>
+        <>
+          <span className="ca-fail" title={site.status_detail || ''}>
+            Could not be built
+            {site.status_detail && <span className="ca-fail-detail">{site.status_detail}</span>}
+          </span>
+          {/* A failed site at the wrong point is the case most worth moving:
+              the move re-resolves the cell, which is usually what failed. */}
+          {moveControl}
+          {noteLine}
+        </>
       );
     }
     return (
-      <span className="ca-muted" title="Reading 1986–2023 at this point. Usually a few minutes.">
-        Building history…
-      </span>
+      <>
+        <span className="ca-muted" title="Reading 1986–2023 at this point. Usually a few minutes.">
+          Building history…
+        </span>
+        {noteLine}
+      </>
     );
   }
 

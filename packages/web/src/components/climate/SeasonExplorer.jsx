@@ -9,7 +9,7 @@
  * Driven by the public, zone-based climate endpoints via publicClimateService.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import {
@@ -55,7 +55,29 @@ const SeasonExplorer = ({ zone }) => {
   const [includeLTA, setIncludeLTA] = useState(true);
   const [seasonPage, setSeasonPage] = useState(0);
 
-  const seasonsPerPage = 6;
+  // A FIXED SIX spilled: the grid is `auto-fill minmax(180px, 1fr)`, so a wide
+  // card row holds seven and a narrow one holds four, and a page of six either
+  // left a gap or wrapped one card onto a second row on its own. The page size
+  // is therefore measured, not chosen — one full row, whatever fits today.
+  const seasonsGridRef = useRef(null);
+  const [seasonsPerPage, setSeasonsPerPage] = useState(6);
+
+  useEffect(() => {
+    const el = seasonsGridRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      const styles = window.getComputedStyle(el);
+      // Count the tracks the browser actually laid out rather than dividing by
+      // a guessed card width — `grid-template-columns` resolves to a pixel list.
+      const columns = styles.getPropertyValue('grid-template-columns')
+        .split(' ').filter(Boolean).length;
+      setSeasonsPerPage(Math.max(1, columns));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Load seasons when zone changes
   useEffect(() => {
@@ -375,9 +397,14 @@ const SeasonExplorer = ({ zone }) => {
     if (!seasonsData?.seasons) return [];
     const start = seasonPage * seasonsPerPage;
     return seasonsData.seasons.slice(start, start + seasonsPerPage);
-  }, [seasonsData, seasonPage]);
+  }, [seasonsData, seasonPage, seasonsPerPage]);
 
   const totalPages = Math.ceil((seasonsData?.seasons?.length || 0) / seasonsPerPage);
+
+  // Narrowing the window can leave the reader on a page that no longer exists.
+  useEffect(() => {
+    if (totalPages > 0 && seasonPage > totalPages - 1) setSeasonPage(totalPages - 1);
+  }, [totalPages, seasonPage]);
 
   if (!zone) {
     return (
@@ -599,7 +626,7 @@ const SeasonExplorer = ({ zone }) => {
             </div>
           )}
         </div>
-        <div className="seasons-grid">
+        <div className="seasons-grid" ref={seasonsGridRef}>
           {paginatedSeasons.map((season) => (
             <div
               key={season.vintage_year}

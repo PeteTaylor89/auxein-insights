@@ -420,3 +420,166 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   ALIGNMENT WITH THE PROPERTY PANELS (2026-09-23)
+
+   The zone explorer and the per-property record now sit in the same accordion,
+   one above the other, and were visibly two different products: square 14px
+   buttons and 20px card gaps here, pill controls and tighter cards there. The
+   regional view is the older of the two and the property panels follow the
+   Insights Pro vocabulary, so this moves the explorer onto that vocabulary
+   rather than the reverse.
+
+   Appended as an alignment layer rather than edited in place: every rule above
+   is still the explorer's own, and this block is the part that answers to the
+   property panels. Keep the two in step — if `PropertyCharts.css` changes its
+   pill, change it here too.
+   ========================================================================== */
+
+/* Controls become pills — same height, radius, weight and active colour as
+   `.pch-chip` and `.pcd-view`. */
+.season-explorer .mode-btn,
+.season-explorer .chart-type-btn,
+.season-explorer .season-pill {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.season-explorer .mode-btn:hover,
+.season-explorer .chart-type-btn:hover,
+.season-explorer .season-pill:hover:not(:disabled) {
+  border-color: #3f6f4a;
+  color: #3d4632;
+}
+
+.season-explorer .mode-btn.active,
+.season-explorer .chart-type-btn.active,
+.season-explorer .season-pill.selected {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: #fff;
+}
+
+/* The mode row is a row of pills, not a panel containing buttons. A bordered
+   box around three pills reads as a section of its own. */
+.season-explorer .view-mode-selector {
+  padding: 0;
+  margin-bottom: 14px;
+  border: 0;
+  background: transparent;
+}
+
+/* Cards: same radius, border and spacing as `.pcd-panel` / `.pch-card`. */
+.season-explorer .baseline-summary,
+.season-explorer .chart-container,
+.season-explorer .season-card {
+  border-radius: 10px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+}
+
+.season-explorer .baseline-summary {
+  margin-bottom: 14px;
+}
+
+/* Typography: the property panels use rem-based sizes with muted captions, and
+   the mix of 14px/16px literals here is what made the two look unrelated. */
+.season-explorer .explorer-header h3,
+.season-explorer .seasons-header h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text, #3d4632);
+}
+
+.season-explorer .baseline-label,
+.season-explorer .selector-label,
+.season-explorer .baseline-stat .stat-label {
+  font-size: 0.74rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.season-explorer .baseline-stat .stat-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #3d4632);
+}
+
+.season-explorer .season-limit-select,
+.season-explorer .season-select {
+  border-radius: 6px;
+  border: 1px solid rgba(91, 104, 48, 0.24);
+  font-size: 0.74rem;
+  color: #3d4632;
+}
+
+/* Round the pager to match, without turning it into a pill — it is an icon
+   button, and a 999px radius on a 32px square is a circle, which reads as a
+   different control. */
+.season-explorer .page-btn {
+  border-radius: 8px;
+  border-color: var(--color-border, rgba(0, 0, 0, 0.14));
+  color: #3d4632;
+}
+
+/* --- no sand, and the plots line up (2026-09-23) --------------------------
+   The explorer used to sit on `--color-surface-warm` inside a sand accordion
+   body, directly above a property record on plain white. Same data, same page,
+   two backgrounds — which read as two products rather than two scales. */
+
+.season-explorer {
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.season-explorer .baseline-summary,
+.season-explorer .chart-container,
+.season-explorer .comparison-season-selector {
+  background: var(--color-surface, #fff);
+}
+
+/* The chart box is the thing that has to align with the property charts: same
+   height, same inner padding, so switching pills does not move the plot. */
+.season-explorer .chart-container {
+  height: 340px;
+  padding: 12px 14px;
+}
+
+.season-explorer .chart-container canvas {
+  /* Chart.js sizes the canvas from its parent; without this the container's
+     padding is added to the canvas height and the plot creeps downward on
+     every re-render. */
+  max-height: 100%;
+}
+
+/* Season summary cards: one full row per page. The page SIZE is measured from
+   this grid (see SeasonExplorer.jsx), so the tracks here decide it — keep the
+   minimum in step with what a card can actually show. */
+.season-explorer .seasons-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.season-explorer .season-card {
+  border-width: 1px;
+  padding: 12px 14px;
+}
+
+/* A page that fits one row needs no min-height games, but a short last page
+   should not stretch its cards. */
+.season-explorer .seasons-grid > * { align-self: start; }
+
+/* The last two sand fills: a button hover and the empty-chart box. Neutral
+   now, so nothing on this panel reaches for the warm surface token. */
+.season-explorer .chart-type-btn:hover {
+  background: rgba(91, 104, 48, 0.08);
+}
+
+.season-explorer .chart-placeholder {
+  background: rgba(0, 0, 0, 0.02);
+}
