@@ -1,0 +1,35 @@
+{
+  "_comment": "NOT YET DEPLOYED (written 2026-09-23). The nightly Sentinel-2 job, on EventBridge Scheduler beside the surfaces and pipeline schedules. Task definition: task-definition-satellite.json. Create it only after the archive backfill has been run by hand - see satellite.sh - or the first nights will spend their time on nothing but skipped scenes.",
+
+  "_backfill": "Not a schedule. By hand, N times with SAT_SHARD=0/8..7/8, then once without SAT_SHARD: aws ecs run-task --cluster auxein-jobs --launch-type FARGATE --task-definition auxein-satellite --network-configuration 'awsvpcConfiguration={subnets=[subnet-0317587a16a8b5e59],securityGroups=[sg-0d19d5d32bde42638],assignPublicIp=ENABLED}' --overrides '{\"containerOverrides\":[{\"name\":\"surfaces\",\"environment\":[{\"name\":\"SAT_MODE\",\"value\":\"backfill\"},{\"name\":\"SAT_SHARD\",\"value\":\"0/8\"}]}]}'",
+
+  "schedules": [
+    {
+      "_comment_time": "21:00 NZ: Sentinel-2 crosses NZ ~10:30-11:30 local and Planetary Computer publishes hours later. The 10-day lookback absorbs anything that lands after this run.",
+      "Name": "auxein-satellite-daily",
+      "GroupName": "default",
+      "Description": "21:00 NZ Sentinel-2 index statistics for every active monitored area.",
+      "ScheduleExpression": "cron(0 21 * * ? *)",
+      "ScheduleExpressionTimezone": "Pacific/Auckland",
+      "FlexibleTimeWindow": { "Mode": "OFF" },
+      "State": "ENABLED",
+      "Target": {
+        "Arn": "arn:aws:ecs:ap-southeast-2:992914515416:cluster/auxein-jobs",
+        "RoleArn": "arn:aws:iam::992914515416:role/auxein-scheduler-invoke",
+        "EcsParameters": {
+          "TaskDefinitionArn": "arn:aws:ecs:ap-southeast-2:992914515416:task-definition/auxein-satellite",
+          "LaunchType": "FARGATE",
+          "TaskCount": 1,
+          "NetworkConfiguration": {
+            "awsvpcConfiguration": {
+              "Subnets": ["subnet-0317587a16a8b5e59"],
+              "SecurityGroups": ["sg-0d19d5d32bde42638"],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "RetryPolicy": { "MaximumRetryAttempts": 1 }
+      }
+    }
+  ]
+}

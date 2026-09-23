@@ -6,6 +6,7 @@
 # JOB=aggregate the six-hourly rollup   -> aggregate.sh
 # JOB=monthly   the 10th of the month   -> monthly.sh
 # JOB=kpi       the 2nd of the month    -> kpi.sh
+# JOB=satellite 21:00 NZ Sentinel-2     -> satellite.sh
 #
 # MODE=daily  fits D-2 (see below)
 # MODE=refit  re-fits D-9 .. D-3
@@ -25,6 +26,7 @@ case "${JOB:-surfaces}" in
   aggregate) exec "$(dirname "$0")/aggregate.sh" ;;
   monthly)   exec "$(dirname "$0")/monthly.sh" ;;
   kpi)       exec "$(dirname "$0")/kpi.sh" ;;
+  satellite) exec "$(dirname "$0")/satellite.sh" ;;
   surfaces)  ;;
   *) echo "[entrypoint] FATAL: unknown JOB=${JOB}" >&2; exit 2 ;;
 esac

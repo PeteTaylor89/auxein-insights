@@ -1,0 +1,81 @@
+{
+  "family": "auxein-satellite",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "_comment_cpu": "1 vCPU / 2 GB. The work is HTTP range reads from Planetary Computer, so it is network-bound: 12 reader threads spend most of their time waiting. The largest read cell is ~9 x 12 km, ~1.1 Mpx at 10 m, ~40 MB of arrays per thread at worst, ~500 MB for 12 threads. The backfill shards use this same definition with SAT_MODE/SAT_SHARD overrides.",
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-execution",
+  "taskRoleArn": "arn:aws:iam::992914515416:role/auxein-surfaces-task",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "surfaces",
+      "image": "992914515416.dkr.ecr.ap-southeast-2.amazonaws.com/auxein-surfaces:latest",
+      "essential": true,
+      "_comment_image": "The same image as every other job. It already carries rasterio, shapely, pyproj and numpy; the reader uses stdlib urllib for STAC, so no dependency was added to the pinned set.",
+      "_comment_job": "JOB is baked in, not passed as a schedule override: a lost override would otherwise run the SURFACES job. SAT_MODE defaults to daily for the same reason - only a deliberate run-task override makes this a backfill.",
+      "environment": [
+        {
+          "name": "AWS_REGION",
+          "value": "ap-southeast-2"
+        },
+        {
+          "name": "ENV",
+          "value": "production"
+        },
+        {
+          "name": "JOB",
+          "value": "satellite"
+        },
+        {
+          "name": "SAT_MODE",
+          "value": "daily"
+        },
+        {
+          "name": "PYTHONUNBUFFERED",
+          "value": "1"
+        },
+        {
+          "name": "RDS_DATABASE",
+          "value": "auxein_db"
+        },
+        {
+          "name": "RDS_PORT",
+          "value": "5432"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "RDS_ENDPOINT",
+          "valueFrom": "/auxein/prod/RDS_ENDPOINT"
+        },
+        {
+          "name": "RDS_USER",
+          "valueFrom": "/auxein/prod/RDS_USER"
+        },
+        {
+          "name": "RDS_PASSWORD",
+          "valueFrom": "/auxein/prod/RDS_PASSWORD"
+        },
+        {
+          "name": "SECRET_KEY",
+          "valueFrom": "/auxein/prod/SECRET_KEY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/auxein/surfaces",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "satellite"
+        }
+      }
+    }
+  ]
+}

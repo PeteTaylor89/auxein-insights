@@ -81,8 +81,9 @@ COPY deploy/surfaces/pipeline.sh /app/pipeline.sh
 COPY deploy/surfaces/aggregate.sh /app/aggregate.sh
 COPY deploy/surfaces/monthly.sh /app/monthly.sh
 COPY deploy/surfaces/kpi.sh /app/kpi.sh
+COPY deploy/surfaces/satellite.sh /app/satellite.sh
 RUN chmod +x /app/entrypoint.sh /app/pipeline.sh /app/aggregate.sh \
-             /app/monthly.sh /app/kpi.sh
+             /app/monthly.sh /app/kpi.sh /app/satellite.sh
 
 # `run_live.py` resolves paths relative to the repo root (parents[3] from the
 # script), so the layout under /app must mirror the repository.

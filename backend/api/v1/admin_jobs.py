@@ -338,6 +338,23 @@ JOBS = [
                             AND humidity_available""",
         "detail_label": "sites with humidity",
     },
+    {
+        "key": "satellite",
+        "name": "Satellite indices",
+        "runs_on": "Fargate, 21:00 NZ",
+        "cadence": "daily",
+        "produces": "sat_scene",
+        # Measured on processed_at, NOT on area_index_obs: a week of cloud is a
+        # healthy run that writes no observations, and it would read as a dead
+        # job. Every nightly run stamps the scenes it has read, cloudy or not,
+        # and there is always a new scene over NZ inside the 10-day lookback.
+        # 26 h is one nightly interval plus the run.
+        "max_age": 26.0,
+        "sql": "SELECT max(processed_at) FROM sat_scene",
+        "detail_sql": """SELECT count(*) FROM area_index_obs
+                          WHERE created_at > now() - interval '7 days'""",
+        "detail_label": "area observations written (7 d)",
+    },
 ]
 
 
