@@ -40,7 +40,13 @@ export function SectionWalk({ sections, values, onChange, onAddOption }: Props) 
 
             {isOpen && (
               <div className="walk-body">
-                <SectionFields fields={section.fields} values={values} onChange={onChange} onAddOption={onAddOption} />
+                <SectionFields
+                  fields={section.fields}
+                  values={values}
+                  onChange={onChange}
+                  onAddOption={onAddOption}
+                  layout={section.layout}
+                />
                 <div className="walk-nav">
                   <span className="walk-progress">{i + 1} / {sections.length}</span>
                   <div className="walk-nav-btns">

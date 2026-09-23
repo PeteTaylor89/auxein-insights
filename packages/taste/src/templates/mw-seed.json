@@ -1,0 +1,371 @@
+{
+  "id": "builtin-mw-practical",
+  "name": "MW Practical",
+  "version": 4,
+  "sections": [
+    {
+      "id": "mw_cross",
+      "label": "Structural cross",
+      "layout": "cross",
+      "fields": [
+        {
+          "id": "mw_colour_depth",
+          "key": "mw_colour_depth",
+          "label": "Colour depth",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Pale",
+            "Med-",
+            "Medium",
+            "Med+",
+            "Deep"
+          ]
+        },
+        {
+          "id": "mw_acidity",
+          "key": "mw_acidity",
+          "label": "Acidity",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Low",
+            "Med-",
+            "Medium",
+            "Med+",
+            "High"
+          ]
+        },
+        {
+          "id": "mw_alcohol",
+          "key": "mw_alcohol",
+          "label": "Alcohol",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Low",
+            "Med-",
+            "Medium",
+            "Med+",
+            "High"
+          ],
+          "help": "State a figure in the answer (±0.5%)."
+        },
+        {
+          "id": "mw_tannin",
+          "key": "mw_tannin",
+          "label": "Tannin",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Low",
+            "Med-",
+            "Medium",
+            "Med+",
+            "High"
+          ]
+        },
+        {
+          "id": "mw_oak",
+          "key": "mw_oak",
+          "label": "Oak",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "None",
+            "Subtle",
+            "Moderate",
+            "Marked",
+            "Dominant"
+          ]
+        },
+        {
+          "id": "mw_rs",
+          "key": "mw_rs",
+          "label": "Residual sugar",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Dry",
+            "Off-dry",
+            "Medium-dry",
+            "Medium-sweet",
+            "Sweet"
+          ]
+        },
+        {
+          "id": "mw_texture",
+          "key": "mw_texture",
+          "label": "Texture",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Lean",
+            "Med-",
+            "Medium",
+            "Med+",
+            "Rich"
+          ]
+        },
+        {
+          "id": "mw_fruit",
+          "key": "mw_fruit",
+          "label": "Fruit",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Green",
+            "Restrained",
+            "Ripe",
+            "Opulent",
+            "Overripe"
+          ]
+        },
+        {
+          "id": "mw_concentration",
+          "key": "mw_concentration",
+          "label": "Concentration",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Dilute",
+            "Med-",
+            "Medium",
+            "Med+",
+            "Concentrated"
+          ]
+        },
+        {
+          "id": "mw_length",
+          "key": "mw_length",
+          "label": "Length",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Short",
+            "Med-",
+            "Medium",
+            "Med+",
+            "Long"
+          ]
+        },
+        {
+          "id": "mw_balance",
+          "key": "mw_balance",
+          "label": "Balance",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Unbalanced",
+            "Med-",
+            "Medium",
+            "Med+",
+            "Harmonious"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mw_observations",
+      "label": "Observations",
+      "fields": [
+        {
+          "id": "mw_appearance_note",
+          "key": "mw_appearance_note",
+          "label": "Appearance",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "colour"
+          ],
+          "help": "Hue, clarity, rim, viscosity."
+        },
+        {
+          "id": "mw_nose_note",
+          "key": "mw_nose_note",
+          "label": "Nose",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "nose",
+            "fruit"
+          ]
+        },
+        {
+          "id": "mw_palate_note",
+          "key": "mw_palate_note",
+          "label": "Palate",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "texture",
+            "tannin"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mw_conclusions",
+      "label": "Conclusions",
+      "blind_only": true,
+      "fields": [
+        {
+          "id": "fc_variety",
+          "key": "fc_variety",
+          "label": "Grape variety",
+          "type": "text_short",
+          "reconciliation_type": "none",
+          "help": "Funnel to 3-4 at most, then commit.",
+          "funnel": true
+        },
+        {
+          "id": "mw_variety_reason",
+          "key": "mw_variety_reason",
+          "label": "Why — evidence from the glass",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "fruit",
+            "suggests"
+          ],
+          "help": "End on a positive reason, not an elimination."
+        },
+        {
+          "id": "fc_country",
+          "key": "fc_country",
+          "label": "Country",
+          "type": "text_short",
+          "reconciliation_type": "none",
+          "funnel": true
+        },
+        {
+          "id": "fc_region",
+          "key": "fc_region",
+          "label": "Region / appellation",
+          "type": "text_short",
+          "reconciliation_type": "none",
+          "help": "Drill down as far as the quality allows.",
+          "funnel": true
+        },
+        {
+          "id": "mw_origin_reason",
+          "key": "mw_origin_reason",
+          "label": "Climate and origin reasoning",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "structure",
+            "suggests"
+          ],
+          "help": "Cool/moderate/hot? Old or New World?"
+        },
+        {
+          "id": "fc_vintage",
+          "key": "fc_vintage",
+          "label": "Vintage",
+          "type": "number",
+          "reconciliation_type": "none",
+          "scale": {
+            "min": 1900,
+            "max": 2030,
+            "step": 1
+          }
+        },
+        {
+          "id": "fc_age_range",
+          "key": "fc_age_range",
+          "label": "Age range",
+          "type": "single_select",
+          "reconciliation_type": "none",
+          "options": [
+            "1-3 yrs",
+            "3-5 yrs",
+            "5-10 yrs",
+            "10 yrs+"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mw_quality",
+      "label": "Quality & score",
+      "fields": [
+        {
+          "id": "mw_quality_level",
+          "key": "mw_quality_level",
+          "label": "Quality level",
+          "type": "single_select",
+          "reconciliation_type": "ordinal",
+          "options": [
+            "Faulty",
+            "Entry",
+            "Mid-market",
+            "Premium",
+            "Exceptional"
+          ]
+        },
+        {
+          "id": "mw_quality_note",
+          "key": "mw_quality_note",
+          "label": "Quality — balance, length, integration, complexity, concentration",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "quality",
+            "proves"
+          ],
+          "help": "Address each facet. Never name the acronym in an answer.",
+          "checklist": [
+            "Balance",
+            "Length",
+            "Integration",
+            "Complexity",
+            "Concentration",
+            "Ageability"
+          ]
+        },
+        {
+          "id": "mw_maturity_note",
+          "key": "mw_maturity_note",
+          "label": "Maturity",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "maturity",
+            "suggests"
+          ],
+          "help": "Where is it now, will it improve, how long will it keep?"
+        },
+        {
+          "id": "mw_style_note",
+          "key": "mw_style_note",
+          "label": "Style and commercial position",
+          "type": "text_long",
+          "reconciliation_type": "none",
+          "lexicon_dimension": [
+            "quality",
+            "positives"
+          ]
+        },
+        {
+          "id": "mw_score",
+          "key": "mw_score",
+          "label": "Score",
+          "type": "score",
+          "reconciliation_type": "score",
+          "score_system": {
+            "system": "percent",
+            "min": 0,
+            "max": 100
+          },
+          "scale": {
+            "min": 50,
+            "max": 100,
+            "step": 1
+          },
+          "help": "100-point score"
+        }
+      ]
+    }
+  ]
+}

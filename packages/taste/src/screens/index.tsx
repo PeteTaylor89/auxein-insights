@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { TASTE_EXPORT_SCHEMA, exportToFile } from '@/export/exportData';
 import { SyncPanel } from '@/features/sync/SyncPanel';
+import { getStoredTheme, setTheme } from '@/theme';
+import type { Theme } from '@/theme';
 
 // Home launcher (default landing).
 export { HomeScreen } from '@/features/home/HomeScreen';
@@ -22,9 +24,21 @@ export { StatsScreen } from '@/features/stats/StatsScreen';
 // Real builder lives in features/templates (P3).
 export { TemplatesScreen } from '@/features/templates/TemplatesScreen';
 
+const THEMES: { value: Theme; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
 export const SettingsScreen = (): ReactNode => {
   const [exporting, setExporting] = useState(false);
   const [exportMsg, setExportMsg] = useState('');
+  const [theme, setThemeState] = useState<Theme>(getStoredTheme);
+
+  const pickTheme = useCallback((t: Theme) => {
+    setTheme(t);
+    setThemeState(t);
+  }, []);
 
   const doExport = useCallback(async (includePhotoData: boolean) => {
     setExporting(true);
@@ -45,6 +59,22 @@ export const SettingsScreen = (): ReactNode => {
       <p className="screen-blurb">Your notes are synced to your Auxein account and load on any device you sign in on.</p>
 
       <SyncPanel />
+
+      <h2 className="screen-subtitle">Appearance</h2>
+      <p className="screen-blurb">Dark suits a cellar or a dim tasting room. System follows your phone.</p>
+      <div className="chip-row" role="group" aria-label="Theme">
+        {THEMES.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            className={theme === t.value ? 'chip chip--active' : 'chip'}
+            aria-pressed={theme === t.value}
+            onClick={() => pickTheme(t.value)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       <h2 className="screen-subtitle">Export</h2>
       <p className="screen-blurb">Versioned JSON ({TASTE_EXPORT_SCHEMA}) — notes keep both the raw entry and its reconciled value.</p>

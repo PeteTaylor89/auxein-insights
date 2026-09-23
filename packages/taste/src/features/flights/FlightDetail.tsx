@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { repo } from '@/db';
 import type { Flight, Note, Wine } from '@/db';
 import { noteWineLabel, wineLabel } from '../wines/wineLabel';
+import { CompareView } from './CompareView';
 
 interface Props {
   flightId: string;
@@ -10,10 +12,14 @@ interface Props {
 
 // Ordered notes for a flight, with the blind/reveal gate. Notes are added by
 // capturing against the flight; here you reorder, reveal, and detach them.
+// "Continue tasting" reopens the rack in Capture (its flightId resume path), so a
+// flight cut short - a dropped connection, a closed tab - can take more glasses.
 export function FlightDetail({ flightId, onBack }: Props) {
+  const navigate = useNavigate();
   const [flight, setFlight] = useState<Flight | null>(null);
   const [notes, setNotes] = useState<Note[]>([]); // ordered per flight.note_ids
   const [wines, setWines] = useState<Record<string, Wine>>({});
+  const [comparing, setComparing] = useState(false);
 
   const load = useCallback(async () => {
     const f = await repo.flights.get(flightId);
@@ -72,6 +78,10 @@ export function FlightDetail({ flightId, onBack }: Props) {
 
   if (!flight) return null;
 
+  if (comparing) {
+    return <CompareView notes={notes} wines={wines} onBack={() => setComparing(false)} />;
+  }
+
   const anyHidden = notes.some((n) => n.blind && !n.revealed);
 
   return (
@@ -80,11 +90,18 @@ export function FlightDetail({ flightId, onBack }: Props) {
         <div>
           <button className="btn btn--ghost" onClick={onBack}>‹ Flights</button>
         </div>
-        {flight.blind && notes.length > 0 && (
-          <button className="btn" onClick={() => void revealAll(anyHidden)}>
-            {anyHidden ? 'Reveal all' : 'Hide all'}
-          </button>
-        )}
+        <div className="builder-section-tools">
+          {notes.length >= 2 && (
+            <button className="btn btn--ghost" onClick={() => setComparing(true)}>
+              Compare
+            </button>
+          )}
+          {flight.blind && notes.length > 0 && (
+            <button className="btn" onClick={() => void revealAll(anyHidden)}>
+              {anyHidden ? 'Reveal all' : 'Hide all'}
+            </button>
+          )}
+        </div>
       </div>
 
       <h1 className="screen-title">
@@ -92,8 +109,16 @@ export function FlightDetail({ flightId, onBack }: Props) {
         {flight.blind && <span className="badge">blind</span>}
       </h1>
 
+      <button
+        className="btn btn--block"
+        style={{ marginBottom: 16 }}
+        onClick={() => navigate('/capture', { state: { flightId: flight.id } })}
+      >
+        {notes.length === 0 ? 'Start tasting ›' : 'Continue tasting ›'}
+      </button>
+
       {notes.length === 0 && (
-        <p className="screen-blurb">No notes yet. In Capture, pick this flight as the tasting context and save notes into it.</p>
+        <p className="screen-blurb">No notes yet.</p>
       )}
 
       <div className="template-list">

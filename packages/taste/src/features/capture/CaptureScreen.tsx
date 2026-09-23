@@ -12,6 +12,7 @@ import { GlassRack } from './GlassRack';
 import { usePhotoUrl } from './usePhotoUrl';
 import { emptyGlass, glassHasContent, nextColor } from './glass';
 import type { Glass } from './glass';
+import { PaceTimer } from './PaceTimer';
 
 // The pre-reveal deductive guesses to freeze for Epic 5 grading: the raw answered
 // values of every blind_only section field, snapshotted the moment before reveal.
@@ -30,6 +31,11 @@ function blindConclusionSnapshot(sections: TemplateSection[], values: Record<str
 const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 const CMS_ID = 'builtin-cms-deductive';
+// T2: MW Practical is the default grid — the app is an exam-prep tool first, and
+// the 42-field CMS deductive grid is the wrong instrument under a 12-15 min/wine
+// budget. CMS stays selectable for deductive practice, and a stored
+// `default_template_id` still wins over both.
+const MW_ID = 'builtin-mw-practical';
 const today = () => new Date().toISOString().slice(0, 10);
 
 type SessionState = { mode?: 'quick' | 'flight'; flightId?: string; noteId?: string };
@@ -80,11 +86,20 @@ export function CaptureScreen() {
     void (async () => {
       await vocab.loadAll(); // prime user vocab so template merges read synchronously
       const all = await repo.templates.list();
-      all.sort((a, b) => Number(b.is_builtin) - Number(a.is_builtin) || a.name.localeCompare(b.name));
+      // Builtins first, MW ahead of CMS (it is the default), then by name.
+      all.sort(
+        (a, b) =>
+          Number(b.is_builtin) - Number(a.is_builtin) ||
+          Number(b.id === MW_ID) - Number(a.id === MW_ID) ||
+          a.name.localeCompare(b.name),
+      );
       setTemplates(all);
       setEvents(await repo.events.list());
       const def = await meta.get<string>('default_template_id');
-      const fallbackId = def && all.some((t) => t.id === def) ? def : all.find((t) => t.id === CMS_ID)?.id ?? all[0]?.id ?? '';
+      const fallbackId =
+        def && all.some((t) => t.id === def)
+          ? def
+          : all.find((t) => t.id === MW_ID)?.id ?? all.find((t) => t.id === CMS_ID)?.id ?? all[0]?.id ?? '';
 
       // Edit an existing note: reopen it as a single glass in quick mode. Uses the
       // live template if it still exists (so any grown vocab shows), else rebuilds
@@ -424,6 +439,7 @@ export function CaptureScreen() {
         <div className="capture-bar-title">
           {flight ? flight.name : editNote ? 'Edit note' : 'Quick taste'}
           {blind && <span className="badge">blind</span>}
+          {active && <PaceTimer glassId={active.id} />}
         </div>
         <div className="capture-bar-actions">
           <PhotoButton onAdd={addPhotos} />

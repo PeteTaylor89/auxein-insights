@@ -53,16 +53,22 @@ export default defineConfig({
   server: {
     port: 5175, // 5173=pro, 5174=insights
     proxy: {
-      // Auth (public login) → the main API. In prod, VITE_API_URL points at it.
+      // F1 (2026-09-21): Taste no longer calls the main API for anything —
+      // auth moved to taste-api's own /taste/v1/auth/*, covered by the /taste
+      // proxy below. This entry is kept only so an old build served from this
+      // dev server does not 404 mid-session; nothing in src/ targets it.
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
       },
-      // Data (sync/bootstrap) → the isolated taste-api. In prod, VITE_TASTE_API_URL
+      // Auth AND data → the isolated taste-api. In prod, VITE_TASTE_API_URL
       // points at taste-api.auxein.co.nz.
+      // 127.0.0.1, not localhost: Node resolves localhost to ::1 while uvicorn
+      // binds IPv4, and the result is an ECONNREFUSED that looks like the API
+      // being down (see the note in .env.local, and project_vite_proxy_ipv6).
       '/taste': {
-        target: 'http://localhost:8001',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         secure: false,
       },

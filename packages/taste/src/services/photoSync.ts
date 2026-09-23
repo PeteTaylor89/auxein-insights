@@ -4,7 +4,7 @@
 // (it is never sent to the server as a blob). Display uses a presigned GET.
 import { newBase, repo } from '@/db';
 import type { Photo } from '@/db';
-import { isAuthed } from '@/auth/publicAuth';
+import { isAuthed } from '@/auth/tasteAuth';
 import { tasteConfirm, tastePhotoView, tastePresign } from './tasteApi';
 
 export async function uploadPhoto(file: File, noteId: string): Promise<Photo> {

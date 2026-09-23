@@ -1,9 +1,13 @@
 // REST client for the Taste API v1 (backend_taste, prefix /taste/v1). The server
 // is the system of record; this is a thin fetch wrapper. In dev, Vite proxies
 // /taste → http://localhost:8001 (vite.config.ts); in prod VITE_TASTE_API_URL
-// points at taste-api.auxein.co.nz. The public JWT is attached as a bearer token;
-// a 401 clears it (→ the app drops to the sign-in gate).
-import { clearToken, getToken } from '@/auth/publicAuth';
+// points at taste-api.auxein.co.nz.
+//
+// F1: goes through `authFetch`, which attaches Taste's own bearer token and
+// renews it when it is stale. A 401 that SURVIVES a refresh means the session is
+// really over — authFetch has already cleared it by then, so the app drops to
+// the sign-in gate on the next render.
+import { authFetch } from '@/auth/tasteAuth';
 
 const TASTE_BASE = (import.meta.env.VITE_TASTE_API_URL as string | undefined) ?? '';
 const V1 = `${TASTE_BASE}/taste/v1`;
@@ -17,17 +21,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`${V1}${path}`, {
+  const res = await authFetch(`${V1}${path}`, {
     method,
-    headers: {
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) {
-    clearToken();
     throw new ApiError(401, 'Session expired — sign in again.');
   }
   if (!res.ok) {

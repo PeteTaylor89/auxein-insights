@@ -40,6 +40,21 @@ export interface TemplateField {
   score_system?: ScoreSystem; // type 'score' — parker/ucdavis/stars/percent/custom
   required?: boolean;
   help?: string;
+  // T4: on a text_short field, render the funnel control — up to 4 candidate
+  // answers, one of which is committed. The field's VALUE stays the committed
+  // string (grading reads it), and the rejected candidates persist alongside it
+  // under `<key>__alts`, which is not a template field and so never reaches
+  // blind_conclusions.
+  funnel?: boolean;
+  // T4: on a text_long field, a self-check shown as toggles under the box and
+  // stored at `<key>__checklist`. Used for BLICC — the guidelines are explicit
+  // that the acronym is a reminder and must never appear in the answer itself.
+  checklist?: string[];
+  // T3: on a text_long field, names the IMW lexicon bank(s) whose terms render
+  // as a tap-to-insert chip rail under the box (see templates/lexicon.ts). Also
+  // used as the `dimension` when a term the taster types is saved to taste.vocab,
+  // so builtin and personal vocabulary share one namespace.
+  lexicon_dimension?: string | string[];
 }
 
 export interface TemplateSection {
@@ -49,6 +64,10 @@ export interface TemplateSection {
   // Deductive sections (Initial/Final Conclusion) — only shown when tasting blind.
   // Hidden for a known/non-blind note (you already know the wine).
   blind_only?: boolean;
+  // 'cross' packs an all-ordinal section into a compact two-column grid of
+  // mini-sliders — the MW "tasting cross", meant to be read and filled in one
+  // screen. Anything else (or absent) renders as the normal stacked list.
+  layout?: 'cross';
 }
 
 // Denormalised copy pinned onto a note at capture time so the note renders

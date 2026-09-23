@@ -1,28 +1,97 @@
-:root {
-  /* Editorial wine palette — claret + cream, olive as a quiet tertiary. */
-  --claret: #7b2e3c;
-  --claret-dark: #5e222d;
-  --claret-tint: #f1e4e3; /* selected wash on cream */
-  --olive: #5b6830; /* tertiary accent only */
-  --gold: #b08948; /* metallic accent (scores/stars) */
-  --ink: #2a2018; /* warm near-black */
-  --muted: #8a7e70; /* warm grey-brown */
-  --paper: #f6f1e7; /* cream page background */
-  --surface: #fffdf8; /* warm white cards */
-  --border: #e7decb; /* warm hairline */
-  --danger: #b3261e;
+/* =====================================================================
+   T1 TOKEN RESET (2026-09-18) — see docs/taste_plan/TASTE_MW_CAPTURE_REDESIGN.md
 
-  /* Brand aliases → claret, so every existing var(--brand*) usage adopts the new
-     identity, and the page background becomes cream, with no per-rule edits. */
-  --brand: var(--claret);
-  --brand-dark: var(--claret-dark);
-  --brand-tint: var(--claret-tint);
-  --bg: var(--paper);
+   Two layers, and the split is the whole point:
+     RAW      — fixed hues. Never referenced directly by a component rule.
+     SEMANTIC — what components use. Redefined per theme, so dark mode is a
+                token flip rather than a second stylesheet.
+
+   Legacy aliases (--claret / --paper / …) are kept pointing at semantic tokens
+   so the ~200 existing rules that reference them theme correctly untouched.
+   ===================================================================== */
+
+:root {
+  /* ---- RAW palette (theme-invariant) ---- */
+  --claret-700: #5e222d;
+  --claret-600: #7b2e3c; /* the brand hue, on light */
+  --claret-300: #cf7385; /* lifted for dark — #7b2e3c on a dark bg fails contrast */
+  --olive-600: #5b6830;
+  --olive-400: #8a9a5b;
+  --gold-600: #b08948;
+  --gold-400: #d4a961;
+  --red-600: #b3261e;
+  --red-400: #e8837c;
+
+  /* ---- SEMANTIC (light) ---- */
+  --brand: var(--claret-600);
+  --brand-strong: var(--claret-700);
+  --brand-tint: #f1e4e3; /* selected wash */
+  --on-brand: #fffdf8; /* text/icons ON a brand fill — never a bare #fff */
+
+  --bg: #f6f1e7; /* cream page */
+  --surface: #fffdf8; /* cards */
+  --surface-2: #efe9db; /* recessed: code blocks, wells, tracks */
+  --border: #e7decb; /* hairline */
+
+  --ink: #2a2018; /* primary text */
+  /* Was #8a7e70 — measured 3.52:1 on cream, under AA, and it carries real body
+     text (.screen-blurb, .form-help, .grid-field-help, inactive nav). Darkened
+     to clear 4.5:1 on BOTH --bg (4.54) and the lighter --surface (5.03). */
+  --muted: #786c5e; /* secondary text */
+
+  /* Brand as bare channels, so a tint can be derived rather than hand-mixed.
+     Borrowed from Insights (`--primary-rgb`), and for the same reason stated
+     there: `rgba(123, 46, 60, 0.22)` cannot reference a token, so every tinted
+     border ends up a hand-written triple that quietly disagrees with the brand
+     the moment it changes. `rgb(var(--brand-rgb) / 0.22)` does not. */
+  --brand-rgb: 123 46 60;
+
+  --danger: var(--red-600);
+  --olive: var(--olive-600);
+  --olive-tint: #f3f5ec;
+  --gold: var(--gold-600);
+  --gold-tint: rgba(176, 137, 72, 0.16);
+  --gold-ink: #7a5a22; /* readable gold text on --gold-tint */
+
+  /* "on-" tokens: foreground for a known background. These are why dark mode
+     works at all — a bare #fff on a surface that inverts becomes invisible. */
+  --on-ink: #fffdf8; /* text on a solid --ink fill (toast) */
+  --on-brand-muted: rgba(255, 255, 255, 0.85);
+  --on-overlay: #ffffff; /* on a photo scrim — dark in BOTH themes, so fixed */
+  --thumb: #fffdf8; /* slider thumb face */
+
+  --overlay: rgba(42, 32, 24, 0.45); /* modal backdrop */
+  --scrim: rgba(0, 0, 0, 0.65); /* over imagery */
+  --ring: rgba(123, 46, 60, 0.15); /* focus ring wash */
+  --shadow-card: 0 1px 2px rgba(42, 32, 24, 0.04), 0 2px 8px rgba(42, 32, 24, 0.06);
+  --shadow-fab: 0 6px 16px rgba(123, 46, 60, 0.4);
+  --shadow-bar: 0 -2px 10px rgba(42, 32, 24, 0.08);
+  --shadow-pop: 0 8px 22px rgba(42, 32, 24, 0.14);
+  --shadow-toast: 0 4px 14px rgba(42, 32, 24, 0.24);
+  --shadow-thumb: 0 1px 3px rgba(42, 32, 24, 0.25);
+
+  /* ---- Legacy aliases → semantic. Keeps old rules themeable. ---- */
+  --claret: var(--brand);
+  --claret-dark: var(--brand-strong);
+  --claret-tint: var(--brand-tint);
+  --paper: var(--bg);
+  --brand-dark: var(--brand-strong);
 
   /* Type — Calibri-led clean sans, matching Grow's management UI. --font-serif is
      aliased to the same stack so prior display usages become Calibri, not serif. */
   --font-sans: Calibri, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-serif: var(--font-sans);
+
+  /* Typography scale — same rungs as Insights (packages/insights/src/index.css),
+     so the two products size text identically instead of each inventing px. */
+  --font-xs: 0.75rem;    /* 12px — captions, badges, meta        */
+  --font-sm: 0.8125rem;  /* 13px — helper text, small labels     */
+  --font-base: 0.875rem; /* 14px — body text                     */
+  --font-md: 1rem;       /* 16px — inputs (iOS zoom floor), rows */
+  --font-lg: 1.125rem;   /* 18px — sub-headings                  */
+  --font-xl: 1.375rem;   /* 22px — section headings              */
+  --font-2xl: 1.625rem;  /* 26px — page titles                   */
+  --font-3xl: 2rem;      /* 32px — the one big number on a tile  */
 
   /* Spacing scale (8px base) */
   --s1: 4px;
@@ -34,18 +103,122 @@
 
   /* Radii */
   --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
+  --r-md: 10px;  /* control radius, as Insights */
+  --r-lg: 12px;  /* panel/card radius, as Insights */
   --r-pill: 999px;
 
-  /* Elevation (warm-tinted) */
-  --shadow-card: 0 1px 2px rgba(42, 32, 24, 0.04), 0 2px 8px rgba(42, 32, 24, 0.06);
+  /* Touch. T1 reverses sub-pass 2c's density push: at a tasting the constraint
+     is fatigue and a wet/occupied hand, not screen real estate. Fewer, bigger. */
+  --tap: 48px;
+  --tap-sm: 40px; /* secondary/inline only */
 
-  /* Touch — never render a tap target smaller than this */
-  --tap: 44px;
-
-  --nav-h: 64px;
+  --nav-h: 68px;
   --header-h: 50px;
+}
+
+/* ---------------------------------------------------------------------
+   DARK THEME — warm near-black, not neutral grey: the claret/cream
+   identity has to survive the flip. Tasting rooms and cellars are dim,
+   and a full-brightness cream page in one is genuinely unpleasant.
+
+   Applied two ways, and both are needed:
+     1. system preference, unless the user has explicitly chosen light
+     2. an explicit [data-theme='dark'] from the Settings toggle
+   --------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --brand: var(--claret-300);
+    --brand-strong: #e08c9b;
+    --badge-ink: var(--brand-strong); /* AA on the 12% tint; --brand is 4.42:1 */
+    --brand-rgb: 207 115 133;
+    --brand-tint: rgba(207, 115, 133, 0.18);
+    --on-brand: #23181a; /* dark ink on the lifted claret */
+
+    --bg: #17120f;
+    --surface: #211b16;
+    --surface-2: #2c241e;
+    --border: #3a302a;
+
+    --ink: #f2eade;
+    --muted: #a5968a;
+
+    --danger: var(--red-400);
+    --olive: var(--olive-400);
+    --olive-tint: rgba(138, 154, 91, 0.16);
+    --gold: var(--gold-400);
+    --gold-tint: rgba(212, 169, 97, 0.18);
+    --gold-ink: #eccf95;
+
+    --on-ink: #17120f;
+    --on-brand-muted: rgba(35, 24, 26, 0.72);
+    --on-overlay: #ffffff;
+    --thumb: #f2eade;
+
+    --overlay: rgba(0, 0, 0, 0.65);
+    --scrim: rgba(0, 0, 0, 0.65);
+    --ring: rgba(207, 115, 133, 0.3);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-fab: 0 6px 16px rgba(0, 0, 0, 0.55);
+    --shadow-bar: 0 -2px 10px rgba(0, 0, 0, 0.45);
+    --shadow-pop: 0 8px 22px rgba(0, 0, 0, 0.5);
+    --shadow-toast: 0 4px 14px rgba(0, 0, 0, 0.5);
+    --shadow-thumb: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme='dark'] {
+  --brand: var(--claret-300);
+  --brand-strong: #e08c9b;
+  --badge-ink: var(--brand-strong); /* AA on the 12% tint; --brand is 4.42:1 */
+  --brand-rgb: 207 115 133;
+  --brand-tint: rgba(207, 115, 133, 0.18);
+  --on-brand: #23181a;
+
+  --bg: #17120f;
+  --surface: #211b16;
+  --surface-2: #2c241e;
+  --border: #3a302a;
+
+  --ink: #f2eade;
+  --muted: #a5968a;
+
+  --danger: var(--red-400);
+  --olive: var(--olive-400);
+  --olive-tint: rgba(138, 154, 91, 0.16);
+  --gold: var(--gold-400);
+  --gold-tint: rgba(212, 169, 97, 0.18);
+  --gold-ink: #eccf95;
+
+  --on-ink: #17120f;
+  --on-brand-muted: rgba(35, 24, 26, 0.72);
+  --on-overlay: #ffffff;
+  --thumb: #f2eade;
+
+  --overlay: rgba(0, 0, 0, 0.65);
+  --scrim: rgba(0, 0, 0, 0.65);
+  --ring: rgba(207, 115, 133, 0.3);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-fab: 0 6px 16px rgba(0, 0, 0, 0.55);
+  --shadow-bar: 0 -2px 10px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 8px 22px rgba(0, 0, 0, 0.5);
+  --shadow-toast: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-thumb: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Native controls (checkbox, date picker, scrollbars) follow the theme. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -190,7 +363,7 @@ button {
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
   font-weight: 600;
   font-size: 14px;
   transition: background 0.12s ease, transform 0.06s ease;
@@ -208,7 +381,7 @@ button {
 .log {
   margin-top: 12px;
   padding: 10px 12px;
-  background: #efe9db;
+  background: var(--surface-2);
   border-radius: 8px;
   font-size: 12px;
   white-space: pre-wrap;
@@ -263,7 +436,7 @@ button {
 }
 
 .icon-btn--danger {
-  color: #b3261e;
+  color: var(--danger);
 }
 
 .form-input {
@@ -281,7 +454,7 @@ button {
 .form-input:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(123, 46, 60, 0.15);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 select.form-input,
@@ -306,7 +479,7 @@ select.form-input,
 }
 
 .form-error {
-  color: #b3261e;
+  color: var(--danger);
   font-size: 13px;
   margin: 6px 0 0;
 }
@@ -476,7 +649,7 @@ select.form-input,
 }
 
 .grid-field-label .req {
-  color: #b3261e;
+  color: var(--danger);
   margin-left: 3px;
 }
 
@@ -508,7 +681,7 @@ select.form-input,
 
 .chip--active {
   background: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
   border-color: var(--brand);
 }
 
@@ -538,8 +711,8 @@ select.form-input,
   height: 22px;
   border-radius: 999px;
   border: none;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
+  background: var(--scrim);
+  color: var(--on-overlay);
   font-size: 12px;
   line-height: 1;
   padding: 0;
@@ -565,11 +738,11 @@ select.form-input,
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);
   transform: translateX(-50%);
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   padding: 10px 18px;
   border-radius: 999px;
   font-size: 14px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-toast);
   z-index: 20;
 }
 
@@ -630,7 +803,7 @@ select.form-input,
   padding: 10px 12px;
   border: 1px solid var(--brand);
   border-radius: 9px;
-  background: #f3f5ec;
+  background: var(--olive-tint);
 }
 
 .geo-picker {
@@ -655,7 +828,7 @@ select.form-input,
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-pop);
   max-height: 260px;
   overflow-y: auto;
 }
@@ -816,7 +989,7 @@ select.form-input,
 .home-tile--primary:active {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
 }
 
 .home-tile-title {
@@ -831,7 +1004,7 @@ select.form-input,
 }
 
 .home-tile--primary .home-tile-sub {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--on-brand-muted);
 }
 
 .home-links {
@@ -877,7 +1050,7 @@ select.form-input,
   padding: 4px 8px;
   border-radius: 999px;
   background: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
   font-weight: 700;
   font-size: 13px;
 }
@@ -1271,14 +1444,14 @@ select.form-input,
   border-radius: 50%;
   border: 4px solid var(--paper);
   background: var(--claret);
-  color: #fff;
+  color: var(--on-brand);
   font-size: 30px;
   font-weight: 300;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 16px rgba(123, 46, 60, 0.4);
+  box-shadow: var(--shadow-fab);
 }
 
 .nav-fab:active {
@@ -1531,12 +1704,12 @@ select.form-input,
 }
 
 .recon-tag--score {
-  background: rgba(176, 137, 72, 0.16);
-  color: #7a5a22;
+  background: var(--gold-tint);
+  color: var(--gold-ink);
 }
 
 .recon-tag--none {
-  background: #ece6d8;
+  background: var(--surface-2);
   color: var(--muted);
 }
 
@@ -1593,16 +1766,16 @@ select.form-input,
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--thumb);
   border: 2px solid var(--claret);
-  box-shadow: 0 1px 3px rgba(42, 32, 24, 0.25);
+  box-shadow: var(--shadow-thumb);
   cursor: pointer;
 }
 .oslider-range::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--thumb);
   border: 2px solid var(--claret);
 }
 .oslider-ends {
@@ -1627,7 +1800,7 @@ select.form-input,
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(42, 32, 24, 0.45);
+  background: var(--overlay);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1714,7 +1887,7 @@ select.form-input,
   padding: 0 5px;
   border-radius: 999px;
   background: var(--claret);
-  color: #fff;
+  color: var(--on-brand);
   font-size: 11px;
   font-weight: 700;
   display: flex;
@@ -1736,4 +1909,729 @@ select.form-input,
 }
 .aroma-done {
   margin-top: 10px;
+}
+
+/* =====================================================================
+   T1 LAYOUT RESET (2026-09-18)
+
+   Appended last so it wins on equal specificity — the same convention the
+   sub-pass 1 block above uses. Three moves, all aimed at the same thing:
+   a tasting should cost less attention.
+
+     1. FEWER, BIGGER targets. Reverses sub-pass 2c's density push. At a
+        tasting you have one hand, indifferent light and a glass in the
+        other; 28px pills were optimised for the wrong constraint.
+     2. FLAT, SINGLE COLUMN. Cards inside cards inside accordions read as
+        chrome. Hairlines and space separate things now — not elevation.
+     3. ONE-THUMB REACH. Primary actions sit in the bottom third, above
+        the nav, safe-area aware.
+   ===================================================================== */
+
+/* ---- 1. Touch targets ---- */
+.btn {
+  min-height: var(--tap);
+  padding: 10px 18px;
+  font-size: 15px;
+  border-radius: var(--r-md);
+}
+
+.chip {
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.icon-btn {
+  width: var(--tap-sm);
+  height: var(--tap-sm);
+  font-size: 16px;
+}
+
+.form-input,
+.form-select {
+  min-height: var(--tap);
+  font-size: 16px; /* keep: <16px triggers iOS focus-zoom */
+  border-radius: var(--r-md);
+}
+
+/* The ordinal slider is the signature input of the MW structural cross —
+   it has to be draggable without looking, so give it a real thumb. */
+.oslider-range {
+  height: 10px;
+}
+
+.oslider-range::-webkit-slider-thumb {
+  width: 30px;
+  height: 30px;
+}
+
+.oslider-range::-moz-range-thumb {
+  width: 30px;
+  height: 30px;
+}
+
+.aroma-tile {
+  min-height: 84px;
+}
+
+.nav-item {
+  font-size: 12px;
+}
+
+/* ---- 2. Flat, single column ---- */
+.grid-section,
+.template-card,
+.stat-card,
+.stat-panel,
+.home-tile,
+.kv {
+  box-shadow: none;
+}
+
+/* Sections stop being cards and become bands: one hairline, no inset walls. */
+.grid-section {
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.walk-body {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.walk-section {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.walk-header {
+  padding-left: 0;
+  padding-right: 0;
+  min-height: var(--tap);
+}
+
+.screen {
+  padding: 16px;
+  padding-bottom: calc(var(--s6) + env(safe-area-inset-bottom));
+}
+
+.grid-field-label,
+.walk-header-label {
+  font-size: 15px;
+}
+
+/* ---- 3. One-thumb reach ---- */
+/* The step controls belong under the thumb, not chased down the page. */
+.walk-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin-top: var(--s4);
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-bar);
+}
+
+.walk-nav-btns {
+  gap: 10px;
+}
+
+.walk-nav-btns .btn {
+  flex: 1;
+  min-width: 108px;
+}
+
+/* Save/actions bar: bottom-anchored, matching the walk nav. */
+.capture-bar-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-bar);
+}
+
+.capture-bar-actions .btn {
+  flex: 1;
+}
+
+/* Respect a reduced-motion preference — the press-scale is decoration. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .btn:active,
+  .nav-fab:active {
+    transform: none;
+  }
+}
+
+/* =====================================================================
+   T2 — MW structural cross (section layout: 'cross')
+
+   Eleven ordinal elements in roughly one screen. Two columns, condensed
+   slider chrome: the end labels are dropped (the current value already
+   names itself) and the thumb stays full size, because the whole point is
+   that you can drag it without looking.
+   ===================================================================== */
+
+.cross-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 16px;
+}
+
+.grid-field--cross {
+  padding: 6px 0;
+  border: none;
+  min-width: 0;
+}
+
+.grid-field--cross .grid-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.grid-field--cross .oslider-ends {
+  display: none;
+}
+
+.grid-field--cross .oslider-current {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.grid-field--cross .oslider:not(.oslider--set) .oslider-current {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* One column on a narrow phone — two columns of slider is too tight to drag. */
+@media (max-width: 380px) {
+  .cross-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* =====================================================================
+   T3 — IMW lexicon rails under a prose field
+
+   The exam deliverable is a written argument, so the vocabulary has to sit
+   where you are writing. Each bank scrolls horizontally on its own labelled
+   line; the rails never push the textarea off screen.
+   ===================================================================== */
+
+.prose-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lex-rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lex-rail-label {
+  flex: none;
+  width: 58px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.lex-rail-terms {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+  min-width: 0;
+}
+
+.lex-rail-terms::-webkit-scrollbar {
+  display: none;
+}
+
+/* Deliberately smaller than .chip: these are a writing aid, not a value you
+   are setting, and there are ~25 of them per rail. Still 32px tall. */
+.lex-chip {
+  flex: none;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.lex-chip:active {
+  background: var(--brand-tint);
+  border-color: var(--brand);
+}
+
+@media (max-width: 380px) {
+  .lex-rail-label {
+    width: 46px;
+    font-size: 10px;
+  }
+}
+
+/* =====================================================================
+   T4 — funnel, BLICC self-check, pace timer
+   ===================================================================== */
+
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.funnel-add {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.funnel-add .form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.funnel-add .btn {
+  margin-top: 0;
+  flex: none;
+}
+
+.funnel-candidates {
+  margin: 0;
+}
+
+.funnel-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* A ticked self-check item. Reads as "covered", not as a value you chose. */
+.lex-chip--on {
+  background: var(--brand-tint);
+  border-color: var(--brand);
+  font-weight: 600;
+}
+
+/* Pace timer: informative, never alarming. Tabular figures so the width does
+   not jitter every second. */
+.pace {
+  margin-left: auto;
+  flex: none;
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pace--near {
+  color: var(--gold-ink);
+  background: var(--gold-tint);
+  border-color: transparent;
+}
+
+.pace--over {
+  color: var(--on-brand);
+  background: var(--danger);
+  border-color: transparent;
+}
+
+/* =====================================================================
+   T5 — compare & contrast grid
+
+   Label column + N wine columns. The differing rows are the content, so
+   they get the emphasis; the rest deliberately recede.
+   ===================================================================== */
+
+.cmp {
+  margin-top: var(--s4);
+  border-top: 1px solid var(--border);
+}
+
+.cmp-row {
+  display: grid;
+  grid-template-columns: 84px repeat(var(--cols), minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cmp-row--head {
+  border-bottom: 1px solid var(--ink);
+}
+
+/* A row worth writing about. The tint does the work — no icons, no badges. */
+.cmp-row--differs {
+  background: var(--brand-tint);
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.cmp-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cmp-wine {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.cmp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cmp-bar {
+  display: block;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.cmp-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+}
+
+.cmp-val {
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.cmp-connectives {
+  font-style: italic;
+}
+
+@media (max-width: 380px) {
+  .cmp-row {
+    grid-template-columns: 64px repeat(var(--cols), minmax(0, 1fr));
+    gap: 6px;
+  }
+  .cmp-label,
+  .cmp-val {
+    font-size: 11px;
+  }
+}
+
+/* =====================================================================
+   D2 — INSIGHTS DESIGN LANGUAGE (2026-09-18)
+
+   Pete: "overall style is really basic and clunky — look at the themes and
+   css in insights." He is right, and T1 is partly why: flattening everything
+   to hairlines removed the last of the structure without putting anything in
+   its place.
+
+   What Insights actually does (packages/insights/src/index.css + components/pro):
+     · almost NO shadows — a card is a TINTED BRAND BORDER on a light surface
+     · a 3px left accent spine marks the block that matters most on a screen
+     · every tint derives from `--primary-rgb`, never a hand-mixed rgba
+     · micro-labels are uppercase, 600, 0.04em tracked, muted
+     · one confident number per tile (1.75rem/650) with a small unit beside it
+     · pills are 999px, 0.68rem, uppercase, tinted bg + brand text
+     · hierarchy comes from border weight, tint and space — not elevation
+
+   This block is last, so it wins. It supersedes T1's "flat, single column".
+   ===================================================================== */
+
+/* ---- Panels and cards: tinted brand border, no shadow ---- */
+.grid-section,
+.template-card,
+.stat-card,
+.stat-panel,
+.home-tile,
+.kv,
+.walk-section,
+.wine-picker,
+.sync-panel {
+  background: var(--surface);
+  border: 1px solid rgb(var(--brand-rgb) / 0.18);
+  border-radius: var(--r-lg);
+  box-shadow: none;
+}
+
+/* The tasting grid is the product. Give it the spine Insights puts on the
+   block a reader opens the page to look at. */
+.grid-section {
+  padding: 16px 18px;
+  border-left: 3px solid var(--brand);
+  margin-bottom: 14px;
+}
+
+.walk-section {
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.walk-section--open {
+  border-left: 3px solid var(--brand);
+}
+
+.walk-header {
+  padding: 12px 16px;
+  min-height: var(--tap);
+}
+
+.walk-body {
+  padding: 0 16px 14px;
+}
+
+/* ---- Micro-labels: the single biggest "this looks designed" signal ---- */
+.screen-subtitle,
+.grid-section-label,
+.lex-rail-label,
+.cmp-label,
+.stat-card-label,
+.builder-pick-title,
+.bank-cat-label {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.grid-section-label {
+  margin: 0 0 12px;
+}
+
+.grid-field-label {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---- Type scale on the page furniture ---- */
+.screen-title {
+  font-size: var(--font-2xl);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+
+.screen-blurb,
+.form-help,
+.grid-field-help,
+.funnel-hint {
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.template-card-title,
+.walk-header-label {
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+/* ---- One confident number per tile ---- */
+.stat-card {
+  padding: 14px 16px 12px;
+}
+
+.stat-card-value,
+.accuracy-big {
+  font-size: var(--font-3xl);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.stat-card-sub,
+.accuracy-sub {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
+/* ---- Pills: Insights' state chip ---- */
+.badge,
+.recon-tag {
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: rgb(var(--brand-rgb) / 0.12);
+  /* --badge-ink, not --brand. Measured: the lifted dark claret on its own 12%
+     tint over --surface is 4.42:1 — just under AA, because in dark mode the
+     tint LIGHTENS the background and closes the gap. --brand-strong clears it
+     at 5.76:1. Light mode is 7.33:1 either way. */
+  color: var(--badge-ink, var(--brand));
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: none;
+}
+
+/* ---- Controls ---- */
+.btn {
+  border-radius: var(--r-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.06s ease;
+}
+
+.btn--ghost {
+  border-color: rgb(var(--brand-rgb) / 0.28);
+  color: var(--brand);
+}
+
+.form-input,
+.form-select {
+  border-radius: var(--r-md);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.chip {
+  border-color: rgb(var(--brand-rgb) / 0.22);
+}
+
+/* ---- Tracks and bars: tinted from the brand, never grey ---- */
+.oslider-range,
+.rslider-track,
+.bar-track,
+.cmp-bar {
+  background: rgb(var(--brand-rgb) / 0.14);
+}
+
+.cmp-bar,
+.rslider-track,
+.bar-track {
+  border-radius: var(--r-pill);
+}
+
+/* ---- Header: a quiet rule, matching the Insights site header ---- */
+.app-header {
+  border-bottom: 1px solid rgb(var(--brand-rgb) / 0.16);
+}
+
+.app-nav {
+  border-top: 1px solid rgb(var(--brand-rgb) / 0.16);
+}
+
+/* ---- Breathing room. Insights gaps blocks at 12-28px; Taste was at 8. ---- */
+.screen {
+  padding: 20px 16px;
+  padding-bottom: calc(var(--s6) + env(safe-area-inset-bottom));
+}
+
+.stat-cards {
+  gap: 12px;
+}
+
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.template-card {
+  padding: 14px 16px;
+}
+
+/* The compare grid is a table, not a card — keep it flat but give the header
+   row the same tinted rule as everything else. */
+.cmp-row--head {
+  border-bottom: 1px solid rgb(var(--brand-rgb) / 0.35);
+}
+
+.cmp-row {
+  border-bottom: 1px solid rgb(var(--brand-rgb) / 0.12);
+}
+
+/* --- Sign-in gate ---------------------------------------------------------
+   These three classes were referenced by SignInScreen.tsx but had NO rules in
+   this stylesheet, so the first screen every user sees rendered unstyled. This
+   is the missing definition, not a new tuning pass — everything below is built
+   from existing tokens so it themes with the rest. */
+.signin-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--s4);
+  background: var(--bg);
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 24px 20px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.signin-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+/* The mode switch sits tight under the wordmark and above the blurb. */
+.signin-modes {
+  margin-bottom: 10px;
+}
+
+/* A button that reads as a link. Kept a <button> because it performs an action
+   rather than navigating, and a real <a href> that goes nowhere is worse for a
+   screen reader than a button that looks like a link. */
+.linklike {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.signin-alt {
+  margin-top: 12px;
+  text-align: center;
 }

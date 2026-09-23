@@ -1,9 +1,84 @@
 # Auxein Taste — Development Plan (Claude Code build doc)
 
 **Owner:** Pete Taylor / Auxein
-**Status:** In build — P1–P5.1 shipped (frontend, untested in-browser). **Reconciliation retrofit (R1–R3) in progress.**
+**Status:** v1.0 live since 2026-07-15. **MW capture rebuild (T1-T5 + D2) BUILT 2026-09-18 but unverified and undeployed.** V1 scope reset 2026-09-21 to four components - see **section 11**, which supersedes section 8 as the live build sequence.
 **Canonical spec (2026-06-27):** [`TASTE_BUILD_SPEC.md`](./TASTE_BUILD_SPEC.md) — **supersedes** the earlier `AUXEIN_TASTE_MVP_SPEC.md` for scope/priority.
 **This doc:** canonical resume pointer for the build (build order, repo grounding, backend dev/deploy).
+
+---
+
+## Decision update — 2026-09-21 (V1 scope: four components on one data spine)
+
+**Read this first.** Pete set the V1 release scope: **tasting, maps, content, social**,
+all on a **unified data infrastructure**, with safeguards strong enough that
+user-generated data stays clean and usable by everyone. His brief is kept verbatim in
+**§11**, which is now the live plan; sections 0-10 and 12 are history.
+
+**What the brief changes.** Taste v1.0 is a solo app. Every row in the `taste` schema is
+filtered by `user_id` in `api/crud.py`, and that filter is the *entire* authorisation
+model. The brief makes Taste multi-user: rows that are public, rows shared with a group,
+rows forked from someone else's work with the lineage carried through. Three things that
+do not exist today are load-bearing for all four components, and none of them is a
+feature a user would name:
+
+1. **Authorisation.** `make_crud_router`'s owner filter cannot express
+   private / link / group / public / forked. It has to be replaced once, before the three
+   new components are built on top of it.
+2. **Identity.** `core/auth.py` returns a bare `int` from the Insights public JWT. There
+   is no Taste user row, no handle, no display name, no avatar. You cannot attribute a
+   fork, address a share, or render a group's member list from an int.
+3. **Canonical data.** `taste.wines` is per-user rows — two people tasting the same wine
+   create two unrelated rows. A tag on a wine, a pin on a producer and a group tasting
+   the same flight all need one row that *means* one wine. `taste.regions` (1513 rows,
+   server-owned, seeded, never user-written) is the only canonical table Taste has, and
+   it is the pattern the rest should copy.
+
+**The safeguards are the data model, not a later pass.** Recommended shape: canonical
+rows are server-owned and never written directly by a user; users write **personal
+instances** and **proposals**; promotion into canonical is a reviewed step with a log.
+That makes moderation a queue, rather than a cleanup of rows that are already wrong.
+
+**Sequencing concern, stated once.** Three of the four components are 100% unbuilt, and
+component 1's finished work (T1–T5 + D2, built 2026-09-18) has still never been opened in
+a browser or deployed. Shipping all four in one release means no user contact until the
+very end of a long build. §12 plans all four in full and recommends staging them as
+**V1.0 Tasting → V1.5 Foundations → V2.0 Maps + Content + Social**. The phase list is
+identical either way — only the release boundaries move.
+
+---
+
+## Decision update — 2026-09-18 (MW pivot + CSS overhaul; maps scoped)
+
+**Read this first.** Taste v1 shipped and has been live and untouched since 2026-07-15
+(`taste.auxein.co.nz` + `taste-api.auxein.co.nz`, both verified 200 on 2026-09-18; the
+live SPA bundle matches the committed `dist`). Three decisions taken today:
+
+1. **MW practical becomes the default capture mode.** New IMW source material landed in
+   `Update_Sept 2027/` and it describes a different instrument from the one built: a
+   timed argument (12–15 min/wine) in which the grid is scratch evidence and the
+   deliverable is prose. The CMS Deductive grid (42 fields, 7 sections, 8 aroma modals)
+   is **demoted from default to selectable**, not deleted.
+2. **CSS gets a token reset + dark mode**, not a fifth tuning pass. Four passes
+   (sub-pass 1/2/2b/2c) have already been spent shrinking controls; the constraint is
+   the *number* of interactions and the absence of a dark theme, not control size.
+3. **Maps are scoped but not built.** Maps had never been scoped anywhere — a written
+   proposal now exists; no code.
+
+
+> **Pete's four-component V1 brief was typed into this section on 2026-09-21.** It has
+> been moved, verbatim, to **§11** where its plan now lives, so this block stays a record
+> of the 09-18 decisions only.
+
+→ **[`TASTE_MW_CAPTURE_REDESIGN.md`](./TASTE_MW_CAPTURE_REDESIGN.md)** — phases T1–T5.
+→ **[`TASTE_MAPS_SCOPE.md`](./TASTE_MAPS_SCOPE.md)** — phases M1–M5, proposal only.
+
+**Still entirely unbuilt:** BUILD_SPEC **Epic 4 (Knowledge Centre)** — articles, tags,
+the polymorphic `link` table, comments, documents. Also never built: Story 3.4's
+`participant`/`author_id` seam, Story 2.5's display-scale pref (`default_template_id` is
+read in `CaptureScreen` but nothing ever writes it), Story 5.3's geography drill-in, and
+Story 9.1's server-side wide export. Two pieces of stale plumbing remain in prod: the
+legacy `/taste/bootstrap` + `/taste/sync` routers ("remove after bake") and the unused
+`dexie` dependency.
 
 ---
 
@@ -395,7 +470,460 @@ Working agreement: each phase auto-builds, then pauses for your review before th
 
 ---
 
-## 11. Resume pointer
+## 11. V1 platform plan — four components on one spine
+
+> **Supersedes §8** as the live build sequence. §8 is kept as the v1.0 build history.
+
+### 11.1 The brief (Pete, 2026-09-21, verbatim)
+
+> There are three/four major components that need to be shipped on the first release version.
+> 1. tasting - this needs to have MW, CMS, custom, VERY EASY tasting capture. Including red/white/rose/sparkling etc, side by side, blind, all types of tastings. Also note a simple form for use on ipad, tablets, phone etc.
+> 2. maps - users need the ability to create map layers simply, save these as private or public, and build on others public work. Note the building on work component will look like a fork, i.e. work one gets copied but the meta data remains and carries through the new layer being build. So we can have a tree type view of all layers (for admins). This will become a core omponetn of the data model, as wine is geographic.
+> 3. content - users can create content, tagged the the syllabus areas of MW, CMS, WSET etc, and share with others or keep private. This will be a rich tip tap type editor with references etc built in.
+> 4. social - users can interact with each other, create groups, share content to individuals or groups, create group content etc. The full social element of studying beverages.
+>
+> All of these need to hava unified data infrastructure, i.e. regions, wines, heirachy, wiki style content. With user generated information being created, there has to be very strong safeguards and data management to ensure this remains clean for all to use.
+
+### 11.2 Component 0 — Platform foundations (F1–F5)
+
+**Nothing in components 2, 3 or 4 can be built correctly before these.** They are not
+user-visible, which is exactly why they get skipped and then cost triple.
+
+**DECISION 2026-09-21 (Pete): Taste gets a completely separate user model and auth
+system.** Not a profile hung off Insights' identity — its own `taste.users` table, its own
+id space, its own signing key, its own token type. Insights is reached later through an
+**external bridge API**, never a shared secret and never a cross-schema read. This
+restores BUILD_SPEC's locked decision **D3** ("own user table in `taste` schema... so a
+later SSO merge is a migration, not a rewrite"), which the shipped `core/auth.py` had
+quietly departed from by decoding the Insights `public_access` JWT with the shared
+`SECRET_KEY`.
+
+**F1 — `taste.users` + `taste.refresh_tokens`. MIGRATION DRAFTED:
+`alembic_taste/versions/0005_taste_users.py`.**
+- `users`: own serial `id`, lower-cased unique `email` (CHECK-enforced), nullable
+  `hashed_password`, nullable unique `handle`, `display_name`, `bio`, `avatar_s3_key`,
+  `role` + `status` (F4/F5 need them on day one), `token_version`, verification and reset
+  fields, `prefs`, and **`external_auth_id` + `external_auth_source`** — the seam
+  BUILD_SPEC story 7.1 asked for.
+- `id` is a serial int, not a client UUID, because every existing `user_id` column in the
+  schema is already `Integer`: that makes the cutover a **value re-key** rather than a
+  type change across seven tables.
+- `handle` is left NULL by the backfill on purpose. A handle is public and near-permanent
+  and is the user's to choose; the app prompts at first sign-in.
+- **`refresh_tokens` exists because Insights has no revocation.** Insights issues one
+  self-contained 7-day token it cannot take back. F4 must be able to suspend an account
+  and have it mean something before next week, so Taste uses a short access token plus a
+  revocable refresh row (SHA-256 of the token stored, never the token) and a
+  `token_version` carried in the JWT.
+- **Backfill keeps existing passwords.** Both services hash with passlib bcrypt, so the
+  digest copies over verbatim and nobody resets anything. This is the ONE permitted
+  cross-schema read of `public.public_users`, guarded by `to_regclass`, degrading to an
+  `@taste.invalid` placeholder where that table is not in reach. Nothing in
+  `backend_taste` reads it again afterwards.
+- **`TASTE_SECRET_KEY` is separate and the service refuses to boot if it equals
+  `SECRET_KEY`.** A Taste service signing with the main API's key is not "separate auth
+  with a caveat" — it is Insights auth on a different hostname, and it fails silently.
+  `TASTE_ACCEPT_LEGACY_TOKEN` (default **false**) keeps the old token working for one
+  cutover window, then it and `SECRET_KEY` are deleted together.
+
+**Verified, not assumed.** Measured on prod 2026-09-21 before writing: **one** distinct
+`user_id` (10, Pete), 186 rows — templates 3, wines 68, notes 68, flights 12, vocab 35,
+events 0, photos 0. This is the cheapest moment the split will ever be. Both migrations
+were then run end-to-end against a throwaway local database seeded with **two** users
+(a case prod cannot exercise), **14/14 assertions passed**, and the downgrade round-trip
+returned every row and S3 key to its original owner.
+
+**Two real defects were caught by running it rather than reading it:**
+1. **S3 keys embed `user_id`.** `api/photos.py` builds `taste/<user_id>/<note_id>/…` and
+   then gates access with `startswith`. A re-key without rewriting the keys 403s owners
+   out of their own photographs. Prod has zero photo rows so it is a no-op there; the
+   migration rewrites the stored keys anyway and prints the `aws s3 cp` that must run
+   beside it. **Follow-up: move `photos.py` to a prefix that does not embed a mutable id.**
+2. **Migration 0002 builds its tables from the live model classes.** The moment
+   `VisibilityMixin` was added, a database migrated *from scratch* started arriving at
+   0006 already holding `visibility`/`share_slug`, while prod does not. 0006 now guards
+   its `add_column`s. This is the standing cost of migrations that import live models and
+   is not specific to this phase.
+
+**F1 CODE BUILT 2026-09-21** — `core/security.py` (passlib bcrypt, Taste-signed tokens,
+rotating refresh tokens, handle rules + reserved list), `core/auth.py` rewritten
+(`get_current_user` / `get_optional_user` / `require_admin`; `get_current_taste_user` kept
+as an int-returning shim so the five existing call sites were not touched, and gained the
+status and `token_version` checks for free), `api/auth.py` (register / login / refresh /
+logout / logout-all / me / password change / reset request / reset / verify).
+- **Login is a deliberate non-oracle**: wrong password and unknown address return the same
+  401 body, and the suspension check runs *after* the password check so a suspended
+  account is not distinguishable by anyone who does not already know the password.
+- **Refresh rotates, and a replay revokes the whole family.** A second use of an already
+  rotated token means one of two holders is not the owner and there is no way to tell
+  which, so every session ends.
+- **`logout-all` and a password change bump `token_version`**, which kills live *access*
+  tokens too — revoking only refresh rows would leave issued access tokens valid for the
+  rest of their lifetime.
+- **EMAIL BUILT 2026-09-21** — `services/email.py`, SMTP over the **same variable names,
+  credentials and verified sender as the main API** (`SMTP_*`, `FROM_EMAIL`, `SEND_EMAILS`),
+  importing none of its code. **Not SES**: the house pattern here is SMTP, and a second
+  sending identity is a second deliverability reputation to keep clean for no benefit.
+  Sharing a transport is not the coupling this service avoids — nothing is imported and no
+  request is made to the main API.
+  - **Every send is a `BackgroundTask`, and no send can fail its request.** A slow mail
+    server must not be a slow sign-up and a dead one must not be a failed sign-up. The
+    SMTP socket carries an explicit timeout; smtplib otherwise waits on the OS default.
+  - **`SEND_EMAILS` defaults OFF** and logs the message instead — that is how you get the
+    link in development, and it is what makes local runs safe by default.
+  - **A stricter second throttle guards the two mail-triggering routes.**
+    `/auth/password/reset-request` takes an arbitrary address and sends to it,
+    unauthenticated; with no budget it is an open relay pointed at anyone. A throttled
+    caller still gets the same 200, because a distinct 429 would tell them the address is
+    worth retrying.
+  - New `POST /auth/verify/resend` (authed, throttled). Reset-request no longer returns
+    the token outside `ENV=local`.
+  - **`TASTE_REQUIRE_VERIFIED_EMAIL` still defaults to false** even though the mailer now
+    exists. It flips only after a real send is confirmed from the deployed environment —
+    turning it on is a one-way door for anyone whose mail does not arrive.
+
+- **SPA side of the email flows built**: `EmailLinkScreens.tsx` (`VerifyScreen`,
+  `ResetPasswordScreen`), routed in `App.tsx` **before the auth gate** — the link opens in
+  whatever browser handles mail, routinely not the one holding the session, and the reset
+  flow exists for people who cannot sign in. `SignInScreen` gained the forgot-password
+  path; `SyncPanel` offers a resend while unverified. `VerifyScreen` guards against React
+  StrictMode's double-mount, which would otherwise spend the one-shot token twice and
+  report a working link as invalid.
+- **Login throttling is in-process**, so it resets on deploy and is not shared between EB
+  instances. It is there because zero is worse, not because it is sufficient; a durable
+  limiter is an F4 deliverable.
+
+**SPA SIGN-IN WIRED 2026-09-21.** `src/auth/publicAuth.ts` is deleted and replaced by
+`src/auth/tasteAuth.ts`; nothing in `packages/taste` calls `api.auxein.co.nz` any more.
+- **`authFetch` is the single entry point** for both API clients (`db/api.ts`,
+  `services/tasteApi.ts`): it attaches the token, renews it pre-emptively inside a 60s
+  skew, and retries once on a 401 that beat the renewal.
+- **The refresh is SINGLE-FLIGHT, and that is not an optimisation.** The server rotates
+  refresh tokens and treats a second use of a rotated one as theft, revoking every
+  session — so two concurrent refreshes would sign the user out. The app fires several
+  requests on load, so without the guard this would have bitten on the first cold start
+  after an hour.
+- **A network failure is not an expired session.** A refresh that never reaches the server
+  leaves the stored tokens alone; only a server *rejection* clears them. Signing someone
+  out because a cellar has no reception is the wrong answer.
+- **`isAuthed()` is true on a stale access token with a live refresh token**, so returning
+  after an hour renews silently instead of bouncing to the sign-in screen.
+- **The Insights-era `public_access_token` / `public_user` keys are purged on load.** They
+  are not valid against taste-api, and leaving them puts a returning user in a 401 loop.
+- **`SignInScreen` gained a Create-account mode** — Taste owns accounts now, so there is
+  no other route in. It carries optional display name and handle. **There is deliberately
+  no "forgot password" link**: the backend mints a reset token but nothing delivers it.
+- **`SyncPanel` can set a handle and display name**, and offers "sign out everywhere"
+  separately from "sign out" (the former bumps `token_version`, so a session on a device
+  you no longer have ends now rather than in an hour).
+
+**FOUND AND FIXED WHILE WIRING: the sign-in gate had no CSS at all.**
+`.signin-shell` / `.signin-card` / `.signin-brand` were referenced by the shipped
+component but had **zero rules** in `index.css` — the first screen every user sees has
+been rendering unstyled. Sub-pass 3's "removed 21 dead blocks" also took the segmented
+control's styles, leaving only a tap-highlight selector for `.segmented-item`, so the new
+mode switch uses `.chip` / `.chip--active` (the app's current uniform language) rather
+than reviving a component that no longer exists. The missing sign-in rules are now
+defined from existing tokens.
+
+**Verification: 66 unit tests pass (56 existing + 10 new) and tsc is clean.** The 10 new
+tests cover the session machinery, and were **mutation-checked** — removing the
+single-flight guard makes the race test report 3 refreshes instead of 1.
+**Plus an 8-test CONTRACT suite (`tasteAuth.contract.test.ts`) run against a real
+taste-api on localhost**, because mocked tests cannot catch a field-name mismatch between
+client and server. It skips unless `TASTE_API_URL` is set, so `npm test` does not depend
+on a running backend:
+`TASTE_API_URL=http://127.0.0.1:8001 npx vitest run src/auth/tasteAuth.contract.test.ts`
+
+**Email verified 31/31 against a real SMTP conversation** (`tests_f1_email.py`), using a
+hand-rolled SMTP sink rather than a new dependency, with only `starttls`/`login` stubbed —
+message construction, recipients and transport are all real. It asserts the message itself
+(recipient, subject, sender, multipart plain+html, the link built from `TASTE_APP_URL`),
+both token flows end to end, the non-oracle on an unknown address, the throttle, the kill
+switch, and that **registration still succeeds with SMTP unreachable**.
+
+**A behaviour worth knowing, found by the test failing first:** requesting a second reset
+link **invalidates the first** — only one `reset_token` is stored per user. That is the
+behaviour you want, and it is now pinned by an explicit assertion rather than left to be
+discovered.
+
+**Still not built:** none of this has been opened in a browser, and `SEND_EMAILS` has
+never been switched on against a real mail server.
+
+**F2 — Visibility + grants. MIGRATION DRAFTED:
+`alembic_taste/versions/0006_visibility_shares.py`.**
+- `visibility` (`private` / `link` / `group` / `public`, default `private`) + `share_slug`
+  on templates, events, wines, notes, flights. **Photos are deliberately excluded** — a
+  photo's reach is its note's reach, and a second source of truth for that is a leak
+  waiting for the two to disagree.
+- `taste.shares`: polymorphic `subject_type` / `subject_id` / `grantee_type` /
+  `grantee_id` / `role` / `granted_by`, unique on (subject, grantee) so revoking cannot
+  leave a shadow grant behind, indexed both ways ("everything shared with me" and "who can
+  see this row").
+- **Two mechanisms, not one**, because neither derives from the other: a layer can be
+  public AND have two named editors.
+- VARCHAR + CHECK everywhere, never a Postgres ENUM — these lists will grow and adding a
+  value to a native enum is a migration that takes a lock.
+- `share_slug` is in `SyncMixin._SERVER_COLS`, so a client can never choose its own slug;
+  `visibility` deliberately is not, since the owner setting it is the whole feature.
+  Uniqueness is a **partial** unique index (`WHERE share_slug IS NOT NULL`) so the great
+  majority of rows cost nothing to index.
+- **The migration is a no-op for every existing row** (everything defaults to `private`),
+  so it can ship ahead of the code that reads it. The one behaviour change: builtin
+  templates, which have been marked by `user_id IS NULL` and special-cased with
+  `owner_optional=True`, are restated in the general model as `visibility='public'`. The
+  `owner_optional` branch stays until `resolve_access()` lands — removing it here would
+  break the live API mid-migration.
+
+**F2 CODE BUILT 2026-09-21** — `core/access.py` (`visible_filter`, `access_role`,
+`require`), `api/crud.py` rewired onto it, `api/shares.py` (grant / revoke / list / set
+visibility), `api/public.py` (anonymous read by slug).
+- **Role ladder view < comment < edit < owner.** An editor may change what a row *says*;
+  publishing it, re-sharing it and deleting it belong to the owner. Those are three
+  separate checks, not one.
+- **404, not 403, for a row the caller may not see.** A 403 confirms the id exists, which
+  is a membership oracle over every note in the database.
+- **Public rows are NOT unioned into personal lists.** "My wines" must not silently become
+  "everyone's public wines"; discovery is its own surface (S4). `include_public` is set
+  only for templates, where the builtin grids live.
+- **`api/public.py` is deliberately separate and hand-written.** It never uses
+  `make_crud_router`, and it uses `get_optional_user` — `HTTPBearer()` defaults to
+  `auto_error=True` and raises 403 while *resolving* the dependency, before the body runs,
+  so a public route on the normal dependency rejects every anonymous caller.
+- **Making a row private clears its slug**, so the old URL stops working rather than
+  merely dropping out of listings.
+- **`group` visibility is refused** until groups exist (S1): accepting it would create
+  rows that no code can resolve.
+
+**VERIFIED AGAINST A LIVE DATABASE, not just type-checked.** `tests_f1f2_auth_access.py`
+**58/58** and `tests_f1f2_cutover.py` **11/11**, both run against a throwaway Postgres.
+Coverage includes cross-user isolation, grant/revoke, editor-vs-owner boundaries,
+anonymous slug reads, slug revocation, refresh replay, suspension killing a live token,
+and that an Insights token is **not** a Taste token by default.
+
+**The tests were mutation-checked** rather than trusted: forcing `access_role` to return
+`"owner"` fails 15 assertions, and forcing `visible_filter` to return TRUE fails the list
+scoping assertion. Both halves of the access model have teeth.
+
+> **The critical security line.** Public and link reads get their own explicitly-public
+> routes — *never* the generic CRUD router, whose owner filter is the only thing standing
+> between a user's rows and the internet. `HTTPBearer` 403s anonymous callers (see
+> `project_httpbearer_403_anonymous`), so a public route needs its own optional-auth
+> dependency, not the default one.
+
+**F3 — Canonical spine + proposals. BUILT 2026-09-21.** Migration
+`0007_wine_catalogue.py`; `core/wine_identity.py`; `services/wine_catalogue.py`;
+`api/catalogue.py`; `scripts/repair_wine_geo.py`; `tests_f3_catalogue.py`.
+
+**`taste.wines` is untouched.** It stays the PERSONAL row carrying whatever the taster
+typed, and gains one nullable `wine_ref_id`. The shared identity lives in a new
+`taste.wine_ref`. That is not a new idea — it is **decision D1** ("store raw and
+canonical, never lose either") applied to wine identity instead of a tasting scale, and
+it is already how geography works here: discrete `geo_*` text plus a loose `geo_ref_id`
+into the server-owned `regions` tree. A personal row that disagrees with the canonical one
+is the taster's note about what was on the label, not a conflict to resolve.
+**The migration moves no data**; `wine_ref_id` NULL is an ordinary state.
+
+**The safeguard is a queue, not a cleanup.** A user never writes `wine_ref` — there is no
+route that allows it. Saving a wine either links to an existing canonical identity, or
+files a `wine_proposal`. Promotion is a moderator step that writes a `wine_merge_log`
+entry. A proposal from a moderator is promoted on arrival but still leaves both rows, so
+the audit trail has no hole where trusted users are, and is marked **unverified** because
+nobody reviewed it.
+
+**The dedupe key is deliberately conservative**, because the failures are asymmetric: a
+false merge silently rewrites someone else's tasting history and is near-impossible to
+notice, while a missed merge is two rows a moderator can join later.
+- **Vintage IS identity** — two vintages of one label are two wines to taste. A missing
+  vintage keys as `nv` rather than matching every vintage, or the first merge would
+  absorb them all.
+- **Region is NOT identity** — the same wine is routinely recorded at different depths of
+  the tree ("Burgundy" vs "Chablis"), and including it would mint a row for each. Region
+  is carried on the canonical row as information.
+- **"Estate"/"Winery"/"Vineyards" are NOT stripped** — they distinguish real producers
+  ("Craggy Range Winery" vs "Craggy Range"). Only ONE leading noise word
+  (Domaine/Château/Clos/…) is dropped, or "Le Clos du Roi" becomes "roi".
+- **Punctuation becomes a space, not nothing** — "Saint-Emilion" is two words. That costs
+  exactly one case, initials, so runs of single letters are rejoined: **"J.M. Boillot",
+  "JM Boillot" and "J M Boillot" are one producer.** (Found by a test failing.)
+- **Fuzzy matching is only ever a suggestion to a human.** Nothing merges on a score.
+
+**Merging keeps the source row**, marked `merged` with `merged_into_id`, so a personal
+wine pointing at a superseded canonical resolves forward instead of dangling. Cycles are
+refused — `resolve()` would return None for both rows and every linked wine would lose its
+link at once.
+
+**`scripts/repair_wine_geo.py`** repairs the 27 prod wines with the path jammed into
+`geo_country`, derived from `regions.path` via `geo_ref_id` where present (26 of 27) and
+from splitting the jammed string otherwise. Dry run by default, `--prod --apply` to write.
+**Dry run against prod: 26 to repair, 1 skipped** — the skip is the safety branch working,
+on a row that has both a jammed country and real discrete fields, where the script refuses
+to choose. It does NOT bump `updated_at`/`version`: this is a repair of a write that
+already happened, and bumping them would make every affected wine look freshly edited.
+
+**Verified 52/52** against a real Postgres, covering identity, the proposal queue, the
+moderator gate, backlinking, merges, cycle refusal and the audit log.
+**Mutation-checked twice:** dropping vintage from the dedupe key fails 2 assertions;
+removing the moderator gate fails 9.
+
+**A DESTRUCTIVE TEST-FIXTURE INCIDENT, and the fix.** These suites TRUNCATE tables to get
+a known state. One was run against the **local dev database**, and its
+`DELETE FROM taste.templates WHERE id <> 'tpl-builtin'` removed both seeded builtin grids
+— the only visible symptom being one unrelated assertion failing. The dev database has
+been restored (templates re-seeded, 1513 regions intact, test rows cleared), the fixture
+now creates its own row and touches only that, and **`tests_guard.py` now refuses to run
+any of these suites unless the database name looks disposable** (contains test/scratch/tmp)
+or `TASTE_TEST_DB_OK=1` is set out loud.
+
+**F4 — Moderation + abuse. BUILT 2026-09-21.** Migration `0008_moderation.py`;
+`core/ratelimit.py`; `services/moderation.py`; `api/moderation.py`; `tests_f4_moderation.py`.
+
+**Reporting is open to any signed-in user** and deliberately does NOT check that the
+reporter can see the subject — a link shared outside the app, a public page, a screenshot
+are all legitimate ways to encounter something reportable, and an access check there would
+reject exactly the reports most worth having. It does check the subject exists. Reporting
+the same thing twice returns the open report rather than an error. Reports are never
+deleted, dismissals included: a pattern of one account reporting another is itself
+something a moderator needs to see, and it is invisible if dismissals disappear.
+
+**Hiding is not deleting and not a visibility change.** `hidden_at`/`hidden_reason` sit on
+the same five shareable entities as `visibility`. The **owner keeps seeing their own row
+with the reason attached** — content that vanishes without explanation reads as a broken
+product rather than a decision — and a moderator sees it because reviewing it is the job.
+Nobody else does: not through a grant, not through a link, not publicly. `visibility` is
+left untouched, so **unhiding restores what the owner chose** instead of silently making a
+public row private.
+
+**Enforced in three independent places** — `access_role` (row checks), `visible_filter`
+(list queries) and `api/public.py` (the anonymous slug route). Mutation-testing each one
+separately breaks exactly its own assertion, which is the point: no single edit can
+quietly unhide content everywhere.
+
+**Suspension needed no new column.** `users.status` and `users.token_version` shipped in
+0005; F4 adds the route and the log entry. Suspending bumps `token_version`, so live
+access tokens die on the next request rather than lasting out the hour — which is exactly
+the window in which someone just suspended is most motivated to act. A moderator cannot
+suspend themselves or an admin.
+
+**`taste.rate_limit` replaces the in-process throttles**, which reset on deploy and gave
+an attacker one budget PER EB INSTANCE. One atomic UPSERT, fixed window.
+**The detail that makes it work: the counter is written on its OWN connection and
+committed immediately.** A failed login raises, its request session is discarded without
+a commit, and a counter written there would roll back — leaving a login limiter that only
+counts successes.
+
+> **A REAL SECURITY BUG, INTRODUCED AND THEN CAUGHT HERE.** The first version consulted
+> the limiter inside the failure branch. Wrong guesses got a 429, but a **correct** guess
+> never touched the limiter, so an online brute force still succeeded on the attempt that
+> mattered — the lockout was a metric, not a limit. The limiter is now checked **before
+> the password is verified** and counts **every** attempt, with a successful login
+> clearing its own bucket so a mistyped password is not a debt. Re-running the old shape
+> as a mutation reproduces it exactly: a correct password during lockout returns 200
+> instead of 429.
+
+**Verified 57/57** against a real Postgres, and **the full backend suite is green**:
+58/58 auth+access · 11/11 cutover · 52/52 catalogue · 57/57 moderation · 31/31 email.
+
+**F5 — Admin surface.** The proposal queue, the report queue, and the **layer fork tree**
+Pete asked for. `admin.auxein.co.nz` already exists and is live — this belongs there, not
+in the Taste PWA. Note that `AdminRoute` renders no chrome: a page must wrap itself in
+`AdminLayout` (`project_admin_layout_wrapping`).
+
+### 11.3 Component 1 — Tasting (T-phases; partly built)
+
+T1–T5 + D2 are **built, type-checked, 56/56 unit tests, and have never been opened in a
+browser or deployed**. Closing that gap comes before any new phase.
+
+| Phase | Deliverable | State |
+|---|---|---|
+| **T1–T5, D2** | MW template + structural cross, IMW lexicon rails, funnel/BLICC, pace timer, compare view, Insights design language, dark mode, geo-seed 1513 rows | **BUILT 2026-09-18**, seeded to prod, uncommitted, undeployed, **unverified** |
+| **T6** | **Verify + deploy.** Pete builds, deploys and uses it at a real tasting. Unverified claims: 11 sliders fit one screen; lexicon rails survive the mobile keyboard; dark mode reads in a dim room; capture costs less energy than the 42-field grid. Then tune `NOTABLE = 0.125` in `CompareView` against real notes. | **next** |
+| **C1.1** | **Wine-type awareness.** Today `glass_color` (red / white / rosé / sparkling) is a cosmetic rack marker that drives nothing, and both grids are still-wine shaped — no mousse or bead, no dosage, no rancio, no sweetness axis for a botrytised wine. Add conditional sections, or per-type template variants, keyed on wine type. | unbuilt |
+| **C1.2** | **Side-by-side capture.** `CompareView` (T5) compares *after* the fact; capture is still one wine at a time. This is a new `GridRenderer` mode — one structural row captured across 2–3 wines at once, which is how a flight is actually tasted. | unbuilt |
+| **C1.3** | **Tablet + responsive pass, and the CSS collapse.** `index.css` is ~2,580 lines across **six** layered passes with exactly one `min-width: 640px` rule, so an iPad renders a phone column. **Do the collapse and the breakpoints in the same pass. Do not add a seventh layer.** | unbuilt |
+| **C1.4** | **"Very easy" capture as a first-class template kind** — a handful of fields, not a stripped CMS grid. Pair it with BUILD_SPEC story 2.5's never-built display preference (`default_template_id` is read in `CaptureScreen`, but nothing ever writes it). | unbuilt |
+
+### 11.4 Component 2 — Maps (M-phases; revised by the brief)
+
+`TASTE_MAPS_SCOPE.md` recommended **deferring public sharing** and did not contemplate
+forking at all. The brief overrides both: public is in, and fork-with-lineage is core.
+
+| Phase | Deliverable | Change vs the proposal |
+|---|---|---|
+| **M1** | Migration (postgis guard + `map_layer` + `map_feature`), GeoAlchemy2 and shapely added to `backend_taste/requirements.txt`, CRUD, no UI. | unchanged |
+| **M2** | `MapsScreen` + `MapEditor` (draw point / line / polygon, style, save), **lazily route-split**, plus **GeoJSON and KML import**. | import promoted in — it is how real boundary data actually arrives, and draw-only is a weak feature |
+| **M3** | Visibility via **F2**, including `public` in a browsable gallery. | **changed** — the proposal's bespoke slug grant is dropped for the shared F2 model, and `public` is no longer deferred |
+| **M3.5** | **Fork + lineage (new).** `parent_layer_id`, `root_layer_id`, `fork_depth`, `forked_at`, `forked_from_version`, and the attribution chain carried in metadata. Store a materialised path or closure table so the admin tree is **one query, not recursion**. | **new** — this is Pete's "tree type view of all layers" |
+| **M4** | Link map features to notes, wines and content entries. | **blocked on K1's `link` table** |
+| **M5** | Spatial resolve: `ST_Contains` a feature against `regions`, populate `region_id` / `gi_id`. | unchanged — this is what makes maps part of the spine rather than a drawing tool |
+
+**Fork licence is a decision, not a detail.** What does a public layer permit — attribution
+only? Can a fork of a public layer be made private again? Answer before M3.5 ships, because
+the lineage columns encode the answer.
+
+### 11.5 Component 3 — Content (K-phases; BUILD_SPEC Epic 4 + syllabus)
+
+| Phase | Deliverable | Notes |
+|---|---|---|
+| **K1** | **The `link` table** — polymorphic `{from_type, from_id, to_type, to_id, relation}` with `'geography'` already a valid type, plus the entry and tag model. BUILD_SPEC Epic 4, decision D7 ("functional day-one"), **100% unbuilt**. | Unblocks M4 as well as content |
+| **K2** | **Syllabus taxonomy (new).** A seeded, server-owned `taste.syllabus_node` (`body` = MW / CMS / WSET, `level`, `parent_id`, `path`), built exactly like `regions`: reference data users tag against but never write. | **Check the licensing.** The MW, CMS and WSET syllabi are copyrighted documents; reproducing their taxonomy verbatim may not be free to do. Sourcing these is a real task with a legal question attached. |
+| **K3** | **TipTap editor + references and citations.** **Store the TipTap JSON document, not HTML** — rendering user-supplied HTML is the injection surface. Validate node types against a server-side allowlist on write. | New deps (~200 KB). Route-split. |
+| **K4** | Documents and photos on entries. | Reuses the P9 presign/confirm pipeline |
+| **K5** | Visibility and sharing via **F2**; comments (BUILD_SPEC story 4.5). | Comments are the first user-to-user text surface, so **F4 must exist first** |
+
+### 11.6 Component 4 — Social (S-phases)
+
+| Phase | Deliverable |
+|---|---|
+| **S1** | `taste.group` + `group_member` + roles (owner / admin / member), invites, join requests |
+| **S2** | Share to a user or a group via **F2** grants; an inbox and notifications |
+| **S3** | Group content and **group tastings** — where BUILD_SPEC story 3.4's never-built `participant` / `author_id` seams finally get used |
+| **S4** | Feed and discovery (public layers, public entries, people) |
+| **S5** | User-facing report / block / leave, on top of the **F4** backend |
+
+### 11.7 Cross-cutting, and the things already rotting
+
+- **Bundle budget.** Today ~320 KB total. mapbox-gl is ~800 KB gzipped and TipTap ~200 KB.
+  Split every new route lazily and measure before and after — first paint at a tasting must
+  not pay for features nobody opens mid-tasting.
+- **Carry the touch footgun forward.** MapboxDraw kills tap→click on touch devices; bridge
+  via `touchend` (`project_maps_touch_click`). Taste is phone-first, so it bites harder here
+  than it did on web.
+- **The PWA still claims "fully offline"** in `vite.config.ts`'s manifest, which has been
+  wrong since 2026-06-28. Maps, content and social are online-only. Fix the claim.
+- **Stale plumbing to remove before building four components on top of it:** the legacy
+  `/taste/bootstrap` and `/taste/sync` routers (marked "remove after bake", still mounted in
+  prod) and the unused `dexie` dependency.
+- **Prod writes are blocked by the auto-mode classifier** — seed and migration commands get
+  handed to Pete to run with `--apply` / `--prod`.
+
+### 11.8 Recommended release boundaries
+
+| Release | Phases | Why the line is there |
+|---|---|---|
+| **V1.0 Tasting** | T6, C1.1–C1.4 | Ships the work that already exists plus the tasting gaps in the brief. No account-facing change, so no moderation liability. Gets Taste in front of a real tasting in weeks rather than at the end of everything. |
+| **V1.5 Foundations** | F1–F5 | Zero new user-facing features and the highest-leverage phase in the plan. Everything after it is cheaper; anything built before it gets rewritten. |
+| **V2.0 Platform** | M1–M5, K1–K5, S1–S5 | Maps first (clearest data model, and M5 is what makes geography load-bearing), then content, then social — social is the thinnest of the three without the other two to share. |
+
+If all four must ship as one release instead, the phase order does not change; only the
+deploy boundary does. The cost is that nothing reaches a user until the whole thing is done.
+
+### 11.9 Open decisions — these change the build
+
+1. **One release or three?** Recommendation in §11.8; the answer sets the deploy boundaries.
+2. **Canonical wines: proposal queue (recommended) or trust-then-merge?** The queue is more
+   work up front and is the only version that keeps the data clean without a later cleanup.
+3. **Does Taste get its own sign-up, or stay on the Insights public JWT?** Handles are public
+   and `public_users` is an Insights table — F1 makes this question load-bearing.
+4. **Fork licence terms** (§11.4) — must be answered before M3.5.
+5. **Who moderates?** A one-person queue is a recurring time cost, not a build task.
+6. **Syllabus licensing** (K2) — can the MW / CMS / WSET taxonomies be reproduced?
+7. **Mapbox billing** — Taste becomes a fourth product on the same token, and a public map
+   gallery is the first surface with uncapped anonymous map loads.
+
+---
+
+## 12. Resume pointer (build history log)
 **P1 shipped 2026-06-07** — `packages/taste/` TS PWA scaffold: `package.json` (`@vineyard/taste`, port 5175), `vite.config.ts` (PWA config copied from `packages/web`, manifest theme #5B6830, icons from mobile brand), `tsconfig.json`, `index.html`, `src/main.tsx` + `src/App.tsx` (bottom-nav shell, 7 stub routes in `src/screens/index.tsx`), `src/index.css`, brand icons in `public/`. Root `dev:taste`/`build:taste` scripts added. Typechecks clean; **untested in-browser — Pete runs `npm run dev:taste`** (port 5175). No backend.
 
 **P2 shipped 2026-06-07** — `src/db/`: `types.ts` (BaseRow + Template/TasteEvent/Wine/Note/Flight/Photo/GeoRegion/Meta/OutboxItem; `event`→`TasteEvent` to dodge the DOM global; Wine gained `geo_ref_id`), `schema.ts` (`TasteDB` v1, 9 stores incl. `geoRegions` + `++seq` outbox), `ids.ts` (`uuidv4`/`nowIso`/`newBase`), `repo.ts` (generic `put`/`softDelete` that stamp `updated_at`+bump `version` and enqueue an outbox mutation in one rw txn; `repo.{templates,events,wines,notes,flights,photos}` + reference-only `geo` + kv `meta`), `index.ts` barrel. **Brought template *types* forward** from P3 into `src/templates/types.ts` (interfaces only — the notes row needs them; CMS seed + builder UI stay P3). Settings screen has a P2 storage-diagnostics panel + self-test. Typechecks clean; **untested in-browser** — Pete verifies via Settings → "Run storage self-test".

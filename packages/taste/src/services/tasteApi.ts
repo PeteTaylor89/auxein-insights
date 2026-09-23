@@ -1,23 +1,22 @@
 // Photo endpoints on the Taste API (prefix /taste, separate from the v1 REST
 // surface in db/api.ts). presign → client PUTs the blob to S3 → confirm; view
-// returns a short-lived presigned GET. The public JWT is attached as a bearer
-// token; a 401 clears it.
-import { clearToken, getToken } from '@/auth/publicAuth';
+// returns a short-lived presigned GET.
+//
+// F1: through `authFetch`, so a photo upload that straddles a token expiry
+// renews and retries instead of failing mid-tasting.
+import { authFetch } from '@/auth/tasteAuth';
 
 const TASTE_BASE = (import.meta.env.VITE_TASTE_API_URL as string | undefined) ?? '';
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`${TASTE_BASE}/taste${path}`, {
+  const res = await authFetch(`${TASTE_BASE}/taste${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
   if (res.status === 401) {
-    clearToken();
     throw new Error('Session expired — sign in again.');
   }
   if (!res.ok) throw new Error(`Taste API error (${res.status})`);
