@@ -67,6 +67,12 @@ MJ_TO_MM = 0.408
 SEASON_START = (9, 1)
 SEASON_END = (4, 30)
 
+# Excluded from every station input, matching `daily_aggregation` and
+# `hourly_aggregation`. Until 2026-09-23 this path read raw observations with no
+# quality filter at all, so a sensor the platform had already quarantined still
+# reached ETo while every other consumer dropped it.
+QUARANTINE_QUALITY = "QUARANTINED"
+
 METHOD_HARGREAVES = "hargreaves-samani-fao56"
 METHOD_PENMAN = "penman-monteith-fao56"
 
@@ -296,16 +302,36 @@ def station_inputs(db: Session, lat: float, lon: float,
     Solar is a daily TOTAL (a flux integrated over the day); wind and humidity
     are daily MEANS. Aggregating any of them the other way is the same class of
     error as the HBRC spot value this module exists because of.
+
+    ALL THREE ARE HOUR-WEIGHTED — averaged within each NZ-local hour, then
+    across hours. Fixed 2026-09-23, and it is not a refinement: a station that
+    logs unevenly through the day otherwise has its daily mean dragged toward
+    whichever hours it sampled most. HARV_GREYSTONE_07 logs 6 readings an hour
+    by day and 60 an hour at NIGHT, when irradiance is zero, so its plain
+    average reads 81.7 W/m2 against a true 194.8 — roughly 7 MJ instead of 17
+    into the radiation term, under-calling ETo at every site near those masts.
+    The same weighting is what `daily_aggregation` uses for temp_mean and
+    humidity_mean, so this function and the daily table now agree by
+    construction rather than by coincidence of sampling.
+
+    QUARANTINED observations are excluded, which they were not before. A sensor
+    the platform has already judged unusable was still reaching ETo through
+    this path while every other consumer dropped it.
     """
     from services import point_climate as pc
 
     out: dict[date, dict] = {}
+    # All three are hour-weighted means; solar becomes a daily total below by
+    # multiplying by the length of the day. The third field used to name an
+    # aggregation that the query no longer varied — it read "sum" for solar
+    # while the SQL did an avg, which is the kind of stale label that gets
+    # believed later.
     specs = (
-        ("solar_radiation", MAX_SOLAR_KM, "sum"),
-        ("wind_speed", pc.MAX_WIND_KM, "avg"),
-        ("rh", pc.MAX_HUMIDITY_KM, "avg"),
+        ("solar_radiation", MAX_SOLAR_KM),
+        ("wind_speed", pc.MAX_WIND_KM),
+        ("rh", pc.MAX_HUMIDITY_KM),
     )
-    for variable, max_km, how in specs:
+    for variable, max_km in specs:
         # `nearest_stations` returns Neighbour dataclasses, not mappings.
         near = [n for n in pc.nearest_stations(db, lat, lon, max_km=max_km)
                 if n.distance_km <= max_km]
@@ -318,17 +344,28 @@ def station_inputs(db: Session, lat: float, lon: float,
         # mean flux times the length of the day, which is what avg * 0.0864
         # gives. Summing raw W/m2 readings would scale with how often the
         # station happens to log.
-        agg = "avg(value)"
-        rows = db.execute(text(f"""
-            SELECT station_id,
-                   (timestamp AT TIME ZONE 'Pacific/Auckland')::date AS day,
-                   {agg} AS v, count(*) AS n
-              FROM timeseries_observations
-             WHERE station_id = ANY(:ids) AND variable = :var
-               AND timestamp >= :lo AND timestamp < :hi
-             GROUP BY 1, 2
-        """), {"ids": ids, "var": variable,
-               "lo": start, "hi": end}).mappings().all()
+        #
+        # Two levels: the hour first, then the day. See the docstring — the
+        # single-level version weighted whichever hours a station sampled most.
+        rows = db.execute(text("""
+            WITH hourly AS (
+                SELECT station_id,
+                       (timestamp AT TIME ZONE 'Pacific/Auckland')::date AS day,
+                       date_trunc('hour',
+                                  timestamp AT TIME ZONE 'Pacific/Auckland') AS hr,
+                       avg(value) AS hour_mean,
+                       count(*) AS n
+                  FROM timeseries_observations
+                 WHERE station_id = ANY(:ids) AND variable = :var
+                   AND value IS NOT NULL
+                   AND coalesce(quality, '') <> :quarantine
+                   AND timestamp >= :lo AND timestamp < :hi
+                 GROUP BY 1, 2, 3
+            )
+            SELECT station_id, day, avg(hour_mean) AS v, sum(n) AS n
+              FROM hourly GROUP BY 1, 2
+        """), {"ids": ids, "var": variable, "lo": start, "hi": end,
+               "quarantine": QUARANTINE_QUALITY}).mappings().all()
 
         by_day: dict[date, list] = {}
         for r in rows:
