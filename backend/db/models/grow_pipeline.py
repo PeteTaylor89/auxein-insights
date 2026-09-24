@@ -24,7 +24,7 @@ from sqlalchemy.sql import func, text
 from db.base_class import Base
 
 DEAL_TYPES = ("grow", "insights_pro", "enterprise")
-LEAD_STAGES = ("new", "contacted", "demo", "trial", "proposal", "won", "lost")
+LEAD_STAGES = ("new", "contacted", "meeting_booked", "demo", "trial", "proposal", "won", "lost")
 CLOSED_STAGES = ("won", "lost")
 LEAD_SOURCES = ("insights", "enquiry", "referral", "event", "website", "outbound", "other")
 LOST_REASONS = ("price", "timing", "not_a_fit", "competitor", "no_response", "other")
@@ -113,7 +113,7 @@ class GrowLead(Base):
             name="ck_grow_leads_deal_type",
         ),
         CheckConstraint(
-            "stage IN ('new','contacted','demo','trial','proposal','won','lost')",
+            "stage IN ('new','contacted','meeting_booked','demo','trial','proposal','won','lost')",
             name="ck_grow_leads_stage",
         ),
         CheckConstraint(

@@ -32,6 +32,7 @@ const TYPE_LABEL = Object.fromEntries(DEAL_TYPES.map((t) => [t.value, t.label]))
 const STAGES = [
   { value: 'new', label: 'New' },
   { value: 'contacted', label: 'Contacted' },
+  { value: 'meeting_booked', label: 'Meeting booked' },
   { value: 'demo', label: 'Demo' },
   { value: 'trial', label: 'Trial' },
   { value: 'proposal', label: 'Proposal' },
@@ -1222,7 +1223,7 @@ function LeadDetail({ leadId, onClose, onChanged }) {
                   </span>
                   {a.body && <span className="pipe-tlbody">{a.body}</span>}
                 </div>
-                {a.kind !== 'stage' && a.kind !== 'enquiry' && (
+                {a.kind !== 'enquiry' && !(a.kind === 'stage' && !a.from_stage) && (
                   <button
                     type="button" aria-label="Delete entry" className="pipe-tldel"
                     onClick={async () => {

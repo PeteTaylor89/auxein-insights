@@ -6,6 +6,7 @@
      warms up; won and lost are the two ends, never confused with each other. */
   --stage-new: #7A8A9A;
   --stage-contacted: #2A7F7F;
+  --stage-meeting_booked: #C0663A;
   --stage-demo: #B07D2B;
   --stage-trial: #7A4A72;
   --stage-proposal: #3F5E8C;
@@ -232,11 +233,11 @@
 
 /* ---------------------------------------------------------------- board */
 
-/* Seven columns side by side. Below the width where they fit, the board scrolls
+/* Eight columns side by side. Below the width where they fit, the board scrolls
    sideways INSIDE its own box — the page itself never scrolls horizontally. */
 .pipe-board {
   display: grid;
-  grid-template-columns: repeat(7, minmax(200px, 1fr));
+  grid-template-columns: repeat(8, minmax(200px, 1fr));
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 8px;
@@ -258,6 +259,7 @@
 
 .pipe-col.is-new { --col: var(--stage-new); }
 .pipe-col.is-contacted { --col: var(--stage-contacted); }
+.pipe-col.is-meeting_booked { --col: var(--stage-meeting_booked); }
 .pipe-col.is-demo { --col: var(--stage-demo); }
 .pipe-col.is-trial { --col: var(--stage-trial); }
 .pipe-col.is-proposal { --col: var(--stage-proposal); }
@@ -471,6 +473,7 @@
 
 .pipe-stage.is-new { background: var(--stage-new); }
 .pipe-stage.is-contacted { background: var(--stage-contacted); }
+.pipe-stage.is-meeting_booked { background: var(--stage-meeting_booked); }
 .pipe-stage.is-demo { background: var(--stage-demo); }
 .pipe-stage.is-trial { background: var(--stage-trial); }
 .pipe-stage.is-proposal { background: var(--stage-proposal); }
@@ -482,7 +485,7 @@
 /* The drawers render inside .pipe-page, so the stage colours reach them. */
 .pipe-steps {
   display: grid;
-  /* Seven steps: four and three across in the drawer, never a lone orphan. */
+  /* Eight steps: two rows of four in the drawer. */
   grid-template-columns: repeat(4, 1fr);
   gap: 5px;
   margin-bottom: 14px;
@@ -502,6 +505,7 @@
 .pipe-step:hover { border-color: var(--step); color: var(--step); }
 .pipe-step.is-new { --step: var(--stage-new); }
 .pipe-step.is-contacted { --step: var(--stage-contacted); }
+.pipe-step.is-meeting_booked { --step: var(--stage-meeting_booked); }
 .pipe-step.is-demo { --step: var(--stage-demo); }
 .pipe-step.is-trial { --step: var(--stage-trial); }
 .pipe-step.is-proposal { --step: var(--stage-proposal); }
@@ -748,7 +752,7 @@
 @media (max-width: 640px) {
   .pipe-totals { gap: 16px 22px; }
   .pipe-bignum { font-size: 19px; }
-  .pipe-board { grid-template-columns: repeat(7, 78vw); }
+  .pipe-board { grid-template-columns: repeat(8, 78vw); }
   .pipe-new { flex: 1 1 auto; justify-content: center; }
   .pipe-steps { grid-template-columns: repeat(2, 1fr); }
 }

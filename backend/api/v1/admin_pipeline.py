@@ -716,9 +716,12 @@ def delete_activity(
     act = db.get(GrowLeadActivity, activity_id)
     if act is None or act.lead_id != lead_id:
         raise HTTPException(404, "Activity not found")
-    # Stage rows and enquiries are the lead's history, not commentary on it.
-    if act.kind in ("stage", "enquiry"):
-        raise HTTPException(409, "Stage changes and enquiries cannot be deleted")
+    # A stage MOVE can go: a card dropped on the wrong column logs a move that
+    # never really happened. Deleting it only tidies the timeline; the lead's
+    # stage is whatever it is now. The "Added as" row and enquiries are where
+    # the lead came from, so they stay.
+    if act.kind == "enquiry" or (act.kind == "stage" and act.from_stage is None):
+        raise HTTPException(409, "How a lead arrived cannot be deleted")
     db.delete(act)
     db.commit()
     return _detail(db, lead_id)
