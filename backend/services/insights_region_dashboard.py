@@ -61,6 +61,7 @@ from sqlalchemy.orm import Session
 
 from services import insights_dashboard as pro
 from services import insights_site_baseline as baseline_svc
+from services import satellite_indices
 
 # The season and the baseline are the Pro page's, deliberately. A region and a
 # site inside it must not disagree about what "the normal" means, and the whole
@@ -954,7 +955,9 @@ def _projections(db: Session, zone_id: int) -> dict:
 # So the names below are about ANONYMOUS vs REGISTERED now. Nothing on the
 # regional page is Pro.
 OPEN_BLOCKS = ("recent", "season", "phenology", "disease")
-REGISTERED_BLOCKS = ("history", "projections")
+# `vegetation` is the Sentinel-2 record since 2017 against each block's own
+# normal - a record, like history, so it sits behind the same free account.
+REGISTERED_BLOCKS = ("vegetation", "history", "projections")
 
 # Kept as aliases because `check_region_dashboard.py` and the client both read
 # `free_blocks` / `paid_blocks` off the payload, and renaming a published field
@@ -1050,6 +1053,11 @@ def build(db: Session, slug: str, today: Optional[date] = None,
         "Sign in free to see this region's climate history.",
         "Forty growing seasons back to 1987, with per-decade trends for "
         "growing degree days, rainfall, heat and extreme rainfall."))
+    vegetation = (satellite_indices.zone_indices(db, zone_id, vintage, today)
+                  if registered else _locked(
+        "Sign in free to see this region's vegetation record.",
+        "Monthly Sentinel-2 greenness, canopy water and chlorophyll since 2017, "
+        "each month against the region's own record."))
     projections = (_projections(db, zone_id) if registered else _locked(
         "Sign in free to see this region's projections.",
         "Downscaled MfE 2024 projections at 500 m for this region — three "
@@ -1081,6 +1089,7 @@ def build(db: Session, slug: str, today: Optional[date] = None,
         "phenology": phenology,
         "disease": disease,
         "models_disclaimer": models["disclaimer"],
+        "vegetation": vegetation,
         "history": history,
         "projections": projections,
     }

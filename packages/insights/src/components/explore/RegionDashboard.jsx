@@ -16,13 +16,14 @@
 // and a withheld value are different claims.
 import { useEffect, useState } from 'react';
 import {
-  Activity, CalendarRange, CloudSunRain, History, LineChart, Sprout,
+  Activity, CalendarRange, CloudSunRain, History, Leaf, LineChart, Sprout,
   TriangleAlert,
 } from 'lucide-react';
 import RecentConditions from './RecentConditions';
 import SeasonProgressChart from './SeasonProgressChart';
 import PhenologyTable from './PhenologyTable';
 import DiseaseChart from './DiseaseChart';
+import VegetationIndices from './VegetationIndices';
 import { HistorySummary, ProjectionsSummary } from './ClimateSummary';
 import { getRegionDashboard } from '../../services/regionDashboardService';
 import './explore.css';
@@ -68,6 +69,7 @@ function RegionDashboard({ slug, onSignInRequired }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState('gdd10');
+  const [vegIndex, setVegIndex] = useState('ndvi');
 
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +97,7 @@ function RegionDashboard({ slug, onSignInRequired }) {
   }
   if (!data) return null;
 
-  const { recent, season, phenology, disease, history, projections } = data;
+  const { recent, season, phenology, disease, vegetation, history, projections } = data;
 
   return (
     <div className="dash">
@@ -177,6 +179,45 @@ function RegionDashboard({ slug, onSignInRequired }) {
       >
         <DiseaseChart disease={disease} />
       </Block>
+
+      {/* Satellite, not stations: a different instrument from every block
+          above, so it gets its own block rather than a tab on the season. It
+          sits with the record blocks because it is one — each month against
+          the region's own years since 2017 — and shares their free-account
+          gate. `vegetation` is absent from payloads cached before it existed,
+          hence the guard. */}
+      {vegetation && (
+        <Block
+          icon={Leaf}
+          title="Vegetation"
+          subtitle={vegetation.available
+            ? `Sentinel-2, monthly since ${vegetation.record_from}`
+            : undefined}
+          aside={vegetation.available && (
+            <div className="block__toggle" role="tablist" aria-label="Index">
+              {vegetation.indices.map((ix) => (
+                <button
+                  key={ix.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={vegIndex === ix.key}
+                  className={vegIndex === ix.key ? 'on' : ''}
+                  title={ix.meaning}
+                  onClick={() => setVegIndex(ix.key)}
+                >
+                  {ix.label}
+                </button>
+              ))}
+            </div>
+          )}
+        >
+          <VegetationIndices
+            vegetation={vegetation}
+            indexKey={vegIndex}
+            onSignInRequired={onSignInRequired}
+          />
+        </Block>
+      )}
 
       <Block icon={History} title="Climate history">
         <HistorySummary history={history} onSignInRequired={onSignInRequired} />

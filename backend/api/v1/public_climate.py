@@ -10,8 +10,9 @@ Provides access to:
 - Season comparisons and zone comparisons
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from zoneinfo import ZoneInfo
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, case, and_, desc, text
@@ -23,6 +24,8 @@ from core.entitlements import is_pro, is_registered
 from db.models.public_user import PublicUser
 from core.public_security import get_optional_public_user
 from services import insights_region_dashboard as region_dashboard
+from services import satellite_indices
+from services.insights_dashboard import current_vintage
 from db.models.wine_region import WineRegion
 from db.models.climate import (
     ClimateHistoryMonthlySurface,
@@ -1351,3 +1354,34 @@ def get_zone_dashboard(
             status_code=404,
             detail=f"Climate zone '{slug}' is not active")
     return payload
+
+
+# =============================================================================
+# ENDPOINT: ZONE SATELLITE INDICES
+# =============================================================================
+
+@router.get("/zones/{slug}/indices")
+def get_zone_indices(
+    slug: str,
+    user: Optional[PublicUser] = Depends(get_optional_public_user),
+    db: Session = Depends(get_db),
+):
+    """Sentinel-2 NDVI, NDMI and NDRE for a zone, every month on record.
+
+    The dashboard's `vegetation` block plus each index's full monthly `series`.
+    Keyed on the zone and nothing else, so the same route serves any industry's
+    zones once its areas are rolled up; see `services/satellite_indices`.
+
+    Same gate as the block: a free account, withheld server-side otherwise.
+    """
+    zone = get_zone_or_404(db, slug)
+    if not is_registered(user):
+        return region_dashboard._locked(
+            "Sign in free to see this region's vegetation record.",
+            "Monthly Sentinel-2 greenness, canopy water and chlorophyll since "
+            "2017, each month against the region's own record.")
+    # NZ date: on the UTC server date.today() is still yesterday all NZ morning,
+    # which would label the first half-day of a month as the month before.
+    today = datetime.now(ZoneInfo("Pacific/Auckland")).date()
+    return satellite_indices.zone_indices(
+        db, zone.id, current_vintage(today), today, full_series=True)
