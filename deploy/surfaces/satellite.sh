@@ -5,6 +5,11 @@
 #   1. seed_monitored_areas   register blocks -> monitored_area, outline changes
 #   2. satellite_ingest daily scenes from the last 10 days not yet read
 #   3. satellite_ingest areas history for up to 200 areas that lack it
+#   4. satellite_composites   recent composites, due baselines, zone rollup
+#
+# SAT_MODE=composites (one-off, by hand): rebuild every composite, baseline
+#   and zone month from area_index_obs. Run after the unsharded backfill sweep,
+#   and after any change to the rules in satellite_composites.py.
 #
 # SAT_MODE=backfill  (one-off, by hand: `aws ecs run-task` with env overrides)
 #   satellite_ingest backfill from SAT_FROM (default 2017-01-01). Set
@@ -44,6 +49,10 @@ case "$MODE" in
     python backend/scripts/satellite_ingest.py --mode daily --apply --require-items
     python backend/scripts/satellite_ingest.py --mode areas --incomplete \
       --max-areas "${SAT_INCOMPLETE_MAX:-200}" --apply
+    python backend/scripts/satellite_composites.py --apply
+    ;;
+  composites)
+    python backend/scripts/satellite_composites.py --rebuild --apply
     ;;
   backfill)
     python backend/scripts/satellite_ingest.py --mode backfill \

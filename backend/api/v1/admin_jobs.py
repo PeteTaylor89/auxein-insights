@@ -355,6 +355,22 @@ JOBS = [
                           WHERE created_at > now() - interval '7 days'""",
         "detail_label": "area observations written (7 d)",
     },
+    {
+        "key": "satellite_composites",
+        "name": "Satellite composites",
+        "runs_on": "Fargate, 21:00 NZ (after satellite)",
+        "cadence": "daily",
+        "produces": "zone_index_monthly",
+        # Every nightly run deletes and rewrites the zone rollup for the months
+        # inside its lookback, cloudy week or not, so updated_at moves nightly.
+        # A stale value means the step failed after the ingest succeeded.
+        "max_age": 26.0,
+        "sql": "SELECT max(updated_at) FROM zone_index_monthly",
+        "detail_sql": """SELECT count(*) FROM area_index_composite
+                          WHERE period = 'month' AND anomaly IS NOT NULL
+                            AND period_start >= date_trunc('month', now()) - interval '1 month'""",
+        "detail_label": "area-month composites with an anomaly (this + last month)",
+    },
 ]
 
 

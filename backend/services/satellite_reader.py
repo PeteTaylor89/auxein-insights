@@ -56,8 +56,18 @@ STATS = ("mean", "p10", "p50", "p90", "sd")
 BANDS = ("B04", "B08", "B05", "B8A", "B11")
 
 # GDAL /vsicurl/ behaviour for Azure blob COGs. Set before rasterio opens anything.
+#
+# The timeouts are not optional. GDAL's default is to wait forever, and on
+# 2026-09-24 five of eight backfill shards hung inside ~6 minutes of each other
+# on connections that went silent without closing, with the database and
+# Planetary Computer both healthy. A hung read never raises, so its window never
+# finishes and the task never exits. With these, a stalled read fails, the scene
+# is left unstamped and the next run retries it. Each request is one COG range
+# read of a few hundred KB, so 60 s total and 30 s under 1 KB/s are generous.
 for _k, _v in {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "GDAL_HTTP_MULTIPLEX": "YES",
                "GDAL_HTTP_MAX_RETRY": "5", "GDAL_HTTP_RETRY_DELAY": "2",
+               "GDAL_HTTP_CONNECTTIMEOUT": "30", "GDAL_HTTP_TIMEOUT": "60",
+               "GDAL_HTTP_LOW_SPEED_TIME": "30", "GDAL_HTTP_LOW_SPEED_LIMIT": "1024",
                "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif"}.items():
     os.environ.setdefault(_k, _v)
 
