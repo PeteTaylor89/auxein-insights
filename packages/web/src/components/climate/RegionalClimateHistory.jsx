@@ -8,15 +8,14 @@
  * with the property records added underneath (2026-09-23) a single open zone ran
  * to several screens.
  *
- * So: a pill per region, and — once a region is chosen — a pill per property in
- * it, with the region's own record as the first of those. NOTHING IS OPEN ON
- * ARRIVAL. A company with four regions gets four pills and picks one; that is
- * cheaper to read than four collapsed headers, and it never loads a region's
- * history nobody asked for.
+ * So: a pill per region and a pill per property, ALL visible at once, and one
+ * of them open at a time. (Until 2026-09-24 the property pills only appeared
+ * under a chosen region; Pete wanted them flat.) NOTHING IS OPEN ON ARRIVAL,
+ * so no history loads that nobody asked for.
  *
- * Properties with no climate zone are still listed, because a grower looking for
- * one needs to find out why it is not there rather than conclude the page is
- * broken.
+ * Every property gets a pill, zoned or not: its own record comes from its
+ * climate site, not its zone. The note about properties with no zone stays,
+ * because without one there is no regional comparison.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -30,10 +29,9 @@ import './RegionalClimateHistory.css';
 const RegionalClimateHistory = ({ properties = [] }) => {
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Nothing selected on arrival — see the note above.
-  const [zoneId, setZoneId] = useState(null);
-  // null means "the region itself"; otherwise a property id.
-  const [propertyId, setPropertyId] = useState(null);
+  // Nothing selected on arrival — see the note above. One choice across both
+  // rows: `{ kind: 'zone' | 'property', id }`.
+  const [choice, setChoice] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -61,15 +59,20 @@ const RegionalClimateHistory = ({ properties = [] }) => {
     return { zoneGroups: groups, unassigned: none };
   }, [properties, zones]);
 
-  const active = zoneGroups.find((g) => g.zone.id === zoneId) || null;
-  const activeProperty = active?.properties.find((p) => p.id === propertyId) || null;
+  const sortedProperties = useMemo(
+    () => [...properties].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    [properties],
+  );
 
-  const chooseZone = (id) => {
-    setZoneId((current) => (current === id ? null : id));
-    // A new region starts on its own record, not on whichever property happened
-    // to be selected in the last one.
-    setPropertyId(null);
-  };
+  const isChosen = (kind, id) => choice?.kind === kind && choice.id === id;
+  const choose = (kind, id) => setChoice(isChosen(kind, id) ? null : { kind, id });
+
+  const activeZone = choice?.kind === 'zone'
+    ? zoneGroups.find((g) => g.zone.id === choice.id)?.zone || null
+    : null;
+  const activeProperty = choice?.kind === 'property'
+    ? properties.find((p) => p.id === choice.id) || null
+    : null;
 
   if (loading) return <p className="rch-loading">Loading climate zones…</p>;
 
@@ -80,62 +83,57 @@ const RegionalClimateHistory = ({ properties = [] }) => {
   return (
     <div className="rch">
       {zoneGroups.length > 0 && (
-        <div className="rch-pills" role="group" aria-label="Region">
-          {zoneGroups.map(({ zone, properties: zoneProps }) => (
-            <button
-              key={zone.id}
-              type="button"
-              className={`rch-pill${zone.id === zoneId ? ' is-active' : ''}`}
-              onClick={() => chooseZone(zone.id)}
-            >
-              <Layers size={14} aria-hidden="true" />
-              {zone.name}
-              <span className="rch-pill-count">{zoneProps.length}</span>
-            </button>
-          ))}
+        <div className="rch-row">
+          <span className="rch-row-label">Regions</span>
+          <div className="rch-pills" role="group" aria-label="Region">
+            {zoneGroups.map(({ zone }) => (
+              <button
+                key={zone.id}
+                type="button"
+                className={`rch-pill${isChosen('zone', zone.id) ? ' is-active' : ''}`}
+                onClick={() => choose('zone', zone.id)}
+              >
+                <Layers size={14} aria-hidden="true" />
+                {zone.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* The region's own record is the first pill of the second row rather than
-          a separate control: it is one more thing you can be looking at, and
-          the reader should not have to learn two ways of choosing. */}
-      {active && (
-        <div className="rch-pills rch-pills--sub" role="group" aria-label="Property">
-          <button
-            type="button"
-            className={`rch-pill rch-pill--sub${propertyId === null ? ' is-active' : ''}`}
-            onClick={() => setPropertyId(null)}
-          >
-            {active.zone.name} region
-          </button>
-          {active.properties.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className={`rch-pill rch-pill--sub${p.id === propertyId ? ' is-active' : ''}`}
-              onClick={() => setPropertyId(p.id)}
-            >
-              <MapPin size={13} aria-hidden="true" />
-              {p.name}
-            </button>
-          ))}
+      {sortedProperties.length > 0 && (
+        <div className="rch-row">
+          <span className="rch-row-label">Properties</span>
+          <div className="rch-pills" role="group" aria-label="Property">
+            {sortedProperties.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`rch-pill${isChosen('property', p.id) ? ' is-active' : ''}`}
+                onClick={() => choose('property', p.id)}
+              >
+                <MapPin size={14} aria-hidden="true" />
+                {p.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {!active && (
+      {!choice && (
         <p className="rch-prompt">
-          Choose a region to see its climate history, then a property for its own
+          Choose a region for its climate history, or a property for its own
           1986&ndash;2023 record.
         </p>
       )}
 
-      {active && !activeProperty && (
+      {activeZone && (
         <SeasonExplorer
-          key={active.zone.id}
+          key={activeZone.id}
           zone={{
-            slug: active.zone.slug,
-            name: active.zone.name,
-            region_name: active.zone.region_name,
+            slug: activeZone.slug,
+            name: activeZone.name,
+            region_name: activeZone.region_name,
           }}
         />
       )}

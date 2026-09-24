@@ -13,12 +13,15 @@ function CreateRisk() {
 
   const editMode = location.state?.editMode || false;
   const existingRiskData = location.state?.riskData || null;
+  // Raised from elsewhere (the Biosecurity report): `form` seeds the fields,
+  // `location` the pin, and `custom_fields` records where it came from.
+  const prefill = !editMode ? (location.state?.prefill || null) : null;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [showLocationMap, setShowLocationMap] = useState(false);
-  const [riskLocation, setRiskLocation] = useState(null);
+  const [riskLocation, setRiskLocation] = useState(prefill?.location || null);
   const [relatedActions, setRelatedActions] = useState([]);
   const [loadingActions, setLoadingActions] = useState(false);
   const [properties, setProperties] = useState([]);
@@ -42,7 +45,8 @@ function CreateRisk() {
       risk_title: '', risk_description: '', risk_category: '', risk_type: '',
       inherent_likelihood: 1, inherent_severity: 1, residual_likelihood: 1, residual_severity: 1,
       location_description: '', potential_consequences: '', existing_controls: '',
-      regulatory_requirements: '', owner_id: '', review_frequency_days: 365, property_id: ''
+      regulatory_requirements: '', owner_id: '', review_frequency_days: 365, property_id: '',
+      ...(prefill?.form || {})
     };
   });
 
@@ -148,7 +152,8 @@ function CreateRisk() {
         existing_controls: formData.existing_controls || null, potential_consequences: formData.potential_consequences || null,
         location_description: formData.location_description || null,
         location: riskLocation?.type === 'Point' ? riskLocation : null,
-        area: riskLocation?.type === 'Polygon' ? riskLocation : null
+        area: riskLocation?.type === 'Polygon' ? riskLocation : null,
+        ...(prefill?.custom_fields ? { custom_fields: prefill.custom_fields } : {})
       };
       if (editMode && existingRiskData?.id) {
         await riskManagementService.updateRisk(existingRiskData.id, cleanedData);

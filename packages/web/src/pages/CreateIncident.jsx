@@ -12,7 +12,11 @@ function CreateIncident() {
   const editMode = location.state?.editMode || false;
   const createRiskFromIncident = location.state?.createRiskFromIncident || false;
   const existingIncidentData = location.state?.incidentData || null;
-  
+  // Raised from elsewhere (the Biosecurity report): `form` seeds the fields,
+  // `location` the pin, and `custom_fields` records where it came from so the
+  // source can show it has been actioned.
+  const prefill = !editMode ? (location.state?.prefill || null) : null;
+
   const [loading, setLoading] = useState(false);
   const [loadingRisks, setLoadingRisks] = useState(false);
   const [error, setError] = useState(null);
@@ -24,7 +28,7 @@ function CreateIncident() {
 
   // Location map state
   const [showLocationMap, setShowLocationMap] = useState(false);
-  const [incidentLocation, setIncidentLocation] = useState(null);
+  const [incidentLocation, setIncidentLocation] = useState(prefill?.location || null);
   const [properties, setProperties] = useState([]);
   
   // Form state - initialize with existing data if in edit mode
@@ -85,7 +89,8 @@ function CreateIncident() {
       related_risk_id: '',
       evidence_collected: false,
       photos_taken: false,
-      property_id: ''
+      property_id: '',
+      ...(prefill?.form || {})
     };
   });
 
@@ -133,6 +138,7 @@ function CreateIncident() {
     { value: 'vehicle_related', label: 'Vehicle Related' },
     { value: 'fire_explosion', label: 'Fire/Explosion' },
     { value: 'structural_collapse', label: 'Structural Collapse' },
+    { value: 'biosecurity', label: 'Biosecurity' },
     { value: 'other', label: 'Other' }
   ];
 
@@ -210,7 +216,8 @@ function CreateIncident() {
                       formData.category === 'equipment_failure' ? 'equipment' :
                       formData.category === 'chemical_exposure' ? 'chemical' :
                       formData.category === 'fire_explosion' ? 'fire' :
-                      formData.category === 'structural_collapse' ? 'structural' : 'other',
+                      formData.category === 'structural_collapse' ? 'structural' :
+                      formData.category === 'biosecurity' ? 'biosecurity' : 'other',
         // Auto-suggest risk type based on incident type
         risk_type: formData.incident_type === 'injury' ? 'health_safety' :
                   formData.incident_type === 'environmental' ? 'environmental' :
@@ -343,7 +350,8 @@ function CreateIncident() {
         medical_provider: formData.medical_provider || null,
         environmental_impact: formData.environmental_impact || null,
         immediate_actions_taken: formData.immediate_actions_taken || null,
-        related_risk_id: formData.related_risk_id || null
+        related_risk_id: formData.related_risk_id || null,
+        ...(prefill?.custom_fields ? { custom_fields: prefill.custom_fields } : {})
       };
       
       console.log(`🔄 Cleaned incident data being sent:`, cleanedData);

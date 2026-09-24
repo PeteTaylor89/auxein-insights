@@ -19,9 +19,11 @@ import { OBS_CATEGORY_ICONS, SkeletonCard } from '../components';
 // Template categories
 const TEMPLATE_CATEGORIES = [
   { key: 'phenology',   label: 'Phenology & Growth',  types: ['phenology', 'growth', 'bud_count', 'shoot_count'] },
-  { key: 'disease',     label: 'Pests & Disease',     types: ['pest_disease', 'disease', 'pest', 'beneficials', 'nutrient_health'] },
+  // Biosecurity sits with pests & disease (2026-09-24): an observer who finds
+  // something unfamiliar in the canopy looks here, not under Environment.
+  { key: 'disease',     label: 'Pests & Disease',     types: ['pest_disease', 'disease', 'pest', 'biosecurity', 'beneficials', 'nutrient_health'] },
   { key: 'yield',       label: 'Yield & Sampling',    types: ['flower_set', 'bunch_count', 'pre_veraison_yield', 'post_veraison_yield', 'maturity_sampling', 'lab_sampling_pre_winery'] },
-  { key: 'environment', label: 'Environment',         types: ['soil_groundcover', 'land_management', 'frost_event', 'weather', 'irrigation_check', 'biosecurity'] },
+  { key: 'environment', label: 'Environment',         types: ['soil_groundcover', 'land_management', 'frost_event', 'weather', 'irrigation_check'] },
   { key: 'other',       label: 'Field Note & Other',  types: ['other', 'compliance', 'hazard', 'maintenance'] },
 ];
 

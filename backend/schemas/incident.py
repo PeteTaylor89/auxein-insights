@@ -34,6 +34,7 @@ class IncidentCategory(str, Enum):
     vehicle_related = "vehicle_related"
     fire_explosion = "fire_explosion"
     structural_collapse = "structural_collapse"
+    biosecurity = "biosecurity"
     other = "other"
 
 class NotifiableType(str, Enum):

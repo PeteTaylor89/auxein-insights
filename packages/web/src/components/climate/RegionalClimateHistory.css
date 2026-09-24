@@ -15,18 +15,30 @@
 
 /* --- pills ---------------------------------------------------------------- */
 
+/* Two labelled rows, regions then properties, both always visible (2026-09-24;
+   properties used to appear only under a chosen region). */
+.rch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.rch-row-label {
+  flex: 0 0 76px;
+  padding-top: 11px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #6b7360);
+}
+
 .rch-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 10px;
-}
-
-/* The second row is the sub-choice, and sits slightly in from the first so the
-   two read as a hierarchy rather than as eight equal options. */
-.rch-pills--sub {
-  margin-bottom: 14px;
-  padding-left: 2px;
+  min-width: 0;
 }
 
 .rch-pill {
@@ -57,27 +69,14 @@
 
 .rch-pill svg { flex: 0 0 auto; }
 
-.rch-pill--sub {
-  min-height: 34px;
-  padding: 0 12px;
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.rch-pill-count {
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-
-.rch-pill.is-active .rch-pill-count {
-  background: rgba(255, 255, 255, 0.22);
-}
-
 @media (max-width: 640px) {
+  .rch-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .rch-row-label { flex: none; padding-top: 0; }
   .rch-pills {
+    width: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
     scroll-snap-type: x proximity;

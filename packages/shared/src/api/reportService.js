@@ -116,6 +116,20 @@ const reportService = {
       `phenology_by_${section}.csv`,
     ),
 
+  // Biosecurity and Pests & Diseases: findings, their map, and what has been
+  // raised from each. Summaries gated on reports:read, the task link on
+  // tasks:create.
+  getBiosecuritySummary: (startDate, endDate, propertyId) =>
+    get('biosecurity/summary', dateParams(startDate, endDate, propertyId)),
+  getPestDiseaseSummary: (startDate, endDate, propertyId) =>
+    get('pest-disease/summary', dateParams(startDate, endDate, propertyId)),
+  linkFindingTask: async (spotId, taskId, reason) => {
+    const res = await api.post('/v1/reports/findings/task-links', {
+      spot_id: spotId, task_id: taskId, ...(reason ? { reason } : {}),
+    });
+    return res.data;
+  },
+
   getObservationSummary: (startDate, endDate, propertyId) =>
     get('observations/summary', dateParams(startDate, endDate, propertyId)),
   exportObservations: (startDate, endDate, propertyId) =>

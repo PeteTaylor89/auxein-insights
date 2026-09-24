@@ -1,0 +1,297 @@
+/* FindingsPanel.css — the Biosecurity and Pests & Diseases reports on Insights.
+   Pill controls and card radius follow the climate panels (RegionalClimateHistory,
+   PropertyCharts) so the Insights cards read as one product. */
+
+.fd {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* --- period pills --------------------------------------------------------- */
+
+.fd-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fd-pill {
+  display: inline-flex;
+  align-items: center;
+  /* Explicit sizing: Grow's global `button { padding }` clips self-sized controls. */
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fd-pill:hover { border-color: #3f6f4a; }
+
+.fd-pill.is-active {
+  background: #3d4632;
+  border-color: #3d4632;
+  color: #fff;
+}
+
+/* --- banner, notes, empty ------------------------------------------------- */
+
+.fd-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 13px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.06);
+  color: var(--color-danger-text, #991b1b);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.fd-banner svg { flex: 0 0 auto; margin-top: 2px; }
+
+.fd-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.fd-empty {
+  margin: 0;
+  padding: 18px 0;
+  font-size: 0.88rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.fd-heading {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3d4632;
+}
+
+/* --- map ------------------------------------------------------------------ */
+
+.fd-map-wrap {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+}
+
+.fd-map {
+  width: 100%;
+  height: 380px;
+}
+
+.fd-map-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.74rem;
+  color: #3d4632;
+}
+
+.fd-map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+.fd-map-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* --- organisms ------------------------------------------------------------ */
+
+.fd-organisms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.fd-organism {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fd-organism:hover { border-color: #3f6f4a; }
+
+.fd-organism.is-active {
+  border-color: #3d4632;
+  box-shadow: inset 0 0 0 1px #3d4632;
+}
+
+.fd-organism-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #3d4632;
+}
+
+.fd-organism-name svg { color: var(--color-danger, #dc2626); }
+
+.fd-organism-meta {
+  font-size: 0.74rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+/* --- findings ------------------------------------------------------------- */
+
+.fd-findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fd-finding {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+}
+
+.fd-finding.is-selected {
+  border-color: #3d4632;
+  box-shadow: inset 0 0 0 1px #3d4632;
+}
+
+.fd-finding-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fd-finding-head:disabled { cursor: default; }
+
+.fd-finding-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3d4632;
+}
+
+.fd-finding-title svg { color: var(--color-danger, #dc2626); }
+
+.fd-finding-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  color: var(--color-text-muted, #6b7360);
+}
+
+.fd-finding-detail {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 12px;
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+}
+
+.fd-finding-detail dt { color: var(--color-text-muted, #6b7360); }
+.fd-finding-detail dd { margin: 0; color: #3d4632; white-space: pre-wrap; }
+
+.fd-raised {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.fd-task-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.fd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fd-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.14));
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  color: #3d4632;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fd-action:hover {
+  border-color: #3d4632;
+  background: #3d4632;
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .fd-map { height: 300px; }
+  .fd-organisms { grid-template-columns: 1fr; }
+}
+
+/* --- added with the Pests & Diseases report ------------------------------- */
+
+.fd-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fd-pill--small {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+}
+
+.fd-finding-title .badge { margin-left: 4px; font-size: 0.68rem; }

@@ -16,8 +16,8 @@ const TEMPLATE_GROUPS = [
     key: 'quick',
     label: 'Quick Check',
     hint: 'Something you noticed in the field',
-    types: ['other', 'disease', 'pest'],
-    names: ['Free-form Observation', 'Pests & Diseases', 'Vine Health'],
+    types: ['other', 'pest_disease', 'disease', 'pest', 'biosecurity'],
+    names: ['Free-form Observation', 'Pests & Diseases', 'Vine Health', 'Biosecurity'],
   },
   {
     key: 'phenology',
@@ -43,9 +43,9 @@ const TEMPLATE_GROUPS = [
   {
     key: 'environment',
     label: 'Environment & Compliance',
-    hint: 'Land, weather, biosecurity',
-    types: ['land_management', 'weather', 'biosecurity', 'compliance', 'hazard'],
-    names: ['Land Management', 'Frost Event', 'Beneficial Species', 'Biosecurity'],
+    hint: 'Land, weather, compliance',
+    types: ['land_management', 'weather', 'compliance', 'hazard'],
+    names: ['Land Management', 'Frost Event', 'Beneficial Species'],
   },
 ];
 

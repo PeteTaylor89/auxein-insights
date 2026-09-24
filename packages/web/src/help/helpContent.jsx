@@ -394,14 +394,16 @@ export const HELP_CONTENT = {
   },
   'insights.sprayprogram': {
     title: 'Spray Program',
+    soon: true,
     body: (
       <Help
-        intro="Spray program insight built from completed spray tasks - what went on, where, and at what rate."
+        soon
+        intro="Your season's spray program, built from completed spray tasks."
         items={[
-          'Review each application event',
-          'Check rates against target',
+          'Every application, where and when',
+          'Rates against target',
+          'Coverage maps from tracked sprays',
         ]}
-        tip="Coverage maps are paused while GPS tracking is inactive - existing coverage records still show here."
       />
     ),
   },
@@ -423,17 +425,29 @@ export const HELP_CONTENT = {
   },
   'insights.biosecurity': {
     title: 'Biosecurity',
-    soon: true,
     body: (
       <Help
-        soon
-        intro="Pest-pressure monitoring and integrated pest management for your blocks."
+        intro="Everything recorded on a Biosecurity observation, plus any exotic recorded on a pest or disease one."
         items={[
-          'Pest pressure tracking',
-          'Beneficial-insect monitoring',
-          'IPM recommendations',
-          'Contractor movements and tracking in outbreak or containment events',
+          'A finding names an organism, flags the regulator, or records containment',
+          'Red spots have nothing raised yet; green have a risk, incident or task',
+          'Raise a risk, log an incident or create a task from any finding',
         ]}
+        tip="Suspected exotic pest? Call MPI on 0800 80 99 66."
+      />
+    ),
+  },
+  'insights.pestdisease': {
+    title: 'Pests & Diseases',
+    body: (
+      <Help
+        intro="What your pest and disease scouting found, by organism and block."
+        items={[
+          'Severity and incidence per pest or disease',
+          'Red spots have nothing raised yet; green have a risk or task',
+          'Raise a risk or create a management task from any finding',
+        ]}
+        tip="Exotic organisms are shown under Biosecurity instead."
       />
     ),
   },

@@ -1,204 +1,124 @@
 # backend/scripts/seed_pest_disease_catalogs.py
 """
-Seed system (company_id=NULL) reference catalogs:
-- category='disease'
-- category='pest'
+Seed the system (company_id=NULL) pest, disease and biosecurity catalogues from
+`services/pest_catalog.py` — the one list the reports also read.
 
-Adds the exact vineyard/biosecurity items requested. Optionally prunes extras.
+    python -m scripts.seed_pest_disease_catalogs            # DRY RUN: prints the plan
+    python -m scripts.seed_pest_disease_catalogs --write    # applies it
 
-Usage:
-  python -m scripts.seed_pest_disease_catalogs
-  python -m scripts.seed_pest_disease_catalogs --prune-extras
+What a write does:
+  * upserts every item into `pest`, `disease` or `biosecurity_agent`;
+  * DEACTIVATES (never deletes) a system row whose key now lives in another
+    category — e.g. BMSB leaves `pest` for `biosecurity_agent`. Recorded values
+    keep their labels, the pickers stop offering it in the wrong place.
+
+Rewritten 2026-09-24. Two faults in the old version:
+  1. `ON CONFLICT (company_id, category, key)` never fires for a system row:
+     company_id is NULL and NULLs are distinct in a unique index, so every run
+     INSERTED a fresh copy of every item. This matches first, then updates or
+     inserts, and reports any duplicates already there.
+  2. It read DATABASE_URL and ignored ENV, so on a machine set up like the API
+     (ENV + RDS_*) it aimed at a database nothing reads. It now uses the app's
+     own resolver and prints the target before doing anything.
 """
 from __future__ import annotations
-import os, json, argparse
+
+import argparse
+import json
+import sys
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
-from sqlalchemy import create_engine, text
+
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
-# Load DB URL from repo root .env
 ROOT_DIR = Path(__file__).resolve().parents[1].parent
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
-DB_URL = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL")
-if not DB_URL:
-    raise SystemExit("No DB URL. Set DATABASE_URL/SQLALCHEMY_DATABASE_URL in .env")
+sys.path.insert(0, str(BACKEND_DIR))
 
-engine = create_engine(DB_URL, future=True)
+from core.config import get_database_url  # noqa: E402
+from services.pest_catalog import CATALOG  # noqa: E402
 
-UPSERT_SQL = """
-INSERT INTO reference_items (company_id, category, key, label, description, aliases, is_active)
-VALUES (NULL, :category, :key, :label, :description, CAST(:aliases AS JSONB), TRUE)
-ON CONFLICT (company_id, category, key)
-DO UPDATE SET
-  label = EXCLUDED.label,
-  description = EXCLUDED.description,
-  aliases = EXCLUDED.aliases,
-  is_active = TRUE;
+FIND_SQL = """
+SELECT id, is_active, label FROM reference_items
+WHERE company_id IS NULL AND category = :category AND key = :key
+ORDER BY id
 """
 
-PRUNE_SQL = """
-DELETE FROM reference_items
-WHERE category = :category
-  AND company_id IS NULL
-  AND key <> ALL(:keep_keys)
+UPDATE_SQL = """
+UPDATE reference_items
+SET label = :label, description = :description,
+    aliases = CAST(:aliases AS JSONB), is_active = TRUE, updated_at = now()
+WHERE company_id IS NULL AND category = :category AND key = :key
 """
 
-# ---------------------------
-# DISEASES
-# ---------------------------
-DISEASES: List[Dict[str, Any]] = [
-  {"key":"GLRAV_3", "label":"Grapevine leafroll-associated virus type 3 (GLRaV-3)",
-   "aliases":["Leafroll","GLRaV-3"], "description":""},
+INSERT_SQL = """
+INSERT INTO reference_items (company_id, category, key, label, description, aliases, photo_file_ids, is_active)
+VALUES (NULL, :category, :key, :label, :description, CAST(:aliases AS JSONB), '[]'::jsonb, TRUE)
+"""
 
-  {"key":"BOTRYTIS", "label":"Botrytis (Botrytis cinerea)",
-   "aliases":["Botrytis bunch rot"], "description":"Botrytis cinerea"},
+# System rows in a catalogue category that the list places somewhere else.
+MISPLACED_SQL = """
+SELECT id, category, key FROM reference_items
+WHERE company_id IS NULL AND is_active AND category = :category AND key = ANY(:keys)
+"""
 
-  {"key":"POWDERY_MILDEW", "label":"Powdery mildew (Erysiphe necator)",
-   "aliases":["Oidium"], "description":"Erysiphe necator"},
+DEACTIVATE_SQL = "UPDATE reference_items SET is_active = FALSE, updated_at = now() WHERE id = ANY(:ids)"
 
-  {"key":"DOWNY_MILDEW", "label":"Downy mildew (Plasmopara viticola)",
-   "aliases":[], "description":"Plasmopara viticola"},
 
-  {"key":"BLACK_SPOT", "label":"Black spot (Elsinoe ampelina)",
-   "aliases":["Anthracnose"], "description":"Elsinoe ampelina"},
-
-  {"key":"PHOMOPSIS", "label":"Phomopsis (Phomopsis viticola)",
-   "aliases":[], "description":"Phomopsis viticola"},
-
-  {"key":"BLACK_ROT", "label":"Black rot",
-   "aliases":[], "description":"Guignardia bidwellii"},
-
-  {"key":"GTD_EUTYPA", "label":"Grapevine trunk disease – Eutypa (Eutypa lata)",
-   "aliases":["Eutypa dieback"], "description":"Eutypa lata"},
-
-  {"key":"GTD_BOTRYOSPHAERIA", "label":"Grapevine trunk disease – Botryosphaeria",
-   "aliases":["Bot canker"], "description":"Botryosphaeriaceae spp."},
-
-  {"key":"ROOT_BLACKFOOT", "label":"Grapevine root disease – Blackfoot",
-   "aliases":[], "description":"Ilyonectria/Cylindrocarpon spp."},
-
-  {"key":"RIPE_ROT", "label":"Ripe rot", "aliases":[], "description":""},
-  {"key":"SOUR_ROT", "label":"Sour rot", "aliases":[], "description":""},
-
-  {"key":"PIERCE_DISEASE", "label":"Pierce’s Disease",
-   "aliases":["Xylella"], "description":"Xylella fastidiosa"},
-
-  {"key":"FLAVESCENCE_DOREE", "label":"Flavescence Dorée",
-   "aliases":[], "description":"Phytoplasma (FD)"},
-
-  {"key":"BOIS_NOIR", "label":"Bois Noir phytoplasma",
-   "aliases":[], "description":"‘Candidatus Phytoplasma solani’"},
-]
-
-# ---------------------------
-# PESTS
-# ---------------------------
-PESTS: List[Dict[str, Any]] = [
-  # Mealybugs (general + species)
-  {"key":"MEALYBUG", "label":"Mealybug (general)", "aliases":[], "description":""},
-  {"key":"LONG_TAILED_MEALYBUG", "label":"Long-tailed mealybug (Pseudococcus longispinus)",
-   "aliases":[], "description":"Pseudococcus longispinus"},
-  {"key":"CITROPHILUS_MEALYBUG", "label":"Citrophilus mealybug (Pseudococcus calceolariae)",
-   "aliases":[], "description":"Pseudococcus calceolariae"},
-  {"key":"OBSCURE_MEALYBUG", "label":"Obscure mealybug (Pseudococcus viburni)",
-   "aliases":[], "description":"Pseudococcus viburni"},
-  {"key":"VINE_MEALYBUG", "label":"Vine mealybug (Planococcus ficus)",
-   "aliases":[], "description":"Planococcus ficus"},
-
-  # Leafrollers (general + species, incl. LBAM)
-  {"key":"LEAFROLLER", "label":"Leafroller (general)", "aliases":[], "description":""},
-  {"key":"GREENHEADED_LEAFROLLER", "label":"Greenheaded leafroller (Planotortrix excessana)",
-   "aliases":[], "description":"Planotortrix excessana"},
-  {"key":"BROWNHEADED_LEAFROLLER", "label":"Brownheaded leafroller (Ctenopseustis obliquana)",
-   "aliases":[], "description":"Ctenopseustis obliquana"},
-  {"key":"LBAM", "label":"Light brown apple moth (Epiphyas postvittana)",
-   "aliases":["Leafroller LBAM"], "description":"Epiphyas postvittana"},
-
-  {"key":"ERINEUM_MITE", "label":"Erineum mite (Colomerus vitis)",
-   "aliases":[], "description":"Colomerus vitis"},
-  {"key":"TWO_SPOTTED_SPIDER_MITE", "label":"Two spotted spider mite (Tetranychus urticae)",
-   "aliases":["TSSM"], "description":"Tetranychus urticae"},
-
-  {"key":"GRASS_GRUB_BROWN_BEETLES", "label":"Grass grub – Brown beetles (Costelytra zealandica)",
-   "aliases":["Grass grub"], "description":"Costelytra zealandica"},
-  {"key":"BLACK_BEETLE", "label":"Black beetle (Heteronychus arator)",
-   "aliases":[], "description":"Heteronychus arator"},
-
-  {"key":"LATANIA_SCALE", "label":"Latania scale (Hemiberlesia lataniae)",
-   "aliases":[], "description":"Hemiberlesia lataniae"},
-
-  {"key":"HARLEQUIN_LADYBIRD", "label":"Harlequin ladybird (Harmonia axyridis)",
-   "aliases":[], "description":"Harmonia axyridis"},
-
-  {"key":"PHYLLOXERA", "label":"Phylloxera (Daktulosphaira vitifoliae)",
-   "aliases":[], "description":"Daktulosphaira vitifoliae"},
-
-  {"key":"GARDEN_WEEVIL", "label":"Garden weevil (Phlyctinus callosus)",
-   "aliases":[], "description":"Phlyctinus callosus"},
-
-  # Added biosecurity pests
-  {"key":"CHILEAN_NEEDLE_GRASS", "label":"Chilean needle grass (Nassella neesiana)",
-   "aliases":["CNG"], "description":"Nassella neesiana"},
-  {"key":"BMSB", "label":"Brown marmorated stink bug (Halyomorpha halys)",
-   "aliases":["Stink bug"], "description":"Halyomorpha halys"},
-  {"key":"GLASSY_WINGED_SHARPSHOOTER", "label":"Glassy-winged sharpshooter (Homalodisca vitripennis)",
-   "aliases":["GWSS"], "description":"Homalodisca vitripennis"},
-  {"key":"SWD", "label":"Spotted wing drosophila (Drosophila suzukii)",
-   "aliases":[], "description":"Drosophila suzukii"},
-  {"key":"SPOTTED_LANTERNFLY", "label":"Spotted lanternfly (Lycorma delicatula)",
-   "aliases":["SLF"], "description":"Lycorma delicatula"},
-  {"key":"EGM", "label":"European grapevine moth (Lobesia botrana)",
-   "aliases":[], "description":"Lobesia botrana"},
-
-  # Fruit fly complex: general + four species
-  {"key":"FRUIT_FLY", "label":"Fruit fly (general)", "aliases":[], "description":"Tephritidae"},
-  {"key":"FRUIT_FLY_SOUTH_AMERICAN", "label":"South American fruit fly (Anastrepha fraterculus)",
-   "aliases":[], "description":"Anastrepha fraterculus"},
-  {"key":"FRUIT_FLY_MEDITERRANEAN", "label":"Mediterranean fruit fly (Ceratitis capitata)",
-   "aliases":["Medfly"], "description":"Ceratitis capitata"},
-  {"key":"FRUIT_FLY_NATAL", "label":"Natal fruit fly (Ceratitis rosa)",
-   "aliases":[], "description":"Ceratitis rosa"},
-  {"key":"FRUIT_FLY_QUEENSLAND", "label":"Queensland fruit fly (Bactrocera tryoni)",
-   "aliases":["Qfly"], "description":"Bactrocera tryoni"},
-]
-
-def seed_category(conn, category: str, items: List[Dict[str, Any]]) -> int:
-    upserts = 0
-    for it in items:
-        params = {
-            "category": category,
-            "key": it["key"],
-            "label": it["label"],
-            "description": it.get("description") or "",
-            "aliases": json.dumps(it.get("aliases") or []),
-        }
-        conn.execute(text(UPSERT_SQL), params)
-        upserts += 1
-    return upserts
-
-def prune_extras(conn, category: str, keep_keys: List[str]) -> int:
-    res = conn.execute(
-        text(PRUNE_SQL),
-        {"category": category, "keep_keys": keep_keys}
-    )
-    return res.rowcount or 0
-
-def main():
-    parser = argparse.ArgumentParser(description="Seed disease/pest catalogs (and optionally prune extras).")
-    parser.add_argument("--prune-extras", action="store_true", help="Delete any other rows not in this list.")
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--write", action="store_true", help="Apply the plan (default is a dry run).")
     args = parser.parse_args()
 
-    with engine.begin() as conn:
-        up_d = seed_category(conn, "disease", DISEASES)
-        up_p = seed_category(conn, "pest", PESTS)
-        pruned_d = pruned_p = 0
-        if args.prune_extras:
-            pruned_d = prune_extras(conn, "disease", [i["key"] for i in DISEASES])
-            pruned_p = prune_extras(conn, "pest", [i["key"] for i in PESTS])
+    url = get_database_url()
+    print(f"Target: {url.split('@')[-1] if '@' in url else url}")
+    print("Mode:   WRITE" if args.write else "Mode:   DRY RUN (pass --write to apply)")
 
-    print(f"Upserts — disease={up_d} pest={up_p}" + (f" | Pruned — disease={pruned_d} pest={pruned_p}" if args.prune_extras else ""))
+    engine = create_engine(url, future=True)
+    inserts, updates, duplicates, to_deactivate = [], [], [], []
+
+    with engine.begin() as conn:
+        for category, items in CATALOG.items():
+            for it in items:
+                params = {
+                    "category": category, "key": it["key"], "label": it["label"],
+                    "description": it["description"] or "",
+                    "aliases": json.dumps(it["aliases"]),
+                }
+                found = conn.execute(text(FIND_SQL), params).fetchall()
+                if len(found) > 1:
+                    duplicates.append((category, it["key"], len(found)))
+                if found:
+                    updates.append((category, it["key"]))
+                    if args.write:
+                        conn.execute(text(UPDATE_SQL), params)
+                else:
+                    inserts.append((category, it["key"]))
+                    if args.write:
+                        conn.execute(text(INSERT_SQL), params)
+
+        for category in CATALOG:
+            elsewhere = [it["key"] for other, items in CATALOG.items() if other != category for it in items]
+            rows = conn.execute(text(MISPLACED_SQL), {"category": category, "keys": elsewhere}).fetchall()
+            to_deactivate.extend(rows)
+        # A dry run has issued only SELECTs, so there is nothing to roll back.
+        if args.write and to_deactivate:
+            conn.execute(text(DEACTIVATE_SQL), {"ids": [r.id for r in to_deactivate]})
+
+    print(f"\nInsert {len(inserts)}:")
+    for c, k in inserts:
+        print(f"  + {c:18} {k}")
+    print(f"Update {len(updates)} (label, description, aliases; reactivated)")
+    print(f"Deactivate {len(to_deactivate)} (moved to another category):")
+    for r in to_deactivate:
+        print(f"  - {r.category:18} {r.key}  (id {r.id})")
+    if duplicates:
+        print(f"\nDUPLICATE system rows already present ({len(duplicates)} keys) — left in place, all updated:")
+        for c, k, n in duplicates:
+            print(f"  ! {c:18} {k} x{n}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -7,7 +7,7 @@ import RegionalClimateHistory from '../components/climate/RegionalClimateHistory
 import PropertyProjections from '../components/climate/PropertyProjections';
 import ArticlesCarousel from '../components/ArticlesCarousel';
 import ThisSeasonPanel from '../components/season/ThisSeasonPanel';
-import SprayProgramPanel from '../components/spray/SprayProgramPanel';
+import FindingsPanel from '../components/findings/FindingsPanel';
 import HelpTip from '../components/HelpTip';
 import ReportsPanel from '../components/reports/ReportsPanel';
 import { Link, useSearchParams } from 'react-router'
@@ -29,7 +29,11 @@ const INSIGHT_CARDS = [
   // deep-link ALIASES below so existing links still land somewhere sensible.
   { key: 'thisseason', label: 'This Season', Icon: CloudSunRain },
   { key: 'sprayprogram', label: 'Spray Program', Icon: Droplets },
-  { key: 'biosecurity', label: 'Biosecurity', Icon: Bug },
+  // Same gate as Reports, in step with the endpoint. NOT observations:read —
+  // the JS mirror lets a company_user read observations and the backend does
+  // not, so that gate would show the pill to people it then 403s.
+  { key: 'pestdisease', label: 'Pests & Diseases', Icon: Sprout, permission: ['reports', 'read'] },
+  { key: 'biosecurity', label: 'Biosecurity', Icon: Bug, permission: ['reports', 'read'] },
   { key: 'industry', label: 'Latest Industry Insight', Icon: Bug },
 ];
 
@@ -219,39 +223,59 @@ function Insights() {
             />
           </div>
         );
+      // A placeholder since 2026-09-24. `SprayProgramPanel` still exists and is
+      // simply not mounted; coverage depends on GPS tracking, which is mothballed.
       case 'sprayprogram':
         return (
           <div className="content-container">
             <div className="container-title">
-              <span className="help-tip-head"><span>Spray Program{selectedProperty ? ` â€” ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.sprayprogram" /></span>
+              <span className="help-tip-head"><span>Spray Program</span><HelpTip topic="insights.sprayprogram" /></span>
               <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
                 aria-label="Close Spray Program"
               >
-                Ã—
+                ×
               </button>
             </div>
-            <SprayProgramPanel selectedPropertyId={selectedPropertyId} />
+            <div className="insight-placeholder">
+              <p>Spray program coming soon.</p>
+              <p>Every application from your completed spray tasks, with rates against target.</p>
+            </div>
           </div>
         );
       case 'biosecurity':
         return (
           <div className="content-container">
             <div className="container-title">
-              <span className="help-tip-head"><span>Biosecurity Monitoring</span><HelpTip topic="insights.biosecurity" /></span>
-              <button 
+              <span className="help-tip-head"><span>Biosecurity{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.biosecurity" /></span>
+              <button
                 className="close-insight-btn"
                 onClick={() => setActiveInsight(null)}
-                aria-label="Close Biosecurity Analysis"
+                aria-label="Close Biosecurity"
               >
                 ×
               </button>
             </div>
-            <div className="insight-placeholder">
-              <p>Biosecurity monitoring coming soon...</p>
-              <p>This will show pest pressure monitoring, beneficial insect tracking, and integrated pest management recommendations.</p>
+            <FindingsPanel kind="biosecurity" selectedPropertyId={selectedPropertyId} />
+          </div>
+        );
+      // NOT 'disease' — that key is a deep-link alias for This Season's disease
+      // section, which is the weather-driven model, not what was found.
+      case 'pestdisease':
+        return (
+          <div className="content-container">
+            <div className="container-title">
+              <span className="help-tip-head"><span>Pests &amp; Diseases{selectedProperty ? ` — ${selectedProperty.name}` : ''}</span><HelpTip topic="insights.pestdisease" /></span>
+              <button
+                className="close-insight-btn"
+                onClick={() => setActiveInsight(null)}
+                aria-label="Close Pests & Diseases"
+              >
+                ×
+              </button>
             </div>
+            <FindingsPanel kind="pest_disease" selectedPropertyId={selectedPropertyId} />
           </div>
         );
         case 'industry':

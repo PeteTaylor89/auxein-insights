@@ -8,7 +8,7 @@ import {
   ArrowLeft, Save, X, Calendar, MapPin, Clock, Users,
   Wrench, Package, FileText, AlertCircle, Plus, Settings, Star, Droplets
 } from 'lucide-react';
-import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService, contractorManagementService, byNatural } from '@vineyard/shared';
+import { tasksService, assetService, blocksService, adminService, spatialAreasService, usersService, contractorManagementService, reportService, byNatural } from '@vineyard/shared';
 import RiskLocationMap from '../components/RiskLocationMap';
 import RiskHazardChips from '../components/risks/RiskHazardChips';
 import './vineyard-pages.css';
@@ -23,6 +23,9 @@ function TaskCreationWizard() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const templateFromState = location.state?.template;
   const templateIdFromQuery = searchParams.get('template');
+  // Raised from a finding (the Biosecurity and Pests & Diseases reports): `form`
+  // seeds the task and `observationSpotId` is linked to it once it exists.
+  const prefill = location.state?.prefill || null;
   const [multiMode, setMultiMode] = useState(false);
   const [blockRows, setBlockRows] = useState([]);
   const [scheduleIsRange, setScheduleIsRange] = useState(false);
@@ -77,7 +80,9 @@ function TaskCreationWizard() {
     related_calibration_id: null,
 
     // Tags
-    tags: []
+    tags: [],
+
+    ...(prefill?.form || {})
   });
 
   // Task assets - SEPARATE from formData
@@ -585,7 +590,17 @@ function TaskCreationWizard() {
         }
       }
 
-      // 6) Navigate to the new task (replace — the spent form shouldn't be a Back target)
+      // 6) Link back to the finding it was raised from. A failed link leaves a
+      // good task, so it is logged rather than thrown.
+      if (prefill?.observationSpotId) {
+        try {
+          await reportService.linkFindingTask(prefill.observationSpotId, newTask.id, prefill.linkReason);
+        } catch (err) {
+          console.error('Failed to link task to observation:', err);
+        }
+      }
+
+      // 7) Navigate to the new task (replace — the spent form shouldn't be a Back target)
       navigate(`/tasks/${newTask.id}`, { replace: true });
     } catch (err) {
       console.error('Failed to create task:', err);

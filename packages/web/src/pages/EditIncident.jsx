@@ -1026,6 +1026,7 @@ function EditIncident() {
                       <option value="vehicle_related">Vehicle Related</option>
                       <option value="fire_explosion">Fire/Explosion</option>
                       <option value="structural_collapse">Structural Collapse</option>
+                      <option value="biosecurity">Biosecurity</option>
                       <option value="other">Other</option>
                     </select>
                   </div>

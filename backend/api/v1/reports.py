@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, DateTime
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional, List
+from pydantic import BaseModel
 import csv
 import io
+import json
 
 from db.session import get_db
 from api.deps import get_current_user, require_company_user_permission
@@ -17,6 +19,8 @@ from db.models.user import User
 from db.models.task import Task
 from db.models.observation_run import ObservationRun, ObservationSpot
 from db.models.observation_template import ObservationTemplate
+from db.models.observation_link import ObservationTaskLink
+from db.models.reference_item import ReferenceItem
 from db.models.timesheet import TimesheetDay, TimeEntry
 from db.models.asset import Asset
 from db.models.block import VineyardBlock
@@ -36,6 +40,7 @@ from db.models.training_record import TrainingRecord
 from db.models.costing import TaskCost, UserPayRate, CompanyCostSettings
 from services import phenology_stages as phen
 from services import variety_codes
+from services import pest_catalog
 from services.count_metrics import (
     CountMetric, COUNT_METRICS, MIN_SPOTS_FOR_SD, metric_for_template,
     first_field as _first_field,
@@ -2665,3 +2670,434 @@ def phenology_report_export(
         "yes" if r.is_uniform else "no", r.note or "",
     ] for r in rows_in]
     return _csv_response(rows, headers, f"phenology_by_{section}.csv")
+
+
+# ── Pests & diseases, and biosecurity ─────────────────────────────────
+#
+# Two reports on one engine, over the spots recorded on pest, disease and
+# biosecurity observation templates:
+#
+#   * BIOSECURITY — every spot on a biosecurity template, PLUS any pest/disease
+#     spot naming an organism `pest_catalog` classes as biosecurity (an exotic
+#     recorded on the wrong form is still an exotic).
+#   * PEST_DISEASE — every other pest/disease spot that names an organism.
+#
+# Which report an organism belongs to is `services/pest_catalog.py`, the same
+# list the catalogue seed writes, so the two cannot disagree.
+#
+# Nothing here trusts the seed script's field names — the live templates have
+# drifted from it. The organism field is read from
+# each template's own `fields_json`; severity and incidence are found by name.
+#
+# Risks and incidents raised from a spot carry `custom_fields.observation_spot_id`
+# (written by the create forms); tasks link through `observation_task_links`.
+
+_ORGANISM_FIELDS = ("organism_or_weed", "pest_or_disease", "organism", "disease", "pest",
+                    "species", "weed")
+_ORGANISM_CATALOGS = ("biosecurity_agent", "pest", "disease")
+_PD_TYPES = ("pest_disease", "disease", "pest")
+
+
+def _is_bio_template(t: ObservationTemplate) -> bool:
+    return t.type == "biosecurity" or "biosecurity" in (t.name or "").lower()
+
+
+def _finding_templates(db: Session, current_user: User) -> List[ObservationTemplate]:
+    return (
+        db.query(ObservationTemplate)
+        .filter(
+            or_(ObservationTemplate.company_id.is_(None),
+                ObservationTemplate.company_id == current_user.company_id),
+            or_(ObservationTemplate.type.in_(("biosecurity",) + _PD_TYPES),
+                ObservationTemplate.name.ilike("%biosecurity%"),
+                ObservationTemplate.name.ilike("%pest%"),
+                ObservationTemplate.name.ilike("%disease%")),
+        )
+        .all()
+    )
+
+
+def _template_shape(template: ObservationTemplate) -> dict:
+    """Which fields name the organism, and the labels of any static options.
+
+    A select fed by a pest, disease or biosecurity catalogue wins, then a known
+    field name. A combined template may carry more than one (a disease select
+    and a pest select); the first answered one is used per spot.
+    """
+    fields = [f for f in (template.fields_json or []) if isinstance(f, dict)]
+    organism, labels = [], {}
+    for f in fields:
+        src = f.get("options_source") or {}
+        if isinstance(src, dict) and src.get("catalog") in _ORGANISM_CATALOGS:
+            organism.append(f.get("name"))
+    names = [f.get("name") for f in fields]
+    for candidate in _ORGANISM_FIELDS:
+        if candidate in names and candidate not in organism:
+            organism.append(candidate)
+    # Static options carry more than a label on the live Pests & Diseases
+    # template (id 12): `type` pest|disease and `status` present|biosecurity_alert.
+    classes, alerts = {}, set()
+    for f in fields:
+        if f.get("name") in organism:
+            for opt in f.get("options") or []:
+                if isinstance(opt, dict) and opt.get("value") is not None:
+                    value = str(opt["value"])
+                    labels[value] = opt.get("label") or value
+                    if opt.get("type") in ("pest", "disease"):
+                        classes[value] = opt["type"]
+                    if opt.get("status") == "biosecurity_alert" or opt.get("report_immediately"):
+                        alerts.add(value)
+    severity = next((n for n in names if n and "severity" in n.lower()), None)
+    incidence = next((n for n in names if n and "incidence" in n.lower()), None)
+    count = next((n for n in names if n in ("count", "trap_count", "pest_count")), None)
+    return {"organism": organism, "labels": labels, "classes": classes, "alerts": alerts,
+            "severity": severity, "incidence": incidence, "count": count}
+
+
+def _answer_text(value) -> Optional[str]:
+    """A select answer as a string: plain, `{value, label}`, or the first of a list."""
+    if isinstance(value, list):
+        return _answer_text(value[0]) if value else None
+    if isinstance(value, dict):
+        value = value.get("value") or value.get("label") or value.get("key")
+    if value is None:
+        return None
+    text_value = str(value).strip()
+    return text_value or None
+
+
+def _answer_number(value) -> Optional[float]:
+    try:
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _truthy(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "yes", "1", "y")
+    return bool(value)
+
+
+def _mean(values) -> Optional[float]:
+    values = [v for v in values if v is not None]
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _findings_report(kind: str, start_date, end_date, property_id, db: Session, current_user: User) -> dict:
+    """The shared engine. `kind` is 'biosecurity' or 'pest_disease'."""
+    result = {
+        "kind": kind, "templates": [], "total_spots": 0, "findings_count": 0,
+        "clean_spots": 0, "runs_count": 0, "blocks_affected": 0, "notify_count": 0,
+        "redirected": 0, "organisms": [], "findings": [],
+        "blocks": {"type": "FeatureCollection", "features": []},
+        "warnings": [],
+    }
+    templates = _finding_templates(db, current_user)
+    own = [t for t in templates if _is_bio_template(t) == (kind == "biosecurity")]
+    result["templates"] = [{"id": t.id, "name": t.name} for t in own]
+    if not own:
+        result["warnings"].append(
+            "No biosecurity observation template is set up yet." if kind == "biosecurity"
+            else "No pest or disease observation template is set up yet."
+        )
+    if not templates:
+        return result
+
+    shapes = {t.id: _template_shape(t) for t in templates}
+    bio_template = {t.id: _is_bio_template(t) for t in templates}
+    block_col = func.coalesce(ObservationSpot.block_id, ObservationRun.block_id)
+    seen_col = func.coalesce(ObservationSpot.observed_at, ObservationSpot.created_at)
+
+    q = (
+        db.query(
+            ObservationSpot, ObservationRun,
+            block_col.label("block_id"),
+            seen_col.label("seen_at"),
+            func.ST_Y(ObservationSpot.gps).label("lat"),
+            func.ST_X(ObservationSpot.gps).label("lng"),
+        )
+        .join(ObservationRun, ObservationRun.id == ObservationSpot.run_id)
+        .filter(
+            ObservationSpot.company_id == current_user.company_id,
+            ObservationRun.template_id.in_(list(shapes)),
+        )
+    )
+
+    # Property scoping through the block, under the NULL-property rule. The
+    # spot's own block wins; a spot with none takes the run's.
+    block_ids = _visible_block_ids(db, current_user, property_id)
+    if property_id is not None:
+        q = q.filter(block_col.in_(block_ids)) if block_ids else q.filter(ObservationSpot.id == -1)
+    elif block_ids:
+        q = q.filter(or_(block_col.in_(block_ids), block_col.is_(None)))
+    else:
+        q = q.filter(block_col.is_(None))
+
+    if start_date:
+        q = q.filter(seen_col >= _nz_day_start(start_date))
+    if end_date:
+        q = q.filter(seen_col < _nz_day_start(end_date + timedelta(days=1)))
+
+    rows = q.order_by(seen_col.desc()).all()
+
+    # Catalogue labels; the company's own entry wins over the system's.
+    catalog_labels = {}
+    for item in (
+        db.query(ReferenceItem.key, ReferenceItem.label, ReferenceItem.company_id)
+        .filter(ReferenceItem.category.in_(_ORGANISM_CATALOGS),
+                or_(ReferenceItem.company_id.is_(None),
+                    ReferenceItem.company_id == current_user.company_id))
+        .all()
+    ):
+        if item.company_id is not None or item.key not in catalog_labels:
+            catalog_labels[item.key] = item.label
+
+    # Classify every spot into this report, the other one, or neither.
+    mine, runs = [], set()
+    for r in rows:
+        spot, run = r.ObservationSpot, r.ObservationRun
+        shape = shapes[run.template_id]
+        data = spot.data_json or {}
+        organism = next((v for v in (_answer_text(data.get(f)) for f in shape["organism"]) if v), None)
+        if organism and pest_catalog.is_none_value(organism):
+            organism = None
+        exotic = pest_catalog.is_biosecurity(organism) or organism in shape["alerts"]
+        belongs = bio_template[run.template_id] or exotic
+        if belongs != (kind == "biosecurity"):
+            # Counted so each report can say where the rest went.
+            if kind == "pest_disease" and exotic:
+                result["redirected"] += 1
+            continue
+        runs.add(run.id)
+        mine.append((r, shape, data, organism))
+
+    result["total_spots"] = len(mine)
+    result["runs_count"] = len(runs)
+    if not mine:
+        return result
+
+    all_block_ids = {r.block_id for r, *_ in mine if r.block_id}
+    blocks = {
+        b.id: b for b in
+        db.query(VineyardBlock.id, VineyardBlock.block_name, VineyardBlock.property_id)
+        .filter(VineyardBlock.id.in_(all_block_ids)).all()
+    } if all_block_ids else {}
+    prop_ids = {b.property_id for b in blocks.values() if b.property_id}
+    props = {
+        p.id: p.name for p in
+        db.query(Property.id, Property.name).filter(Property.id.in_(prop_ids)).all()
+    } if prop_ids else {}
+    user_ids = {r.ObservationSpot.created_by for r, *_ in mine if r.ObservationSpot.created_by}
+    users = {
+        u.id: (u.full_name or u.email) for u in
+        db.query(User).filter(User.id.in_(user_ids)).all()
+    } if user_ids else {}
+
+    def label_for(value, shape):
+        if not value:
+            return "Organism not named"
+        if value in shape["labels"]:
+            return shape["labels"][value]
+        if value in catalog_labels:
+            return catalog_labels[value]
+        item = pest_catalog.lookup(value)
+        return item["label"] if item else value
+
+    findings, clean = [], 0
+    for r, shape, data, organism in mine:
+        spot, run = r.ObservationSpot, r.ObservationRun
+        notify = _truthy(data.get("notify_regulator"))
+        containment = _answer_text(data.get("containment_taken"))
+        if kind == "biosecurity":
+            is_finding = bool(organism or notify or containment)
+        else:
+            is_finding = bool(organism)
+        if not is_finding:
+            clean += 1
+            continue
+        item = pest_catalog.lookup(organism)
+        block = blocks.get(r.block_id)
+        findings.append({
+            "spot_id": spot.id,
+            "run_id": run.id,
+            "run_name": run.name,
+            "observed_at": _local_iso(r.seen_at),
+            "observed_on": _local_date_iso(r.seen_at),
+            "block_id": r.block_id,
+            "block_name": block.block_name if block else None,
+            "property_id": block.property_id if block else None,
+            "property_name": props.get(block.property_id) if block else None,
+            "lat": float(r.lat) if r.lat is not None else None,
+            "lng": float(r.lng) if r.lng is not None else None,
+            "organism_key": organism,
+            "organism_label": label_for(organism, shape),
+            # pest | disease | biosecurity_agent: the template's own option type
+            # first, then the catalogue.
+            "organism_class": shape["classes"].get(organism) or (item["category"] if item else None),
+            # mpi | council for a known biosecurity organism.
+            "report_to": item.get("notify") if item else None,
+            "severity": _answer_number(data.get(shape["severity"])) if shape["severity"] else None,
+            "incidence": _answer_number(data.get(shape["incidence"])) if shape["incidence"] else None,
+            "count": _answer_number(data.get(shape["count"])) if shape["count"] else None,
+            "pathway": _answer_text(data.get("pathway_source")),
+            "containment": containment,
+            "notify_regulator": notify,
+            "notes": _answer_text(data.get("notes")),
+            "photo_count": len(spot.photo_file_ids or []),
+            "observer": users.get(spot.created_by),
+            "risks": [], "incidents": [], "tasks": [],
+        })
+
+    result["findings"] = findings
+    result["findings_count"] = len(findings)
+    result["clean_spots"] = clean
+    result["notify_count"] = sum(1 for f in findings if f["notify_regulator"] or f["report_to"] == "mpi")
+    result["blocks_affected"] = len({f["block_id"] for f in findings if f["block_id"]})
+    if not findings:
+        return result
+
+    by_spot = {f["spot_id"]: f for f in findings}
+    spot_keys = [str(s) for s in by_spot]
+
+    for risk in (
+        db.query(SiteRisk)
+        .filter(SiteRisk.company_id == current_user.company_id,
+                SiteRisk.custom_fields["observation_spot_id"].as_string().in_(spot_keys))
+        .all()
+    ):
+        f = by_spot.get(int(risk.custom_fields["observation_spot_id"]))
+        if f:
+            f["risks"].append({"id": risk.id, "title": risk.risk_title, "status": risk.status,
+                               "level": risk.inherent_risk_level})
+
+    for inc in (
+        db.query(Incident)
+        .filter(Incident.company_id == current_user.company_id,
+                Incident.custom_fields["observation_spot_id"].as_string().in_(spot_keys))
+        .all()
+    ):
+        f = by_spot.get(int(inc.custom_fields["observation_spot_id"]))
+        if f:
+            f["incidents"].append({"id": inc.id, "number": inc.incident_number,
+                                   "title": inc.incident_title, "status": inc.status})
+
+    for link, task in (
+        db.query(ObservationTaskLink, Task)
+        .join(Task, Task.id == ObservationTaskLink.task_id)
+        .filter(ObservationTaskLink.company_id == current_user.company_id,
+                ObservationTaskLink.observation_spot_id.in_(list(by_spot)))
+        .all()
+    ):
+        f = by_spot.get(link.observation_spot_id)
+        if f and not any(t["id"] == task.id for t in f["tasks"]):
+            status_value = task.status.value if hasattr(task.status, "value") else task.status
+            f["tasks"].append({"id": task.id, "title": task.title, "status": status_value})
+
+    # One row per organism, most recently seen first.
+    organisms = {}
+    for f in findings:
+        o = organisms.setdefault(f["organism_key"] or "", {
+            "key": f["organism_key"], "label": f["organism_label"],
+            "organism_class": f["organism_class"], "report_to": f["report_to"],
+            "findings": 0, "blocks": set(), "last_seen": f["observed_on"],
+            "notify": False, "actioned": 0,
+            "_severity": [], "_incidence": [],
+        })
+        o["findings"] += 1
+        if f["block_id"]:
+            o["blocks"].add(f["block_id"])
+        o["notify"] = o["notify"] or f["notify_regulator"]
+        o["_severity"].append(f["severity"])
+        o["_incidence"].append(f["incidence"])
+        if f["risks"] or f["incidents"] or f["tasks"]:
+            o["actioned"] += 1
+    result["organisms"] = sorted(
+        ({**{k: v for k, v in o.items() if not k.startswith("_")},
+          "blocks": len(o["blocks"]),
+          "severity_mean": _mean(o["_severity"]),
+          "severity_max": max((s for s in o["_severity"] if s is not None), default=None),
+          "incidence_mean": _mean(o["_incidence"])}
+         for o in organisms.values()),
+        key=lambda o: o["last_seen"] or "", reverse=True,
+    )
+
+    # Outlines of the blocks with a finding, for the map's context.
+    finding_blocks = {f["block_id"] for f in findings if f["block_id"]}
+    if finding_blocks:
+        outlines = (
+            db.query(VineyardBlock.id, VineyardBlock.block_name,
+                     func.ST_AsGeoJSON(VineyardBlock.geometry).label("geom"))
+            .filter(VineyardBlock.id.in_(finding_blocks), VineyardBlock.geometry.isnot(None))
+            .all()
+        )
+        result["blocks"]["features"] = [
+            {"type": "Feature", "geometry": json.loads(b.geom),
+             "properties": {"id": b.id, "name": b.block_name}}
+            for b in outlines
+        ]
+
+    unplaced = sum(1 for f in findings if f["lat"] is None)
+    if unplaced:
+        result["warnings"].append(
+            f"{unplaced} finding{'s' if unplaced != 1 else ''} recorded without GPS, not on the map."
+        )
+    return result
+
+
+@router.get("/biosecurity/summary")
+def biosecurity_report_summary(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("reports", "read")),
+):
+    return _findings_report("biosecurity", start_date, end_date, property_id, db, current_user)
+
+
+@router.get("/pest-disease/summary")
+def pest_disease_report_summary(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    property_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("reports", "read")),
+):
+    return _findings_report("pest_disease", start_date, end_date, property_id, db, current_user)
+
+
+class FindingTaskLink(BaseModel):
+    spot_id: int
+    task_id: int
+    reason: Optional[str] = None
+
+
+@router.post("/findings/task-links", status_code=201)
+def finding_link_task(
+    payload: FindingTaskLink,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_company_user_permission("tasks", "create")),
+):
+    """Link a task created from a finding back to its spot.
+
+    Both ends are checked against the caller's company; the generic
+    `observation-task-links` route checks neither.
+    """
+    spot = db.get(ObservationSpot, payload.spot_id)
+    task = db.get(Task, payload.task_id)
+    if spot is None or spot.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="Observation spot not found")
+    if task is None or task.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    link = ObservationTaskLink(
+        company_id=current_user.company_id,
+        observation_run_id=spot.run_id,
+        observation_spot_id=spot.id,
+        task_id=task.id,
+        link_reason=(payload.reason or "observation_finding")[:120],
+    )
+    db.add(link)
+    db.commit()
+    return {"id": link.id, "spot_id": spot.id, "task_id": task.id}
