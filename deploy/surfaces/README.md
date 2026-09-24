@@ -100,8 +100,11 @@ for k in RDS_ENDPOINT RDS_USER RDS_PASSWORD SECRET_KEY; do
       --value "<value>" --overwrite --region $REGION
 done
 
-# 3. Image (CodeBuild project pointed at this repo, using buildspec.yml)
-aws codebuild start-build --project-name auxein-surfaces-build --region $REGION
+# 3. Image (CodeBuild project pointed at this repo, using buildspec.yml). A push
+#    to main touching backend/** or deploy/surfaces/** already runs this through
+#    .github/workflows/surfaces-image.yml; by hand only when that did not run.
+#    It builds origin/main, never the local tree.
+aws codebuild start-build --project-name auxein-surfaces-image --region $REGION
 
 # 4. Task definition
 aws ecs register-task-definition \

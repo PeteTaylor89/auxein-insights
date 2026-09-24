@@ -138,21 +138,21 @@ ORDER BY o.area_id, o.obs_date,
          o.n_valid_{res} DESC, o.item_id DESC
 """
 
-DELETE_COMPOSITES = """
-DELETE FROM area_index_composite c USING _scope s
-WHERE c.area_id = s.area_id AND c.index_name = :ix
-  AND ((c.period = 'month' AND c.period_start >= s.month_from)
-    OR (c.period = '16d' AND c.period_start >= s.bin_from))
+COMP_DDL = """
+CREATE TEMP TABLE _comp (area_id bigint, index_name text, period text, period_start date,
+                         median real, p10 real, p90 real, n_obs smallint, n_valid_px integer,
+                         bin_kind text, bin smallint) ON COMMIT DROP
 """
 
-INSERT_COMPOSITES = """
-INSERT INTO area_index_composite (area_id, index_name, period, period_start, median, p10, p90,
-                                  n_obs, n_valid_px, updated_at)
+# One composite per (area, period) from the clean reads, staged with the baseline
+# bin it belongs to, so the final write picks up its anomaly in the same pass.
+STAGE_COMPOSITES = """
+INSERT INTO _comp
 SELECT r.area_id, :ix, :period, {start} AS ps,
        percentile_cont(0.5) WITHIN GROUP (ORDER BY r.v),
        percentile_cont(0.5) WITHIN GROUP (ORDER BY r.lo),
        percentile_cont(0.5) WITHIN GROUP (ORDER BY r.hi),
-       count(*), sum(r.nv), now()
+       count(*), sum(r.nv), :bin_kind, {bin_no}
 FROM _reads r JOIN _scope s ON s.area_id = r.area_id
 WHERE {start} >= s.{from_col}
 GROUP BY r.area_id, ps
@@ -171,40 +171,45 @@ WHERE a.status = 'active' AND a.history_complete
 INSERT_BASELINE = """
 INSERT INTO area_index_baseline (area_id, index_name, source, bin_kind, bin, mean, sd,
                                  p10, p50, p90, n_years, first_year, last_year, updated_at)
-SELECT c.area_id, c.index_name, 's2', :bin_kind, {bin_no} AS bin,
+SELECT c.area_id, c.index_name, 's2', c.bin_kind, c.bin,
        avg(c.median), stddev_samp(c.median),
        percentile_cont(0.1) WITHIN GROUP (ORDER BY c.median),
        percentile_cont(0.5) WITHIN GROUP (ORDER BY c.median),
        percentile_cont(0.9) WITHIN GROUP (ORDER BY c.median),
        count(*), min(extract(year from c.period_start)), max(extract(year from c.period_start)),
        now()
-FROM area_index_composite c
-WHERE c.area_id = ANY(:ids) AND c.period = :period AND c.median IS NOT NULL
+FROM _comp c
+WHERE c.area_id = ANY(:ids) AND c.median IS NOT NULL
   AND extract(year from c.period_start) < :this_year
-GROUP BY c.area_id, c.index_name, bin
+GROUP BY c.area_id, c.index_name, c.bin_kind, c.bin
 """
 
-CLEAR_ANOMALY = """
-UPDATE area_index_composite c
-SET anomaly = NULL, percentile = NULL, baseline_source = NULL, baseline_years = NULL
-FROM _scope s
-WHERE c.area_id = s.area_id AND c.period_start >= LEAST(s.month_from, s.bin_from)
-  AND c.anomaly IS NOT NULL
+DELETE_COMPOSITES = """
+DELETE FROM area_index_composite c USING _scope s
+WHERE c.area_id = s.area_id
+  AND ((c.period = 'month' AND c.period_start >= s.month_from)
+    OR (c.period = '16d' AND c.period_start >= s.bin_from))
 """
 
-SET_ANOMALY = f"""
-UPDATE area_index_composite c
-SET anomaly = c.median - b.mean,
-    percentile = LEAST(100, GREATEST(0,
-        50 * (1 + erf(((c.median - b.mean) / (b.sd * sqrt(2)))::float8)))),
-    baseline_source = b.source, baseline_years = b.n_years
-FROM _scope s, area_index_baseline b
-WHERE c.area_id = s.area_id AND c.period_start >= LEAST(s.month_from, s.bin_from)
-  AND b.area_id = c.area_id AND b.index_name = c.index_name AND b.source = 's2'
-  AND b.bin_kind = CASE c.period WHEN 'month' THEN 'month' ELSE 'doy16' END
-  AND b.bin = CASE c.period WHEN 'month' THEN extract(month from c.period_start)::int
-                            ELSE {BIN16_NO.format(d="c.period_start")} END
-  AND b.n_years >= {MIN_BASELINE_YEARS} AND b.sd > 0 AND c.median IS NOT NULL
+# Each composite is written ONCE, with its anomaly, from the staged rows. The
+# first prod rebuild (2026-09-24) inserted the composites and then UPDATEd ~6M of
+# them to add the anomaly. An update writes a new row version and index entry for
+# every row: locally 1.35M rows took ~55 s whatever the plan, and on the prod
+# instance the step ran for over an hour. Joining at insert time makes it free.
+WRITE_COMPOSITES = f"""
+INSERT INTO area_index_composite (area_id, index_name, period, period_start, median, p10, p90,
+                                  n_obs, n_valid_px, anomaly, percentile, baseline_source,
+                                  baseline_years, updated_at)
+SELECT k.area_id, k.index_name, k.period, k.period_start, k.median, k.p10, k.p90,
+       k.n_obs, k.n_valid_px,
+       k.median - b.mean,
+       LEAST(100, GREATEST(0, 50 * (1 + erf(((k.median - b.mean) / (b.sd * sqrt(2)))::float8)))),
+       b.source, b.n_years, now()
+FROM _comp k
+LEFT JOIN area_index_baseline b
+  ON b.area_id = k.area_id AND b.index_name = k.index_name AND b.source = 's2'
+ AND b.bin_kind = k.bin_kind AND b.bin = k.bin
+ AND b.n_years >= {MIN_BASELINE_YEARS} AND b.sd > 0 AND k.median IS NOT NULL
 """
 
 ZONE_ROLLUP = """
@@ -285,36 +290,48 @@ def main():
                                ON CONFLICT (area_id) DO UPDATE SET from_date = EXCLUDED.from_date"""),
                        {"ids": full, "d": EPOCH})
         db.execute(text(SCOPE_ALIGN))
+        db.execute(text("ANALYZE _scope"))
 
+        db.execute(text(COMP_DDL))
         for ix, res in INDICES:
             db.execute(text("DROP TABLE IF EXISTS _reads"))
             db.execute(text(READS.format(ix=ix, res=res, min_px=MIN_PX, min_frac=MIN_FRAC)))
             n_reads = db.execute(text("SELECT count(*) FROM _reads")).scalar()
-            db.execute(text(DELETE_COMPOSITES), {"ix": ix})
-            n_m = db.execute(text(INSERT_COMPOSITES.format(
-                start="date_trunc('month', r.obs_date)::date", from_col="month_from")),
-                {"ix": ix, "period": "month", "min_obs": 1}).rowcount
-            n_16 = db.execute(text(INSERT_COMPOSITES.format(
-                start=BIN16_START.format(d="r.obs_date"), from_col="bin_from")),
-                {"ix": ix, "period": "16d", "min_obs": MIN_OBS_16D}).rowcount
+            # bin_no is written over the GROUPED start expression, not r.obs_date.
+            month_start = "date_trunc('month', r.obs_date)::date"
+            bin_start = BIN16_START.format(d="r.obs_date")
+            n_m = db.execute(text(STAGE_COMPOSITES.format(
+                start=month_start, from_col="month_from",
+                bin_no=f"extract(month from {month_start})::int")),
+                {"ix": ix, "period": "month", "bin_kind": "month", "min_obs": 1}).rowcount
+            n_16 = db.execute(text(STAGE_COMPOSITES.format(
+                start=bin_start, from_col="bin_from",
+                bin_no=BIN16_NO.format(d=bin_start))),
+                {"ix": ix, "period": "16d", "bin_kind": "doy16",
+                 "min_obs": MIN_OBS_16D}).rowcount
             print(f"[composites] {ix}: {n_reads} clean reads -> {n_m} monthly, {n_16} 16-day")
+        db.execute(text("DROP TABLE IF EXISTS _reads"))
+        # Temp tables are never auto-analyzed; without this the planner guesses.
+        db.execute(text("ANALYZE _comp"))
 
+        # Baselines come from the staged composites: an area due one is always
+        # built in full (from EPOCH), so _comp holds its whole history.
         n_b = 0
         if base:
             db.execute(text("DELETE FROM area_index_baseline WHERE area_id = ANY(:ids)"),
                        {"ids": base})
-            for bin_kind, period, bin_no in (
-                    ("month", "month", "extract(month from c.period_start)::int"),
-                    ("doy16", "16d", BIN16_NO.format(d="c.period_start"))):
-                n_b += db.execute(text(INSERT_BASELINE.format(bin_no=bin_no)),
-                                  {"ids": base, "bin_kind": bin_kind, "period": period,
-                                   "this_year": this_year}).rowcount
+            n_b = db.execute(text(INSERT_BASELINE),
+                             {"ids": base, "this_year": this_year}).rowcount
             print(f"[composites] baselines: {n_b} rows for {len(base)} area(s), "
                   f"years before {this_year}")
+            # Written in this transaction, so autovacuum has not seen them.
+            db.execute(text("ANALYZE area_index_baseline"))
 
-        db.execute(text(CLEAR_ANOMALY))
-        n_a = db.execute(text(SET_ANOMALY)).rowcount
-        print(f"[composites] anomalies set on {n_a} composite(s) "
+        db.execute(text(DELETE_COMPOSITES))
+        n_c, n_a = db.execute(text(
+            f"WITH w AS ({WRITE_COMPOSITES} RETURNING anomaly) "
+            "SELECT count(*), count(anomaly) FROM w")).one()
+        print(f"[composites] wrote {n_c} composite(s), {n_a} with an anomaly "
               f"(baseline of {MIN_BASELINE_YEARS}+ years)")
 
         # New baselines change the anomalies of every past month, so the zone
@@ -322,6 +339,7 @@ def main():
         # area that is due but had nothing to build from (no clean read in any
         # complete year) writes no baseline rows and does not trigger this.
         zone_from = EPOCH if (args.rebuild or n_b) else recent_month
+        db.execute(text("ANALYZE area_index_composite"))
         db.execute(text("DELETE FROM zone_index_monthly WHERE make_date(year, month, 1) >= :z"),
                    {"z": zone_from})
         n_z = db.execute(text(ZONE_ROLLUP), {"zone_from": zone_from}).rowcount
