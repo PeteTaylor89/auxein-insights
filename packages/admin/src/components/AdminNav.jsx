@@ -64,6 +64,15 @@ export const NAV_GROUPS = [
       { path: '/grow/properties', icon: MapPinned, label: 'Properties' },
       { path: '/grow/contractors', icon: Wrench, label: 'Contractors' },
       { path: '/grow/banners', icon: Megaphone, label: 'Banners' },
+    ],
+  },
+  // Deals across every product — Grow sign-ups, Insights Pro upgrades and
+  // enterprise contracts — so it sits under neither product's group.
+  {
+    id: 'sales',
+    label: 'Sales',
+    icon: Filter,
+    items: [
       { path: '/pipeline', icon: Filter, label: 'Pipeline' },
     ],
   },

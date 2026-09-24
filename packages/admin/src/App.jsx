@@ -111,8 +111,7 @@ function AppRoutes() {
           tab lived in component state. A bare /grow lands on Companies. */}
       <Route path="/grow" element={<Navigate to="/grow/companies" replace />} />
       <Route path="/grow/:tab" element={<Guarded><GrowAdmin /></Guarded>} />
-      {/* Top-level, NOT /grow/pipeline: /grow/:tab belongs to GrowAdmin and
-          would swallow it. The nav still files it under Grow. */}
+      {/* The sales pipeline: Grow, Insights Pro and enterprise deals. */}
       <Route path="/pipeline" element={<Guarded><Pipeline /></Guarded>} />
 
       <Route path="/email" element={<Guarded><AdminEmailCampaignList /></Guarded>} />

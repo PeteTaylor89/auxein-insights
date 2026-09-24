@@ -8,10 +8,73 @@
   --stage-contacted: #2A7F7F;
   --stage-demo: #B07D2B;
   --stage-trial: #7A4A72;
+  --stage-proposal: #3F5E8C;
   --stage-won: #5B6830;
   --stage-lost: #9B2226;
+  /* Deal types. Tints for the badge ground, full colour for its text. */
+  --type-grow: #5B6830;
+  --type-grow-tint: #EEF0E4;
+  --type-insights_pro: #2A6F97;
+  --type-insights_pro-tint: #E3EEF5;
+  --type-enterprise: #6B4E9B;
+  --type-enterprise-tint: #EEE8F5;
   max-width: 1400px;
 }
+
+/* ---------------------------------------------------------- type switch */
+
+.pipe-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.pipe-types button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 18px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.pipe-types button[aria-pressed='true'] {
+  border-color: var(--admin-ink);
+  background: var(--admin-ink);
+  color: #fff;
+  font-weight: 600;
+}
+
+.pipe-types button.type-grow[aria-pressed='true'] { background: var(--type-grow); border-color: var(--type-grow); }
+.pipe-types button.type-insights_pro[aria-pressed='true'] { background: var(--type-insights_pro); border-color: var(--type-insights_pro); }
+.pipe-types button.type-enterprise[aria-pressed='true'] { background: var(--type-enterprise); border-color: var(--type-enterprise); }
+
+.pipe-types button[aria-pressed='true'] .pipe-count {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* The deal-type badge, on cards and table rows. */
+.pipe-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pipe-type.type-grow { background: var(--type-grow-tint); color: var(--type-grow); }
+.pipe-type.type-insights_pro { background: var(--type-insights_pro-tint); color: var(--type-insights_pro); }
+.pipe-type.type-enterprise { background: var(--type-enterprise-tint); color: var(--type-enterprise); }
 
 /* --------------------------------------------------------------- totals */
 
@@ -169,11 +232,11 @@
 
 /* ---------------------------------------------------------------- board */
 
-/* Six columns side by side. Below the width where six fit, the board scrolls
+/* Seven columns side by side. Below the width where they fit, the board scrolls
    sideways INSIDE its own box — the page itself never scrolls horizontally. */
 .pipe-board {
   display: grid;
-  grid-template-columns: repeat(6, minmax(210px, 1fr));
+  grid-template-columns: repeat(7, minmax(200px, 1fr));
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 8px;
@@ -197,6 +260,7 @@
 .pipe-col.is-contacted { --col: var(--stage-contacted); }
 .pipe-col.is-demo { --col: var(--stage-demo); }
 .pipe-col.is-trial { --col: var(--stage-trial); }
+.pipe-col.is-proposal { --col: var(--stage-proposal); }
 .pipe-col.is-won { --col: var(--stage-won); }
 .pipe-col.is-lost { --col: var(--stage-lost); }
 
@@ -267,6 +331,13 @@
   font-size: 13.5px;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.pipe-cardvalue {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--admin-ink);
 }
 
 .pipe-cardco {
@@ -368,6 +439,7 @@
 .pipe-table tbody tr:hover { background: var(--admin-ground); }
 .pipe-table tbody tr:last-child td { border-bottom: 0; }
 .pipe-table td.is-overdue { color: var(--admin-warn); font-weight: 600; }
+.pipe-table td.pipe-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .pipe-rowlink {
   padding: 0;
@@ -401,6 +473,7 @@
 .pipe-stage.is-contacted { background: var(--stage-contacted); }
 .pipe-stage.is-demo { background: var(--stage-demo); }
 .pipe-stage.is-trial { background: var(--stage-trial); }
+.pipe-stage.is-proposal { background: var(--stage-proposal); }
 .pipe-stage.is-won { background: var(--stage-won); }
 .pipe-stage.is-lost { background: var(--stage-lost); }
 
@@ -409,7 +482,8 @@
 /* The drawers render inside .pipe-page, so the stage colours reach them. */
 .pipe-steps {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Seven steps: four and three across in the drawer, never a lone orphan. */
+  grid-template-columns: repeat(4, 1fr);
   gap: 5px;
   margin-bottom: 14px;
 }
@@ -430,6 +504,7 @@
 .pipe-step.is-contacted { --step: var(--stage-contacted); }
 .pipe-step.is-demo { --step: var(--stage-demo); }
 .pipe-step.is-trial { --step: var(--stage-trial); }
+.pipe-step.is-proposal { --step: var(--stage-proposal); }
 .pipe-step.is-won { --step: var(--stage-won); }
 .pipe-step.is-lost { --step: var(--stage-lost); }
 
@@ -673,7 +748,7 @@
 @media (max-width: 640px) {
   .pipe-totals { gap: 16px 22px; }
   .pipe-bignum { font-size: 19px; }
-  .pipe-board { grid-template-columns: repeat(6, 78vw); }
+  .pipe-board { grid-template-columns: repeat(7, 78vw); }
   .pipe-new { flex: 1 1 auto; justify-content: center; }
   .pipe-steps { grid-template-columns: repeat(2, 1fr); }
 }

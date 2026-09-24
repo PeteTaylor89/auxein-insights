@@ -1,15 +1,18 @@
-// src/pages/Pipeline.jsx — the Grow conversion pipeline.
+// src/pages/Pipeline.jsx — the sales pipeline.
 //
-// Leads from first contact to a Grow sign-up. The board is for moving things
-// along (drag a card to a stage); the table is for scanning and sorting. Both
-// open the same drawer, which holds the details and the activity log.
+// Three kinds of deal on one board, told apart by a badge: a Grow sign-up, an
+// Insights Pro upgrade, or an enterprise contract. The board is for moving
+// things along (drag a card to a stage); the table is for scanning and sorting.
+// Both open the same drawer, which holds the details and the activity log.
 //
-// Insights marketing opt-ins arrive by themselves: every load of this page asks
-// the API to pull in any that are missing. Anyone else is added by hand.
+// Two things arrive by themselves on every load: Insights marketing opt-ins
+// become Grow leads, and Pro enquiries become Pro leads. Enterprise deals, and
+// anything else, are added by hand.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus, Loader2, Trash2, LayoutGrid, Table2, Search, AlertTriangle,
   Phone, Mail, Users, Presentation, StickyNote, ArrowRight, Sprout, BellOff,
+  Inbox, Star,
 } from 'lucide-react';
 
 import pipelineService from '../services/pipelineService';
@@ -19,11 +22,19 @@ import { dayLabel, duePhrase, todayKey } from '../utils/planDates';
 import '../components/task-detail.css';
 import './pipeline.css';
 
+const DEAL_TYPES = [
+  { value: 'grow', label: 'Grow' },
+  { value: 'insights_pro', label: 'Insights Pro' },
+  { value: 'enterprise', label: 'Enterprise' },
+];
+const TYPE_LABEL = Object.fromEntries(DEAL_TYPES.map((t) => [t.value, t.label]));
+
 const STAGES = [
   { value: 'new', label: 'New' },
   { value: 'contacted', label: 'Contacted' },
   { value: 'demo', label: 'Demo' },
   { value: 'trial', label: 'Trial' },
+  { value: 'proposal', label: 'Proposal' },
   { value: 'won', label: 'Won' },
   { value: 'lost', label: 'Lost' },
 ];
@@ -31,6 +42,7 @@ const STAGE_LABEL = Object.fromEntries(STAGES.map((s) => [s.value, s.label]));
 
 const SOURCES = [
   { value: 'insights', label: 'Insights' },
+  { value: 'enquiry', label: 'Enquiry' },
   { value: 'referral', label: 'Referral' },
   { value: 'event', label: 'Event' },
   { value: 'website', label: 'Website' },
@@ -56,7 +68,38 @@ const KINDS = [
   { value: 'demo', label: 'Demo', icon: Presentation },
   { value: 'note', label: 'Note', icon: StickyNote },
 ];
-const KIND_ICON = Object.fromEntries(KINDS.map((k) => [k.value, k.icon]));
+const KIND_ICON = { ...Object.fromEntries(KINDS.map((k) => [k.value, k.icon])), enquiry: Inbox };
+const KIND_LABEL = { ...Object.fromEntries(KINDS.map((k) => [k.value, k.label])), enquiry: 'Enquiry' };
+
+// What a new hand-added lead of each type most likely came from.
+const DEFAULT_SOURCE = { grow: 'referral', insights_pro: 'enquiry', enterprise: 'outbound' };
+
+const NZD = new Intl.NumberFormat('en-NZ', {
+  style: 'currency', currency: 'NZD', maximumFractionDigits: 0,
+});
+const money = (v) => (v == null ? '—' : NZD.format(v));
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The totals strip, over whichever type is showing. */
+function summarise(leads) {
+  const open = leads.filter((l) => l.stage !== 'won' && l.stage !== 'lost');
+  const since = Date.now() - 90 * DAY_MS;
+  const won90 = leads.filter((l) => l.stage === 'won' && l.closed_at
+    && Date.parse(l.closed_at) >= since);
+  const won = leads.filter((l) => l.stage === 'won').length;
+  const lost = leads.filter((l) => l.stage === 'lost').length;
+  const sum = (ls) => ls.reduce((t, l) => t + (l.value_nzd || 0), 0);
+  return {
+    open: open.length,
+    openValue: sum(open),
+    overdue: open.filter((l) => l.overdue).length,
+    won90: won90.length,
+    won90Value: sum(won90),
+    // None rather than 0% when nothing has closed — a zero reads as a verdict.
+    winRate: won + lost ? Math.round((100 * won) / (won + lost)) : null,
+  };
+}
 
 const errText = (err, fallback) => err?.response?.data?.detail
   && typeof err.response.data.detail === 'string'
@@ -76,6 +119,9 @@ export default function Pipeline() {
   });
   const [query, setQuery] = useState('');
   const [source, setSource] = useState('');
+  const [dealType, setDealType] = useState(() => {
+    try { return localStorage.getItem('pipeline.type') || ''; } catch { return ''; }
+  });
   const [openId, setOpenId] = useState(null);
   const [creating, setCreating] = useState(false);
   // A drag onto Won or Lost does not move the card straight away — it asks
@@ -99,15 +145,37 @@ export default function Pipeline() {
     try { localStorage.setItem('pipeline.view', view); } catch { /* private mode */ }
   }, [view]);
 
+  useEffect(() => {
+    try { localStorage.setItem('pipeline.type', dealType); } catch { /* private mode */ }
+  }, [dealType]);
+
+  // The type filter drives the totals too; search and source only narrow what
+  // is shown, so typing a name does not rewrite the win rate.
+  const ofType = useMemo(
+    () => (data?.leads || []).filter((l) => !dealType || l.deal_type === dealType),
+    [data, dealType],
+  );
+
+  // Open leads per type, for the counts on the type switcher.
+  const typeCounts = useMemo(() => {
+    const c = { '': 0 };
+    (data?.leads || []).forEach((l) => {
+      if (l.stage === 'won' || l.stage === 'lost') return;
+      c[''] += 1;
+      c[l.deal_type] = (c[l.deal_type] || 0) + 1;
+    });
+    return c;
+  }, [data]);
+
   const leads = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (data?.leads || []).filter((l) => {
+    return ofType.filter((l) => {
       if (source && l.source !== source) return false;
       if (!q) return true;
       return [l.contact_name, l.company_name, l.email, l.region, l.next_action]
         .some((v) => v && v.toLowerCase().includes(q));
     });
-  }, [data, query, source]);
+  }, [ofType, query, source]);
 
   async function moveTo(lead, stage, extra = {}) {
     if (lead.stage === stage) return;
@@ -130,25 +198,44 @@ export default function Pipeline() {
     else moveTo(lead, stage);
   }
 
-  const s = data?.summary;
+  const s = data ? summarise(ofType) : null;
 
   return (
     <AdminLayout
-      title="Grow pipeline"
-      subtitle="From first contact to a Grow sign-up. Insights marketing opt-ins are added automatically."
+      title="Sales pipeline"
+      subtitle="Grow sign-ups, Insights Pro upgrades and enterprise contracts. Opt-ins and Pro enquiries are added automatically."
     >
       <div className="pipe-page">
+        <div className="pipe-types" role="group" aria-label="Deal type">
+          {[{ value: '', label: 'All' }, ...DEAL_TYPES].map((t) => (
+            <button
+              key={t.value || 'all'}
+              type="button"
+              className={t.value ? `type-${t.value}` : undefined}
+              aria-pressed={dealType === t.value}
+              onClick={() => setDealType(t.value)}
+            >
+              {t.label}
+              <span className="pipe-count">{typeCounts[t.value] || 0}</span>
+            </button>
+          ))}
+        </div>
+
         {s && (
           <div className="pipe-totals">
             <Stat value={s.open} label="open" />
+            <Stat value={money(s.openValue)} label="open value / yr" />
             <Stat
               value={s.overdue}
               label="follow-ups overdue"
               tone={s.overdue ? 'warn' : undefined}
             />
-            <Stat value={s.won_90d} label="won, last 90 days" />
             <Stat
-              value={s.win_rate == null ? '—' : `${s.win_rate}%`}
+              value={s.won90}
+              label={s.won90Value ? `won, last 90 days · ${money(s.won90Value)}` : 'won, last 90 days'}
+            />
+            <Stat
+              value={s.winRate == null ? '—' : `${s.winRate}%`}
               label="win rate, all time"
             />
           </div>
@@ -157,7 +244,13 @@ export default function Pipeline() {
         {data?.synced > 0 && (
           <p className="pipe-synced">
             <Sprout size={14} aria-hidden="true" />
-            {data.synced} new {data.synced === 1 ? 'lead' : 'leads'} from Insights marketing opt-ins.
+            {data.synced} new Grow {data.synced === 1 ? 'lead' : 'leads'} from Insights marketing opt-ins.
+          </p>
+        )}
+        {data?.synced_pro > 0 && (
+          <p className="pipe-synced">
+            <Inbox size={14} aria-hidden="true" />
+            {data.synced_pro} new Insights Pro {data.synced_pro === 1 ? 'enquiry' : 'enquiries'}.
           </p>
         )}
 
@@ -211,14 +304,17 @@ export default function Pipeline() {
           </p>
         )}
 
-        {!loading && data && !data.leads.length && (
+        {!loading && data && !ofType.length && (
           <p className="pipe-empty">
-            No leads yet. No Insights subscribers have opted in to marketing and aren't
-            already on Grow, so add someone by hand to get started.
+            {dealType === 'enterprise'
+              ? 'No enterprise deals yet. They are always added by hand.'
+              : dealType === 'insights_pro'
+                ? 'No Insights Pro leads yet. They arrive from the Pro enquiry form, or add one by hand.'
+                : 'No leads yet. Add someone by hand to get started.'}
           </p>
         )}
 
-        {!loading && data && data.leads.length > 0 && (
+        {!loading && data && ofType.length > 0 && (
           view === 'board'
             ? <Board leads={leads} onOpen={setOpenId} onMove={requestMove} />
             : <LeadTable leads={leads} onOpen={setOpenId} />
@@ -226,6 +322,7 @@ export default function Pipeline() {
 
         {creating && (
           <NewLead
+            dealType={dealType || 'grow'}
             onClose={() => setCreating(false)}
             onSaved={(lead) => { setCreating(false); load(); setOpenId(lead.id); }}
           />
@@ -342,7 +439,12 @@ function LeadCard({ lead, dragging, onOpen, onDragStart, onDragEnd }) {
       <span className="pipe-cardname">{leadTitle(lead)}</span>
       {secondary && <span className="pipe-cardco">{secondary}</span>}
 
+      {lead.value_nzd != null && (
+        <span className="pipe-cardvalue">{money(lead.value_nzd)}/yr</span>
+      )}
+
       <span className="pipe-chips">
+        <TypeBadge type={lead.deal_type} />
         <span className={`pipe-chip src-${lead.source}`}>{SOURCE_LABEL[lead.source]}</span>
         {lead.region && <span className="pipe-chip">{lead.region}</span>}
         {lead.insights && !lead.insights.marketing_opt_in && (
@@ -353,6 +455,11 @@ function LeadCard({ lead, dragging, onOpen, onDragStart, onDragEnd }) {
         {lead.grow_match && (
           <span className="pipe-chip is-good" title="Someone with this email now has a Grow login">
             <Sprout size={11} aria-hidden="true" /> On Grow
+          </span>
+        )}
+        {lead.pro_match && (
+          <span className="pipe-chip is-good" title="Their Insights account is now on Pro">
+            <Star size={11} aria-hidden="true" /> On Pro
           </span>
         )}
       </span>
@@ -370,18 +477,24 @@ function LeadCard({ lead, dragging, onOpen, onDragStart, onDragEnd }) {
       {lead.stage === 'lost' && lead.lost_reason && (
         <span className="pipe-next">{LOST_LABEL[lead.lost_reason]}</span>
       )}
-      {lead.stage === 'won' && lead.grow_company_name && (
-        <span className="pipe-next">→ {lead.grow_company_name}</span>
+      {lead.stage === 'won' && (lead.insights_account_name || lead.grow_company_name) && (
+        <span className="pipe-next">→ {lead.insights_account_name || lead.grow_company_name}</span>
       )}
     </button>
   );
+}
+
+function TypeBadge({ type }) {
+  return <span className={`pipe-type type-${type}`}>{TYPE_LABEL[type]}</span>;
 }
 
 // ----------------------------------------------------------------- table
 
 const COLUMNS = [
   { key: 'name', label: 'Lead', get: (l) => leadTitle(l).toLowerCase() },
+  { key: 'type', label: 'Type', get: (l) => DEAL_TYPES.findIndex((t) => t.value === l.deal_type) },
   { key: 'stage', label: 'Stage', get: (l) => STAGES.findIndex((s) => s.value === l.stage) },
+  { key: 'value', label: 'Value / yr', get: (l) => l.value_nzd ?? -1 },
   { key: 'source', label: 'Source', get: (l) => l.source },
   { key: 'region', label: 'Region', get: (l) => l.region || '' },
   { key: 'next', label: 'Next action', get: (l) => l.next_action_on || '9999' },
@@ -434,7 +547,9 @@ function LeadTable({ leads, onOpen }) {
                   <span className="pipe-rowsub">{l.company_name}</span>
                 )}
               </td>
+              <td><TypeBadge type={l.deal_type} /></td>
               <td><span className={`pipe-stage is-${l.stage}`}>{STAGE_LABEL[l.stage]}</span></td>
+              <td className="pipe-num">{l.value_nzd != null ? money(l.value_nzd) : '—'}</td>
               <td>{SOURCE_LABEL[l.source]}</td>
               <td>{l.region || '—'}</td>
               <td className={l.overdue ? 'is-overdue' : undefined}>
@@ -453,19 +568,42 @@ function LeadTable({ leads, onOpen }) {
 
 // ---------------------------------------------------------- close dialog
 
-function CompanyPicker({ value, onChange }) {
+// What a won deal links to, by type. A Pro upgrade links to nothing: the
+// subscriber behind the lead IS the account.
+const LINKS = {
+  company: {
+    field: 'grow_company_id',
+    nameField: 'grow_company_name',
+    label: 'Grow company',
+    search: (q) => pipelineService.searchCompanies(q).then((r) => r.companies || []),
+  },
+  account: {
+    field: 'insights_account_id',
+    nameField: 'insights_account_name',
+    label: 'Insights account',
+    search: (q) => pipelineService.searchAccounts(q).then((r) => r.accounts || []),
+  },
+};
+const LINKS_BY_TYPE = {
+  grow: ['company'],
+  insights_pro: [],
+  enterprise: ['account', 'company'],
+};
+
+function LinkPicker({ kind, value, onChange }) {
+  const link = LINKS[kind];
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
 
   useEffect(() => {
     let live = true;
     const t = setTimeout(() => {
-      pipelineService.searchCompanies(q)
-        .then((r) => { if (live) setResults(r.companies || []); })
+      link.search(q)
+        .then((rows) => { if (live) setResults(rows); })
         .catch(() => {});
     }, 200);
     return () => { live = false; clearTimeout(t); };
-  }, [q]);
+  }, [q, link]);
 
   return (
     <div className="pipe-picker">
@@ -473,14 +611,14 @@ function CompanyPicker({ value, onChange }) {
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search Grow companies"
-        aria-label="Search Grow companies"
+        placeholder={`Search ${link.label.toLowerCase()}s`}
+        aria-label={`Search ${link.label.toLowerCase()}s`}
       />
       <select
         size={Math.min(Math.max(results.length, 2), 6)}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-        aria-label="Grow company"
+        aria-label={link.label}
       >
         {results.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
@@ -488,11 +626,38 @@ function CompanyPicker({ value, onChange }) {
   );
 }
 
+function ProMatchLine({ lead }) {
+  const tier = lead.insights?.subscription_tier;
+  if (lead.pro_match) {
+    return (
+      <p className="pipe-match">
+        <Star size={14} aria-hidden="true" />
+        {lead.pro_match.email} is on Insights Pro.
+      </p>
+    );
+  }
+  return (
+    <p className="td-hint">
+      {lead.public_user_id
+        ? `Their Insights account is on ${tier === 'pro' ? 'Pro' : tier || 'Free'}. `
+        : 'Not linked to an Insights account. '}
+      Pro is switched on from Users, not from here.
+    </p>
+  );
+}
+
 function CloseLead({ lead, stage, onCancel, onConfirm }) {
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
-  const [companyId, setCompanyId] = useState(lead.grow_match?.company_id ?? null);
+  const [links, setLinks] = useState({
+    grow_company_id: lead.grow_company_id ?? lead.grow_match?.company_id ?? null,
+    insights_account_id: lead.insights_account_id ?? null,
+  });
   const won = stage === 'won';
+  const kinds = LINKS_BY_TYPE[lead.deal_type] || [];
+  const chosen = Object.fromEntries(
+    kinds.map((k) => [LINKS[k].field, links[LINKS[k].field]]).filter(([, v]) => v),
+  );
 
   return (
     <PlanDrawer
@@ -508,7 +673,7 @@ function CloseLead({ lead, stage, onCancel, onConfirm }) {
             disabled={!won && !reason}
             onClick={() => onConfirm({
               stage_note: note.trim() || null,
-              ...(won ? (companyId ? { grow_company_id: companyId } : {}) : { lost_reason: reason }),
+              ...(won ? chosen : { lost_reason: reason }),
             })}
           >
             Mark {won ? 'won' : 'lost'}
@@ -518,10 +683,12 @@ function CloseLead({ lead, stage, onCancel, onConfirm }) {
     >
       {won ? (
         <>
-          <p className="td-hint">
-            Link the Grow company they signed up as, so the conversion traces
-            through to the account. You can skip this and link it later.
-          </p>
+          {kinds.length > 0 && (
+            <p className="td-hint">
+              Link what they signed up as, so the deal traces through to the
+              account. You can skip this and link it later.
+            </p>
+          )}
           {lead.grow_match && (
             <p className="pipe-match">
               <Sprout size={14} aria-hidden="true" />
@@ -529,10 +696,17 @@ function CloseLead({ lead, stage, onCancel, onConfirm }) {
               {lead.grow_match.company_name ? ` at ${lead.grow_match.company_name}` : ''}.
             </p>
           )}
-          <label className="td-field">
-            <span>Grow company</span>
-            <CompanyPicker value={companyId} onChange={setCompanyId} />
-          </label>
+          {lead.deal_type === 'insights_pro' && <ProMatchLine lead={lead} />}
+          {kinds.map((k) => (
+            <label className="td-field" key={k}>
+              <span>{LINKS[k].label}</span>
+              <LinkPicker
+                kind={k}
+                value={links[LINKS[k].field]}
+                onChange={(id) => setLinks((l) => ({ ...l, [LINKS[k].field]: id }))}
+              />
+            </label>
+          ))}
         </>
       ) : (
         <label className="td-field">
@@ -554,14 +728,26 @@ function CloseLead({ lead, stage, onCancel, onConfirm }) {
 
 // -------------------------------------------------------------- new lead
 
-function NewLead({ onClose, onSaved }) {
+function NewLead({ dealType, onClose, onSaved }) {
   const [form, setForm] = useState({
+    deal_type: dealType,
     contact_name: '', company_name: '', email: '', phone: '', region: '',
-    hectares: '', source: 'referral', next_action: '', next_action_on: '', notes: '',
+    hectares: '', value_nzd: '', source: DEFAULT_SOURCE[dealType],
+    next_action: '', next_action_on: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  // Changing the type moves the source to that type's usual one, unless it
+  // has already been picked away from the previous type's default.
+  const setType = (e) => {
+    const t = e.target.value;
+    setForm((f) => ({
+      ...f,
+      deal_type: t,
+      source: f.source === DEFAULT_SOURCE[f.deal_type] ? DEFAULT_SOURCE[t] : f.source,
+    }));
+  };
 
   async function submit(e) {
     e.preventDefault();
@@ -571,6 +757,7 @@ function NewLead({ onClose, onSaved }) {
       const lead = await pipelineService.createLead({
         ...form,
         hectares: form.hectares === '' ? null : Number(form.hectares),
+        value_nzd: form.value_nzd === '' ? null : Number(form.value_nzd),
         next_action_on: form.next_action_on || null,
         notes: form.notes || null,
       });
@@ -599,6 +786,12 @@ function NewLead({ onClose, onSaved }) {
     >
       {error && <p className="td-error" role="alert">{error}</p>}
       <form id="pipe-new" onSubmit={submit} className="pipe-form">
+        <label className="td-field">
+          <span>Deal type</span>
+          <select value={form.deal_type} onChange={setType}>
+            {DEAL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </label>
         <div className="td-row">
           <label className="td-field">
             <span>Name</span>
@@ -629,14 +822,20 @@ function NewLead({ onClose, onSaved }) {
             <input type="number" min="0" step="0.1" value={form.hectares} onChange={set('hectares')} />
           </label>
         </div>
-        <label className="td-field">
-          <span>Source</span>
-          <select value={form.source} onChange={set('source')}>
-            {SOURCES.filter((o) => o.value !== 'insights').map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
+        <div className="td-row">
+          <label className="td-field">
+            <span>Value (NZD / yr)</span>
+            <input type="number" min="0" step="100" value={form.value_nzd} onChange={set('value_nzd')} />
+          </label>
+          <label className="td-field">
+            <span>Source</span>
+            <select value={form.source} onChange={set('source')}>
+              {SOURCES.filter((o) => o.value !== 'insights').map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="td-row">
           <label className="td-field">
             <span>Next action</span>
@@ -751,6 +950,10 @@ function LeadDetail({ leadId, onClose, onChanged }) {
   }
 
   const closed = lead.stage === 'won' || lead.stage === 'lost';
+  // The syncs would recreate either of these as a blank lead, undoing the
+  // delete; the API refuses them too.
+  const synced = lead.source === 'insights' || lead.activities.some((a) => a.kind === 'enquiry');
+  const linkKinds = LINKS_BY_TYPE[lead.deal_type] || [];
 
   return (
     <PlanDrawer
@@ -762,8 +965,10 @@ function LeadDetail({ leadId, onClose, onChanged }) {
           <span className="td-savestate">
             {SOURCE_LABEL[lead.source]} · added {dayLabel(lead.created_at.slice(0, 10))}
           </span>
-          {lead.source === 'insights' ? (
-            <span className="td-hint">Insights leads can't be deleted. Mark them lost.</span>
+          {synced ? (
+            <span className="td-hint">
+              {lead.source === 'insights' ? 'Insights' : 'Enquiry'} leads can't be deleted. Mark them lost.
+            </span>
           ) : confirmDelete ? (
             <span className="td-confirm">
               Delete lead?
@@ -814,6 +1019,35 @@ function LeadDetail({ leadId, onClose, onChanged }) {
         ))}
       </div>
 
+      <div className="td-row">
+        <label className="td-field">
+          <span>Deal type</span>
+          <select
+            value={lead.deal_type}
+            disabled={lead.source === 'insights'}
+            title={lead.source === 'insights' ? 'Insights opt-in leads stay Grow leads' : undefined}
+            onChange={(e) => patch({ deal_type: e.target.value })}
+          >
+            {DEAL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </label>
+        <BlurField
+          key={`value-${lead.id}`}
+          label="Value (NZD / yr)" type="number" min="0" step="100"
+          value={lead.value_nzd} onSave={(v) => patch({ value_nzd: v })}
+        />
+      </div>
+
+      {lead.pro_match && (
+        <div className="pipe-match">
+          <Star size={14} aria-hidden="true" />
+          <span>{lead.pro_match.email} is now on Insights Pro.</span>
+          <button type="button" onClick={() => setClosing('won')}>
+            Mark won <ArrowRight size={13} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {lead.grow_match && (
         <div className="pipe-match">
           <Sprout size={14} aria-hidden="true" />
@@ -847,19 +1081,23 @@ function LeadDetail({ leadId, onClose, onChanged }) {
         </label>
       )}
 
-      {lead.stage === 'won' && (
-        <div className="td-field">
-          <span>Grow company</span>
-          {lead.grow_company_id ? (
-            <p className="pipe-linked">
-              {lead.grow_company_name || `Company #${lead.grow_company_id}`}
-              <button type="button" onClick={() => patch({ grow_company_id: null })}>Unlink</button>
-            </p>
-          ) : (
-            <CompanyPicker value={null} onChange={(id) => id && patch({ grow_company_id: id })} />
-          )}
-        </div>
-      )}
+      {lead.stage === 'won' && linkKinds.map((k) => {
+        const { field, nameField, label } = LINKS[k];
+        return (
+          <div className="td-field" key={k}>
+            <span>{label}</span>
+            {lead[field] ? (
+              <p className="pipe-linked">
+                {lead[nameField] || `${label} #${lead[field]}`}
+                <button type="button" onClick={() => patch({ [field]: null })}>Unlink</button>
+              </p>
+            ) : (
+              <LinkPicker kind={k} value={null} onChange={(id) => id && patch({ [field]: id })} />
+            )}
+          </div>
+        );
+      })}
+      {lead.stage === 'won' && lead.deal_type === 'insights_pro' && <ProMatchLine lead={lead} />}
 
       {!closed && (
         <div className="td-row pipe-nextrow">
@@ -976,7 +1214,7 @@ function LeadDetail({ leadId, onClose, onChanged }) {
                       ? (a.from_stage
                         ? <>{STAGE_LABEL[a.from_stage]} → <strong>{STAGE_LABEL[a.to_stage]}</strong></>
                         : <>Added as <strong>{STAGE_LABEL[a.to_stage]}</strong></>)
-                      : <strong>{KINDS.find((k) => k.value === a.kind)?.label}</strong>}
+                      : <strong>{KIND_LABEL[a.kind]}</strong>}
                     <span className="pipe-tlwhen">
                       {dayLabel(a.occurred_on)}
                       {a.author_email && ` · ${a.author_email.split('@')[0]}`}
@@ -984,7 +1222,7 @@ function LeadDetail({ leadId, onClose, onChanged }) {
                   </span>
                   {a.body && <span className="pipe-tlbody">{a.body}</span>}
                 </div>
-                {a.kind !== 'stage' && (
+                {a.kind !== 'stage' && a.kind !== 'enquiry' && (
                   <button
                     type="button" aria-label="Delete entry" className="pipe-tldel"
                     onClick={async () => {

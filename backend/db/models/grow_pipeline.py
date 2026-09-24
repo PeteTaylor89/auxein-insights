@@ -1,8 +1,13 @@
-# db/models/grow_pipeline.py — the Grow conversion pipeline.
+# db/models/grow_pipeline.py — the sales pipeline.
 #
-# Leads being worked from first contact to a Grow sign-up (or not). Two ways in:
-# Insights subscribers who ticked Marketing are pulled in automatically, and
-# anyone else — a referral, someone met at a field day — is added by hand.
+# Leads being worked from first contact to a sale (or not). One table for three
+# kinds of deal, told apart by `deal_type` (the table keeps its original name):
+#   grow          a Grow sign-up. Insights subscribers who ticked Marketing are
+#                 pulled in automatically; anyone else is added by hand.
+#   insights_pro  an upgrade to Insights Pro. Only ever raised by a direct
+#                 enquiry: synced from `insights_pro_enquiry`, or added by hand
+#                 for one that came by phone or email.
+#   enterprise    a commercial contract. Always added by hand.
 #
 # Platform data, SHARED across admins, unlike the planner: a lead belongs to the
 # business, not to whoever typed it. `owner_user_id` records who is working it,
@@ -14,15 +19,17 @@ from sqlalchemy import (
     ForeignKey, CheckConstraint, Index
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, text
 
 from db.base_class import Base
 
-LEAD_STAGES = ("new", "contacted", "demo", "trial", "won", "lost")
+DEAL_TYPES = ("grow", "insights_pro", "enterprise")
+LEAD_STAGES = ("new", "contacted", "demo", "trial", "proposal", "won", "lost")
 CLOSED_STAGES = ("won", "lost")
-LEAD_SOURCES = ("insights", "referral", "event", "website", "outbound", "other")
+LEAD_SOURCES = ("insights", "enquiry", "referral", "event", "website", "outbound", "other")
 LOST_REASONS = ("price", "timing", "not_a_fit", "competitor", "no_response", "other")
-ACTIVITY_KINDS = ("note", "call", "email", "meeting", "demo", "stage")
+# 'stage' and 'enquiry' are written by the API, never logged by hand.
+ACTIVITY_KINDS = ("note", "call", "email", "meeting", "demo", "stage", "enquiry")
 
 
 class GrowLead(Base):
@@ -30,13 +37,16 @@ class GrowLead(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
 
-    # Set only for leads pulled in from Insights. UNIQUE is what makes the sync
-    # idempotent — the insert is ON CONFLICT DO NOTHING against it — and SET
-    # NULL keeps the lead and its history if the subscriber deletes their
-    # account.
+    deal_type = Column(String(20), nullable=False, server_default="grow")
+
+    # The Insights subscriber behind the lead: the opt-in a grow lead was
+    # pulled from, or the signed-in visitor who sent a Pro enquiry. UNIQUE for
+    # grow leads only (a partial index) — that is the Grow sync's ON CONFLICT
+    # target — so the same subscriber can also be a Pro lead. SET NULL keeps
+    # the lead and its history if the subscriber deletes their account.
     public_user_id = Column(
         Integer, ForeignKey("public_users.id", ondelete="SET NULL"),
-        nullable=True, unique=True,
+        nullable=True,
     )
 
     source = Column(String(20), nullable=False, server_default="other")
@@ -50,6 +60,10 @@ class GrowLead(Base):
     company_name = Column(String(200), nullable=True)
     region = Column(String(100), nullable=True)
     hectares = Column(Numeric(8, 2), nullable=True)
+
+    # What the deal is worth a year, NZD. Optional: a Grow lead's value is
+    # often unknown until the demo.
+    value_nzd = Column(Numeric(12, 2), nullable=True)
 
     stage = Column(String(20), nullable=False, server_default="new")
     stage_changed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -71,6 +85,11 @@ class GrowLead(Base):
         Integer, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True,
     )
 
+    # The Insights enterprise account an enterprise deal became.
+    insights_account_id = Column(
+        BigInteger, ForeignKey("insights_account.id", ondelete="SET NULL"), nullable=True,
+    )
+
     owner_user_id = Column(
         Integer, ForeignKey("public_users.id", ondelete="SET NULL"), nullable=True,
     )
@@ -90,30 +109,39 @@ class GrowLead(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "stage IN ('new','contacted','demo','trial','won','lost')",
+            "deal_type IN ('grow','insights_pro','enterprise')",
+            name="ck_grow_leads_deal_type",
+        ),
+        CheckConstraint(
+            "stage IN ('new','contacted','demo','trial','proposal','won','lost')",
             name="ck_grow_leads_stage",
         ),
         CheckConstraint(
-            "source IN ('insights','referral','event','website','outbound','other')",
+            "source IN ('insights','enquiry','referral','event','website','outbound','other')",
             name="ck_grow_leads_source",
         ),
+        CheckConstraint("value_nzd IS NULL OR value_nzd >= 0", name="ck_grow_leads_value"),
         CheckConstraint(
             "lost_reason IS NULL OR lost_reason IN "
             "('price','timing','not_a_fit','competitor','no_response','other')",
             name="ck_grow_leads_lost_reason",
         ),
         Index("ix_grow_leads_stage", "stage"),
+        Index("ix_grow_leads_deal_type", "deal_type"),
+        Index("uq_grow_leads_grow_public_user", "public_user_id", unique=True,
+              postgresql_where=text("deal_type = 'grow'")),
     )
 
     def __repr__(self):
-        return f"<GrowLead {self.id} {self.stage} {self.email!r}>"
+        return f"<GrowLead {self.id} {self.deal_type} {self.stage} {self.email!r}>"
 
 
 class GrowLeadActivity(Base):
     """One touch on a lead: a call, an email, a meeting, a note.
 
     Stage changes are written here too (kind='stage'), by the API rather than
-    the user, so the timeline shows when a lead moved as well as why.
+    the user, so the timeline shows when a lead moved as well as why. So is a
+    repeat Pro enquiry from someone already in the pipeline (kind='enquiry').
     """
     __tablename__ = "grow_lead_activities"
 
@@ -143,7 +171,7 @@ class GrowLeadActivity(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('note','call','email','meeting','demo','stage')",
+            "kind IN ('note','call','email','meeting','demo','stage','enquiry')",
             name="ck_grow_lead_activities_kind",
         ),
     )

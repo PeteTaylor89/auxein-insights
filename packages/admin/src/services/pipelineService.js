@@ -1,4 +1,5 @@
-// src/services/pipelineService.js — the Grow conversion pipeline.
+// src/services/pipelineService.js — the sales pipeline (Grow, Insights Pro,
+// enterprise).
 //
 // Insights identity (require_admin), so it goes through publicApi. A bare
 // fetch() here would drop the token and 403 with no clue why.
@@ -6,8 +7,8 @@ import publicApi from './publicApi';
 
 const pipelineService = {
   /**
-   * Every lead plus the summary strip. Reading this ALSO pulls in any new
-   * Insights marketing opt-ins — `synced` is how many arrived on this call.
+   * Every lead. Reading this ALSO pulls in any new Insights marketing opt-ins
+   * (`synced`, as Grow leads) and Pro enquiries (`synced_pro`).
    */
   listLeads: () =>
     publicApi.get('/admin/pipeline/leads').then((r) => r.data),
@@ -22,7 +23,7 @@ const pipelineService = {
   updateLead: (id, payload) =>
     publicApi.patch(`/admin/pipeline/leads/${id}`, payload).then((r) => r.data),
 
-  /** Manual leads only — the API refuses an Insights lead with a 409. */
+  /** Manual leads only — the API refuses opt-in and enquiry leads with a 409. */
   deleteLead: (id) =>
     publicApi.delete(`/admin/pipeline/leads/${id}`).then((r) => r.data),
 
@@ -36,6 +37,10 @@ const pipelineService = {
 
   searchCompanies: (q = '') =>
     publicApi.get('/admin/pipeline/companies', { params: { q } }).then((r) => r.data),
+
+  /** Insights enterprise accounts, to link a won enterprise deal to. */
+  searchAccounts: (q = '') =>
+    publicApi.get('/admin/pipeline/accounts', { params: { q } }).then((r) => r.data),
 };
 
 export default pipelineService;

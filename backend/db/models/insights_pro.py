@@ -5,7 +5,7 @@
 #
 # Neither stores an IP address. See the migration for why.
 from sqlalchemy import (
-    Column, Integer, SmallInteger, String, Text, Numeric, DateTime, ForeignKey,
+    Column, Integer, BigInteger, SmallInteger, String, Text, Numeric, DateTime, ForeignKey,
     CheckConstraint, Index, text,
 )
 from sqlalchemy.orm import relationship
@@ -117,6 +117,14 @@ class InsightsProEnquiry(Base):
     source = Column(String(32), nullable=False, server_default='pro_page')
     status = Column(String(16), nullable=False, server_default='new')
 
+    # The sales-pipeline lead this enquiry was filed under. NULL = not yet
+    # synced; the admin pipeline picks it up on its next load. Many enquiries
+    # can share one lead (someone asking twice).
+    pipeline_lead_id = Column(
+        BigInteger, ForeignKey('grow_leads.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+
     created_at = Column(DateTime(timezone=True),
                         server_default=text('NOW()'), nullable=False)
     updated_at = Column(DateTime(timezone=True),
@@ -129,6 +137,7 @@ class InsightsProEnquiry(Base):
                         name='ck_pro_enquiry_status'),
         Index('ix_pro_enquiry_created', text('created_at DESC')),
         Index('ix_pro_enquiry_status', 'status'),
+        Index('ix_pro_enquiry_pipeline_lead', 'pipeline_lead_id'),
     )
 
     def __repr__(self):
